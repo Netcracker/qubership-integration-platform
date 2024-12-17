@@ -1,0 +1,107 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: rabbitmq-sender-2
+title: RabbitMQ Sender
+description: RabbitMQ Sender
+folder: senders
+colorType: sender
+inputEnabled: true
+outputEnabled: true
+container: false
+designParameters:
+  externalParticipantId: 'RabbitMQ ##{addresses}'
+  externalParticipantName: 'RabbitMQ ##{addresses}'
+  requestLineTitle: 'Put message to exchange: ##{exchange}, queues: ##{queues}'
+  directionToChain: false
+  hasResponse: false
+properties:
+  common:
+    - name: rabbitConnection
+      title: Connection parameters
+      type: custom
+      uiComponent: rabbit-connection-2
+      validation:
+        conditions:
+          - property: connectionSourceType
+            equalTo: 'maas'
+            mandatoryProperties: ['vhostClassifierName']
+          - property: connectionSourceType
+            equalTo: 'manual'
+            mandatoryProperties: ['addresses']
+    - name: exchange
+      title: Exchange Name
+      type: string
+      mandatory: true
+    - name: routingKey
+      title: Routing Key
+      type: string
+      query: true
+  advanced:
+    - name: propagateContext
+      title: Propagate context
+      description: Propagate context to headers before sending message
+      type: boolean
+      default: true
+      query: false
+    - name: overrideContextComponent
+      title: Override Context Component
+      type: custom
+      uiComponent: context-override
+  hidden:
+    - name: overrideContextParams
+      title: Override context parameters
+      description: Propagate props to headers before sending message
+      type: string # map<string, string>
+      query: false
+    - name: exchangePattern
+      title: Exchange Pattern
+      type: string
+      default: InOnly
+      query: true
+      # Parameters below managed by custom UI tab component
+    - name: connectionSourceType
+      title: Connection source type
+      type: string
+      allowedValues:
+      - maas
+      - manual
+      mandatory: true
+      default: manual
+    - name: vhost
+      title: Vhost
+      type: string
+      query: true
+    # MaaS
+    - name: vhostClassifierName
+      title: Vhost Classifier Name
+      type: string
+      default: public
+    - name: maasClassifierNamespace
+      title: Topic Classifier Namespace
+      description: MaaS topic classifier namespace. By default used current namespace
+      type: string
+    # Manual
+    - name: addresses
+      title: Addresses
+      type: string
+      query: true
+    - name: username
+      title: Username
+      type: string
+      query: true
+    - name: password
+      title: Password
+      type: string
+      query: true

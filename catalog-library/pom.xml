@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.qubership</groupId>
+    <artifactId>qip-catalog-library</artifactId>
+    <version>${catalog-library.revision}</version>
+    <packaging>jar</packaging>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.5</version>
+    </parent>
+
+    <properties>
+
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+
+        <revision>2025.1.0.0</revision>
+        <catalog-library.revision>2025.1.1.13</catalog-library.revision>
+
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-boot.repackage.skip>true</spring-boot.repackage.skip>
+
+
+        <!-- BOMs -->
+
+        <jackson-bom.version>2.17.0</jackson-bom.version>
+
+        <!-- 3rd party dependencies -->
+
+        <lombok.version>1.18.30</lombok.version>
+        <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
+        <google-guava.version>32.1.3-jre</google-guava.version>
+        <commons-lang3.version>3.14.0</commons-lang3.version>
+        <commons-text.version>1.11.0</commons-text.version>
+
+        <!-- Newest versions requires commons-io 2.15! -->
+        <!-- TODO update io.kubernetes.client-java before update this library -->
+        <poi.version>5.2.3</poi.version>
+
+        <handlebars.version>4.3.1</handlebars.version>
+        <graphql-java.version>21.5</graphql-java.version>
+        <wire.version>4.9.7</wire.version>
+        <swagger-parser.version>2.1.21</swagger-parser.version>
+        <swagger-core.version>2.2.21</swagger-core.version>
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
+        <woden-core.version>1.0M10</woden-core.version>
+        <soa-model-core.version>1.6.4</soa-model-core.version>
+        <commons-validator.version>1.7</commons-validator.version>
+
+        <jakarta.validation-api.version>3.1.0-M1</jakarta.validation-api.version>
+        <jakarta.annotation-api.version>3.0.0-M1</jakarta.annotation-api.version>
+        <jakarta.mail-api.version>2.1.2</jakarta.mail-api.version>
+
+        <grpc.version>1.53.0</grpc.version>
+        <protobuf-java.version>3.21.12</protobuf-java.version>
+
+        <!-- Plugins -->
+
+        <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
+        <hibernate-enhance-maven-plugin.version>6.5.2.Final</hibernate-enhance-maven-plugin.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- BOMs -->
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+            <version>${jakarta.annotation-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+            <version>${jakarta.validation-api.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.hypersistence</groupId>
+            <artifactId>hypersistence-utils-hibernate-63</artifactId>
+            <version>${hypersistence-utils-hibernate.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-xml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+        </dependency>
+
+        <!-- Apache POI dependencies -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi</artifactId>
+            <version>${poi.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
+        </dependency>
+
+        <!-- Utility dependencies -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>${google-guava.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>${commons-lang3.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-text</artifactId>
+            <version>${commons-text.version}</version>
+        </dependency>
+
+        <!-- GraphQL -->
+        <dependency>
+            <groupId>com.graphql-java</groupId>
+            <artifactId>graphql-java</artifactId>
+            <version>${graphql-java.version}</version>
+        </dependency>
+
+        <!-- Use maven plugin code in runtime -->
+        <dependency>
+            <groupId>com.graphql-java-generator</groupId>
+            <artifactId>graphql-maven-plugin-logic</artifactId>
+            <version>${graphql-maven-plugin.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.squareup.wire</groupId>
+            <artifactId>wire-schema-jvm</artifactId>
+            <version>${wire.version}</version>
+        </dependency>
+
+        <!-- OpenAPI and Swagger -->
+        <dependency>
+            <groupId>io.swagger.parser.v3</groupId>
+            <artifactId>swagger-parser</artifactId>
+            <version>${swagger-parser.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.swagger.core.v3</groupId>
+                    <artifactId>swagger-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-core-jakarta</artifactId>
+            <version>${swagger-core.version}</version>
+        </dependency>
+
+        <!-- Mapper dependencies -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${mapstruct.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <version>${mapstruct.version}</version>
+        </dependency>
+
+        <!-- GRPC -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>${protobuf-java.version}</version>
+        </dependency>
+
+        <!-- WSDL Support -->
+        <dependency>
+            <groupId>org.apache.woden</groupId>
+            <artifactId>woden-core</artifactId>
+            <version>${woden-core.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.predic8</groupId>
+            <artifactId>soa-model-core</artifactId>
+            <version>${soa-model-core.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-validator</groupId>
+            <artifactId>commons-validator</artifactId>
+            <version>${commons-validator.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>${lombok-mapstruct-binding.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.hibernate.orm.tooling</groupId>
+                <artifactId>hibernate-enhance-maven-plugin</artifactId>
+                <version>${hibernate-enhance-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <configuration>
+                            <enableLazyInitialization>true</enableLazyInitialization>
+                        </configuration>
+                        <goals>
+                            <goal>enhance</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

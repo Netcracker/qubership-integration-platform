@@ -1,0 +1,66 @@
+<step id="{{identifier}}">
+    <setProperty name="internalProperty_circuitBreaker_{{identifier}}_completed_with_errors">
+        <constant>true</constant>
+    </setProperty>
+    <setProperty name="internalProperty_circuitBreaker_hasFallback">
+        <constant>false</constant>
+    </setProperty>
+    <setProperty name="internalProperty_element_warning">
+        <constant>false</constant>
+    </setProperty>
+    {{#children 'on-fallback'}}
+        <setProperty name="internalProperty_circuitBreaker_hasFallback">
+            <constant>true</constant>
+        </setProperty>
+    {{/children}}
+
+    <circuitBreaker>
+        {{#children 'circuit-breaker-configuration'}}
+            <resilience4jConfiguration
+                    failureRateThreshold='{{property 'failureRateThreshold'}}'
+                    permittedNumberOfCallsInHalfOpenState='{{property 'permittedNumberOfCallsInHalfOpenState'}}'
+                    slidingWindowSize='{{property 'slidingWindowSize'}}'
+                    slidingWindowType='{{property 'slidingWindowType'}}'
+                    minimumNumberOfCalls='{{property 'minimumNumberOfCalls'}}'
+                    waitDurationInOpenState='{{property 'waitDurationInOpenState'}}'
+                    automaticTransitionFromOpenToHalfOpenEnabled='{{property 'automaticTransitionFromOpenToHalfOpenEnabled'}}'
+                    slowCallDurationThreshold='{{property 'slowCallDurationThreshold'}}'
+                    slowCallRateThreshold='{{property 'slowCallRateThreshold'}}'
+            />
+            <step id="Main branch--{{identifier}}">
+                <toD uri='direct:{{identifier}}'/>
+                <setProperty name="internalProperty_circuitBreaker_{{parent-identifier}}_completed_with_errors">
+                    <constant>false</constant>
+                </setProperty>
+            </step>
+        {{/children}}
+
+        {{#children 'on-fallback'}}
+            <onFallback>
+                <step id="On fallback--{{identifier}}">
+                    <setProperty name="CamelFailureHandled"><constant>true</constant></setProperty>
+                    <toD uri='direct:{{identifier}}'/>
+                    <setProperty name="internalProperty_circuitBreaker_{{parent-identifier}}_completed_with_errors">
+                        <constant>false</constant>
+                    </setProperty>
+                    <setProperty name="internalProperty_element_warning">
+                        <constant>true</constant>
+                    </setProperty>
+                    <process ref="sessionWarningStatusProcessor"/>
+                </step>
+            </onFallback>
+        {{/children}}
+    </circuitBreaker>
+
+    <choice>
+        <when>
+            <simple>${exchangeProperty[internalProperty_circuitBreaker_{{identifier}}_completed_with_errors]}</simple>
+
+            <step id="Main branch--{{identifier}}">
+                <throwException
+                        exceptionType="org.apache.camel.CamelException"
+                        message="Failed to process route: circuit breaker in open state"/>
+            </step>
+        </when>
+    </choice>
+</step>

@@ -1,0 +1,20 @@
+{{#if (identifier)}}<step id="{{identifier}}">{{/if}}
+    {{#if-property 'throwException' presented=''}}
+        <setProperty name="internalProperty_mappingThrowException">
+            <constant>{{property 'throwException'}}</constant>
+        </setProperty>
+    {{/if-property}}
+    {{#if-property 'throwException' not-presented=''}}
+        <setProperty name="internalProperty_mappingThrowException">
+            <constant>false</constant>
+        </setProperty>
+    {{/if-property}}
+    <setProperty name='internalProperty_mappingConfig'>
+        <constant>
+            {{escape (mapper-interpretation (property-json 'mappingDescription'))}}
+        </constant>
+    </setProperty>
+    <process ref='mapperProcessor'/>
+    <removeProperty name='internalProperty_mappingConfig'/>
+    <removeProperty name="internalProperty_mappingThrowException"/>
+{{#if (identifier)}}</step>{{/if}}
