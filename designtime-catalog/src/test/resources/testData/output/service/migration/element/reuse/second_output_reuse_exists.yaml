@@ -1,0 +1,35 @@
+---
+id: "af44d2de-7b9e-406e-a277-3784191864d5"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707384630995
+elements:
+  - id: "41cb70d0-d3c3-4256-ad10-22ad17b40efd"
+    name: "Script"
+    element-type: "reuse"
+    children:
+      - id: "9e77deb4-f6c9-4bc7-aa14-a3c2a506609e"
+        name: "Script"
+        element-type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"
+      - id: "41cb70d0-d3c3-4256-ad10-22ad17b40efd"
+        name: "Reuse Reference"
+        element-type: "reuse-reference"
+        properties:
+          reuseElementId: "e5d0a852-cfb3-4ae9-84a2-d3a1a3d7afb5"
+  - id: "e5d0a852-cfb3-4ae9-84a2-d3a1a3d7afb5"
+    name: "Mapper reuse"
+    element-type: "reuse"
+    children:
+      - id: "c148ed96-9288-4c00-971a-809cf89ed1c5"
+        name: "Mapper"
+        element-type: "mapper-2"
+        properties:
+          exportFileExtension: "json"
+          propertiesToExportInSeparateFile: "mappingDescription"
+          throwException: false
+dependencies:
+  - from: "9e77deb4-f6c9-4bc7-aa14-a3c2a506609e"
+    to: "41cb70d0-d3c3-4256-ad10-22ad17b40efd"

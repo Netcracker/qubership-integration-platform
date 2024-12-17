@@ -1,0 +1,45 @@
+---
+id: "e96e7c5a-753a-4931-91fc-73bf9abc32a3"
+name: "New Chain"
+description: ""
+modifiedWhen: 1682597431916
+maskingEnabled: false
+elements:
+  - id: "629ca361-1964-4abc-9562-7ae5c43e5520"
+    name: "When"
+    description: "When description"
+    element-type: "when"
+    properties:
+      condition: "${exchangeProperty.condition} == 'true'"
+  - id: "33acc74b-dfa3-4eec-9d6f-85d3ffda6943"
+    name: "Container"
+    element-type: "container"
+    children:
+      - id: "c7923025-2b93-4653-83c5-437afa1eb8f4"
+        name: "Script #2"
+        description: "Test script #2 description"
+        element-type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"
+      - id: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+        name: "Script #1"
+        description: "Test script #1 description"
+        element-type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"
+  - id: "c647a397-1d43-4e61-b26d-93b9d797d58d"
+    name: "Script #3"
+    description: "Test script #3 description"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "629ca361-1964-4abc-9562-7ae5c43e5520"
+    to: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+  - from: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+    to: "c647a397-1d43-4e61-b26d-93b9d797d58d"
+  - from: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+    to: "c7923025-2b93-4653-83c5-437afa1eb8f4"

@@ -1,0 +1,390 @@
+---
+id: "f0c20909-e7ff-4d25-a336-69ee25daef93"
+name: "New Chain"
+description: ""
+modifiedWhen: 1677575186094
+maskingEnabled: false
+elements:
+  - id: "0f3aebb0-1279-4609-8030-a3e93b5df62c"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    properties:
+      chunked: true
+      contextPath: "test/2"
+      externalRoute: true
+      httpMethodRestrict: "POST"
+      invalidURI: false
+  - id: "2e4e8f2d-39b8-4677-8201-f7f086b06da5"
+    name: "Try-Catch-Finally"
+    element-type: "try-catch-finally-2"
+    children:
+      - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+        name: "Finally"
+        element-type: "finally-2"
+        children:
+          - id: "83d40235-7b13-41bf-ad26-e4ecadf818e4"
+            name: "Finally Script"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+        name: "Catch #0"
+        element-type: "catch-2"
+        properties:
+          exception: "java.lang.Exception"
+          priority: 0
+        children:
+          - id: "26bdaa07-32d8-4b5e-a7fb-04fff135bdd9"
+            name: "Catch #0 Script"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+        name: "Catch #1"
+        element-type: "catch-2"
+        properties:
+          exception: "java.lang.Exception"
+          priority: 1
+        children:
+          - id: "dfb2eaaf-6bf2-4bcc-a2ee-90a6f6258c7c"
+            name: "Circuit Breaker"
+            element-type: "circuit-breaker-2"
+            children:
+              - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+                name: "On fallback"
+                element-type: "on-fallback-2"
+                children:
+                  - id: "12360e93-0f89-47a5-9b5d-143cb3053519"
+                    name: "On Fallback Mail Sender"
+                    element-type: "mail-sender"
+                    properties:
+                      connectionTimeout: 30000
+                      contentType: "text/plain"
+                      from: "user@test.com"
+                      ignoreUnsupportedCharset: false
+                      to:
+                        - "client@test.com"
+                      url: "http://mail.test"
+                      useInlineAttachments: false
+              - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+                name: "Circuit Breaker Configuration"
+                element-type: "circuit-breaker-configuration-2"
+                properties:
+                  automaticTransitionFromOpenToHalfOpenEnabled: false
+                  failureRateThreshold: 50
+                  minimumNumberOfCalls: 100
+                  permittedNumberOfCallsInHalfOpenState: 10
+                  slidingWindowSize: 100
+                  slidingWindowType: "COUNT_BASED"
+                  slowCallDurationThreshold: 60
+                  slowCallRateThreshold: 100
+                  waitDurationInOpenState: 60
+                children:
+                  - id: "91e9a0ac-8936-4352-9cf8-1cbdb2e1022b"
+                    name: "CB Config HTTP Sender"
+                    element-type: "http-sender"
+                    properties:
+                      connectTimeout: 120000
+                      httpMethod: "GET"
+                      isExternalCall: true
+                      m2m: false
+                      uri: "http://localhost:8080/cb"
+      - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+        name: "Try"
+        element-type: "try-2"
+        children:
+          - id: "7c7faa1e-fedd-43aa-ae8d-cecafcb3d674"
+            name: "Loop"
+            element-type: "loop-2"
+            properties:
+              copy: true
+              doWhile: true
+              expression: "${exchangeProperty.index} < 12"
+            children:
+              - id: "76476c39-d4ab-4641-b93b-f5e6bb6484c7"
+                name: "Loop Expression Script"
+                element-type: "script"
+                properties:
+                  exportFileExtension: "groovy"
+                  propertiesToExportInSeparateFile: "script"
+              - id: "f7b6cf2b-c9a3-4215-91a1-3b607e4414c2"
+                name: "HTTP Sender"
+                element-type: "http-sender"
+                properties:
+                  connectTimeout: 120000
+                  httpMethod: "GET"
+                  isExternalCall: true
+                  m2m: false
+                  uri: "http://localhost:8080/loop/call"
+              - id: "08d7ec7a-da6d-4373-bbdc-a5f26340021c"
+                name: "Choice"
+                element-type: "condition"
+                children:
+                  - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+                    name: "Otherwise"
+                    element-type: "else"
+                    children:
+                      - id: "9eeb9edd-e217-4104-af24-8c5bab1b4af7"
+                        name: "Otherwise HTTP Sender"
+                        element-type: "http-sender"
+                        properties:
+                          connectTimeout: 120000
+                          httpMethod: "GET"
+                          isExternalCall: true
+                          m2m: false
+                          uri: "http://localhost:8080/otherwise"
+                  - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+                    name: "When"
+                    element-type: "if"
+                    properties:
+                      condition: "${exchangeProperty.valid}"
+                      priority: 0
+                    children:
+                      - id: "b616d8b2-3961-48f8-b7a5-60ad7ea22d8c"
+                        name: "When Mapper"
+                        element-type: "mapper-2"
+                        properties:
+                          exportFileExtension: "json"
+                          propertiesToExportInSeparateFile: "mappingDescription"
+                          throwException: false
+          - id: "93aad932-aa6c-4bee-9609-49b49cf92d29"
+            name: "Loop Script"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+          - id: "a5191704-446b-4248-ba08-ebb665c3be75"
+            name: "Loop Kafka Sender"
+            element-type: "kafka-sender-2"
+            properties:
+              brokers: "kafka:9092"
+              connectionSourceType: "manual"
+              keySerializer: ""
+              saslMechanism: "GSSAPI"
+              securityProtocol: "PLAINTEXT"
+              sslProtocol: "TLS"
+              topics: "loop-test-topic"
+              valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+          - id: "fe36b80b-f59d-4c4f-b250-0029826fc777"
+            name: "Choice"
+            element-type: "condition"
+            children:
+              - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+                name: "When"
+                element-type: "if"
+                properties:
+                  condition: "${exchangeProperty.isValid}"
+                  priority: 0
+                children:
+                  - id: "2c62e71b-92d8-47b9-9185-f01860a96b2c"
+                    name: "When Script"
+                    element-type: "script"
+                    properties:
+                      exportFileExtension: "groovy"
+                      propertiesToExportInSeparateFile: "script"
+  - id: "4a584895-6473-4544-8d9d-ae042c3d40c9"
+    name: "Async Split HTTP Sender"
+    element-type: "http-sender"
+    properties:
+      connectTimeout: 120000
+      httpMethod: "GET"
+      isExternalCall: true
+      m2m: false
+      uri: "http://localhost:8080/async/split"
+  - id: "61271eb5-0cda-4b50-be03-0412b2a90d71"
+    name: "Choice Script"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "9936699b-9da1-46f3-a429-dec9418e6ebf"
+    name: "Try-Catch-Finally Mapper"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "a833dc67-01f2-415f-ac26-3805a488461e"
+    name: "Split Async"
+    element-type: "split-async-2"
+    children:
+      - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+        name: "Async Split Element"
+        element-type: "async-split-element-2"
+        children:
+          - id: "089550e9-5a24-4937-a90a-c50881e18590"
+            name: "Async Split Mapper"
+            element-type: "mapper-2"
+            properties:
+              exportFileExtension: "json"
+              propertiesToExportInSeparateFile: "mappingDescription"
+              throwException: false
+          - id: "c2113da4-ad9a-42dd-be31-9545e4dd5151"
+            name: "Split"
+            element-type: "split-2"
+            properties:
+              aggregationStrategy: "chainsAggregationStrategy"
+              stopOnException: true
+              timeout: 0
+            children:
+              - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+                name: "Main Split Element"
+                element-type: "main-split-element-2"
+                properties:
+                  splitName: "main_split"
+                children:
+                  - id: "f36c00c7-a74a-4041-bb50-925562f1328f"
+                    name: "Main Split HTTP Sender"
+                    element-type: "http-sender"
+                    properties:
+                      connectTimeout: 120000
+                      httpMethod: "GET"
+                      isExternalCall: true
+                      m2m: false
+                      uri: "http://localhost:8080/main/split"
+              - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+                name: "Split Element"
+                element-type: "split-element-2"
+                properties:
+                  propagateHeaders: true
+                  propagateProperties: true
+                  splitName: "split_element"
+                children:
+                  - id: "ab475361-b0f8-48b5-ba32-196552e2da65"
+                    name: "Split Element Script"
+                    element-type: "script"
+                    properties:
+                      exportFileExtension: "groovy"
+                      propertiesToExportInSeparateFile: "script"
+                  - id: "042b8105-f152-4f8f-9d85-cdab0b1adcf8"
+                    name: "Split Element Kafka Sender"
+                    element-type: "kafka-sender-2"
+                    properties:
+                      brokers: "kafka:9092"
+                      connectionSourceType: "manual"
+                      keySerializer: ""
+                      saslMechanism: "GSSAPI"
+                      securityProtocol: "PLAINTEXT"
+                      sslProtocol: "TLS"
+                      topics: "split-element-topic"
+                      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+          - id: "2ea19511-6b2a-45d6-b4e0-852c7d41adee"
+            name: "Split Result Mapper"
+            element-type: "mapper-2"
+            properties:
+              exportFileExtension: "json"
+              propertiesToExportInSeparateFile: "mappingDescription"
+              throwException: false
+          - id: "91bd3211-a606-434b-9620-e6ba1bbbee12"
+            name: "Split Result Script"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+          - id: "daf983fb-8a18-4b1f-b4de-3bb3d8e8c8f2"
+            name: "HTTP Sender"
+            element-type: "http-sender"
+            properties:
+              connectTimeout: 120000
+              httpMethod: "GET"
+              isExternalCall: true
+              m2m: false
+              uri: "http://localhost:8080/split"
+  - id: "b53363a7-b6bd-4f70-bff3-e64c979d9cd4"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    properties:
+      chunked: true
+      contextPath: "test/1"
+      externalRoute: true
+      httpMethodRestrict: "POST"
+      invalidURI: false
+  - id: "c58a3df5-5b64-4afb-8ed7-a48f09921d89"
+    name: "Try-Catch-Finally Kafka Sender"
+    element-type: "kafka-sender-2"
+    properties:
+      brokers: "kafka:9092"
+      connectionSourceType: "manual"
+      keySerializer: ""
+      saslMechanism: "GSSAPI"
+      securityProtocol: "PLAINTEXT"
+      sslProtocol: "TLS"
+      topics: "try-catch-finally-test-topic"
+      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+  - id: "d4bd73ab-e0c3-4e8a-a073-5c57ca51216e"
+    name: "Choice"
+    element-type: "condition"
+    children:
+      - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+        name: "When"
+        element-type: "if"
+        properties:
+          condition: "${exchangeProperty.isTrue}"
+          priority: 0
+        children:
+          - id: "7b423c1d-7933-4863-a929-e3be8f313073"
+            name: "When Kafka Sender"
+            element-type: "kafka-sender-2"
+            properties:
+              brokers: "kafka:9092"
+              connectionSourceType: "manual"
+              keySerializer: ""
+              saslMechanism: "GSSAPI"
+              securityProtocol: "PLAINTEXT"
+              sslProtocol: "TLS"
+              topics: "when-topic"
+              valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+  - id: "f9ff0521-368a-4b9f-a986-3c1916543d96"
+    name: "Sync Split Mapper"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "0cec47cd-c053-47ff-8e75-078b48c388d7"
+    name: "Sync Split Script"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "c2113da4-ad9a-42dd-be31-9545e4dd5151"
+    to: "2ea19511-6b2a-45d6-b4e0-852c7d41adee"
+  - from: "ab475361-b0f8-48b5-ba32-196552e2da65"
+    to: "042b8105-f152-4f8f-9d85-cdab0b1adcf8"
+  - from: "089550e9-5a24-4937-a90a-c50881e18590"
+    to: "c2113da4-ad9a-42dd-be31-9545e4dd5151"
+  - from: "f7b6cf2b-c9a3-4215-91a1-3b607e4414c2"
+    to: "08d7ec7a-da6d-4373-bbdc-a5f26340021c"
+  - from: "a833dc67-01f2-415f-ac26-3805a488461e"
+    to: "0cec47cd-c053-47ff-8e75-078b48c388d7"
+  - from: "0cec47cd-c053-47ff-8e75-078b48c388d7"
+    to: "f9ff0521-368a-4b9f-a986-3c1916543d96"
+  - from: "0f3aebb0-1279-4609-8030-a3e93b5df62c"
+    to: "a833dc67-01f2-415f-ac26-3805a488461e"
+  - from: "b53363a7-b6bd-4f70-bff3-e64c979d9cd4"
+    to: "2e4e8f2d-39b8-4677-8201-f7f086b06da5"
+  - from: "2e4e8f2d-39b8-4677-8201-f7f086b06da5"
+    to: "9936699b-9da1-46f3-a429-dec9418e6ebf"
+  - from: "2ea19511-6b2a-45d6-b4e0-852c7d41adee"
+    to: "91bd3211-a606-434b-9620-e6ba1bbbee12"
+  - from: "f9ff0521-368a-4b9f-a986-3c1916543d96"
+    to: "4a584895-6473-4544-8d9d-ae042c3d40c9"
+  - from: "4a584895-6473-4544-8d9d-ae042c3d40c9"
+    to: "d4bd73ab-e0c3-4e8a-a073-5c57ca51216e"
+  - from: "d4bd73ab-e0c3-4e8a-a073-5c57ca51216e"
+    to: "61271eb5-0cda-4b50-be03-0412b2a90d71"
+  - from: "76476c39-d4ab-4641-b93b-f5e6bb6484c7"
+    to: "f7b6cf2b-c9a3-4215-91a1-3b607e4414c2"
+  - from: "93aad932-aa6c-4bee-9609-49b49cf92d29"
+    to: "a5191704-446b-4248-ba08-ebb665c3be75"
+  - from: "9936699b-9da1-46f3-a429-dec9418e6ebf"
+    to: "c58a3df5-5b64-4afb-8ed7-a48f09921d89"
+  - from: "a5191704-446b-4248-ba08-ebb665c3be75"
+    to: "fe36b80b-f59d-4c4f-b250-0029826fc777"
+  - from: "91bd3211-a606-434b-9620-e6ba1bbbee12"
+    to: "daf983fb-8a18-4b1f-b4de-3bb3d8e8c8f2"
+  - from: "7c7faa1e-fedd-43aa-ae8d-cecafcb3d674"
+    to: "93aad932-aa6c-4bee-9609-49b49cf92d29"

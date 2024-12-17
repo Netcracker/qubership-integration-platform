@@ -1,0 +1,54 @@
+name: test-sender
+title: Test sender
+description: Sender for testing
+type: system
+inputEnabled: true
+outputEnabled: true
+container: false
+properties:
+  common:
+    - name: m2m
+      title: Enable M2M Security
+      description: Specifies whether M2M token should be used to make a call
+      type: boolean
+      default: false
+    - name: retryCount
+      title: Retry count
+      description: Specifies number of retries for the call before it considers as failed
+      type: number
+      mandatory: true
+      default: 0
+      autofocus: true
+    - name: connectionTimeout
+      title: Connection timeout (ms)
+      description: Specifies connection timeout in millis (default value will be used if nothing is given)
+      type: number
+      mandatory: false
+      default: 120000
+  advanced:
+    - name: correlationIdReceiver
+      title: Receive correlation Id
+      type: custom
+      uiComponent: correlation-id
+  hidden:
+    - name: integrationGqlOperationName
+      title: Operation Name
+      description: The query or mutation name. Optional if query contains single operation
+      type: string
+      mandatory: false
+      query: true
+    - name: integrationGqlQueryHeader
+      title: Query header
+      type: string
+      query: false
+      default: CamelGraphQLQuery
+    - name: integrationGqlVariablesHeader
+      title: Variables header
+      type: string
+      query: false
+      default: CamelGraphQLVariables
+    - name: integrationOperationProtocolType
+      title: Integration Operation Protocol Type
+      description: Specifies which type Protocol use the operation
+      type: string
+      default: http

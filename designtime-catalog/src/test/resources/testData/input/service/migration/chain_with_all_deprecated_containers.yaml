@@ -1,0 +1,119 @@
+---
+id: "af44d2de-7b9e-406e-a277-3784191864d5"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707392764023
+elements:
+  - id: "25ff7713-0cb9-417f-b3a6-b00413c280fa"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    properties:
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "v1/test"
+      externalRoute: true
+      httpMethodRestrict: "POST"
+  - id: "372f5e64-1007-4cfd-8500-127780e4ed6a"
+    name: "Try-Catch-Finally (deprecated)"
+    element-type: "try-catch-finally"
+    children:
+      - id: "198424a3-4556-42a0-be5f-03f42d04770e"
+        name: "Catch"
+        element-type: "catch"
+        properties:
+          exception: "java.lang.Exception"
+          priorityNumber: 0
+      - id: "6c557c56-b2c3-436e-8051-e55af6c07c5f"
+        name: "Try"
+        element-type: "try"
+      - id: "89871695-5815-4b95-b360-6a6391c09a8d"
+        name: "Finally"
+        element-type: "finally"
+  - id: "436c605e-349a-47dc-80e4-3568ff7ad50d"
+    name: "Loop (deprecated)"
+    element-type: "loop"
+    children:
+      - id: "32d2a59e-64ee-4dc9-ab14-0187484492b4"
+        name: "Loop Expression"
+        element-type: "loop-expression"
+        properties:
+          expression: "123"
+  - id: "4d9a0ef2-4d14-4c68-86a3-826c9471a318"
+    name: "Split Async (deprecated)"
+    element-type: "split-async"
+    children:
+      - id: "02bb0f83-4a63-4bed-9964-75a526119b67"
+        name: "Async Split Element"
+        element-type: "async-split-element"
+      - id: "ed895d4c-bf7d-4a3c-963e-6eccb137af75"
+        name: "Sync Split Element"
+        element-type: "sync-split-element"
+  - id: "891d47d1-1921-471d-af93-405c70d72849"
+    name: "Choice (deprecated)"
+    element-type: "choice"
+    children:
+      - id: "0105a8a0-3bad-4f98-8fec-1df746e3bf27"
+        name: "When"
+        element-type: "when"
+        properties:
+          condition: "${exchangeProperty.valid} == 'true'"
+          priorityNumber: 0
+      - id: "dab1c0a5-3fc5-4fbc-a8a1-db1e97765c7d"
+        name: "Otherwise"
+        element-type: "otherwise"
+  - id: "9346b46b-4592-4b56-85e8-b717ca08112c"
+    name: "Split (deprecated)"
+    element-type: "split"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: 0
+    children:
+      - id: "7c5e5158-9480-4425-aa76-ca75f0fe5371"
+        name: "Main Split Element"
+        element-type: "main-split-element"
+        properties:
+          splitName: "main_split_element"
+      - id: "88481b1a-99e0-479e-a613-ce2148623811"
+        name: "Split Element"
+        element-type: "split-element"
+        properties:
+          propagateHeaders: false
+          propagateProperties: false
+          splitName: "split_element"
+      - id: "f8354443-3805-446e-85b6-910ea7505103"
+        name: "Split Result"
+        element-type: "split-result"
+  - id: "baa3fcd4-b59f-401f-92c2-3e214028fc81"
+    name: "Circuit Breaker (deprecated)"
+    element-type: "circuit-breaker"
+    children:
+      - id: "0d8e6185-e837-4efb-b2a7-f1f27793e54d"
+        name: "On fallback"
+        element-type: "on-fallback"
+      - id: "47f0f3dc-8fbf-4f1a-832c-09e6541a531c"
+        name: "Circuit Breaker Configuration"
+        element-type: "circuit-breaker-configuration"
+        properties:
+          automaticTransitionFromOpenToHalfOpenEnabled: false
+          failureRateThreshold: 50
+          minimumNumberOfCalls: 100
+          permittedNumberOfCallsInHalfOpenState: 10
+          slidingWindowSize: 100
+          slidingWindowType: "COUNT_BASED"
+          slowCallDurationThreshold: 60
+          slowCallRateThreshold: 100
+          waitDurationInOpenState: 60
+dependencies:
+  - from: "0105a8a0-3bad-4f98-8fec-1df746e3bf27"
+    to: "9346b46b-4592-4b56-85e8-b717ca08112c"
+  - from: "198424a3-4556-42a0-be5f-03f42d04770e"
+    to: "baa3fcd4-b59f-401f-92c2-3e214028fc81"
+  - from: "25ff7713-0cb9-417f-b3a6-b00413c280fa"
+    to: "372f5e64-1007-4cfd-8500-127780e4ed6a"
+  - from: "89871695-5815-4b95-b360-6a6391c09a8d"
+    to: "436c605e-349a-47dc-80e4-3568ff7ad50d"
+  - from: "dab1c0a5-3fc5-4fbc-a8a1-db1e97765c7d"
+    to: "4d9a0ef2-4d14-4c68-86a3-826c9471a318"
+  - from: "6c557c56-b2c3-436e-8051-e55af6c07c5f"
+    to: "891d47d1-1921-471d-af93-405c70d72849"

@@ -1,0 +1,47 @@
+---
+id: "4c2d092d-a9fd-43f2-a702-36cd214eda4e"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707894601357
+elements:
+  - id: "1b6e933d-eae9-4bfe-a20c-f365e35215c9"
+    name: "Catch Mapper"
+    description: "Catch Mapper description"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "714bdb42-ca67-452a-b567-517c7746a88b"
+    name: "Try-Catch-Finally"
+    element-type: "try-catch-finally"
+    children:
+      - id: "41023053-ddca-428e-a41f-0af7328c4237"
+        name: "Try"
+        element-type: "try"
+      - id: "6d006dab-382a-4e0b-9e80-6ba0e7628bb0"
+        name: "Catch"
+        element-type: "catch"
+        properties:
+          exception: "java.lang.Exception"
+          priorityNumber: 0
+  - id: "c42f64db-86b9-4118-bd34-3bfff8372185"
+    name: "Try Script"
+    description: "Try Script description"
+    element-type: "script"
+    properties-filename: "script-c42f64db-86b9-4118-bd34-3bfff8372185.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "fa7a8bc9-4489-4c64-b4e7-ae38fa642cfe"
+    name: "Header Modification"
+    element-type: "header-modification"
+dependencies:
+  - from: "6d006dab-382a-4e0b-9e80-6ba0e7628bb0"
+    to: "1b6e933d-eae9-4bfe-a20c-f365e35215c9"
+  - from: "41023053-ddca-428e-a41f-0af7328c4237"
+    to: "c42f64db-86b9-4118-bd34-3bfff8372185"
+  - from: "fa7a8bc9-4489-4c64-b4e7-ae38fa642cfe"
+    to: "714bdb42-ca67-452a-b567-517c7746a88b"
+  - from: "c42f64db-86b9-4118-bd34-3bfff8372185"
+    to: "fa7a8bc9-4489-4c64-b4e7-ae38fa642cfe"

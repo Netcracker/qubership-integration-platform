@@ -1,0 +1,118 @@
+server:
+  address: 0.0.0.0
+  port: 8080
+  max-http-request-header-size: 16KB
+  tomcat:
+    max-http-response-header-size: 16KB
+
+spring:
+  autoconfigure:
+    exclude:
+    - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+    - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+  main:
+    allow-bean-definition-overriding: true
+  profiles:
+    active: default
+  application:
+    name: ${MICROSERVICE_NAME:qip-designtime-catalog}
+    cloud_service_name: ${spring.application.name}-${spring.application.deployment_version}
+    deployment_version: ${DEPLOYMENT_VERSION:v1}
+  config:
+    import: ${CONSUL_URL:}
+  cloud:
+    discovery:
+      enabled: false
+    service-registry:
+      auto-registration:
+        enabled: false
+    consul:
+      enabled: true
+      config:
+        enabled: true
+        prefixes: config/${NAMESPACE}
+  flyway:
+    enabled: false
+  jpa:
+    database: postgresql
+    properties:
+      hibernate:
+        physical_naming_strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
+        temp:
+          use_jdbc_metadata_defaults: false # disable connection during init
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: catalog
+        enable_lazy_load_no_trans: true
+        jdbc:
+          time_zone: UTC
+          batch_size: 5
+          lob:
+            non_contextual_creation: true
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_MULTIPART_FILE_SIZE:25}MB
+      max-request-size: 100MB
+
+db:
+  hikari:
+    datasources:
+      datasource:
+        driver-class-name: org.postgresql.Driver
+        jdbcUrl: jdbc:postgresql://${POSTGRES_URL:postgres:5432/postgres}
+        username: ${POSTGRES_USER:postgres}
+        password: ${POSTGRES_PASSWORD:postgres}
+        schema: ${spring.jpa.properties.hibernate.default_schema}
+        maximum-pool-size: ${PG_MAX_POOL_SIZE:30}
+        minimum-idle: ${PG_MIN_IDLE:0}
+        idle-timeout: ${PG_IDLE_TIMEOUT:300000}
+        leak-detection-threshold: ${PG_LEAK_DETECTION_INTERVAL:30000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        exclude: shutdown
+        include: info, health, ready, env, loggers, metrics, prometheus
+  opentelemetry:
+    resource-attributes:
+      "service.name": ${spring.application.name}-${NAMESPACE:local}
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    propagation:
+      type: B3_MULTI
+    sampling:
+      probability: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
+  otlp:
+    tracing:
+      endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318/v1/traces
+    metrics:
+      export:
+        enabled: false
+
+logging:
+  level:
+    root: ${ROOT_LOG_LEVEL:INFO}
+  config: classpath:logback-spring.xml
+
+kubernetes:
+  devmode: false
+  cluster:
+    uri: https://kubernetes.default
+    namespace: ${NAMESPACE:}
+  service-account:
+    token: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
+    cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
+
+qip:
+  actions-log:
+    cleanup:
+      interval: ${ACTION_LOG_CLEANUP_INTERVAL:14 days} # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
+      cron: ${ACTION_LOG_CLEANUP_CRON:0 0 0 ? * SAT} # Cleanup task schedule in cron expression format
+  internal-services:
+    runtime-catalog: qip-runtime-catalog

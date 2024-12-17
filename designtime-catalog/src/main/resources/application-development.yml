@@ -1,0 +1,53 @@
+server:
+  port: 8080
+
+logging:
+  level:
+    root: ${ROOT_LOG_LEVEL:WARN}
+    org.qubership.integration: DEBUG
+
+spring:
+  autoconfigure:
+    exclude:
+    - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+    - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+  sleuth:
+    enabled: false
+  zipkin:
+    baseUrl: http://localhost:9411/
+  config:
+    activate:
+      on-profile: development
+    import: optional:consul:${CONSUL_URL:host.docker.internal:8500/}
+  cloud:
+    consul:
+      config:
+        m2m:
+          enabled: false
+        acl-token: ${CONSUL_ADMIN_TOKEN}
+  jpa:
+    show-sql: false
+
+consul:
+  url: ${CONSUL_URL:http://consul:8500}
+
+qip:
+  datasource:
+    configuration:
+      enabled: false
+  internal-services:
+    runtime-catalog: runtime-catalog
+  actions-log:
+    cleanup:
+      interval: 14 days # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
+      cron: 0 0 0 ? * SAT # Cleanup task schedule in quartz cron expression format
+
+kubernetes:
+  devmode: true
+  cluster:
+    token: ${KUBE_USER_TOKEN:}

@@ -1,0 +1,19 @@
+---
+id: "af44d2de-7b9e-406e-a277-3784191864d5"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707378039059
+elements:
+  - id: "25ad1533-a293-4e12-b7b9-e08fcd73ce96"
+    name: "Choice (deprecated)"
+    element-type: "choice"
+    children:
+      - id: "500f487c-a395-466b-9e58-19cca8c88888"
+        name: "When"
+        element-type: "when"
+        properties:
+          condition: "${exchangeProperty.valid} == 'true'"
+          priorityNumber: "12"
+      - id: "be012de6-2d7d-496d-9493-289a67311b9f"
+        name: "Otherwise"
+        element-type: "otherwise"
