@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <property resource="application.yml"/>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+
+        <!-- Filter for Quartz Scheduler, very simple 'fix' -->
+        <filter class="org.qubership.integration.platform.engine.camel.scheduler.CamelJobLogFilter"/>
+
+         <encoder>
+             <pattern>
+                 [%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-5p] [request_id=%-15X{requestId:--}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{X-B3-TraceId:--}] [spanId=%-16X{X-B3-SpanId:--}] [method=%-30.30M]  - %m%n
+             </pattern>
+         </encoder>
+     </appender>
+
+     <logger name="org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger" level="INFO" additivity="false">
+         <appender-ref ref="STDOUT"/>
+     </logger>
+
+     <logger name="io.atlasmap.core.AtlasPath" level="ERROR">
+         <appender-ref ref="STDOUT"/>
+     </logger>
+
+    <logger name="Hibernate Types" level="ERROR">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+
+     <root level="INFO">
+         <appender-ref ref="STDOUT"/>
+     </root>
+ </configuration>

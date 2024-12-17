@@ -1,0 +1,6 @@
+org.qubership.integration.platform.engine.configuration.MicroserviceRestTemplateConfiguration
+org.qubership.integration.platform.engine.configuration.camel.CamelSecurityConfiguration
+org.qubership.integration.platform.engine.configuration.datasource.PersistenceCheckpointConfiguration
+org.qubership.integration.platform.engine.configuration.datasource.PersistenceQuartzConfiguration
+org.qubership.integration.platform.engine.configuration.opensearch.OpenSearchConfiguration
+org.qubership.integration.platform.engine.configuration.SwaggerConfiguration

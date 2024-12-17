@@ -1,0 +1,278 @@
+server:
+  address: 0.0.0.0
+  port: 8080
+  max-http-request-header-size: 16KB
+  tomcat:
+    max-http-response-header-size: 16KB
+    mbeanregistry:
+      enabled: ${MONITORING_ENABLED:false}
+
+spring:
+  autoconfigure:
+    exclude:
+    - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+    - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+    - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+    - org.apache.camel.component.quartz.springboot.QuartzComponentAutoConfiguration
+  main:
+    allow-bean-definition-overriding: true
+  profiles:
+    active: default
+  application:
+    name: ${MICROSERVICE_NAME:qip-engine}
+    cloud_service_name: ${spring.application.name}-${spring.application.deployment_version}
+    deployment_version: ${DEPLOYMENT_VERSION:v1}
+    namespace: ${NAMESPACE:local}
+    default_integration_domain_microservice_name: qip-engine # custom param
+    default_integration_domain_name: default # custom param
+  config:
+    import: ${CONSUL_URL:}
+  cloud:
+    discovery:
+      enabled: false
+    service-registry:
+      auto-registration:
+        enabled: false
+    consul:
+      enabled: true
+      config:
+        enabled: true
+        prefixes: config/${NAMESPACE}
+        acl-token: ${CONSUL_ADMIN_TOKEN}
+  jpa:
+    database: postgresql
+    properties:
+      hibernate:
+        physical_naming_strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
+        temp:
+          use_jdbc_metadata_defaults: false # disable connection during init
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: engine
+        jdbc:
+          time_zone: UTC
+          lob:
+            non_contextual_creation: true
+  flyway:
+    enabled: false
+  jackson:
+    serialization:
+      indent-output: true
+
+app:
+  prefix: qip
+
+management:
+  endpoints:
+    probe:
+      readiness: deployments, smartplug # list of custom probes
+    web:
+      exposure:
+        exclude: shutdown
+        include: info, health, ready, env, loggers, metrics, prometheus
+  opentelemetry:
+    resource-attributes:
+      "service.name": ${spring.application.name}-${NAMESPACE:local}
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    propagation:
+      type: B3_MULTI
+    sampling:
+      probability: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
+  otlp:
+    tracing:
+      endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318/v1/traces
+    metrics:
+      export:
+        enabled: false
+
+logging:
+  level:
+    root: ${ROOT_LOG_LEVEL:INFO}
+  config: classpath:logback-spring.xml
+
+db:
+  flyway:
+    checkpoints-datasource:
+      baseline-on-migrate: true
+      schemas: ${spring.jpa.properties.hibernate.default_schema}
+      default-schema: ${spring.jpa.properties.hibernate.default_schema}
+      create-schemas: true
+      outOfOrder: true
+      ignoreMigrationPatterns: ''
+      locations: 'classpath:db/migration/postgresql/static'
+      validateOnMigrate: true
+    qrtz-datasource:
+      baseline-on-migrate: true
+      schemas: ${spring.jpa.properties.hibernate.default_schema}
+      default-schema: ${spring.jpa.properties.hibernate.default_schema}
+      create-schemas: true
+      outOfOrder: true
+      ignoreMigrationPatterns: ''
+      locations: 'classpath:db/migration/postgresql/configs'
+  hikari:
+    datasources:
+      datasource:
+        driver-class-name: org.postgresql.Driver
+        username: ${POSTGRES_USER:postgres}
+        password: ${POSTGRES_PASSWORD:postgres}
+        maximum-pool-size: ${PG_MAX_POOL_SIZE:30}
+        minimum-idle: ${PG_MIN_IDLE:0}
+        idle-timeout: ${PG_IDLE_TIMEOUT:300000}
+        leak-detection-threshold: ${PG_LEAK_DETECTION_INTERVAL:30000}
+      checkpoints-datasource:
+        driver-class-name: ${db.hikari.datasources.datasource.driver-class-name}
+        jdbcUrl: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_checkpoints_db
+        username: ${db.hikari.datasources.datasource.username}
+        password: ${db.hikari.datasources.datasource.password}
+        schema: ${spring.jpa.properties.hibernate.default_schema}
+        maximum-pool-size: ${db.hikari.datasources.datasource.maximum-pool-size}
+        minimum-idle: ${db.hikari.datasources.datasource.minimum-idle}
+        idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
+        leak-detection-threshold: ${db.hikari.datasources.datasource.leak-detection-threshold}
+      qrtz-datasource:
+        driver-class-name: ${db.hikari.datasources.datasource.driver-class-name}
+        jdbcUrl: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_qrtz_db
+        username: ${db.hikari.datasources.datasource.username}
+        password: ${db.hikari.datasources.datasource.password}
+        schema: ${spring.jpa.properties.hibernate.default_schema}
+        maximum-pool-size: ${db.hikari.datasources.datasource.maximum-pool-size}
+        minimum-idle: ${db.hikari.datasources.datasource.minimum-idle}
+        idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
+        leak-detection-threshold: ${db.hikari.datasources.datasource.leak-detection-threshold}
+
+security:
+  role-prefix: 'ROLE_'
+
+consul:
+  url: ${CONSUL_URL:http://consul:8500}
+  token: ${CONSUL_ADMIN_TOKEN}
+  keys:
+    prefix: /config/${NAMESPACE}
+    engine-config-root: /${app.prefix}-engine-configurations
+    deployments-update: /deployments-update
+    libraries-update: /libraries-update
+    engines-state: /engines-state
+    runtime-configurations: /runtime-configurations
+    chains: /chains
+    common-variables-v2: /variables/common
+  dynamic-state-keys:
+    enabled: ${DYNAMIC_ENGINE_CONSUL_STATE_ENABLED:false}
+
+camel:
+  component:
+    kafka: # new parameters will not be automatically set to 'kafka-custom' element, need to change KafkaCustomComponentConfiguration
+      ssl-truststore-location: ${qip.local-truststore.store.path}
+      ssl-truststore-password: ${qip.local-truststore.store.password}
+      ssl-truststore-type: JKS
+    metrics:
+      metric-registry: io.micrometer.prometheus.PrometheusMeterRegistry
+    servlet:
+      http-registry: '#gatewayHttpRegistry'
+  servlet:
+    mapping:
+      enabled: false
+  constants:
+    request-filter-header:
+      name: 'requestFilterHeaderAllowlist'
+
+qip:
+  camel:
+    stream-caching:
+      enabled: true # enable exchange payload spooling
+      buffer:
+        size-kb: 16
+    component:
+      quartz:
+        thread-pool-count: 10
+      kafka:
+        predeploy-check-enabled: ${CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED:true}
+      rabbitmq:
+        predeploy-check-enabled: ${CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED:true}
+      sub-chains:
+        predeploy-check-enabled: ${CAMEL_SUB_CHAINS_PREDEPLOY_CHECK_ENABLED:true}
+  deployments:
+    retry-delay: 30000
+    thread-pool:
+      core-size: 3
+      max-size: 3
+  opensearch:
+    client:
+      urls: ${OPENSEARCH_PROTOCOL:http}://${OPENSEARCH_HOST:opensearch}:${OPENSEARCH_PORT:9200}
+      host: ${OPENSEARCH_HOST:opensearch}
+      port: ${OPENSEARCH_PORT:9200}
+      protocol: ${OPENSEARCH_PROTOCOL:http}
+      user-name: ${OPENSEARCH_USERNAME:}
+      password: ${OPENSEARCH_PASSWORD:}
+      connection-timeout: ${OPENSEARCH_CONNECTION_TIMEOUT:5000}
+      prefix: ${OPENSEARCH_PREFIX:}
+    write:
+      batch:
+        count: 100
+      retry:
+        timeout:
+          minimum: 100
+          maximum: 300000
+    index:
+      elements:
+        name: qip-elements-${spring.application.namespace}
+        shards: ${OPENSEARCH_INDEX_SHARDS:3}
+    rollover:
+      min_index_age: 1d
+      min_index_size: ${OPENSEARCH_ROLLOVER_MIN_INDEX_SIZE:}
+      min_rollover_age_to_delete: 14d
+  metrics:
+    enabled: ${MONITORING_ENABLED:false}
+    http-payload-metrics:
+      enabled: true
+      buckets: 1, 10, 100, 1000
+    prometheus:
+      # Delay in seconds between init and update new metric (Counter)
+      init:
+        delay: 30
+  # sessions writer performance parameters
+  sessions:
+    sampler:
+      probabilistic: ${SESSION_SAMPLER_PROBABILISTIC:1}
+    queue:
+      max-size-mb: 128
+      capacity: 10000
+    bulk-request:
+      max-size-kb: 4096
+      payload-size-threshold-kb: ${qip.sessions.bulk-request.max-size-kb}
+      elements-count-threshold: 2
+    checkpoints:
+      cleanup:
+        interval: ${SESSIONS_CHECKPOINTS_CLEANUP_INTERVAL:1 month} # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
+        cron: ${SESSIONS_CHECKPOINTS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
+  local-truststore:
+    store:
+      path: /tmp/truststore/defaulttruststore.jks
+      password: ''
+    certs:
+      location: :/tmp/cert/${SSL_SECRET:defaultsslcertificate}
+  production-mode:
+    enabled: ${PRODUCTION_MODE:false}
+  internal-services:
+    runtime-catalog:
+      url: ${RUNTIME_CATALOG_SERVICE_URL:http://runtime-catalog:8080}
+  restclient:
+    timeout: 300000
+
+kubernetes:
+  devmode: ${KUBE_DEV_MODE:false}
+  cluster:
+    uri: ${KUBE_CLUSTER_URI:https://kubernetes.default}
+    namespace: ${NAMESPACE:}
+    token: ${KUBE_USER_TOKEN:}
+  service-account:
+    token-file-path: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
+    cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
+  variables-secret:
+    name: ${app.prefix}-secured-variables-v2
+    label: ${app.prefix}-variable-type
