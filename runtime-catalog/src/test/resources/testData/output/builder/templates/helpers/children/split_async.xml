@@ -1,0 +1,14 @@
+<route>
+    <step id="080ecbf4-cb1d-40fa-9e00-ba630e04b026">
+        <process ref="activeThreadCounterIncrementer"/>
+        <wireTap uri='direct:080ecbf4-cb1d-40fa-9e00-ba630e04b026-on-completion'/>
+    </step>
+    <step id="3d34e331-258c-4089-bf6b-743cbfb1822f">
+        <process ref="activeThreadCounterIncrementer"/>
+        <wireTap uri='direct:3d34e331-258c-4089-bf6b-743cbfb1822f-on-completion'/>
+    </step>
+    <step id="d0d5d19a-db0d-4768-b6a9-ca40296bf47f">
+        <process ref="activeThreadCounterIncrementer"/>
+        <wireTap uri='direct:d0d5d19a-db0d-4768-b6a9-ca40296bf47f-on-completion'/>
+    </step>
+</route>

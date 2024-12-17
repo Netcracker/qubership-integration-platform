@@ -1,0 +1,36 @@
+id: "f6ca1225-1302-4743-a64c-21c7269daaee"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "c653b031-d1f9-4a51-a6df-331db82c3815"
+    name: "Split"
+    element-type: "split-2"
+    original-id: "354603be-7082-4743-be65-9f81b3e4d69b"
+    properties:
+      timeout: 0
+      stopOnException: true
+      aggregationStrategy: "chainsAggregationStrategy"
+    children:
+      - id: "44694440-e9a2-488b-b2fd-d5e02257a7e2"
+        name: "Main Split Element"
+        element-type: "main-split-element-2"
+        original-id: "6dd9d81a-7599-4099-bc22-21f58fe9adcc"
+        properties:
+          splitName: "main_split"
+      - id: "65b3f876-1f3c-4313-bdda-b5f7c5077027"
+        name: "Split Element"
+        element-type: "split-element-2"
+        original-id: "4e7285b6-8d59-4ae0-9569-041b61ab22ac"
+        properties:
+          splitName: "secondary_split_1"
+          propagateHeaders: true
+          propagateProperties: true
+      - id: "ef8b389b-dd2d-4a05-953a-eab341671f41"
+        name: "Split Element"
+        element-type: "split-element-2"
+        original-id: "e4155f95-b094-4371-9f1f-af85724695fe"
+        properties:
+          splitName: "secondary_split_2"
+          propagateHeaders: false
+          propagateProperties: false

@@ -1,0 +1,60 @@
+server:
+  port: 8080
+
+logging:
+  level:
+    root: ${ROOT_LOG_LEVEL:WARN}
+    org.qubership.integration: DEBUG
+
+spring:
+  autoconfigure:
+    exclude:
+    - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+    - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+  config:
+    activate:
+      on-profile: development
+    import: optional:consul:${CONSUL_URL:host.docker.internal:8500/}
+  cloud:
+    consul:
+      config:
+        m2m:
+          enabled: false
+        acl-token: ${CONSUL_ADMIN_TOKEN}
+  jpa:
+    show-sql: false
+
+qip:
+  gateway:
+    egress:
+      protocol: http
+      url: host.docker.internal:8910
+  internal-services:
+    engine: engine
+    variables-management: variables-management
+  build:
+    artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
+
+consul:
+  url: ${CONSUL_URL:http://consul:8500}
+
+core:
+  contextpropagation:
+    providers:
+      xversion:
+        sync:
+          enabled: false
+
+datasource:
+  configuration:
+    enabled: false
+
+kubernetes:
+  devmode: true
+  cluster:
+    token: ${KUBE_USER_TOKEN:}

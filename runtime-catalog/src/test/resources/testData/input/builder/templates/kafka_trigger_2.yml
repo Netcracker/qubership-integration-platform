@@ -1,0 +1,25 @@
+id: "4bc19935-20e1-46b9-b18d-b88cd1875eaf"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "e6356abd-71ed-4a14-8a1b-daa11eeee1c4"
+    name: "Kafka Trigger"
+    element-type: "kafka-trigger-2"
+    original-id: "a0a9edde-c75d-4652-bc06-165d57bec1f4"
+    properties:
+      topics: "test-topic"
+      brokers: "kafka-main:9092"
+      groupId: "test-topic-group"
+      sslProtocol: "TLS"
+      saslMechanism: "SCRAM-SHA-512"
+      consumersCount: 1
+      saslJaasConfig: "org.apache.kafka.common.security.scram.ScramLoginModule required username=client password=client;"
+      autoOffsetReset: "latest"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      securityProtocol: "SASL_PLAINTEXT"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      connectionSourceType: "manual"
+      sslEndpointAlgorithm: "http://localhost:8080"
+      topicsClassifierName: null
+      reconnectBackoffMaxMs: 30000

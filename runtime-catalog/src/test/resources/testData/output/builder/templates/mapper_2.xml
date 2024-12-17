@@ -1,0 +1,47 @@
+<step id="0e8dde7c-8542-42ab-a28d-5ddf79fb7762">
+    <setProperty name="internalProperty_mappingThrowException">
+        <constant>true</constant>
+    </setProperty>
+    <setProperty name="internalProperty_mappingConfig">
+        <constant><![CDATA[--- !<io.atlasmap.v2.AtlasMapping>
+dataSource:
+- !<io.atlasmap.json.v2.JsonDataSource>
+  id: "source"
+  name: "source"
+  description: "source"
+  uri: "atlas:cip:json:source"
+  dataSourceType: "SOURCE"
+- !<io.atlasmap.json.v2.JsonDataSource>
+  id: "target"
+  name: "target"
+  description: "target"
+  uri: "atlas:cip:json:target"
+  dataSourceType: "TARGET"
+mappings:
+  mapping:
+  - !<io.atlasmap.v2.Mapping>
+    inputField:
+    - !<io.atlasmap.json.v2.JsonField>
+      collectionType: "NONE"
+      docId: "source"
+      path: "/mapperInputTestKey"
+      fieldType: "STRING"
+      name: "mapperInputTestKey"
+    outputField:
+    - !<io.atlasmap.json.v2.JsonField>
+      collectionType: "NONE"
+      docId: "target"
+      path: "/mapperOutputTestKey"
+      fieldType: "STRING"
+      name: "mapperOutputTestKey"
+    id: "mapping.dcfd578c-9321-4e9c-b000-6c19550bc6c5"
+constants:
+  constant: []
+properties:
+  property: []
+name: "QIP_Mapping_Configuration"]]></constant>
+    </setProperty>
+    <process ref="mapperProcessor"/>
+    <removeProperty name="internalProperty_mappingConfig"/>
+    <removeProperty name="internalProperty_mappingThrowException"/>
+</step>

@@ -1,0 +1,24 @@
+id: "006fd4ab-61ca-453a-ac9b-c06cf8d86a12"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "d3f6409a-ac98-4509-b093-a4b341651fa5"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    original-id: "8443fa34-1da6-410a-bffa-549316de39d3"
+    properties:
+      chunked: true
+      invalidURI: false
+      contextPath: "v1/test"
+      externalRoute: true
+      accessControlType: "RBAC"
+      validationSchema: "{\n    \"title\": \"testObject\",\n    \"type\": \"string\",\n    \"properties\": {\n        \"testKey\": {\n            \"type\": \"string\"\n        }\n    }\n}"
+      correlationIdName: "test_correlation_id"
+      httpMethodRestrict: "GET"
+      correlationIdPosition: "Header"
+      integrationOperationId: null
+      handleValidationAction: default
+      rejectRequestIfNonNullBodyGetDelete: false
+      handlerContainer: {}
+      allowedContentTypes: []

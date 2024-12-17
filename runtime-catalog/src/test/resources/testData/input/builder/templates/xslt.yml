@@ -1,0 +1,11 @@
+id: "f200b305-78af-4508-9c46-469c6f0f3234"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "d6804ebd-163d-44e2-bebd-12d618a09cf5"
+    name: "XSLT"
+    element-type: "xslt"
+    original-id: "93bdcb90-870c-4dfc-b00b-d58ebaa5cd0a"
+    properties:
+      templateName: "/test/test_template"

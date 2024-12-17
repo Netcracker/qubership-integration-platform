@@ -1,0 +1,65 @@
+<route>
+    <step id="faf6e313-96c9-4880-81a4-2831de1380b1">
+
+        <setProperty name="correlationIdPosition">
+            <constant>Header</constant>
+        </setProperty>
+        <setProperty name="correlationIdName">
+            <constant>test_correlation_id</constant>
+        </setProperty>
+
+        <process ref="correlationIdPropagationProcessor"/>
+
+        <setHeader name="CamelGraphQLQuery">
+            <simple>
+{
+  hero {
+    name
+  }
+}
+            </simple>
+        </setHeader>
+        <setProperty name="internalProperty_graphQLVariablesJSON">
+            <simple>
+{
+    "hero": {
+        "name": "string"
+    }
+}
+            </simple>
+        </setProperty>
+        <process ref="graphQLVariablesProcessor"/>
+
+        <doTry>
+            <process ref="contextPropagationProcessor"/>
+
+            <toD uri="graphql-custom:http://egress-gateway:8080%%{route-dedf8fa3-06e4-41e1-9e60-0fe5e8aedf3f}/test/graphQL?operationName=test_operation&amp;queryHeader=CamelGraphQLQuery&amp;variablesHeader=CamelGraphQLVariables&amp;httpClientConfigurer=#faf6e313-96c9-4880-81a4-2831de1380b1"/>
+
+            <doCatch>
+                <exception>java.lang.Exception</exception>
+
+                <choice>
+                    <when>
+                        <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+
+                        <setHeader name="CamelHttpResponseCode">
+                            <simple>${exchangeProperty.CamelExceptionCaught.statusCode}</simple>
+                        </setHeader>
+                        <process ref="setCaughtHttpExceptionContextProcessor"/>
+                    </when>
+                </choice>
+
+                <process ref="throwCaughtExceptionProcessor"/>
+            </doCatch>
+            <doFinally>
+                <removeProperty name="internalProperty_overrideContextParams"/>
+                <process ref="contextRestoreProcessor"/>
+            </doFinally>
+        </doTry>
+
+        <removeHeader name="CamelGraphQLQuery"/>
+        <removeHeader name="CamelGraphQLVariables"/>
+
+        <process ref="correlationIdReceiverProcessor"/>
+    </step>
+</route>

@@ -1,0 +1,136 @@
+<route>
+    <setProperty name="correlationIdPosition">
+        <constant>Header</constant>
+    </setProperty>
+    <setProperty name="correlationIdName">
+        <constant>test_correlation_id</constant>
+    </setProperty>
+    <process ref="correlationIdPropagationProcessor"/>
+    <step id="1f6d1551-e965-48f3-b3c7-c68556be1004">
+        <removeHeader name="CamelHttpQuery"/>
+        <step id="Prepare request--1f6d1551-e965-48f3-b3c7-c68556be1004">
+            <script>
+                <groovy>exchange.getMessage().setBody("testRequestBody")</groovy>
+            </script>
+        </step>
+        <step id="Authorization--1f6d1551-e965-48f3-b3c7-c68556be1004">
+            <process ref="securityProcessor"/>
+        </step>
+        <removeHeader name="CamelHttpResponseCode"/>
+        <setHeader name="CamelHttpMethod">
+            <constant>publish</constant>
+        </setHeader>
+        <process ref="contextPropagationProcessor"/>
+        <setProperty name="internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Retry">
+            <constant>true</constant>
+        </setProperty>
+        <setProperty name="internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Iterator">
+            <constant>0</constant>
+        </setProperty>
+        <loop doWhile="true">
+            <simple>${exchangeProperty[internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Retry]}</simple>
+            <step id="Request attempt--1f6d1551-e965-48f3-b3c7-c68556be1004">
+                <choice>
+                    <when>
+                        <simple>${exchangeProperty[internalProperty_retryAwait]}</simple>
+                        <delay>
+                            <simple>5000</simple>
+                        </delay>
+                    </when>
+                </choice>
+                <setProperty name="internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Retry">
+                    <constant>false</constant>
+                </setProperty>
+                <doTry id="Request--1f6d1551-e965-48f3-b3c7-c68556be1004">
+                    <process ref="messagingXHeadersPropagationProcessor"/>
+                    <process ref="kafkaSenderProcessor" />
+
+                    <toD uri="kafka-custom:{ENV}.order.command.queue?brokers={KAFKA_BROKERS}&amp;securityProtocol={KAFKA_SECURITY_PROTOCOL}&amp;maxPollIntervalMs=600000&amp;groupId={ENV}-qip-kafka-consumer-group&amp;maxPollRecords=5&amp;saslMechanism={KAFKA_SASL_MECHANISM}&amp;saslJaasConfig={KAFKA_SASL_JAAS_CONFIG}&amp;kafkaClientFactory=#1f6d1551-e965-48f3-b3c7-c68556be1004-v2"/>
+
+                    <process ref="messagingXHeadersPropagationRestoreProcessor"/>
+                    <setProperty name="internalProperty_enableAuthRestore">
+                        <constant>true</constant>
+                    </setProperty>
+                    <removeProperty name ="internalProperty_enableAuthRestore"/>
+                    <process ref="correlationIdReceiverProcessor"/>
+
+                    <doCatch>
+                        <exception>java.lang.Exception</exception>
+                        <setProperty name="internalProperty_elementFailed">
+                            <constant>true</constant>
+                        </setProperty>
+                        <choice>
+                            <when>
+                                <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+                                <setHeader name="CamelHttpResponseCode">
+                                    <simple>${exchangeProperty.CamelExceptionCaught.statusCode}</simple>
+                                </setHeader>
+                                <choice>
+                                    <when>
+                                        <simple>${exchangeProperty[internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Iterator]} == 2</simple>
+                                        <process ref="setCaughtHttpExceptionContextProcessor"/>
+                                    </when>
+                                </choice>
+                            </when>
+                        </choice>
+                        <choice>
+                            <when>
+                                <simple>${exception} !is 'org.apache.camel.http.base.HttpOperationFailedException' || ${exchangeProperty.CamelExceptionCaught.statusCode} !range '400..499'</simple>
+                                <choice>
+                                    <when>
+                                        <simple>${exchangeProperty[internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Iterator]} &lt; 2</simple>
+                                        <setProperty name="internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Retry">
+                                            <constant>true</constant>
+                                        </setProperty>
+                                        <setProperty name="internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Iterator">
+                                            <simple resultType="java.lang.Integer">${exchangeProperty[internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Iterator]}++</simple>
+                                        </setProperty>
+                                        <setProperty name="internalProperty_retryAwait">
+                                            <constant>true</constant>
+                                        </setProperty>
+                                    </when>
+                                    <when>
+                                        <simple>${exception} !is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+                                        <setProperty name="internalProperty_elementFailed">
+                                            <constant>false</constant>
+                                        </setProperty>
+                                        <process ref="throwCaughtExceptionProcessor"/>
+                                    </when>
+                                    <otherwise>
+                                        <setProperty name="internalProperty_retryAwait">
+                                            <constant>false</constant>
+                                        </setProperty>
+                                    </otherwise>
+                                </choice>
+                            </when>
+                            <otherwise>
+                                <process ref="setCaughtHttpExceptionContextProcessor"/>
+                            </otherwise>
+                        </choice>
+                    </doCatch>
+                    <doFinally>
+                        <removeProperty name="external-service-name"/>
+                        <removeProperty name="external-service-environment-name"/>
+                        <choice>
+                            <when>
+                                <simple>${exchangeProperty[internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Retry]} != true</simple>
+                                <removeProperty name="internalProperty_overrideContextParams"/>
+                                <removeProperty name="internalProperty_retryAwait"/>
+                                <process ref="contextRestoreProcessor"/>
+                                <process ref="securityRestoreProcessor"/>
+                            </when>
+                        </choice>
+                    </doFinally>
+                </doTry>
+            </step>
+            <removeProperty name="internalProperty_elementFailed"/>
+        </loop>
+        <choice>
+            <when>
+                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>
+                <process ref="throwCaughtExceptionProcessor"/>
+            </when>
+        </choice>
+    </step>
+    <removeHeader name="CamelHttpUri"/>
+</route>

@@ -1,0 +1,7 @@
+<route>
+    <from uri="rabbitmq-custom:test_exchange?queues=test-queue&amp;routingKey=test_key&amp;acknowledgeMode=AUTO&amp;exchangeType=direct&amp;deadLetterExchange=test_deadletter_exchange&amp;deadLetterExchangeType=direct&amp;deadLetterQueue=test_deadletter_queue&amp;deadLetterRoutingKey=test_deadletter_key&amp;addresses=rabbitmq-main:9092&amp;username=client&amp;password=client&amp;metricsCollector=#5528e3fb-b970-4261-b72d-9c22742b2ef2&amp;autoDeclare=false&amp;maximumRetryAttempts=1"/>
+    <setProperty name="internalProperty_acknowledgeMode">
+        <constant>AUTO</constant>
+    </setProperty>
+    <process id="5528e3fb-b970-4261-b72d-9c22742b2ef2" ref="rabbitMqTriggerProcessor"/>
+</route>

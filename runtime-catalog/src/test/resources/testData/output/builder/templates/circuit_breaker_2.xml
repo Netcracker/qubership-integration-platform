@@ -1,0 +1,64 @@
+<route>
+    <step id="5c72dcd7-c6eb-4895-a202-e90e629bd6b9">
+        <setProperty name="internalProperty_circuitBreaker_5c72dcd7-c6eb-4895-a202-e90e629bd6b9_completed_with_errors">
+            <constant>true</constant>
+        </setProperty>
+        <setProperty name="internalProperty_circuitBreaker_hasFallback">
+            <constant>false</constant>
+        </setProperty>
+        <setProperty name="internalProperty_element_warning">
+            <constant>false</constant>
+        </setProperty>
+        <setProperty name="internalProperty_circuitBreaker_hasFallback">
+            <constant>true</constant>
+        </setProperty>
+        <circuitBreaker>
+            <resilience4jConfiguration
+                    failureRateThreshold='50'
+                    permittedNumberOfCallsInHalfOpenState='10'
+                    slidingWindowSize='100'
+                    slidingWindowType='COUNT_BASED'
+                    minimumNumberOfCalls='100'
+                    waitDurationInOpenState='60'
+                    automaticTransitionFromOpenToHalfOpenEnabled='false'
+                    slowCallDurationThreshold='60'
+                    slowCallRateThreshold='100'
+            />
+            <step id="Main branch--f9b816e9-7940-43c6-91d4-9b46102158a4">
+                <toD uri="direct:f9b816e9-7940-43c6-91d4-9b46102158a4"/>
+                <setProperty
+                        name="internalProperty_circuitBreaker_5c72dcd7-c6eb-4895-a202-e90e629bd6b9_completed_with_errors">
+                    <constant>false</constant>
+                </setProperty>
+            </step>
+
+            <onFallback>
+                <step id="On fallback--8c7f94b1-2f20-4373-b3ae-28aa8157cf84">
+                    <toD uri="direct:8c7f94b1-2f20-4373-b3ae-28aa8157cf84"/>
+                    <setProperty
+                            name="internalProperty_circuitBreaker_5c72dcd7-c6eb-4895-a202-e90e629bd6b9_completed_with_errors">
+                        <constant>false</constant>
+                    </setProperty>
+                    <setProperty name="internalProperty_element_warning">
+                        <constant>true</constant>
+                    </setProperty>
+                    <process ref="sessionWarningStatusProcessor"/>
+                </step>
+            </onFallback>
+        </circuitBreaker>
+
+        <choice>
+            <when>
+                <simple>
+                    ${exchangeProperty[internalProperty_circuitBreaker_5c72dcd7-c6eb-4895-a202-e90e629bd6b9_completed_with_errors]}
+                </simple>
+
+                <step id="Main branch--5c72dcd7-c6eb-4895-a202-e90e629bd6b9">
+                    <throwException
+                            exceptionType="org.apache.camel.CamelException"
+                            message="Failed to process route: circuit breaker in open state"/>
+                </step>
+            </when>
+        </choice>
+    </step>
+</route>

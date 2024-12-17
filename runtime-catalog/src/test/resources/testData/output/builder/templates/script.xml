@@ -1,0 +1,11 @@
+<route>
+    <script id="9e7c926e-6104-48ed-a0be-b204dbcffb9f">
+        <groovy>
+def requestBody = exchange.getMessage().getBody(String.class)
+
+if (requestBody) {
+    exchange.setProperty("testRequestBody", requestBody)
+}
+        </groovy>
+    </script>
+</route>

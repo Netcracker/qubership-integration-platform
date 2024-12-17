@@ -1,0 +1,28 @@
+id: "ee73955f-7b9a-4cfc-bcdf-6499ab88c145"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "45430846-ea21-48d8-a84c-c6b68aaa3cb2"
+    name: "SFTP trigger"
+    element-type: "sftp-trigger-2"
+    original-id: "1381eb88-f718-4d25-92e1-7a04a9857a1f"
+    properties:
+      binary: true
+      password: "user"
+      username: "user"
+      scheduler: "quartz"
+      antInclude: "test-*.txt"
+      autoCreate: false
+      connectUrl: "/ftp/test"
+      idempotent: true
+      idempotentKey: "${file:name}-${file:size}-${file:modified}"
+      scheduler.cron: "0 */5 * ? * *"
+      streamDownload: true
+      runLoggingLevel: "OFF"
+      jschLoggingLevel: "OFF"
+      scheduler.deleteJob: false
+      readLockLoggingLevel: "OFF"
+      useUserKnownHostsFile: false
+      scheduler.triggerGroup: "%%{domain-placeholder}-group"
+      ignoreFileNotFoundOrPermissionError: true

@@ -1,0 +1,32 @@
+id: "0d92b2a8-f8f6-474a-bb71-ec2a45de0fe1"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "cb779c9e-77d1-431e-9ef3-6f45ed1788c8"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    original-id: "771af6af-4356-44e7-b6ce-dc07565226e1"
+    properties:
+      chunked: true
+      invalidURI: false
+      contextPath: "test"
+      accessControlType: "RBAC"
+      externalRoute: true
+      integrationOperationId: null
+      handleValidationAction: default
+      rejectRequestIfNonNullBodyGetDelete: false
+      handlerContainer: {}
+      allowedContentTypes: []
+  - id: "dff13808-d150-4e1d-a3ab-b0661041af0c"
+    name: "Checkpoint"
+    element-type: "checkpoint"
+    original-id: "123e4b89-e642-4bf7-9b62-582d668005f2"
+    properties:
+      contextPath: "/chains/5964a902-37ec-490b-bfb1-930571dad66f/sessions/{checkpointSessionId}/checkpoint-elements/123e4b89-e642-4bf7-9b62-582d668005f2/retry"
+      externalRoute: false
+      httpMethodRestrict: "POST"
+      checkpointElementId: "123e4b89-e642-4bf7-9b62-582d668005f2"
+dependencies:
+  - from: "cb779c9e-77d1-431e-9ef3-6f45ed1788c8"
+    to: "dff13808-d150-4e1d-a3ab-b0661041af0c"

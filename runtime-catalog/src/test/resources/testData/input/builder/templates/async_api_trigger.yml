@@ -1,0 +1,36 @@
+id: "e36bda38-bb1c-4c03-86eb-f11f631f3c79"
+name: "V3"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "5e5cecb4-b800-4a20-b91f-231134da0dc0"
+    name: "Async API Trigger"
+    element-type: "async-api-trigger"
+    original-id: "a2b12832-75f7-4ce9-bf9c-6bebc07eece9"
+    properties:
+      after: []
+      systemType: "INTERNAL"
+      reconnectDelay: 30000
+      integrationSystemId: "2b23320c-b656-4ad3-bb37-1da4f884f686"
+      integrationOperationId: "6feb48fa-0a3e-4207-ada9-2aa265144921"
+      integrationOperationPath: "install-base-service-expired-product-instances"
+      integrationOperationMethod: "subscribe"
+      integrationSpecificationId: "401ebef7-b77f-4934-a30c-f3c38d040921"
+      integrationSpecificationGroupId: "3ad1f09d-950e-4cd4-b57e-9b0cc56bb720"
+      integrationOperationProtocolType: "kafka"
+    service-environment:
+      id: "143a284b-2726-46b2-9a3d-9d5699ebef60"
+      name: "main"
+      address: "#{cpq-kafka-address}"
+      systemId: "2b23320c-b656-4ad3-bb37-1da4f884f686"
+      properties:
+        key: ""
+        sslProtocol: ""
+        saslMechanism: "#{cpq-kafka-sasl-mechanism}"
+        saslJaasConfig: "#{cpq-kafka-sasl-jaas-config}"
+        securityProtocol: "#{cpq-kafka-security-protocol}"
+        sslEnabledProtocols: ""
+        sslEndpointAlgorithm: ""
+      createdWhen: 1662372894151
+      modifiedWhen: 1662372894296
+      notActivated: false

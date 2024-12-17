@@ -1,0 +1,147 @@
+<route>
+    <setProperty name="correlationIdPosition">
+        <constant>Body</constant>
+    </setProperty>
+    <setProperty name="correlationIdName">
+        <constant>test_correlation_id</constant>
+    </setProperty>
+    <process ref="correlationIdPropagationProcessor"/>
+    <step id="8ff3584f-3666-4c75-ba40-a3c8955c44e8">
+        <removeHeader name="CamelHttpQuery"/>
+        <step id="Prepare request--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
+            <setProperty name="internalProperty_mappingConfig">
+                <constant><![CDATA[{"name":"UI.52e2590335614b15bf37bd838a08fa97","jsonType":"io.atlasmap.v2.AtlasMapping","mappings":{"mapping":[{"id":"mapping.896a1113ac094c26b67943cb90d59b0a","jsonType":"io.atlasmap.v2.Mapping","inputField":[{"name":"testInputRequestBody","path":"/testInputRequestBody","docId":"source","index":0,"jsonType":"io.atlasmap.json.v2.JsonField","fieldType":"STRING","userCreated":false}],"mappingType":"MAP","outputField":[{"name":"testOutputRequestBody","path":"/testOutputRequestBody","docId":"target","index":0,"jsonType":"io.atlasmap.json.v2.JsonField","fieldType":"STRING","userCreated":false}]}]},"constants":{"constant":[]},"dataSource":[{"id":"source","uri":"atlas:json:source","jsonType":"io.atlasmap.json.v2.JsonDataSource","dataSourceType":"SOURCE"},{"id":"target","uri":"atlas:json:target","jsonType":"io.atlasmap.json.v2.JsonDataSource","dataSourceType":"TARGET"}],"properties":{"property":[]},"lookupTables":{"lookupTable":[]}}]]></constant>
+            </setProperty>
+            <process ref="mapperProcessor"/>
+            <removeProperty name="internalProperty_mappingConfig"/>
+        </step>
+        <setHeader name="CamelHttpUri">
+            <simple>http://egress-gateway:8080%%{route-5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f}/RestNotify_1</simple>
+        </setHeader>
+        <removeHeader name="CamelHttpResponseCode"/>
+        <setHeader name="CamelHttpMethod">
+            <constant>POST</constant>
+        </setHeader>
+        <process ref="contextPropagationProcessor"/>
+        <setProperty name="internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Retry">
+            <constant>true</constant>
+        </setProperty>
+        <setProperty name="internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Iterator">
+            <constant>0</constant>
+        </setProperty>
+        <loop doWhile="true">
+            <simple>${exchangeProperty[internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Retry]}</simple>
+            <step id="Request attempt--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
+                <choice>
+                    <when>
+                        <simple>${exchangeProperty[internalProperty_retryAwait]}</simple>
+                        <delay>
+                            <simple>5000</simple>
+                        </delay>
+                    </when>
+                </choice>
+                <setProperty name="internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Retry">
+                    <constant>false</constant>
+                </setProperty>
+                <doTry id="Request--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
+
+                    <process ref="httpSenderProcessor"/>
+                    <process ref="httpProducerCharsetProcessor"/>
+                    <toD allowOptimisedComponents="false" uri="http:stub?httpClientConfigurer=#8ff3584f-3666-4c75-ba40-a3c8955c44e8&amp;followRedirects=true"/>
+                    <removeProperty name ="internalProperty_enableAuthRestore"/>
+                    <process ref="correlationIdReceiverProcessor"/>
+                    <doCatch>
+                        <exception>java.lang.Exception</exception>
+                        <setProperty name="internalProperty_elementFailed">
+                            <constant>true</constant>
+                        </setProperty>
+                        <choice>
+                            <when>
+                                <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+                                <setHeader name="CamelHttpResponseCode">
+                                    <simple>${exchangeProperty.CamelExceptionCaught.statusCode}</simple>
+                                </setHeader>
+                                <choice>
+                                    <when>
+                                        <simple>${exchangeProperty[internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Iterator]} == 1</simple>
+                                        <process ref="setCaughtHttpExceptionContextProcessor" />
+                                    </when>
+                                </choice>
+                            </when>
+                        </choice>
+                        <choice>
+                            <when>
+                                <simple>${exception} !is 'org.apache.camel.http.base.HttpOperationFailedException' || ${exchangeProperty.CamelExceptionCaught.statusCode} !range '400..499'</simple>
+                                <choice>
+                                    <when>
+                                        <simple>${exchangeProperty[internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Iterator]} &lt; 1</simple>
+                                        <setProperty name="internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Retry">
+                                            <constant>true</constant>
+                                        </setProperty>
+                                        <setProperty name="internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Iterator">
+                                            <simple resultType="java.lang.Integer">${exchangeProperty[internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Iterator]}++</simple>
+                                        </setProperty>
+                                        <setProperty name="internalProperty_retryAwait">
+                                            <constant>true</constant>
+                                        </setProperty>
+                                    </when>
+                                    <when>
+                                        <simple>${exception} !is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+                                        <setProperty name="internalProperty_elementFailed">
+                                            <constant>false</constant>
+                                        </setProperty>
+                                        <process ref="throwCaughtExceptionProcessor"/>
+                                    </when>
+                                    <otherwise>
+                                        <setProperty name="internalProperty_retryAwait">
+                                            <constant>false</constant>
+                                        </setProperty>
+                                    </otherwise>
+                                </choice>
+                            </when>
+                            <otherwise>
+                                <process ref="setCaughtHttpExceptionContextProcessor" />
+                            </otherwise>
+                        </choice>
+                    </doCatch>
+                    <doFinally>
+                        <removeProperty name="external-service-name"/>
+                        <removeProperty name="external-service-environment-name"/>
+                        <choice>
+                            <when>
+                                <simple>${exchangeProperty[internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Retry]} != true</simple>
+                                <removeProperty name="internalProperty_overrideContextParams"/>
+                                <removeProperty name="internalProperty_retryAwait"/>
+                                <process ref="contextRestoreProcessor"/>
+                            </when>
+                        </choice>
+                    </doFinally>
+                </doTry>
+            </step>
+            <removeProperty name="internalProperty_elementFailed"/>
+        </loop>
+        <choice>
+            <when>
+                <simple>${headers.CamelHttpResponseCode} == '200'</simple>
+                <step id="Handle response--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
+                    <script>
+                        <groovy>exchange.setProperty("responseBody", exchange.getMessage().getBody(String.class))</groovy>
+                    </script>
+                    <choice>
+                        <when>
+                            <simple>
+                                ${headers.CamelHttpResponseCode} range '400..599'
+                            </simple>
+                            <process ref="sessionWarningStatusProcessor"/>
+                        </when>
+                    </choice>
+                </step>
+            </when>
+            <when>
+                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>
+                <process ref="throwCaughtExceptionProcessor"/>
+            </when>
+        </choice>
+    </step>
+    <removeHeader name="CamelHttpUri"/>
+</route>

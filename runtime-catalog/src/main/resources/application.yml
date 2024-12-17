@@ -1,0 +1,153 @@
+server:
+  address: 0.0.0.0
+  port: ${TOMCAT_PORT:8080}
+  max-http-request-header-size: 16KB
+  tomcat:
+    max-http-response-header-size: 16KB
+
+spring:
+  autoconfigure:
+    exclude:
+    - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+    - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+  main:
+    allow-bean-definition-overriding: true
+  profiles:
+    active: default
+  application:
+    name: ${MICROSERVICE_NAME:qip-runtime-catalog}
+    cloud_service_name: ${spring.application.name}-${spring.application.deployment_version}
+    deployment_version: ${DEPLOYMENT_VERSION:v1}
+  flyway:
+    enabled: false
+  jpa:
+    database: postgresql
+    properties:
+      hibernate:
+        physical_naming_strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
+        temp:
+          use_jdbc_metadata_defaults: false # disable connection during init
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: catalog
+        jdbc:
+          time_zone: UTC
+          lob:
+            non_contextual_creation: true
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_MULTIPART_FILE_SIZE:25}MB
+      max-request-size: 100MB
+  config:
+    import: ${CONSUL_URL:}
+  cloud:
+    discovery:
+      enabled: false
+    service-registry:
+      auto-registration:
+        enabled: false
+    consul:
+      enabled: true
+      config:
+        enabled: true
+        prefixes: config/${NAMESPACE}
+
+db:
+  flyway:
+    configs-datasource:
+      baseline-on-migrate: true
+      schemas: ${spring.jpa.properties.hibernate.default_schema}
+      default-schema: ${spring.jpa.properties.hibernate.default_schema}
+      create-schemas: true
+      outOfOrder: true
+      locations: 'classpath:db/migration/postgresql/configs'
+      ignoreMigrationPatterns: ''
+  hikari:
+    datasources:
+      datasource:
+        driver-class-name: org.postgresql.Driver
+        username: ${POSTGRES_USER:postgres}
+        password: ${POSTGRES_PASSWORD:postgres}
+      configs-datasource:
+        driver-class-name: ${db.hikari.datasources.datasource.driver-class-name}
+        jdbcUrl: jdbc:postgresql://${POSTGRES_URL:postgres:5432/postgres}
+        username: ${db.hikari.datasources.datasource.username}
+        password: ${db.hikari.datasources.datasource.password}
+        schema: ${spring.jpa.properties.hibernate.default_schema}
+
+consul:
+  url: ${CONSUL_URL:http://consul:8500}
+
+management:
+  endpoints:
+    probe:
+      readiness: compiledLibraries # list of custom probes
+    web:
+      exposure:
+        exclude: shutdown
+        include: info, health, ready, env, loggers, metrics, prometheus
+  opentelemetry:
+    resource-attributes:
+      "service.name": ${spring.application.name}-${NAMESPACE:local}
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    propagation:
+      type: B3_MULTI
+    sampling:
+      probability: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
+  otlp:
+    tracing:
+      endpoint: http://${TRACING_HOST:diagnostic-agent}:4318/v1/traces
+    metrics:
+      export:
+        enabled: false
+
+logging:
+  level:
+    root: ${ROOT_LOG_LEVEL:INFO}
+  config: classpath:logback-spring.xml
+
+kubernetes:
+  devmode: false
+  cluster:
+    uri: https://kubernetes.default
+    namespace: ${NAMESPACE:default}
+  service-account:
+    token: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
+    cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
+
+qip:
+  actions-log:
+    cleanup:
+      interval: ${ACTION_LOG_CLEANUP_INTERVAL:14 days} # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
+      cron: ${ACTION_LOG_CLEANUP_CRON:0 0 0 ? * SAT} # Cleanup task schedule in cron expression format
+  chains:
+    triggers:
+      check:
+        enabled: true
+  export:
+    remove-unused-specifications: ${QIP_EXPORT_REMOVE_UNUSED_SPECS:true}
+  import:
+    session-lifetime-minutes: 300
+  internal-services:
+    engine: qip-engine
+    variables-management: qip-variables-management
+  domain:
+    default: default
+  gateway:
+    egress:
+      protocol: http
+      url: egress-gateway:8080
+  engine:
+    app-check-custom-label: qip_engine_app  #need this label for domains resolution. Each new domain can have a fully custom deployment name
+  control-plane:
+    chain-routes-registration:
+      ingress-gateways: ${QIP_REGISTER_INGRESS_CHAIN_ROUTES:true} # public/private/internal gateway
+      egress-gateway: ${QIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
+  build:
+    artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}

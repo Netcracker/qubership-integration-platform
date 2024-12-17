@@ -1,0 +1,38 @@
+id: "5f08fd9b-6c04-472f-8714-c4f075bbbf2c"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "63799153-20d0-4dad-b0da-5f1b0db63b8d"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    original-id: "884cbe75-759c-475e-9763-0d629604ef45"
+    properties:
+      after: []
+      roles: ["test_role"]
+      chunked: true
+      invalidURI: false
+      systemType: "IMPLEMENTED"
+      externalRoute: false
+      accessControlType: "RBAC"
+      httpMethodRestrict: "POST"
+      integrationSystemId: "2a56efcc-84fe-4ff4-89bf-c50b519fff4d"
+      integrationOperationId: "3efed4bf-0e40-4631-9cef-afffd544e186"
+      integrationOperationPath: "/v1/test"
+      integrationSpecificationId: "af56282e-f4ab-4831-9ea4-ac4a33297384"
+      integrationSpecificationGroupId: "83d1235f-0dd6-4548-a299-811485ec0fa2"
+      handleValidationAction: default
+      rejectRequestIfNonNullBodyGetDelete: false
+      handlerContainer: {}
+      allowedContentTypes: []
+    service-environment:
+      id: "8fece1db-1393-48d9-a43b-a79dedfb5f86"
+      name: "Environment for Implemented Service"
+      address: "/"
+      systemId: "2a56efcc-84fe-4ff4-89bf-c50b519fff4d"
+      properties: {}
+      sourceType: "MANUAL"
+      createdWhen: 1670224007230
+      description: null
+      modifiedWhen: 1670224546958
+      notActivated: false

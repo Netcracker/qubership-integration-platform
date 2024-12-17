@@ -1,0 +1,8 @@
+<route>
+    <step id="c104d060-410f-4b20-bb77-0659dc33b47c">
+        <step id="c82508ec-8290-421a-b361-d37a119d7570">
+            <process ref="activeThreadCounterIncrementer"/>
+            <wireTap uri='direct:c82508ec-8290-421a-b361-d37a119d7570-on-completion'/>
+        </step>
+    </step>
+</route>

@@ -1,0 +1,14 @@
+id: "6e6ad276-8424-4d3d-b35c-9f3fe8f53ff4"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "c104d060-410f-4b20-bb77-0659dc33b47c"
+    name: "Split Async"
+    element-type: "split-async-2"
+    original-id: "f21b03d0-b567-45eb-8c29-21e0dd092ca0"
+    children:
+      - id: "c82508ec-8290-421a-b361-d37a119d7570"
+        name: "Async Split Element"
+        element-type: "async-split-element-2"
+        original-id: "d2a45c88-f839-46be-b4a4-7bba2f27bf98"

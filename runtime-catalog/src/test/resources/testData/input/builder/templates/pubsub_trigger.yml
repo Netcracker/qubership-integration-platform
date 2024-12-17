@@ -1,0 +1,14 @@
+id: "b7bc3be5-28ff-4f59-86a1-5d5d3b97e24d"
+name: "trigger"
+description: ""
+modifiedWhen: 1692265232364
+elements:
+- id: "bd9f123f-e186-4764-8213-08ddb5cefd3c"
+  name: "PubSub Trigger"
+  element-type: "pubsub-trigger"
+  properties:
+    ackMode: "AUTO"
+    destinationName: "test_destination_name"
+    maxMessagesPerPoll: 1
+    projectId: "test_project_id"
+    serviceAccountKey: "test_service_account_name"
