@@ -1,0 +1,106 @@
+server:
+  address: 0.0.0.0
+  port: 8080
+  max-http-request-header-size: 16KB
+  tomcat:
+    max-http-response-header-size: 16KB
+
+spring:
+  autoconfigure:
+    exclude:
+    - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+    - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+  main:
+    allow-bean-definition-overriding: true
+  profiles:
+    active: default
+  application:
+    name: ${cloud.microservice.name}
+    cloud_service_name: ${cloud.microservice.name}-${cloud.microservice.bg_version}
+    deployment_version: ${cloud.microservice.bg_version}
+    namespace: ${NAMESPACE:local}
+    cloud_namespace: ${CLOUD_NAMESPACE:local}
+  config:
+    import: ${CONSUL_URL:}
+  cloud:
+    discovery:
+      enabled: false
+    service-registry:
+      auto-registration:
+        enabled: false
+    consul:
+      enabled: true
+      config:
+        enabled: true
+        prefixes: config/${NAMESPACE}
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_MULTIPART_FILE_SIZE:25}MB
+      max-request-size: 100MB
+
+cloud:
+  microservice:
+    name: ${MICROSERVICE_NAME:qip-sessions-management}
+    bg_version: ${DEPLOYMENT_VERSION:v1}
+    namespace: ${NAMESPACE}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        exclude: shutdown
+        include: info, health, ready, env, loggers, metrics, prometheus
+  opentelemetry:
+    resource-attributes:
+      "service.name": ${spring.application.name}-${NAMESPACE:local}
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    propagation:
+      type: B3_MULTI
+    sampling:
+      probability: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
+  otlp:
+    tracing:
+      endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318/v1/traces
+    metrics:
+      export:
+        enabled: false
+
+info:
+  app:
+    name: ${cloud.microservice.name}
+
+qip:
+  sessions:
+    bulk-request:
+      max-size-kb: ${SESSIONS_BULK_REQUEST_MAX_SIZE_KB:4096}
+      payload-size-threshold-kb: ${qip.sessions.bulk-request.max-size-kb}
+      elements-count-threshold: ${SESSIONS_BULK_REQUEST_ELEMENTS_COUNT_THRESHOLD:5}
+  opensearch:
+    client:
+      host: ${OPENSEARCH_HOST:opensearch}
+      port: ${OPENSEARCH_PORT:9200}
+      protocol: ${OPENSEARCH_PROTOCOL:http}
+      user-name: ${OPENSEARCH_USERNAME:}
+      password: ${OPENSEARCH_PASSWORD:}
+    index:
+      prefix: ${OPENSEARCH_PREFIX:}
+      elements:
+        name: qip-elements-${spring.application.namespace}-session-elements
+    session:
+      default-buffer-limit: ${OPENSEARCH_SESSION_DEFAULT_BUFFER_LIMIT:104857600}
+  internal-services:
+    catalog: qubership-integration-platform-catalog
+    engine: qubership-integration-platform-engine
+    systems-catalog: qubership-integration-platform-systems-catalog
+
+logging:
+  level:
+    root: ${ROOT_LOG_LEVEL:INFO}
+  config: classpath:logback-spring.xml
