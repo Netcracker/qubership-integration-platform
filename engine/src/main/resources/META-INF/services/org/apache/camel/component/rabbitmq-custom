@@ -1,0 +1,1 @@
+class=org.qubership.integration.platform.engine.camel.components.rabbitmq.SpringRabbitMQCustomComponent
