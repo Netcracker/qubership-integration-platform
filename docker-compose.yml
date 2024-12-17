@@ -1,0 +1,236 @@
+version: '2.3'
+services:
+
+    ###### QIP
+
+    qip-design-time-catalog:
+        image: ghcr.io/netcracker/qubership-integration-designtime-catalog:latest
+        container_name: qip-design-time-catalog
+        read_only: true
+        ports:
+        - "8090:8080"
+        env_file: "qip-dev.env"
+        command: [
+            "/opt/java/openjdk/bin/java",
+            "-Xmx512m",
+            "-XX:MetaspaceSize=192m",
+            "-XX:MaxMetaspaceSize=192m",
+            "-XX:MaxDirectMemorySize=64m",
+            "-XX:+ExitOnOutOfMemoryError",
+            "-Djava.security.egd=file:/dev/./urandom",
+            "-Dfile.encoding=UTF-8",
+            "-jar",
+            "/app/qip-designtime-catalog.jar"
+        ]
+        healthcheck:
+            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
+            interval: 10s
+            timeout: 15s
+            retries: 15
+            start_period: 30s
+        networks:
+            default:
+                aliases:
+                - designtime-catalog
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+    qip-runtime-catalog:
+        image: ghcr.io/netcracker/qubership-integration-runtime-catalog:latest
+        container_name: qip-runtime-catalog
+        read_only: true
+        ports:
+        - "8091:8080"
+        env_file: "qip-dev.env"
+        command: [
+            "/opt/java/openjdk/bin/java",
+            "-Xmx642m",
+            "-XX:MetaspaceSize=192m",
+            "-XX:MaxMetaspaceSize=192m",
+            "-XX:MaxDirectMemorySize=64m",
+            "-XX:+ExitOnOutOfMemoryError",
+            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+            "-Djava.security.egd=file:/dev/./urandom",
+            "-Dfile.encoding=UTF-8",
+            "-jar",
+            "/app/qip-runtime-catalog.jar"
+        ]
+        healthcheck:
+            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
+            interval: 10s
+            timeout: 15s
+            retries: 15
+            start_period: 30s
+        networks:
+            default:
+                aliases:
+                - runtime-catalog
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+    qip-engine:
+        image: ghcr.io/netcracker/qubership-integration-engine:latest
+        container_name: qip-engine
+        read_only: true
+        ports:
+        - "8092:8080"
+        env_file:
+        - "qip-dev.env"
+        - "engine-dev.env"
+        command: [
+            "/opt/java/openjdk/bin/java",
+            "-Xmx832m",
+            "-XX:MetaspaceSize=512m",
+            "-XX:MaxMetaspaceSize=224m",
+            "-XX:MaxDirectMemorySize=224m",
+            "-XX:+ExitOnOutOfMemoryError",
+            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+            "-Djava.security.egd=file:/dev/./urandom",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+            "--add-opens=java.base/java.util=ALL-UNNAMED",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "-Dfile.encoding=UTF-8",
+            "-jar",
+            "/app/qip-engine.jar" ]
+        healthcheck:
+            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
+            interval: 10s
+            timeout: 15s
+            retries: 15
+            start_period: 30s
+        volumes:
+        - ./kafka-ssl/client:/app/cert/defaultsslcertificate
+        networks:
+            default:
+                aliases:
+                - engine
+        depends_on:
+            opensearch:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+
+    qip-sessions-management:
+        image: ghcr.io/netcracker/qubership-integration-sessions-management:latest
+        container_name: qip-sessions-management
+        read_only: true
+        ports:
+        - "8093:8080"
+        env_file: "qip-dev.env"
+        command: [
+            "/opt/java/openjdk/bin/java",
+            "-Xmx416m",
+            "-XX:MetaspaceSize=192m",
+            "-XX:MaxMetaspaceSize=192m",
+            "-XX:MaxDirectMemorySize=64m",
+            "-XX:+ExitOnOutOfMemoryError",
+            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+            "-Djava.security.egd=file:/dev/./urandom",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "--add-opens=java.base/java.util=ALL-UNNAMED",
+            "-Dfile.encoding=UTF-8",
+            "-jar",
+            "/app/qip-sessions-management.jar"
+        ]
+        healthcheck:
+            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
+            interval: 10s
+            timeout: 15s
+            retries: 15
+            start_period: 30s
+        networks:
+            default:
+                aliases:
+                - sessions-management
+        depends_on:
+            opensearch:
+                condition: service_healthy
+
+    qip-variables-management:
+        image: ghcr.io/netcracker/qubership-integration-variables-management:latest
+        container_name: qip-variables-management
+        read_only: true
+        ports:
+        - "8094:8080"
+        env_file: "qip-dev.env"
+        command: [
+            "/opt/java/openjdk/bin/java",
+            "-Xmx256m",
+            "-XX:MetaspaceSize=192m",
+            "-XX:MaxMetaspaceSize=192m",
+            "-XX:MaxDirectMemorySize=64m",
+            "-XX:+ExitOnOutOfMemoryError",
+            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+            "-Djava.security.egd=file:/dev/./urandom",
+            "-Dfile.encoding=UTF-8",
+            "-jar",
+            "/app/qip-variables-management.jar"
+        ]
+        healthcheck:
+            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
+            interval: 10s
+            timeout: 15s
+            retries: 15
+            start_period: 30s
+        networks:
+            default:
+                aliases:
+                - variables-management
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+
+
+    ###### 3rd party services
+
+    postgres:
+        image: postgres
+        container_name: postgreSQL
+        environment:
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=postgres
+        - POSTGRES_DB=postgres
+        ports:
+        - 5432:5432
+        healthcheck:
+            test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+            interval: 10s
+            timeout: 15s
+            retries: 15
+            start_period: 15s
+        volumes:
+        - ./init-db:/docker-entrypoint-initdb.d
+
+    opensearch:
+        image: opensearchproject/opensearch:2.18.0
+        container_name: opensearch
+        ports:
+        - 9200:9200
+        - 9300:9300
+        environment:
+        - ES_JAVA_OPTS=-Xms512m -Xmx512m
+        - discovery.type=single-node
+        healthcheck:
+            test: [ "CMD-SHELL", "curl --silent --fail localhost:9200/_cluster/health || exit 1" ]
+            interval: 10s
+            timeout: 15s
+            retries: 15
+            start_period: 15s
+        volumes:
+        - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+
+    consul:
+        image: hashicorp/consul:1.15.4
+        container_name: consul
+        volumes:
+        - ./consul/server.json:/consul/config/server.json:ro
+        - ./consul/consul-acl.json:/consul/config/consul-acl.json
+        ports:
+        - "8500:8500"
+        - "8600:8600/tcp"
+        - "8600:8600/udp"
+        command: "agent -bootstrap-expect=1"
