@@ -1,0 +1,186 @@
+server:
+  address: 0.0.0.0
+  port: ${TOMCAT_PORT:8080}
+  max-http-request-header-size: 16KB
+  tomcat:
+    max-http-response-header-size: 16KB
+
+spring:
+  autoconfigure:
+    exclude:
+    - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+    - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+    - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+    - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+  main:
+    allow-bean-definition-overriding: true
+  profiles:
+    active: default
+  application:
+    name: ${cloud.microservice.name}
+    cloud_service_name: ${cloud.microservice.name}-${cloud.microservice.bg_version}
+    deployment_version: ${cloud.microservice.bg_version}
+  jpa:
+    database: postgresql
+    properties:
+      hibernate:
+        physical_naming_strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
+        temp:
+          use_jdbc_metadata_defaults: false # disable connection during init
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: variables_management
+        jdbc:
+          time_zone: UTC
+          lob:
+            non_contextual_creation: true
+  flyway:
+    enabled: false
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_MULTIPART_FILE_SIZE:25}MB
+      max-request-size: 100MB
+  config:
+    import: ${CONSUL_URL:}
+  cloud:
+    discovery:
+      enabled: false
+    service-registry:
+      auto-registration:
+        enabled: false
+    consul:
+      enabled: true
+      config:
+        enabled: true
+        prefixes: config/${NAMESPACE}
+        acl-token: ${CONSUL_ADMIN_TOKEN}
+
+app:
+  prefix: qip
+
+db:
+  flyway:
+    configs-datasource:
+      baseline-on-migrate: true
+      schemas: ${spring.jpa.properties.hibernate.default_schema}
+      default-schema: ${spring.jpa.properties.hibernate.default_schema}
+      create-schemas: true
+      outOfOrder: true
+      locations: ${db.postgres.datasources.configs.flyway.locations}
+      ignoreMigrationPatterns: ''
+  hikari:
+    datasources:
+      datasource:
+        driver-class-name: org.postgresql.Driver
+        username: ${POSTGRES_USER:postgres}
+        password: ${POSTGRES_PASSWORD:postgres}
+      configs-datasource:
+        driver-class-name: ${db.hikari.datasources.datasource.driver-class-name}
+        jdbcUrl: jdbc:postgresql://${POSTGRES_URL:postgres:5432/postgres}
+        username: ${db.hikari.datasources.datasource.username}
+        password: ${db.hikari.datasources.datasource.password}
+        schema: ${spring.jpa.properties.hibernate.default_schema}
+  postgres: # generic properties
+    datasource:
+      maximumPoolSize: ${PG_MAX_POOL_SIZE:30}
+      minimumIdle: ${PG_MIN_IDLE:0}
+      idleTimeout: ${PG_IDLE_TIMEOUT:300000}
+      leakDetectionThreshold: ${PG_LEAK_DETECTION_INTERVAL:30000}
+      flyway: # shared (non-versioned) database
+        locations: 'classpath:db/migration/postgresql/static'
+        baselineOnMigrate: true
+        schemas: ${spring.jpa.properties.hibernate.default_schema}
+        defaultSchema: ${spring.jpa.properties.hibernate.default_schema}
+        createSchemas: true
+        outOfOrder: true
+        ignoreMigrationPatterns: ''
+    datasources:
+      configs:
+        flyway: # shared (non-versioned) database
+          locations: 'classpath:db/migration/postgresql/configs'
+          baselineOnMigrate: true
+          schemas: ${spring.jpa.properties.hibernate.default_schema}
+          defaultSchema: ${spring.jpa.properties.hibernate.default_schema}
+          createSchemas: true
+          outOfOrder: true
+          ignoreMigrationPatterns: ''
+
+
+consul:
+  url: ${CONSUL_URL:}
+  token: ${CONSUL_ADMIN_TOKEN}
+  keys:
+    prefix: /config/${NAMESPACE}
+    engine-config-root: /qip-engine-configurations
+    common-variables-v1: /common-variables
+    common-variables-v2: /variables/common
+
+cloud:
+  microservice:
+    name: ${MICROSERVICE_NAME:cloud-integration-platform-variables-management}
+    bg_version: ${DEPLOYMENT_VERSION:v1}
+    namespace: ${NAMESPACE}
+    origin_namespace: ${ORIGIN_NAMESPACE}
+
+listeners: # settings for spring @EventListener's
+  RestoreVariablesListener:
+    call-retry:
+      max-attempts: 10
+      delay: 5000
+
+connection:
+  readTimeout: 60000
+  connectTimeout: 60000
+  connectionRequestTimeout: 60000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        exclude: shutdown
+        include: info, health, ready, env, loggers, metrics, prometheus
+  opentelemetry:
+    resource-attributes:
+      "service.name": ${spring.application.name}-${NAMESPACE:local}
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    propagation:
+      type: B3_MULTI
+    sampling:
+      probability: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
+  otlp:
+    tracing:
+      endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318/v1/traces
+    metrics:
+      export:
+        enabled: false
+
+info:
+  app:
+    name: ${cloud.microservice.name}
+
+logging:
+  level:
+    root: ${ROOT_LOG_LEVEL:INFO}
+  config: classpath:logback-spring.xml
+
+kubernetes:
+  devmode: false
+  cluster:
+    uri: https://kubernetes.default
+    namespace: ${NAMESPACE:}
+  service-account:
+    token: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
+    cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
+  variables-secret:
+    name: ${app.prefix}-secured-variables-v2
+    label: ${app.prefix}-variable-type
+
+qip:
+  actions-log:
+    cleanup:
+      interval: ${ACTION_LOG_CLEANUP_INTERVAL:14 days} # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
+      cron: ${ACTION_LOG_CLEANUP_CRON:0 0 0 ? * SAT} # Cleanup task schedule in cron expression format

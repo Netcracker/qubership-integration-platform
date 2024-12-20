@@ -1,0 +1,9 @@
+org.qubership.integration.platform.variables.management.configuration.ApplicationAutoConfiguration
+org.qubership.integration.platform.variables.management.configuration.KubeOperatorAutoConfiguration
+org.qubership.integration.platform.variables.management.configuration.MapperAutoConfiguration
+org.qubership.integration.platform.variables.management.configuration.RestTemplateAutoConfiguration
+org.qubership.integration.platform.variables.management.configuration.SwaggerAutoConfiguration
+org.qubership.integration.platform.variables.management.configuration.WebAutoConfig
+org.qubership.integration.platform.variables.management.configuration.auditing.AuditorAutoProvider
+org.qubership.integration.platform.variables.management.configuration.datasource.localdev.FlywayAutoInitializer
+org.qubership.integration.platform.variables.management.configuration.datasource.localdev.PersistenceAutoConfiguration
