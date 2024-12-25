@@ -161,18 +161,6 @@ public class ElementService extends ElementBaseService {
         elementRepository.actualizeCollectionStateOnlyUpdates(getAllParentElements(oldChainElementStates),getAllParentElements(newChainElementStates));
     }
 
-    public Collection<ChainElement> findElementsByTypesAndSnapshots( Collection<String> types, Collection<String> snapshotIds){
-        return elementRepository.findElementsByTypesAndSnapshots(types, snapshotIds);
-    }
-
-    public Optional<ChainElement> findAllDeployedElementByOriginalId(String elementId){
-        return elementRepository.findAllDeployedElementByOriginalId(elementId);
-    }
-
-    public List<ChainElement> findAllByChainIdAndTypeIn(String chainId, Collection<String> types){
-        return elementRepository.findAllByChainIdAndTypeIn(chainId, types);
-    }
-
     private List<ChainElement> getAllChildElements(List<ChainElement> chainElementList){
         return chainElementList
                 .stream()

@@ -19,7 +19,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <revision>2025.1.0.0</revision>
-        <catalog-library.revision>2025.1.1.13</catalog-library.revision>
+        <catalog-library.revision>2025.1.1.14</catalog-library.revision>
 
         <!-- BOMs -->
 
