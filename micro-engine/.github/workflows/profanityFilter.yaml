@@ -1,0 +1,19 @@
+name: Profanity filter
+
+# Trigger on issue or pull requests, that are opened, edited, or reopened
+on:
+  issue_comment:
+    types: [created, edited]
+  issues:
+    types: [opened, edited, reopened]
+  pull_request:
+    types: [opened, edited, reopened]
+
+# Required permissions
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  call-apply-filter:
+    uses: Netcracker/qubership-github-workflows/.github/workflows/profanityFilter.yaml@main
