@@ -25,7 +25,7 @@ spring:
     cloud_service_name: ${spring.application.name}-${spring.application.deployment_version}
     deployment_version: ${DEPLOYMENT_VERSION:v1}
   config:
-    import: ${CONSUL_URL:}
+    import: consul:${CONSUL_URL:http://consul:8500}
   cloud:
     discovery:
       enabled: false
@@ -58,6 +58,9 @@ spring:
     multipart:
       max-file-size: ${MAX_UPLOAD_MULTIPART_FILE_SIZE:25}MB
       max-request-size: 100MB
+
+consul:
+  url: ${CONSUL_URL:http://consul:8500}
 
 db:
   hikari:
