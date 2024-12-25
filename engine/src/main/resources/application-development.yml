@@ -13,7 +13,7 @@ spring:
   config:
     activate:
       on-profile: development
-    import: optional:consul:${CONSUL_URL:host.docker.internal:8500/}
+    import: optional:consul:${CONSUL_URL:http://consul:8500}
   cloud:
     consul:
       config:
