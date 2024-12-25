@@ -27,7 +27,7 @@ spring:
     namespace: ${NAMESPACE:local}
     cloud_namespace: ${CLOUD_NAMESPACE:local}
   config:
-    import: ${CONSUL_URL:}
+    import: consul:${CONSUL_URL:http://consul:8500}
   cloud:
     discovery:
       enabled: false
