@@ -16,11 +16,7 @@
 
 package org.qubership.integration.platform.engine.model.deployment.update;
 
-import javax.annotation.Nullable;
 import lombok.*;
-import org.apache.commons.lang3.StringUtils;
-
-import java.util.List;
 
 @Getter
 @Setter
@@ -38,5 +34,4 @@ public class DeploymentInfo {
     private Long createdWhen;
     private boolean containsCheckpointElements;
     private boolean containsSchedulerElements;
-    private List<String> dependencyChainIds;
 }

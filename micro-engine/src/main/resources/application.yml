@@ -194,8 +194,6 @@ qip:
         predeploy-check-enabled: ${CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED:true}
       rabbitmq:
         predeploy-check-enabled: ${CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED:true}
-      sub-chains:
-        predeploy-check-enabled: ${CAMEL_SUB_CHAINS_PREDEPLOY_CHECK_ENABLED:true}
   deployments:
     retry-delay: 30000
     thread-pool:

@@ -183,8 +183,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private boolean enableStreamCaching;
     @Value("${qip.camel.component.rabbitmq.predeploy-check-enabled}")
     private boolean amqpPredeployCheckEnabled;
-    @Value("${qip.camel.component.sub-chains.predeploy-check-enabled}")
-    private boolean subChainsPredeployCheckEnabled;
 
     private final int streamCachingBufferSize;
 
@@ -768,10 +766,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             checkSchedulerRequirements();
         }
 
-        if (CollectionUtils.isNotEmpty(deployment.getDeploymentInfo().getDependencyChainIds()) && subChainsPredeployCheckEnabled){
-            checkDependencyDeployments(deployment);
-        }
-
         checkSdsConnection(deployment);
 
         propertiesService.mergeWithRuntimeProperties(CamelDebuggerProperties.builder()
@@ -826,30 +820,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                 "Failed to obtain DB connection for scheduler");
         } else {
             log.debug("Scheduler database is ready");
-        }
-    }
-
-    private void checkDependencyDeployments(DeploymentUpdate deployment) {
-        if (deployment.getDeploymentInfo().getDependencyChainIds() == null ){
-            return;
-        }
-
-        List<String> undeployedDependencyChainIds = deployment
-                .getDeploymentInfo()
-                .getDependencyChainIds()
-                .stream()
-                .filter(chainId -> getCache()
-                        .getDeployments()
-                        .values()
-                        .stream()
-                        .noneMatch(engineDeployment -> engineDeployment.getDeploymentInfo().getChainId().equals(chainId)
-                                && engineDeployment.getStatus().equals(DeploymentStatus.DEPLOYED) )
-                )
-                .toList();
-
-        if (!undeployedDependencyChainIds.isEmpty()){
-            String undeployedDependencyChainsNames = String.join(", ", undeployedDependencyChainIds);
-            throw new DeploymentRetriableException("Related sub-chains are not deployed yet: ".concat(undeployedDependencyChainsNames));
         }
     }
 
