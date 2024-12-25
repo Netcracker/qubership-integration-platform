@@ -44,7 +44,7 @@ spring:
       max-file-size: ${MAX_UPLOAD_MULTIPART_FILE_SIZE:25}MB
       max-request-size: 100MB
   config:
-    import: ${CONSUL_URL:}
+    import: consul:${CONSUL_URL:http://consul:8500}
   cloud:
     discovery:
       enabled: false
@@ -110,7 +110,7 @@ db:
 
 
 consul:
-  url: ${CONSUL_URL:}
+  url: ${CONSUL_URL:http://consul:8500}
   token: ${CONSUL_ADMIN_TOKEN}
   keys:
     prefix: /config/${NAMESPACE}
