@@ -143,11 +143,6 @@ public class ElementService extends ElementBaseService {
         return chain.getElements();
     }
 
-    public List<ChainElement> findAllByTypes(String chainId, List<String> types) {
-        List<ChainElement> elements = elementRepository.findAllByChainIdAndTypeIn(chainId, types);
-        return elements;
-    }
-
     public List<ChainElement> findAllBySnapshotId(String snapshotId) {
         return elementRepository.findAllBySnapshotId(snapshotId);
     }
