@@ -19,10 +19,8 @@ package org.qubership.integration.platform.catalog.model.deployment.update;
 import com.fasterxml.jackson.annotation.JsonFilter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
-import org.apache.commons.lang3.StringUtils;
 
 import javax.annotation.Nullable;
-import java.util.List;
 
 @Getter
 @Setter
@@ -51,6 +49,4 @@ public class DeploymentInfo {
     private Boolean containsCheckpointElements;
     @Schema(description = "Whether chain contains scheduler elements")
     private Boolean containsSchedulerElements;
-    @Schema(description = "Contains sub-chains related to chain via chain call")
-    private List<String> dependencyChainIds;
 }

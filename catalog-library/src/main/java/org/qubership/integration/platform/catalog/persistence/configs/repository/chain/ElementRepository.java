@@ -20,6 +20,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.cha
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.common.CommonRepository;
 import jakarta.annotation.Nullable;
+import jakarta.persistence.LockModeType;
 import jakarta.validation.constraints.NotEmpty;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,7 +29,6 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
-import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -145,10 +145,6 @@ public interface ElementRepository extends CommonRepository<ChainElement>, JpaRe
 
     @Query("SELECT e FROM elements e INNER JOIN deployments d ON e.snapshot.id = d.snapshot.id WHERE e.type IN :types")
     Collection<ChainElement> findAllDeployedElementsByTypes(Collection<String> types);
-
-    @Query("SELECT e FROM elements e INNER JOIN deployments d ON e.snapshot.id = d.snapshot.id WHERE e.originalId = :elementId GROUP BY e.id ORDER BY e.id LIMIT 1")
-    Optional<ChainElement> findAllDeployedElementByOriginalId(String elementId);
-
 
     @Query("SELECT e " +
             "FROM elements e " +
