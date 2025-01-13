@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment;
 
+import jakarta.validation.constraints.Pattern;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.BaseRequest;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
@@ -30,8 +31,10 @@ import lombok.experimental.SuperBuilder;
 @Schema(description = "Deployment request object")
 public class DeploymentRequest extends BaseRequest {
     @Schema(description = "Domain which was used to deploy to, usually \"default\"")
+    @Pattern(regexp = "^[-._a-zA-Z0-9]+$", message = "Invalid domain format")
     private String domain;
     @Schema(description = "Snapshot id")
+    @Pattern(regexp = "^[-._a-zA-Z0-9]+$", message = "Invalid snapshotId format")
     private String snapshotId;
     @Deprecated
     @Schema(description = "Not used")

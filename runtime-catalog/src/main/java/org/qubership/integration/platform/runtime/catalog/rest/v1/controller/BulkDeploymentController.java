@@ -30,6 +30,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.List;
 
 @Slf4j
@@ -47,7 +48,7 @@ public class BulkDeploymentController {
 
     @PostMapping("/bulk")
     @Operation(description = "(Re)deploy chains in bulk mode")
-    public ResponseEntity<List<BulkDeploymentResponse>> bulkCreate(@RequestBody @Parameter(description = "Chain bulk deploy request object") BulkDeploymentRequest request) {
+    public ResponseEntity<List<BulkDeploymentResponse>> bulkCreate(@RequestBody @Valid @Parameter(description = "Chain bulk deploy request object") BulkDeploymentRequest request) {
         log.info("Request to bulk redeploy chains");
         Pair<Boolean, List<BulkDeploymentResponse>> bulkDeploymentResponses = deploymentService.bulkCreate(request);
         return bulkDeploymentResponses.getLeft() ?

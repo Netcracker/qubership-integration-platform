@@ -33,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -87,7 +88,7 @@ public class DeploymentController {
     @PostMapping
     @Operation(description = "Create deployment for the chain")
     public ResponseEntity<DeploymentResponse> create(@PathVariable @Parameter(description = "Chain id") String chainId,
-                                                     @RequestBody @Parameter(description = "Deployment request object") DeploymentRequest request) {
+                                                     @RequestBody @Valid @Parameter(description = "Deployment request object") DeploymentRequest request) {
         log.info("Request to create new deployment in chain: {}", chainId);
         String snapshotId = request.getSnapshotId();
         Deployment deployment = deploymentMapper.asEntity(request);
@@ -99,7 +100,7 @@ public class DeploymentController {
     @PostMapping("/all")
     @Operation(description = "Bulk create deployment for the chain")
     public ResponseEntity<List<DeploymentResponse>> createAll(@PathVariable @Parameter(description = "Chain id") String chainId,
-                                                     @RequestBody @Parameter(description = "List of deployment request objects") List<DeploymentRequest> request) {
+                                                     @RequestBody @Valid @Parameter(description = "List of deployment request objects") List<DeploymentRequest> request) {
         log.info("Request to create new deployments in chain: {}", chainId);
         List<Deployment> deployments = deploymentService.createAll(deploymentMapper.asEntities(request), chainId);
         return ResponseEntity.ok(deploymentMapper.asResponses(deployments));
