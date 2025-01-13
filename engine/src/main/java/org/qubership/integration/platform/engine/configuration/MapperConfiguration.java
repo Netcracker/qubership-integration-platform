@@ -33,8 +33,6 @@ import org.springframework.context.annotation.Primary;
 
 @Configuration
 public class MapperConfiguration {
-
-    @Primary
     @Bean(name = {"objectMapper", "jsonMapper"})
     public ObjectMapper objectMapper() {
         return buildObjectMapper();

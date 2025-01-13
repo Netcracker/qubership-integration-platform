@@ -33,9 +33,9 @@ import org.springframework.security.access.vote.AffirmativeBased;
 import org.springframework.security.access.vote.RoleVoter;
 
 @AutoConfiguration
-public class CamelSecurityConfiguration {
+public class CamelSecurityAutoConfiguration {
 
-    public CamelSecurityConfiguration() {
+    public CamelSecurityAutoConfiguration() {
     }
 
     private static Policy buildNoOpPolicy() {

@@ -21,7 +21,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.SharedCacheMode;
 import java.util.Properties;
 import javax.sql.DataSource;
-import lombok.Getter;
 import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -30,62 +29,46 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.orm.jpa.JpaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
-@Getter
 @AutoConfiguration
-@EnableJpaAuditing
 @EnableTransactionManagement
-@EnableJpaRepositories(
-    basePackages = "org.qubership.integration.platform.engine.persistence.shared.repository",
-    transactionManagerRef = "checkpointTransactionManager",
-    entityManagerFactoryRef = "checkpointEntityManagerFactory"
-)
 @EnableConfigurationProperties({JpaProperties.class, HikariConfigProperties.class})
-public class PersistenceCheckpointConfiguration {
+@EnableJpaRepositories(
+    basePackages = "org.qubership.integration.platform.engine.persistence.configs.repository",
+    transactionManagerRef = "schedulerTransactionManager"
+)
+public class PersistenceQuartzAutoConfiguration {
 
-    public static final String JPA_ENTITIES_PACKAGE_SCAN =
-        "org.qubership.integration.platform.engine.persistence.shared.entity";
+    private static final String JPA_ENTITIES_PACKAGE_SCAN =
+        "org.qubership.integration.platform.engine.persistence.configs.entity";
+
     private final JpaProperties jpaProperties;
     private final HikariConfigProperties properties;
 
     @Autowired
-    public PersistenceCheckpointConfiguration(JpaProperties jpaProperties,
+    public PersistenceQuartzAutoConfiguration(JpaProperties jpaProperties,
         HikariConfigProperties properties) {
         this.jpaProperties = jpaProperties;
         this.properties = properties;
     }
 
-    @Bean("checkpointDataSource")
-    @ConditionalOnMissingBean(name = "checkpointDataSource")
-    public DataSource checkpointDataSource() {
-        return new HikariDataSource(properties.getDatasource("checkpoints-datasource"));
+    @Primary
+    @Bean("qrtzDataSource")
+    @ConditionalOnMissingBean(name = "qrtzDataSource")
+    public DataSource qrtzDataSource() {
+        return new HikariDataSource(properties.getDatasource("qrtz-datasource"));
     }
 
-    @Bean
-    JdbcTemplate checkpointJdbcTemplate(@Qualifier("checkpointDataSource") DataSource dataSource) {
-        return new JdbcTemplate(dataSource);
-    }
-
-    @Bean
-    NamedParameterJdbcTemplate checkpointNamedParameterJdbcTemplate(
-        @Qualifier("checkpointDataSource") DataSource dataSource
-    ) {
-        return new NamedParameterJdbcTemplate(dataSource);
-    }
-
-    @Bean("checkpointEntityManagerFactory")
-    public LocalContainerEntityManagerFactoryBean checkpointEntityManagerFactory(
-        @Qualifier("checkpointDataSource") DataSource checkpointDataSource
-    ) {
+    @Primary
+    @Bean("entityManagerFactory")
+    public LocalContainerEntityManagerFactoryBean schedulerEntityManagerFactory(DataSource qrtzDataSource) {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
 
         HibernateJpaVendorAdapter jpaVendorAdapter = new HibernateJpaVendorAdapter();
@@ -93,7 +76,7 @@ public class PersistenceCheckpointConfiguration {
         jpaVendorAdapter.setGenerateDdl(jpaProperties.isGenerateDdl());
         jpaVendorAdapter.setShowSql(jpaProperties.isShowSql());
 
-        em.setDataSource(checkpointDataSource);
+        em.setDataSource(qrtzDataSource);
         em.setJpaVendorAdapter(jpaVendorAdapter);
         em.setPackagesToScan(JPA_ENTITIES_PACKAGE_SCAN);
         em.setPersistenceProvider(new HibernatePersistenceProvider());
@@ -102,12 +85,13 @@ public class PersistenceCheckpointConfiguration {
         return em;
     }
 
-    @Bean("checkpointTransactionManager")
-    public PlatformTransactionManager checkpointTransactionManager(
-        @Qualifier("checkpointEntityManagerFactory") LocalContainerEntityManagerFactoryBean checkpointEntityManagerFactory
+    @Primary
+    @Bean("schedulerTransactionManager")
+    public PlatformTransactionManager schedulerTransactionManager(
+        @Qualifier("entityManagerFactory") LocalContainerEntityManagerFactoryBean schedulerEntityManagerFactory
     ) {
         JpaTransactionManager transactionManager = new JpaTransactionManager();
-        transactionManager.setEntityManagerFactory(checkpointEntityManagerFactory.getObject());
+        transactionManager.setEntityManagerFactory(schedulerEntityManagerFactory.getObject());
         return transactionManager;
     }
 

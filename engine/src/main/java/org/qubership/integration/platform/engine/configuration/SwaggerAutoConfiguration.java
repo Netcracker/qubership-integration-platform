@@ -24,13 +24,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 
 @Slf4j
 @AutoConfiguration
 @ConditionalOnMissingBean(name = "swaggerConfiguration")
-public class SwaggerConfiguration {
+public class SwaggerAutoConfiguration {
 
     @Bean
     public OpenAPI getApi() {

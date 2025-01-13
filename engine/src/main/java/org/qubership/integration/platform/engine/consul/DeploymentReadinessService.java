@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.engine.consul;
 
-import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEvent;
-import org.qubership.integration.platform.engine.events.SecuredVariablesUpdatedEvent;
+import org.qubership.integration.platform.engine.configuration.DeploymentReadinessAutoConfiguration;
 import org.qubership.integration.platform.engine.events.UpdateEvent;
-import org.qubership.integration.platform.engine.util.DevModeUtil;
+
 import java.util.Map;
+import java.util.Set;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -29,6 +29,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
@@ -37,15 +38,11 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class DeploymentReadinessService {
-
     public static final int CONSUMER_STARTUP_CHECK_DELAY_MILLIS = 20 * 1000;
 
-
     // <event_class, is_consumed>
-    private final ConcurrentMap<Class<? extends UpdateEvent>, Boolean> receivedEvents =
-        new ConcurrentHashMap<>(Map.of(
-            CommonVariablesUpdatedEvent.class, false
-        ));
+    private final ConcurrentMap<Class<? extends UpdateEvent>, Boolean> receivedEvents;
+    
     @Getter
     private boolean readyForDeploy = false;
 
@@ -54,10 +51,14 @@ public class DeploymentReadinessService {
     private boolean initialized = false;
 
     @Autowired
-    public DeploymentReadinessService(DevModeUtil devModeUtil) {
-        if (!devModeUtil.isDevMode()) {
-            receivedEvents.put(SecuredVariablesUpdatedEvent.class, false);
+    public DeploymentReadinessService(
+        @Qualifier(DeploymentReadinessAutoConfiguration.DEPLOYMENT_READINESS_EVENTS_BEAN) Set<Class<? extends UpdateEvent>> events
+    ) {
+        if (log.isDebugEnabled()) {
+            String eventClassNames = events.stream().map(Class::getSimpleName).collect(Collectors.joining(", ")); 
+            log.debug("Required events to start deployments processing: {}", eventClassNames);
         }
+        receivedEvents = new ConcurrentHashMap<>(events.stream().collect(Collectors.toMap(event -> event, event -> false)));
     }
 
     @Async
@@ -79,22 +80,11 @@ public class DeploymentReadinessService {
     }
 
     @EventListener
-    public void onCommonVariablesUpdated(CommonVariablesUpdatedEvent event) {
-        onUpdateEvent(event);
-    }
-
-    @EventListener
-    public void onSecuredVariablesUpdated(SecuredVariablesUpdatedEvent event) {
-        onUpdateEvent(event);
-    }
-
-    private synchronized void onUpdateEvent(UpdateEvent event) {
-        if (event.isInitialUpdate()) {
-            if (log.isDebugEnabled()) {
-                log.debug("Initial UpdateEvent received: {}",
-                    event.getClass().getSimpleName());
-            }
-            receivedEvents.put(event.getClass(), true);
+    public synchronized void onUpdateEvent(UpdateEvent event) {
+        Class<? extends UpdateEvent> cls = event.getClass();
+        if (event.isInitialUpdate() && receivedEvents.containsKey(cls)) {
+            log.debug("Initial UpdateEvent received: {}", cls.getSimpleName());
+            receivedEvents.put(cls, true);
             checkAndStartDeploymentUpdatesConsumer();
         }
     }

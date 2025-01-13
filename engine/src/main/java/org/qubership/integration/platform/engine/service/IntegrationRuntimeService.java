@@ -23,7 +23,7 @@ import org.qubership.integration.platform.engine.camel.converters.SecurityAccess
 import org.qubership.integration.platform.engine.camel.converters.FormDataConverter;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory.FilteringEntity;
-import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
+import org.qubership.integration.platform.engine.configuration.ApplicationAutoConfiguration;
 import org.qubership.integration.platform.engine.configuration.PredeployCheckKafkaConfiguration;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
@@ -153,7 +153,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private final EngineStateReporter engineStateReporter;
     private final CamelDebuggerPropertiesService propertiesService;
     private final DeploymentReadinessService deploymentReadinessService;
-    private final ApplicationConfiguration applicationConfiguration;
+    private final ApplicationAutoConfiguration applicationConfiguration;
 
     private final Predicate<FilteringEntity> camelMessageHistoryFilter;
 
@@ -207,7 +207,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         @Qualifier("qrtzDataSource") DataSource qrtzDataSource,
         Optional<SdsService> sdsService,
         DeploymentReadinessService deploymentReadinessService,
-        ApplicationConfiguration applicationConfiguration,
+        ApplicationAutoConfiguration applicationConfiguration,
         ObjectProvider<WeblogicSecurityBean> wlSecurityBeanProvider,
         ObjectProvider<WeblogicSecurityInterceptStrategy> wlSecurityInterceptStrategyProvider,
         ObjectProvider<WeblogicSecureThreadFactory> wlSecureThreadFactoryProvider
