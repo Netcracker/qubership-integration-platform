@@ -83,35 +83,35 @@ public class OpenSearchConfiguration {
     public static final String OPENSEARCH_ENTITY_NAME_NORMALIZER_BEAN_NAME = "openSearchEntityNameNormalizer";
     public static final long TEMPLATE_VERSION = 4L;
 
-    @Value("${qip.opensearch.client.host}")
+    @Value("${qip.opensearch.client.host:opensearch}")
     private String host;
 
-    @Value("${qip.opensearch.client.port}")
+    @Value("${qip.opensearch.client.port:9200}")
     private Integer port;
 
-    @Value("${qip.opensearch.client.protocol}")
+    @Value("${qip.opensearch.client.protocol:http}")
     private String protocol;
 
-    @Value("${qip.opensearch.client.user-name}")
+    @Value("${qip.opensearch.client.user-name:}")
     private String username;
 
-    @Value("${qip.opensearch.client.password}")
+    @Value("${qip.opensearch.client.password:}")
     private String password;
 
-    @Value("${qip.opensearch.client.prefix}")
+    @Value("${qip.opensearch.client.prefix:}")
     private String prefix;
 
 
-    @Value("${qip.opensearch.index.elements.shards}")
+    @Value("${qip.opensearch.index.elements.shards:3}")
     private int indexShardsAmount;
 
-    @Value("${qip.opensearch.rollover.min_index_age}")
+    @Value("${qip.opensearch.rollover.min_index_age:1d}")
     private TimeValue minIndexAge;
 
-    @Value("${qip.opensearch.rollover.min_index_size}")
+    @Value("${qip.opensearch.rollover.min_index_size:}")
     private String minIndexSize;
 
-    @Value("${qip.opensearch.rollover.min_rollover_age_to_delete}")
+    @Value("${qip.opensearch.rollover.min_rollover_age_to_delete:14d}")
     private TimeValue minRolloverAgeToDelete;
 
 

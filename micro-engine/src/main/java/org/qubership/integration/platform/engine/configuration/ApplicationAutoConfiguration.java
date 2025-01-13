@@ -20,27 +20,27 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Slf4j
 @Getter
-@Configuration
+@AutoConfiguration
 @EnableScheduling
 @EnableRetry
 @EnableAsync
 @ComponentScan(value = {"org.qubership.integration.platform.engine"})
-public class ApplicationConfiguration {
+public class ApplicationAutoConfiguration {
     private final ApplicationContext context;
 
     private final String microserviceName;
     private final String cloudServiceName;
 
-    public ApplicationConfiguration(ApplicationContext context, @Value("${spring.application.cloud_service_name}") String cloudServiceName,
+    public ApplicationAutoConfiguration(ApplicationContext context, @Value("${spring.application.cloud_service_name}") String cloudServiceName,
                                     @Value("${spring.application.name}") String microserviceName) {
         this.context = context;
         this.microserviceName = microserviceName;

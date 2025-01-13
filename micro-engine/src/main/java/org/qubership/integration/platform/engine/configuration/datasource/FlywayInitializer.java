@@ -27,7 +27,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConditionalOnBean({PersistenceCheckpointConfiguration.class, PersistenceQuartzConfiguration.class})
+@ConditionalOnBean({PersistenceCheckpointAutoConfiguration.class, PersistenceQuartzAutoConfiguration.class})
 @EnableConfigurationProperties(FlywayConfigProperties.class)
 public class FlywayInitializer {
 

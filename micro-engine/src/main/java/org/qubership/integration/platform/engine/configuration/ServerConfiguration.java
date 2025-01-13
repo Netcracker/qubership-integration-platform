@@ -33,7 +33,7 @@ import java.net.UnknownHostException;
 @Setter
 @Configuration
 public class ServerConfiguration {
-    private final ApplicationConfiguration applicationConfiguration;
+    private final ApplicationAutoConfiguration applicationConfiguration;
 
     private String host;
 
@@ -42,7 +42,7 @@ public class ServerConfiguration {
 
     private final String domain;
 
-    public ServerConfiguration(ApplicationConfiguration applicationConfiguration,
+    public ServerConfiguration(ApplicationAutoConfiguration applicationConfiguration,
                                EngineDomainUtils engineDomainUtils) {
         this.applicationConfiguration = applicationConfiguration;
         this.domain = engineDomainUtils.extractEngineDomain(applicationConfiguration.getMicroserviceName());

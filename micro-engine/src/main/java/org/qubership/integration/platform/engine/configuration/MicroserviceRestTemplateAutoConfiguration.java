@@ -29,18 +29,17 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
 
 @AutoConfiguration
-public class MicroserviceRestTemplateConfiguration {
+public class MicroserviceRestTemplateAutoConfiguration {
 
     public static final Duration CONSUL_REST_TEMPLATE_TIMEOUT = Duration.ofMillis(25_000);
 
     private final Duration defaultRestTemplateTimeout;
 
     @Autowired
-    public MicroserviceRestTemplateConfiguration(@Value("${qip.restclient.timeout}") long restTemplateTimeout) {
+    public MicroserviceRestTemplateAutoConfiguration(@Value("${qip.restclient.timeout}") long restTemplateTimeout) {
         defaultRestTemplateTimeout = Duration.ofMillis(restTemplateTimeout);
     }
 
