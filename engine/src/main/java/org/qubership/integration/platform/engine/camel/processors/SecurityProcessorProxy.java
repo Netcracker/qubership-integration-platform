@@ -24,12 +24,12 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component("SecurityProcessor")
+@Component("securityProcessor")
 public class SecurityProcessorProxy extends OptionalProcessorProxy {
 
     @Autowired
     public SecurityProcessorProxy(
-        @Qualifier("SecurityProcessorImpl") Optional<Processor> processor
+        @Qualifier("securityProcessorImpl") Optional<Processor> processor
     ) {
         super(processor);
     }
