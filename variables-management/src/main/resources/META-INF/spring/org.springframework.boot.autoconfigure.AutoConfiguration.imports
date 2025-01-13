@@ -5,5 +5,5 @@ org.qubership.integration.platform.variables.management.configuration.RestTempla
 org.qubership.integration.platform.variables.management.configuration.SwaggerAutoConfiguration
 org.qubership.integration.platform.variables.management.configuration.WebAutoConfig
 org.qubership.integration.platform.variables.management.configuration.auditing.AuditorAutoProvider
-org.qubership.integration.platform.variables.management.configuration.datasource.localdev.FlywayAutoInitializer
-org.qubership.integration.platform.variables.management.configuration.datasource.localdev.PersistenceAutoConfiguration
+org.qubership.integration.platform.variables.management.configuration.datasource.FlywayAutoInitializer
+org.qubership.integration.platform.variables.management.configuration.datasource.PersistenceAutoConfiguration

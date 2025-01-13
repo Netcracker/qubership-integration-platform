@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.variables.management.configuration.datasource.localdev.properties;
+package org.qubership.integration.platform.variables.management.configuration.datasource.properties;
 
 import com.zaxxer.hikari.HikariConfig;
 import lombok.AllArgsConstructor;

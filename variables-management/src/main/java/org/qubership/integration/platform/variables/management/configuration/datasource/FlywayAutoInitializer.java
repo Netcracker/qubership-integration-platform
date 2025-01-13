@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.variables.management.configuration.datasource.localdev;
+package org.qubership.integration.platform.variables.management.configuration.datasource;
 
-import org.qubership.integration.platform.variables.management.configuration.datasource.localdev.properties.FlywayConfigProperties;
+import org.qubership.integration.platform.variables.management.configuration.datasource.properties.FlywayConfigProperties;
 import org.qubership.integration.platform.variables.management.db.migration.postrgesql.configs.ConfigsJavaMigration;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.ClassicConfiguration;
@@ -33,7 +33,6 @@ import java.util.List;
 
 @AutoConfiguration
 @ConditionalOnBean(PersistenceAutoConfiguration.class)
-@ConditionalOnMissingBean(name ="flywayAutoInitializer")
 @EnableConfigurationProperties(FlywayConfigProperties.class)
 public class FlywayAutoInitializer {
     private final DataSource configsDataSource;
