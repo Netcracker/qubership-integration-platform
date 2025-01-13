@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.catalog.configuration;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 
@@ -32,8 +33,10 @@ public class SaxParserFactoryConfiguration {
         SAXParserFactory factory = SAXParserFactory.newDefaultInstance();
         factory.setValidating(false);
         factory.setXIncludeAware(false);
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
         factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         return factory;
     }
 }

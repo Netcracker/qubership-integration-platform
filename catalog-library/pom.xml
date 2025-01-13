@@ -12,7 +12,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.5</version>
+        <version>3.4.1</version>
     </parent>
 
     <properties>
@@ -20,8 +20,8 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
 
-        <revision>2025.1.1.13</revision>
-        <catalog-library.revision>2025.1.1.14</catalog-library.revision>
+        <revision>2025.1.1.15</revision>
+        <catalog-library.revision>2025.1.1.15</catalog-library.revision>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-boot.repackage.skip>true</spring-boot.repackage.skip>
@@ -59,7 +59,7 @@
         <jakarta.mail-api.version>2.1.2</jakarta.mail-api.version>
 
         <grpc.version>1.53.0</grpc.version>
-        <protobuf-java.version>3.21.12</protobuf-java.version>
+        <protobuf-java.version>3.25.5</protobuf-java.version>
 
         <!-- Plugins -->
 
