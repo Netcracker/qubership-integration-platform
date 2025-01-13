@@ -11,7 +11,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.6</version>
+        <version>3.4.1</version>
     </parent>
 
     <properties>
@@ -28,8 +28,8 @@
 
         <camel.version>4.4.2</camel.version>
         <spring-cloud.version>2023.0.3</spring-cloud.version>
-        <snappy-java.version>1.1.10.1</snappy-java.version>
-        <postgres-driver.version>42.7.0</postgres-driver.version>
+        <snappy-java.version>1.1.10.7</snappy-java.version>
+        <postgres-driver.version>42.7.2</postgres-driver.version>
         <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
         <atlasmap.version>2.5.2</atlasmap.version>
         <logback-gelf.version>5.0.1</logback-gelf.version>
@@ -39,7 +39,7 @@
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <lombok.version>1.18.30</lombok.version>
         <json-schema-validator.version>1.0.87</json-schema-validator.version>
-        <kubernetes-client-java.version>19.0.0</kubernetes-client-java.version>
+        <kubernetes-client-java.version>19.0.2</kubernetes-client-java.version>
         <protobuf-java.version>3.25.1</protobuf-java.version>
         <amqp-client.version>5.20.0</amqp-client.version>
         <json-filter.version>4.0.1</json-filter.version>
