@@ -53,21 +53,18 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.*;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-import java.util.function.Predicate;
 
 import static org.qubership.integration.platform.variables.management.service.DefaultVariablesService.DEFAULT_VARIABLES_LIST;
+import static org.qubership.integration.platform.variables.management.validation.EntityValidator.VARIABLE_NAME_PATTERN_PREDICATE;
 
 @Slf4j
 @Service
 public class CommonVariablesService {
-    public static final String VARIABLE_NAME_REGEXP = "^[-._a-zA-Z0-9]+$";
-    private static final Predicate<String> VARIABLE_NAME_PATTERN_PREDICATE = Pattern.compile(VARIABLE_NAME_REGEXP).asMatchPredicate();
 
     private static final String VARIABLES_PREFIX = "common-variables";
     private static final String VAR_PARENT_DIR = "variables";
@@ -295,11 +292,15 @@ public class CommonVariablesService {
 
         try (ZipInputStream inputStream = new ZipInputStream(is)) {
             for (ZipEntry entry; (entry = inputStream.getNextEntry()) != null; ) {
-                Path resolvedPath = path.resolve(entry.getName());
-                Path normalizedResolvedPath = resolvedPath.normalize();
-                Path entryPath = Paths.get(entry.getName());
+                Path resolvedPath = path.resolve(entry.getName()).normalize();
+                String entryName = entry.getName();
+                Path entryPath = Paths.get(entryName);
 
-                if (entryPath.startsWith(VAR_PARENT_DIR) && normalizedResolvedPath.startsWith(path)) {
+                if (entryName.contains("..") || entryPath.isAbsolute()) {
+                    throw new SecurityException("Invalid ZIP entry: " + entryName);
+                }
+
+                if (entryPath.startsWith(VAR_PARENT_DIR) && resolvedPath.startsWith(path)) {
                     if (!entry.isDirectory()) {
                         Files.createDirectories(resolvedPath.getParent());
                         Files.copy(inputStream, resolvedPath);

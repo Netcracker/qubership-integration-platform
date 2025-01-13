@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.qubership.integration.platform.variables.management.validation.EntityValidator.ENTITY_NAME_REGEXP;
+
 @Slf4j
 @RestController
 @RequestMapping(value = "/v1/common-variables")
@@ -76,7 +78,7 @@ public class CommonVariablesController {
             @Valid
             @RequestBody
             @Parameter(description = "New common variables as a map of <key, value>")
-            Map<@Pattern(regexp = CommonVariablesService.VARIABLE_NAME_REGEXP, message = "does not match \"{regexp}\"") String, String> variables
+            Map<@Pattern(regexp = ENTITY_NAME_REGEXP, message = "does not match \"{regexp}\"") String, String> variables
     ) {
         log.info("Request to add common variable");
         List<String> body = commonVariablesMapper.importAsNames(
@@ -115,7 +117,7 @@ public class CommonVariablesController {
             @Valid
             @RequestParam(required = false)
             @Parameter(description = "List of variables names to export")
-            List<@Pattern(regexp = CommonVariablesService.VARIABLE_NAME_REGEXP, message = "does not match \"{regexp}\"") String> variablesNames,
+            List<@Pattern(regexp = ENTITY_NAME_REGEXP, message = "does not match \"{regexp}\"") String> variablesNames,
             @RequestParam(defaultValue = "false")
             @Parameter(description = "Whether response should be in archive")
             boolean asArchive
@@ -138,7 +140,7 @@ public class CommonVariablesController {
             @Valid
             @RequestParam(required = false)
             @Parameter(description = "Variables names. If set, only these variables will be imported")
-            Set<@Pattern(regexp = CommonVariablesService.VARIABLE_NAME_REGEXP, message = "does not match \"{regexp}\"") String> variablesNames
+            Set<@Pattern(regexp = ENTITY_NAME_REGEXP, message = "does not match \"{regexp}\"") String> variablesNames
     ) {
         log.info("Request to import common variables");
         List<ImportVariableDTO> importedVariables = commonVariablesService.importVariables(file, variablesNames).getVariables();

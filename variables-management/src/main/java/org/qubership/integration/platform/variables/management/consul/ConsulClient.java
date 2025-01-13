@@ -177,8 +177,8 @@ public class ConsulClient {
                         response.getStatusCode(), response.getBody());
                 throw new RuntimeException("Failed to complete txn consul request, response with non 200 code");
             }
-            if (response.getBody() == null || response.getBody().getErrors() != null) {
-                throw new RuntimeException();
+            if (response.getBody().getErrors() != null) {
+                throw new RuntimeException("Failed to complete txn consul request, response have errors");
             }
             return response.getBody();
         } catch (HttpClientErrorException hcee) {

@@ -22,9 +22,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 @Component
 public class EntityValidator {
+    public static final String ENTITY_NAME_REGEXP = "^[-._a-zA-Z0-9]+$";
+    public static final Predicate<String> VARIABLE_NAME_PATTERN_PREDICATE = Pattern.compile(ENTITY_NAME_REGEXP).asMatchPredicate();
 
     private final Validator validator;
 

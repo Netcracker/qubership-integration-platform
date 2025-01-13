@@ -18,6 +18,7 @@ package org.qubership.integration.platform.variables.management.service;
 
 import org.qubership.integration.platform.variables.management.logging.constant.ContextHeaders;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.user.User;
 import org.qubership.integration.platform.variables.management.persistence.configs.repository.actionlog.ActionLogRepository;
 import org.qubership.integration.platform.variables.management.rest.exception.InvalidEnumConstantException;
@@ -81,14 +82,14 @@ public class ActionsLogService {
         injectCurrentUser(action);
         injectRequestId(action);
         try {
-            consoleLogAction(action);
             if (!queue.offer(action)) {
-                log.error("Queue of actions is full, element is not added, {}", action);
+                log.error("Queue of actions is full, element is not added, {}", maskSecretName(action));
                 return false;
             }
+            consoleLogAction(maskSecretName(action));
             return true;
         } catch (Exception e) {
-            log.error("Failed to save action log to database: {}", action, e);
+            log.error("Failed to save action log to database: {}", maskSecretName(action), e);
         }
         return false;
     }
@@ -156,5 +157,16 @@ public class ActionsLogService {
                 log.error("Failed to save actions in database", e);
             }
         }
+    }
+
+    private ActionLog maskSecretName(ActionLog actionLog) {
+        if (actionLog.getEntityType() == EntityType.SECRET) {
+            actionLog.setEntityName("Secret");
+        }
+        if (actionLog.getParentType() == EntityType.SECRET) {
+            actionLog.setParentName("Secret");
+        }
+
+        return actionLog;
     }
 }

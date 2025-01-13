@@ -26,6 +26,8 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
+import static org.qubership.integration.platform.variables.management.validation.EntityValidator.ENTITY_NAME_REGEXP;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -36,6 +38,7 @@ public class ImportInstructionRequest {
 
     @Schema(description = "Import instruction id")
     @NotStartOrEndWithSpace(message = "must not be null and must not start or end with a space")
+    @Pattern(regexp = ENTITY_NAME_REGEXP, message = "does not match \"{regexp}\"")
     private String id;
     @Schema(description = "Import instruction action", allowableValues = "IGNORE")
     @NotNull(message = "must not be null")

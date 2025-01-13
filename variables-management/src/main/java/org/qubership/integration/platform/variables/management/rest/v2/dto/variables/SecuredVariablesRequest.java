@@ -25,6 +25,8 @@ import lombok.Setter;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.qubership.integration.platform.variables.management.validation.EntityValidator.ENTITY_NAME_REGEXP;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -34,6 +36,6 @@ public class SecuredVariablesRequest {
     @Schema(description = "Secret name")
     private String secretName;
     @Schema(description = "Set of secured variables <key, value>")
-    private Map<@Pattern(regexp = "^[-._a-zA-Z0-9]+$", message = "does not match \"{regexp}\"") String, String> variables =
+    private Map<@Pattern(regexp = ENTITY_NAME_REGEXP, message = "does not match \"{regexp}\"") String, String> variables =
             new HashMap<>();
 }

@@ -404,7 +404,7 @@ public class SecuredVariableService extends SecretService {
             ConcurrentMap<String, String> secretData = operator.getSecretByName(secretName, failIfSecretNotExist);
             updateVariablesCache(secretName, secretData);
         } catch (KubeApiNotFoundException e) {
-            log.error("Cannot get secured variables from secret {}", secretName, e);
+            log.error("Cannot get secured variables from secret", e);
             securedVariablesSecrets.remove(secretName);
             if (!devModeUtil.isDevMode()) {
                 throw new SecuredVariablesNotFoundException(
@@ -413,7 +413,7 @@ public class SecuredVariableService extends SecretService {
                 );
             }
         } catch (KubeApiException e) {
-            log.error("Can't get kube secret {}: {}", secretName, e.getMessage());
+            log.error("Can't get kube secret: {}", e.getMessage());
             if (!devModeUtil.isDevMode()) {
                 throw e;
             }
