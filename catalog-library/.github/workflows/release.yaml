@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        required: false
+        type: string
+      release_info:
+        required: false
+        type: string
+      java_version:
+        required: false
+        type: string
+        default: "21"
+
+jobs:
+  pom:
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@main
+    with:
+      file: pom.xml
+      revision: ${{ github.event.inputs.revision }}
+
+  git_release:
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/create-github-release.yml@main
+    needs: pom
+    with:
+      revision: ${{ github.event.inputs.revision }}
+      release_info: ${{ github.event.inputs.release_info }}
+      draft: false
+      prerelease: false
+
+  # release_notes:
+  #   needs: git_release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+
+  #     - uses: release-drafter/release-drafter@v5
+  #       with:
+  #         config-name: .github/release-drafter.yml
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  maven:
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
+    needs: git_release
+    with:
+      maven_command: "--batch-mode deploy"
+      java_version: "21"
+      revision: ${{ github.event.inputs.revision }}
+    secrets:
+      maven_username: ${{ secrets.MAVEN_USER }}
+      maven_password: ${{ secrets.MAVEN_PASSWORD }}
+      maven_gpg_passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE  }}
+      maven_gpg_private_key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY  }}
