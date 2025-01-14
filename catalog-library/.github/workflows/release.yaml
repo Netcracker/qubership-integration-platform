@@ -22,7 +22,7 @@ jobs:
       revision: ${{ github.event.inputs.revision }}
 
   git_release:
-    uses: Netcracker/qubership-workflow-hub/.github/workflows/reusable/create-github-release.yml@main
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/create-github-release.yml@main
     needs: pom
     with:
       revision: ${{ github.event.inputs.revision }}
