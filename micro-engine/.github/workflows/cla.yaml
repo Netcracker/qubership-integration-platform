@@ -6,6 +6,6 @@ on:
     types: [opened,closed,synchronize]
 jobs:
   cla_assistant:
-    uses: Netcracker/qubership-github-workflows/.github/workflows/cla.yaml@main
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/cla.yaml@main
     secrets:
       personal_access_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
