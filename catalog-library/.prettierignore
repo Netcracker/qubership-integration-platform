@@ -1,0 +1,2 @@
+# ignore *.hbs files since they are intended to be post-processed and don't meet specification
+**/*.hbs
