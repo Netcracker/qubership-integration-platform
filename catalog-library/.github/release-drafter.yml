@@ -22,7 +22,7 @@ change-template: '- $TITLE (#$NUMBER) by @$AUTHOR'
 no-changes-template: 'No significant changes'
 
 template: |
-  ## 🚀 Release v$RESOLVED_VERSION
+  ## 🚀 Release
 
   ### What's Changed
   $CHANGES
