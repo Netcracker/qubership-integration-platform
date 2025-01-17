@@ -16,7 +16,7 @@ on:
 
 jobs:
   pom:
-    uses: Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@feature/release-tag-test
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@main
     with:
        file: pom.xml
        revision: ${{ github.event.inputs.version }}
