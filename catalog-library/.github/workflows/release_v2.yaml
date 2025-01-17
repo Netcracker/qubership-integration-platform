@@ -15,30 +15,14 @@ on:
         description: 'Enable publish release?'
 
 jobs:
-
+  pom:
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@main
+    with:
+       file: pom.xml
+       revision: ${{ github.event.inputs.version }}
   release:
+    needs: [pom]
     uses:  Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
     with:
       version: ${{ github.event.inputs.version }}
       publish: ${{ github.event.inputs.publish }}
-
-#   pom:
-#     uses: Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@main
-#     needs: release
-#     with:
-#       file: pom.xml
-#       revision: ${{ github.event.inputs.version }}
-          
-
-#   maven:
-#     uses: Netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
-#     needs: pom
-#     with:
-#       maven_command: "--batch-mode deploy"
-#       java_version: "21"
-#       revision: ${{ github.event.inputs.version }}
-#     secrets:
-#       maven_username: ${{ secrets.MAVEN_USER }}
-#       maven_password: ${{ secrets.MAVEN_PASSWORD }}
-#       maven_gpg_passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE  }}
-#       maven_gpg_private_key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY  }}
