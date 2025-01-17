@@ -16,11 +16,13 @@ on:
 
 jobs:
   pom:
+    if: ${{ inputs.publish }}
     uses: Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@main
     with:
        file: pom.xml
        revision: ${{ github.event.inputs.version }}
   release:
+    if: always()
     needs: [pom]
     uses:  Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
     with:
