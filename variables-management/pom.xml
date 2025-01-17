@@ -21,7 +21,7 @@
         <!-- BOMs -->
 
         <context-propagation-bom.version>6.0.5</context-propagation-bom.version>
-        <spring-cloud-bom.version>2023.0.3</spring-cloud-bom.version>
+        <spring-cloud-bom.version>2024.0.0</spring-cloud-bom.version>
         <jackson-bom.version>2.17.0</jackson-bom.version>
 
         <!-- 3rd party dependencies -->
