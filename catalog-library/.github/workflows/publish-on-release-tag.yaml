@@ -3,7 +3,10 @@ name: Publish Release
 on:
   release:
     types:
-      - published
+      - released
+  repository_dispatch:
+    types:
+      - maven-publication-trigger
 
 jobs:
   get_release_version:
