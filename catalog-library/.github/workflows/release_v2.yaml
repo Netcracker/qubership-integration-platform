@@ -28,7 +28,7 @@ jobs:
 
       - name: Fail if tag exists
         if: steps.check_tag.outputs.exists == 'true'
-        run: echo "Tag v${{ env.RELEASE_VERSION }} already exists. Please use a different version." && exit 1
+        run: echo "Tag v${{ inputs.version }} already exists. Please use a different version." && exit 1
   pom:
     needs: [check_release_tag]
     uses: Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@main
