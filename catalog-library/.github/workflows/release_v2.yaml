@@ -22,7 +22,7 @@ jobs:
        revision: ${{ github.event.inputs.version }}
   release:
     needs: [pom]
-    uses:  Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
+    uses:  Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@feature/actions-usage
     with:
       version: ${{ github.event.inputs.version }}
       publish: ${{ github.event.inputs.publish }}
