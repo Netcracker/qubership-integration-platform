@@ -22,7 +22,7 @@ jobs:
         id: check_tag
         uses: netcracker/qubership-workflow-hub/actions/tag-checker@main
         with:
-          tag: 'v${{ env.RELEASE_VERSION }}'
+          tag: 'v${{ inputs.version }}'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
