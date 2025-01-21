@@ -3,19 +3,16 @@
 conventional-commits:
   - type: 'fix'
     nouns: ['FIX', 'Fix', 'fix', 'FIXED', 'Fixed', 'fixed']
-    labels: ['bug']
+    labels: ['fix']
   - type: 'feature'
     nouns: ['FEATURE', 'Feature', 'feature', 'FEAT', 'Feat', 'feat']
-    labels: ['enhancement']
+    labels: ['feature']
   - type: 'breaking_change'
     nouns: ['BREAKING CHANGE', 'BREAKING', 'MAJOR']
-    labels: ['BREAKING CHANGE']
-  - type: 'documentation'
-    nouns: ['doc','docu','document','documentation']
-    labels: ['documentation']
-  - type: 'build'
-    nouns: ['build','rebuild']
-    labels: ['build']
-  - type: 'config'
-    nouns: ['config', 'conf', 'cofiguration', 'configure']
-    labels: ['config']
+    labels: ['breaking-change']
+  - type: 'bug'
+    nouns: ['bug', 'Bug', 'BUG']
+    labels: ['bug']
+  - type: 'bugfix'
+    nouns: ['bugfix', 'Bugfix', 'bug-fix', 'BugFix']
+    labels: ['bugfix']
