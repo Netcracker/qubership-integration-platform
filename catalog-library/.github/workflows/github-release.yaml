@@ -1,4 +1,5 @@
-name: Release v2
+---
+name: GitHub Release
 
 on:
   workflow_dispatch:
@@ -29,15 +30,15 @@ jobs:
       - name: Fail if tag exists
         if: steps.check_tag.outputs.exists == 'true'
         run: echo "Tag v${{ inputs.version }} already exists. Please use a different version." && exit 1
-  pom:
+  update-pom-version:
     needs: [check_release_tag]
-    uses: Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@main
+    uses:  Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@main
     with:
-       file: pom.xml
-       revision: ${{ github.event.inputs.version }}
+      file: 'pom.xml'
+      revision: ${{ github.event.inputs.version }}
   release:
-    needs: [pom]
-    uses:  Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@feature/actions-usage
+    needs: [update-pom-version]
+    uses:  Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
     with:
       version: ${{ github.event.inputs.version }}
       publish: ${{ github.event.inputs.publish }}
