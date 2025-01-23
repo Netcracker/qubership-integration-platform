@@ -1,0 +1,18 @@
+---
+
+conventional-commits:
+  - type: 'fix'
+    nouns: ['FIX', 'Fix', 'fix', 'FIXED', 'Fixed', 'fixed']
+    labels: ['fix']
+  - type: 'feature'
+    nouns: ['FEATURE', 'Feature', 'feature', 'FEAT', 'Feat', 'feat']
+    labels: ['feature']
+  - type: 'breaking_change'
+    nouns: ['BREAKING CHANGE', 'BREAKING', 'MAJOR']
+    labels: ['breaking-change']
+  - type: 'bug'
+    nouns: ['bug', 'Bug', 'BUG']
+    labels: ['bug']
+  - type: 'bugfix'
+    nouns: ['bugfix', 'Bugfix', 'bug-fix', 'BugFix']
+    labels: ['bugfix']
