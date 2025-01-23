@@ -1,0 +1,45 @@
+---
+name: GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        default: '2025.1-1.0.0'
+        type: string
+        description: 'Custom release version'
+      publish:
+        required: true
+        type: boolean
+        default: false
+        description: 'Enable publish release?'
+
+jobs:
+  check_release_tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chech if version tag already exists
+        id: check_tag
+        uses: netcracker/qubership-workflow-hub/actions/tag-checker@main
+        with:
+          tag: 'v${{ inputs.version }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail if tag exists
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "Tag v${{ inputs.version }} already exists. Please use a different version." && exit 1
+  update-pom-version:
+    needs: [check_release_tag]
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/update-pom-release.yml@main
+    with:
+      file: 'pom.xml'
+      revision: ${{ github.event.inputs.version }}
+  release:
+    needs: [update-pom-version]
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
+    with:
+      version: ${{ github.event.inputs.version }}
+      publish: ${{ github.event.inputs.publish }}
