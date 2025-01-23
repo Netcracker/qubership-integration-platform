@@ -20,6 +20,7 @@ import org.qubership.integration.platform.engine.errorhandling.EngineRuntimeExce
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
+import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
@@ -51,19 +52,16 @@ public class SessionsMetricsService {
     private String indexName;
 
     private final MetricsStore metricsStore;
-    private final OpenSearchClient opensearchClient;
-    private final Function<String, String> openSearchEntityNameNormalizer;
+    private final OpenSearchClientSupplier openSearchClientSupplier;
     private final HttpAsyncResponseConsumerFactory consumerFactory;
     private final CheckpointRepository  checkpointRepository;
 
     public SessionsMetricsService(MetricsStore metricsStore,
-                                  OpenSearchClient opensearchClient,
-                                  Function<String, String> openSearchEntityNameNormalizer,
+                                  OpenSearchClientSupplier openSearchClientSupplier,
                                   CheckpointRepository checkpointRepository
     ) {
         this.metricsStore = metricsStore;
-        this.opensearchClient = opensearchClient;
-        this.openSearchEntityNameNormalizer = openSearchEntityNameNormalizer;
+        this.openSearchClientSupplier = openSearchClientSupplier;
         this.checkpointRepository = checkpointRepository;
         this.consumerFactory = HttpAsyncResponseConsumerFactory.DEFAULT;
     }
@@ -100,7 +98,7 @@ public class SessionsMetricsService {
                 .build();
 
         SearchRequest searchRequest = new SearchRequest.Builder()
-                .index(openSearchEntityNameNormalizer.apply(indexName.concat("-session-elements")))
+                .index(openSearchClientSupplier.normalize(indexName.concat("-session-elements")))
                 .aggregations(Map.of("session_count", aggregation))
                 .size(0)
                 .build();
@@ -109,7 +107,7 @@ public class SessionsMetricsService {
         try {
             ApacheHttpClient5Options.Builder optionsBuilder = ApacheHttpClient5Options.DEFAULT.toBuilder();
             optionsBuilder.setHttpAsyncResponseConsumerFactory(consumerFactory);
-            response = opensearchClient.withTransportOptions(optionsBuilder.build()).search(searchRequest, SessionElementElastic.class);
+            response = openSearchClientSupplier.getClient().withTransportOptions(optionsBuilder.build()).search(searchRequest, SessionElementElastic.class);
 
             StringTermsAggregate responseSessionCountAgg = ((Aggregate) response.aggregations().get("session_count")).sterms();
             Buckets<StringTermsBucket> buckets = responseSessionCountAgg.buckets();
