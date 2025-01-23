@@ -7,3 +7,4 @@ org.qubership.integration.platform.engine.configuration.SwaggerAutoConfiguration
 org.qubership.integration.platform.engine.configuration.ApplicationAutoConfiguration
 org.qubership.integration.platform.engine.configuration.web.WebAutoConfiguration
 org.qubership.integration.platform.engine.configuration.DeploymentReadinessAutoConfiguration
+org.qubership.integration.platform.engine.configuration.datasource.FlywayInitializer

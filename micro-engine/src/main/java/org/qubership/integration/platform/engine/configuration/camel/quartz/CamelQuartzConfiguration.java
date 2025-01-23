@@ -31,6 +31,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import java.util.function.Consumer;
 
 @Slf4j
 @Configuration
@@ -58,20 +60,30 @@ public class CamelQuartzConfiguration {
     }
 
     @Bean("schedulerFactoryProxy")
-    public StdSchedulerFactoryProxy schedulerFactoryProxy() throws SchedulerException {
+    public StdSchedulerFactoryProxy schedulerFactoryProxy(
+        @Qualifier("camelQuartzPropertiesCustomizer") Consumer<Properties> propCustomizer
+    ) throws SchedulerException {
         log.debug("Create stdSchedulerFactoryProxy");
-        return new StdSchedulerFactoryProxy(camelQuartzProperties());
+        return new StdSchedulerFactoryProxy(camelQuartzProperties(propCustomizer));
     }
 
-    public Properties camelQuartzProperties() {
-        Properties properties = new Properties();
+    @Bean("camelQuartzPropertiesCustomizer")
+    @ConditionalOnMissingBean(name = "camelQuartzPropertiesCustomizer")
+    Consumer<Properties> camelQuartzPropertiesCustomizer() {
+        return this::addDevDataSource;
+    }
 
+    public static String getPropDataSourcePrefix() {
         String datasourceName = DATASOURCE_NAME_PREFIX;
         String propDatasourcePrefix =
             StdSchedulerFactory.PROP_DATASOURCE_PREFIX + "." + datasourceName + ".";
+        return propDatasourcePrefix;
+    }
 
-        // DataSource provider
-        addDevDataSource(properties, propDatasourcePrefix);
+    public Properties camelQuartzProperties(Consumer<Properties> propCustomizer) {
+        Properties properties = new Properties();
+
+        propCustomizer.accept(properties);
 
         // scheduler
         properties.setProperty(StdSchedulerFactory.PROP_SCHED_INSTANCE_NAME,
@@ -85,6 +97,8 @@ public class CamelQuartzConfiguration {
             "org.quartz.impl.jdbcjobstore.JobStoreTX");
         properties.setProperty("org.quartz.jobStore.driverDelegateClass",
             "org.quartz.impl.jdbcjobstore.PostgreSQLDelegate");
+
+        String datasourceName = DATASOURCE_NAME_PREFIX;
         properties.setProperty("org.quartz.jobStore.dataSource", datasourceName);
         properties.setProperty("org.quartz.jobStore.tablePrefix", qrtzSchemaName + ".QRTZ_");
         properties.setProperty("org.quartz.jobStore.isClustered", "true");
@@ -100,8 +114,9 @@ public class CamelQuartzConfiguration {
         return properties;
     }
 
-    private void addDevDataSource(Properties properties, String propDatasourcePrefix) {
+    private void addDevDataSource(Properties properties) {
         if (qrtzDataSource instanceof HikariDataSource dataSource) {
+            String propDatasourcePrefix = getPropDataSourcePrefix();
             String url = dataSource.getJdbcUrl() + "?currentSchema=" + DEV_DB_SCHEMA;
             String username = dataSource.getUsername();
             String password = dataSource.getPassword();

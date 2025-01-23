@@ -49,7 +49,7 @@ public class KubeOperatorConfiguration {
             @Value("${kubernetes.cluster.namespace}") String namespace,
             @Value("${kubernetes.service-account.token-file-path}") String tokenFilePath,
             @Value("${kubernetes.service-account.cert}") String cert,
-            @Value("${kubernetes.cluster.token}") Optional<String> devToken) {
+            @Value("${kubernetes.cluster.token:#{null}}") Optional<String> devToken) {
 
         this.uri = uri;
         this.namespace = namespace;

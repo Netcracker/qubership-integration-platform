@@ -24,9 +24,11 @@ import org.flywaydb.core.api.configuration.ClassicConfiguration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
-@Configuration
+@AutoConfiguration
+@ConditionalOnProperty(name = "qip.flyway-initializer.enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnBean({PersistenceCheckpointAutoConfiguration.class, PersistenceQuartzAutoConfiguration.class})
 @EnableConfigurationProperties(FlywayConfigProperties.class)
 public class FlywayInitializer {

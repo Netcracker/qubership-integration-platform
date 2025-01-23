@@ -20,6 +20,7 @@ package org.qubership.integration.platform.engine.configuration;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
 import org.qubership.integration.platform.engine.service.debugger.metrics.SessionsMetricsService;
+import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import java.util.function.Function;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -34,10 +35,9 @@ public class SessionsMetricsServiceConfiguration {
     @Bean
     @ConditionalOnProperty(value = "qip.metrics.enabled", havingValue = "true")
     public SessionsMetricsService getMetricsService(MetricsStore metricsStore,
-                                                    OpenSearchClient opensearchClient,
-                                                    Function<String, String> openSearchEntityNameNormalizer,
+                                                    OpenSearchClientSupplier openSearchClientSupplier,
                                                     CheckpointRepository checkpointRepository) {
 
-        return new SessionsMetricsService(metricsStore, opensearchClient, openSearchEntityNameNormalizer, checkpointRepository);
+        return new SessionsMetricsService(metricsStore, openSearchClientSupplier, checkpointRepository);
     }
 }
