@@ -70,22 +70,22 @@ jobs:
         with:
           commit_message: "Update pom.xml version to ${{ github.event.inputs.version }}"
 
-  # upload_to_maven_central:
-  #   needs: [update-pom-version]
-  #   uses: Netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
-  #   with:
-  #     maven_command: "--batch-mode deploy"
-  #     java_version: ${{ github.event.inputs.java_version }}
-  #     version: ${{ github.event.inputs.version }}
-  #   secrets:
-  #     maven_username: ${{ secrets.MAVEN_USER }}
-  #     maven_password: ${{ secrets.MAVEN_PASSWORD }}
-  #     maven_gpg_passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-  #     maven_gpg_private_key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+  upload_to_maven_central:
+    needs: [update-pom-version]
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
+    with:
+      maven_command: "--batch-mode deploy"
+      java_version: ${{ github.event.inputs.java_version }}
+      version: ${{ github.event.inputs.version }}
+    secrets:
+      maven_username: ${{ secrets.MAVEN_USER }}
+      maven_password: ${{ secrets.MAVEN_PASSWORD }}
+      maven_gpg_passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      maven_gpg_private_key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
 
-  # github-release:
-  #   needs: [publish]
-  #   uses: Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
-  #   with:
-  #     version: ${{ github.event.inputs.version }}
-  #     publish: false
+  github-release:
+    needs: [publish]
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
+    with:
+      version: ${{ github.event.inputs.version }}
+      publish: false
