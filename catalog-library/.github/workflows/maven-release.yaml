@@ -56,6 +56,7 @@ jobs:
 
   update-pom-version:
     needs: [check-tag]
+    runs-on: ubuntu-latest
     steps:
       - name: Update pom.xml
         uses: Netcracker/qubership-workflow-hub/.github/actions/pom-updater@main
