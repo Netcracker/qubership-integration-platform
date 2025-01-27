@@ -59,11 +59,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Update pom.xml
-        uses: Netcracker/qubership-workflow-hub/.github/actions/pom-updater@main
+        uses: Netcracker/qubership-workflow-hub/actions/pom-updater@main
         with:
           newValue: ${{ github.event.inputs.version }}
       - name: Commit Changes
-        uses: Netcracker/qubership-workflow-hub/.github/actions/commit-and-push@main
+        uses: Netcracker/qubership-workflow-hub/actions/commit-and-push@main
         with:
           commitMessage: "Update pom.xml version to ${{ github.event.inputs.version }}"
 
