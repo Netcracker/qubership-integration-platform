@@ -58,6 +58,9 @@ jobs:
     needs: [check-tag]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Update pom.xml
         uses: Netcracker/qubership-workflow-hub/actions/pom-updater@main
         with:
