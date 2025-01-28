@@ -84,7 +84,7 @@ jobs:
       maven_gpg_private_key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
 
   github-release:
-    needs: [publish]
+    needs: [upload_to_maven_central]
     uses: Netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
     with:
       version: ${{ github.event.inputs.version }}
