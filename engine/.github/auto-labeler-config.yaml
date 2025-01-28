@@ -6,7 +6,7 @@ conventional-commits:
     labels: ['fix']
   - type: 'feature'
     nouns: ['FEATURE', 'Feature', 'feature', 'FEAT', 'Feat', 'feat']
-    labels: ['feature']
+    labels: ['enhancement']
   - type: 'breaking_change'
     nouns: ['BREAKING CHANGE', 'BREAKING', 'MAJOR']
     labels: ['breaking-change']
