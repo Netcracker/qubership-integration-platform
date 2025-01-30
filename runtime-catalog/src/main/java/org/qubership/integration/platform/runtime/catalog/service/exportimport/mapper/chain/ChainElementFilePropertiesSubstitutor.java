@@ -26,6 +26,7 @@ import org.qubership.integration.platform.catalog.service.exportimport.ExportImp
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -41,7 +42,7 @@ public class ChainElementFilePropertiesSubstitutor {
 
     private final ObjectMapper objectMapper;
 
-    public ChainElementFilePropertiesSubstitutor(ObjectMapper objectMapper) {
+    public ChainElementFilePropertiesSubstitutor(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

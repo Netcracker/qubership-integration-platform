@@ -16,17 +16,17 @@
 
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
-import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.util.ClientBuilder;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.TokenFileAuthentication;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -34,15 +34,15 @@ import java.util.Optional;
 
 
 @Slf4j
-@Configuration
-public class KubeOperatorConfiguration {
+@AutoConfiguration
+public class KubeOperatorAutoConfiguration {
     private final String uri;
     private final String namespace;
     private final String token;
     private final String cert;
 
     @Autowired
-    public KubeOperatorConfiguration(
+    public KubeOperatorAutoConfiguration(
         @Value("${kubernetes.cluster.uri}") String uri,
         @Value("${kubernetes.cluster.namespace}") String namespace,
         @Value("${kubernetes.service-account.token}") String token,

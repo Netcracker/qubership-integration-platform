@@ -29,6 +29,7 @@ import org.qubership.integration.platform.catalog.service.parsers.ParserUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,7 +54,7 @@ public class EnvironmentService extends EnvironmentBaseService {
                               SystemService systemService,
                               ServiceEnvironmentMapper serviceEnvironmentMapper,
                               ParserUtils parserUtils,
-                              ObjectMapper jsonMapper) {
+                              @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
         super(environmentRepository, systemService, actionLogger, jsonMapper, parserUtils);
         this.serviceEnvironmentMapper = serviceEnvironmentMapper;
         this.systemService = systemService;

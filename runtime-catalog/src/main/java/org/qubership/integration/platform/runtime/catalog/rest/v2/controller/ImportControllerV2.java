@@ -33,6 +33,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.I
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ImportSessionService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ImportV2RedirectPathResolver;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -66,7 +67,7 @@ public class ImportControllerV2 {
     @Autowired
     public ImportControllerV2(ImportService importService,
                               ImportSessionService importProgressService,
-                              ObjectMapper objectMapper,
+                              @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
                               ImportChainAsyncMapper importChainAsyncMapper,
                               ImportV2RedirectPathResolver importV2RedirectPathResolver) {
         this.importService = importService;

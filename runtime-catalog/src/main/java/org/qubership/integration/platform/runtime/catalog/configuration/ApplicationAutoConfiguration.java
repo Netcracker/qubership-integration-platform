@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ImportV2RedirectPathResolver;
@@ -23,24 +24,23 @@ import org.springframework.beans.factory.BeanInitializationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import jakarta.annotation.PostConstruct;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.net.URI;
 
 @Slf4j
 @Getter
-@Configuration
+@AutoConfiguration
 @EnableScheduling
 @EnableJpaAuditing
 @EnableRetry
@@ -49,7 +49,7 @@ import java.net.URI;
         "org.qubership.integration.platform.catalog.*",
         "org.qubership.integration.platform.runtime.catalog.*"
 })
-public class ApplicationConfiguration {
+public class ApplicationAutoConfiguration {
     private final String cloudServiceName;
 
     private final ApplicationContext context;
@@ -61,8 +61,8 @@ public class ApplicationConfiguration {
     private String activeProfiles;
 
     @Autowired
-    public ApplicationConfiguration(@Value("${spring.application.cloud_service_name}") String cloudServiceName,
-                                    ApplicationContext context) {
+    public ApplicationAutoConfiguration(@Value("${spring.application.cloud_service_name}") String cloudServiceName,
+                                        ApplicationContext context) {
         this.cloudServiceName = cloudServiceName;
         this.context = context;
     }

@@ -16,17 +16,16 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper;
 
-import org.qubership.integration.platform.runtime.catalog.mapper.ElementMapBuilder;
+import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.*;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.Attribute;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.ObjectSchema;
-import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ElementMapBuilderTest {
     @Test

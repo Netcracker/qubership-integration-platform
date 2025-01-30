@@ -53,6 +53,7 @@ import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.d
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.ObjectSchema;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.constant.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -108,7 +109,7 @@ public class AtlasMapInterpreter implements MappingInterpreter {
     private final DataTypeToFieldTypeConverter dataTypeToFieldTypeConverter;
 
     @Autowired
-    public AtlasMapInterpreter(ObjectMapper objectMapper) {
+    public AtlasMapInterpreter(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
         this.objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         this.dataTypeToFieldTypeConverter = new DataTypeToFieldTypeConverter();

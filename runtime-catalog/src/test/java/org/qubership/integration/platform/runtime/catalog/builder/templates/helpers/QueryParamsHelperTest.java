@@ -22,6 +22,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.github.jknack.handlebars.Context;
 import com.github.jknack.handlebars.Options;
 import com.github.jknack.handlebars.TagType;
+import org.qubership.integration.platform.catalog.configuration.MapperBaseConfiguration;
 import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
@@ -48,7 +49,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 @ContextConfiguration(classes = {
         AtlasMapInterpreter.class,
-        ObjectMapper.class,
+        MapperBaseConfiguration.class,
         TestConfig.class,
         DescriptorPropertiesConfiguration.class,
         YAMLMapper.class,

@@ -27,6 +27,7 @@ import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.M
 import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.util.Optional;
 
@@ -40,7 +41,11 @@ public class MapperInterpretatorHelper extends BaseHelper implements Helper<Stri
     private final MappingDescriptionValidator validator;
 
     @Autowired
-    public MapperInterpretatorHelper(MappingInterpreter interpreter, ObjectMapper objectMapper, MappingDescriptionValidator validator) {
+    public MapperInterpretatorHelper(
+            MappingInterpreter interpreter,
+            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
+            MappingDescriptionValidator validator
+    ) {
         this.interpreter = interpreter;
         this.objectMapper = objectMapper;
         this.validator = validator;

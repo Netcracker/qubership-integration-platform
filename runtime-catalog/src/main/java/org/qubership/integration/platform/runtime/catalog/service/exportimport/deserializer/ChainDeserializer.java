@@ -39,6 +39,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.e
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ElementDeserializationResult;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.FolderSerializeEntity;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -61,7 +62,7 @@ public class ChainDeserializer extends StdDeserializer<ChainDeserializationResul
     private final FolderService folderService;
 
     @Autowired
-    public ChainDeserializer(ObjectMapper objectMapper,
+    public ChainDeserializer(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
                              ChainRepository chainRepository,
                              @Lazy FolderService folderService) {
         super((Class<?>) null);

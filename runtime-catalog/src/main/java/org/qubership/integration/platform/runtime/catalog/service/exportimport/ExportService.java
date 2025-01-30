@@ -36,6 +36,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,7 +65,7 @@ public class ExportService {
 
     @Autowired
     public ExportService(YAMLMapper yamlMapper,
-                         ObjectMapper objectMapper,
+                         @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
                          ChainService chainService,
                          ActionsLogService actionLogger) {
         this.yamlMapper = yamlMapper;

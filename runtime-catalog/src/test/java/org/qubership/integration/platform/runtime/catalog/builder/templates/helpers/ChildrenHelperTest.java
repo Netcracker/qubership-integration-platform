@@ -27,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.qubership.integration.platform.catalog.configuration.MapperBaseConfiguration;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplateService;
 import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.runtime.catalog.mapper.MappingDescriptionValidator;
@@ -55,7 +56,7 @@ import static org.qubership.integration.platform.runtime.catalog.testutils.TestU
 
 @ContextConfiguration(classes = {
         AtlasMapInterpreter.class,
-        ObjectMapper.class,
+        MapperBaseConfiguration.class,
         TestConfig.class,
         DescriptorPropertiesConfiguration.class,
         LibraryElementsService.class,

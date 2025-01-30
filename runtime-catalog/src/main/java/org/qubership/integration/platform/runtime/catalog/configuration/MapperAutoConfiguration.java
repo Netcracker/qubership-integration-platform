@@ -23,6 +23,10 @@ import com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter;
 import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.MaskedField;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ChainDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ChainElementDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeserializationResult;
@@ -31,16 +35,12 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.s
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ChainSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.DependencySerializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.MaskedFieldSerializer;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.MaskedField;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.yaml.snakeyaml.LoaderOptions;
 
-@Configuration
-public class MapperConfiguration {
+@AutoConfiguration
+public class MapperAutoConfiguration {
     private static final int CODE_POINT_LIMIT_MB = 256;
 
     @Bean("yamlMapper")

@@ -57,6 +57,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ImportFileMigrationUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.CollectionUtils;
@@ -106,7 +107,7 @@ public class ImportService {
     @Autowired
     public ImportService(ChainExternalEntityMapper chainExternalEntityMapper,
                          YAMLMapper yamlMapper,
-                         ObjectMapper objectMapper,
+                         @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
                          ActionsLogService actionLogger,
                          List<ChainImportFileMigration> importFileMigrations,
                          DeploymentService deploymentService,

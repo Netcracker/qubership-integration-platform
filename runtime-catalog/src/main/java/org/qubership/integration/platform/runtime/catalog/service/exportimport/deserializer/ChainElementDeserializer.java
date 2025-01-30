@@ -35,6 +35,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.repository
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -60,7 +61,7 @@ public class ChainElementDeserializer extends StdDeserializer<ElementDeserializa
     public ChainElementDeserializer(
             LibraryElementsService libraryService,
             ElementRepository elementRepository,
-            ObjectMapper objectMapper
+            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper
     ) {
         super((Class<?>) null);
         this.libraryService = libraryService;

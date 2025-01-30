@@ -21,6 +21,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.handler.exception
 import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.ExceptionDTO;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Component;
@@ -35,7 +36,7 @@ public class RestTemplateMsResponseErrorHandler implements ResponseErrorHandler 
     private final ObjectMapper objectMapper;
 
     @Autowired
-    public RestTemplateMsResponseErrorHandler(ObjectMapper objectMapper) {
+    public RestTemplateMsResponseErrorHandler(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

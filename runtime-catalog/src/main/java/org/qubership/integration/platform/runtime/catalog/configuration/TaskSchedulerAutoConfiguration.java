@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
-@Configuration
-public class TaskSchedulerConfiguration {
+@AutoConfiguration
+public class TaskSchedulerAutoConfiguration {
 
     @Bean
     public TaskScheduler taskScheduler() {

@@ -16,11 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper.expressions;
 
-import org.qubership.integration.platform.runtime.catalog.mapper.expressions.ToAtlasMapExpressionConverter;
 import org.junit.jupiter.api.Test;
 
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ToAtlasMapExpressionConverterTest {
     private static final ToAtlasMapExpressionConverter converter = new ToAtlasMapExpressionConverter();
