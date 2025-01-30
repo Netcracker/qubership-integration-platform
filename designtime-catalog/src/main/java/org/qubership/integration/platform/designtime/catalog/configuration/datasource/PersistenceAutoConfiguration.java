@@ -48,7 +48,7 @@ import java.util.Properties;
         transactionManagerRef = "configsTransactionManager"
 )
 @EnableConfigurationProperties({JpaProperties.class, HikariConfigProperties.class})
-public class PersistenceConfiguration {
+public class PersistenceAutoConfiguration {
     private static final String JPA_ENTITIES_PACKAGE_SCAN =
             "org.qubership.integration.platform.catalog.persistence.configs.entity";
 
@@ -56,7 +56,7 @@ public class PersistenceConfiguration {
     private final HikariConfigProperties hikariProperties;
 
     @Autowired
-    public PersistenceConfiguration(JpaProperties jpaProperties, HikariConfigProperties hikariProperties) {
+    public PersistenceAutoConfiguration(JpaProperties jpaProperties, HikariConfigProperties hikariProperties) {
         this.jpaProperties = jpaProperties;
         this.hikariProperties = hikariProperties;
     }
@@ -80,6 +80,10 @@ public class PersistenceConfiguration {
 
     @Primary
     @Bean("entityManagerFactory")
+    @ConditionalOnMissingBean(
+            value = LocalContainerEntityManagerFactoryBean.class,
+            name = "entityManagerFactory"
+    )
     public LocalContainerEntityManagerFactoryBean configsEntityManagerFactory(
             @Qualifier("configsDataSource") DataSource dataSource
     ) {

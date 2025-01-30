@@ -21,16 +21,16 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.designtime.catalog.service.ddsgenerator.elements.converter.RoutePrefixProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Slf4j
 @Getter
-@Configuration
+@AutoConfiguration
 @NoArgsConstructor
 @EnableScheduling
 @EnableJpaAuditing
@@ -38,7 +38,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         "org.qubership.integration.platform.designtime.catalog.*",
         "org.qubership.integration.platform.catalog.*"
 })
-public class ApplicationConfiguration {
+public class ApplicationAutoConfiguration {
 
     @Value("${spring.application.cloud_service_name}")
     private String cloudServiceName;

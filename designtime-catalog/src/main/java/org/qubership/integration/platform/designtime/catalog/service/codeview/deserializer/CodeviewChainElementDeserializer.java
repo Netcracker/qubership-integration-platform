@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,7 +38,7 @@ public class CodeviewChainElementDeserializer extends StdDeserializer<ChainEleme
 
     private final ObjectMapper objectMapper;
 
-    public CodeviewChainElementDeserializer(ObjectMapper objectMapper) {
+    public CodeviewChainElementDeserializer(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
         super(ChainElement.class);
         this.objectMapper = objectMapper;
     }

@@ -26,6 +26,7 @@ import org.qubership.integration.platform.designtime.catalog.model.dds.TemplateC
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -44,7 +45,7 @@ public class HttpTriggerDDSConverter extends ElementDDSConverter {
     @Autowired
     public HttpTriggerDDSConverter(
             ElementTemplateUtils elementTemplateUtils,
-            ObjectMapper jsonMapper,
+            @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper,
             RoutePrefixProvider routePrefixProvider
     ) {
         this.elementTemplateUtils = elementTemplateUtils;

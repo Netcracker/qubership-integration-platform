@@ -16,30 +16,21 @@
 
 package org.qubership.integration.platform.designtime.catalog.configuration;
 
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.servers.Server;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.util.Map;
-
-@Configuration
-public class SwaggerConfiguration {
-
+@AutoConfiguration
+@EnableAsync
+public class AsyncAutoConfiguration {
     @Bean
-    public OpenAPI getApi() {
-        return new OpenAPI()
-                .addServersItem(new Server().url("/"))
-                .info(getInfo());
-    }
-
-    private Info getInfo() {
-        return new Info()
-                .title("Qubership Integration Platform Design Time Catalog")
-                .description("REST API of Qubership Integration Platform Design Time Catalog microservice")
-                .extensions(Map.of("x-api-kind", "no-bwc"))
-                .version("v1");
+    public ThreadPoolTaskExecutor threadPoolTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("qip-designtime-catalog-");
+        return executor;
     }
 }
-

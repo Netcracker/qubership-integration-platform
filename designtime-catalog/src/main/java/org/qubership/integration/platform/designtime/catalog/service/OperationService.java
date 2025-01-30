@@ -24,6 +24,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.repository
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -43,7 +44,7 @@ public class OperationService {
     @Autowired
     public OperationService(
             OperationRepository operationRepository,
-            ObjectMapper objectMapper,
+            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
             @Lazy ChainService chainService
     ) {
         this.operationRepository = operationRepository;

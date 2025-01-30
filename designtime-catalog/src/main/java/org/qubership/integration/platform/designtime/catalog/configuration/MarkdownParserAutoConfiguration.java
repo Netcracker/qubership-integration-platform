@@ -21,13 +21,13 @@ import com.vladsch.flexmark.formatter.Formatter;
 import com.vladsch.flexmark.parser.Parser;
 import com.vladsch.flexmark.util.data.DataHolder;
 import com.vladsch.flexmark.util.data.MutableDataSet;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
-@Configuration
-public class MarkdownParserConfiguration {
+@AutoConfiguration
+public class MarkdownParserAutoConfiguration {
     // add opts if needed
     private static final DataHolder OPTIONS = new MutableDataSet()
             .set(TablesExtension.COLUMN_SPANS, false)

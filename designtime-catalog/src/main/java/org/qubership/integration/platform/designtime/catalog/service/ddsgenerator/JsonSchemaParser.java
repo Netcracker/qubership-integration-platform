@@ -29,6 +29,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -41,7 +42,7 @@ public class JsonSchemaParser {
     private final ObjectMapper jsonMapper;
 
     @Autowired
-    public JsonSchemaParser(ObjectMapper jsonMapper) {
+    public JsonSchemaParser(@Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
         this.jsonMapper = jsonMapper;
     }
 

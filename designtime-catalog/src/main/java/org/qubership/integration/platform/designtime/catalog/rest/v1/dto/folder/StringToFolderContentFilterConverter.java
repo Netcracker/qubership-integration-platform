@@ -19,6 +19,7 @@ package org.qubership.integration.platform.designtime.catalog.rest.v1.dto.folder
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 
@@ -27,7 +28,7 @@ public class StringToFolderContentFilterConverter implements Converter<String, F
     private final ObjectMapper mapper;
 
     @Autowired
-    public StringToFolderContentFilterConverter(ObjectMapper mapper) {
+    public StringToFolderContentFilterConverter(@Qualifier("primaryObjectMapper") ObjectMapper mapper) {
         this.mapper = mapper;
     }
 

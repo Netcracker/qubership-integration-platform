@@ -18,11 +18,11 @@ package org.qubership.integration.platform.designtime.catalog.configuration;
 
 import freemarker.cache.StringTemplateLoader;
 import freemarker.template.Version;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-@Configuration
-public class FreemakerConfiguration {
+@AutoConfiguration
+public class FreemakerAutoConfiguration {
     public static final Version CONF_FEATURE_VER = freemarker.template.Configuration.VERSION_2_3_33;
 
     @Bean

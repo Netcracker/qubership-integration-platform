@@ -25,12 +25,12 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.designtime.catalog.service.codeview.deserializer.CodeviewChainElementDeserializer;
 import org.qubership.integration.platform.designtime.catalog.service.codeview.serializer.CodeviewChainElementSerializer;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.yaml.snakeyaml.LoaderOptions;
 
-@Configuration
-public class MapperConfiguration {
+@AutoConfiguration
+public class MapperAutoConfiguration {
 
     private static final int CODE_POINT_LIMIT_MB = 256;
 

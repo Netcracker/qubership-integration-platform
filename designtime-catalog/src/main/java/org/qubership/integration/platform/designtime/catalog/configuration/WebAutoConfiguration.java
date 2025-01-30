@@ -18,14 +18,14 @@ package org.qubership.integration.platform.designtime.catalog.configuration;
 
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.folder.StringToFolderContentFilterConverter;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-@Configuration
-public class WebConfig implements WebMvcConfigurer {
+@AutoConfiguration
+public class WebAutoConfiguration implements WebMvcConfigurer {
     @Autowired
     StringToFolderContentFilterConverter stringToFolderContentFilterConverter;
 

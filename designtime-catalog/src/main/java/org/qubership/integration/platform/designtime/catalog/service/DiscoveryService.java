@@ -50,6 +50,7 @@ import org.apache.http.HttpHeaders;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -95,7 +96,7 @@ public class DiscoveryService {
             SpecificationImportService specificationImportService,
             SpecificationGroupService specificationGroupService,
             YAMLMapper yamlMapper,
-            ObjectMapper objectMapper,
+            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
             RestTemplate restTemplateMS,
             DiscoveryServiceMapper discoveryServiceMapper,
             ConfigParameterService configParameterService,

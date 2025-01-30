@@ -25,6 +25,7 @@ import org.qubership.integration.platform.catalog.util.MapperUtils;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.util.Map;
 
@@ -32,6 +33,7 @@ import java.util.Map;
 public abstract class ServiceEnvironmentMapper {
 
     @Autowired
+    @Qualifier("primaryObjectMapper")
     ObjectMapper objectMapper;
 
     @Mapping(target = "systemId", source = "system.id")
