@@ -19,24 +19,23 @@ package org.qubership.integration.platform.variables.management.kubernetes;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.qubership.integration.platform.variables.management.model.json.JsonPatch;
-import org.qubership.integration.platform.variables.management.model.json.PatchOperation;
 import io.kubernetes.client.custom.V1Patch;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
-import io.kubernetes.client.openapi.models.*;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Secret;
+import io.kubernetes.client.openapi.models.V1SecretList;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.variables.management.model.json.JsonPatch;
+import org.qubership.integration.platform.variables.management.model.json.PatchOperation;
 import org.springframework.lang.Nullable;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -196,7 +195,7 @@ public class KubeOperator {
 
     public void createSecret(String name, Pair<String, String> label, Map<String, String> data) {
         try {
-            Map<String, byte[]> dataByte = data == null ? null : data.entrySet().stream()
+            Map<String, byte[]> dataByte = data == null ? Collections.emptyMap() : data.entrySet().stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getBytes()));
 
             V1Secret secret = new V1Secret();
@@ -242,41 +241,36 @@ public class KubeOperator {
         }
     }
 
+    public ConcurrentMap<String, String> addSecretData(String secretName, Map<String, String> data, boolean init) {
+        List<JsonPatch> patches = new ArrayList<>();
+        if (init) {
+            patches.add(new JsonPatch(PatchOperation.ADD, SECRET_DATA_PATH, Collections.emptyMap()));
+        }
+
+        for (Map.Entry<String, String> entry : data.entrySet()) {
+            patches.add(new JsonPatch(PatchOperation.ADD, getDataKeyPath(entry.getKey()), entry.getValue().getBytes()));
+        }
+
+        return updateSecretData(secretName, patches);
+    }
+
     public ConcurrentMap<String, String> updateSecretData(String secretName, Map<String, String> data) {
         List<JsonPatch> patches = data.entrySet().stream()
                 .map(dataEntry -> new JsonPatch(PatchOperation.REPLACE, getDataKeyPath(dataEntry.getKey()), dataEntry.getValue().getBytes()))
                 .toList();
-        ConcurrentMap<String, String> secretMap = new ConcurrentHashMap<>();
-
-        try {
-            V1Secret secret = coreApi.patchNamespacedSecret(
-                    secretName,
-                    namespace,
-                    new V1Patch(objectMapper.writeValueAsString(patches)),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-            );
-
-            if (secret.getData() != null) {
-                secret.getData().forEach((k, v) -> secretMap.put(k, new String(v)));
-            }
-        } catch (JsonProcessingException e) {
-            log.error("Unable to serialize secret patch request", e);
-            throw new KubeApiException("Unable to serialize secret patch request", e);
-        } catch (ApiException e) {
-            log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
-            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
-        }
-
-        return secretMap;
+        return updateSecretData(secretName, patches);
     }
 
-    public Call updateSecretDataAsync(String secretName, Map<String, String> data, SecretUpdateCallback callback) {
-        List<JsonPatch> patches = data.entrySet().stream()
-                .map(dataEntry -> new JsonPatch(PatchOperation.REPLACE, getDataKeyPath(dataEntry.getKey()), dataEntry.getValue().getBytes()))
+    public ConcurrentMap<String, String> removeSecretData(String secretName, Set<String> keys) {
+        List<JsonPatch> patches = keys.stream()
+                .map(key -> new JsonPatch(PatchOperation.REMOVE, getDataKeyPath(key), null))
+                .toList();
+        return updateSecretData(secretName, patches);
+    }
+
+    public Call removeSecretDataAsync(String secretName, Set<String> keys, SecretUpdateCallback callback) {
+        List<JsonPatch> patches = keys.stream()
+                .map(key -> new JsonPatch(PatchOperation.REMOVE, getDataKeyPath(key), null))
                 .toList();
 
         try {
@@ -337,7 +331,36 @@ public class KubeOperator {
         }
     }
 
-    public String getDataKeyPath(String key) {
+    private ConcurrentMap<String, String> updateSecretData(String secretName, List<JsonPatch> patches) {
+        ConcurrentMap<String, String> secretMap = new ConcurrentHashMap<>();
+
+        try {
+            V1Secret secret = coreApi.patchNamespacedSecret(
+                    secretName,
+                    namespace,
+                    new V1Patch(objectMapper.writeValueAsString(patches)),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            );
+
+            if (secret.getData() != null) {
+                secret.getData().forEach((k, v) -> secretMap.put(k, new String(v)));
+            }
+        } catch (JsonProcessingException e) {
+            log.error("Unable to serialize secret patch request", e);
+            throw new KubeApiException("Unable to serialize secret patch request", e);
+        } catch (ApiException e) {
+            log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+        }
+
+        return secretMap;
+    }
+
+    private String getDataKeyPath(String key) {
         return SECRET_DATA_PATH + "/" + key;
     }
 }

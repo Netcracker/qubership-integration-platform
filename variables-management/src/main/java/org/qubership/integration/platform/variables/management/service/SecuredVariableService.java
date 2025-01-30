@@ -19,6 +19,11 @@ package org.qubership.integration.platform.variables.management.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import jakarta.persistence.EntityExistsException;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.variables.management.kubernetes.KubeApiException;
 import org.qubership.integration.platform.variables.management.kubernetes.KubeApiNotFoundException;
 import org.qubership.integration.platform.variables.management.kubernetes.KubeOperator;
@@ -32,11 +37,6 @@ import org.qubership.integration.platform.variables.management.rest.exception.Se
 import org.qubership.integration.platform.variables.management.rest.exception.SecuredVariablesNotFoundException;
 import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecretErrorResponse;
 import org.qubership.integration.platform.variables.management.util.DevModeUtil;
-import jakarta.persistence.EntityExistsException;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -161,8 +161,7 @@ public class SecuredVariableService extends SecretService {
                 validateSecuredVariable(securedVariable.getKey(), securedVariable.getValue());
             }
 
-            variables.putAll(newVariables);
-            updateVariables(secretName, variables);
+            updateVariablesCache(secretName, operator.addSecretData(secretName, newVariables, variables.isEmpty()));
         } finally {
             lock.unlock();
         }
@@ -198,9 +197,7 @@ public class SecuredVariableService extends SecretService {
                 throw new SecuredVariablesNotFoundException(SECRET_NOT_FOUND_ERROR_MESSAGE_FORMAT.formatted(secretName));
             }
 
-            ConcurrentMap<String, String> variables = new ConcurrentHashMap<>(secret.getVariables());
-            variables.entrySet().removeIf(entry -> variablesNames.contains(entry.getKey()));
-            updateVariables(secretName, variables);
+            updateVariablesCache(secretName, operator.removeSecretData(secretName, variablesNames));
         } finally {
             lock.unlock();
         }
@@ -230,9 +227,6 @@ public class SecuredVariableService extends SecretService {
                     continue;
                 }
 
-                Map<String, String> variables = new HashMap<>(secret.getVariables());
-                variables.entrySet().removeIf(entry -> variablesToRemove.contains(entry.getKey()));
-
                 try {
                     CompletableFuture<Map<String, String>> future = new CompletableFuture<Map<String, String>>()
                             .whenComplete((secretData, throwable) -> {
@@ -245,11 +239,7 @@ public class SecuredVariableService extends SecretService {
                                 }
                             });
                     secretUpdateFutures.add(future);
-                    updateVariablesAsync(
-                            secretName,
-                            variables,
-                            new SecretUpdateCallback(future)
-                    );
+                    operator.removeSecretDataAsync(secretName, variablesToRemove, new SecretUpdateCallback(future));
                 } catch (Exception e) {
                     secretUpdateExceptions.putIfAbsent(
                             secretName,
@@ -312,9 +302,8 @@ public class SecuredVariableService extends SecretService {
 
                 variables.put(name, isNull(value) ? "" : value);
             }
-            updateVariables(secretName, variables);
-            ConcurrentMap<String, String> secretData = operator.updateSecretData(secretName, variables);
-            updateVariablesCache(secretName, secretData);
+
+            updateVariablesCache(secretName, operator.updateSecretData(secretName, variables));
         } finally {
             lock.unlock();
         }
@@ -343,11 +332,6 @@ public class SecuredVariableService extends SecretService {
         return securedVariablesSecrets;
     }
 
-    private void updateVariablesAsync(String secretName, Map<String, String> variables, SecretUpdateCallback callback) {
-        variables = replaceNullWithDefaultValue(variables);
-        operator.updateSecretDataAsync(secretName, variables, callback);
-    }
-
     private void validateSecuredVariable(String name, String value) {
         if (StringUtils.isBlank(name)) {
             throw new EmptyVariableFieldException(EMPTY_SECURED_VARIABLE_NAME_ERROR_MESSAGE);
@@ -362,11 +346,6 @@ public class SecuredVariableService extends SecretService {
                 throw new EntityExistsException("Common variable with name " + name + " already exists");
             }
         }
-    }
-
-    private Map<String, String> replaceNullWithDefaultValue(Map<String, String> variables) {
-        return variables.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue() == null ? "" : entry.getValue()));
     }
 
     private ConcurrentMap<String, ConcurrentMap<String, String>> getVariablesBySecret() {
