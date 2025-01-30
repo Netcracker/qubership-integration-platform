@@ -66,7 +66,7 @@ public class GraphqlSpecificationParser implements SpecificationParser {
                                       ParserUtils parserUtils,
                                       Parser graphqlParser,
                                       @Qualifier("graphqlOperationParserOptions") ParserOptions graphqlParserOptions,
-                                      ObjectMapper jsonMapper) {
+                                      @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
         this.systemModelRepository = systemModelRepository;
         this.parserUtils = parserUtils;
         this.graphqlParser = graphqlParser;

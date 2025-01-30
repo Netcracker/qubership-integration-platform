@@ -31,6 +31,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -78,7 +79,7 @@ public class ConsulService {
     private final ObjectMapper objectMapper;
 
     @Autowired
-    public ConsulService(ObjectMapper jsonMapper, ConsulClient client) {
+    public ConsulService(@Qualifier("primaryObjectMapper") ObjectMapper jsonMapper, ConsulClient client) {
         this.client = client;
         this.objectMapper = jsonMapper;
     }

@@ -40,6 +40,7 @@ import org.qubership.integration.platform.catalog.service.resolvers.async.AsyncR
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Scope;
@@ -66,7 +67,7 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
     public AsyncapiSpecificationParser(@Lazy EnvironmentBaseService environmentBaseService,
                                        SystemModelRepository systemModelRepository,
                                        ParserUtils parserUtils,
-                                       ObjectMapper jsonMapper,
+                                       @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper,
                                        YAMLMapper specYamlMapper,
                                        List<AsyncApiSpecificationResolver> resolverList) {
         this.systemModelRepository = systemModelRepository;

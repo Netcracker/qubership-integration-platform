@@ -26,6 +26,7 @@ import org.qubership.integration.platform.catalog.model.system.OperationProtocol
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -58,7 +59,7 @@ public class ProtocolExtractionService {
     private final YAMLMapper specYamlMapper;
 
     @Autowired
-    public ProtocolExtractionService(ObjectMapper objectMapper, YAMLMapper specYamlMapper) {
+    public ProtocolExtractionService(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper, YAMLMapper specYamlMapper) {
         this.objectMapper = objectMapper;
         this.specYamlMapper = specYamlMapper;
     }

@@ -35,6 +35,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.sys
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.EnvironmentRepository;
 import org.qubership.integration.platform.catalog.service.parsers.ParserUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,7 +61,7 @@ public class EnvironmentBaseService {
             EnvironmentRepository environmentRepository,
             SystemBaseService systemBaseService,
             ActionsLogService actionLogger,
-            ObjectMapper jsonMapper,
+            @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper,
             ParserUtils parserUtils
     ) {
         this.environmentRepository = environmentRepository;

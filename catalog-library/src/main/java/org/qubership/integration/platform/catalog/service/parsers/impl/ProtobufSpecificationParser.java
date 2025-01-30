@@ -37,6 +37,7 @@ import com.squareup.wire.schema.internal.parser.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
@@ -71,7 +72,7 @@ public class ProtobufSpecificationParser implements SpecificationParser {
     public ProtobufSpecificationParser(
             SystemModelRepository systemModelRepository,
             ParserUtils parserUtils,
-            ObjectMapper objectMapper
+            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper
     ) {
         this.systemModelRepository = systemModelRepository;
         this.parserUtils = parserUtils;

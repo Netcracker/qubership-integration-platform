@@ -39,6 +39,7 @@ import org.qubership.integration.platform.catalog.service.SystemModelBaseService
 import org.qubership.integration.platform.catalog.service.parsers.OperationParserService;
 import org.qubership.integration.platform.catalog.util.MultipartFileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
@@ -79,7 +80,7 @@ public class SpecificationImportService {
                                       SpecificationSourceRepository specificationSourceRepository,
                                       ConfigParameterService configParameterService,
                                       ProtocolExtractionService protocolExtractionService,
-                                      ObjectMapper objectMapper,
+                                      @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
                                       SystemBaseService systemBaseService,
                                       SystemModelBaseService systemModelService
     ) {

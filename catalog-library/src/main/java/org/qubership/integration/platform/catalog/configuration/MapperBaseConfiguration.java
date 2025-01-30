@@ -28,6 +28,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.swagger.v3.core.util.Json;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -37,9 +38,15 @@ import org.yaml.snakeyaml.LoaderOptions;
 public class MapperBaseConfiguration {
     private static final int CODE_POINT_LIMIT_MB = 256;
 
-    @Bean(name = {"objectMapper", "jsonMapper"})
     @Primary
+    @Bean(name = {"objectMapper", "jsonMapper"})
+    @ConditionalOnProperty(prefix = "app", name = "prefix", havingValue = "qip")
     public ObjectMapper objectMapper() {
+        return qipPrimaryObjectMapper();
+    }
+
+    @Bean("primaryObjectMapper")
+    public ObjectMapper qipPrimaryObjectMapper() {
         ObjectMapper objectMapper = JsonMapper.builder()
                 .enable(SerializationFeature.INDENT_OUTPUT)
                 .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)

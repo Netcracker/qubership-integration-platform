@@ -30,6 +30,7 @@ import org.qubership.integration.platform.catalog.service.SystemModelBaseService
 import io.swagger.v3.oas.models.OpenAPI;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -41,7 +42,7 @@ public class ParserUtils {
 
     @Autowired
     public ParserUtils(SystemModelBaseService systemModelBaseService,
-                       ObjectMapper jsonMapper) {
+                       @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
         this.systemModelBaseService = systemModelBaseService;
         this.jsonMapper = jsonMapper;
     }
