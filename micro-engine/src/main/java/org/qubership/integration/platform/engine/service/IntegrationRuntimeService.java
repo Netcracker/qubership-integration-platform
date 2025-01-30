@@ -23,28 +23,17 @@ import org.qubership.integration.platform.engine.camel.converters.SecurityAccess
 import org.qubership.integration.platform.engine.camel.converters.FormDataConverter;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory.FilteringEntity;
-import org.qubership.integration.platform.engine.configuration.ApplicationAutoConfiguration;
-import org.qubership.integration.platform.engine.configuration.PredeployCheckKafkaConfiguration;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
 import org.qubership.integration.platform.engine.consul.EngineStateReporter;
-import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
-import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.events.ConsulSessionCreatedEvent;
 import org.qubership.integration.platform.engine.forms.FormData;
-import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecureThreadFactory;
-import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecurityBean;
-import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecurityInterceptStrategy;
-import org.qubership.integration.platform.engine.model.ChainElementType;
-import org.qubership.integration.platform.engine.model.ElementOptions;
 import org.qubership.integration.platform.engine.model.RuntimeIntegrationCache;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
-import org.qubership.integration.platform.engine.model.constants.ConnectionSourceType;
-import org.qubership.integration.platform.engine.model.constants.EnvironmentSourceType;
 import org.qubership.integration.platform.engine.model.deployment.DeploymentOperation;
 import org.qubership.integration.platform.engine.model.deployment.engine.DeploymentStatus;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
@@ -54,22 +43,18 @@ import org.qubership.integration.platform.engine.security.QipSecurityAccessPolic
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
+import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingService;
+import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before.RegisterRoutesInControlPlaneAction;
 import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryGroovyShellFactory;
 import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryService;
 import org.qubership.integration.platform.engine.service.externallibrary.GroovyLanguageWithResettableCache;
 import org.qubership.integration.platform.engine.service.xmlpreprocessor.XmlConfigurationPreProcessor;
 import org.qubership.integration.platform.engine.util.MDCUtil;
-import org.qubership.integration.platform.engine.util.SimpleHttpUriUtils;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
-import jakarta.jms.ConnectionFactory;
 import org.apache.camel.component.jackson.JacksonConstants;
-import org.apache.camel.component.jms.JmsComponent;
-import org.apache.camel.component.jms.JmsConfiguration;
 import org.apache.camel.impl.engine.DefaultManagementStrategy;
 import org.apache.camel.impl.engine.DefaultStreamCachingStrategy;
 import org.apache.camel.model.*;
@@ -78,17 +63,9 @@ import org.apache.camel.observation.MicrometerObservationTracer;
 import org.apache.camel.reifier.ProcessorReifier;
 import org.apache.camel.spi.ClassResolver;
 import org.apache.camel.spi.MessageHistoryFactory;
-import org.apache.camel.spi.ThreadPoolProfile;
 import org.apache.camel.spring.SpringCamelContext;
 import org.apache.camel.tracing.Tracer;
-import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.common.KafkaException;
-import org.apache.kafka.common.errors.AuthorizationException;
-import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.codehaus.groovy.control.CompilationFailedException;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
@@ -98,27 +75,17 @@ import org.qubership.integration.platform.engine.model.deployment.update.Deploym
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentsUpdate;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
-import org.slf4j.MDC;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.event.EventListener;
-import org.springframework.jms.support.destination.JndiDestinationResolver;
-import org.springframework.jndi.JndiObjectFactoryBean;
-import org.springframework.jndi.JndiTemplate;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
-import javax.naming.Context;
-import javax.naming.NamingException;
-import javax.sql.DataSource;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
@@ -140,36 +107,27 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private final ServerConfiguration serverConfiguration;
     private final QuartzSchedulerService quartzSchedulerService;
     private final TracingConfiguration tracingConfiguration;
-    private final PredeployCheckKafkaConfiguration predeployCheckKafkaConfiguration;
     private final ExternalLibraryGroovyShellFactory groovyShellFactory;
     private final GroovyLanguageWithResettableCache groovyLanguage;
-    private final CamelComponentDependencyBinder dependencyBinder;
     private final MetricsStore metricsStore;
     private final Optional<ExternalLibraryService> externalLibraryService;
     private final Optional<MaasService> maasService;
-    private final Optional<ControlPlaneService> controlPlaneService;
     private final Optional<XmlConfigurationPreProcessor> xmlPreProcessor;
     private final VariablesService variablesService;
     private final EngineStateReporter engineStateReporter;
     private final CamelDebuggerPropertiesService propertiesService;
     private final DeploymentReadinessService deploymentReadinessService;
-    private final ApplicationAutoConfiguration applicationConfiguration;
 
     private final Predicate<FilteringEntity> camelMessageHistoryFilter;
 
     private final RuntimeIntegrationCache deploymentCache = new RuntimeIntegrationCache();
     private final ReadWriteLock processLock = new ReentrantReadWriteLock();
 
-    private final DataSource qrtzDataSource;
-
     private final Executor deploymentExecutor;
 
-    private final ObjectProvider<WeblogicSecurityBean> wlSecurityBeanProvider;
-    private final ObjectProvider<WeblogicSecurityInterceptStrategy> wlSecurityInterceptStrategyProvider;
-    private final ObjectProvider<WeblogicSecureThreadFactory> wlSecureThreadFactoryProvider;
-
     private ApplicationContext applicationContext;
-    private final Optional<SdsService> sdsService;
+
+    private final DeploymentProcessingService deploymentProcessingService;
 
     static {
         ProcessorReifier.registerReifier(StepDefinition.class, CustomStepReifier::new);
@@ -178,11 +136,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                 (CircuitBreakerDefinition) definition));
     }
 
-
     @Value("${qip.camel.stream-caching.enabled}")
     private boolean enableStreamCaching;
-    @Value("${qip.camel.component.rabbitmq.predeploy-check-enabled}")
-    private boolean amqpPredeployCheckEnabled;
 
     private final int streamCachingBufferSize;
 
@@ -190,13 +145,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     public IntegrationRuntimeService(ServerConfiguration serverConfiguration,
         QuartzSchedulerService quartzSchedulerService,
         TracingConfiguration tracingConfiguration,
-        PredeployCheckKafkaConfiguration predeployCheckKafkaConfiguration,
         ExternalLibraryGroovyShellFactory groovyShellFactory,
         GroovyLanguageWithResettableCache groovyLanguage,
         MetricsStore metricsStore,
-        CamelComponentDependencyBinder dependencyBinder,
         Optional<ExternalLibraryService> externalLibraryService,
-        Optional<MaasService> maasService, Optional<ControlPlaneService> controlPlaneService,
+        Optional<MaasService> maasService,
         Optional<XmlConfigurationPreProcessor> xmlPreProcessor,
         VariablesService variablesService,
         EngineStateReporter engineStateReporter,
@@ -204,25 +157,17 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         CamelDebuggerPropertiesService propertiesService,
         @Value("${qip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
         Predicate<FilteringEntity> camelMessageHistoryFilter,
-        @Qualifier("qrtzDataSource") DataSource qrtzDataSource,
-        Optional<SdsService> sdsService,
         DeploymentReadinessService deploymentReadinessService,
-        ApplicationAutoConfiguration applicationConfiguration,
-        ObjectProvider<WeblogicSecurityBean> wlSecurityBeanProvider,
-        ObjectProvider<WeblogicSecurityInterceptStrategy> wlSecurityInterceptStrategyProvider,
-        ObjectProvider<WeblogicSecureThreadFactory> wlSecureThreadFactoryProvider
+        DeploymentProcessingService deploymentProcessingService
     ) {
         this.serverConfiguration = serverConfiguration;
         this.quartzSchedulerService = quartzSchedulerService;
         this.tracingConfiguration = tracingConfiguration;
-        this.predeployCheckKafkaConfiguration = predeployCheckKafkaConfiguration;
         this.groovyShellFactory = groovyShellFactory;
         this.groovyLanguage = groovyLanguage;
         this.metricsStore = metricsStore;
-        this.dependencyBinder = dependencyBinder;
         this.externalLibraryService = externalLibraryService;
         this.maasService = maasService;
-        this.controlPlaneService = controlPlaneService;
         this.xmlPreProcessor = xmlPreProcessor;
         this.variablesService = variablesService;
         this.engineStateReporter = engineStateReporter;
@@ -233,13 +178,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
         this.camelMessageHistoryFilter = camelMessageHistoryFilter;
 
-        this.qrtzDataSource = qrtzDataSource;
-        this.sdsService = sdsService;
         this.deploymentReadinessService = deploymentReadinessService;
-        this.applicationConfiguration = applicationConfiguration;
-        this.wlSecurityBeanProvider = wlSecurityBeanProvider;
-        this.wlSecurityInterceptStrategyProvider = wlSecurityInterceptStrategyProvider;
-        this.wlSecureThreadFactoryProvider = wlSecureThreadFactoryProvider;
+        this.deploymentProcessingService = deploymentProcessingService;
     }
 
     @Override
@@ -383,10 +323,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
             log.info("Processing deployment {}: {} for chain {}", deploymentId, deployment.getDeploymentInfo(), chainId);
 
-            if (operation != DeploymentOperation.STOP) {
-                prepareAndRegisterRoutesInControlPlane(deployment);
-            }
-
             status = processDeployment(deployment, operation);
         } catch (KubeApiException e) {
             exception = e;
@@ -455,288 +391,16 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         return !deploymentReadinessService.isInitialized();
     }
 
-    private String getCPRouteHash(DeploymentRouteUpdate route) {
-        if (route.getPath() == null) {
-            return null;
-        }
-
-        // Add all parameters that will be sent to control-plane
-        String strToHash = StringUtils.joinWith(",",
-                route.getPath(),
-                route.getConnectTimeout()
-        );
-
-        return DigestUtils.sha1Hex(strToHash);
-    }
-
-    private void resolveVariablesInRoutes(DeploymentUpdate deploymentUpdate) {
-        deploymentUpdate.getConfiguration().getRoutes().stream()
-            .filter(route -> nonNull(route.getVariableName())
-                && (RouteType.EXTERNAL_SENDER == route.getType()
-                || RouteType.EXTERNAL_SERVICE == route.getType()))
-            .filter(route -> variablesService.hasVariableReferences(route.getPath()))
-            .forEach(route -> route.setPath(variablesService.injectVariables(route.getPath())));
-    }
-
-    private void prepareAndRegisterRoutesInControlPlane(DeploymentUpdate deployment) {
-        if (controlPlaneService.isPresent()) {
-            resolveVariablesInRoutes(deployment);
-
-            // external triggers routes
-            List<DeploymentRouteUpdate> gatewayTriggersRoutes = deployment.getConfiguration()
-                .getRoutes().stream()
-                .filter(route -> RouteType.triggerRouteWithGateway(route.getType()))
-                .peek(externalRoute ->
-                    externalRoute.setPath("/" + StringUtils.strip(externalRoute.getPath(), "/")))
-                .toList();
-
-            try {
-                controlPlaneService.get().postPublicEngineRoutes(
-                    gatewayTriggersRoutes.stream()
-                        .filter(route -> RouteType.isPublicTriggerRoute(route.getType())).toList(),
-                    applicationConfiguration.getDeploymentName());
-                controlPlaneService.get().postPrivateEngineRoutes(
-                    gatewayTriggersRoutes.stream()
-                        .filter(route -> RouteType.isPrivateTriggerRoute(route.getType())).toList(),
-                    applicationConfiguration.getDeploymentName());
-
-                // cleanup triggers routes if necessary (for internal triggers)
-                controlPlaneService.get().removeEngineRoutesByPathsAndEndpoint(
-                    deployment.getConfiguration().getRoutes().stream()
-                        .filter(route -> RouteType.triggerRouteCleanupNeeded(route.getType()))
-                        .map(route -> Pair.of(route.getPath(), route.getType()))
-                        .toList(),
-                    applicationConfiguration.getDeploymentName());
-
-                // Register http based senders and service call paths '/{senderType}/{elementId}', '/system/{elementId}'
-                deployment.getConfiguration().getRoutes().stream()
-                    .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
-                        || route.getType() == RouteType.EXTERNAL_SERVICE)
-                    .forEach(route -> controlPlaneService.get().postEgressGatewayRoutes(formatServiceRoutes(route)));
-            } catch (ControlPlaneException e) {
-                throw new DeploymentRetriableException(e);
-            }
-        }
-    }
-
-    private @NotNull DeploymentRouteUpdate formatServiceRoutes(DeploymentRouteUpdate route) {
-        DeploymentRouteUpdate routeUpdate = route;
-
-        // add hash to route
-        if (nonNull(routeUpdate.getVariableName()) && RouteType.EXTERNAL_SERVICE == routeUpdate.getType()) {
-            routeUpdate = routeUpdate.toBuilder().build();
-            // Formatting URI (add protocol if needed)
-            try {
-                routeUpdate.setPath(SimpleHttpUriUtils.formatUri(routeUpdate.getPath()));
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
-            }
-
-            // Adding hash to gateway prefix
-            String pathHash = getCPRouteHash(routeUpdate);
-            if (!StringUtils.isBlank(pathHash)) {
-                routeUpdate.setGatewayPrefix(routeUpdate.getGatewayPrefix() + '/' + pathHash);
-            }
-        }
-        return routeUpdate;
-    }
-
-    private void checkKafkaTopicsAndConnection(DeploymentUpdate deployment)
-        throws UnknownTopicOrPartitionException {
-        for (ElementProperties elementProperties : deployment.getConfiguration().getProperties()) {
-            ChainElementType chainElementType = ChainElementType.fromString(
-                elementProperties.getProperties().get(ChainProperties.ELEMENT_TYPE));
-            String elementId = elementProperties.getProperties().get(ChainProperties.ELEMENT_ID);
-            try {
-                MDC.put(ChainProperties.ELEMENT_ID, elementId);
-                Map<String, String> props = elementProperties.getProperties();
-
-                if (ChainElementType.isKafkaAsyncElement(chainElementType)) {
-
-                    String brokers = variablesService.injectVariables(
-                        props.get(ElementOptions.BROKERS));
-                    String securityProtocol = variablesService.injectVariables(
-                        props.get(ElementOptions.SECURITY_PROTOCOL));
-                    String saslMechanism = variablesService.injectVariables(
-                        props.get(ElementOptions.SASL_MECHANISM));
-                    String saslJaasConfig = variablesService.injectVariables(
-                        props.get(ElementOptions.SASL_JAAS_CONFIG));
-                    String topicsString = variablesService.injectVariables(
-                        props.get(ElementOptions.TOPICS));
-
-                    if (brokers == null) {
-                        log.debug(
-                            "Element with id {} not contains kafka connection params, skipping",
-                            elementProperties.getElementId());
-                        continue;
-                    }
-
-                    Map<String, Object> validationKafkaAdminConfig =
-                        predeployCheckKafkaConfiguration.createValidationKafkaAdminConfig(brokers,
-                            securityProtocol, saslMechanism, saslJaasConfig);
-
-                    Set<String> topics;
-                    try (AdminClient client = AdminClient.create(validationKafkaAdminConfig)) {
-                        Set<String> kafkaTopics = client.listTopics().names().get();
-                        String[] topicsArray = topicsString.split(",");
-                        topics = new HashSet<>();
-                        if (topicsArray.length == 0) {
-                            throw new KafkaException("Topic property can't be empty");
-                        }
-                        topics.add(topicsArray[0]); // take only first topic from string
-                        topics.removeAll(kafkaTopics);
-                    }
-
-                    if (!topics.isEmpty()) {
-                        String topicString = String.join(", ", topics);
-                        throw new DeploymentRetriableException(
-                            "Kafka topics (" + topicString
-                                + ") not found, check if this topics exists in kafka");
-                    }
-                }
-            } catch (ExecutionException | KafkaException e) {
-                // skip check if permissions denied
-                if (e instanceof AuthorizationException
-                    || e.getCause() instanceof AuthorizationException) {
-                    log.warn(
-                        "Kafka predeploy check is failed with AuthorizationException. Exception not thrown",
-                        e);
-                } else {
-                    log.warn("Kafka predeploy check is failed. " +
-                            "Connection configuration is invalid, topics not found or broker is unavailable",
-                        e);
-                    throw new DeploymentRetriableException(
-                        "Kafka predeploy check is failed. " +
-                            "Connection configuration is invalid, topics not found or broker is unavailable",
-                        e);
-                }
-            } catch (DeploymentRetriableException e) {
-                log.warn("Kafka predeploy check is failed with retriable exception", e);
-                throw e;
-            } catch (Exception e) {
-                log.warn(
-                    "Failed to check kafka topic(s) or connection for deployment: {}, element: {}",
-                    deployment.getDeploymentInfo().getDeploymentId(),
-                    elementProperties.getElementId(),
-                    e);
-            } finally {
-                MDC.remove(ChainProperties.ELEMENT_ID);
-            }
-        }
-    }
-
-    private void checkAmqpConnection(DeploymentUpdate deployment) {
-        for (ElementProperties elementProperties : deployment.getConfiguration().getProperties()) {
-            ChainElementType chainElementType = ChainElementType.fromString(
-                elementProperties.getProperties().get(ChainProperties.ELEMENT_TYPE));
-            String elementId = elementProperties.getProperties().get(ChainProperties.ELEMENT_ID);
-            try {
-
-                MDC.put(ChainProperties.ELEMENT_ID, elementId);
-                Map<String, String> props = elementProperties.getProperties();
-
-                if (ChainElementType.isAmqpAsyncElement(chainElementType) &&
-                        (ConnectionSourceType.MAAS.toString().equalsIgnoreCase(
-                        props.get(
-                            ElementOptions.CONNECTION_SOURCE_TYPE_PROP)) || EnvironmentSourceType.MAAS_BY_CLASSIFIER.toString().equalsIgnoreCase(
-                                props.get(ElementOptions.CONNECTION_SOURCE_TYPE_PROP)))) {
-                    if (StringUtils.containsAnyIgnoreCase(chainElementType.name(), ChainElementType.ASYNCAPI_TRIGGER.name(), ChainElementType.SERVICE_CALL.name()) && !ChainProperties.OPERATION_PROTOCOL_TYPE_AMQP.equals(
-                        variablesService.injectVariables(props.get(
-                            ChainProperties.OPERATION_PROTOCOL_TYPE_PROP)))) {
-                        continue;
-                    }
-
-                    boolean isProducerElement = ChainElementType.isAmqpProducerElement(
-                        chainElementType);
-
-                    String exchange = variablesService.injectVariables(
-                        props.get(ElementOptions.EXCHANGE));
-
-                    String queues = variablesService.injectVariables(
-                        props.get(ElementOptions.QUEUES));
-
-                    String addresses = variablesService.injectVariables(
-                        props.get(ElementOptions.ADDRESSES));
-                    String username = variablesService.injectVariables(
-                        props.get(ElementOptions.USERNAME));
-                    String password = variablesService.injectVariables(
-                        props.get(ElementOptions.PASSWORD));
-                    String vhost = variablesService.injectVariables(
-                        props.get(ElementOptions.VHOST));
-                    String ssl = variablesService.injectVariables(props.get(ElementOptions.SSL));
-
-                    if (StringUtils.isBlank(exchange) || StringUtils.isBlank(addresses)) {
-                        throw new IllegalArgumentException(
-                            "AMQP mandatory parameters are missing, check configuration");
-                    }
-                    if (!addresses.matches("^[\\w.,:\\-_]+$")) {
-                        throw new IllegalArgumentException(
-                            "AMQP addresses has invalid format, check configuration");
-                    }
-
-                    com.rabbitmq.client.ConnectionFactory factory = new com.rabbitmq.client.ConnectionFactory();
-
-                    factory.setUri((StringUtils.isNotBlank(ssl) && ssl.equals("true") ?
-                        "amqps://" : "amqp://") + addresses);
-
-                    if (StringUtils.isNotBlank(username)) {
-                        factory.setUsername(username);
-                    }
-
-                    if (StringUtils.isNotBlank(password)) {
-                        factory.setPassword(password);
-                    }
-
-                    if (StringUtils.isNotBlank(vhost)) {
-                        factory.setVirtualHost(vhost);
-                    }
-
-                    try (Connection connection = factory.newConnection()) {
-                        Channel channel = connection.createChannel();
-
-                        try {
-                            if (isProducerElement) {
-                                channel.exchangeDeclarePassive(exchange);
-                            } else {
-                                channel.queueDeclarePassive(queues);
-                            }
-                        } catch (IOException e) {
-                            throw new DeploymentRetriableException(
-                                "AMQP " + (isProducerElement ?
-                                    ("exchange " + exchange) : ("queue(s) " + queues)) +
-                                    " not found, check configuration");
-                        }
-                    } catch (IOException e) {
-                        throw new DeploymentRetriableException(
-                            "Connection configuration is invalid or broker is unavailable", e);
-                    }
-                }
-            } catch (IllegalArgumentException e) {
-                log.error("AMQP predeploy check is failed", e);
-                throw e;
-            } catch (DeploymentRetriableException e) {
-                log.warn("AMQP predeploy check is failed with retriable exception", e);
-                throw e;
-            } catch (Exception e) {
-                log.warn("Failed to check amqp connection for deployment: {}, element: {}",
-                    deployment.getDeploymentInfo().getDeploymentId(),
-                    elementProperties.getElementId(),
-                    e);
-            } finally {
-                MDC.remove(ChainProperties.ELEMENT_ID);
-            }
-        }
-    }
-
     /**
      * Method, which process provided configuration and returns occurred exception
      */
-    private DeploymentStatus processDeployment(DeploymentUpdate deployment,
-        DeploymentOperation operation) throws Exception {
-        DeploymentInfo deploymentInfo = deployment.getDeploymentInfo();
+    private DeploymentStatus processDeployment(
+        DeploymentUpdate deployment,
+        DeploymentOperation operation
+    ) throws Exception {
         return switch (operation) {
             case UPDATE -> update(deployment);
-            case STOP -> stop(deploymentInfo.getDeploymentId());
+            case STOP -> stop(deployment.getDeploymentInfo());
         };
     }
 
@@ -744,29 +408,9 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         DeploymentInfo deploymentInfo = deployment.getDeploymentInfo();
         String deploymentId = deploymentInfo.getDeploymentId();
         DeploymentConfiguration configuration = deployment.getConfiguration();
-        String configurationXml = configuration.getXml();
+        String configurationXml = preprocessDeploymentConfigurationXml(configuration);
 
-        configurationXml = variablesService.injectVariables(configurationXml, true);
-        if (maasService.isPresent()) {
-            configurationXml = maasService.get().resolveDeploymentMaasParameters(configuration, configurationXml);
-        }
-        configurationXml = resolveRouteVariables(deployment.getConfiguration().getRoutes(), configurationXml);
-        if (xmlPreProcessor.isPresent()) {
-            configurationXml = xmlPreProcessor.get().process(configurationXml);
-        }
-
-        if (predeployCheckKafkaConfiguration.isCamelKafkaPredeployCheckEnabled()) {
-            checkKafkaTopicsAndConnection(deployment);
-        }
-        if (amqpPredeployCheckEnabled) {
-            checkAmqpConnection(deployment);
-        }
-
-        if (deployment.getDeploymentInfo().isContainsSchedulerElements()) {
-            checkSchedulerRequirements();
-        }
-
-        checkSdsConnection(deployment);
+        deploymentProcessingService.processBeforeContextCreated(deploymentInfo, configuration);
 
         propertiesService.mergeWithRuntimeProperties(CamelDebuggerProperties.builder()
             .deploymentInfo(deployment.getDeploymentInfo())
@@ -783,28 +427,24 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         if (log.isDebugEnabled()) {
             log.debug("Creating context for deployment {}", deploymentId);
         }
-        context = createContext(deploymentInfo, configuration, configurationXml);
-        CamelDebugger debugger = applicationContext.getBean(CamelDebugger.class);
-        debugger.setDeploymentId(deploymentId);
+        context = buildContext(deploymentInfo, configuration, configurationXml);
+        getCache().getContexts().put(deploymentId, context);
 
-        List<SpringCamelContext> contextsToRemove = new LinkedList<>(getContextsRelatedToDeployment(
+        List<Pair<DeploymentInfo, SpringCamelContext>> contextsToStop = getContextsRelatedToDeployment(
             deployment,
             state -> !state.getDeploymentInfo().getDeploymentId()
                 .equals(deployment.getDeploymentInfo().getDeploymentId())
-        ));
+        );
 
         try {
-            startContext(context, debugger, deploymentId);
+            startContext(context);
         } catch (Exception e) {
             quartzSchedulerService.commitScheduledJobs();
-            sdsService.ifPresent(bean -> bean.removeSchedulerJobs(deploymentId));
+            deploymentProcessingService.processStopContext(context, deploymentInfo, configuration);
             throw e;
         }
-        quartzSchedulerService.removeSchedulerJobsFromContexts(contextsToRemove);
-        sdsService.ifPresent(bean -> bean.removeSchedulerJobs(contextsToRemove));
-        contextsToRemove.stream()
-            .filter(SpringCamelContext::isRunning)
-            .forEach(SpringCamelContext::stop);
+
+        contextsToStop.stream().forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
 
         quartzSchedulerService.commitScheduledJobs();
         if (log.isDebugEnabled()) {
@@ -813,47 +453,27 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         return DeploymentStatus.DEPLOYED;
     }
 
-    private void checkSchedulerRequirements() {
-        if (!isSchedulerDatabaseReady()) {
-            log.warn("Failed to obtain DB connection for scheduler");
-            throw new DeploymentRetriableException(
-                "Failed to obtain DB connection for scheduler");
-        } else {
-            log.debug("Scheduler database is ready");
-        }
-    }
+    private String preprocessDeploymentConfigurationXml(DeploymentConfiguration configuration) throws URISyntaxException {
+        String configurationXml = configuration.getXml();
 
-    private void checkSdsConnection(DeploymentUpdate deployment) {
-        for (ElementProperties elementProperties : deployment.getConfiguration().getProperties()) {
-            ChainElementType chainElementType = ChainElementType.fromString(
-                    elementProperties.getProperties().get(ChainProperties.ELEMENT_TYPE));
-            if (ChainElementType.isSdsTriggerElement(chainElementType)) {
-                try {
-                    sdsService.ifPresent(SdsService::getJobsMetadata);
-                } catch (Exception exception) {
-                    log.warn("Sds trigger predeploy check failed. Please check scheduling-service");
-                    throw new DeploymentRetriableException(
-                            "Sds trigger predeploy check failed. Please check scheduling-service",
-                            exception);
-                }
-            }
+        configurationXml = variablesService.injectVariables(configurationXml, true);
+        if (maasService.isPresent()) {
+            configurationXml = maasService.get().resolveDeploymentMaasParameters(configuration, configurationXml);
         }
-    }
+        configurationXml = resolveRouteVariables(configuration.getRoutes(), configurationXml);
+        if (xmlPreProcessor.isPresent()) {
+            configurationXml = xmlPreProcessor.get().process(configurationXml);
+        }
 
-    private boolean isSchedulerDatabaseReady() {
-        try (java.sql.Connection conn = qrtzDataSource.getConnection()) {
-            return conn != null;
-        } catch (Exception e) {
-            log.warn("Scheduler database not ready", e);
-        }
-        return false;
+        return configurationXml;
     }
 
     private String resolveRouteVariables(List<DeploymentRouteUpdate> routes, String text) {
         String result = text;
 
         for (DeploymentRouteUpdate route : routes) {
-            DeploymentRouteUpdate tempRoute = formatServiceRoutes(route);
+            DeploymentRouteUpdate tempRoute =
+                    RegisterRoutesInControlPlaneAction.formatServiceRoutes(route);
 
             RouteType type = tempRoute.getType();
             if (nonNull(tempRoute.getVariableName())
@@ -872,24 +492,24 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
      */
     private void removeOldDeployments(
         DeploymentUpdate deployment,
-        Function<DeploymentStatus, Boolean> statusCondition
+        Predicate<DeploymentStatus> statusPredicate
     ) {
         Iterator<Map.Entry<String, EngineDeployment>> iterator = getCache().getDeployments()
             .entrySet().iterator();
-        List<SpringCamelContext> contextsToRemove = new ArrayList<>();
+        List<Pair<DeploymentInfo, SpringCamelContext>> contextsToRemove = new ArrayList<>();
         while (iterator.hasNext()) {
             Map.Entry<String, EngineDeployment> entry = iterator.next();
 
             DeploymentInfo depInfo = entry.getValue().getDeploymentInfo();
             if (depInfo.getChainId().equals(deployment.getDeploymentInfo().getChainId()) &&
-                statusCondition.apply(entry.getValue().getStatus()) &&
+                statusPredicate.test(entry.getValue().getStatus()) &&
                 !depInfo.getDeploymentId()
                     .equals(deployment.getDeploymentInfo().getDeploymentId())) {
 
                 SpringCamelContext toRemoveContext = getCache().getContexts()
                     .remove(entry.getKey());
                 if (toRemoveContext != null) {
-                    contextsToRemove.add(toRemoveContext);
+                    contextsToRemove.add(Pair.of(depInfo, toRemoveContext));
                 }
 
                 removeRetryingDeployment(depInfo.getDeploymentId());
@@ -901,32 +521,31 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             }
         }
 
-        contextsToRemove.stream().filter(SpringCamelContext::isRunning)
-            .forEach(SpringCamelContext::stop);
+        contextsToRemove.stream().filter(p -> p.getRight().isRunning())
+            .forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
     }
 
-    private List<SpringCamelContext> getContextsRelatedToDeployment(DeploymentUpdate deployment) {
-        return getContextsRelatedToDeployment(deployment, state -> true);
-    }
-
-    private List<SpringCamelContext> getContextsRelatedToDeployment(DeploymentUpdate deployment,
-        Function<EngineDeployment, Boolean> filter) {
+    private List<Pair<DeploymentInfo, SpringCamelContext>> getContextsRelatedToDeployment(
+        DeploymentUpdate deployment,
+        Predicate<EngineDeployment> filter
+    ) {
         return getCache().getDeployments().entrySet().stream()
             .filter(entry -> entry.getValue().getDeploymentInfo().getChainId()
                 .equals(deployment.getDeploymentInfo().getChainId())
-                && filter.apply(entry.getValue()))
-            .map(Map.Entry::getKey)
-            .map(getCache().getContexts()::get)
-            .filter(Objects::nonNull)
+                && filter.test(entry.getValue()))
+            .map(entry -> Pair.of(
+                    entry.getValue().getDeploymentInfo(),
+                    getCache().getContexts().get(entry.getKey())))
             .toList();
     }
 
-    private SpringCamelContext createContext(
+    private SpringCamelContext buildContext(
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration,
         String configurationXml
     ) throws Exception {
         SpringCamelContext context = new SpringCamelContext(applicationContext);
+
         context.getTypeConverterRegistry().addTypeConverter(
             FormData.class,
             String.class,
@@ -938,9 +557,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         context.getGlobalOptions().put(JacksonConstants.ENABLE_TYPE_CONVERTER, "true");
         context.getGlobalOptions().put(JacksonConstants.TYPE_CONVERTER_TO_POJO, "true");
 
-        dependencyBinder.bindToRegistry(
-            context, deploymentInfo, deploymentConfiguration);
-
         boolean deploymentsSuspended = isDeploymentsSuspended();
         if (deploymentsSuspended) {
             context.setAutoStartup(false);
@@ -948,9 +564,30 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         }
 
         context.setClassResolver(getClassResolver(context, deploymentConfiguration));
+
+        context.setApplicationContext(applicationContext);
+
+        String deploymentId = deploymentInfo.getDeploymentId();
+        context.setManagementName("camel-context_" + deploymentId); // use repeatable after restart context name
+        context.setManagementStrategy(new DefaultManagementStrategy(context));
+
+        CamelDebugger debugger = applicationContext.getBean(CamelDebugger.class);
+        debugger.setDeploymentId(deploymentId);
+        context.setDebugger(debugger);
+        context.setDebugging(true);
+
+        configureMessageHistoryFactory(context);
+
+        context.setStreamCaching(enableStreamCaching);
+        if (enableStreamCaching) {
+            DefaultStreamCachingStrategy streamCachingStrategy = new DefaultStreamCachingStrategy();
+            streamCachingStrategy.setBufferSize(streamCachingBufferSize);
+            context.setStreamCachingStrategy(streamCachingStrategy);
+        }
+
+        deploymentProcessingService.processAfterContextCreated(context, deploymentInfo, deploymentConfiguration);
+
         this.loadRoutes(context, configurationXml);
-        getCache().getContexts().put(deploymentInfo.getDeploymentId(), context);
-        registerComponents(context, deploymentInfo, deploymentConfiguration);
         return context;
     }
 
@@ -971,132 +608,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         return new QipCustomClassResolver(classLoader);
     }
 
-    private void registerComponents(SpringCamelContext context,
-                                    DeploymentInfo deploymentInfo,
-                                    DeploymentConfiguration deploymentConfiguration)
-        throws NamingException {
-        List<Map<String, String>> sdsElementsProperties = new ArrayList<>();
-        for (ElementProperties elementProperties : deploymentConfiguration.getProperties()) {
-            String elementId = elementProperties.getElementId();
-            Map<String, String> properties = elementProperties.getProperties();
-            ChainElementType elementType = ChainElementType.fromString(properties.get(
-                ChainProperties.ELEMENT_TYPE));
-            switch (elementType) {
-                case JMS_SENDER, JMS_TRIGGER: {
-                    registerJmsComponent(context, elementId, properties);
-                    break;
-                }
-                case SDS_TRIGGER: {
-                    sdsElementsProperties.add(properties);
-                    break;
-                }
-            }
-        }
-        sdsService.ifPresent(bean -> bean.registerSchedulerJobs(context, deploymentInfo, sdsElementsProperties));
-    }
-
-    private void registerJmsComponent(SpringCamelContext context, String elementId,
-        Map<String, String> properties)
-        throws NamingException {
-        Properties environment = new Properties();
-        String jmsInitialContextFactory = variablesService.injectVariables(
-            properties.get(ChainProperties.JMS_INITIAL_CONTEXT_FACTORY));
-        String jmsProviderUrl = variablesService.injectVariables(properties.get(
-            ChainProperties.JMS_PROVIDER_URL));
-        String jmsConnectionFactoryName = variablesService.injectVariables(
-            properties.get(ChainProperties.JMS_CONNECTION_FACTORY_NAME));
-
-        String username = variablesService.injectVariables(properties.get(
-            ChainProperties.JMS_USERNAME));
-        String password = variablesService.injectVariables(properties.get(
-            ChainProperties.JMS_PASSWORD));
-
-        environment.put(Context.INITIAL_CONTEXT_FACTORY, jmsInitialContextFactory);
-        environment.put(Context.PROVIDER_URL, jmsProviderUrl);
-
-        boolean secured = !StringUtils.isBlank(username) && !StringUtils.isBlank(password);
-        if (secured) {
-            environment.put(Context.SECURITY_PRINCIPAL, username);
-            environment.put(Context.SECURITY_CREDENTIALS, password);
-        }
-
-        JndiTemplate jmsJndiTemplate = new JndiTemplate(environment);
-
-        JndiObjectFactoryBean jmsConnectionFactory = new JndiObjectFactoryBean();
-        jmsConnectionFactory.setJndiTemplate(jmsJndiTemplate);
-        jmsConnectionFactory.setJndiName(jmsConnectionFactoryName);
-        jmsConnectionFactory.setProxyInterface(ConnectionFactory.class);
-        jmsConnectionFactory.setLookupOnStartup(false);
-        jmsConnectionFactory.setExposeAccessContext(true);
-        jmsConnectionFactory.afterPropertiesSet();
-
-        JndiDestinationResolver jndiDestinationResolver = new JndiDestinationResolver();
-        jndiDestinationResolver.setJndiTemplate(jmsJndiTemplate);
-        jndiDestinationResolver.setFallbackToDynamicDestination(true);
-
-        JmsConfiguration jmsConfiguration = new JmsConfiguration();
-        jmsConfiguration.setConnectionFactory((ConnectionFactory) jmsConnectionFactory.getObject());
-        jmsConfiguration.setDestinationResolver(jndiDestinationResolver);
-
-        WeblogicSecurityBean wlSecurityBean = wlSecurityBeanProvider.getIfAvailable();
-        WeblogicSecureThreadFactory wlSecureThreadFactory = wlSecureThreadFactoryProvider.getIfAvailable();
-        WeblogicSecurityInterceptStrategy wlSecurityInterceptStrategy = wlSecurityInterceptStrategyProvider.getIfAvailable();
-        if (secured && wlSecurityBean != null && wlSecureThreadFactory != null &&
-            wlSecurityInterceptStrategy != null
-        ) {
-            wlSecurityBean.setProviderUrl(jmsProviderUrl);
-            wlSecurityBean.setSecurityPrincipal(username);
-            wlSecurityBean.setSecurityCredentials(password);
-
-            wlSecureThreadFactory.setName("jms-thread-factory-" + elementId);
-            wlSecureThreadFactory.setWeblogicSecurityBean(wlSecurityBean);
-
-            ThreadPoolProfile profile = context.getExecutorServiceManager().getDefaultThreadPoolProfile();
-            ThreadPoolTaskExecutor jmsTaskExecutor = new ThreadPoolTaskExecutor();
-            jmsTaskExecutor.setBeanName("jms-task-executor-" + elementId);
-            jmsTaskExecutor.setThreadFactory(wlSecureThreadFactory);
-            jmsTaskExecutor.setCorePoolSize(profile.getPoolSize());
-            jmsTaskExecutor.setMaxPoolSize(profile.getMaxPoolSize());
-            jmsTaskExecutor.setKeepAliveSeconds(profile.getKeepAliveTime().intValue());
-            jmsTaskExecutor.setQueueCapacity(profile.getMaxQueueSize());
-            jmsTaskExecutor.afterPropertiesSet();
-
-            jmsConfiguration.setTaskExecutor(jmsTaskExecutor);
-
-            wlSecurityInterceptStrategy.setTargetId(elementId);
-            wlSecurityInterceptStrategy.setWeblogicSecurityBean(wlSecurityBean);
-
-            context.getCamelContextExtension().addInterceptStrategy(wlSecurityInterceptStrategy);
-        }
-
-        JmsComponent jmsComponent = new JmsComponent(jmsConfiguration);
-
-        String componentName = buildJmsComponentName(elementId, properties);
-        context.addComponent(componentName, jmsComponent);
-    }
-
-    private String buildJmsComponentName(String elementId, Map<String, String> properties) {
-        return String.format("jms-%s", elementId);
-    }
-
-    private void startContext(SpringCamelContext context, CamelDebugger debugger,
-        String contextMgmtSuffix) {
-        context.setApplicationContext(applicationContext);
-        context.setManagementName(
-            "camel-context_" + contextMgmtSuffix); // use repeatable after restart context name
-        context.setManagementStrategy(new DefaultManagementStrategy(context));
-        context.setDebugger(debugger);
-        context.setDebugging(true);
-
-        configureMessageHistoryFactory(context);
-
-        context.setStreamCaching(enableStreamCaching);
-        if (enableStreamCaching) {
-            DefaultStreamCachingStrategy streamCachingStrategy = new DefaultStreamCachingStrategy();
-            streamCachingStrategy.setBufferSize(streamCachingBufferSize);
-            context.setStreamCachingStrategy(streamCachingStrategy);
-        }
-
+    private void startContext(SpringCamelContext context) {
         if (tracingConfiguration.isTracingEnabled()) {
             Tracer tracer = applicationContext.getBean("camelObservationTracer", MicrometerObservationTracer.class);
             tracer.init(context);
@@ -1104,6 +616,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
         context.start();
 
+        CamelDebugger debugger = (CamelDebugger) context.getDebugger();
         if (!debugger.isStartingOrStarted()) {
             debugger.start();
         }
@@ -1184,19 +697,25 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         return exception.getMessage().contains("unable to resolve class");
     }
 
-    private DeploymentStatus stop(String deploymentId) {
-        stopContext(deploymentId);
+    private DeploymentStatus stop(DeploymentInfo deploymentInfo) {
+        String deploymentId = deploymentInfo.getDeploymentId();
+        SpringCamelContext context = getCache().getContexts().remove(deploymentId);
+        if (nonNull(context)) {
+            log.debug("Removing context for deployment: {}", deploymentInfo.getDeploymentId());
+        }
+        stopDeploymentContext(context, deploymentInfo);
         return DeploymentStatus.REMOVED;
     }
 
-    private void stopContext(String deploymentId) {
-        SpringCamelContext context = getCache().getContexts().remove(deploymentId);
-        sdsService.ifPresent(bean -> bean.removeSchedulerJobs(deploymentId));
-        if (context != null) {
-            log.debug("Removing context for deployment: {}", deploymentId);
+    private void stopDeploymentContext(SpringCamelContext context, DeploymentInfo deploymentInfo) {
+        deploymentProcessingService.processStopContext(context, deploymentInfo, null);
+        if (nonNull(context)) {
             quartzSchedulerService.removeSchedulerJobsFromContexts(
                 Collections.singletonList(context));
-            context.stop();
+            if (context.isRunning()) {
+                log.debug("Stopping context for deployment: {}", deploymentInfo.getDeploymentId());
+                context.stop();
+            }
         }
     }
 
@@ -1244,5 +763,23 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                 }
             }
         });
+    }
+
+    private void runInProcessLock(Runnable callback) {
+        Lock lock = this.processLock.writeLock();
+        try {
+            lock.lock();
+            callback.run();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void suspendAllSchedulers() {
+        runInProcessLock(quartzSchedulerService::suspendAllSchedulers);
+    }
+
+    public void resumeAllSchedulers() {
+        runInProcessLock(quartzSchedulerService::resumeAllSchedulers);
     }
 }
