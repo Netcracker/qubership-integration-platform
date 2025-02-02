@@ -39,6 +39,7 @@ public final class BuilderConstants {
 
     public static final String CHAIN_FINISH_PROCESSOR = "chainFinishProcessor";
     public static final String CHAIN_START_PROCESSOR = "chainStartProcessor";
+    public static final String SPLIT_ASYNC_PROCESSOR = "splitAsyncProcessor";
 
     public static final Set<String> ON_COMPLETION_EXCLUDE_TRIGGERS = Set.of("chain-trigger", "chain-trigger-2");
 

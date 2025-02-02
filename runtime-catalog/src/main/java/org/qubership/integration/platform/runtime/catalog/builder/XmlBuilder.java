@@ -148,6 +148,8 @@ public class XmlBuilder {
                         streamWriter.writeAttribute(BuilderConstants.URI,
                                 BuilderConstants.DIRECT + splitElement.getId() + BuilderConstants.ON_COMPLETION_ID_POSTFIX);
 
+                        addSplitAsyncStart(streamWriter);
+
                         streamWriter.writeEmptyElement(BuilderConstants.TO);
                         streamWriter.writeAttribute(BuilderConstants.URI,
                                 BuilderConstants.DIRECT + splitElement.getId());
@@ -169,6 +171,11 @@ public class XmlBuilder {
     private static void addChainStart(XMLStreamWriter2 streamWriter) throws XMLStreamException {
         streamWriter.writeEmptyElement(BuilderConstants.PROCESS);
         streamWriter.writeAttribute(BuilderConstants.REF, BuilderConstants.CHAIN_START_PROCESSOR);
+    }
+
+    private static void addSplitAsyncStart(XMLStreamWriter2 streamWriter) throws XMLStreamException {
+        streamWriter.writeEmptyElement(BuilderConstants.PROCESS);
+        streamWriter.writeAttribute(BuilderConstants.REF, BuilderConstants.SPLIT_ASYNC_PROCESSOR);
     }
 
     private List<ChainRoute> collectRoutes(List<ChainElement> startElements, Map<String, String> routesWithCustomId) {
