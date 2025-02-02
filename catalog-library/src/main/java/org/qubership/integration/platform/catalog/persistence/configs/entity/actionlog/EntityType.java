@@ -48,7 +48,8 @@ public enum EntityType {
     MAAS_RABBITMQ,
     DETAILED_DESIGN_TEMPLATE,
     IMPORT_INSTRUCTION,
-    IMPORT_INSTRUCTIONS;
+    IMPORT_INSTRUCTIONS,
+    EXCHANGE;
 
     public static EntityType getSystemType(IntegrationSystem system) {
         return switch (system.getIntegrationSystemType()) {

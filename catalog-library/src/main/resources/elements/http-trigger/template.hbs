@@ -79,6 +79,11 @@
             <simple resultType="java.lang.String[]">{{escape (property-json 'allowedContentTypes')}}</simple>
         </setProperty>
     {{/if-property}}
+    {{#if-property 'killSessionOnTimeout' equals='true'}}
+        <setProperty name="internalProperty_chainSessionTimeoutAfter">
+            <simple resultType="java.lang.Long">{{escape (property 'connectTimeout')}}</simple>
+        </setProperty>
+    {{/if-property}}
 
     <doTry>
         {{#if-property 'accessControlType' equals='RBAC'}}

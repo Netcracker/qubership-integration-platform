@@ -73,6 +73,11 @@ properties:
         type: number
         mandatory: false
         default: 120000
+    -   name: killSessionOnTimeout
+        title: Terminate session on connection timeout
+        description: If checked, connection timeout will trigger session termination process. Chain session might not be finished.
+        type: boolean
+        default: false
     hidden:
     -   name: accessControlType
         title: Access Control Type
