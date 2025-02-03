@@ -22,5 +22,4 @@ datasource:
 
 qip:
   internal-services:
-    catalog: catalog
-    systems-catalog: system-catalog
+    designtime-catalog: qip-design-time-catalog

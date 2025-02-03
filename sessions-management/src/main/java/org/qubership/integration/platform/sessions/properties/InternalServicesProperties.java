@@ -23,9 +23,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties(prefix = PropertiesConstants.PROPERTIES_ROOT + ".internal-services")
 public record InternalServicesProperties (
-    @DefaultValue("catalog") String catalog,
-    @DefaultValue("engine") String engine,
-    @DefaultValue("systems-catalog") String systemsCatalog
+    @DefaultValue("designtime-catalog") String designtimeCatalog
 ) {
     @ConstructorBinding
     public InternalServicesProperties {}

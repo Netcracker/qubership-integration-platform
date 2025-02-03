@@ -96,9 +96,7 @@ qip:
     session:
       default-buffer-limit: ${OPENSEARCH_SESSION_DEFAULT_BUFFER_LIMIT:104857600}
   internal-services:
-    catalog: qubership-integration-platform-catalog
-    engine: qubership-integration-platform-engine
-    systems-catalog: qubership-integration-platform-systems-catalog
+    designtime-catalog: qubership-integration-platform-designtime-catalog
 
 logging:
   level:
