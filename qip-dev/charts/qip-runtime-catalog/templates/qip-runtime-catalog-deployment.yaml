@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qip-runtime-catalog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qip-runtime-catalog
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: qip-runtime-catalog
+    spec:
+      containers:
+        - args:
+            - /opt/java/openjdk/bin/java
+            - -Xmx642m
+            - -XX:MetaspaceSize=192m
+            - -XX:MaxMetaspaceSize=192m
+            - -XX:MaxDirectMemorySize=64m
+            - -XX:+ExitOnOutOfMemoryError
+            - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+            - -Djava.security.egd=file:/dev/./urandom
+            - -Dfile.encoding=UTF-8
+            - -jar
+            - /app/qip-runtime-catalog.jar
+          env:
+            - name: CONSUL_ADMIN_TOKEN
+              valueFrom:
+                configMapKeyRef:
+                  key: CONSUL_ADMIN_TOKEN
+                  name: qip-dev-env
+            - name: CONSUL_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: CONSUL_URL
+                  name: qip-dev-env
+            - name: NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  key: NAMESPACE
+                  name: qip-dev-env
+            - name: OPENSEARCH_HOST
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_HOST
+                  name: qip-dev-env
+            - name: OPENSEARCH_PORT
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_PORT
+                  name: qip-dev-env
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_PASSWORD
+                  name: qip-dev-env
+            - name: POSTGRES_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_URL
+                  name: qip-dev-env
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_USER
+                  name: qip-dev-env
+            - name: TRACING_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: TRACING_ENABLED
+                  name: qip-dev-env
+          image: qubership-integration-platform-qip-runtime-catalog:latest
+          imagePullPolicy: Never
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: 500m
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            failureThreshold: 15
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: qip-runtime-catalog
+          ports:
+            - containerPort: 8080
+      restartPolicy: Always

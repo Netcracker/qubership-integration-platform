@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: qip-engine
+  name: qip-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qip-engine
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: qip-engine
+    spec:
+      containers:
+        - args:
+            - /opt/java/openjdk/bin/java
+            - -Xmx832m
+            - -XX:MetaspaceSize=512m
+            - -XX:MaxMetaspaceSize=224m
+            - -XX:MaxDirectMemorySize=224m
+            - -XX:+ExitOnOutOfMemoryError
+            - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+            - -Djava.security.egd=file:/dev/./urandom
+            - --add-opens=java.base/java.lang=ALL-UNNAMED
+            - --add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+            - --add-opens=java.base/java.util=ALL-UNNAMED
+            - --add-opens=java.base/java.io=ALL-UNNAMED
+            - -Dfile.encoding=UTF-8
+            - -jar
+            - /app/qip-engine.jar
+          env:
+            - name: CONSUL_ADMIN_TOKEN
+              valueFrom:
+                configMapKeyRef:
+                  key: CONSUL_ADMIN_TOKEN
+                  name: qip-dev-env
+            - name: CONSUL_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: CONSUL_URL
+                  name: qip-dev-env
+            - name: DYNAMIC_ENGINE_CONSUL_STATE_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: DYNAMIC_ENGINE_CONSUL_STATE_ENABLED
+                  name: engine-dev-env
+            - name: KUBE_DEV_MODE
+              valueFrom:
+                configMapKeyRef:
+                  key: KUBE_DEV_MODE
+                  name: engine-dev-env
+            - name: RUNTIME_CATALOG_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: RUNTIME_CATALOG_SERVICE_URL
+                  name: engine-dev-env
+            - name: NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  key: NAMESPACE
+                  name: qip-dev-env
+            - name: OPENSEARCH_HOST
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_HOST
+                  name: qip-dev-env
+            - name: OPENSEARCH_PORT
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_PORT
+                  name: qip-dev-env
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_PASSWORD
+                  name: qip-dev-env
+            - name: POSTGRES_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_URL
+                  name: engine-dev-env
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_USER
+                  name: qip-dev-env
+            - name: TRACING_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: TRACING_ENABLED
+                  name: qip-dev-env
+          image: qubership-integration-platform-qip-engine:latest
+          imagePullPolicy: Never
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            failureThreshold: 15
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: qip-engine
+          ports:
+            - containerPort: 8080
+            - containerPort: 5005
+#          resources:
+#            requests:
+#              memory: 512Mi
+#              cpu: 250m
+#            limits:
+#              memory: 1Gi
+#              cpu: 500m
+#          volumeMounts:
+#            - mountPath: /app/cert/defaultsslcertificate
+#              name: qip-engine-claim0
+      restartPolicy: Always
+#      volumes:
+#        - name: qip-engine-claim0
+#          persistentVolumeClaim:
+#            claimName: qip-engine-claim0
