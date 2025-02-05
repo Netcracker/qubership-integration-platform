@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
+    qip_engine_app: "true"
+    name: qip-engine
     app: qip-engine
   name: qip-engine
 spec:
@@ -14,6 +16,8 @@ spec:
   template:
     metadata:
       labels:
+        qip_engine_app: "true"
+        name: qip-engine
         app: qip-engine
     spec:
       containers:
