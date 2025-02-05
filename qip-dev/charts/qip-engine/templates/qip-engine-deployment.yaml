@@ -112,18 +112,4 @@ spec:
           ports:
             - containerPort: 8080
             - containerPort: 5005
-#          resources:
-#            requests:
-#              memory: 512Mi
-#              cpu: 250m
-#            limits:
-#              memory: 1Gi
-#              cpu: 500m
-#          volumeMounts:
-#            - mountPath: /app/cert/defaultsslcertificate
-#              name: qip-engine-claim0
       restartPolicy: Always
-#      volumes:
-#        - name: qip-engine-claim0
-#          persistentVolumeClaim:
-#            claimName: qip-engine-claim0
