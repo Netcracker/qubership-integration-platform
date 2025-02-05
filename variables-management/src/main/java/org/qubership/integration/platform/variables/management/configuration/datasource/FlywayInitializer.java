@@ -16,32 +16,33 @@
 
 package org.qubership.integration.platform.variables.management.configuration.datasource;
 
-import org.qubership.integration.platform.variables.management.configuration.datasource.properties.FlywayConfigProperties;
-import org.qubership.integration.platform.variables.management.db.migration.postrgesql.configs.ConfigsJavaMigration;
+import jakarta.annotation.PostConstruct;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.ClassicConfiguration;
 import org.flywaydb.core.api.migration.JavaMigration;
+import org.qubership.integration.platform.variables.management.configuration.datasource.properties.FlywayConfigProperties;
+import org.qubership.integration.platform.variables.management.db.migration.postrgesql.configs.ConfigsJavaMigration;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 
-import jakarta.annotation.PostConstruct;
 import javax.sql.DataSource;
 import java.util.List;
 
-@AutoConfiguration
+@Configuration
+@ConditionalOnProperty(name = "qip.flyway-initializer.enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnBean(PersistenceAutoConfiguration.class)
 @EnableConfigurationProperties(FlywayConfigProperties.class)
-public class FlywayAutoInitializer {
+public class FlywayInitializer {
     private final DataSource configsDataSource;
     private final FlywayConfigProperties properties;
     private final List<ConfigsJavaMigration> configsJavaMigrationList;
 
-    public FlywayAutoInitializer(@Qualifier("configsDataSource") DataSource configsDataSource,
-                                 FlywayConfigProperties properties,
-                                 List<ConfigsJavaMigration> configsJavaMigrationList) {
+    public FlywayInitializer(@Qualifier("configsDataSource") DataSource configsDataSource,
+                             FlywayConfigProperties properties,
+                             List<ConfigsJavaMigration> configsJavaMigrationList) {
         this.configsDataSource = configsDataSource;
         this.properties = properties;
         this.configsJavaMigrationList = configsJavaMigrationList;
