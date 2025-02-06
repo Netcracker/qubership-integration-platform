@@ -74,13 +74,6 @@ spec:
                   name: qip-dev-env
           image: qubership-integration-platform-qip-runtime-catalog:latest
           imagePullPolicy: Never
-          resources:
-            requests:
-              memory: 512Mi
-              cpu: 250m
-            limits:
-              memory: 1Gi
-              cpu: 500m
           livenessProbe:
             httpGet:
               path: /actuator/health
