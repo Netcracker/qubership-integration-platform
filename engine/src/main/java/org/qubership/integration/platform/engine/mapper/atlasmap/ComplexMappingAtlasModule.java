@@ -38,6 +38,7 @@ import java.util.function.BiFunction;
 
 import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.hasNotIndexedCollection;
 import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.replacePathPrefix;
+import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.replacePathPrefixIndex;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
@@ -160,7 +161,7 @@ public abstract class ComplexMappingAtlasModule extends DelegatingAtlasModule {
                             && nonNull(lastSegment.getCollectionIndex())
             ) {
                 targetPath.setCollectionIndex(targetPath.getSegments(true).size() - 1, null);
-                replacePathPrefix(t, targetPath.toString(), t.getPath());
+                replacePathPrefixIndex(t, targetPath.toString(), t.getPath());
             }
             String prefix = Optional.ofNullable(s.getPath()).map(p -> p.endsWith("/") ? p.substring(0, p.length() - 1) : p).orElse("");
             Field result = t.isEmpty()
@@ -195,9 +196,9 @@ public abstract class ComplexMappingAtlasModule extends DelegatingAtlasModule {
                 Field previousTargetSubField = null;
                 for (Field sourceSubField : group.getField()) {
                     Field targetSubField = cloneField(targetField);
-                    getCollectionHelper().copyCollectionIndexes(
-                            sourceField, sourceSubField, targetSubField, previousTargetSubField);
-                    replacePathPrefix(targetSubField, targetField.getPath(), targetSubField.getPath());
+                    getCollectionHelper()
+                            .copyCollectionIndexes(sourceField, sourceSubField, targetSubField, previousTargetSubField);
+                    replacePathPrefixIndex(targetSubField, targetField.getPath(), targetSubField.getPath());
                     previousTargetSubField = targetSubField;
                     session.head().setSourceField(sourceSubField);
                     session.head().setTargetField(targetSubField);

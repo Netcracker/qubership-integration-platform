@@ -61,6 +61,19 @@ public class FieldUtils {
         }
     }
 
+    public static String replacePrefixIndex(String s, String from, String to) {
+        return isNull(s) ? null : s.startsWith(from) ? to + s.substring(from.length() - 1) : s;
+    }
+
+    public static void replacePathPrefixIndex(Field field, String from, String to) {
+        field.setPath(replacePrefixIndex(field.getPath(), from, to));
+        if (field instanceof FieldGroup group) {
+            group.getField().forEach(f -> replacePathPrefixIndex(f, from, to));
+        } else if (field instanceof ComplexField complexField) {
+            complexField.getChildFields().forEach(f -> replacePathPrefixIndex(f, from, to));
+        }
+    }
+
     public static String replacePrefix(String s, String from, String to) {
         return isNull(s) ? null : s.startsWith(from) ? to + s.substring(from.length()) : s;
     }
