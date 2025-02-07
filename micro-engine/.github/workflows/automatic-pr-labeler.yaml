@@ -10,7 +10,7 @@ on:
 
 jobs:
   assign-labels:
-    uses: Netcracker/qubership-workflow-hub/.github/workflows/auto-labeler.yaml@main
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/auto-labeler.yaml@fix/ref-in-release
     name: Assign labels in pull request
     if: github.event.pull_request.merged == false
     with:
