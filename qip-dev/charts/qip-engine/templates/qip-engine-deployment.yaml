@@ -98,6 +98,8 @@ spec:
                 configMapKeyRef:
                   key: TRACING_ENABLED
                   name: qip-dev-env
+            - name: MICROSERVICE_NAME
+              value: qip-engine
           image: qubership-integration-platform-qip-engine:latest
           imagePullPolicy: Never
           livenessProbe:
