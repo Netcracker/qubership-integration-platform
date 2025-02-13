@@ -25,6 +25,7 @@ public enum OperationProtocol {
     KAFKA("kafka", "asyncapi"),
     SOAP("http", "soap"),
     GRAPHQL("graphql", "graphqlschema"),
+    METAMODEL("metamodel", "metamodel"),
     GRPC("grpc", "protobuf");
 
     public final String value;

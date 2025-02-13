@@ -34,6 +34,7 @@ import static org.qubership.integration.platform.catalog.service.parsers.Specifi
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -54,6 +55,11 @@ public class ProtocolExtractionService {
     private static final String SWAGGER = "swagger";
     private static final String OPENAPI = "openapi";
     private static final String ASYNCAPI = "asyncapi";
+    private static final String METAMODEL_DYNAMIC_METADATA = "dynamicMetadata";
+    private static final String METAMODEL_LAYOUTS = "layouts";
+    private static final String METAMODEL_STATIC_METADATA = "staticMetadata";
+    private static final String METAMODEL_VALIDATIONS = "validations";
+
 
     private final ObjectMapper objectMapper;
     private final YAMLMapper specYamlMapper;
@@ -122,6 +128,9 @@ public class ProtocolExtractionService {
                 return OperationProtocol.HTTP;
             } else if (jsonNode.has(ASYNCAPI)) {
                 return getProtocolFromAsyncSpec(jsonNode);
+            } else if (Stream.of(METAMODEL_DYNAMIC_METADATA, METAMODEL_STATIC_METADATA,
+                    METAMODEL_LAYOUTS, METAMODEL_VALIDATIONS).allMatch(jsonNode::has)) {
+                return OperationProtocol.METAMODEL;
             }
         }
         return null;
