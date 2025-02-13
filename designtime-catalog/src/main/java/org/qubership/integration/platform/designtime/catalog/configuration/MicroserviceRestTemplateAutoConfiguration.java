@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 public class MicroserviceRestTemplateAutoConfiguration {
 
     @Bean("restTemplateMS")
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(name = "restTemplateMS")
     public RestTemplate restTemplateMS(RestTemplateBuilder builder) {
         return builder
                 .requestFactory(getClientHttpRequestFactorySupplier())
