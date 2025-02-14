@@ -7,10 +7,26 @@
     </setProperty>
     <process ref="correlationIdPropagationProcessor"/>
     <step id="1f6d1551-e965-48f3-b3c7-c68556be1004">
+        <setProperty name="serviceCallMethod">
+            <simple>publish</simple>
+        </setProperty>
+        <setProperty name="serviceCallTopic">
+            <simple>{ENV}.order.command.queue</simple>
+        </setProperty>
+        <setProperty name="serviceCallBrokers">
+            <simple>{KAFKA_BROKERS}</simple>
+        </setProperty>
+        <setProperty name="serviceCallParametersJson">
+            <simple>{"securityProtocol":"{KAFKA_SECURITY_PROTOCOL}","maxPollIntervalMs":"600000","groupId":"{ENV}-qip-kafka-consumer-group","maxPollRecords":"5","saslMechanism":"{KAFKA_SASL_MECHANISM}","saslJaasConfig":"{KAFKA_SASL_JAAS_CONFIG}"}</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallParametersJson"/>
         <removeHeader name="CamelHttpQuery"/>
         <step id="Prepare request--1f6d1551-e965-48f3-b3c7-c68556be1004">
             <script>
-                <groovy>exchange.getMessage().setBody("testRequestBody")</groovy>
+                <groovy>exchange.getMessage().setBody("testRequestBody")</groovy>       
             </script>
         </step>
         <step id="Authorization--1f6d1551-e965-48f3-b3c7-c68556be1004">
@@ -32,7 +48,7 @@
             <step id="Request attempt--1f6d1551-e965-48f3-b3c7-c68556be1004">
                 <choice>
                     <when>
-                        <simple>${exchangeProperty[internalProperty_retryAwait]}</simple>
+                        <simple>${exchangeProperty[internalProperty_retryAwait]}</simple>   
                         <delay>
                             <simple>5000</simple>
                         </delay>
@@ -43,17 +59,14 @@
                 </setProperty>
                 <doTry id="Request--1f6d1551-e965-48f3-b3c7-c68556be1004">
                     <process ref="messagingXHeadersPropagationProcessor"/>
-                    <process ref="kafkaSenderProcessor" />
-
+                    <process ref="kafkaSenderProcessor"/>
                     <toD uri="kafka-custom:{ENV}.order.command.queue?brokers={KAFKA_BROKERS}&amp;securityProtocol={KAFKA_SECURITY_PROTOCOL}&amp;maxPollIntervalMs=600000&amp;groupId={ENV}-qip-kafka-consumer-group&amp;maxPollRecords=5&amp;saslMechanism={KAFKA_SASL_MECHANISM}&amp;saslJaasConfig={KAFKA_SASL_JAAS_CONFIG}&amp;kafkaClientFactory=#1f6d1551-e965-48f3-b3c7-c68556be1004-v2"/>
-
                     <process ref="messagingXHeadersPropagationRestoreProcessor"/>
                     <setProperty name="internalProperty_enableAuthRestore">
                         <constant>true</constant>
                     </setProperty>
-                    <removeProperty name ="internalProperty_enableAuthRestore"/>
+                    <removeProperty name="internalProperty_enableAuthRestore"/>
                     <process ref="correlationIdReceiverProcessor"/>
-
                     <doCatch>
                         <exception>java.lang.Exception</exception>
                         <setProperty name="internalProperty_elementFailed">
@@ -68,7 +81,7 @@
                                 <choice>
                                     <when>
                                         <simple>${exchangeProperty[internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Iterator]} == 2</simple>
-                                        <process ref="setCaughtHttpExceptionContextProcessor"/>
+                                        <process ref="setCaughtHttpExceptionContextProcessor"/>     
                                     </when>
                                 </choice>
                             </when>
@@ -114,7 +127,7 @@
                         <choice>
                             <when>
                                 <simple>${exchangeProperty[internalProperty_serviceCall_1f6d1551-e965-48f3-b3c7-c68556be1004_Retry]} != true</simple>
-                                <removeProperty name="internalProperty_overrideContextParams"/>
+                                <removeProperty name="internalProperty_overrideContextParams"/> 
                                 <removeProperty name="internalProperty_retryAwait"/>
                                 <process ref="contextRestoreProcessor"/>
                                 <process ref="securityRestoreProcessor"/>
@@ -127,10 +140,22 @@
         </loop>
         <choice>
             <when>
-                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>
+                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>      
                 <process ref="throwCaughtExceptionProcessor"/>
             </when>
         </choice>
     </step>
     <removeHeader name="CamelHttpUri"/>
+    <removeProperty name="serviceCallAddress"/>
+    <removeProperty name="serviceCallUrl"/>
+    <removeProperty name="serviceCallMethod"/>
+    <removeProperty name="serviceCallPath"/>
+    <removeProperty name="serviceCallQueryParameters"/>
+    <removeProperty name="serviceCallPathParameters"/>
+    <removeProperty name="serviceCallParameters"/>
+    <removeProperty name="serviceCallTopic"/>
+    <removeProperty name="serviceCallBrokers"/>
+    <removeProperty name="serviceCallExchange"/>
+    <removeProperty name="serviceCallService"/>
+    <removeProperty name="serviceCallVariablesHeader"/>
 </route>
