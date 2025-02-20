@@ -1,0 +1,39 @@
+---
+# The workflow to deploy snapshot artifact versions to GitHub packages 
+# Fill free to adjust java version and additional mvn command-line parameters
+# The workflow will trigger on pushes into branches different from main and release
+# Please make sure that the version in the pom.xml file has the SNAPSHOT postfix
+
+name: Maven deploy snapshot
+
+on:
+  push:
+    branches:
+      - "!main"
+      - "!**release*"
+
+permissions:
+  packages: write
+
+jobs:
+  mvn-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      - name: Display settings.xml
+        run: cat ~/.m2/settings.xml         
+      - name: "Maven deploy"
+        run: |
+          mvn --batch-mode deploy -DaltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USER: ${{ github.actor }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
