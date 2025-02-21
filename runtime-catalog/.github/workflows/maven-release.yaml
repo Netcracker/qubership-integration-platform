@@ -1,178 +1,178 @@
 ---
 
-  # This GitHub Actions workflow is designed to be triggered when a release is marked as a full release.
-  # The workflow performs the following tasks:
-  # 1. Checks if the tag already exists.
-  # 2. Updates the version in the pom.xml file.
-  # 3. Commits the changes to the repository.
-  # 4. Builds the project using Maven.
-  # 5. Runs tests.
-  # 6. Tags the commit with the release version.
-  # 7. Deploys the artifact to the Maven repository.
-  # 8. Builds and publishes a Docker image.
-  # 9. Creates a GitHub release.
+# This GitHub Actions workflow is designed to be triggered when a release is marked as a full release.
+# The workflow performs the following tasks:
+# 1. Checks if the tag already exists.
+# 2. Updates the version in the pom.xml file.
+# 3. Commits the changes to the repository.
+# 4. Builds the project using Maven.
+# 5. Runs tests.
+# 6. Tags the commit with the release version.
+# 7. Deploys the artifact to the Maven repository.
+# 8. Builds and publishes a Docker image.
+# 9. Creates a GitHub release.
 
-  # To make it work for your project, you need to adjust the pom.xml and add configuration file for GitHub release.
-  # Please find detailed instructions:
-  # https://github.com/Netcracker/qubership-workflow-hub?tab=readme-ov-file#maven-project-release-workflow
+# To make it work for your project, you need to adjust the pom.xml and add configuration file for GitHub release.
+# Please find detailed instructions:
+# https://github.com/Netcracker/qubership-workflow-hub?tab=readme-ov-file#maven-project-release-workflow
 
-  name: Release And Deploy Maven Artifact
+name: Release And Deploy Maven Artifact
 
-  on:
-    workflow_dispatch:
-      inputs:
-        version:
-          required: true
-          default: '1.0.0'
-          type: string
-          description: 'Release version (e.g., 1.0.0)'
-        java-version:
-          required: false
-          type: string
-          default: "21"
-          description: 'Java version (e.g., 21)'
-        build-docker:
-          required: false
-          type: boolean
-          default: true
-          description: 'Release docker image if there is Docker file'
-        dry-run:
-          required: false
-          type: boolean
-          default: false
-          description: 'Dry run'
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        default: '1.0.0'
+        type: string
+        description: 'Release version (e.g., 1.0.0)'
+      java-version:
+        required: false
+        type: string
+        default: "21"
+        description: 'Java version (e.g., 21)'
+      build-docker:
+        required: false
+        type: boolean
+        default: true
+        description: 'Release docker image if there is Docker file'
+      dry-run:
+        required: false
+        type: boolean
+        default: false
+        description: 'Dry run'
 
-  jobs:
-    check-tag:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Input parameters
-          run: |
-            echo "Version: ${{ github.event.inputs.version }}" >> $GITHUB_STEP_SUMMARY
-            echo "Java version: ${{ github.event.inputs.java-version }}" >> $GITHUB_STEP_SUMMARY
+jobs:
+  check-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Input parameters
+        run: |
+          echo "Version: ${{ github.event.inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "Java version: ${{ github.event.inputs.java-version }}" >> $GITHUB_STEP_SUMMARY
 
-        - name: Checkout code
-          uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-        - name: Check if tag exists
-          id: check_tag
-          uses: netcracker/qubership-workflow-hub/actions/tag-checker@main
-          with:
-            tag: 'v${{ github.event.inputs.version }}'
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check if tag exists
+        id: check_tag
+        uses: netcracker/qubership-workflow-hub/actions/tag-checker@main
+        with:
+          tag: 'v${{ github.event.inputs.version }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        - name: Output result
-          run: |
-            echo "Tag exists: ${{ steps.check_tag.outputs.exists }}"
-            echo "Tag name: v${{ github.event.inputs.version }}"
+      - name: Output result
+        run: |
+          echo "Tag exists: ${{ steps.check_tag.outputs.exists }}"
+          echo "Tag name: v${{ github.event.inputs.version }}"
 
-        - name: Fail if tag exists
-          if: steps.check_tag.outputs.exists == 'true'
-          run: |
-            echo "Tag already exists: v${{ github.event.inputs.version }}" >> $GITHUB_STEP_SUMMARY
-            echo "Tag already exists: v${{ github.event.inputs.version }}"
-            exit 1
+      - name: Fail if tag exists
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "Tag already exists: v${{ github.event.inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "Tag already exists: v${{ github.event.inputs.version }}"
+          exit 1
 
-    update-pom-version:
-      needs: [check-tag]
-      runs-on: ubuntu-latest
-      outputs:
-        artifact_id: ${{ steps.config.outputs.artifact_id }}
-      steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
+  update-pom-version:
+    needs: [check-tag]
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_id: ${{ steps.config.outputs.artifact_id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-        - name: Update pom.xml
-          id: config
-          uses: netcracker/qubership-workflow-hub/actions/pom-updater@main
-          with:
-            new_value: ${{ github.event.inputs.version }}
+      - name: Update pom.xml
+        id: config
+        uses: netcracker/qubership-workflow-hub/actions/pom-updater@main
+        with:
+          new_value: ${{ github.event.inputs.version }}
 
-        - name: Commit Changes
-          uses: netcracker/qubership-workflow-hub/actions/commit-and-push@main
-          with:
-            commit_message: "Update pom.xml version to ${{ github.event.inputs.version }}"
+      - name: Commit Changes
+        uses: netcracker/qubership-workflow-hub/actions/commit-and-push@main
+        with:
+          commit_message: "Update pom.xml version to ${{ github.event.inputs.version }}"
 
-    mvn-package:
-      needs: [update-pom-version]
-      uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
-      with:
-        maven-command: "--batch-mode package"
-        java-version: ${{ github.event.inputs.java-version }}
-        upload-artifact: true
-        artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
-      secrets:
-        maven-username: ${{ secrets.MAVEN_USER }}
-        maven-token: ${{ secrets.MAVEN_PASSWORD }}
-        gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-        gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+  mvn-package:
+    needs: [update-pom-version]
+    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
+    with:
+      maven-command: "--batch-mode package"
+      java-version: ${{ github.event.inputs.java-version }}
+      upload-artifact: true
+      artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
+    secrets:
+      maven-username: ${{ secrets.MAVEN_USER }}
+      maven-token: ${{ secrets.MAVEN_PASSWORD }}
+      gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
 
-    tests:
-      needs: [mvn-package]
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
+  tests:
+    needs: [mvn-package]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-        - name: Run tests
-          run: echo "Running tests here"
+      - name: Run tests
+        run: echo "Running tests here"
 
-    tag:
-      needs: [tests]
-      uses: netcracker/qubership-workflow-hub/.github/workflows/tag-creator.yml@main
-      with:
-        tag-name: ${{ github.event.inputs.version }}
+  tag:
+    needs: [tests]
+    uses: netcracker/qubership-workflow-hub/.github/workflows/tag-creator.yml@main
+    with:
+      tag-name: ${{ github.event.inputs.version }}
 
-    mvn-deploy:
-      needs: [update-pom-version, tag]
-      uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
-      with:
-        maven-command: ${{ (github.event.inputs.dry-run == 'true' && '--batch-mode package') || '--batch-mode deploy' }}
-        java-version: ${{ github.event.inputs.java-version }}
-        upload-artifact: false
-        artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
-        server-id: "central"
-      secrets:
-        maven-username: ${{ secrets.MAVEN_USER }}
-        maven-token: ${{ secrets.MAVEN_PASSWORD }}
-        gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-        gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+  mvn-deploy:
+    needs: [update-pom-version, tag]
+    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
+    with:
+      maven-command: ${{ (github.event.inputs.dry-run == 'true' && '--batch-mode package') || '--batch-mode deploy' }}
+      java-version: ${{ github.event.inputs.java-version }}
+      upload-artifact: false
+      artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
+      server-id: "central"
+    secrets:
+      maven-username: ${{ secrets.MAVEN_USER }}
+      maven-token: ${{ secrets.MAVEN_PASSWORD }}
+      gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
 
-    check-dockerfile:
-      runs-on: ubuntu-latest
-      needs: [update-pom-version, tag]
-      outputs:
-        dockerfile_exists: ${{ steps.check_dockerfile.outputs.df_exists }}
-      steps:
-        - uses: actions/checkout@v4
-        - name: "Check Dockerfile existence"
-          id: check_dockerfile
-          shell: bash
-          run: |
-            if [[ -f Dockerfile ]]; then
-              echo "df_exists=exists" >> "$GITHUB_OUTPUT"
-            else
-              echo "Dockerfile does not exist. Docker build stage will be skipped"
-              echo "df_exists=notexists" >> "$GITHUB_OUTPUT"
-            fi
-            echo "GITHUB_OUTPUT:"
-            cat "$GITHUB_OUTPUT"
+  check-dockerfile:
+    runs-on: ubuntu-latest
+    needs: [update-pom-version, tag]
+    outputs:
+      dockerfile_exists: ${{ steps.check_dockerfile.outputs.df_exists }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Check Dockerfile existence"
+        id: check_dockerfile
+        shell: bash
+        run: |
+          if [[ -f Dockerfile ]]; then
+            echo "df_exists=exists" >> "$GITHUB_OUTPUT"
+          else
+            echo "Dockerfile does not exist. Docker build stage will be skipped"
+            echo "df_exists=notexists" >> "$GITHUB_OUTPUT"
+          fi
+          echo "GITHUB_OUTPUT:"
+          cat "$GITHUB_OUTPUT"
 
-    docker-build-publish:
-      needs: [update-pom-version, tag, check-dockerfile]
-      if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
-      uses: netcracker/qubership-workflow-hub/.github/workflows/docker-publish.yml@main
-      with:
-        ref: ${{ github.event.inputs.version }}
-        artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
-        dry-run: ${{ inputs.dry-run }}
+  docker-build-publish:
+    needs: [update-pom-version, tag, check-dockerfile]
+    if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
+    uses: netcracker/qubership-workflow-hub/.github/workflows/docker-publish.yml@main
+    with:
+      ref: ${{ github.event.inputs.version }}
+      artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
+      dry-run: ${{ inputs.dry-run }}
 
-    github-release:
-      needs: [tag]
-      uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
-      with:
-        version: ${{ github.event.inputs.version }}
-        publish: false
+  github-release:
+    needs: [tag]
+    uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
+    with:
+      version: ${{ github.event.inputs.version }}
+      publish: false
