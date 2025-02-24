@@ -31,7 +31,7 @@ public class ContextPropagationProcessorProxy extends OptionalProcessorProxy {
 
     @Autowired
     public ContextPropagationProcessorProxy(
-        @Qualifier("сontextPropagationProcessorImpl") Optional<Processor> processor
+        @Qualifier("contextPropagationProcessorImpl") Optional<Processor> processor
     ) {
         super(processor);
     }
