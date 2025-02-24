@@ -16,6 +16,15 @@
 
 package org.qubership.integration.platform.engine.service.debugger.logging;
 
+import com.networknt.schema.utils.StringUtils;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.CamelException;
+import org.apache.camel.Exchange;
+import org.apache.camel.ExchangePropertyKey;
+import org.apache.camel.http.base.HttpOperationFailedException;
+import org.apache.camel.support.http.HttpUtil;
+import org.apache.camel.tracing.ActiveSpanManager;
+import org.apache.camel.tracing.SpanAdapter;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.SessionElementProperty;
@@ -32,24 +41,16 @@ import org.qubership.integration.platform.engine.service.debugger.util.PayloadEx
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
-import com.networknt.schema.utils.StringUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.CamelException;
-import org.apache.camel.Exchange;
-import org.apache.camel.ExchangePropertyKey;
-import org.apache.camel.http.base.HttpOperationFailedException;
-import org.apache.camel.support.http.HttpUtil;
-import org.apache.camel.tracing.ActiveSpanManager;
-import org.apache.camel.tracing.SpanAdapter;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+
+import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.*;
 
 @Slf4j
 @Component
@@ -451,12 +452,10 @@ public class ChainLogger {
             String elementId
     ) {
         try {
-            Map<String, String> elementProperties = Optional.ofNullable(dbgProperties.getElementProperty(elementId)).orElse(Collections.emptyMap());
-            int retryCount = Integer.parseInt(elementProperties.getOrDefault(
-                Properties.SERVICE_CALL_RETRY_COUNT, "0"));
-            int retryDelay = Integer.valueOf(elementProperties.getOrDefault(
-                Properties.SERVICE_CALL_RETRY_DELAY, String.valueOf(
-                    Properties.SERVICE_CALL_DEFAULT_RETRY_DELAY)));
+            int retryCount = Integer.parseInt((String) exchange.getProperties()
+                    .getOrDefault(SERVICE_CALL_RETRY_COUNT, "0"));
+            int retryDelay = Integer.parseInt((String) exchange.getProperties()
+                    .getOrDefault(SERVICE_CALL_RETRY_DELAY, String.valueOf(SERVICE_CALL_DEFAULT_RETRY_DELAY)));
             String iteratorPropertyName = IdentifierUtils.getServiceCallRetryIteratorPropertyName(elementId);
             int iteration = Integer.parseInt(String.valueOf(exchange.getProperties().getOrDefault(iteratorPropertyName, 0)));
             String enableProperty = IdentifierUtils.getServiceCallRetryPropertyName(elementId);
