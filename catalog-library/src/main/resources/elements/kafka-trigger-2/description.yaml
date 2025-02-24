@@ -60,17 +60,6 @@ properties:
       query: true
       default: 30000
   advanced:
-    # TODO: drop this
-    - name: consumerConsistencyMode
-      title: Consumer blue-green consistency mode
-      description: "EVENTUAL – consumers offset for candidate during promotion stays the same.</br>GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from the lowest offset for this group of consumers"
-      type: string
-      allowedValues:
-        - EVENTUAL
-        - GUARANTEE_CONSUMPTION
-      mandatory: false
-      query: true
-      default: EVENTUAL
     - name: sslProtocol
       title: SSL Protocol
       description: The SSL protocol used to generate the SSLContext. Default setting is TLS, which is fine for most cases

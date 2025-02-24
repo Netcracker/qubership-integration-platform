@@ -27,6 +27,7 @@ import org.qubership.integration.platform.catalog.util.ResourceLoaderUtils;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -50,10 +51,31 @@ public class LibraryResourceLoader {
             log.error("Error loading folder descriptor file {}", folderResource.getFilename(), e);
         }
 
+        Map<String, Resource> elementPatches = ResourceLoaderUtils.loadFiles("classpath*:element-patches/*.{yml|yaml}");
+
+        for (Resource elementPatchFile : elementPatches.values()) {
+            loadElementPatch(elementPatchFile);
+        }
+
         Map<String, Resource> resources = ResourceLoaderUtils.loadFiles("classpath*:elements/**/description.{yml|yaml}");
 
         for (Map.Entry<String, Resource> dirPathToDescriptorFile : resources.entrySet()) {
             loadElement(dirPathToDescriptorFile.getKey(), dirPathToDescriptorFile.getValue());
+        }
+    }
+
+    private void loadElementPatch(Resource elementPatchFile) {
+        try {
+            String elementName = Optional.ofNullable(elementPatchFile.getFilename())
+                    .map(fileName -> fileName.substring(0, fileName.lastIndexOf(".")))
+                    .orElse("unknown");
+            if (log.isDebugEnabled()) {
+                log.debug("Loading {} element part", elementName);
+            }
+
+            this.registry.loadElementPatch(elementName, elementPatchFile.getInputStream());
+        } catch (IOException e) {
+            log.error("Error loading {} element part", elementPatchFile.getFilename(), e);
         }
     }
 
@@ -67,7 +89,7 @@ public class LibraryResourceLoader {
             }
 
             if (descriptorFile != null) {
-                this.registry.loadElementDescriptor(descriptorFile.getInputStream());
+                this.registry.loadElementDescriptor(elementName, descriptorFile.getInputStream());
             } else {
                 log.warn("Descriptor file is missing for {}, skipping", elementName);
             }

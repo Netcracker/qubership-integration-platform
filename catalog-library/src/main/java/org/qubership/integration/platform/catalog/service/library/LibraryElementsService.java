@@ -16,8 +16,11 @@
 
 package org.qubership.integration.platform.catalog.service.library;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import com.github.fge.jsonpatch.JsonPatch;
+import com.github.fge.jsonpatch.JsonPatchException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -48,6 +51,7 @@ public class LibraryElementsService {
 
     private final Map<String, ElementDescriptor> elements = new HashMap<>();
     private final Map<String, ElementFolder> folders = new HashMap<>();
+    private final Map<String, JsonNode> elementPatches = new HashMap<>();
 
     public LibraryElementsService(
             @Qualifier("defaultYamlMapper") YAMLMapper defaultYamlMapper,
@@ -75,6 +79,13 @@ public class LibraryElementsService {
         }
     }
 
+    public void loadElementPatch(String elementName, InputStream inputStream) throws IOException {
+        try (Reader reader = new InputStreamReader(inputStream)) {
+            JsonNode elementPatchNode = yamlMapper.readTree(reader);
+            elementPatches.put(elementName, elementPatchNode);
+        }
+    }
+
     public ElementFolder getFolder(String name) {
         return folders.get(name);
     }
@@ -86,10 +97,20 @@ public class LibraryElementsService {
                 .collect(Collectors.toMap(ElementProperty::getName, Function.identity())));
     }
 
-    public ElementDescriptor loadElementDescriptor(InputStream inputStream) throws IOException {
+    public ElementDescriptor loadElementDescriptor(String elementName, InputStream inputStream) throws IOException {
         try (Reader reader = new InputStreamReader(inputStream)) {
             String descriptorYaml = propertyPlaceholderHelper.replacePlaceholders(IOUtils.toString(reader), descriptorProperties);
-            ElementDescriptor elementDescriptor = yamlMapper.readValue(descriptorYaml, ElementDescriptor.class);
+            JsonNode descriptorNode = yamlMapper.readTree(descriptorYaml);
+            JsonNode elementPatchNode = elementPatches.get(elementName);
+            if (elementPatchNode != null) {
+                try {
+                    JsonPatch jsonPatch = JsonPatch.fromJson(elementPatchNode);
+                    descriptorNode = jsonPatch.apply(descriptorNode);
+                } catch (JsonPatchException e) {
+                    log.error("Failed to apply patch for element descriptor: {}", elementName, e);
+                }
+            }
+            ElementDescriptor elementDescriptor = yamlMapper.convertValue(descriptorNode, ElementDescriptor.class);
             if (elementDescriptor != null) {
                 this.registerElement(elementDescriptor);
             }
