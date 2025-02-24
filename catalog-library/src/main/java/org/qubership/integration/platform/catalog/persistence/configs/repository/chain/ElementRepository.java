@@ -75,8 +75,8 @@ public interface ElementRepository extends CommonRepository<ChainElement>, JpaRe
                     SELECT d.snapshot.id
                     FROM deployments d
                     WHERE
-                        d.domain = :domain
-                        AND d.chain.id <> :excludeChainId
+                        d.domain <> :domain
+                        AND d.chain.id = :excludeChainId
                         AND (:excludeDeploymentIds IS NULL
                         OR d.id NOT IN :excludeDeploymentIds)
                     )
