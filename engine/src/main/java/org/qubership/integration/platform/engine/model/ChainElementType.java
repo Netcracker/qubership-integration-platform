@@ -65,6 +65,11 @@ public enum ChainElementType {
     SPLIT_ELEMENT_2("split-element-2"),
     CHAIN_TRIGGER("chain-trigger"),
     CHAIN_TRIGGER_2("chain-trigger-2"),
+    CONDITION("condition"),
+    IF("if"),
+    SPLIT_ASYNC_2("split-async-2"),
+    ASYNC_SPLIT_ELEMENT_2("async-split-element-2"),
+    FINALLY_2("finally-2"),
     UNKNOWN("");
     // add more elements as needed
 
@@ -96,7 +101,8 @@ public enum ChainElementType {
     private static final Set<ChainElementType> WRAPPED_IN_STEP_ELEMENTS = Collections.unmodifiableSet(
             EnumSet.of(
                     CIRCUIT_BREAKER_2, CIRCUIT_BREAKER_MAIN_ELEMENT_2, CIRCUIT_BREAKER_FALLBACK_2, LOOP_2, SPLIT_2,
-                    MAIN_SPLIT_ELEMENT_2, SPLIT_ELEMENT_2
+                    MAIN_SPLIT_ELEMENT_2, SPLIT_ELEMENT_2, CONDITION, IF, TRY_2, TRY_CATCH_FINALLY_2, FINALLY_2,
+                    SPLIT_ASYNC_2, ASYNC_SPLIT_ELEMENT_2
             )
     );
 
