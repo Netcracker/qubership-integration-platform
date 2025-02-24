@@ -124,7 +124,7 @@ jobs:
     needs: [tests]
     uses: netcracker/qubership-workflow-hub/.github/workflows/tag-creator.yml@main
     with:
-      tag-name: ${{ github.event.inputs.version }}
+      tag-name: "v${{ github.event.inputs.version }}"
 
   mvn-deploy:
     needs: [update-pom-version, tag]
@@ -166,7 +166,7 @@ jobs:
     if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
     uses: netcracker/qubership-workflow-hub/.github/workflows/docker-publish.yml@main
     with:
-      ref: ${{ github.event.inputs.version }}
+      ref: "v${{ github.event.inputs.version }}"
       artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
       dry-run: ${{ inputs.dry-run }}
 
