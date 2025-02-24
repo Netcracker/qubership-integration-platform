@@ -55,6 +55,8 @@ public enum ErrorCode {
     RESPONSE_VALIDATION_ERROR("0112", HttpStatus.SC_INTERNAL_SERVER_ERROR,
         "Response captured by one of the service calls has not passed configured validations",
         "Chain failed due to receiving unexpected response from service"),
+    TIMEOUT_REACHED("0113", HttpStatus.SC_INTERNAL_SERVER_ERROR, "Chain timeout reached","Chain execution failed due to reaching execution timeout"),
+    FORCE_TERMINATED("0114", HttpStatus.SC_INTERNAL_SERVER_ERROR, "Chain session was shut down","Chain execution was stopped manually"),
 
 
     // Deployment errors

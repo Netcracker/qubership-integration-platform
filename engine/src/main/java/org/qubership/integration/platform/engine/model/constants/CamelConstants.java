@@ -70,6 +70,9 @@ public final class CamelConstants {
         public static final String STEPS = INTERNAL_PROPERTY_PREFIX + "steps";
         public static final String EXCHANGES = INTERNAL_PROPERTY_PREFIX + "exchanges";
         public static final String START_TIME = INTERNAL_PROPERTY_PREFIX + "startTime";
+        public static final String START_TIME_MS = INTERNAL_PROPERTY_PREFIX + "startTimeMs";
+        public static final String EXCHANGE_START_TIME_MS = INTERNAL_PROPERTY_PREFIX + "exchangeStartTimeMs";
+        public static final String IS_MAIN_EXCHANGE = INTERNAL_PROPERTY_PREFIX + "isMainExchange";
         public static final String ELEMENT_FAILED = INTERNAL_PROPERTY_PREFIX + "elementFailed";
         public static final String LAST_EXCEPTION = INTERNAL_PROPERTY_PREFIX + "lastException";
         public static final String LAST_EXCEPTION_ERROR_CODE = INTERNAL_PROPERTY_PREFIX + "laseExceptionErrorCode";
@@ -148,6 +151,8 @@ public final class CamelConstants {
         public static final String CORRELATION_ID_POSITION = "correlationIdPosition";
         public static final String CORRELATION_ID_NAME =  "correlationIdName";
         public static final String IS_CHECKPOINT_TRIGGER_STEP =  INTERNAL_PROPERTY_PREFIX + "isCheckpointTriggerStep";
+        public static final String CHAIN_TIMED_OUT = INTERNAL_PROPERTY_PREFIX + "chainSessionTimedOut";
+        public static final String CHAIN_TIME_OUT_AFTER = INTERNAL_PROPERTY_PREFIX + "chainSessionTimeoutAfter";
 
         public static final String HTTP_TRIGGER_STEP_ID =  "httpTriggerStepId";
 
