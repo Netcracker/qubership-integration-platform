@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
 
@@ -37,7 +38,9 @@ import static java.util.Objects.isNull;
 public class SystemBaseService {
 
     private static final Map<IntegrationSystemType, Collection<OperationProtocol>> ALLOWED_PROTOCOL_MAP = Map.of(
-            IntegrationSystemType.EXTERNAL, Set.of(OperationProtocol.values()),
+            IntegrationSystemType.EXTERNAL, Arrays.stream(OperationProtocol.values())
+                    .filter(protocol -> !OperationProtocol.METAMODEL.equals(protocol))
+                    .collect(Collectors.toSet()),
             IntegrationSystemType.INTERNAL, Set.of(OperationProtocol.values()),
             IntegrationSystemType.IMPLEMENTED, Set.of(
                     OperationProtocol.HTTP,

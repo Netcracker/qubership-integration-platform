@@ -18,7 +18,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
 
-        <revision>2025.1-1.0.16</revision>
+        <revision>0.1.1</revision>
         <catalog-library.revision>2025.1.1.15</catalog-library.revision>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -61,6 +61,7 @@
 
         <!-- Plugins -->
 
+        <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
         <hibernate-enhance-maven-plugin.version>6.5.2.Final</hibernate-enhance-maven-plugin.version>
     </properties>
@@ -283,6 +284,31 @@
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>${flatten-maven-plugin.version}</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.hibernate.orm.tooling</groupId>

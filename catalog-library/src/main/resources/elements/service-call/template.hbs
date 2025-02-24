@@ -12,6 +12,137 @@
 {{/if-property}}
 
 <step id="{{identifier}}">
+
+    {{#if-property 'integrationOperationProtocolType' equals='http'}}
+        <setProperty name="serviceCallAddress">
+            <simple>{{integrationAddress}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallUrl">
+            <simple>{{integrationAddress}}{{escape (integeratePathAndQueryParams)}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallPath">
+            <simple>{{property "integrationOperationPath"}}</simple>
+        </setProperty>
+
+        <setProperty name="serviceCallQueryParametersJson">
+            <simple>{{property-json "integrationOperationQueryParameters"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallQueryParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallQueryParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallQueryParametersJson"/>
+
+        <setProperty name="serviceCallPathParametersJson">
+            <simple>{{property-json "integrationOperationPathParameters"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallPathParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallPathParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallPathParametersJson"/>
+
+        <setProperty name="serviceCallParametersJson">
+            <simple>{{environmentPropertiesJson}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallParametersJson"/>
+    {{/if-property}}
+
+    {{#if-property 'integrationOperationProtocolType' equals='kafka'}}
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallTopic">
+            <simple>{{property 'integrationOperationPath'}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallBrokers">
+            <simple>{{integrationEndpoint}}</simple>
+        </setProperty>
+
+        <setProperty name="serviceCallParametersJson">
+            <simple>{{asyncPropertiesJson}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallParametersJson"/>
+    {{/if-property}}
+
+    {{#if-property 'integrationOperationProtocolType' equals='amqp'}}
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallExchange">
+            <simple>{{property 'integrationOperationPath'}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallAddress">
+            <simple>{{integrationAddress}}</simple>
+        </setProperty>
+
+        <setProperty name="serviceCallParametersJson">
+            <simple>{{asyncPropertiesJson}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallParametersJson"/>
+    {{/if-property}}
+
+    {{#if-property 'integrationOperationProtocolType' equals='grpc'}}
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallService">
+            <simple>{{property 'integrationOperationPath'}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallAddress">
+            <simple>{{integrationEndpoint}}</simple>
+        </setProperty>
+
+        <setProperty name="serviceCallParametersJson">
+            <simple>{{grpcPropertiesJson}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallParametersJson"/>
+    {{/if-property}}
+
+    {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
+        <setProperty name="serviceCallAddress">
+            <simple>{{integrationAddress}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallPath">
+            <simple>{{property "integrationOperationPath"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallVariablesHeader">
+            <simple>{{property 'integrationGqlVariablesHeader'}}</simple>
+        </setProperty>
+
+        <setProperty name="serviceCallQueryParametersJson">
+            <simple>{{property-json "integrationOperationQueryParameters"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallQueryParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallQueryParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallQueryParametersJson"/>
+
+        <setProperty name="serviceCallParametersJson">
+            <simple>{{environmentPropertiesJson}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallParametersJson"/>
+    {{/if-property}}
+
     <removeHeader name="CamelHttpQuery"/>
     {{#if-property 'before' presented=''}}
         <step id="Prepare request--{{identifier}}">
@@ -445,4 +576,18 @@
         </choice>
     {{/if-property}}
 </step>
+
 <removeHeader name="CamelHttpUri"/>
+
+<removeProperty name="serviceCallAddress"/>
+<removeProperty name="serviceCallUrl"/>
+<removeProperty name="serviceCallMethod"/>
+<removeProperty name="serviceCallPath"/>
+<removeProperty name="serviceCallQueryParameters"/>
+<removeProperty name="serviceCallPathParameters"/>
+<removeProperty name="serviceCallParameters"/>
+<removeProperty name="serviceCallTopic"/>
+<removeProperty name="serviceCallBrokers"/>
+<removeProperty name="serviceCallExchange"/>
+<removeProperty name="serviceCallService"/>
+<removeProperty name="serviceCallVariablesHeader"/>
