@@ -98,10 +98,6 @@ public class SecretService {
                 throw new SecuredVariablesNotFoundException(SECRET_NOT_FOUND_ERROR_MESSAGE_FORMAT.formatted(secretName));
             }
 
-            if (foundSecret.getData() == null) {
-                throw new SecuredVariablesNotFoundException("Secured variables not found");
-            }
-
             return yamlMapper.writeValueAsString(foundSecret);
         } catch (JsonProcessingException e) {
             throw new SecuredVariablesException("Failed to get secret helm chart", e);
