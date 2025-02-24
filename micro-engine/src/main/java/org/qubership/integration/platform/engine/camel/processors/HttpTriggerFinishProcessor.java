@@ -84,11 +84,9 @@ public class HttpTriggerFinishProcessor implements Processor {
             return; // Log only if it is info level OR session is failed
         }
 
-        String started = exchange.getProperty(CamelConstants.Properties.START_TIME,
-                String.class);
-        String finished = LocalDateTime.now().toString();
-        long duration = Duration.between(LocalDateTime.parse(started),
-                LocalDateTime.parse(finished)).toMillis();
+        long started = exchange.getProperty(CamelConstants.Properties.START_TIME_MS,
+                Long.class);
+        long duration = System.currentTimeMillis() - started;
 
         List<MessageHistory> messageHistory = (List<MessageHistory>) exchange.getAllProperties()
                 .getOrDefault(Exchange.MESSAGE_HISTORY, Collections.emptyList());

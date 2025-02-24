@@ -556,6 +556,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             applicationContext.getBean(SecurityAccessPolicyConverter.class));
         context.getGlobalOptions().put(JacksonConstants.ENABLE_TYPE_CONVERTER, "true");
         context.getGlobalOptions().put(JacksonConstants.TYPE_CONVERTER_TO_POJO, "true");
+        context.getInflightRepository().setInflightBrowseEnabled(true);
 
         boolean deploymentsSuspended = isDeploymentsSuspended();
         if (deploymentsSuspended) {
@@ -740,7 +741,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         getCache().removeRetryDeploymentFromQueue(deploymentId);
     }
 
-    private RuntimeIntegrationCache getCache() {
+    public RuntimeIntegrationCache getCache() {
         return deploymentCache;
     }
 

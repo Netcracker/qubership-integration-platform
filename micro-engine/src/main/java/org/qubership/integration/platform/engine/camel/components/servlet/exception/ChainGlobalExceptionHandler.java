@@ -20,6 +20,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException;
 import org.qubership.integration.platform.engine.camel.components.servlet.exception.annotations.ChainExceptionHandler;
 import org.qubership.integration.platform.engine.camel.exceptions.IterationLimitException;
+import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTerminatedException;
+import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTimeoutException;
 import org.qubership.integration.platform.engine.errorhandling.ResponseValidationException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.errorhandling.ValidationException;
@@ -109,6 +111,16 @@ public class ChainGlobalExceptionHandler {
 
     @ChainExceptionHandler(value = IterationLimitException.class, errorCode = ErrorCode.LOOP_ITERATIONS_LIMIT_REACHED)
     public void handleException(IterationLimitException exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
+        makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
+    }
+
+    @ChainExceptionHandler(value = ChainExecutionTimeoutException.class, errorCode = ErrorCode.TIMEOUT_REACHED)
+    public void handleException(ChainExecutionTimeoutException exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
+        makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
+    }
+
+    @ChainExceptionHandler(value = ChainExecutionTerminatedException.class, errorCode = ErrorCode.FORCE_TERMINATED)
+    public void handleException(ChainExecutionTerminatedException exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
         makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
     }
 

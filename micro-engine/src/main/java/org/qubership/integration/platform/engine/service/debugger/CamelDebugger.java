@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.service.debugger;
 
 import org.qubership.integration.platform.engine.camel.context.propagation.CamelExchangeContextPropagation;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
+import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTimeoutException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.Session;
@@ -30,7 +31,6 @@ import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
-import org.qubership.integration.platform.engine.rest.v1.controller.CheckpointSessionController;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.VariablesService;
@@ -248,6 +248,8 @@ public class CamelDebugger extends DefaultDebugger {
         long timeTaken) {
         CamelDebuggerProperties dbgProperties = getRelatedProperties(exchange);
 
+        checkExecutionTimeout(exchange);
+
         initOrActivatePropagatedContext(exchange);
 
         SessionsLoggingLevel actualSessionLevel = dbgProperties.getRuntimeProperties(exchange)
@@ -361,11 +363,13 @@ public class CamelDebugger extends DefaultDebugger {
         if (sessionId == null) {
             sessionId = UUID.randomUUID().toString();
             String started = LocalDateTime.now().toString();
+            Long startedMillis = System.currentTimeMillis();
 
             exchange.setProperty(CamelConstants.Properties.SESSION_ID, sessionId);
             exchange.setProperty(CamelConstants.Properties.SESSION_SHOULD_BE_LOGGED,
                 sessionsService.sessionShouldBeLogged());
             exchange.setProperty(CamelConstants.Properties.START_TIME, started);
+            exchange.setProperty(CamelConstants.Properties.START_TIME_MS, startedMillis);
             exchange.getProperty(CamelConstants.Properties.EXCHANGES, ConcurrentHashMap.class)
                 .put(sessionId, new ConcurrentHashMap<String, Exchange>());
 
@@ -750,6 +754,23 @@ public class CamelDebugger extends DefaultDebugger {
                 ChainProperties.FAILED_ELEMENT_ID, elementProperties.get(ChainProperties.ELEMENT_ID));
             exchange.setProperty(CamelConstants.Properties.ELEMENT_WARNING,Boolean.FALSE);
             DebuggerUtils.setOverallWarning(exchange, false);
+        }
+    }
+
+    private void checkExecutionTimeout(Exchange exchange) {
+        long timeoutAfter = exchange.getProperty(CamelConstants.Properties.CHAIN_TIME_OUT_AFTER, 0, Long.class);
+        if (timeoutAfter <= 0) {
+            return;
+        }
+        long startTime = exchange.getProperty(CamelConstants.Properties.START_TIME_MS, Long.class);
+        long duration = System.currentTimeMillis() - startTime;
+        boolean isTimedOut = exchange.getProperty(CamelConstants.Properties.CHAIN_TIMED_OUT, false, Boolean.class);
+
+        if (duration > timeoutAfter && !isTimedOut) {
+            Exception exception = new ChainExecutionTimeoutException("Chain execution timed out after " + duration +
+                    " ms. Desired limit is " + timeoutAfter + " ms.");
+            exchange.setProperty(CamelConstants.Properties.CHAIN_TIMED_OUT, true);
+            exchange.setException(exception);
         }
     }
 }
