@@ -408,7 +408,7 @@ public class DeploymentService {
                         chainId,
                         SQLUtils.prepareCollectionForHqlNotInClause(excludeDeploymentIds)));
 
-        List<ElementRoute> domainRoutes = mapHttpTriggerRoutes(
+        List<ElementRoute> otherDomainsRoutes = mapHttpTriggerRoutes(
                 elementRepository.findElementsForDomainTriggerCheck(
                         triggersToCheck,
                         domain,
@@ -416,11 +416,15 @@ public class DeploymentService {
                         SQLUtils.prepareCollectionForHqlNotInClause(excludeDeploymentIds)));
 
         Set<String> gatewayEqualPaths = findSameHttpTriggerPaths(pendingRoutes, allRoutes, true);
-        Set<String> domainEqualPaths = findSameHttpTriggerPaths(pendingRoutes, domainRoutes, false);
+        Set<String> otherDomainsEqualPaths = findSameHttpTriggerPaths(pendingRoutes, otherDomainsRoutes, false);
 
-        if (!gatewayEqualPaths.isEmpty() || !domainEqualPaths.isEmpty())
-            throw new EntityExistsException("Found similar triggers registered on public/private gateway: " +
-                    gatewayEqualPaths + ", on the same domain: " + domainEqualPaths);
+        if (!gatewayEqualPaths.isEmpty()) {
+            throw new EntityExistsException("Found similar triggers paths registered on public/private gateway: " +
+                    gatewayEqualPaths);
+        }
+        if (!otherDomainsEqualPaths.isEmpty()) {
+            throw new EntityExistsException("Found similar triggers path registered on other domains: " + otherDomainsEqualPaths);
+        }
     }
 
     private boolean checkTriggersInBulkDeploy(List<Deployment> deployments) {
@@ -529,23 +533,23 @@ public class DeploymentService {
             }
         }
 
-            List<DeploymentInfo> excludeDeployments = engineDeployments.getExcludeDeployments();
+        List<DeploymentInfo> excludeDeployments = engineDeployments.getExcludeDeployments();
 
-            if (CollectionUtils.isEmpty(excludeDeployments)) {
-                update.addAll(deploymentBuilderService.buildDeploymentsUpdate(deploymentRepository.findAllByDomain(domainName)));
-            } else { // calculate delta
-                List<String> toExcludeIds = excludeDeployments.stream().map(DeploymentInfo::getDeploymentId).toList();
+        if (CollectionUtils.isEmpty(excludeDeployments)) {
+            update.addAll(deploymentBuilderService.buildDeploymentsUpdate(deploymentRepository.findAllByDomain(domainName)));
+        } else { // calculate delta
+            List<String> toExcludeIds = excludeDeployments.stream().map(DeploymentInfo::getDeploymentId).toList();
 
-                List<Deployment> toUpdate = deploymentRepository.findDeploymentsToUpdate(domainName, toExcludeIds);
-                update.addAll(deploymentBuilderService.buildDeploymentsUpdate(toUpdate));
+            List<Deployment> toUpdate = deploymentRepository.findDeploymentsToUpdate(domainName, toExcludeIds);
+            update.addAll(deploymentBuilderService.buildDeploymentsUpdate(toUpdate));
 
-                Set<String> toRemoveIds = deploymentRepository.findDeploymentsToRemove(domainName, toExcludeIds);
-                List<DeploymentInfo> toRemove = excludeDeployments.stream()
-                        .filter(ex -> toRemoveIds.contains(ex.getDeploymentId()))
-                        .toList();
+            Set<String> toRemoveIds = deploymentRepository.findDeploymentsToRemove(domainName, toExcludeIds);
+            List<DeploymentInfo> toRemove = excludeDeployments.stream()
+                    .filter(ex -> toRemoveIds.contains(ex.getDeploymentId()))
+                    .toList();
 
-                stop.addAll(deploymentBuilderService.buildDeploymentsStop(toRemove));
-            };
+            stop.addAll(deploymentBuilderService.buildDeploymentsStop(toRemove));
+        }
 
         DeploymentsUpdate result = DeploymentsUpdate.builder().update(update).stop(stop).build();
         if (fullDeploymentsRequest) {
