@@ -30,7 +30,7 @@ public class ContextRestoreProcessorProxy extends OptionalProcessorProxy {
 
     @Autowired
     public ContextRestoreProcessorProxy(
-        @Qualifier("сontextRestoreProcessorImpl") Optional<Processor> processor
+        @Qualifier("contextRestoreProcessorImpl") Optional<Processor> processor
     ) {
         super(processor);
     }
