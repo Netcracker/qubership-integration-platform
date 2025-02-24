@@ -48,7 +48,7 @@ public class Environment extends AbstractSystemEntity {
 
     @Builder.Default
     @Column
-    @Enumerated(EnumType.ORDINAL)
+    @Enumerated(EnumType.STRING)
     private EnvironmentSourceType sourceType = EnvironmentSourceType.MANUAL;
 
     @Column

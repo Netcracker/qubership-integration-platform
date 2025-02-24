@@ -54,12 +54,14 @@ public class IntegrationSystem extends AbstractSystemEntity {
     private String activeEnvironmentId;
 
     @Column
+    @Enumerated(EnumType.STRING)
     private IntegrationSystemType integrationSystemType;
 
     @Column
     private String internalServiceName;
 
     @Column
+    @Enumerated(EnumType.STRING)
     private OperationProtocol protocol;
 
     @Builder.Default

@@ -16,13 +16,10 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.entity;
 
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotBlank;
 import java.util.Base64;
 
@@ -38,6 +35,7 @@ public class ConfigParameter extends AbstractEntity {
     @NotBlank
     private String namespace;
 
+    @Enumerated(EnumType.STRING)
     private ConfigParameterValueType valueType;
 
     @Column(columnDefinition="TEXT")
