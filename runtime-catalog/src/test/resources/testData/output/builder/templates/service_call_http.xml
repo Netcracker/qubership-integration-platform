@@ -7,6 +7,39 @@
     </setProperty>
     <process ref="correlationIdPropagationProcessor"/>
     <step id="8ff3584f-3666-4c75-ba40-a3c8955c44e8">
+        <setProperty name="serviceCallAddress">
+            <simple>http://egress-gateway:8080/system/5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f/f1995e636d43744b623013001990cacb65a7bfaf</simple>
+        </setProperty>
+        <setProperty name="serviceCallUrl">
+            <simple>http://egress-gateway:8080/system/5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f/f1995e636d43744b623013001990cacb65a7bfaf/RestNotify_1</simple>
+        </setProperty>
+        <setProperty name="serviceCallMethod">
+            <simple>POST</simple>
+        </setProperty>
+        <setProperty name="serviceCallPath">
+            <simple>/RestNotify_1</simple>
+        </setProperty>
+        <setProperty name="serviceCallQueryParametersJson">
+            <simple/>
+        </setProperty>
+        <setProperty name="serviceCallQueryParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallQueryParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallQueryParametersJson"/>
+        <setProperty name="serviceCallPathParametersJson">
+            <simple>{}</simple>
+        </setProperty>
+        <setProperty name="serviceCallPathParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallPathParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallPathParametersJson"/>
+        <setProperty name="serviceCallParametersJson">
+            <simple>{}</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameters">
+            <jq resultType="java.util.Map" source="property:serviceCallParametersJson">.</jq>
+        </setProperty>
+        <removeProperty name="serviceCallParametersJson"/>
         <removeHeader name="CamelHttpQuery"/>
         <step id="Prepare request--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
             <setProperty name="internalProperty_mappingConfig">
@@ -44,7 +77,6 @@
                     <constant>false</constant>
                 </setProperty>
                 <doTry id="Request--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
-
                     <process ref="httpSenderProcessor"/>
                     <process ref="httpProducerCharsetProcessor"/>
                     <toD allowOptimisedComponents="false" uri="http:stub?httpClientConfigurer=#8ff3584f-3666-4c75-ba40-a3c8955c44e8&amp;followRedirects=true"/>
@@ -64,7 +96,7 @@
                                 <choice>
                                     <when>
                                         <simple>${exchangeProperty[internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Iterator]} == 1</simple>
-                                        <process ref="setCaughtHttpExceptionContextProcessor" />
+                                        <process ref="setCaughtHttpExceptionContextProcessor"/>     
                                     </when>
                                 </choice>
                             </when>
@@ -100,7 +132,7 @@
                                 </choice>
                             </when>
                             <otherwise>
-                                <process ref="setCaughtHttpExceptionContextProcessor" />
+                                <process ref="setCaughtHttpExceptionContextProcessor"/>
                             </otherwise>
                         </choice>
                     </doCatch>
@@ -110,7 +142,7 @@
                         <choice>
                             <when>
                                 <simple>${exchangeProperty[internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Retry]} != true</simple>
-                                <removeProperty name="internalProperty_overrideContextParams"/>
+                                <removeProperty name="internalProperty_overrideContextParams"/> 
                                 <removeProperty name="internalProperty_retryAwait"/>
                                 <process ref="contextRestoreProcessor"/>
                             </when>
@@ -123,25 +155,35 @@
         <choice>
             <when>
                 <simple>${headers.CamelHttpResponseCode} == '200'</simple>
-                <step id="Handle response--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
+                <step id="Handle response--8ff3584f-3666-4c75-ba40-a3c8955c44e8">       
                     <script>
                         <groovy>exchange.setProperty("responseBody", exchange.getMessage().getBody(String.class))</groovy>
                     </script>
                     <choice>
                         <when>
-                            <simple>
-                                ${headers.CamelHttpResponseCode} range '400..599'
-                            </simple>
+                            <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>
                             <process ref="sessionWarningStatusProcessor"/>
                         </when>
                     </choice>
                 </step>
             </when>
             <when>
-                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>
+                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>      
                 <process ref="throwCaughtExceptionProcessor"/>
             </when>
         </choice>
     </step>
     <removeHeader name="CamelHttpUri"/>
+    <removeProperty name="serviceCallAddress"/>
+    <removeProperty name="serviceCallUrl"/>
+    <removeProperty name="serviceCallMethod"/>
+    <removeProperty name="serviceCallPath"/>
+    <removeProperty name="serviceCallQueryParameters"/>
+    <removeProperty name="serviceCallPathParameters"/>
+    <removeProperty name="serviceCallParameters"/>
+    <removeProperty name="serviceCallTopic"/>
+    <removeProperty name="serviceCallBrokers"/>
+    <removeProperty name="serviceCallExchange"/>
+    <removeProperty name="serviceCallService"/>
+    <removeProperty name="serviceCallVariablesHeader"/>
 </route>

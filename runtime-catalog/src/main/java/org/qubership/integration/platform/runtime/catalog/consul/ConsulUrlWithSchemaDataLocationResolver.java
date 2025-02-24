@@ -26,7 +26,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponents;
 
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class ConsulUrlWithSchemaDataLocationResolver extends ConsulConfigDataLocationResolver {
     protected ConsulUrlWithSchemaDataLocationResolver(DeferredLogFactory log) {
         super(log);
