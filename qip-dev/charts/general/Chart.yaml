@@ -1,0 +1,4 @@
+name: general
+description: general subchart
+version: 0.0.1
+apiVersion: v1

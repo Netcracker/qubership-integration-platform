@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: consul-config
+data:
+  server.json: |
+    {
+      "node_name": "consul",
+      "server": true,
+      "ui_config": {
+        "enabled": true
+      },
+      "data_dir": "/consul/data",
+      "addresses": {
+        "http": "0.0.0.0"
+      },
+      "encrypt": "aPuGh+5UDskRAbkLaXRzFoSOcSM+5vAK+NEYOWHJH7w=",
+      "verify_incoming": false,
+      "verify_outgoing": false,
+      "verify_server_hostname": false
+    }
+  consul-acl.json: |
+    {
+      "acl": {
+        "enabled": true,
+        "default_policy": "deny",
+        "down_policy": "extend-cache",
+        "enable_token_persistence": true,
+        "tokens": {
+          "initial_management": "556339d5-f6a3-ff3b-ce1d-98e5b70d4a13"
+        }
+      }
+    }

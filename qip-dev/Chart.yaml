@@ -1,0 +1,6 @@
+name: qip-k8s-dev
+description: qip dev char for deploying in k8s
+version: 0.0.1
+apiVersion: v2
+keywords:
+  - qip-k8s-dev

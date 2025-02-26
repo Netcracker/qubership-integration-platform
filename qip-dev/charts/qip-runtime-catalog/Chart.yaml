@@ -1,0 +1,4 @@
+name: qip-runtime-catalog
+description: qip-runtime-catalog subchart
+version: 0.0.1
+apiVersion: v1

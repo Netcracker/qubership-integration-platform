@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consul
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consul
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: consul
+    spec:
+      containers:
+        - args:
+            - agent
+            - -bootstrap-expect=1
+          image: hashicorp/consul:1.15.4
+          name: consul
+          ports:
+            - containerPort: 8500
+            - containerPort: 8600
+            - containerPort: 8600
+              protocol: UDP
+          resources: {}
+          volumeMounts:
+            - name: consul-config-volume
+              mountPath: /consul/config/server.json
+              subPath: server.json
+              readOnly: true
+            - name: consul-config-volume
+              mountPath: /consul/config/consul-acl.json
+              subPath: consul-acl.json
+              readOnly: true
+      restartPolicy: Always
+      volumes:
+        - name: consul-config-volume
+          configMap:
+            name: consul-config
