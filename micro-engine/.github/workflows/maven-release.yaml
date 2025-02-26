@@ -169,6 +169,7 @@ jobs:
       ref: "v${{ github.event.inputs.version }}"
       artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
       dry-run: ${{ inputs.dry-run }}
+      download-artifact: true
 
   github-release:
     needs: [tag]
