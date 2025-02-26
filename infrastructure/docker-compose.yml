@@ -9,6 +9,7 @@ services:
         read_only: true
         ports:
         - "8090:8080"
+        - "5005:5005"
         env_file: "qip-dev.env"
         command: [
             "/opt/java/openjdk/bin/java",
@@ -17,8 +18,10 @@ services:
             "-XX:MaxMetaspaceSize=192m",
             "-XX:MaxDirectMemorySize=64m",
             "-XX:+ExitOnOutOfMemoryError",
+            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
             "-Djava.security.egd=file:/dev/./urandom",
             "-Dfile.encoding=UTF-8",
+            "-Dspring.profiles.active=development",
             "-jar",
             "/app/qip-designtime-catalog.jar"
         ]
@@ -42,6 +45,7 @@ services:
         read_only: true
         ports:
         - "8091:8080"
+        - "5006:5005"
         env_file: "qip-dev.env"
         command: [
             "/opt/java/openjdk/bin/java",
@@ -53,6 +57,7 @@ services:
             "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
             "-Djava.security.egd=file:/dev/./urandom",
             "-Dfile.encoding=UTF-8",
+            "-Dspring.profiles.active=development",
             "-jar",
             "/app/qip-runtime-catalog.jar"
         ]
@@ -76,6 +81,7 @@ services:
         read_only: true
         ports:
         - "8092:8080"
+        - "5007:5005"
         env_file:
         - "qip-dev.env"
         - "engine-dev.env"
@@ -93,6 +99,7 @@ services:
             "--add-opens=java.base/java.util=ALL-UNNAMED",
             "--add-opens=java.base/java.io=ALL-UNNAMED",
             "-Dfile.encoding=UTF-8",
+            "-Dspring.profiles.active=development",
             "-jar",
             "/app/qip-engine.jar" ]
         healthcheck:
@@ -119,6 +126,7 @@ services:
         read_only: true
         ports:
         - "8093:8080"
+        - "5008:5005"
         env_file: "qip-dev.env"
         command: [
             "/opt/java/openjdk/bin/java",
@@ -132,6 +140,7 @@ services:
             "--add-opens=java.base/java.lang=ALL-UNNAMED",
             "--add-opens=java.base/java.util=ALL-UNNAMED",
             "-Dfile.encoding=UTF-8",
+            "-Dspring.profiles.active=development",
             "-jar",
             "/app/qip-sessions-management.jar"
         ]
@@ -155,6 +164,7 @@ services:
         read_only: true
         ports:
         - "8094:8080"
+        - "5009:5005"
         env_file: "qip-dev.env"
         command: [
             "/opt/java/openjdk/bin/java",
@@ -166,6 +176,7 @@ services:
             "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
             "-Djava.security.egd=file:/dev/./urandom",
             "-Dfile.encoding=UTF-8",
+            "-Dspring.profiles.active=development",
             "-jar",
             "/app/qip-variables-management.jar"
         ]
