@@ -11,6 +11,8 @@ on:
     branches:
       - "!main"
       - "!**release*"
+      - "!prettier/**"
+  workflow_dispatch:
 
 permissions:
   packages: write
