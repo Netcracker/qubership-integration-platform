@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensearch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: opensearch
+    spec:
+      containers:
+        - env:
+            - name: OPENSEARCH_JAVA_OPTS
+              value: -Xms512m -Xmx512m
+            - name: discovery.type
+              value: single-node
+          image: opensearchproject/opensearch:2.18.0
+          livenessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: 9200
+            failureThreshold: 15
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: 9200
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: opensearch
+          ports:
+            - containerPort: 9200
+            - containerPort: 9300
+          resources: {}
+          volumeMounts:
+            - mountPath: /usr/share/opensearch/config/opensearch.yml
+              subPath: opensearch.yml
+              name: opensearch-config-volume
+            - mountPath: /usr/share/opensearch/data
+              name: opensearch-data
+      restartPolicy: Always
+      volumes:
+        - name: opensearch-config-volume
+          configMap:
+            name: opensearch-config
+        - name: opensearch-data
+          persistentVolumeClaim:
+            claimName: opensearch-pvc

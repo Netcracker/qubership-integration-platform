@@ -1,0 +1,14 @@
+postgres:
+  user: postgres
+  password: postgres
+  database: postgres
+  initScript: init.sql
+
+service:
+  name: postgres
+  port: 5432
+
+serviceAccount:
+  name: default
+
+resources: {}

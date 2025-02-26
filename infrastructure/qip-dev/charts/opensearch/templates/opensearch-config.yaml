@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opensearch-config
+data:
+  opensearch.yml: |
+    cluster.name: "docker-cluster"
+    network.host: 0.0.0.0
+    plugins.security.disabled: true
+    path.data: /usr/share/opensearch/data
