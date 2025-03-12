@@ -7,9 +7,28 @@
     <version>${revision}</version>
     <packaging>jar</packaging>
 
+    <name>${project.groupId}:${project.artifactId}</name>
+    <description>Checkstyle definition for QIP</description>
+    <url>https://github.com/Netcracker/${repo-name}</url>
+
+    <developers>
+        <developer>
+            <name>Netcracker</name>
+            <email>opensourcegroup@netcracker.com</email>
+            <organization>Netcracker Technology</organization>
+            <organizationUrl>https://www.netcracker.com</organizationUrl>
+        </developer>
+    </developers>
+    <scm>
+        <connection>scm:git:git://github.com/Netcracker/${repo-name}.git</connection>
+        <developerConnection>scm:git:ssh://github.com:Netcracker/${repo-name}.git</developerConnection>
+        <url>https://github.com/Netcracker/${repo-name}/tree/main</url>
+    </scm>
+
     <properties>
-        <revision>1.0.0</revision>
+        <revision>0.0.1</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <repo-name>qubership-integration-checkstyle</repo-name>
     </properties>
 
     <distributionManagement>
