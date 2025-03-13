@@ -51,11 +51,11 @@ public class Chain extends FoldableEntity {
     private List<ChainElement> elements = new LinkedList<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "chain", cascade = {PERSIST, MERGE, REFRESH, DETACH}, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "chain", cascade = {PERSIST, MERGE, REFRESH, DETACH, REMOVE}, fetch = FetchType.LAZY)
     private List<Snapshot> snapshots = new LinkedList<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "chain", cascade = {PERSIST, MERGE, REFRESH, DETACH}, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "chain", cascade = {PERSIST, MERGE, REFRESH, DETACH, REMOVE}, fetch = FetchType.LAZY)
     private List<Deployment> deployments = new LinkedList<>();
 
     @Builder.Default
