@@ -18,4 +18,4 @@ package org.qubership.integration.platform.sessions.properties.opensearch;
 
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
-public record SessionProperties (@DefaultValue("104857600") Integer defaultBufferLimit) {}
+public record SessionProperties(@DefaultValue("104857600") Integer defaultBufferLimit) {}

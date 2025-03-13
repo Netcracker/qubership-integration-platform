@@ -63,8 +63,7 @@ public class GlobalExceptionHandler {
             if (sessionsRuntimeException.getOriginalException() != null) {
                 stacktrace = ExceptionUtils.getStackTrace(sessionsRuntimeException.getOriginalException());
             }
-        }
-        else {
+        } else {
             stacktrace = ExceptionUtils.getStackTrace(exception);
         }
 

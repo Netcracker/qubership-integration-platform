@@ -18,4 +18,4 @@ package org.qubership.integration.platform.sessions.properties.opensearch;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record ElementsIndexProperties (@NotBlank String name) {}
+public record ElementsIndexProperties(@NotBlank String name) {}

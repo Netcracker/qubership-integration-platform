@@ -16,18 +16,18 @@
 
 package org.qubership.integration.platform.sessions.configuration;
 
-import java.time.Duration;
-import java.util.function.Supplier;
-
 import jakarta.validation.constraints.NotNull;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
+
+import java.time.Duration;
+import java.util.function.Supplier;
 
 @AutoConfiguration
 public class RestTemplateAutoConfiguration {

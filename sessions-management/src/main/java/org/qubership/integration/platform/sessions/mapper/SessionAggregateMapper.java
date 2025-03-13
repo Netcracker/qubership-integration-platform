@@ -23,7 +23,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring", uses=SessionElementMapper.class, builder = @Builder(disableBuilder = true))
+@Mapper(componentModel = "spring", uses = SessionElementMapper.class, builder = @Builder(disableBuilder = true))
 public abstract class SessionAggregateMapper {
 
     public Session toPreview(SessionElementElastic element) {

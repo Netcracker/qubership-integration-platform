@@ -21,11 +21,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.sessions.dto.opensearch.ExceptionInfoElastic;
 
 import java.util.List;
 import java.util.Map;
-
-import org.qubership.integration.platform.sessions.dto.opensearch.ExceptionInfoElastic;
 
 @Getter
 @Setter

@@ -16,22 +16,21 @@
 
 package org.qubership.integration.platform.sessions.configuration.opensearch;
 
-import org.opensearch.client.opensearch.OpenSearchClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.Credentials;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.core5.http.HttpHost;
-
-import org.apache.hc.client5.http.auth.AuthScope;
-import org.apache.hc.client5.http.auth.Credentials;
+import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.transport.httpclient5.ApacheHttpClient5TransportBuilder;
 import org.qubership.integration.platform.sessions.opensearch.DefaultOpenSearchClientSupplier;
 import org.qubership.integration.platform.sessions.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.sessions.properties.opensearch.ClientProperties;
 import org.qubership.integration.platform.sessions.properties.opensearch.OpenSearchProperties;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @EnableConfigurationProperties(OpenSearchProperties.class)

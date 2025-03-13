@@ -19,7 +19,7 @@ package org.qubership.integration.platform.sessions.properties.sessions;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
-public record BulkRequestProperties (
+public record BulkRequestProperties(
       @DefaultValue("4096") Integer maxSizeKb,
       @DefaultValue("4096") Integer payloadSizeThresholdKb,
       @DefaultValue("5") Integer elementsCountThreshold

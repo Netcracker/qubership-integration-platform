@@ -18,7 +18,6 @@ package org.qubership.integration.platform.sessions.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.sessions.dto.Session;
 import org.qubership.integration.platform.sessions.exception.SessionsNotFoundException;
@@ -55,7 +54,7 @@ public class ExportService {
         return getExportedSessions(sessions.get(0).getChainId(), sessions);
     }
 
-    private Pair<String,String> getExportedSessions(String chainId, List<Session> sessions) throws JsonProcessingException {
+    private Pair<String, String> getExportedSessions(String chainId, List<Session> sessions) throws JsonProcessingException {
         String json = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(sessions);
         return Pair.of("chain-sessions-" + chainId + "-(" + DATE_FORMAT.format(new Date()) + ")" + JSON_EXTENSION, json);
     }

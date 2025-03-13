@@ -19,7 +19,6 @@ package org.qubership.integration.platform.sessions.mapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.mapstruct.Mapper;
@@ -38,7 +37,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-@Mapper(componentModel="spring")
+@Mapper(componentModel = "spring")
 public abstract class SessionElementMapper {
 
     private ObjectMapper objectMapper;

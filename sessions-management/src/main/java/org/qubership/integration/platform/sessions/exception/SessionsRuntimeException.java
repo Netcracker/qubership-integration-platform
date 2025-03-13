@@ -21,14 +21,14 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class SessionsRuntimeException  extends RuntimeException{
+public class SessionsRuntimeException  extends RuntimeException {
     private Exception originalException;
 
-    public SessionsRuntimeException(){
+    public SessionsRuntimeException() {
         super();
     }
 
-    public SessionsRuntimeException(String message){
+    public SessionsRuntimeException(String message) {
         super(message);
     }
 

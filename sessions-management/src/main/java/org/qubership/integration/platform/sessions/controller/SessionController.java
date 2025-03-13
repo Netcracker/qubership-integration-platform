@@ -22,7 +22,6 @@ import io.swagger.v3.oas.annotations.extensions.Extension;
 import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-
 import org.qubership.integration.platform.sessions.dto.Session;
 import org.qubership.integration.platform.sessions.dto.SessionElement;
 import org.qubership.integration.platform.sessions.dto.SessionSearchResponse;
@@ -86,7 +85,7 @@ public class SessionController {
         return ResponseEntity.ok(session);
     }
 
-    @RequestMapping(method=RequestMethod.HEAD, value="/{sessionId}")
+    @RequestMapping(method = RequestMethod.HEAD, value = "/{sessionId}")
     @Operation(description = "Find session by id if it exists", extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}))
     public ResponseEntity<Session> findExistingSession(@PathVariable String sessionId) {
         Session session = sessionService.findById(sessionId, SessionService.SESSION_ID_KEY, true, false);

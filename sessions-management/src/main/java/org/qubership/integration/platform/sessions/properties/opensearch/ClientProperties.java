@@ -19,7 +19,7 @@ package org.qubership.integration.platform.sessions.properties.opensearch;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
-public record ClientProperties (
+public record ClientProperties(
     @DefaultValue("opensearch") String host,
     @DefaultValue("9200") Integer port,
     @DefaultValue("http") String protocol,

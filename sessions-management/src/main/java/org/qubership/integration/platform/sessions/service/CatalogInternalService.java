@@ -16,19 +16,15 @@
 
 package org.qubership.integration.platform.sessions.service;
 
-import java.util.Map;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-
 import org.qubership.integration.platform.sessions.properties.InternalServicesProperties;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Component

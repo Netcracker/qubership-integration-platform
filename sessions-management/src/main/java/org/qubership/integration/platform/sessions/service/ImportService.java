@@ -18,9 +18,7 @@ package org.qubership.integration.platform.sessions.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import lombok.extern.slf4j.Slf4j;
-
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
@@ -101,9 +99,9 @@ public class ImportService {
     private void checkExisting(String filename, List<Session> sessions, List<Session> resultSessions) {
         Set<String> existingIds = new HashSet<>();
         for (Session session : sessions) {
-            if (sessionService.findById(session.getId(),SessionService.SESSION_ID_KEY, true, false) != null || // Session in db already exists
-                    sessions.stream().filter(s -> s.getId().equals(session.getId())).count() > 1 || // Session in current file mentioned twice and more
-                    resultSessions.stream().anyMatch(s -> s.getId().equals(session.getId())) // Session in current import in different file (In case it's not yet written in opensearch)
+            if (sessionService.findById(session.getId(), SessionService.SESSION_ID_KEY, true, false) != null // Session in db already exists
+                    || sessions.stream().filter(s -> s.getId().equals(session.getId())).count() > 1 // Session in current file mentioned twice and more
+                    || resultSessions.stream().anyMatch(s -> s.getId().equals(session.getId())) // Session in current import in different file (In case it's not yet written in opensearch)
                     ) {
                 existingIds.add(session.getId());
             }
@@ -153,8 +151,8 @@ public class ImportService {
                 }
 
                 needToExecuteBulk =
-                        bulkRequestSize >= bulkRequestMaxSizeBytes ||
-                                (!iterator.hasNext() && !updateRequests.isEmpty());
+                        bulkRequestSize >= bulkRequestMaxSizeBytes
+                                || (!iterator.hasNext() && !updateRequests.isEmpty());
                 if (needToExecuteBulk) {
                     executeBulk(updateRequests);
                     bulkRequestSize = 0;

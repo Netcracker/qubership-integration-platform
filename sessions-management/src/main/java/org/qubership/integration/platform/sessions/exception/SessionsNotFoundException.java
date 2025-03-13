@@ -24,7 +24,7 @@ public class SessionsNotFoundException extends SessionsRuntimeException {
         super(message);
     }
 
-    public SessionsNotFoundException(String message, Exception exception){
+    public SessionsNotFoundException(String message, Exception exception) {
         super(message, exception);
     }
 }

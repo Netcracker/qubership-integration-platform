@@ -21,4 +21,4 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties(prefix = PropertiesConstants.PROPERTIES_ROOT + ".sessions")
-public record SessionsProperties (@DefaultValue BulkRequestProperties bulkRequest) {}
+public record SessionsProperties(@DefaultValue BulkRequestProperties bulkRequest) {}

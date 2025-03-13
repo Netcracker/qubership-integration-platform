@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.sessions.exception;
 
-public class SearchException extends SessionsRuntimeException{
+public class SearchException extends SessionsRuntimeException {
 
     public SearchException() {
     }

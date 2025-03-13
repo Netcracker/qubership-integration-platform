@@ -22,7 +22,7 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties(prefix = PropertiesConstants.PROPERTIES_ROOT + ".opensearch")
-public record OpenSearchProperties (
+public record OpenSearchProperties(
     @DefaultValue ClientProperties client,
     @DefaultValue SessionProperties session,
     @DefaultValue IndexProperties index

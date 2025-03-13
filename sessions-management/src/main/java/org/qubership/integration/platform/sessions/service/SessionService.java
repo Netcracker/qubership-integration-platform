@@ -17,7 +17,6 @@
 package org.qubership.integration.platform.sessions.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.opensearch.client.json.JsonData;
@@ -26,7 +25,9 @@ import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.SortOptions;
 import org.opensearch.client.opensearch._types.SortOrder;
 import org.opensearch.client.opensearch._types.query_dsl.*;
-import org.opensearch.client.opensearch.core.*;
+import org.opensearch.client.opensearch.core.DeleteByQueryRequest;
+import org.opensearch.client.opensearch.core.SearchRequest;
+import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.search.FieldCollapse;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.core.search.InnerHits;
@@ -180,12 +181,14 @@ public class SessionService {
                                              int limit,
                                              String sortColumn,
                                              FilterRequestAndSearchDTO filterRequest) {
-        if (offset < 0 || limit < 1)
+        if (offset < 0 || limit < 1) {
             return new SessionSearchResponse(0, Collections.emptyList());
+        }
 
-        if (!SESSION_OPENSEARCH_FIELDS.contains(sortColumn))
-            throw new IllegalArgumentException("Can't sort results on this column. Valid columns are: " +
-                    StringUtils.join(SESSION_OPENSEARCH_FIELDS, ", "));
+        if (!SESSION_OPENSEARCH_FIELDS.contains(sortColumn)) {
+            throw new IllegalArgumentException("Can't sort results on this column. Valid columns are: "
+                    + StringUtils.join(SESSION_OPENSEARCH_FIELDS, ", "));
+        }
 
         Map<String, SessionElementElastic> resultSessions = new LinkedHashMap<>();
 
