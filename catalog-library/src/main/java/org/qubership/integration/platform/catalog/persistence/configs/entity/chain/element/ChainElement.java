@@ -79,12 +79,12 @@ public class ChainElement extends AbstractEntity {
 
     @Builder.Default
     @OrderBy("elementFrom.id")
-    @OneToMany(mappedBy = "elementTo", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "elementTo", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
     private List<Dependency> inputDependencies = new LinkedList<>();
 
     @Builder.Default
     @OrderBy("elementTo.id")
-    @OneToMany(mappedBy = "elementFrom", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "elementFrom", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
     private List<Dependency> outputDependencies = new LinkedList<>();
 
     @Builder.Default
