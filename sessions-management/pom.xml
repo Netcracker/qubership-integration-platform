@@ -34,7 +34,7 @@
 
         <springdoc.version>2.6.0</springdoc.version>
         <opensearch.version>2.14.0</opensearch.version>
-        <apache.httpclient5.version>5.3.1</apache.httpclient5.version>
+        <apache.httpclient5.version>5.4</apache.httpclient5.version>
         <jandex.version>3.2.2</jandex.version>
 
         <!-- Cloud-core dependencies -->
