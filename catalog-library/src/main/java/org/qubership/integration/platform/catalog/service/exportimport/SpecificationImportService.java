@@ -263,8 +263,8 @@ public class SpecificationImportService {
                 exception = exception.getCause();
             }
             errorMessage = exception.getMessage();
-            if (exception instanceof SystemModelLibraryGenerationException libraryGenerationException) {
-                errorMessage += " " + libraryGenerationException.getOriginalException().getMessage();
+            if (exception instanceof CatalogRuntimeException catalogRuntimeException) {
+                errorMessage += ". " + catalogRuntimeException.getOriginalException().getMessage();
             }
             if (StringUtils.isNotBlank(additionalMessage)) {
                 errorMessage += " " + additionalMessage;

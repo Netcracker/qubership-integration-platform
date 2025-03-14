@@ -68,16 +68,12 @@ public class AMQPSpecificationResolver implements AsyncApiSpecificationResolver 
         ObjectNode specificationNode = objectMapper.createObjectNode();
         try {
             JsonNode allBindings = objectMapper.readTree(objectMapper.writeValueAsString(channel.getBindings()));
-            JsonNode amqpBindings = allBindings.get(SPECIFICATION_AMQP);
-
-            specificationNode.set(PROPERTY_USERNAME, amqpBindings.get(SPECIFICATION_USER_ID));
-
-            JsonNode queueBindings = amqpBindings.get(SPECIFICATION_QUEUE);
-            specificationNode.set(PROPERTY_QUEUE_NAME, queueBindings.get(SPECIFICATION_NAME));
-
-            JsonNode exchangeBinding = amqpBindings.get(SPECIFICATION_EXCHANGE);
-            specificationNode.set(PROPERTY_EXCHANGE_NAME, exchangeBinding.get(SPECIFICATION_NAME));
-
+            JsonNode amqpBindings = allBindings.path(SPECIFICATION_AMQP);
+            if (!amqpBindings.isMissingNode() && !amqpBindings.isNull()) {
+                addIfNotNull(specificationNode, PROPERTY_USERNAME, amqpBindings.get(SPECIFICATION_USER_ID));
+                addIfNotNull(specificationNode, PROPERTY_QUEUE_NAME, amqpBindings.at("/" + SPECIFICATION_QUEUE + "/" + SPECIFICATION_NAME));
+                addIfNotNull(specificationNode, PROPERTY_EXCHANGE_NAME, amqpBindings.at("/" + SPECIFICATION_EXCHANGE + "/" + SPECIFICATION_NAME));
+            }
             return specificationNode;
         } catch (JsonProcessingException e) {
             throw new SpecificationImportException(CONVERTING_OPERATION_TO_JSON_ERROR,e);
@@ -95,5 +91,11 @@ public class AMQPSpecificationResolver implements AsyncApiSpecificationResolver 
     @Override
     public void setUpOperationMessages(Operation operation, OperationObject operationObject, Components components) {
 
+    }
+
+    private void addIfNotNull(ObjectNode node, String key, JsonNode value) {
+        if (value != null && !value.isMissingNode() && !value.isNull()) {
+            node.set(key, value);
+        }
     }
 }
