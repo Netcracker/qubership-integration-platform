@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap.expressions;
 
-import static io.atlasmap.v2.AtlasModelFactory.wrapWithField;
-
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.ExpressionContext;
 import io.atlasmap.expression.ExpressionException;
 import io.atlasmap.expression.internal.ArithmeticExpression;
 import io.atlasmap.v2.Field;
 import io.atlasmap.v2.FieldType;
+
+import static io.atlasmap.v2.AtlasModelFactory.wrapWithField;
 
 /**
  * Change default `+` operator behavior for string variables

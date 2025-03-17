@@ -16,16 +16,17 @@
 
 package org.qubership.integration.platform.engine.camel.components.rabbitmq;
 
-import static org.apache.camel.component.springrabbit.SpringRabbitMQEndpoint.ARG_PREFIX;
-
-import java.util.Map;
-import javax.net.ssl.TrustManager;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Endpoint;
 import org.apache.camel.component.springrabbit.SpringRabbitMQComponent;
 import org.apache.camel.spi.Metadata;
 import org.apache.camel.spi.annotations.Component;
 import org.apache.camel.util.PropertiesHelper;
+
+import java.util.Map;
+import javax.net.ssl.TrustManager;
+
+import static org.apache.camel.component.springrabbit.SpringRabbitMQEndpoint.ARG_PREFIX;
 
 @Slf4j
 @Component("rabbitmq-custom")

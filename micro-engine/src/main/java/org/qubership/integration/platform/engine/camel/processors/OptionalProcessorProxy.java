@@ -16,9 +16,10 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import java.util.Optional;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
+
+import java.util.Optional;
 
 public abstract class OptionalProcessorProxy implements Processor {
     private final Optional<? extends Processor> processor;

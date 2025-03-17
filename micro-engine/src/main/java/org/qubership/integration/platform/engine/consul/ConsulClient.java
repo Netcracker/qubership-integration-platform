@@ -16,28 +16,24 @@
 
 package org.qubership.integration.platform.engine.consul;
 
-import org.qubership.integration.platform.engine.model.consul.CreateSessionResponse;
-import org.qubership.integration.platform.engine.model.consul.KeyResponse;
-import org.qubership.integration.platform.engine.model.consul.CreateSessionRequest;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.engine.model.consul.CreateSessionRequest;
+import org.qubership.integration.platform.engine.model.consul.CreateSessionResponse;
+import org.qubership.integration.platform.engine.model.consul.KeyResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component

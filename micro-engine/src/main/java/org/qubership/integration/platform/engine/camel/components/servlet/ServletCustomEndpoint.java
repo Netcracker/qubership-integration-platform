@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Category;
 import org.apache.camel.Consumer;
@@ -27,10 +26,11 @@ import org.apache.camel.component.servlet.ServletEndpoint;
 import org.apache.camel.spi.HeaderFilterStrategy;
 import org.apache.camel.spi.UriEndpoint;
 import org.apache.camel.spi.UriParam;
+import org.apache.http.client.utils.URIBuilder;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import org.apache.http.client.utils.URIBuilder;
+import java.util.UUID;
 
 @Slf4j
 @UriEndpoint(

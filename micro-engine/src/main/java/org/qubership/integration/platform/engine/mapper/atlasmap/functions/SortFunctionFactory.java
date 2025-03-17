@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap.functions;
 
-import org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils;
 import io.atlasmap.core.AtlasPath;
 import io.atlasmap.core.BaseFunctionFactory;
 import io.atlasmap.expression.Expression;
@@ -27,6 +26,7 @@ import io.atlasmap.v2.AtlasModelFactory;
 import io.atlasmap.v2.Field;
 import io.atlasmap.v2.FieldGroup;
 import io.atlasmap.v2.FieldType;
+import org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;

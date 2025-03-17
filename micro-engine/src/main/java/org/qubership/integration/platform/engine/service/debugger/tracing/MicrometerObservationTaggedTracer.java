@@ -16,10 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.debugger.tracing;
 
-import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.TRACING_CUSTOM_TAGS;
-
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.camel.Exchange;
 import org.apache.camel.api.management.ManagedResource;
 import org.apache.camel.observation.MicrometerObservationTracer;
@@ -28,6 +24,11 @@ import org.apache.camel.tracing.SpanAdapter;
 import org.apache.camel.tracing.SpanDecorator;
 import org.apache.camel.tracing.SpanKind;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.TRACING_CUSTOM_TAGS;
 
 @ManagedResource(description = "MicrometerObservationTracer")
 public class MicrometerObservationTaggedTracer extends MicrometerObservationTracer {

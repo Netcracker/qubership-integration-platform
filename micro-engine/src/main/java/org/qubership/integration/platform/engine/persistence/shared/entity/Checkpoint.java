@@ -16,21 +16,16 @@
 
 package org.qubership.integration.platform.engine.persistence.shared.entity;
 
+import jakarta.persistence.*;
+import lombok.*;
+import lombok.Builder.Default;
+
 import java.sql.Timestamp;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
-
-import jakarta.persistence.*;
-
 import javax.annotation.Nullable;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Builder.Default;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Getter
 @Setter

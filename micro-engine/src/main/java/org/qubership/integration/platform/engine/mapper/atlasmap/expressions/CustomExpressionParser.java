@@ -16,22 +16,14 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap.expressions;
 
-import static io.atlasmap.expression.internal.BooleanExpression.asBooleanExpression;
-
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.FunctionResolver;
-import io.atlasmap.expression.internal.ArithmeticExpression;
-import io.atlasmap.expression.internal.ConstantExpression;
-import io.atlasmap.expression.internal.LogicExpression;
-import io.atlasmap.expression.internal.Strings;
-import io.atlasmap.expression.internal.VariableExpression;
-import io.atlasmap.expression.parser.ParseException;
-import io.atlasmap.expression.parser.Parser;
-import io.atlasmap.expression.parser.ParserConstants;
-import io.atlasmap.expression.parser.ParserTokenManager;
-import io.atlasmap.expression.parser.SimpleCharStream;
-import io.atlasmap.expression.parser.Token;
+import io.atlasmap.expression.internal.*;
+import io.atlasmap.expression.parser.*;
+
 import java.util.ArrayList;
+
+import static io.atlasmap.expression.internal.BooleanExpression.asBooleanExpression;
 
 /**
  * Based on Atlasmap class {@link Parser}.

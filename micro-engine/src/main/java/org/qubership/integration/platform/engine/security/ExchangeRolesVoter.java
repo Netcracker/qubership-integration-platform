@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.engine.security;
 
+import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.util.DevModeUtil;
-import org.apache.camel.Exchange;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDecisionVoter;
 import org.springframework.security.access.ConfigAttribute;

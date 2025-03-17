@@ -16,18 +16,12 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap.json;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import lombok.extern.slf4j.Slf4j;
-
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-
 import io.atlasmap.api.AtlasConversionException;
 import io.atlasmap.api.AtlasException;
 import io.atlasmap.core.AtlasPath;
@@ -39,13 +33,11 @@ import io.atlasmap.json.v2.JsonField;
 import io.atlasmap.spi.AtlasConversionService;
 import io.atlasmap.spi.AtlasFieldReader;
 import io.atlasmap.spi.AtlasInternalSession;
-import io.atlasmap.v2.AtlasModelFactory;
-import io.atlasmap.v2.AuditStatus;
-import io.atlasmap.v2.CollectionType;
-import io.atlasmap.v2.Field;
-import io.atlasmap.v2.FieldGroup;
-import io.atlasmap.v2.FieldStatus;
-import io.atlasmap.v2.FieldType;
+import io.atlasmap.v2.*;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 public class QipAtlasJsonFieldReader implements AtlasFieldReader {

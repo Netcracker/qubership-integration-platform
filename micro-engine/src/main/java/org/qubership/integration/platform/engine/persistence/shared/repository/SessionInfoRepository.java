@@ -18,12 +18,12 @@ package org.qubership.integration.platform.engine.persistence.shared.repository;
 
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
-import java.util.List;
-import java.util.Optional;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+import java.util.Optional;
 
 public interface SessionInfoRepository extends JpaRepository<SessionInfo, String> {
     List<SessionInfo> findAllByChainIdAndExecutionStatus(String chainId, ExecutionStatus status);

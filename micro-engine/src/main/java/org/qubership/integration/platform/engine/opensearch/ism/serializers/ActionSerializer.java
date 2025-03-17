@@ -17,26 +17,18 @@
 package org.qubership.integration.platform.engine.opensearch.ism.serializers;
 
 import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.BeanDescription;
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
+import org.qubership.integration.platform.engine.opensearch.ism.model.actions.*;
 
 import java.io.IOException;
-import java.util.*;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.Action;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.AllocationAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.CloseAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.DeleteAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.ForceMergeAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.IndexPriorityAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.NotificationAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.OpenAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.ReadOnlyAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.ReadWriteAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.ReplicaCountAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.RolloverAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.RollupAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.ShrinkAction;
-import org.qubership.integration.platform.engine.opensearch.ism.model.actions.SnapshotAction;
+import java.util.AbstractMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;

@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.engine.service;
 
-import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
-import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerProxy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Consumer;
 import org.apache.camel.Endpoint;
@@ -29,6 +27,8 @@ import org.apache.camel.pollconsumer.quartz.QuartzScheduledPollConsumerScheduler
 import org.apache.camel.spi.ScheduledPollConsumerScheduler;
 import org.apache.camel.spring.SpringCamelContext;
 import org.quartz.*;
+import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
+import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerProxy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

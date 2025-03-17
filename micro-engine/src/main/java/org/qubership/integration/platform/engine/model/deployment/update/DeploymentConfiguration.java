@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.engine.model.deployment.update;
 
-import java.util.ArrayList;
 import lombok.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter

@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.model.constants;
 
 import org.apache.camel.Exchange;
+import org.apache.camel.component.springrabbit.SpringRabbitMQConstants;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -24,7 +25,6 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
-import org.apache.camel.component.springrabbit.SpringRabbitMQConstants;
 
 @SuppressWarnings("unused")
 public final class CamelConstants {

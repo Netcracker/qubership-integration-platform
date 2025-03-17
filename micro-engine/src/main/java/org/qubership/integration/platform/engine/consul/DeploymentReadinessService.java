@@ -16,24 +16,24 @@
 
 package org.qubership.integration.platform.engine.consul;
 
-import org.qubership.integration.platform.engine.configuration.DeploymentReadinessAutoConfiguration;
-import org.qubership.integration.platform.engine.events.UpdateEvent;
-
-import java.util.Map;
-import java.util.Set;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.engine.configuration.DeploymentReadinessAutoConfiguration;
+import org.qubership.integration.platform.engine.events.UpdateEvent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component

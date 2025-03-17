@@ -16,13 +16,12 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.util.ClientBuilder;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.TokenFileAuthentication;
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -31,6 +30,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Optional;
 
 
 @Slf4j

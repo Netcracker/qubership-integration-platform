@@ -16,10 +16,6 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-
 import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEvent;
 import org.qubership.integration.platform.engine.events.SecuredVariablesUpdatedEvent;
 import org.qubership.integration.platform.engine.events.UpdateEvent;
@@ -27,6 +23,10 @@ import org.qubership.integration.platform.engine.util.DevModeUtil;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 @AutoConfiguration
 public class DeploymentReadinessAutoConfiguration {

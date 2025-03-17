@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
-import org.qubership.integration.platform.engine.util.EngineDomainUtils;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
+import org.qubership.integration.platform.engine.util.EngineDomainUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
-import jakarta.annotation.PostConstruct;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 

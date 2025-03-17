@@ -16,22 +16,25 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap.functions;
 
-import org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils;
-import org.qubership.integration.platform.mapper.ComplexField;
 import io.atlasmap.core.AtlasPath;
 import io.atlasmap.core.BaseFunctionFactory;
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.ExpressionContext;
 import io.atlasmap.expression.ExpressionException;
 import io.atlasmap.expression.parser.ParseException;
-import io.atlasmap.v2.*;
+import io.atlasmap.v2.CollectionType;
+import io.atlasmap.v2.Field;
+import io.atlasmap.v2.FieldType;
+import io.atlasmap.v2.SimpleField;
+import org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils;
+import org.qubership.integration.platform.mapper.ComplexField;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.replacePathSegments;
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.replacePathSegments;
 
 public class MakeObjectFunctionFactory extends BaseFunctionFactory {
     @Override

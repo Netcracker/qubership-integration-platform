@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.engine.rest.v1.dto.checkpoint;
 
-import org.qubership.integration.platform.engine.service.ExecutionStatus;
-import java.util.List;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
+import org.qubership.integration.platform.engine.service.ExecutionStatus;
+
+import java.util.List;
 
 @Data
 @Builder

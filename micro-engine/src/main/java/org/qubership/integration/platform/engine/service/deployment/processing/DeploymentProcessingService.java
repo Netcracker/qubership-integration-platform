@@ -16,18 +16,17 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing;
 
-import java.util.Collection;
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
+import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnStopDeploymentContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import lombok.extern.slf4j.Slf4j;
+import java.util.Collection;
 
 @Slf4j
 @Service

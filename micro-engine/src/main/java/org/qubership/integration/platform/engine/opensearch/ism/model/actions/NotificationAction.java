@@ -21,9 +21,9 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import org.qubership.integration.platform.engine.opensearch.ism.model.destination.Destination;
 import lombok.*;
 import org.opensearch.client.opensearch._types.Script;
+import org.qubership.integration.platform.engine.opensearch.ism.model.destination.Destination;
 
 @EqualsAndHashCode(callSuper = true)
 @Data

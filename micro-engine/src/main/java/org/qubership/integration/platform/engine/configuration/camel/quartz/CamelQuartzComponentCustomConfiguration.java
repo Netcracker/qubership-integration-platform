@@ -17,18 +17,19 @@
 package org.qubership.integration.platform.engine.configuration.camel.quartz;
 
 
-import org.qubership.integration.platform.engine.service.QuartzSchedulerService;
-import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.quartz.QuartzComponent;
 import org.apache.camel.component.quartz.springboot.QuartzComponentConfiguration;
 import org.apache.camel.spi.ComponentCustomizer;
 import org.apache.camel.spring.boot.ComponentConfigurationProperties;
+import org.qubership.integration.platform.engine.service.QuartzSchedulerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.Map;
 
 @Slf4j
 @Configuration(proxyBeanMethods = false)

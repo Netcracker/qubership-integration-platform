@@ -16,19 +16,19 @@
 
 package org.qubership.integration.platform.engine.service.debugger.util;
 
+import org.apache.camel.Exchange;
+import org.apache.camel.ExchangePropertyKey;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.logging.LogPayload;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
-import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.camel.Exchange;
-import org.apache.camel.ExchangePropertyKey;
 
 import java.util.Deque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentMap;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DebuggerUtils {
 

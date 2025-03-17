@@ -20,12 +20,15 @@ import io.atlasmap.core.AtlasPath;
 import io.atlasmap.core.BaseFunctionFactory;
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.parser.ParseException;
-import io.atlasmap.v2.*;
+import io.atlasmap.v2.AtlasModelFactory;
+import io.atlasmap.v2.Field;
+import io.atlasmap.v2.FieldGroup;
+import io.atlasmap.v2.FieldType;
 
 import java.util.List;
 
-import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.*;
 import static java.util.Objects.nonNull;
+import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.*;
 
 public class GetValuesFunctionFactory extends BaseFunctionFactory {
     @Override

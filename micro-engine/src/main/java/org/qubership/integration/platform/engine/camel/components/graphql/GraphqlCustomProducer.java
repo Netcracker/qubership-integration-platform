@@ -16,16 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.components.graphql;
 
-import static org.apache.camel.Exchange.HTTP_RESPONSE_CODE;
-
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
 import org.apache.camel.AsyncCallback;
 import org.apache.camel.Exchange;
 import org.apache.camel.InvalidPayloadException;
@@ -36,14 +26,17 @@ import org.apache.camel.util.json.JsonObject;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.NameValuePair;
-import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.*;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.message.BasicHeader;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
+
+import java.net.URI;
+import java.util.*;
+import java.util.stream.Collectors;
+
+import static org.apache.camel.Exchange.HTTP_RESPONSE_CODE;
 
 public class GraphqlCustomProducer extends GraphqlProducer {
 

@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.engine.camel.processors.session;
 
-import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
+import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.springframework.stereotype.Component;
 
 @Component

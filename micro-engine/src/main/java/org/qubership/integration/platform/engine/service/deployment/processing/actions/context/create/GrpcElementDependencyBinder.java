@@ -16,22 +16,23 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
-import org.apache.camel.spring.SpringCamelContext;
-import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
-import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
-import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
-import org.qubership.integration.platform.engine.model.ChainElementType;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
-import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import io.grpc.Status;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.binder.grpc.MetricCollectingClientInterceptor;
-import io.grpc.Status;
+import org.apache.camel.spring.SpringCamelContext;
+import org.qubership.integration.platform.engine.model.ChainElementType;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
+import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
+import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
+import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
+import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
 import java.util.function.UnaryOperator;
 
 @Component

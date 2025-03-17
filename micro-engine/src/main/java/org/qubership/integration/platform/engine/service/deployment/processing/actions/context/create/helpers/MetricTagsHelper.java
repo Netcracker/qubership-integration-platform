@@ -16,24 +16,21 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers;
 
+import io.micrometer.common.KeyValue;
+import io.micrometer.common.KeyValues;
+import io.micrometer.core.instrument.Tag;
+import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
-import io.micrometer.core.instrument.Tag;
-import io.micrometer.common.KeyValue;
-import io.micrometer.common.KeyValues;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore.CHAIN_ID_TAG;
-import static org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore.CHAIN_NAME_TAG;
-import static org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore.ELEMENT_ID_TAG;
-import static org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore.ELEMENT_NAME_TAG;
-import static org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore.ENGINE_DOMAIN_TAG;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+
+import static org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore.*;
 
 @Component
 public class MetricTagsHelper {

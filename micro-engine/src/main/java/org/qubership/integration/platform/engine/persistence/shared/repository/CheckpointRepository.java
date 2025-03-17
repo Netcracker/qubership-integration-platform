@@ -17,10 +17,11 @@
 package org.qubership.integration.platform.engine.persistence.shared.repository;
 
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
-import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
 
 public interface CheckpointRepository extends JpaRepository<Checkpoint, String> {
 

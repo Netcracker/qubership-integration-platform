@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.engine.util;
 
-import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import io.grpc.MethodDescriptor;
 import org.apache.camel.Exchange;
 import org.apache.camel.component.grpc.GrpcUtils;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;

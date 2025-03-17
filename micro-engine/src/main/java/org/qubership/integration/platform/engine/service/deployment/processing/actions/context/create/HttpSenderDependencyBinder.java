@@ -16,25 +16,25 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
-import org.apache.camel.spring.SpringCamelContext;
+import io.micrometer.core.instrument.binder.httpcomponents.hc5.MicrometerHttpClientInterceptor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.http.HttpClientConfigurer;
+import org.apache.camel.spring.SpringCamelContext;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.protocol.HttpContext;
-import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
-import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
+import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
+import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.testing.TestingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import io.micrometer.core.instrument.binder.httpcomponents.hc5.MicrometerHttpClientInterceptor;
-import lombok.extern.slf4j.Slf4j;
 
 import java.net.URISyntaxException;
 import java.util.Optional;

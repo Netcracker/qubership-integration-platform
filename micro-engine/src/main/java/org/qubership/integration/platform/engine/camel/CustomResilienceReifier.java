@@ -16,11 +16,9 @@
 
 package org.qubership.integration.platform.engine.camel;
 
-import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
-import io.github.resilience4j.circuitbreaker.event.*;
+import io.github.resilience4j.circuitbreaker.event.CircuitBreakerEvent;
 import io.github.resilience4j.core.EventConsumer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Processor;
@@ -28,6 +26,8 @@ import org.apache.camel.Route;
 import org.apache.camel.component.resilience4j.ResilienceProcessor;
 import org.apache.camel.component.resilience4j.ResilienceReifier;
 import org.apache.camel.model.CircuitBreakerDefinition;
+import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
+import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 
 import java.time.Duration;
 import java.util.Optional;

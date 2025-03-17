@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
-import java.util.List;
-import java.util.Map;
-
 import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -31,6 +28,9 @@ import org.qubership.integration.platform.engine.service.deployment.processing.q
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
 
 @Component
 @ConditionalOnBean(SdsService.class)

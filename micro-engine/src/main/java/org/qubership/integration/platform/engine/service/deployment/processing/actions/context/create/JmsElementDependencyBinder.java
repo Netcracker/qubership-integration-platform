@@ -16,34 +16,34 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
-import javax.naming.Context;
-import javax.naming.NamingException;
 import jakarta.jms.ConnectionFactory;
-import org.springframework.jms.support.destination.JndiDestinationResolver;
-import org.springframework.jndi.JndiObjectFactoryBean;
-import org.springframework.jndi.JndiTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.apache.camel.spring.SpringCamelContext;
 import org.apache.camel.component.jms.JmsComponent;
 import org.apache.camel.component.jms.JmsConfiguration;
 import org.apache.camel.spi.ThreadPoolProfile;
+import org.apache.camel.spring.SpringCamelContext;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
-import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
-import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
-import org.qubership.integration.platform.engine.service.VariablesService;
-import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecureThreadFactory;
 import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecurityBean;
 import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecurityInterceptStrategy;
+import org.qubership.integration.platform.engine.model.ChainElementType;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
+import org.qubership.integration.platform.engine.service.VariablesService;
+import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
+import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jms.support.destination.JndiDestinationResolver;
+import org.springframework.jndi.JndiObjectFactoryBean;
+import org.springframework.jndi.JndiTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.stereotype.Component;
+
 import java.util.Map;
 import java.util.Properties;
-import java.lang.RuntimeException;
+import javax.naming.Context;
+import javax.naming.NamingException;
 
 @Component
 @OnAfterDeploymentContextCreated

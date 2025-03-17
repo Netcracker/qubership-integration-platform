@@ -16,23 +16,18 @@
 
 package org.qubership.integration.platform.engine.service;
 
-import static org.qubership.integration.platform.engine.util.CheckpointUtils.CHECKPOINT_RETRY_PATH_TEMPLATE;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.persistence.shared.repository.SessionInfoRepository;
-import java.util.List;
-import java.util.Optional;
-import jakarta.persistence.EntityNotFoundException;
-import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +37,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClient.RequestBodySpec;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Supplier;
+
+import static org.qubership.integration.platform.engine.util.CheckpointUtils.CHECKPOINT_RETRY_PATH_TEMPLATE;
 
 @Slf4j
 @Component

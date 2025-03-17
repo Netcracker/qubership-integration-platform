@@ -16,10 +16,7 @@
 
 package org.qubership.integration.platform.engine.configuration.camel;
 
-import static org.apache.tomcat.util.buf.EncodedSolidusHandling.PASS_THROUGH;
-
 import jakarta.servlet.Servlet;
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.servlet.CamelHttpTransportServlet;
 import org.apache.camel.spi.ComponentCustomizer;
@@ -30,6 +27,10 @@ import org.springframework.boot.web.embedded.tomcat.TomcatConnectorCustomizer;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.Optional;
+
+import static org.apache.tomcat.util.buf.EncodedSolidusHandling.PASS_THROUGH;
 
 @Slf4j
 @Configuration

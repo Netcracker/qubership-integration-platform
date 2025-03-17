@@ -17,9 +17,9 @@
 package org.qubership.integration.platform.engine.mapper.atlasmap.functions;
 
 import io.atlasmap.core.BaseFunctionFactory;
-import io.atlasmap.v2.AtlasModelFactory;
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.parser.ParseException;
+import io.atlasmap.v2.AtlasModelFactory;
 
 import java.util.List;
 

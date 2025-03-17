@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.components.directvm;
 
-import java.time.Duration;
-import java.util.Objects;
 import org.apache.camel.AsyncCallback;
 import org.apache.camel.Exchange;
 import org.apache.camel.support.DefaultAsyncProducer;
@@ -28,6 +26,9 @@ import org.apache.camel.support.task.budget.IterationBoundedBudget;
 import org.apache.camel.util.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.time.Duration;
+import java.util.Objects;
 
 /**
  * The direct producer.

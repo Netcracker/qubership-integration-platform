@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.engine.util;
 
-import java.util.Map;
-
-import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.springframework.web.util.UriTemplate;
+
+import java.util.Map;
 
 import static org.apache.camel.Exchange.HTTP_PATH;
 

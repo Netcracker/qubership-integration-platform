@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.engine.service.debugger.kafkareporting;
 
+import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.sessionsreporting.EventSourceType;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
-import org.apache.camel.Exchange;
 
 public interface SessionsKafkaReportingService {
 

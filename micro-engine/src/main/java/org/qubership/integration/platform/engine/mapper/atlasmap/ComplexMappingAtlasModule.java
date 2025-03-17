@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
-import org.qubership.integration.platform.mapper.ComplexField;
 import io.atlasmap.api.AtlasException;
 import io.atlasmap.api.AtlasValidationException;
 import io.atlasmap.core.AtlasPath;
@@ -28,6 +27,7 @@ import io.atlasmap.spi.AtlasFieldWriter;
 import io.atlasmap.spi.AtlasInternalSession;
 import io.atlasmap.spi.AtlasModuleDetail;
 import io.atlasmap.v2.*;
+import org.qubership.integration.platform.mapper.ComplexField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,11 +36,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 
-import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.hasNotIndexedCollection;
-import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.replacePathPrefix;
-import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.replacePathPrefixIndex;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
+import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.*;
 
 public abstract class ComplexMappingAtlasModule extends DelegatingAtlasModule {
     private static final Logger LOG = LoggerFactory.getLogger(ComplexMappingAtlasModule.class);

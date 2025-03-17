@@ -17,8 +17,8 @@
 package org.qubership.integration.platform.engine.opensearch.ism.rest;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.qubership.integration.platform.engine.opensearch.ism.model.Policy;
 import lombok.*;
+import org.qubership.integration.platform.engine.opensearch.ism.model.Policy;
 
 @Setter
 @Getter

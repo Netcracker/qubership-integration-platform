@@ -16,16 +16,16 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import org.qubership.integration.platform.engine.model.constants.BusinessIds;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
-import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
-import org.qubership.integration.platform.engine.util.MDCUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.language.simple.SimpleLanguage;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.engine.model.constants.BusinessIds;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
+import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
+import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
+import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

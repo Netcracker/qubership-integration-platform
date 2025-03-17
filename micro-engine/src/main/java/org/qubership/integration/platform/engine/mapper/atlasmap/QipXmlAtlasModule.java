@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
-import org.qubership.integration.platform.engine.mapper.atlasmap.xml.QipAtlasXmlFieldWriter;
 import io.atlasmap.api.AtlasException;
 import io.atlasmap.core.AtlasUtil;
 import io.atlasmap.core.validate.BaseModuleValidationService;
@@ -28,14 +27,15 @@ import io.atlasmap.xml.inspect.XmlInspectionException;
 import io.atlasmap.xml.inspect.XmlInspectionService;
 import io.atlasmap.xml.module.XmlModule;
 import io.atlasmap.xml.v2.*;
+import org.qubership.integration.platform.engine.mapper.atlasmap.xml.QipAtlasXmlFieldWriter;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 @AtlasModuleDetail(
         name = "QipXmlAtlasModule",

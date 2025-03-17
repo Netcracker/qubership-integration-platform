@@ -16,18 +16,18 @@
 
 package org.qubership.integration.platform.engine.persistence.shared.entity;
 
-import org.qubership.integration.platform.engine.model.Session;
-import org.qubership.integration.platform.engine.service.ExecutionStatus;
-import java.sql.Timestamp;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
 import jakarta.persistence.*;
-
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.qubership.integration.platform.engine.model.Session;
+import org.qubership.integration.platform.engine.service.ExecutionStatus;
+
+import java.sql.Timestamp;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 
 @Getter
 @Setter

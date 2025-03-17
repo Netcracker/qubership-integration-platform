@@ -17,12 +17,10 @@
 package org.qubership.integration.platform.engine.configuration;
 
 
+import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
 import org.qubership.integration.platform.engine.service.debugger.metrics.SessionsMetricsService;
-import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
-import java.util.function.Function;
-import org.opensearch.client.opensearch.OpenSearchClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

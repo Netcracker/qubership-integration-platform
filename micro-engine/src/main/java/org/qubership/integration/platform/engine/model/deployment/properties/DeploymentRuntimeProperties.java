@@ -16,22 +16,17 @@
 
 package org.qubership.integration.platform.engine.model.deployment.properties;
 
-import static java.util.Objects.nonNull;
-
+import lombok.*;
+import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.qubership.integration.platform.engine.model.logging.LogPayload;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import org.apache.camel.Exchange;
 
 import java.util.Set;
+
+import static java.util.Objects.nonNull;
 
 @Getter
 @Setter

@@ -21,9 +21,9 @@ import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.parser.ParseException;
 import io.atlasmap.v2.AtlasModelFactory;
 
-import static java.util.Objects.isNull;
-
 import java.util.List;
+
+import static java.util.Objects.isNull;
 
 public class ReplaceAllFunctionFactory extends BaseFunctionFactory {
     @Override

@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

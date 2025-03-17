@@ -20,6 +20,7 @@ import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.ExpressionException;
 import io.atlasmap.expression.FunctionResolver;
 import io.atlasmap.expression.parser.ParseException;
+
 import java.io.StringReader;
 
 public interface CustomExpression extends Expression {

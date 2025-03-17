@@ -20,12 +20,12 @@ import org.opensearch.client.opensearch.generic.Body;
 import org.opensearch.client.opensearch.generic.Request;
 import org.opensearch.client.transport.GenericSerializable;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.*;
+import javax.annotation.Nullable;
 
 import static java.util.Collections.unmodifiableMap;
 

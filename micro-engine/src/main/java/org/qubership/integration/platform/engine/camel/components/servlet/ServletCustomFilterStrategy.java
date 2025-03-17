@@ -16,10 +16,11 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
-import java.util.Locale;
-import java.util.Optional;
 import org.apache.camel.http.common.HttpHeaderFilterStrategy;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
+
+import java.util.Locale;
+import java.util.Optional;
 
 public class ServletCustomFilterStrategy extends HttpHeaderFilterStrategy {
 

@@ -27,9 +27,9 @@ import io.atlasmap.v2.FieldGroup;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.cloneField;
 import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.replacePathSegments;
-import static java.util.Objects.nonNull;
 
 public class ListFunctionFactory extends BaseFunctionFactory {
     @Override

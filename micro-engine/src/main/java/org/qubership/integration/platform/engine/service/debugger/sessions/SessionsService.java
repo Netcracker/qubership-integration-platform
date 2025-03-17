@@ -16,6 +16,11 @@
 
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.Exchange;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.Session;
 import org.qubership.integration.platform.engine.model.SessionElementProperty;
@@ -30,12 +35,6 @@ import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
-import java.util.concurrent.locks.ReadWriteLock;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.Exchange;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
@@ -44,6 +43,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
 
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties.HAS_INTERMEDIATE_PARENTS;

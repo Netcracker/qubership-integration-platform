@@ -16,23 +16,24 @@
 
 package org.qubership.integration.platform.engine.configuration.camel.quartz;
 
-import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import com.zaxxer.hikari.HikariDataSource;
-import java.util.Properties;
-import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.SchedulerException;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.utils.PoolingConnectionProvider;
+import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
+import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.springframework.beans.factory.BeanInitializationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+
+import java.util.Properties;
 import java.util.function.Consumer;
+import javax.sql.DataSource;
 
 @Slf4j
 @Configuration

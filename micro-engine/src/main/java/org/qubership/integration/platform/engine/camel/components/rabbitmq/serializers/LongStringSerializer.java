@@ -20,9 +20,10 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.rabbitmq.client.LongString;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class LongStringSerializer extends StdSerializer<LongString> {

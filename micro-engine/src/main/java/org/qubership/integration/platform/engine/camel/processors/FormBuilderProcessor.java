@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import org.qubership.integration.platform.engine.forms.FormData;
-import org.qubership.integration.platform.engine.forms.FormEntry;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Expression;
@@ -26,6 +23,9 @@ import org.apache.camel.Message;
 import org.apache.camel.Processor;
 import org.apache.camel.language.simple.SimpleLanguage;
 import org.apache.logging.log4j.util.Strings;
+import org.qubership.integration.platform.engine.forms.FormData;
+import org.qubership.integration.platform.engine.forms.FormEntry;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpOutputMessage;

@@ -16,10 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.metrics;
 
-import static java.util.Objects.isNull;
-
-import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomEndpoint;
-import org.qubership.integration.platform.engine.registry.GatewayHttpRegistry;
 import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
 import lombok.extern.slf4j.Slf4j;
@@ -27,11 +23,15 @@ import org.apache.camel.http.common.CamelServlet;
 import org.apache.camel.http.common.HttpCommonEndpoint;
 import org.apache.camel.http.common.HttpConsumer;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomEndpoint;
 import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
+import org.qubership.integration.platform.engine.registry.GatewayHttpRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.server.observation.DefaultServerRequestObservationConvention;
 import org.springframework.http.server.observation.ServerRequestObservationContext;
 import org.springframework.stereotype.Component;
+
+import static java.util.Objects.isNull;
 
 @Slf4j
 @Component

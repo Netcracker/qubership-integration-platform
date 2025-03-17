@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.engine.scheduler;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.consul.ConsulService;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
 import org.qubership.integration.platform.engine.consul.KVNotFoundException;
@@ -27,16 +29,15 @@ import org.qubership.integration.platform.engine.service.IntegrationRuntimeServi
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryService;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Component

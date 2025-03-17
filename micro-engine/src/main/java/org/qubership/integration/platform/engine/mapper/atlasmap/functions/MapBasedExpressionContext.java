@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap.functions;
 
-import org.qubership.integration.platform.mapper.ComplexField;
 import io.atlasmap.expression.ExpressionContext;
 import io.atlasmap.expression.ExpressionException;
 import io.atlasmap.v2.Field;
 import io.atlasmap.v2.FieldGroup;
+import org.qubership.integration.platform.mapper.ComplexField;
 
 import java.util.HashMap;
 import java.util.Map;

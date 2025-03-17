@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.service;
 
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
+
 import java.net.URISyntaxException;
 
 public interface MaasService {

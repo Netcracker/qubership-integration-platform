@@ -16,12 +16,10 @@
 
 package org.qubership.integration.platform.engine.configuration.datasource;
 
-import org.qubership.integration.platform.engine.configuration.datasource.properties.HikariConfigProperties;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.SharedCacheMode;
-import java.util.Properties;
-import javax.sql.DataSource;
 import org.hibernate.jpa.HibernatePersistenceProvider;
+import org.qubership.integration.platform.engine.configuration.datasource.properties.HikariConfigProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -36,6 +34,9 @@ import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+
+import java.util.Properties;
+import javax.sql.DataSource;
 
 @AutoConfiguration
 @EnableTransactionManagement

@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
-import org.qubership.integration.platform.engine.util.ExchangeUtils;
 import com.rabbitmq.client.Channel;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.component.springrabbit.SpringRabbitMQConstants;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
+import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
+import org.qubership.integration.platform.engine.util.ExchangeUtils;
 import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

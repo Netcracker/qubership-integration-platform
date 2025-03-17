@@ -16,11 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
-import static java.util.Objects.nonNull;
-
-import java.net.MalformedURLException;
-import java.util.List;
-
 import org.apache.camel.spring.SpringCamelContext;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -41,6 +36,11 @@ import org.qubership.integration.platform.engine.util.SimpleHttpUriUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
+
+import java.net.MalformedURLException;
+import java.util.List;
+
+import static java.util.Objects.nonNull;
 
 @Component
 @ConditionalOnBean(ControlPlaneService.class)
