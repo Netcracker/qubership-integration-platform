@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

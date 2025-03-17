@@ -16,6 +16,10 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.mapping.EnvironmentMapper;
 import org.qubership.integration.platform.catalog.model.dto.system.EnvironmentDTO;
 import org.qubership.integration.platform.catalog.model.dto.system.EnvironmentRequestDTO;
@@ -26,10 +30,6 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.sys
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.designtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.designtime.catalog.service.SystemService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

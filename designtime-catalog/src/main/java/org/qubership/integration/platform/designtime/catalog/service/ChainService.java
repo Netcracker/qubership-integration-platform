@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.model.dto.system.UsedSystem;
 import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
@@ -44,8 +46,6 @@ import org.qubership.integration.platform.designtime.catalog.service.filter.Chai
 import org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters.ChainStatusFilters;
 import org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters.ElementFilter;
 import org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters.LoggingFilter;
-import jakarta.persistence.EntityNotFoundException;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.auditing.AuditingHandler;
@@ -60,9 +60,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.OVERRIDDEN_LABEL_NAME;
 import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.OVERRIDES_LABEL_NAME;
-import static java.util.Objects.nonNull;
 
 @Slf4j
 @Service

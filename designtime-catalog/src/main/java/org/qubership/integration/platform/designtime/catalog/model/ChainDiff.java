@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.designtime.catalog.model;
 
+import lombok.Getter;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.util.DistinctByKey;
-import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.List;

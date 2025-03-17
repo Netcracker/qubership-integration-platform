@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractLabel;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -32,8 +34,6 @@ import org.qubership.integration.platform.catalog.service.SystemModelBaseService
 import org.qubership.integration.platform.catalog.service.codegen.SystemModelCodeGenerator;
 import org.qubership.integration.platform.catalog.service.compiler.CompilerService;
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.SpecificationDeleteException;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;

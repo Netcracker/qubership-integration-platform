@@ -18,6 +18,16 @@ package org.qubership.integration.platform.designtime.catalog.service;
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.google.common.collect.ImmutableMap;
+import org.apache.commons.collections4.IterableUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentMatchers;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
@@ -29,20 +39,10 @@ import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.catalog.service.library.LibraryResourceLoader;
 import org.qubership.integration.platform.catalog.util.ElementUtils;
-import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementCreationException;
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementValidationException;
+import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.CreateElementRequest;
-import org.apache.commons.collections4.IterableUtils;
-import org.apache.commons.lang3.tuple.Pair;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.ArgumentMatchers;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.designtime.catalog.testutils.TestElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -52,11 +52,10 @@ import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import static org.qubership.integration.platform.designtime.catalog.service.ElementService.CONTAINER_DEFAULT_NAME;
-import static org.qubership.integration.platform.designtime.catalog.service.ElementService.CONTAINER_TYPE_NAME;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.*;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.beans.SamePropertyValuesAs.samePropertyValuesAs;
@@ -64,12 +63,12 @@ import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.collection.IsIn.in;
 import static org.hamcrest.collection.IsMapWithSize.aMapWithSize;
-
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.*;
+import static org.qubership.integration.platform.designtime.catalog.service.ElementService.CONTAINER_DEFAULT_NAME;
+import static org.qubership.integration.platform.designtime.catalog.service.ElementService.CONTAINER_TYPE_NAME;
 
 @DisplayName("Element service test")
 @ContextConfiguration(

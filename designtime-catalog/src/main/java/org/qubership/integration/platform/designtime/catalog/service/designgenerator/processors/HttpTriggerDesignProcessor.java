@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.SystemRepository;
 import org.qubership.integration.platform.catalog.util.DiagramBuilderEscapeUtil;
-import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
-import org.qubership.integration.platform.designtime.catalog.service.designgenerator.SequenceDiagramBuilder;
 import org.qubership.integration.platform.designtime.catalog.service.SystemService;
+import org.qubership.integration.platform.designtime.catalog.service.designgenerator.SequenceDiagramBuilder;
+import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.qubership.integration.platform.designtime.catalog.utils.DiagramBuilderUtil;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

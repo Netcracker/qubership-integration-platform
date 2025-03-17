@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.exception.SpecificationImportException;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractLabel;
@@ -32,8 +34,6 @@ import org.qubership.integration.platform.catalog.service.AbstractSpecificationG
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.catalog.service.exportimport.ProtocolExtractionService;
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.SpecificationDeleteException;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;

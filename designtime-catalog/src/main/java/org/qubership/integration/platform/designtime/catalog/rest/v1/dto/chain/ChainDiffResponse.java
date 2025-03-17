@@ -17,11 +17,11 @@
 package org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.qubership.integration.platform.catalog.model.dto.dependency.DependencyResponse;
-import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.ElementResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
+import org.qubership.integration.platform.catalog.model.dto.dependency.DependencyResponse;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.ElementResponse;
 
 import java.util.List;
 

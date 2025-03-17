@@ -16,18 +16,18 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.controller;
 
-import org.qubership.integration.platform.catalog.model.dto.dependency.DependencyResponse;
-import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainDiffResponse;
-import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.dependency.DependencyRequest;
-import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
-import org.qubership.integration.platform.designtime.catalog.service.DependencyService;
-import org.qubership.integration.platform.designtime.catalog.service.ElementService;
-import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.ChainDiffMapper;
-import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.DependencyMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.model.dto.dependency.DependencyResponse;
+import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainDiffResponse;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.dependency.DependencyRequest;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.ChainDiffMapper;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.DependencyMapper;
+import org.qubership.integration.platform.designtime.catalog.service.DependencyService;
+import org.qubership.integration.platform.designtime.catalog.service.ElementService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

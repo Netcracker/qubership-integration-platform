@@ -17,10 +17,10 @@
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
 
-import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.MigratedChainDTO;
-import org.qubership.integration.platform.designtime.catalog.service.migration.MigratedChain;
 import org.mapstruct.Mapper;
 import org.mapstruct.NullValuePropertyMappingStrategy;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.MigratedChainDTO;
+import org.qubership.integration.platform.designtime.catalog.service.migration.MigratedChain;
 
 @Mapper(
         componentModel = "spring",

@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.migration;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import lombok.Data;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 
 @Data
 public class MigratedChain {

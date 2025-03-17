@@ -17,6 +17,18 @@
 package org.qubership.integration.platform.designtime.catalog.service.migration.element;
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.json.JSONException;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
@@ -30,15 +42,6 @@ import org.qubership.integration.platform.designtime.catalog.testutils.configura
 import org.qubership.integration.platform.designtime.catalog.testutils.dto.ChainImportDTO;
 import org.qubership.integration.platform.designtime.catalog.testutils.mapper.ChainElementsMapper;
 import org.qubership.integration.platform.designtime.catalog.testutils.mapper.ChainMapper;
-import org.apache.commons.lang3.RandomStringUtils;
-import org.json.JSONException;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,14 +58,15 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.designtime.catalog.service.migration.element.MigrationContext.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsIterableContaining.hasItem;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
+import static org.qubership.integration.platform.designtime.catalog.service.migration.element.MigrationContext.*;
 
 @DisplayName("Reused element migration")
 @ContextConfiguration(classes = {

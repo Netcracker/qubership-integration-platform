@@ -19,8 +19,8 @@ package org.qubership.integration.platform.designtime.catalog.service.designgene
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.util.DiagramBuilderEscapeUtil;
 import org.qubership.integration.platform.catalog.util.SimpleHttpUriUtils;
-import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.qubership.integration.platform.designtime.catalog.service.designgenerator.SequenceDiagramBuilder;
+import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;

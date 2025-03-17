@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.design;
 
-import org.qubership.integration.platform.catalog.model.designgenerator.DiagramMode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
+import org.qubership.integration.platform.catalog.model.designgenerator.DiagramMode;
 
 import java.util.List;
 

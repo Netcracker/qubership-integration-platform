@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.discovery.DiscoveredServiceDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.discovery.DiscoveryResultDTO;
 import org.qubership.integration.platform.designtime.catalog.service.DiscoveryService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

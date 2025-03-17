@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.OperationDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.OperationInfoDTO;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 import java.util.List;
 

@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.migration.element;
 
+import lombok.Data;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import lombok.Data;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 

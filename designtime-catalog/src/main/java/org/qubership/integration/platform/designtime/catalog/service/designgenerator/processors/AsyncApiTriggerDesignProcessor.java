@@ -22,10 +22,10 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.sys
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.SystemRepository;
 import org.qubership.integration.platform.catalog.util.DiagramBuilderEscapeUtil;
 import org.qubership.integration.platform.catalog.util.ElementUtils;
-import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
-import org.qubership.integration.platform.designtime.catalog.service.designgenerator.SequenceDiagramBuilder;
 import org.qubership.integration.platform.designtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.designtime.catalog.service.SystemService;
+import org.qubership.integration.platform.designtime.catalog.service.designgenerator.SequenceDiagramBuilder;
+import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.qubership.integration.platform.designtime.catalog.utils.DiagramBuilderUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

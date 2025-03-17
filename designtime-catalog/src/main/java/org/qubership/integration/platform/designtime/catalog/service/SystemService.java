@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractLabel;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
@@ -28,15 +30,12 @@ import org.qubership.integration.platform.designtime.catalog.exception.exception
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.system.SystemSearchRequestDTO;
 import org.qubership.integration.platform.designtime.catalog.service.filter.SystemFilterSpecificationBuilder;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import jakarta.persistence.EntityNotFoundException;
 
 import java.util.List;
 import java.util.stream.Collectors;

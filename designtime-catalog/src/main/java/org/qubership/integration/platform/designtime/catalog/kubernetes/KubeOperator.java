@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.designtime.catalog.kubernetes;
 
-import org.qubership.integration.platform.designtime.catalog.exception.exceptions.KubeApiException;
-import org.qubership.integration.platform.designtime.catalog.model.kubernetes.KubeService;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
@@ -25,6 +23,8 @@ import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.models.V1ServiceList;
 import io.kubernetes.client.openapi.models.V1ServicePort;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.designtime.catalog.exception.exceptions.KubeApiException;
+import org.qubership.integration.platform.designtime.catalog.model.kubernetes.KubeService;
 
 import java.util.List;
 import java.util.Objects;

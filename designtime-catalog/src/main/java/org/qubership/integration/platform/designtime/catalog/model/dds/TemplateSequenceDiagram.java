@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.designtime.catalog.model.dds;
 
-import org.qubership.integration.platform.designtime.catalog.utils.escaping.EscapeUtilExclude;
 import lombok.*;
+import org.qubership.integration.platform.designtime.catalog.utils.escaping.EscapeUtilExclude;
 
 @Getter
 @Setter

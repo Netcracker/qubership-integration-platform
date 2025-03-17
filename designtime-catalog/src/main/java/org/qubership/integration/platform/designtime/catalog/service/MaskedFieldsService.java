@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import jakarta.persistence.EntityExistsException;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -23,13 +26,10 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.cha
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.MaskedFieldRepository;
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.designtime.catalog.configuration.aspect.ChainModification;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityExistsException;
-import jakarta.persistence.EntityNotFoundException;
 import java.util.Optional;
 
 @Slf4j

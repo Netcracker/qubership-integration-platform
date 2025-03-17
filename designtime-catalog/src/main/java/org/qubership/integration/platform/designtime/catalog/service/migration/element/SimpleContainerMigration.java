@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.migration.element;
 
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

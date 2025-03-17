@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.mapstruct.Mapper;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.exportimport.instructions.ImportInstructionRequest;
-import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
 public interface ImportInstructionRequestMapper {

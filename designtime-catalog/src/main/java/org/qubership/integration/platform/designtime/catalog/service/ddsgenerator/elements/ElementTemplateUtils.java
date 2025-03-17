@@ -17,14 +17,14 @@
 package org.qubership.integration.platform.designtime.catalog.service.ddsgenerator.elements;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.designtime.catalog.service.ddsgenerator.JsonSchemaParser;
-import org.qubership.integration.platform.designtime.catalog.model.dds.TemplateSchema;
-import org.qubership.integration.platform.designtime.catalog.service.OperationService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
+import org.qubership.integration.platform.designtime.catalog.model.dds.TemplateSchema;
+import org.qubership.integration.platform.designtime.catalog.service.OperationService;
+import org.qubership.integration.platform.designtime.catalog.service.ddsgenerator.JsonSchemaParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

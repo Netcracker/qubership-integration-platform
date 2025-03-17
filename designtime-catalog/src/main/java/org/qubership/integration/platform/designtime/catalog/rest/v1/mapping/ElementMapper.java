@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.apache.commons.lang3.tuple.Pair;
+import org.mapstruct.*;
 import org.qubership.integration.platform.catalog.mapping.UserMapper;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -27,8 +29,6 @@ import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.ElementWithChainNameResponse;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.ElementsCodeDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.PatchElementRequest;
-import org.apache.commons.lang3.tuple.Pair;
-import org.mapstruct.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;

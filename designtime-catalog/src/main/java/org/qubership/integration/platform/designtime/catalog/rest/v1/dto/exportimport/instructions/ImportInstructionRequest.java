@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.dto.exportimport.instructions;
 
-import org.qubership.integration.platform.catalog.validation.constraint.NotStartOrEndWithSpace;
-import org.qubership.integration.platform.catalog.validation.constraint.ChainNotOverrideItself;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -27,6 +24,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.catalog.validation.constraint.ChainNotOverrideItself;
+import org.qubership.integration.platform.catalog.validation.constraint.NotStartOrEndWithSpace;
 
 @Getter
 @Setter

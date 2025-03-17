@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.qubership.integration.platform.catalog.mapping.UserMapper;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.DetailedDesignTemplate;
 import org.qubership.integration.platform.catalog.util.MapperUtils;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.dds.DDSTemplateResponse;
-import org.mapstruct.Mapper;
-import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 

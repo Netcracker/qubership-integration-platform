@@ -16,16 +16,16 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import lombok.extern.slf4j.Slf4j;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.qubership.integration.platform.catalog.mapping.UserMapper;
 import org.qubership.integration.platform.catalog.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.catalog.model.dto.deployment.DeploymentResponse;
 import org.qubership.integration.platform.catalog.model.dto.deployment.RuntimeDeploymentState;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.catalog.util.MapperUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 

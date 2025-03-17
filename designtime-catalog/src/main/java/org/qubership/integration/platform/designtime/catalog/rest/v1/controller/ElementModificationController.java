@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.controller;
 
-import org.qubership.integration.platform.designtime.catalog.service.ElementModificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.designtime.catalog.service.ElementModificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

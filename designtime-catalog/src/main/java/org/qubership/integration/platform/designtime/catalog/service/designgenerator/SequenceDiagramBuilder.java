@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.designgenerator;
 
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.designgenerator.DiagramLangType;
 import org.qubership.integration.platform.catalog.model.designgenerator.DiagramOperation;
 import org.qubership.integration.platform.catalog.model.designgenerator.DiagramOperationType;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;

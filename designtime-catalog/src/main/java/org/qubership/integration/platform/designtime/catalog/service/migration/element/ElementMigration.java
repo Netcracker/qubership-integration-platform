@@ -16,13 +16,15 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.migration.element;
 
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import org.apache.commons.lang3.StringUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 import static org.qubership.integration.platform.catalog.model.constant.CamelNames.CONTAINER;
 import static org.qubership.integration.platform.designtime.catalog.service.migration.element.MigrationContext.REUSED_ELEMENT;

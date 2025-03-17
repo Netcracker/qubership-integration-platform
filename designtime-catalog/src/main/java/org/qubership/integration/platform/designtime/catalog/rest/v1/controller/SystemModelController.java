@@ -16,20 +16,20 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.designtime.catalog.service.SystemModelService;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.SystemModelDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.SystemModelMapper;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.designtime.catalog.service.SystemModelService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.exportimport.instructions;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.exception.ImportInstructionsExternalException;
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportEntityType;
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionAction;
@@ -26,12 +27,11 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.act
 import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.instructions.ImportInstructionsRepository;
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.exportimport.instructions.DeleteInstructionsRequest;
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ImportInstructionsValidationException;
 import org.qubership.integration.platform.designtime.catalog.model.enums.filter.FilterFeature;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.FilterRequestDTO;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.exportimport.instructions.DeleteInstructionsRequest;
 import org.qubership.integration.platform.designtime.catalog.service.filter.ImportInstructionFilterSpecificationBuilder;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

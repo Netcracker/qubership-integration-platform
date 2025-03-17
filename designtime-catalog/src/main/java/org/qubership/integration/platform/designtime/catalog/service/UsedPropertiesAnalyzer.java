@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.catalog.model.chain.element.*;
 import org.qubership.integration.platform.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.designtime.catalog.utils.MapUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

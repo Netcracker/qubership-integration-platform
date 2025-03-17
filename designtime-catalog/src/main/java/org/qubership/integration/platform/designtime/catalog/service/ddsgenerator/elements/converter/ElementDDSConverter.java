@@ -19,10 +19,10 @@ package org.qubership.integration.platform.designtime.catalog.service.ddsgenerat
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.designtime.catalog.model.dds.TemplateChainElement;
 
-import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 
 /**
  * Allow converting a chain element to a DDS template data object

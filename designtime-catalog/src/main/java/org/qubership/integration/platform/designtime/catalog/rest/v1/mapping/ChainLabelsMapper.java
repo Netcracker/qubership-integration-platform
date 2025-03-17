@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.ChainLabel;
-import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainLabelDTO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.NullValuePropertyMappingStrategy;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.ChainLabel;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainLabelDTO;
 
 import java.util.List;
 

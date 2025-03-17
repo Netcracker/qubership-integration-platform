@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.filter;
 
+import jakarta.persistence.criteria.*;
+import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.service.filter.FilterConditionPredicateBuilderFactory;
 import org.qubership.integration.platform.designtime.catalog.model.enums.filter.FilterFeature;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.FilterRequestDTO;
-import jakarta.persistence.criteria.*;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;

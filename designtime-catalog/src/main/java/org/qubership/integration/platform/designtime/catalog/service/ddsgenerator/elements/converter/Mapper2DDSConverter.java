@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.ddsgenerator.elements.converter;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.designtime.catalog.model.dds.TemplateChainElement;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;

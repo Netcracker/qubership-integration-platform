@@ -21,6 +21,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.http.HttpHeaders;
+import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.ConfigParameter;
@@ -40,14 +48,6 @@ import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.discove
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.discovery.DiscoveryErrorDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.discovery.DiscoveryResultDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.DiscoveryServiceMapper;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.http.HttpHeaders;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -64,12 +64,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static io.swagger.v3.parser.util.DeserializationUtils.isJson;
+import static java.util.Objects.isNull;
 import static org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType.MAAS_BY_CLASSIFIER;
 import static org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType.MANUAL;
 import static org.qubership.integration.platform.catalog.model.system.IntegrationSystemType.INTERNAL;
 import static org.qubership.integration.platform.catalog.model.system.SystemModelSource.DISCOVERED;
-import static io.swagger.v3.parser.util.DeserializationUtils.isJson;
-import static java.util.Objects.isNull;
 
 @Service
 @Slf4j

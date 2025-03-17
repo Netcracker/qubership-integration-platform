@@ -16,6 +16,15 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import jakarta.persistence.EntityExistsException;
+import org.hamcrest.Matchers;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -25,39 +34,21 @@ import org.qubership.integration.platform.catalog.persistence.configs.repository
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.catalog.service.library.LibraryResourceLoader;
+import org.qubership.integration.platform.catalog.util.ElementUtils;
+import org.qubership.integration.platform.designtime.catalog.exception.exceptions.DependencyValidationException;
+import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.designtime.catalog.testutils.TestUtils;
 import org.qubership.integration.platform.designtime.catalog.testutils.configuration.TestConfig;
 import org.qubership.integration.platform.designtime.catalog.testutils.dto.ChainImportDTO;
 import org.qubership.integration.platform.designtime.catalog.testutils.mapper.ChainElementsMapper;
 import org.qubership.integration.platform.designtime.catalog.testutils.mapper.ChainMapper;
-import org.qubership.integration.platform.catalog.util.ElementUtils;
-import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
-import org.qubership.integration.platform.designtime.catalog.exception.exceptions.DependencyValidationException;
 import org.qubership.integration.platform.designtime.catalog.utils.OldContainerUtils;
-import org.hamcrest.Matchers;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
-import static org.hamcrest.collection.IsEmptyCollection.empty;
 
-import jakarta.persistence.EntityExistsException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +58,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 @ContextConfiguration(classes = {
         TestConfig.class,

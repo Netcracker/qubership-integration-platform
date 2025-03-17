@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.model.library.ElementType;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
@@ -27,8 +29,6 @@ import org.qubership.integration.platform.designtime.catalog.configuration.aspec
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementDeletionException;
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementTransferException;
 import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;

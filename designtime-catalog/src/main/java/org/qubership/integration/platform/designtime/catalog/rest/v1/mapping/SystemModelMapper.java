@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModelLabel;
 import org.qubership.integration.platform.catalog.util.MapperUtils;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.SystemModelDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.SystemModelLabelDTO;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
 
 import java.util.List;
 

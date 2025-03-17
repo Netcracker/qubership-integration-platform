@@ -16,16 +16,16 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.model.dto.chain.ElementsFilterDTO;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.model.library.LibraryElements;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.ElementMapper;
 import org.qubership.integration.platform.designtime.catalog.service.ElementService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

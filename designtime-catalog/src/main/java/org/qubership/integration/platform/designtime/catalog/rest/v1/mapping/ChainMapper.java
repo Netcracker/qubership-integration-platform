@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.mapstruct.*;
 import org.qubership.integration.platform.catalog.mapping.UserMapper;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.util.MapperUtils;
@@ -25,7 +26,6 @@ import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.C
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainResponse;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainsBySpecificationGroup;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.folder.FolderItemResponse;
-import org.mapstruct.*;
 
 import java.util.List;
 import java.util.Map;

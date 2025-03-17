@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.dto.system;
 
-import org.qubership.integration.platform.catalog.model.system.IntegrationSystemType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.catalog.model.system.IntegrationSystemType;
 
 import java.util.List;
 

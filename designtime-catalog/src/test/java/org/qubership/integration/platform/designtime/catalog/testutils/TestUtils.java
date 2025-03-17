@@ -18,9 +18,9 @@ package org.qubership.integration.platform.designtime.catalog.testutils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.apache.commons.io.IOUtils;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;

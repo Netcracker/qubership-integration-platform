@@ -16,27 +16,6 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
-import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
-import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.DependencyRepository;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ElementRepository;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.catalog.service.library.LibraryResourceLoader;
-import org.qubership.integration.platform.designtime.catalog.testutils.TestElementUtils;
-import org.qubership.integration.platform.designtime.catalog.testutils.configuration.TestConfig;
-import org.qubership.integration.platform.catalog.util.ElementUtils;
-import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
-import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementCreationException;
-import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementTransferException;
-import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementValidationException;
-import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.CreateElementRequest;
-import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.TransferElementRequest;
-import org.qubership.integration.platform.designtime.catalog.utils.OldContainerUtils;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -49,23 +28,44 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
+import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
+import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.DependencyRepository;
+import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ElementRepository;
+import org.qubership.integration.platform.catalog.service.ActionsLogService;
+import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
+import org.qubership.integration.platform.catalog.service.library.LibraryResourceLoader;
+import org.qubership.integration.platform.catalog.util.ElementUtils;
+import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementCreationException;
+import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementTransferException;
+import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementValidationException;
+import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.CreateElementRequest;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.TransferElementRequest;
+import org.qubership.integration.platform.designtime.catalog.testutils.TestElementUtils;
+import org.qubership.integration.platform.designtime.catalog.testutils.configuration.TestConfig;
+import org.qubership.integration.platform.designtime.catalog.utils.OldContainerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.*;
-import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
-import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 import java.util.*;
 import java.util.stream.Stream;
 
+import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.*;
 
 @DisplayName("Transferable element service test")
 @ContextConfiguration(

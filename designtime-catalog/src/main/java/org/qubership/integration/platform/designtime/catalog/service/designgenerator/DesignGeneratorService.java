@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.designgenerator;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.designgenerator.DiagramLangType;
 import org.qubership.integration.platform.catalog.model.designgenerator.DiagramMode;
 import org.qubership.integration.platform.catalog.model.designgenerator.ElementsSequenceDiagram;
@@ -31,13 +33,11 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.cha
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.catalog.util.DiagramBuilderEscapeUtil;
-import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.ContainerDesignProcessor;
-import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.qubership.integration.platform.designtime.catalog.service.ChainService;
 import org.qubership.integration.platform.designtime.catalog.service.DependencyService;
 import org.qubership.integration.platform.designtime.catalog.service.ElementService;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.ContainerDesignProcessor;
+import org.qubership.integration.platform.designtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

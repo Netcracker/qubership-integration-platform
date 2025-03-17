@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.dto.masking;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.User;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.User;
 
 @Getter
 @Setter

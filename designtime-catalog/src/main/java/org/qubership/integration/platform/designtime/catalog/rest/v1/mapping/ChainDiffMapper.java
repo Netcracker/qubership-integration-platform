@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
-import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainDiffResponse;
-import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
 import org.mapstruct.Mapper;
 import org.mapstruct.NullValuePropertyMappingStrategy;
+import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
+import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainDiffResponse;
 
 @Mapper(componentModel = "spring",
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,

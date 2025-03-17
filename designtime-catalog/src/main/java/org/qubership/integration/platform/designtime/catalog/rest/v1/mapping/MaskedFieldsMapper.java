@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.MaskedField;
 import org.qubership.integration.platform.catalog.util.MapperUtils;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.masking.MaskedFieldDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.masking.MaskedFieldsResponse;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring", uses = { MapperUtils.class })
 public interface MaskedFieldsMapper {

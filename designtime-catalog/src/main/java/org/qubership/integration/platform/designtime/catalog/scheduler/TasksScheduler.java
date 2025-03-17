@@ -16,19 +16,19 @@
 
 package org.qubership.integration.platform.designtime.catalog.scheduler;
 
+import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.catalog.consul.ConsulService;
 import org.qubership.integration.platform.catalog.consul.exception.KVNotFoundException;
 import org.qubership.integration.platform.catalog.model.deployment.properties.DeploymentRuntimeProperties;
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.designtime.catalog.service.ChainRuntimePropertiesService;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import jakarta.transaction.Transactional;
 import java.util.Collections;
 import java.util.Map;
 

@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import jakarta.persistence.EntityExistsException;
+import jakarta.persistence.EntityNotFoundException;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.model.library.Quantity;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
@@ -26,17 +29,14 @@ import org.qubership.integration.platform.catalog.service.library.LibraryElement
 import org.qubership.integration.platform.catalog.util.DistinctByKey;
 import org.qubership.integration.platform.designtime.catalog.configuration.aspect.ChainModification;
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.DependencyValidationException;
-import org.qubership.integration.platform.designtime.catalog.utils.OldContainerUtils;
 import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
-import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.designtime.catalog.utils.OldContainerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityExistsException;
-import jakarta.persistence.EntityNotFoundException;
 import java.util.*;
 import java.util.function.BiPredicate;
 

@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.logging.properties;
 
-import org.qubership.integration.platform.catalog.model.deployment.properties.DeploymentRuntimeProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import org.qubership.integration.platform.catalog.model.deployment.properties.DeploymentRuntimeProperties;
 
 import javax.annotation.Nullable;
 

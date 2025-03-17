@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.mapstruct.*;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationGroupLabel;
 import org.qubership.integration.platform.catalog.util.MapperUtils;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.SpecificationGroupDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.SpecificationGroupLabelDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.SpecificationGroupRequestDTO;
-import org.mapstruct.*;
 
 import java.util.List;
 

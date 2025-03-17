@@ -17,15 +17,15 @@
 package org.qubership.integration.platform.designtime.catalog.rest.v1.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.designtime.catalog.service.OperationService;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.OperationDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.OperationInfoDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.OperationMapper;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.OperationSchemasMapper;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.designtime.catalog.service.OperationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.InvalidDataAccessResourceUsageException;
 import org.springframework.http.ResponseEntity;

@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element;
 
-import org.qubership.integration.platform.catalog.model.dto.BaseResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.catalog.model.dto.BaseResponse;
 
 import java.util.List;
 import java.util.Map;

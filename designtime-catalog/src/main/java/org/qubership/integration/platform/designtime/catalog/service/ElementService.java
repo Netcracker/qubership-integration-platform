@@ -16,6 +16,10 @@
 
 package org.qubership.integration.platform.designtime.catalog.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.model.dto.system.UsedSystem;
 import org.qubership.integration.platform.catalog.model.library.*;
@@ -34,13 +38,9 @@ import org.qubership.integration.platform.catalog.util.ElementUtils;
 import org.qubership.integration.platform.designtime.catalog.configuration.aspect.ChainModification;
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementCreationException;
 import org.qubership.integration.platform.designtime.catalog.exception.exceptions.ElementValidationException;
+import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.designtime.catalog.model.ElementsWithSystemUsage;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.element.CreateElementRequest;
-import org.qubership.integration.platform.designtime.catalog.model.ChainDiff;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.MapUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.auditing.AuditingHandler;

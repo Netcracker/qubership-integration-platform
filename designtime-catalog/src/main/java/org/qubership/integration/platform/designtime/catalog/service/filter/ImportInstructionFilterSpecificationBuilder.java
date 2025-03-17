@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.filter;
 
+import jakarta.persistence.criteria.*;
+import org.apache.commons.collections4.CollectionUtils;
 import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.qubership.integration.platform.catalog.service.filter.FilterConditionPredicateBuilderFactory;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.FilterRequestDTO;
-import jakarta.persistence.criteria.*;
-import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 

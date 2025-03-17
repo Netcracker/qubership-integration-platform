@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.designtime.catalog.service.ddsgenerator.elements.converter;
 
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -27,9 +30,6 @@ import org.qubership.integration.platform.designtime.catalog.service.OperationSe
 import org.qubership.integration.platform.designtime.catalog.service.SystemModelService;
 import org.qubership.integration.platform.designtime.catalog.service.SystemService;
 import org.qubership.integration.platform.designtime.catalog.service.ddsgenerator.elements.ElementTemplateUtils;
-import jakarta.persistence.EntityNotFoundException;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

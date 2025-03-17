@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.qubership.integration.platform.catalog.model.dto.dependency.DependencyResponse;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.dependency.DependencyRequest;
-import org.qubership.integration.platform.catalog.model.dto.dependency.DependencyResponse;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 import java.util.ArrayList;
 import java.util.HashSet;

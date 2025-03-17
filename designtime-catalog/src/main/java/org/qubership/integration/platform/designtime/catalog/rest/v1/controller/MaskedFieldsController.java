@@ -16,16 +16,16 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.MaskedField;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.masking.MaskedFieldDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.masking.MaskedFieldsResponse;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.mapping.MaskedFieldsMapper;
 import org.qubership.integration.platform.designtime.catalog.service.ChainService;
 import org.qubership.integration.platform.designtime.catalog.service.MaskedFieldsService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

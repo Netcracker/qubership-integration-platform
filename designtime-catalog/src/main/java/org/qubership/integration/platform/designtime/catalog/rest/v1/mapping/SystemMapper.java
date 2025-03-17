@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.designtime.catalog.rest.v1.mapping;
 
+import org.mapstruct.*;
 import org.qubership.integration.platform.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
@@ -24,7 +25,6 @@ import org.qubership.integration.platform.catalog.util.MapperUtils;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.system.SystemDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.system.SystemLabelDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.system.SystemRequestDTO;
-import org.mapstruct.*;
 
 import java.util.List;
 
