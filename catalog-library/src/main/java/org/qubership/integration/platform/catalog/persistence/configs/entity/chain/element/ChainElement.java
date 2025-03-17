@@ -17,6 +17,15 @@
 package org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element;
 
 import com.google.common.collect.Maps;
+import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
+import jakarta.persistence.*;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.Type;
+import org.hibernate.proxy.HibernateProxy;
 import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
@@ -24,17 +33,6 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.cha
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
 import org.qubership.integration.platform.catalog.service.difference.DifferenceMember;
-
-import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.Type;
-
-import jakarta.persistence.*;
-import org.hibernate.proxy.HibernateProxy;
 
 import java.util.*;
 

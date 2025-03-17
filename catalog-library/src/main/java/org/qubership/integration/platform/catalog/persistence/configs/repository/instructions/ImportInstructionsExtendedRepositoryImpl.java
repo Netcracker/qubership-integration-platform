@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.instructions;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
-
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
 
 public class ImportInstructionsExtendedRepositoryImpl implements ImportInstructionsExtendedRepository {
 

@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.catalog.service;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ElementRepository;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

@@ -17,11 +17,10 @@
 package org.qubership.integration.platform.catalog.model.dto.system;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.qubership.integration.platform.catalog.model.system.EnvironmentLabel;
-import org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.catalog.model.system.EnvironmentLabel;
+import org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType;
 
 import java.util.List;
 

@@ -17,13 +17,17 @@
 package org.qubership.integration.platform.catalog.persistence.configs.entity.chain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractLabel;
-
-import lombok.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.slf4j.Slf4j;
-
-import jakarta.persistence.*;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractLabel;
 
 import java.util.Objects;
 

@@ -16,11 +16,10 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.system;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-
 import org.qubership.integration.platform.catalog.model.system.SystemModelSource;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 

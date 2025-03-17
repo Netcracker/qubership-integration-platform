@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.actionlog;
 
-import java.sql.Timestamp;
-import java.util.List;
-
 import org.qubership.integration.platform.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
+
+import java.sql.Timestamp;
+import java.util.List;
 
 public interface ActionLogFilterRepository {
     List<ActionLog> findActionLogsByFilter(

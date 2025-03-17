@@ -16,16 +16,16 @@
 
 package org.qubership.integration.platform.catalog.service.parsers;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.function.Consumer;
-
 import org.qubership.integration.platform.catalog.exception.SpecificationSimilarIdException;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Consumer;
 
 
 public interface SpecificationParser {

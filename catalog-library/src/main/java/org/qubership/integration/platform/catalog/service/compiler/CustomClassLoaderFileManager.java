@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.catalog.service.compiler;
 
+import java.io.IOException;
+import java.util.Set;
 import javax.tools.ForwardingJavaFileManager;
 import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
-import java.io.IOException;
-import java.util.Set;
 
 /** Based on CustomClassloaderJavaFileManager class from
  <a href="http://atamur.blogspot.com/2009/10/using-built-in-javacompiler-with-custom.html">Using built-in JavaCompiler with a custom classloader</a>

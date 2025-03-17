@@ -16,15 +16,13 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.entity.system;
 
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
-
 import org.qubership.integration.platform.catalog.configuration.auditing.CompiledLibraryEventListener;
-
-import jakarta.persistence.*;
 
 import java.sql.Types;
 

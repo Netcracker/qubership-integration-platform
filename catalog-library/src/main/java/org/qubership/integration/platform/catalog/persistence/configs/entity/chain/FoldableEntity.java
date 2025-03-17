@@ -16,16 +16,18 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.entity.chain;
 
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.MappedSuperclass;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
 
-import jakarta.persistence.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
 

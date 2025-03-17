@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.catalog.service.difference;
 
+import lombok.Data;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import lombok.Data;
 
 import java.util.List;
 

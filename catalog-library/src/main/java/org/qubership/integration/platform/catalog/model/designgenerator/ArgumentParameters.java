@@ -16,7 +16,9 @@
 
 package org.qubership.integration.platform.catalog.model.designgenerator;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter

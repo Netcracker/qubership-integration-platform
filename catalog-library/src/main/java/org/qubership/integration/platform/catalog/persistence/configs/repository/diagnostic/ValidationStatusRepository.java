@@ -16,9 +16,8 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ValidationStatusRepository extends JpaRepository<ValidationStatus, String> {
 

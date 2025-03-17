@@ -19,9 +19,8 @@ package org.qubership.integration.platform.catalog.service.filter;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
-import org.springframework.stereotype.Component;
-
 import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
+import org.springframework.stereotype.Component;
 
 import java.sql.Timestamp;
 import java.util.Arrays;

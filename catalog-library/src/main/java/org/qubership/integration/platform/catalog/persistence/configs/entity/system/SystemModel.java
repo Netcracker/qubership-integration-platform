@@ -17,20 +17,18 @@
 package org.qubership.integration.platform.catalog.persistence.configs.entity.system;
 
 import com.fasterxml.jackson.annotation.*;
-import org.qubership.integration.platform.catalog.model.system.SystemModelSource;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.util.CompareListUtils;
-
+import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldNameConstants;
 import lombok.experimental.SuperBuilder;
-
-import jakarta.persistence.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hibernate.proxy.HibernateProxy;
+import org.qubership.integration.platform.catalog.model.system.SystemModelSource;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.catalog.util.CompareListUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;

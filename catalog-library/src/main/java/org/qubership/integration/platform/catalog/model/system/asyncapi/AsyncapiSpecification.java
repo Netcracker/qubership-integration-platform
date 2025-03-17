@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.catalog.model.system.asyncapi;
 
-import org.qubership.integration.platform.catalog.model.system.asyncapi.components.Components;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
+import org.qubership.integration.platform.catalog.model.system.asyncapi.components.Components;
 
 import java.util.Map;
 

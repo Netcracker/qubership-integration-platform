@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.catalog.model.library.chaindesign;
 
-import org.qubership.integration.platform.catalog.model.designgenerator.DiagramOperationType;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.catalog.model.designgenerator.DiagramOperationType;
 
 @Data
 @Schema(description = "Operations that can be applied on diagram")

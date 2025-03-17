@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.catalog.util;
 
+import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.catalog.model.ElementRoute;
 import org.qubership.integration.platform.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.http.HttpMethod;
 
 import java.nio.file.Paths;

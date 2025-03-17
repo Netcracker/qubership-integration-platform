@@ -18,10 +18,9 @@ package org.qubership.integration.platform.catalog.model.designgenerator;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
+import org.qubership.integration.platform.catalog.util.DiagramBuilderEscapeUtil;
 
 import java.util.function.Function;
-
-import org.qubership.integration.platform.catalog.util.DiagramBuilderEscapeUtil;
 
 @Getter
 @Schema(description = "Sequence diagram language")

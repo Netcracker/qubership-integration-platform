@@ -16,9 +16,8 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.operations;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 
 public interface OperationRepository extends JpaRepository<Operation, String>, OperationFilterRepository {

@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.operations;
 
-import java.util.List;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
+
+import java.util.List;
 
 public interface OperationFilterRepository {
     List<Operation> getOperations(String modelId, List<String> sortColumns);

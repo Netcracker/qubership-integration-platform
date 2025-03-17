@@ -18,12 +18,11 @@ package org.qubership.integration.platform.catalog.service.library;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.util.ResourceLoaderUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
-
-import org.qubership.integration.platform.catalog.util.ResourceLoaderUtils;
 
 import java.io.IOException;
 import java.util.Map;

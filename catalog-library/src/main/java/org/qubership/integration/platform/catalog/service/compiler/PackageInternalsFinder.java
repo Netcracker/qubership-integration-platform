@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.catalog.service.compiler;
 
-import javax.tools.JavaFileObject;
 import java.io.File;
 import java.io.IOException;
 import java.net.JarURLConnection;
@@ -27,6 +26,7 @@ import java.util.Collection;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.jar.JarEntry;
+import javax.tools.JavaFileObject;
 
 /** Based on PackageInternalsFinder class from
  * <a href="http://atamur.blogspot.com/2009/10/using-built-in-javacompiler-with-custom.html">Using built-in JavaCompiler with a custom classloader</a>

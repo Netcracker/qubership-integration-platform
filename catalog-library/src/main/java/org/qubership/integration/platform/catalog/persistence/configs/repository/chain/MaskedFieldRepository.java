@@ -16,11 +16,10 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.chain;
 
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.MaskedField;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.common.CommonRepository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.MaskedField;
 
 import java.util.List;
 import java.util.Optional;

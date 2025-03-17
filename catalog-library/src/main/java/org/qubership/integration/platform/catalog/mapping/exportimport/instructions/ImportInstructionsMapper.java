@@ -16,16 +16,15 @@
 
 package org.qubership.integration.platform.catalog.mapping.exportimport.instructions;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstructionLabel;
 import org.apache.commons.collections4.CollectionUtils;
-import org.springframework.lang.NonNull;
-
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.GeneralImportInstructionsConfig;
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportEntityType;
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionAction;
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionDTO;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstructionLabel;
 import org.qubership.integration.platform.catalog.util.MapperUtils;
+import org.springframework.lang.NonNull;
 
 import java.util.Collection;
 import java.util.Collections;

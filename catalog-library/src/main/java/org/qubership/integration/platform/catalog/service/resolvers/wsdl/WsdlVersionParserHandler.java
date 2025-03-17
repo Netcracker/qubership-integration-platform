@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.catalog.service.resolvers.wsdl;
 
+import org.qubership.integration.platform.catalog.model.system.WsdlVersion;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
-
-import org.qubership.integration.platform.catalog.model.system.WsdlVersion;
 
 public class WsdlVersionParserHandler extends DefaultHandler {
 

@@ -16,18 +16,17 @@
 
 package org.qubership.integration.platform.catalog.service.compiler;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.service.compiler.diagnostic.CompoundDiagnosticListener;
 import org.qubership.integration.platform.catalog.service.compiler.diagnostic.FirstErrorCollectorDiagnosticListener;
 import org.qubership.integration.platform.catalog.service.compiler.diagnostic.LoggingDiagnosticListener;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.tools.*;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.tools.*;
 
 @Slf4j
 public class InMemoryCompiler {

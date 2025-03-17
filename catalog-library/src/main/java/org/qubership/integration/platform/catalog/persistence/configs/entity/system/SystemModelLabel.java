@@ -17,8 +17,6 @@
 package org.qubership.integration.platform.catalog.persistence.configs.entity.system;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractLabel;
-
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -29,6 +27,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractLabel;
 
 import java.util.Objects;
 

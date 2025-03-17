@@ -16,9 +16,8 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.system;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationGroupLabel;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SpecificationGroupLabelsRepository extends JpaRepository<SpecificationGroupLabel, String> {
 

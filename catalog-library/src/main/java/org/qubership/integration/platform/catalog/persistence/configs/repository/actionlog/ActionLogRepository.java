@@ -16,12 +16,11 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.actionlog;
 
+import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.PagingAndSortingRepository;
-
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
 
 import java.sql.Timestamp;
 import java.util.List;

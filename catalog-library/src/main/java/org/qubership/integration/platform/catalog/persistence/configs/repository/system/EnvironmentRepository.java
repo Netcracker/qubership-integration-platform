@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.system;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import org.qubership.integration.platform.catalog.model.system.EnvironmentLabel;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Environment;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;

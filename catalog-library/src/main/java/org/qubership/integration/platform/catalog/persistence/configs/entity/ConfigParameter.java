@@ -17,13 +17,12 @@
 package org.qubership.integration.platform.catalog.persistence.configs.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import jakarta.validation.constraints.NotBlank;
-import java.util.Base64;
-
 import org.qubership.integration.platform.catalog.model.ConfigParameterValueType;
+
+import java.util.Base64;
 
 @NoArgsConstructor
 @Getter

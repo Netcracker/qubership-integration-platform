@@ -16,9 +16,10 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.actionlog;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.*;
 import org.apache.commons.lang3.tuple.Pair;
-
 import org.qubership.integration.platform.catalog.exception.ActionLogException;
 import org.qubership.integration.platform.catalog.exception.InvalidEnumConstantException;
 import org.qubership.integration.platform.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
@@ -27,9 +28,6 @@ import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 
 import java.sql.Timestamp;
 import java.util.*;

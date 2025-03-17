@@ -16,15 +16,14 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.chain;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElementFilterRequestDTO;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.*;
+import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElementFilterRequestDTO;
 
 import java.util.*;
-
-import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
 
 
 public class ElementFilterRepositoryImpl implements ElementFilterRepository {

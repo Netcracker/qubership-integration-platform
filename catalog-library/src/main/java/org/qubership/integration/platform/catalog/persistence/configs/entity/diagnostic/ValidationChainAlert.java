@@ -16,20 +16,19 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.Type;
-import org.springframework.data.annotation.CreatedBy;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
 import org.qubership.integration.platform.catalog.model.diagnostic.ValidationAlert;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.sql.Timestamp;
 import java.util.LinkedHashMap;

@@ -18,10 +18,9 @@ package org.qubership.integration.platform.catalog.service.resolvers.async;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.service.resolvers.CommonSchemaResolver;
 import org.qubership.integration.platform.catalog.service.resolvers.SchemaResolver;
-
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;

@@ -25,7 +25,6 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.annotations.JdbcTypeCode;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
 
 import java.sql.Types;

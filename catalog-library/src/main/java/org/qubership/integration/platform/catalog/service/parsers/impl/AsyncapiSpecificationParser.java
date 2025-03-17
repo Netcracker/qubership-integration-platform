@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.exception.SpecificationImportException;
 import org.qubership.integration.platform.catalog.exception.SpecificationSimilarIdException;
 import org.qubership.integration.platform.catalog.exception.SpecificationSimilarVersionException;
@@ -37,8 +38,6 @@ import org.qubership.integration.platform.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.catalog.service.parsers.SpecificationParser;
 import org.qubership.integration.platform.catalog.service.resolvers.async.AsyncApiSpecificationResolver;
 import org.qubership.integration.platform.catalog.service.resolvers.async.AsyncResolver;
-
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;

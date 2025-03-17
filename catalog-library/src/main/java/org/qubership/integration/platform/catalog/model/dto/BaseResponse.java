@@ -16,11 +16,10 @@
 
 package org.qubership.integration.platform.catalog.model.dto;
 
-import org.qubership.integration.platform.catalog.model.dto.user.UserDTO;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.catalog.model.dto.user.UserDTO;
 
 @Getter
 @Setter

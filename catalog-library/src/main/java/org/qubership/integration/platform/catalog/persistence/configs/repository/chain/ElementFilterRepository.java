@@ -17,10 +17,10 @@
 package org.qubership.integration.platform.catalog.persistence.configs.repository.chain;
 
 
-import java.util.List;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElementFilterRequestDTO;
+
+import java.util.List;
 
 public interface ElementFilterRepository {
     List<ChainElement> findElementsByFilter(int offset, int limit, List<String> types, List<ChainElementFilterRequestDTO> filters, boolean isImplementedOnly);

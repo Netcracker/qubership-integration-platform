@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.catalog.util;
 
-import java.util.Collection;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.AbstractSystemEntity;
+
+import java.util.Collection;
 
 public class CompareListUtils {
     public static boolean listEquals(Collection<?> oldList, Collection<?> newList, boolean strict) {

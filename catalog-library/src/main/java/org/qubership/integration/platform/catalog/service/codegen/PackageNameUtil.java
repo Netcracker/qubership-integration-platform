@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.catalog.service.codegen;
 
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
-import org.apache.commons.lang3.StringUtils;
 
 public class PackageNameUtil {
     public static String buildPackageName(String basePackage, SystemModel model) {

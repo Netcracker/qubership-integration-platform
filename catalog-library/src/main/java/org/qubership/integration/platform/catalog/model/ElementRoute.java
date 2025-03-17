@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.catalog.model;
 
-import org.qubership.integration.platform.catalog.util.paths.PathIntersectionChecker;
 import lombok.*;
+import org.qubership.integration.platform.catalog.util.paths.PathIntersectionChecker;
 import org.springframework.http.HttpMethod;
 
 import java.util.Set;

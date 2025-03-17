@@ -16,9 +16,8 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.ConfigParameter;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 

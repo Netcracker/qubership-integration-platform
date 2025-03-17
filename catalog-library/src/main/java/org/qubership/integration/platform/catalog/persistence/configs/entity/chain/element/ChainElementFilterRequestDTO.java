@@ -16,11 +16,10 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element;
 
-import org.qubership.integration.platform.catalog.model.filter.ChainElementFilterColumn;
-import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.catalog.model.filter.ChainElementFilterColumn;
+import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
 
 @Data
 @Schema(description = "Filter object for chain element filter")

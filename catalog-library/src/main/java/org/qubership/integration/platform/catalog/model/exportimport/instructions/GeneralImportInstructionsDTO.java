@@ -17,7 +17,6 @@
 package org.qubership.integration.platform.catalog.model.exportimport.instructions;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

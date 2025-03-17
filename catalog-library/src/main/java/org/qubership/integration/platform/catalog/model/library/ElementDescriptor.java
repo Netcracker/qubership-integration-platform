@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.catalog.model.library;
 
-import org.qubership.integration.platform.catalog.model.library.chaindesign.ElementContainerDesignParameters;
-import org.qubership.integration.platform.catalog.model.library.chaindesign.ElementDesignParameters;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.catalog.model.library.chaindesign.ElementContainerDesignParameters;
+import org.qubership.integration.platform.catalog.model.library.chaindesign.ElementDesignParameters;
 import org.springframework.lang.Nullable;
 
 import java.util.ArrayList;

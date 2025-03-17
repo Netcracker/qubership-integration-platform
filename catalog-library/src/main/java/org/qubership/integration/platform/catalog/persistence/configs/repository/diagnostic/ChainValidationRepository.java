@@ -16,13 +16,12 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic;
 
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.common.CommonRepository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
-
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 
 import java.util.List;
 

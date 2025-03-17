@@ -16,6 +16,10 @@
 
 package org.qubership.integration.platform.catalog.service.parsers;
 
+import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.context.RequestIdContext;
+import org.qubership.integration.platform.catalog.model.system.SystemModelSource;
+import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -27,14 +31,9 @@ import org.qubership.integration.platform.catalog.persistence.configs.repository
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.SystemModelRepository;
-import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
-import org.qubership.integration.platform.catalog.context.RequestIdContext;
-import org.qubership.integration.platform.catalog.model.system.SystemModelSource;
-import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;

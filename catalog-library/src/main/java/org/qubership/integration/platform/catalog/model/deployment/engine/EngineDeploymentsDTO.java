@@ -18,10 +18,9 @@ package org.qubership.integration.platform.catalog.model.deployment.engine;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import org.qubership.integration.platform.catalog.model.deployment.update.DeploymentInfo;
 
 import java.util.List;
-
-import org.qubership.integration.platform.catalog.model.deployment.update.DeploymentInfo;
 
 @Getter
 @Setter

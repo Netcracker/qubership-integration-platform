@@ -18,11 +18,10 @@ package org.qubership.integration.platform.catalog.configuration;
 
 import com.graphql_java_generator.plugin.CodeTemplate;
 import com.graphql_java_generator.plugin.conf.*;
-import org.qubership.integration.platform.catalog.service.graphql.codegen.GraphqlCodeDocumentParser;
-import org.qubership.integration.platform.catalog.service.graphql.codegen.GraphqlRuntimePojoGenerator;
-
 import graphql.parser.Parser;
 import graphql.parser.ParserOptions;
+import org.qubership.integration.platform.catalog.service.graphql.codegen.GraphqlCodeDocumentParser;
+import org.qubership.integration.platform.catalog.service.graphql.codegen.GraphqlRuntimePojoGenerator;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

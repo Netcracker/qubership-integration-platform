@@ -16,21 +16,20 @@
 
 package org.qubership.integration.platform.catalog.service.graphql.codegen;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import org.qubership.integration.platform.catalog.configuration.GraphQLCodegenConfiguration;
 import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.catalog.service.codegen.SystemModelCodeGenerator;
 import org.qubership.integration.platform.catalog.service.codegen.TargetProtocol;
-
-import static org.qubership.integration.platform.catalog.service.codegen.PackageNameUtil.buildPackageName;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.function.Function;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
+
+import static org.qubership.integration.platform.catalog.service.codegen.PackageNameUtil.buildPackageName;
 
 @Component
 @TargetProtocol(protocol = OperationProtocol.GRAPHQL)

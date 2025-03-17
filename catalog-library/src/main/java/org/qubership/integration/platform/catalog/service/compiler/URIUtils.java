@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.catalog.service.compiler;
 
-import javax.tools.JavaFileObject;
 import java.net.URI;
 import java.net.URISyntaxException;
+import javax.tools.JavaFileObject;
 
 public class URIUtils {
     public static URI buildURI(String scheme, String className, JavaFileObject.Kind kind) {

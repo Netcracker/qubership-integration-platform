@@ -16,14 +16,13 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.entity.chain;
 
+import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+import org.qubership.integration.platform.catalog.model.deployment.RouteType;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import org.qubership.integration.platform.catalog.model.deployment.RouteType;
-
-import jakarta.persistence.*;
 import java.util.UUID;
 
 @Getter

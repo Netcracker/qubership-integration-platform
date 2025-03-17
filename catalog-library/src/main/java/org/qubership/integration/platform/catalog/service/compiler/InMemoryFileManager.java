@@ -18,15 +18,15 @@ package org.qubership.integration.platform.catalog.service.compiler;
 
 import org.apache.commons.io.FilenameUtils;
 
-import javax.tools.FileObject;
-import javax.tools.ForwardingJavaFileManager;
-import javax.tools.JavaFileManager;
-import javax.tools.JavaFileObject;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import javax.tools.FileObject;
+import javax.tools.ForwardingJavaFileManager;
+import javax.tools.JavaFileManager;
+import javax.tools.JavaFileObject;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;

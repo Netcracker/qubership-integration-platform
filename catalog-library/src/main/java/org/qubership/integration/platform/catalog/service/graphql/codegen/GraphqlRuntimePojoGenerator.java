@@ -22,12 +22,6 @@ import com.graphql_java_generator.plugin.conf.PluginMode;
 import com.graphql_java_generator.plugin.generate_code.ExceptionThrower;
 import com.graphql_java_generator.plugin.generate_code.GenerateCodeGenerator;
 import com.graphql_java_generator.plugin.language.Type;
-import org.qubership.integration.platform.catalog.configuration.GraphQLCodegenConfiguration;
-import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.velocity.Template;
@@ -35,6 +29,11 @@ import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
+import org.qubership.integration.platform.catalog.configuration.GraphQLCodegenConfiguration;
+import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationSource;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
 
 import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;

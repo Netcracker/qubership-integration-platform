@@ -26,7 +26,6 @@ import org.qubership.integration.platform.catalog.model.dto.system.EnvironmentRe
 import org.qubership.integration.platform.catalog.model.system.EnvironmentDefaultParameters;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.catalog.util.MapperUtils;
-import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;

@@ -18,6 +18,14 @@ package org.qubership.integration.platform.catalog.service.parsers.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import graphql.language.AstPrinter;
+import graphql.language.Definition;
+import graphql.language.Document;
+import graphql.language.ObjectTypeDefinition;
+import graphql.parser.Parser;
+import graphql.parser.ParserEnvironment;
+import graphql.parser.ParserOptions;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.exception.SpecificationImportException;
 import org.qubership.integration.platform.catalog.exception.SpecificationSimilarIdException;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
@@ -27,15 +35,6 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.sys
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.catalog.service.parsers.SpecificationParser;
-
-import graphql.language.AstPrinter;
-import graphql.language.Definition;
-import graphql.language.Document;
-import graphql.language.ObjectTypeDefinition;
-import graphql.parser.Parser;
-import graphql.parser.ParserEnvironment;
-import graphql.parser.ParserOptions;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;

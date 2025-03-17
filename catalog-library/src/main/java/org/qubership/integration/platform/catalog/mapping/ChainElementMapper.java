@@ -16,16 +16,15 @@
 
 package org.qubership.integration.platform.catalog.mapping;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.qubership.integration.platform.catalog.model.dto.chain.ChainElementDTO;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-
 import org.qubership.integration.platform.catalog.util.MapperUtils;
 
-import javax.annotation.Nullable;
 import java.util.List;
+import javax.annotation.Nullable;
 
 @Mapper(componentModel = "spring")
 public abstract class ChainElementMapper {

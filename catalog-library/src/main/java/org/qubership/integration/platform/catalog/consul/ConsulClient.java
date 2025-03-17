@@ -18,6 +18,9 @@ package org.qubership.integration.platform.catalog.consul;
 
 
 import com.google.common.collect.Lists;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.catalog.consul.exception.ConsulException;
 import org.qubership.integration.platform.catalog.consul.exception.KVNotFoundException;
 import org.qubership.integration.platform.catalog.consul.exception.TxnConflictException;
@@ -26,10 +29,6 @@ import org.qubership.integration.platform.catalog.model.consul.txn.request.TxnKV
 import org.qubership.integration.platform.catalog.model.consul.txn.request.TxnRequest;
 import org.qubership.integration.platform.catalog.model.consul.txn.request.TxnVerb;
 import org.qubership.integration.platform.catalog.model.consul.txn.response.TxnResponse;
-
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;

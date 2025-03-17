@@ -18,23 +18,20 @@ package org.qubership.integration.platform.catalog.service.exportimport;
 
 import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.AbstractSystemEntity;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.AbstractSystemEntity;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationSource;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
-
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -53,6 +50,8 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+
+import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
 
 @Slf4j
 public class ExportImportUtils {

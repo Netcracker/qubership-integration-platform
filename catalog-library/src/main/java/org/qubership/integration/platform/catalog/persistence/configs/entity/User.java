@@ -17,9 +17,8 @@
 package org.qubership.integration.platform.catalog.persistence.configs.entity;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.*;
-
 import jakarta.persistence.Embeddable;
+import lombok.*;
 import org.hibernate.proxy.HibernateProxy;
 
 import java.io.Serializable;

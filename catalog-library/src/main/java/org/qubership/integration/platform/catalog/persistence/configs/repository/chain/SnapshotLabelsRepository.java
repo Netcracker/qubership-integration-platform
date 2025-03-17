@@ -16,9 +16,8 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.chain;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.SnapshotLabel;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SnapshotLabelsRepository extends JpaRepository<SnapshotLabel, String> {
 

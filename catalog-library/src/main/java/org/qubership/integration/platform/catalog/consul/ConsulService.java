@@ -18,18 +18,17 @@ package org.qubership.integration.platform.catalog.consul;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.qubership.integration.platform.catalog.consul.exception.KVNotFoundException;
 import org.qubership.integration.platform.catalog.consul.exception.RuntimePropertiesException;
 import org.qubership.integration.platform.catalog.model.compiledlibrary.CompiledLibraryUpdate;
 import org.qubership.integration.platform.catalog.model.consul.KeyResponse;
 import org.qubership.integration.platform.catalog.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.catalog.model.deployment.properties.DeploymentRuntimeProperties;
-
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;

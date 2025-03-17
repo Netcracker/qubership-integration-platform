@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.catalog.mapping;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.qubership.integration.platform.catalog.model.dto.chain.ChainElementDifferenceDTO;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.service.difference.DifferenceResult;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 import java.util.List;
 

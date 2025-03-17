@@ -16,11 +16,10 @@
 
 package org.qubership.integration.platform.catalog.model.dto.actionlog;
 
-import org.qubership.integration.platform.catalog.model.filter.ActionLogFilterColumn;
-import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.catalog.model.filter.ActionLogFilterColumn;
+import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
 
 @Data
 @Schema(description = "Audit log filter request")

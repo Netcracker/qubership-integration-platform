@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.entity.chain;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.proxy.HibernateProxy;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 
 import java.io.Serializable;
 import java.util.Comparator;

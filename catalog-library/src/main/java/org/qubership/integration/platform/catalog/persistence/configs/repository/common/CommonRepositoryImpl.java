@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.common;
 
-import org.springframework.stereotype.Repository;
-
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.springframework.stereotype.Repository;
 
 import java.util.Comparator;
 import java.util.function.Predicate;

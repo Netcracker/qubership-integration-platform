@@ -16,13 +16,12 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.instructions;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.stereotype.Repository;
-
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportEntityType;
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionAction;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;

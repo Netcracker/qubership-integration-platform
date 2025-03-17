@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.catalog.mapping;
 
+import org.mapstruct.Mapper;
 import org.qubership.integration.platform.catalog.model.dto.chain.EntityDifferenceResponse;
 import org.qubership.integration.platform.catalog.service.difference.EntityDifferenceResult;
-import org.mapstruct.Mapper;
-
 import org.qubership.integration.platform.catalog.util.MapperUtils;
 
 @Mapper(componentModel = "spring", uses = { ChainLiteMapper.class, ChainElementDiffMapper.class, MapperUtils.class })

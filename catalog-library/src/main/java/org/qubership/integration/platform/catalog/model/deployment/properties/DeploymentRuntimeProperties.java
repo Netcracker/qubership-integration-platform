@@ -18,12 +18,11 @@ package org.qubership.integration.platform.catalog.model.deployment.properties;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
-
-import java.util.Set;
-
 import org.qubership.integration.platform.catalog.model.chain.LogLoggingLevel;
 import org.qubership.integration.platform.catalog.model.chain.LogPayload;
 import org.qubership.integration.platform.catalog.model.chain.SessionsLoggingLevel;
+
+import java.util.Set;
 
 @Getter
 @Setter

@@ -18,11 +18,10 @@ package org.qubership.integration.platform.catalog.model.library.chaindesign;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.catalog.model.designgenerator.DiagramOperationType;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import org.qubership.integration.platform.catalog.model.designgenerator.DiagramOperationType;
 
 @Data
 @Schema(description = "Additional element parameters for container elements (with children) for chain sequence diagram building")

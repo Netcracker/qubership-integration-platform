@@ -19,12 +19,12 @@ package org.qubership.integration.platform.catalog.persistence.configs.repositor
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.*;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
 
 public class OperationFilterRepositoryImpl implements OperationFilterRepository {
     @PersistenceContext

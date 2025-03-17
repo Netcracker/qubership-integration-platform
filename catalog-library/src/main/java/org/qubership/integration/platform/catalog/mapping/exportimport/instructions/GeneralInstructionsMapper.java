@@ -16,13 +16,12 @@
 
 package org.qubership.integration.platform.catalog.mapping.exportimport.instructions;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.GeneralImportInstructionsConfig;
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.GeneralImportInstructionsDTO;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;

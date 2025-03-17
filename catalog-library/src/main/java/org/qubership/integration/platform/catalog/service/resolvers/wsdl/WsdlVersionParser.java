@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.catalog.service.resolvers.wsdl;
 
+import org.qubership.integration.platform.catalog.exception.SpecificationImportException;
+import org.qubership.integration.platform.catalog.model.system.WsdlVersion;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -24,15 +26,11 @@ import org.springframework.stereotype.Service;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
-import org.qubership.integration.platform.catalog.exception.SpecificationImportException;
-import org.qubership.integration.platform.catalog.model.system.WsdlVersion;
-
+import java.io.IOException;
+import java.io.StringReader;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
-
-import java.io.IOException;
-import java.io.StringReader;
 
 @Service
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)

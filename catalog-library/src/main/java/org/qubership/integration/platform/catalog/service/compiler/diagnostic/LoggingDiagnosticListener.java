@@ -18,11 +18,11 @@ package org.qubership.integration.platform.catalog.service.compiler.diagnostic;
 
 import org.slf4j.Logger;
 
+import java.io.IOException;
+import java.util.Locale;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaFileObject;
-import java.io.IOException;
-import java.util.Locale;
 
 import static java.util.Objects.nonNull;
 

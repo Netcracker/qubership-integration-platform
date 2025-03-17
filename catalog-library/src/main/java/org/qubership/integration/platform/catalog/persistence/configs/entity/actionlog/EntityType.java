@@ -16,9 +16,8 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
-
 import io.swagger.v3.oas.annotations.media.Schema;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
 
 @Schema(description = "Action log entity type")
 public enum EntityType {

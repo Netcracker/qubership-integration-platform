@@ -18,17 +18,15 @@ package org.qubership.integration.platform.catalog.persistence.configs.entity.sy
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.qubership.integration.platform.catalog.model.system.EnvironmentLabel;
-import org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType;
-import org.qubership.integration.platform.catalog.util.CompareListUtils;
-
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
+import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.Type;
-
-import jakarta.persistence.*;
 import org.hibernate.proxy.HibernateProxy;
+import org.qubership.integration.platform.catalog.model.system.EnvironmentLabel;
+import org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType;
+import org.qubership.integration.platform.catalog.util.CompareListUtils;
 
 import java.util.List;
 import java.util.Objects;

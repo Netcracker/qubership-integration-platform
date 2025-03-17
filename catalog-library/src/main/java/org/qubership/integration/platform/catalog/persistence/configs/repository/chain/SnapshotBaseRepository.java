@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.catalog.persistence.configs.repository.chain;
 
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
 
 @Repository
 public interface SnapshotBaseRepository extends JpaRepository<Snapshot, String> {

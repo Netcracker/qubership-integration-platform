@@ -16,12 +16,11 @@
 
 package org.qubership.integration.platform.catalog.model.library.chaindesign;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
-import org.springframework.lang.Nullable;
-
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.util.DiagramBuilderEscapeUtil;
+import org.springframework.lang.Nullable;
 
 @Setter
 @RequiredArgsConstructor

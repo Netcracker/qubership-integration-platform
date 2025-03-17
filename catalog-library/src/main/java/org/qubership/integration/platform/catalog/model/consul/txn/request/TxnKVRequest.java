@@ -22,8 +22,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import javax.annotation.Nullable;
 import java.util.Base64;
+import javax.annotation.Nullable;
 
 @Getter
 @Setter

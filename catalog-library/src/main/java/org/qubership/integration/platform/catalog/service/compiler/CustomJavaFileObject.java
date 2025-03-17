@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.catalog.service.compiler;
 
+import java.io.*;
+import java.net.URI;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.NestingKind;
 import javax.tools.JavaFileObject;
-import java.io.*;
-import java.net.URI;
 
 public class CustomJavaFileObject implements JavaFileObject {
     private final String binaryName;

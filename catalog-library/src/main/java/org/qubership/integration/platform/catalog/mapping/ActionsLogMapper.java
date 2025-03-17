@@ -16,12 +16,11 @@
 
 package org.qubership.integration.platform.catalog.mapping;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.qubership.integration.platform.catalog.model.dto.actionlog.ActionLogDTO;
 import org.qubership.integration.platform.catalog.model.dto.actionlog.ActionLogResponse;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-
 import org.qubership.integration.platform.catalog.util.MapperUtils;
 
 import java.util.List;

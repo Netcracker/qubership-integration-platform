@@ -16,18 +16,17 @@
 
 package org.qubership.integration.platform.catalog.service.difference;
 
+import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.catalog.exception.ChainDifferenceClientException;
+import org.qubership.integration.platform.catalog.exception.ComparisonEntityNotFoundException;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.SnapshotBaseRepository;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
-import org.qubership.integration.platform.catalog.exception.ChainDifferenceClientException;
-import org.qubership.integration.platform.catalog.exception.ComparisonEntityNotFoundException;
 
 import java.util.ArrayList;
 import java.util.LinkedList;

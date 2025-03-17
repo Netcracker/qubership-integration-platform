@@ -17,9 +17,6 @@
 package org.qubership.integration.platform.catalog.persistence.configs.entity.system;
 
 import com.fasterxml.jackson.annotation.*;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.util.CompareListUtils;
-
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
@@ -30,6 +27,8 @@ import lombok.experimental.SuperBuilder;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.proxy.HibernateProxy;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.catalog.util.CompareListUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;

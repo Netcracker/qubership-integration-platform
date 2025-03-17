@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.catalog.model.system.asyncapi;
 
-import org.qubership.integration.platform.catalog.model.system.asyncapi.components.SchemaObject;
 import lombok.Getter;
 import lombok.Setter;
+import org.qubership.integration.platform.catalog.model.system.asyncapi.components.SchemaObject;
 
 import java.util.List;
 import java.util.Map;

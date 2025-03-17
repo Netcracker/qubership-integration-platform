@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.catalog.exception;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import lombok.Getter;
 import lombok.Setter;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 
 import java.util.Optional;
 

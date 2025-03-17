@@ -16,18 +16,16 @@
 
 package org.qubership.integration.platform.catalog.configuration.auditing;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.CompiledLibrary;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Component;
-
-import org.qubership.integration.platform.catalog.model.compiledlibrary.CompiledLibraryEvent;
-import org.qubership.integration.platform.catalog.model.compiledlibrary.CompiledLibraryEventType;
-
 import jakarta.persistence.PostPersist;
 import jakarta.persistence.PostRemove;
 import jakarta.persistence.PostUpdate;
+import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.model.compiledlibrary.CompiledLibraryEvent;
+import org.qubership.integration.platform.catalog.model.compiledlibrary.CompiledLibraryEventType;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.CompiledLibrary;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component

@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.catalog.util;
 
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.designgenerator.DiagramConstants;
 import org.qubership.integration.platform.catalog.model.designgenerator.ReservedPlaceholders;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.regex.Matcher;

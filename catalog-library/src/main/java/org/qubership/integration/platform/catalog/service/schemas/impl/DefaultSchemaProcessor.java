@@ -19,20 +19,18 @@ package org.qubership.integration.platform.catalog.service.schemas.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.qubership.integration.platform.catalog.service.schemas.Processor;
-import org.qubership.integration.platform.catalog.service.schemas.SchemaProcessor;
-
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.extern.slf4j.Slf4j;
-
-import static org.qubership.integration.platform.catalog.service.schemas.SchemasConstants.DEFAULT_SCHEMA_CLASS;
-
 import org.apache.commons.lang3.tuple.MutablePair;
+import org.qubership.integration.platform.catalog.service.schemas.Processor;
+import org.qubership.integration.platform.catalog.service.schemas.SchemaProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
+
+import static org.qubership.integration.platform.catalog.service.schemas.SchemasConstants.DEFAULT_SCHEMA_CLASS;
 
 @Slf4j
 @Service

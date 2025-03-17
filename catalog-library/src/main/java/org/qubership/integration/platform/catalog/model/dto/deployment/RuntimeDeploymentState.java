@@ -16,12 +16,11 @@
 
 package org.qubership.integration.platform.catalog.model.dto.deployment;
 
-import org.qubership.integration.platform.catalog.model.deployment.engine.DeploymentStatus;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.qubership.integration.platform.catalog.model.deployment.engine.DeploymentStatus;
 
 @Data
 @AllArgsConstructor

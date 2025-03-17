@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.catalog.util;
 
-import org.qubership.integration.platform.catalog.exception.CatalogRuntimeException;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.apache.commons.lang3.SerializationException;
 import org.apache.commons.lang3.SerializationUtils;
 import org.hibernate.Hibernate;
 import org.hibernate.HibernateException;
+import org.qubership.integration.platform.catalog.exception.CatalogRuntimeException;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 
 import java.io.File;
 import java.io.FileInputStream;

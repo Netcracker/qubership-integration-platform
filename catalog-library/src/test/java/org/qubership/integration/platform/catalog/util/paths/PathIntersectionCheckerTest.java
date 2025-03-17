@@ -19,9 +19,8 @@ package org.qubership.integration.platform.catalog.util.paths;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import org.qubership.integration.platform.catalog.util.paths.PathIntersectionChecker;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PathIntersectionCheckerTest {
     private PathIntersectionChecker intersectionChecker;

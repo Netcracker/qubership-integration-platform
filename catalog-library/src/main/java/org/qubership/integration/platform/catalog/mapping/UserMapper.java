@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.catalog.mapping;
 
+import org.mapstruct.Mapper;
 import org.qubership.integration.platform.catalog.model.dto.user.UserDTO;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.User;
-import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {

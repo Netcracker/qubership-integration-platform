@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.catalog.service.compiler.diagnostic;
 
+import java.util.Optional;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticListener;
-
-import java.util.Optional;
 
 import static java.util.Objects.isNull;
 

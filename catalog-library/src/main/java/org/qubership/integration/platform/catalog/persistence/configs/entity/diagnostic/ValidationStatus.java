@@ -18,16 +18,15 @@ package org.qubership.integration.platform.catalog.persistence.configs.entity.di
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.User;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.User;
-
-import javax.annotation.Nullable;
 import java.sql.Timestamp;
+import javax.annotation.Nullable;
 
 @Getter
 @Setter

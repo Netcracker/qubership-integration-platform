@@ -22,11 +22,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-
-import java.util.List;
-
 import org.qubership.integration.platform.catalog.model.dto.BaseResponse;
 import org.qubership.integration.platform.catalog.model.dto.dependency.DependencyResponse;
+
+import java.util.List;
 
 @Setter
 @Getter

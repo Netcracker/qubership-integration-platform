@@ -18,8 +18,7 @@ package org.qubership.integration.platform.catalog.persistence.configs.entity.sy
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import org.qubership.integration.platform.catalog.util.HashUtils;
-
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,8 +28,7 @@ import lombok.experimental.SuperBuilder;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.proxy.HibernateProxy;
 import org.jetbrains.annotations.Nullable;
-
-import jakarta.persistence.*;
+import org.qubership.integration.platform.catalog.util.HashUtils;
 
 @Getter
 @Setter

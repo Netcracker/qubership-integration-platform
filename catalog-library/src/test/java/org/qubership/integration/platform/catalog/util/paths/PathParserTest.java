@@ -19,15 +19,12 @@ package org.qubership.integration.platform.catalog.util.paths;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import org.qubership.integration.platform.catalog.util.paths.PathElement;
-import org.qubership.integration.platform.catalog.util.paths.PathParser;
-import org.qubership.integration.platform.catalog.util.paths.PathPatternCharacters;
-
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PathParserTest {
     private PathParser parser;

@@ -21,7 +21,6 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.proxy.HibernateProxy;
-
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
 
 import java.util.Objects;

@@ -17,9 +17,8 @@
 package org.qubership.integration.platform.catalog.model.consul.txn.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.qubership.integration.platform.catalog.model.consul.KVResponse;
-
 import lombok.*;
+import org.qubership.integration.platform.catalog.model.consul.KVResponse;
 
 @Getter
 @Setter

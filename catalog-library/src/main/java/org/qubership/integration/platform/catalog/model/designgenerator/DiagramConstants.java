@@ -16,16 +16,16 @@
 
 package org.qubership.integration.platform.catalog.model.designgenerator;
 
-import static org.qubership.integration.platform.catalog.model.designgenerator.DiagramLangType.MERMAID;
-import static org.qubership.integration.platform.catalog.model.designgenerator.DiagramLangType.PLANT_UML;
-import static org.qubership.integration.platform.catalog.model.designgenerator.DiagramOperationType.*;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.qubership.integration.platform.catalog.model.designgenerator.DiagramLangType.MERMAID;
+import static org.qubership.integration.platform.catalog.model.designgenerator.DiagramLangType.PLANT_UML;
+import static org.qubership.integration.platform.catalog.model.designgenerator.DiagramOperationType.*;
 
 public class DiagramConstants {
 

@@ -28,16 +28,15 @@ import org.qubership.integration.platform.catalog.model.system.asyncapi.componen
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.catalog.service.resolvers.async.AsyncApiSpecificationResolver;
 import org.qubership.integration.platform.catalog.service.resolvers.async.AsyncResolver;
-
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
-import static org.qubership.integration.platform.catalog.service.resolvers.async.AsyncConstants.AMQP_BINDING_CLASS;
-import static org.qubership.integration.platform.catalog.service.resolvers.async.AsyncConstants.CONVERTING_OPERATION_TO_JSON_ERROR;
-
 import java.util.Collections;
 import java.util.List;
+
+import static org.qubership.integration.platform.catalog.service.resolvers.async.AsyncConstants.AMQP_BINDING_CLASS;
+import static org.qubership.integration.platform.catalog.service.resolvers.async.AsyncConstants.CONVERTING_OPERATION_TO_JSON_ERROR;
 
 @Service
 @AsyncResolver(AMQP_BINDING_CLASS)

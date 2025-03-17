@@ -16,22 +16,21 @@
 
 package org.qubership.integration.platform.catalog.mapping;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.SubclassMapping;
 import org.qubership.integration.platform.catalog.model.dto.chain.ChainLiteDTO;
 import org.qubership.integration.platform.catalog.model.dto.dependency.DependencyResponse;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.SubclassMapping;
-
 import org.qubership.integration.platform.catalog.util.MapperUtils;
-
-import static org.qubership.integration.platform.catalog.util.MapperUtils.extractOriginalId;
 
 import java.util.List;
 import java.util.Set;
+
+import static org.qubership.integration.platform.catalog.util.MapperUtils.extractOriginalId;
 
 @Mapper(componentModel = "spring", uses = MapperUtils.class)
 public interface ChainLiteMapper {

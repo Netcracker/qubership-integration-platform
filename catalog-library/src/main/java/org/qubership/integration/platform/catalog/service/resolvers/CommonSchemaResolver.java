@@ -23,9 +23,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 
-import static org.qubership.integration.platform.catalog.service.schemas.SchemasConstants.*;
-
 import java.util.*;
+
+import static org.qubership.integration.platform.catalog.service.schemas.SchemasConstants.*;
 
 @Slf4j
 public abstract class CommonSchemaResolver implements SchemaResolver {
