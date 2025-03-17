@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.engine.camel.components.graphql;
 
-import java.net.URI;
-import java.util.Map;
 import org.apache.camel.Endpoint;
 import org.apache.camel.component.graphql.GraphqlComponent;
 import org.apache.camel.spi.annotations.Component;
+
+import java.net.URI;
+import java.util.Map;
 
 @Component("graphql-custom")
 public class GraphqlCustomComponent extends GraphqlComponent {

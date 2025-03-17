@@ -16,10 +16,11 @@
 
 package org.qubership.integration.platform.engine.service;
 
+import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+
 import java.util.List;
 import java.util.Map;
-import org.apache.camel.spring.SpringCamelContext;
 
 public interface SdsService {
     void removeSchedulerJobs(Iterable<SpringCamelContext> contextsToRemove);

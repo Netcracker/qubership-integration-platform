@@ -17,7 +17,9 @@
 package org.qubership.integration.platform.engine.opensearch.ism.deserializers;
 
 
-import com.fasterxml.jackson.core.*;
+import com.fasterxml.jackson.core.JacksonException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;

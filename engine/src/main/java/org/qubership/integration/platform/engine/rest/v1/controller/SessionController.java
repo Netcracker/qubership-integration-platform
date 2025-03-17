@@ -16,18 +16,21 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
-import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
-import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
-import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
+import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
+import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
 import java.util.List;

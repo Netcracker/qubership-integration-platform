@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.engine.rest.v1.mapper;
 
+import org.mapstruct.Mapper;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
 import org.qubership.integration.platform.engine.util.MapperUtils;
+
 import java.util.List;
-import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring",
     uses = {

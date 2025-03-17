@@ -19,11 +19,11 @@ package org.qubership.integration.platform.engine.camel.processors;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
-import org.qubership.integration.platform.engine.util.GrpcProcessorUtils;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpStatus;
+import org.qubership.integration.platform.engine.util.GrpcProcessorUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

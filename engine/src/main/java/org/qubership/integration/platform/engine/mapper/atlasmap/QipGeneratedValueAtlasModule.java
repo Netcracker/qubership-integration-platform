@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
-import org.qubership.integration.platform.mapper.GeneratedField;
 import io.atlasmap.api.AtlasException;
 import io.atlasmap.api.AtlasSession;
 import io.atlasmap.core.BaseAtlasModule;
@@ -25,6 +24,7 @@ import io.atlasmap.spi.AtlasModuleDetail;
 import io.atlasmap.v2.AtlasModelFactory;
 import io.atlasmap.v2.ConstantField;
 import io.atlasmap.v2.Field;
+import org.qubership.integration.platform.mapper.GeneratedField;
 
 import java.util.function.Function;
 

@@ -16,10 +16,11 @@
 
 package org.qubership.integration.platform.engine.model.errorhandling;
 
-import java.util.Map;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.Map;
 
 @Getter
 @Setter

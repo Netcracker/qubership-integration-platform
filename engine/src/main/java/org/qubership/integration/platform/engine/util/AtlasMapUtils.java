@@ -19,14 +19,21 @@ package org.qubership.integration.platform.engine.util;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import io.atlasmap.spi.AtlasActionProcessor;
 import io.atlasmap.spi.AtlasFieldAction;
-import io.atlasmap.v2.*;
-
+import io.atlasmap.v2.Action;
+import io.atlasmap.v2.AtlasActionProperty;
+import io.atlasmap.v2.FieldType;
 
 import java.io.Serializable;
-import java.time.*;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.*;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 
 import static java.util.Objects.isNull;
 

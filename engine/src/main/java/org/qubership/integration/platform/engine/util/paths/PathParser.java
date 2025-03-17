@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.engine.util.paths;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.StringUtils;
 
 public class PathParser {
     private static final String SEPARATOR = "/";

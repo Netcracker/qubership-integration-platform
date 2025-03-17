@@ -16,16 +16,17 @@
 
 package org.qubership.integration.platform.engine.configuration.datasource;
 
-import org.qubership.integration.platform.engine.configuration.datasource.properties.FlywayConfigProperties;
 import jakarta.annotation.PostConstruct;
-import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.ClassicConfiguration;
+import org.qubership.integration.platform.engine.configuration.datasource.properties.FlywayConfigProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+
+import javax.sql.DataSource;
 
 @AutoConfiguration
 @ConditionalOnProperty(name = "qip.flyway-initializer.enabled", havingValue = "true", matchIfMissing = true)

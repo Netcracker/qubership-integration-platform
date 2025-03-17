@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.engine.errorhandling;
 
-import org.qubership.integration.platform.engine.rest.v1.dto.ExceptionDTO;
+import jakarta.persistence.EntityNotFoundException;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.qubership.integration.platform.engine.rest.v1.dto.ExceptionDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-import jakarta.persistence.EntityNotFoundException;
 import java.sql.Timestamp;
 
 @ControllerAdvice

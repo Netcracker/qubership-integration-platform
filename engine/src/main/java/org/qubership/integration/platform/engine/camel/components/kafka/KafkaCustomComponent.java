@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.components.kafka;
 
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.camel.SSLContextParametersAware;
 import org.apache.camel.component.kafka.KafkaComponent;
 import org.apache.camel.component.kafka.KafkaConfiguration;
@@ -26,6 +24,9 @@ import org.apache.camel.spi.annotations.Component;
 import org.apache.camel.support.PropertyBindingSupport;
 import org.apache.camel.util.ObjectHelper;
 import org.apache.camel.util.PropertiesHelper;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Component("kafka-custom")
 public class KafkaCustomComponent extends KafkaComponent implements SSLContextParametersAware {

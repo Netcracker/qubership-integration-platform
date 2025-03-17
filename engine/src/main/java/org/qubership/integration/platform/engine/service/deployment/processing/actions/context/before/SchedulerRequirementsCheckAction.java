@@ -16,8 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
-import javax.sql.DataSource;
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
@@ -28,7 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
-import lombok.extern.slf4j.Slf4j;
+import javax.sql.DataSource;
 
 @Slf4j
 @Component

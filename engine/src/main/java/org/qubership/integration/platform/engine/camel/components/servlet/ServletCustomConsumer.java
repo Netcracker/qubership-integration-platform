@@ -16,10 +16,11 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
-import java.util.Date;
 import org.apache.camel.Processor;
 import org.apache.camel.component.servlet.ServletConsumer;
 import org.apache.camel.component.servlet.ServletEndpoint;
+
+import java.util.Date;
 
 public class ServletCustomConsumer extends ServletConsumer {
     private final long creationTime;

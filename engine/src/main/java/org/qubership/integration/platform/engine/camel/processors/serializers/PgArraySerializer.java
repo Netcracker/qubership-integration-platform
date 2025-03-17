@@ -20,11 +20,12 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.rabbitmq.client.LongString;
+import lombok.extern.slf4j.Slf4j;
+import org.postgresql.jdbc.PgArray;
+
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.stream.IntStream;
-import lombok.extern.slf4j.Slf4j;
-import org.postgresql.jdbc.PgArray;
 
 @Slf4j
 public class PgArraySerializer extends StdSerializer<PgArray> {

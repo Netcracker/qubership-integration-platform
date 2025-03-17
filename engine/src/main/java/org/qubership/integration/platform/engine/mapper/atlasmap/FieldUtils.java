@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
-import org.qubership.integration.platform.mapper.ComplexField;
-import org.qubership.integration.platform.mapper.GeneratedField;
 import io.atlasmap.core.AtlasPath;
 import io.atlasmap.json.v2.AtlasJsonModelFactory;
 import io.atlasmap.json.v2.JsonField;
 import io.atlasmap.v2.*;
 import io.atlasmap.xml.v2.AtlasXmlModelFactory;
 import io.atlasmap.xml.v2.XmlField;
+import org.qubership.integration.platform.mapper.ComplexField;
+import org.qubership.integration.platform.mapper.GeneratedField;
 
 import java.util.Collections;
 import java.util.List;

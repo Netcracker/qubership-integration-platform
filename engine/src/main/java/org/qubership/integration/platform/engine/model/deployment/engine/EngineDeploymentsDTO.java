@@ -16,13 +16,10 @@
 
 package org.qubership.integration.platform.engine.model.deployment.engine;
 
+import lombok.*;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+
 import java.util.List;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Getter
 @Setter

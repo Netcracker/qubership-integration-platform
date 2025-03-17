@@ -16,28 +16,20 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
-import org.qubership.integration.platform.engine.mapper.atlasmap.expressions.CustomAtlasExpressionProcessor;
 import io.atlasmap.api.AtlasContextFactory.Format;
 import io.atlasmap.api.AtlasException;
 import io.atlasmap.api.AtlasSession;
-import io.atlasmap.core.AtlasPath;
-import io.atlasmap.core.AtlasUtil;
-import io.atlasmap.core.DefaultAtlasContext;
-import io.atlasmap.core.DefaultAtlasContextFactory;
-import io.atlasmap.core.DefaultAtlasSession;
+import io.atlasmap.core.*;
 import io.atlasmap.spi.AtlasModule;
 import io.atlasmap.spi.FieldDirection;
-import io.atlasmap.v2.AtlasMapping;
-import io.atlasmap.v2.AuditStatus;
-import io.atlasmap.v2.CopyTo;
-import io.atlasmap.v2.Field;
-import io.atlasmap.v2.FieldGroup;
-import io.atlasmap.v2.Mapping;
+import io.atlasmap.v2.*;
+import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.engine.mapper.atlasmap.expressions.CustomAtlasExpressionProcessor;
+
 import java.io.InputStream;
 import java.net.URI;
 import java.util.List;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class CustomAtlasContext extends DefaultAtlasContext {

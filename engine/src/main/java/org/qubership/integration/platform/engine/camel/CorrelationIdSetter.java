@@ -17,11 +17,11 @@
 package org.qubership.integration.platform.engine.camel;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
-import org.qubership.integration.platform.engine.util.MDCUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
+import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;

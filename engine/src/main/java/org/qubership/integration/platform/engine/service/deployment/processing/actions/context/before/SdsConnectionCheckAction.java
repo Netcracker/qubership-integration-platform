@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.model.ChainElementType;
@@ -28,8 +29,6 @@ import org.qubership.integration.platform.engine.service.deployment.processing.q
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
-
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component

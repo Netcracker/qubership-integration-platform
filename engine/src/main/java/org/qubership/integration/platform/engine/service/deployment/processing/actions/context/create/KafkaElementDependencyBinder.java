@@ -16,30 +16,30 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
-import org.apache.camel.spring.SpringCamelContext;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
-import org.qubership.integration.platform.engine.camel.components.kafka.TaggedMetricsKafkaClientFactory;
-import org.qubership.integration.platform.engine.model.ChainElementType;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
-import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
-import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
-import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
-import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import org.qubership.integration.platform.engine.model.ElementOptions;
+import io.micrometer.core.instrument.Tag;
 import org.apache.camel.component.kafka.DefaultKafkaClientFactory;
 import org.apache.camel.component.kafka.KafkaClientFactory;
+import org.apache.camel.spring.SpringCamelContext;
+import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.engine.camel.components.kafka.TaggedMetricsKafkaClientFactory;
+import org.qubership.integration.platform.engine.model.ChainElementType;
+import org.qubership.integration.platform.engine.model.ElementOptions;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
+import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
+import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
+import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
+import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-import io.micrometer.core.instrument.Tag;
-import org.apache.commons.lang3.StringUtils;
+
+import java.util.Collection;
 
 import static org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore.MAAS_CLASSIFIER;
 import static org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.ChainElementTypeHelper.isServiceCallOrAsyncApiTrigger;
-
-import java.util.Collection;
 
 @Component
 @Order(KafkaElementDependencyBinder.ORDER)

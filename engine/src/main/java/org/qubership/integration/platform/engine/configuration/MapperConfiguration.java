@@ -22,14 +22,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.qubership.integration.platform.engine.camel.components.rabbitmq.serializers.LongStringSerializer;
-import org.qubership.integration.platform.engine.camel.processors.serializers.PgArraySerializer;
 import com.rabbitmq.client.LongString;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.jdbc.PgArray;
+import org.qubership.integration.platform.engine.camel.components.rabbitmq.serializers.LongStringSerializer;
+import org.qubership.integration.platform.engine.camel.processors.serializers.PgArraySerializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 
 @Configuration
 public class MapperConfiguration {

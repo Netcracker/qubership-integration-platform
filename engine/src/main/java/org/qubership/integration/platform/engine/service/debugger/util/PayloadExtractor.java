@@ -18,19 +18,17 @@ package org.qubership.integration.platform.engine.service.debugger.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.qubership.integration.platform.engine.camel.context.propagation.CamelExchangeContextPropagation;
-import org.qubership.integration.platform.engine.errorhandling.LoggingMaskingException;
-import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
-import org.qubership.integration.platform.engine.model.SessionElementProperty;
-import org.qubership.integration.platform.engine.service.debugger.masking.MaskingService;
-import org.qubership.integration.platform.engine.util.ExchangeUtils;
-import java.util.HashMap;
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.support.http.HttpUtil;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.engine.camel.context.propagation.CamelExchangeContextPropagation;
+import org.qubership.integration.platform.engine.errorhandling.LoggingMaskingException;
+import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
+import org.qubership.integration.platform.engine.model.SessionElementProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
+import org.qubership.integration.platform.engine.service.debugger.masking.MaskingService;
+import org.qubership.integration.platform.engine.util.ExchangeUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
@@ -38,8 +36,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.MimeType;
 import org.springframework.web.reactive.function.UnsupportedMediaTypeException;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 

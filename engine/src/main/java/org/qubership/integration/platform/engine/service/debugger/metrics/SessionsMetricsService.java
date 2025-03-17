@@ -16,29 +16,29 @@
 
 package org.qubership.integration.platform.engine.service.debugger.metrics;
 
-import org.qubership.integration.platform.engine.errorhandling.EngineRuntimeException;
-import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
-import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
-import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
-import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
-
-import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.json.JsonData;
-import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.InlineScript;
+import org.opensearch.client.opensearch._types.Script;
 import org.opensearch.client.opensearch._types.aggregations.*;
 import org.opensearch.client.opensearch.core.SearchRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.transport.httpclient5.ApacheHttpClient5Options;
 import org.opensearch.client.transport.httpclient5.HttpAsyncResponseConsumerFactory;
+import org.qubership.integration.platform.engine.errorhandling.EngineRuntimeException;
+import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
+import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
+import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
+import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.opensearch.client.opensearch._types.Script;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 
 @Slf4j

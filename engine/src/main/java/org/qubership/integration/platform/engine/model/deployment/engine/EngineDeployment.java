@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.engine.model.deployment.engine;
 
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import lombok.*;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 
 @Getter
 @Setter

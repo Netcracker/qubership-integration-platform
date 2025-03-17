@@ -16,17 +16,16 @@
 
 package org.qubership.integration.platform.engine.consul;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
+import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-
-import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component

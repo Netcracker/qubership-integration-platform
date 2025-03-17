@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.engine.opensearch.ism.rest;
 
-import org.qubership.integration.platform.engine.opensearch.ism.model.Policy;
 import lombok.*;
+import org.qubership.integration.platform.engine.opensearch.ism.model.Policy;
 
 @Setter
 @Getter

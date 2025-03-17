@@ -16,22 +16,19 @@
 
 package org.qubership.integration.platform.engine.model.deployment.properties;
 
+import lombok.*;
+import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.consul.ConsulService;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-import org.apache.camel.Exchange;
 
 @Getter
 @Setter

@@ -17,15 +17,15 @@
 package org.qubership.integration.platform.engine.opensearch.ism;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.qubership.integration.platform.engine.opensearch.ism.model.Policy;
-import org.qubership.integration.platform.engine.opensearch.ism.rest.ISMStatusResponse;
-import org.qubership.integration.platform.engine.opensearch.ism.rest.PolicyResponse;
-import org.qubership.integration.platform.engine.opensearch.ism.rest.RequestHelper;
 import org.apache.http.HttpStatus;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch.generic.OpenSearchGenericClient;
 import org.opensearch.client.opensearch.generic.Response;
 import org.opensearch.client.transport.httpclient5.ResponseException;
+import org.qubership.integration.platform.engine.opensearch.ism.model.Policy;
+import org.qubership.integration.platform.engine.opensearch.ism.rest.ISMStatusResponse;
+import org.qubership.integration.platform.engine.opensearch.ism.rest.PolicyResponse;
+import org.qubership.integration.platform.engine.opensearch.ism.rest.RequestHelper;
 
 import java.io.IOException;
 import java.util.Optional;

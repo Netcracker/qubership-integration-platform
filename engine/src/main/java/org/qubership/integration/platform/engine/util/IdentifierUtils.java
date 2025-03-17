@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.engine.util;
 
-import org.qubership.integration.platform.engine.model.ElementIdentifier;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.NamedNode;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.engine.model.ElementIdentifier;
 
 import java.util.regex.Pattern;
 

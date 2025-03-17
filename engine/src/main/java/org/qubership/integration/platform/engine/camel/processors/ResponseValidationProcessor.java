@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import org.apache.camel.Exchange;
+import org.apache.camel.Processor;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
 import org.qubership.integration.platform.engine.errorhandling.ResponseValidationException;
 import org.qubership.integration.platform.engine.errorhandling.ValidationException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
-import org.apache.camel.Exchange;
-import org.apache.camel.Processor;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 

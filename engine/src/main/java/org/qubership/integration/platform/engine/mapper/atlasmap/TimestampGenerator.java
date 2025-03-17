@@ -17,13 +17,12 @@
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
 import io.atlasmap.api.AtlasSession;
+import org.qubership.integration.platform.engine.util.AtlasMapUtils;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 import java.util.function.Function;
-
-import org.qubership.integration.platform.engine.util.AtlasMapUtils;
 
 public class TimestampGenerator implements Function<AtlasSession, String> {
     private final boolean isUnixEpoch;

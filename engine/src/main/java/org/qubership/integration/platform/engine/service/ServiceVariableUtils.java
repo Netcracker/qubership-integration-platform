@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.engine.service;
 
-import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import lombok.Getter;
 import org.apache.camel.Exchange;
+import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 
 import java.util.*;
 import java.util.stream.Collectors;

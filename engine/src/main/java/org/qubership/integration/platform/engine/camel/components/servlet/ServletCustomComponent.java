@@ -16,10 +16,11 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
-import java.net.URI;
 import org.apache.camel.component.servlet.ServletComponent;
 import org.apache.camel.component.servlet.ServletEndpoint;
 import org.apache.camel.spi.annotations.Component;
+
+import java.net.URI;
 
 
 @Component("servlet-custom")

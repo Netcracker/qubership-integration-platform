@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.engine.configuration.camel.kafkacustom;
 
-import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomComponent;
 import org.apache.camel.component.kafka.KafkaConfiguration;
 import org.apache.camel.component.kafka.springboot.KafkaComponentConfiguration;
 import org.apache.camel.spi.ComponentCustomizer;
 import org.apache.camel.spring.boot.ComponentConfigurationProperties;
 import org.apache.camel.spring.boot.util.ConditionalOnHierarchicalProperties;
+import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomComponent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;

@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import org.qubership.integration.platform.engine.service.debugger.tracing.MicrometerObservationTaggedTracer;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
 import lombok.Getter;
@@ -24,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.observation.MicrometerObservationTracer;
 import org.apache.camel.observation.starter.ObservationAutoConfiguration;
 import org.apache.camel.observation.starter.ObservationConfigurationProperties;
+import org.qubership.integration.platform.engine.service.debugger.tracing.MicrometerObservationTaggedTracer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;

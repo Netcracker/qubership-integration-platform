@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.engine.service.externallibrary;
 
-import org.qubership.integration.platform.engine.events.ExternalLibrariesUpdatedEvent;
 import groovy.lang.Script;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.language.groovy.GroovyLanguage;
+import org.qubership.integration.platform.engine.events.ExternalLibrariesUpdatedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 

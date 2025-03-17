@@ -16,19 +16,22 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap.functions;
 
-import org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils;
-import org.qubership.integration.platform.mapper.ComplexField;
 import io.atlasmap.core.AtlasPath;
 import io.atlasmap.core.BaseFunctionFactory;
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.parser.ParseException;
-import io.atlasmap.v2.*;
+import io.atlasmap.v2.CollectionType;
+import io.atlasmap.v2.Field;
+import io.atlasmap.v2.FieldGroup;
+import io.atlasmap.v2.FieldType;
+import org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils;
+import org.qubership.integration.platform.mapper.ComplexField;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.replacePathSegments;
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.engine.mapper.atlasmap.FieldUtils.replacePathSegments;
 
 public class MergeObjectsFunctionFactory extends BaseFunctionFactory {
     @Override

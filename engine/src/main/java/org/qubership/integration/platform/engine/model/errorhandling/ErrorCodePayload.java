@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.engine.model.errorhandling;
 
-import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCodeUtils;
-import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
+import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCodeUtils;
+
+import java.util.List;
 
 @Getter
 @Setter

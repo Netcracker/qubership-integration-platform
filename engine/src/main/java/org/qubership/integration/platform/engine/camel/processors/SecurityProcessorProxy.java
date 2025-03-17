@@ -16,12 +16,13 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Processor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+
+import java.util.Optional;
 
 @Slf4j
 @Component("securityProcessor")

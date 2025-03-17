@@ -16,12 +16,9 @@
 
 package org.qubership.integration.platform.engine.model.deployment.update;
 
+import lombok.*;
+
 import javax.annotation.Nullable;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Getter
 @Setter

@@ -21,10 +21,13 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.qubership.integration.platform.engine.opensearch.ism.deserializers.TimeValueDeserializer;
-import org.qubership.integration.platform.engine.opensearch.ism.serializers.TimeValueSerializer;
-import lombok.*;
 import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeValue;
+import org.qubership.integration.platform.engine.opensearch.ism.serializers.TimeValueSerializer;
 
 @Data
 @NoArgsConstructor

@@ -22,7 +22,10 @@ import io.atlasmap.expression.ExpressionContext;
 import io.atlasmap.expression.internal.BooleanExpression;
 import io.atlasmap.expression.internal.ConstantExpression;
 import io.atlasmap.expression.parser.ParseException;
-import io.atlasmap.v2.*;
+import io.atlasmap.v2.AtlasModelFactory;
+import io.atlasmap.v2.Field;
+import io.atlasmap.v2.FieldGroup;
+import io.atlasmap.v2.FieldType;
 
 import java.util.List;
 

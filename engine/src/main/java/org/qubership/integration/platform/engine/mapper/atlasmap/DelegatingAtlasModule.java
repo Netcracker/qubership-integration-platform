@@ -23,9 +23,9 @@ import io.atlasmap.spi.*;
 import io.atlasmap.v2.DataSourceMetadata;
 import io.atlasmap.v2.Field;
 
-import javax.management.openmbean.TabularData;
 import java.util.List;
 import java.util.Map;
+import javax.management.openmbean.TabularData;
 
 public class DelegatingAtlasModule implements AtlasModule, AtlasModuleMXBean {
     private final BaseAtlasModule delegate;

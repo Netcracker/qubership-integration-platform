@@ -16,14 +16,15 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
 import org.slf4j.MDC;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
+
+import java.util.UUID;
 
 @Slf4j
 public class MDCInterceptor implements HandlerInterceptor {

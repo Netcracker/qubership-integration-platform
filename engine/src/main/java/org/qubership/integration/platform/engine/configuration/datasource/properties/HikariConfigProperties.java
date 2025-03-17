@@ -17,11 +17,12 @@
 package org.qubership.integration.platform.engine.configuration.datasource.properties;
 
 import com.zaxxer.hikari.HikariConfig;
-import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.util.Map;
 
 @Getter
 @Setter

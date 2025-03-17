@@ -17,21 +17,21 @@
 package org.qubership.integration.platform.engine.camel.components.servlet.exception;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.camel.CamelAuthorizationException;
+import org.apache.camel.Exchange;
+import org.apache.camel.component.http.HttpConstants;
+import org.apache.camel.http.base.HttpOperationFailedException;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException;
 import org.qubership.integration.platform.engine.camel.components.servlet.exception.annotations.ChainExceptionHandler;
 import org.qubership.integration.platform.engine.camel.exceptions.IterationLimitException;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTerminatedException;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTimeoutException;
 import org.qubership.integration.platform.engine.errorhandling.ResponseValidationException;
-import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.errorhandling.ValidationException;
+import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCodeException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.apache.camel.CamelAuthorizationException;
-import org.apache.camel.Exchange;
-import org.apache.camel.component.http.HttpConstants;
-import org.apache.camel.http.base.HttpOperationFailedException;
-import org.apache.kafka.common.errors.TimeoutException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;

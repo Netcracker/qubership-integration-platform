@@ -16,13 +16,14 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import org.qubership.integration.platform.engine.camel.components.context.propagation.RabbitContextPropagationWrapper;
-import java.util.Optional;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.http.HttpHeaders;
+import org.qubership.integration.platform.engine.camel.components.context.propagation.RabbitContextPropagationWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import java.util.Optional;
 
 @Component
 public class RabbitMqSenderProcessor implements Processor {

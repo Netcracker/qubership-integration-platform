@@ -16,13 +16,11 @@
 
 package org.qubership.integration.platform.engine.configuration.camel;
 
-import org.qubership.integration.platform.engine.security.ExchangeRolesVoter;
-import java.util.Collections;
-import java.util.List;
 import org.apache.camel.NamedNode;
 import org.apache.camel.Processor;
 import org.apache.camel.Route;
 import org.apache.camel.spi.Policy;
+import org.qubership.integration.platform.engine.security.ExchangeRolesVoter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -31,6 +29,9 @@ import org.springframework.security.access.AccessDecisionManager;
 import org.springframework.security.access.AccessDecisionVoter;
 import org.springframework.security.access.vote.AffirmativeBased;
 import org.springframework.security.access.vote.RoleVoter;
+
+import java.util.Collections;
+import java.util.List;
 
 @AutoConfiguration
 public class CamelSecurityAutoConfiguration {

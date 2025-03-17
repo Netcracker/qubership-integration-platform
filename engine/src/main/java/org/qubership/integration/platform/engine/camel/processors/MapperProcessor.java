@@ -21,8 +21,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import org.qubership.integration.platform.engine.mapper.atlasmap.CustomAtlasContext;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import io.atlasmap.api.AtlasContext;
 import io.atlasmap.api.AtlasSession;
 import io.atlasmap.core.DefaultAtlasContextFactory;
@@ -35,13 +33,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.commons.text.StringEscapeUtils;
+import org.qubership.integration.platform.engine.mapper.atlasmap.CustomAtlasContext;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.io.StringReader;
-import java.util.*;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**

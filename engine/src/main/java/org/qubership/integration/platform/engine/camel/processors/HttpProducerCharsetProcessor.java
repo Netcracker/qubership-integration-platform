@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import java.nio.charset.Charset;
 import org.apache.camel.Exchange;
 import org.apache.camel.ExchangePropertyKey;
 import org.apache.camel.Processor;
@@ -25,6 +24,8 @@ import org.apache.camel.support.ExchangeHelper;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.entity.ContentType;
 import org.springframework.stereotype.Component;
+
+import java.nio.charset.Charset;
 
 /**
  * Allows replacing incorrect default request encoding in a component {@link HttpProducer}

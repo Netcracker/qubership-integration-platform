@@ -16,8 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing;
 
-import java.util.Optional;
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
@@ -25,7 +24,7 @@ import org.qubership.integration.platform.engine.model.deployment.update.Deploym
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.slf4j.MDC;
 
-import lombok.extern.slf4j.Slf4j;
+import java.util.Optional;
 
 @Slf4j
 public abstract class ElementProcessingAction implements DeploymentProcessingAction {

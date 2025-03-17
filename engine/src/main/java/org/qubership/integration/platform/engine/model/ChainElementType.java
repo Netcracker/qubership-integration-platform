@@ -16,11 +16,7 @@
 
 package org.qubership.integration.platform.engine.model;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public enum ChainElementType {

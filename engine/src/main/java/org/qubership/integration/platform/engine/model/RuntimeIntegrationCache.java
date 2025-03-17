@@ -16,8 +16,14 @@
 
 package org.qubership.integration.platform.engine.model;
 
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentUpdate;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentUpdate;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -26,12 +32,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import org.apache.camel.spring.SpringCamelContext;
 
 @Getter
 @NoArgsConstructor

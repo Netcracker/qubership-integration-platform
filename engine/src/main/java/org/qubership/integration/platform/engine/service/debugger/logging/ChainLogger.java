@@ -46,9 +46,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Optional;
+import javax.annotation.Nullable;
 
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.*;
 

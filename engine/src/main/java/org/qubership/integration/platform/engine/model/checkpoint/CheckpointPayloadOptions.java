@@ -16,14 +16,11 @@
 
 package org.qubership.integration.platform.engine.model.checkpoint;
 
+import lombok.*;
+
 import java.util.Collections;
 import java.util.Map;
 import javax.annotation.Nullable;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Getter
 @Setter

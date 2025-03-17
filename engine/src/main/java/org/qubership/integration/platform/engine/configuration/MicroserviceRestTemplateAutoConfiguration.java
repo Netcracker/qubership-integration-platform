@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import java.time.Duration;
-import java.util.function.Supplier;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +28,9 @@ import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
+
+import java.time.Duration;
+import java.util.function.Supplier;
 
 @AutoConfiguration
 public class MicroserviceRestTemplateAutoConfiguration {
