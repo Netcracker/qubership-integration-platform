@@ -32,13 +32,14 @@ public interface ActionLogRepository extends
 
     /**
      * Remove old records for scheduled cleanup task
+     *
      * @param olderThan interval string, for example: '1 hour', '7 days', '2 years 3 month'
      */
     @Modifying
     @Query(
             nativeQuery = true,
-            value = "DELETE FROM variables_management.logged_actions act " +
-                    "WHERE act.action_time < now() - ( :olderThan )\\:\\:interval"
+            value = "DELETE FROM variables_management.logged_actions act "
+                    + "WHERE act.action_time < now() - ( :olderThan )\\:\\:interval"
     )
     void deleteAllOldRecordsByInterval(String olderThan);
 

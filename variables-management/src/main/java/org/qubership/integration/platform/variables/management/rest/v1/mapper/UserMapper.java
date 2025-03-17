@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.mapper;
 
+import org.mapstruct.Mapper;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.user.User;
 import org.qubership.integration.platform.variables.management.rest.v1.dto.user.UserDTO;
-import org.mapstruct.Mapper;
 
 @Mapper(
         componentModel = "spring"

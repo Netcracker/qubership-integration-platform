@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.variables.management.rest.exception;
 
-import org.qubership.integration.platform.variables.management.consul.ConsulException;
-import org.qubership.integration.platform.variables.management.consul.TxnConflictException;
-import org.qubership.integration.platform.variables.management.kubernetes.KubeApiException;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.qubership.integration.platform.variables.management.consul.ConsulException;
+import org.qubership.integration.platform.variables.management.consul.TxnConflictException;
+import org.qubership.integration.platform.variables.management.kubernetes.KubeApiException;
 import org.springframework.http.*;
 import org.springframework.lang.Nullable;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -144,8 +144,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             if (variablesManagementRuntimeException.getOriginalException() != null) {
                 stacktrace = ExceptionUtils.getStackTrace(variablesManagementRuntimeException.getOriginalException());
             }
-        }
-        else {
+        } else {
             stacktrace = ExceptionUtils.getStackTrace(exception);
         }
         log.error("An error occurred: {}. Stacktrace: {}", message, stacktrace);

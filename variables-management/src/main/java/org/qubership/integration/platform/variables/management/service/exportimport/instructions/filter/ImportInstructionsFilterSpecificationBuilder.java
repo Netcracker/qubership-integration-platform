@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.variables.management.service.exportimport.instructions.filter;
 
+import jakarta.persistence.criteria.*;
+import org.apache.commons.collections4.CollectionUtils;
 import org.qubership.integration.platform.variables.management.model.exportimport.instructions.ImportInstructionsFilterColumn;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.enums.filter.FilterCondition;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.exportimport.instructions.ImportInstruction;
 import org.qubership.integration.platform.variables.management.rest.v1.dto.instructions.ImportInstructionsFilterRequest;
-import jakarta.persistence.criteria.*;
-import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
@@ -77,12 +77,12 @@ public class ImportInstructionsFilterSpecificationBuilder {
             case LABELS -> {
                 Predicate predicate = conditionPredicateBuilder.apply(getJoin(root, "labels").get("name"), filterValue);
                 boolean negativeLabelFilter =
-                        filter.getCondition() == FilterCondition.IS_NOT ||
-                                filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
+                        filter.getCondition() == FilterCondition.IS_NOT
+                                || filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
 
-                yield negativeLabelFilter ?
-                        criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name"))) :
-                        predicate;
+                yield negativeLabelFilter
+                        ? criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name")))
+                        : predicate;
             }
             case MODIFIED_WHEN -> conditionPredicateBuilder.apply(root.get("modifiedWhen"), filterValue);
             default -> throw new IllegalStateException("Unexpected feature value: " + filter.getFeature());

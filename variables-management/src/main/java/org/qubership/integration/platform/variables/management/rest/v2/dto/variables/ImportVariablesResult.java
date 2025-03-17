@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.variables.management.rest.v2.dto.variables;
 
-import org.qubership.integration.platform.variables.management.model.exportimport.instructions.ImportInstructionsExecutionResult;
-import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.ImportVariableDTO;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.variables.management.model.exportimport.instructions.ImportInstructionsExecutionResult;
+import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.ImportVariableDTO;
 
 import java.util.ArrayList;
 import java.util.List;

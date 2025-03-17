@@ -28,8 +28,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
-import javax.sql.DataSource;
 import java.util.List;
+import javax.sql.DataSource;
 
 @Configuration
 @ConditionalOnProperty(name = "qip.flyway-initializer.enabled", havingValue = "true", matchIfMissing = true)

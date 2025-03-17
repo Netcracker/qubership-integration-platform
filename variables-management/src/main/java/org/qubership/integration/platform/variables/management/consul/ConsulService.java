@@ -16,23 +16,23 @@
 
 package org.qubership.integration.platform.variables.management.consul;
 
-import org.qubership.integration.platform.variables.management.model.consul.txn.KVResponse;
-import org.qubership.integration.platform.variables.management.model.consul.txn.KeyResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.variables.management.model.consul.txn.KVResponse;
+import org.qubership.integration.platform.variables.management.model.consul.txn.KeyResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 @Slf4j
 @Component
@@ -176,6 +176,7 @@ public class ConsulService {
 
     /**
      * Get last path word as a key and decode value
+     *
      * @return key and value
      */
     private Pair<String, String> parseCommonVariable(KVResponse k) {

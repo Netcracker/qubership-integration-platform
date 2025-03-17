@@ -17,19 +17,19 @@
 package org.qubership.integration.platform.variables.management.persistence.configs.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.qubership.integration.platform.variables.management.persistence.configs.entity.user.User;
+import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.user.User;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import jakarta.persistence.*;
 import java.sql.Timestamp;
 import java.util.UUID;
 
@@ -89,8 +89,9 @@ public abstract class AbstractEntity {
 
     @PreUpdate
     public void preUpdate() {
-        if (this.createdWhen == null)
+        if (this.createdWhen == null) {
             this.createdWhen = this.modifiedWhen;
+        }
     }
 
     @JsonIgnore

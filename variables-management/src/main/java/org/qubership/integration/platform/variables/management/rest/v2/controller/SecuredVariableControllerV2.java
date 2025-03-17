@@ -16,17 +16,17 @@
 
 package org.qubership.integration.platform.variables.management.rest.v2.controller;
 
-import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecretErrorResponse;
-import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecretResponse;
-import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecuredVariablesRequest;
-import org.qubership.integration.platform.variables.management.rest.v2.mapper.SecretResponseMapper;
-import org.qubership.integration.platform.variables.management.service.SecuredVariableService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecretErrorResponse;
+import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecretResponse;
+import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecuredVariablesRequest;
+import org.qubership.integration.platform.variables.management.rest.v2.mapper.SecretResponseMapper;
+import org.qubership.integration.platform.variables.management.service.SecuredVariableService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -17,7 +17,10 @@
 package org.qubership.integration.platform.variables.management.service.exportimport.instructions;
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.qubership.integration.platform.variables.management.consul.ConsulService;
+import org.qubership.integration.platform.variables.management.model.exportimport.instructions.*;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.LogOperation;
@@ -31,9 +34,6 @@ import org.qubership.integration.platform.variables.management.service.exportimp
 import org.qubership.integration.platform.variables.management.service.exportimport.instructions.mapper.ImportInstructionsMapper;
 import org.qubership.integration.platform.variables.management.util.ExportImportUtils;
 import org.qubership.integration.platform.variables.management.validation.EntityValidator;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.qubership.integration.platform.variables.management.model.exportimport.instructions.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.jpa.domain.Specification;

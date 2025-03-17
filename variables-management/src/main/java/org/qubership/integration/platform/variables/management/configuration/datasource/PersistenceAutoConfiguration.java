@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.variables.management.configuration.datasource;
 
-import org.qubership.integration.platform.variables.management.configuration.datasource.properties.HikariConfigProperties;
 import com.zaxxer.hikari.HikariDataSource;
+import org.qubership.integration.platform.variables.management.configuration.datasource.properties.HikariConfigProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;

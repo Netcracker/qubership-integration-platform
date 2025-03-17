@@ -28,8 +28,8 @@ import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.qubership.integration.platform.variables.management.service.serializer.KubeSecretSerializer;
 import io.kubernetes.client.openapi.models.V1Secret;
+import org.qubership.integration.platform.variables.management.service.serializer.KubeSecretSerializer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -41,7 +41,7 @@ public class MapperAutoConfiguration {
     @Bean
     @Primary
     @ConditionalOnProperty(prefix = "app", name = "prefix", havingValue = "qip")
-    public ObjectMapper objectMapper(){
+    public ObjectMapper objectMapper() {
         return qipPrimaryObjectMapper();
     }
 

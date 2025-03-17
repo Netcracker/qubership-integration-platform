@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.variables.management.rest.v2.mapper;
 
-import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecretResponse;
-import org.qubership.integration.platform.variables.management.service.SecretService;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecretResponse;
+import org.qubership.integration.platform.variables.management.service.SecretService;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;

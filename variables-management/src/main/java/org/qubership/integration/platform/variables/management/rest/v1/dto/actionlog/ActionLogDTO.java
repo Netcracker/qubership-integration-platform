@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog;
 
-import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.LogOperation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.LogOperation;
 
 @Getter
 @Setter

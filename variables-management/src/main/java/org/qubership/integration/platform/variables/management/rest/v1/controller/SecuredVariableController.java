@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.controller;
 
-import org.qubership.integration.platform.variables.management.rest.v1.dto.StringResponse;
-import org.qubership.integration.platform.variables.management.service.SecuredVariableService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.variables.management.rest.v1.dto.StringResponse;
+import org.qubership.integration.platform.variables.management.service.SecuredVariableService;
 import org.springframework.beans.factory.annotation.Autowired;
-import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -84,8 +84,8 @@ public class SecuredVariableController {
     public ResponseEntity<Set<String>> importVariables(@RequestParam("file") @Parameter(description = "File to import") MultipartFile file) {
         log.info("Request to import secured variables");
         Set<String> result = securedVariableService.importVariablesRequest(file);
-        return result.isEmpty() ?
-                ResponseEntity.status(HttpStatus.BAD_REQUEST).build() :
-                ResponseEntity.ok().body(result);
+        return result.isEmpty()
+                ? ResponseEntity.status(HttpStatus.BAD_REQUEST).build()
+                : ResponseEntity.ok().body(result);
     }
 }

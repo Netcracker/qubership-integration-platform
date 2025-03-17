@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.variables.management.service;
 
-import org.qubership.integration.platform.variables.management.configuration.ApplicationAutoConfiguration;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.variables.management.configuration.ApplicationAutoConfiguration;
 import org.slf4j.MDC;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -29,8 +29,8 @@ import java.util.Map;
 @Slf4j
 @Component
 public class DefaultVariablesService {
-    public final static String NAMESPACE_VARIABLE_NAME = "namespace";
-    public final static String TENANT_VARIABLE_NAME = "tenant_id";
+    public static final String NAMESPACE_VARIABLE_NAME = "namespace";
+    public static final String TENANT_VARIABLE_NAME = "tenant_id";
     public static final String[] DEFAULT_VARIABLES_LIST = {NAMESPACE_VARIABLE_NAME, TENANT_VARIABLE_NAME};
 
     private final CommonVariablesService commonVariablesService;

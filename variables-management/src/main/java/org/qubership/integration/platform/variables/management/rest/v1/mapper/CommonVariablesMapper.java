@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.mapper;
 
-import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.ImportVariableDTO;
-import org.qubership.integration.platform.variables.management.util.MapperUtils;
 import lombok.NoArgsConstructor;
 import org.mapstruct.Mapper;
+import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.ImportVariableDTO;
+import org.qubership.integration.platform.variables.management.util.MapperUtils;
 import org.springframework.util.CollectionUtils;
 
 import java.util.Collections;
@@ -33,9 +33,9 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 public abstract class CommonVariablesMapper {
     public List<String> importAsNames(List<ImportVariableDTO> variables) {
-        return CollectionUtils.isEmpty(variables) ?
-                Collections.emptyList() :
-                variables.stream().map(this::asName).collect(Collectors.toList());
+        return CollectionUtils.isEmpty(variables)
+                ? Collections.emptyList()
+                : variables.stream().map(this::asName).collect(Collectors.toList());
     }
 
     public String asName(ImportVariableDTO variable) {

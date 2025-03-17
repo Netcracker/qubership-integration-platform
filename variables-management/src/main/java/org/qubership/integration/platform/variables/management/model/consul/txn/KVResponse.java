@@ -17,12 +17,15 @@
 package org.qubership.integration.platform.variables.management.model.consul.txn;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
-import javax.annotation.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import javax.annotation.Nullable;
 
 @Getter
 @Setter
@@ -38,8 +41,8 @@ public class KVResponse {
     private String value;
 
     public String getDecodedValue() {
-        return this.value == null ?
-                null :
-                new String(Base64.getDecoder().decode(this.value), StandardCharsets.UTF_8);
+        return this.value == null
+                ? null
+                : new String(Base64.getDecoder().decode(this.value), StandardCharsets.UTF_8);
     }
 }

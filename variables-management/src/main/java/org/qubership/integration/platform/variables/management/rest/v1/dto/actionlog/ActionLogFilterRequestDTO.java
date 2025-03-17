@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog;
 
-import org.qubership.integration.platform.variables.management.persistence.configs.entity.enums.filter.ActionLogFilterColumn;
-import org.qubership.integration.platform.variables.management.persistence.configs.entity.enums.filter.FilterCondition;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.enums.filter.ActionLogFilterColumn;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.enums.filter.FilterCondition;
 
 @Data
 @Schema(description = "Audit log filter request")

@@ -17,10 +17,13 @@
 package org.qubership.integration.platform.variables.management.model.consul.txn.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.*;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-import javax.annotation.Nullable;
 import java.util.Base64;
+import javax.annotation.Nullable;
 
 @Getter
 @Setter

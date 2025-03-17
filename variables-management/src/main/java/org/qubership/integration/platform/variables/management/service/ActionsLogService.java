@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.variables.management.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.variables.management.logging.constant.ContextHeaders;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.EntityType;
@@ -23,8 +25,6 @@ import org.qubership.integration.platform.variables.management.persistence.confi
 import org.qubership.integration.platform.variables.management.persistence.configs.repository.actionlog.ActionLogRepository;
 import org.qubership.integration.platform.variables.management.rest.exception.InvalidEnumConstantException;
 import org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog.ActionLogSearchCriteria;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.AuditorAware;
@@ -108,7 +108,7 @@ public class ActionsLogService {
     }
 
     private void consoleLogAction(ActionLog action) {
-        MDC.put("logType","audit");
+        MDC.put("logType", "audit");
         String actionOperationName = action.getOperation() != null ? action.getOperation().name() : "-";
         String entityTypeName = action.getEntityType() != null ? action.getEntityType().name() : "-";
         String entityNameDescriptionString = action.getEntityName() != null ? " with name ".concat(action.getEntityName()) : "";

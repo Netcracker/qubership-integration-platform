@@ -17,8 +17,8 @@
 package org.qubership.integration.platform.variables.management.model.consul.txn.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.qubership.integration.platform.variables.management.model.consul.txn.KVResponse;
 import lombok.*;
+import org.qubership.integration.platform.variables.management.model.consul.txn.KVResponse;
 
 @Getter
 @Setter

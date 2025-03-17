@@ -25,7 +25,7 @@ import org.springframework.context.annotation.Bean;
 
 import java.util.Map;
 
-@ConditionalOnMissingBean(name ="swaggerConfiguration")
+@ConditionalOnMissingBean(name = "swaggerConfiguration")
 @AutoConfiguration(value = "qubershipSwaggerConfiguration")
 public class SwaggerAutoConfiguration {
 

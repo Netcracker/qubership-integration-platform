@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.controller;
 
-import org.qubership.integration.platform.variables.management.service.exportimport.ActionsLogExportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.variables.management.service.exportimport.ActionsLogExportService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;

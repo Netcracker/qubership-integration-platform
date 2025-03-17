@@ -16,16 +16,16 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.controller;
 
-import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog.ActionLogResponse;
-import org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog.ActionLogSearchCriteria;
-import org.qubership.integration.platform.variables.management.rest.v1.mapper.ActionsLogMapper;
-import org.qubership.integration.platform.variables.management.service.ActionsLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog.ActionLogResponse;
+import org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog.ActionLogSearchCriteria;
+import org.qubership.integration.platform.variables.management.rest.v1.mapper.ActionsLogMapper;
+import org.qubership.integration.platform.variables.management.service.ActionsLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

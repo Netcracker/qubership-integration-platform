@@ -16,13 +16,6 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.controller;
 
-import org.qubership.integration.platform.variables.management.rest.v1.dto.StringResponse;
-import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.ImportVariableDTO;
-import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.ImportVariablePreview;
-import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.VariablesFileResponse;
-import org.qubership.integration.platform.variables.management.rest.v1.mapper.CommonVariablesMapper;
-import org.qubership.integration.platform.variables.management.service.CommonVariablesService;
-import org.qubership.integration.platform.variables.management.util.ExportImportUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.extensions.Extension;
@@ -31,6 +24,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.variables.management.rest.v1.dto.StringResponse;
+import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.ImportVariableDTO;
+import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.ImportVariablePreview;
+import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.VariablesFileResponse;
+import org.qubership.integration.platform.variables.management.rest.v1.mapper.CommonVariablesMapper;
+import org.qubership.integration.platform.variables.management.service.CommonVariablesService;
+import org.qubership.integration.platform.variables.management.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -144,9 +144,9 @@ public class CommonVariablesController {
     ) {
         log.info("Request to import common variables");
         List<ImportVariableDTO> importedVariables = commonVariablesService.importVariables(file, variablesNames).getVariables();
-        return CollectionUtils.isEmpty(importedVariables) ?
-                ResponseEntity.noContent().build() :
-                ResponseEntity.ok().body(importedVariables);
+        return CollectionUtils.isEmpty(importedVariables)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.ok().body(importedVariables);
     }
 
     @Operation(description = "Get common variables from file without saving")

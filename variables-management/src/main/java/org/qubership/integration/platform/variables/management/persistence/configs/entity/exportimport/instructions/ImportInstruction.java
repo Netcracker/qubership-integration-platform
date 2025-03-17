@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.variables.management.persistence.configs.entity.exportimport.instructions;
 
-import org.qubership.integration.platform.variables.management.model.exportimport.instructions.ImportInstructionAction;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.variables.management.model.exportimport.instructions.ImportInstructionAction;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 

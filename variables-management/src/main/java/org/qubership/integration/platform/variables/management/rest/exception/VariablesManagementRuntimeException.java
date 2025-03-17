@@ -25,15 +25,15 @@ public class VariablesManagementRuntimeException extends RuntimeException {
 
     private Exception originalException;
 
-    public VariablesManagementRuntimeException(){
+    public VariablesManagementRuntimeException() {
         super();
     }
 
-    public VariablesManagementRuntimeException(String errorMessage){
+    public VariablesManagementRuntimeException(String errorMessage) {
         super(errorMessage);
     }
 
-    public VariablesManagementRuntimeException(String errorMessage,Exception originalException){
+    public VariablesManagementRuntimeException(String errorMessage, Exception originalException) {
         super(errorMessage);
         this.originalException = originalException;
     }

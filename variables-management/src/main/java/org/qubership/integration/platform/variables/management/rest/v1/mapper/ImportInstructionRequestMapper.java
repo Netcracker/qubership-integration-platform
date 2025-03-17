@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.mapper;
 
+import org.mapstruct.Mapper;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.exportimport.instructions.ImportInstruction;
 import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.instructions.ImportInstructionRequest;
-import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
 public interface ImportInstructionRequestMapper {

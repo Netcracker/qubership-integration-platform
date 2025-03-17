@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.mapper;
 
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog.ActionLogDTO;
 import org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog.ActionLogResponse;
 import org.qubership.integration.platform.variables.management.util.MapperUtils;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 import java.util.List;
 

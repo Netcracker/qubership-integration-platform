@@ -254,13 +254,6 @@ public class KubeOperator {
         return updateSecretData(secretName, patches);
     }
 
-    public ConcurrentMap<String, String> updateSecretData(String secretName, Map<String, String> data) {
-        List<JsonPatch> patches = data.entrySet().stream()
-                .map(dataEntry -> new JsonPatch(PatchOperation.REPLACE, getDataKeyPath(dataEntry.getKey()), dataEntry.getValue().getBytes()))
-                .toList();
-        return updateSecretData(secretName, patches);
-    }
-
     public ConcurrentMap<String, String> removeSecretData(String secretName, Set<String> keys) {
         List<JsonPatch> patches = keys.stream()
                 .map(key -> new JsonPatch(PatchOperation.REMOVE, getDataKeyPath(key), null))
@@ -298,10 +291,11 @@ public class KubeOperator {
             throws KubeApiException {
         try {
             Map<String, byte[]> byteData = new HashMap<>();
-            if (data != null)
+            if (data != null) {
                 for (Map.Entry<String, String> entry : data.entrySet()) {
                     byteData.put(entry.getKey(), entry.getValue().getBytes());
                 }
+            }
             V1Secret secret = new V1Secret();
             V1ObjectMeta metadata = new V1ObjectMeta();
             metadata.setName(name);
@@ -320,8 +314,9 @@ public class KubeOperator {
                 }
             }
         } catch (ApiException e) {
-            if (e.getCode() == 409)
+            if (e.getCode() == 409) {
                 throw new SecretAlreadyExists();
+            }
 
             log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
@@ -329,6 +324,13 @@ public class KubeOperator {
             log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
         }
+    }
+
+    public ConcurrentMap<String, String> updateSecretData(String secretName, Map<String, String> data) {
+        List<JsonPatch> patches = data.entrySet().stream()
+                .map(dataEntry -> new JsonPatch(PatchOperation.REPLACE, getDataKeyPath(dataEntry.getKey()), dataEntry.getValue().getBytes()))
+                .toList();
+        return updateSecretData(secretName, patches);
     }
 
     private ConcurrentMap<String, String> updateSecretData(String secretName, List<JsonPatch> patches) {

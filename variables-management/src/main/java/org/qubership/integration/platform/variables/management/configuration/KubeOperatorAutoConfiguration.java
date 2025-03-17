@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.variables.management.configuration;
 
-import org.qubership.integration.platform.variables.management.kubernetes.KubeOperator;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.util.ClientBuilder;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.TokenFileAuthentication;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.variables.management.kubernetes.KubeOperator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

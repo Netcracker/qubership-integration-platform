@@ -167,9 +167,9 @@ public class SecuredVariableService extends SecretService {
         }
 
         for (String name : newVariables.keySet()) {
-            logSecuredVariableAction(name, secretName, importMode ?
-                    LogOperation.IMPORT :
-                    (oldVariablesCopy.containsKey(name) ? LogOperation.UPDATE : LogOperation.CREATE));
+            logSecuredVariableAction(name, secretName, importMode
+                    ? LogOperation.IMPORT
+                    : (oldVariablesCopy.containsKey(name) ? LogOperation.UPDATE : LogOperation.CREATE));
         }
 
         return Collections.singletonMap(secretName, newVariables.keySet());

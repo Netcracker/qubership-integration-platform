@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.variables.management.scheduler;
 
-import org.qubership.integration.platform.variables.management.service.ActionsLogService;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.variables.management.service.ActionsLogService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;

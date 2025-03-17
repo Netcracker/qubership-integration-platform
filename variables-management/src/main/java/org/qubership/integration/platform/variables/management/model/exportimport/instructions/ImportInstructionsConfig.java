@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.variables.management.model.exportimport.instructions;
 
-import org.qubership.integration.platform.variables.management.validation.constraint.NotStartOrEndWithSpace;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.variables.management.validation.constraint.NotStartOrEndWithSpace;
 
 import java.util.HashSet;
 import java.util.Set;

@@ -17,17 +17,17 @@
 package org.qubership.integration.platform.variables.management.consul;
 
 
-import org.qubership.integration.platform.variables.management.model.consul.txn.KVResponse;
-import org.qubership.integration.platform.variables.management.model.consul.txn.KeyResponse;
-import org.qubership.integration.platform.variables.management.model.consul.txn.request.TxnKVRequest;
-import org.qubership.integration.platform.variables.management.model.consul.txn.request.TxnRequest;
-import org.qubership.integration.platform.variables.management.model.consul.txn.response.TxnResponse;
-import org.qubership.integration.platform.variables.management.model.consul.txn.request.TxnVerb;
-import org.qubership.integration.platform.variables.management.model.consul.txn.response.TxnResponseResult;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.variables.management.model.consul.txn.KVResponse;
+import org.qubership.integration.platform.variables.management.model.consul.txn.KeyResponse;
+import org.qubership.integration.platform.variables.management.model.consul.txn.request.TxnKVRequest;
+import org.qubership.integration.platform.variables.management.model.consul.txn.request.TxnRequest;
+import org.qubership.integration.platform.variables.management.model.consul.txn.request.TxnVerb;
+import org.qubership.integration.platform.variables.management.model.consul.txn.response.TxnResponse;
+import org.qubership.integration.platform.variables.management.model.consul.txn.response.TxnResponseResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -73,6 +73,7 @@ public class ConsulClient {
 
     /**
      * Throws ConsulException if at least one key in a list is not present in consul
+     *
      * @param keys path without leading slash (e.g. 'config/test/key')
      */
     public List<KVResponse> getKVsInTransaction(List<String> keys) throws ConsulException {

@@ -46,12 +46,12 @@ public class ExportImportUtils {
         deleteFile(new File(directoryString));
     }
 
+    private static void deleteFile(File directory) {
+        FileUtils.deleteQuietly(directory);
+    }
+
     public static boolean isYamlFile(String fileName) {
         String fileExtension = FilenameUtils.getExtension(fileName);
         return YAML_FILE_EXTENSION_REGEXP.matcher(fileExtension).matches();
-    }
-
-    private static void deleteFile(File directory) {
-        FileUtils.deleteQuietly(directory);
     }
 }

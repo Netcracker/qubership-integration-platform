@@ -16,6 +16,10 @@
 
 package org.qubership.integration.platform.variables.management.persistence.configs.repository.actionlog;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.criteria.*;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.LogOperation;
@@ -24,11 +28,6 @@ import org.qubership.integration.platform.variables.management.persistence.confi
 import org.qubership.integration.platform.variables.management.rest.exception.ActionLogException;
 import org.qubership.integration.platform.variables.management.rest.exception.InvalidEnumConstantException;
 import org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog.ActionLogFilterRequestDTO;
-import jakarta.persistence.criteria.*;
-import org.apache.commons.lang3.tuple.Pair;
-
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 
 import java.sql.Timestamp;
 import java.util.*;
@@ -81,9 +80,9 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
         query = query.select(builder.count(actionLog));
         Predicate finalPredicate = builder.and(predicates.toArray(new Predicate[0]));
 
-        return (!predicates.isEmpty() ?
-                query.where(finalPredicate) :
-                query);
+        return (!predicates.isEmpty()
+                ? query.where(finalPredicate)
+                : query);
     }
 
     private CriteriaQuery<ActionLog> buildFilterQuery(
@@ -106,9 +105,9 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
         query = query.select(actionLog);
         Predicate finalPredicate = builder.and(predicates.toArray(new Predicate[0]));
 
-        return (!predicates.isEmpty() ?
-                query.where(finalPredicate) :
-                query)
+        return (!predicates.isEmpty()
+                ? query.where(finalPredicate)
+                : query)
                 .orderBy(Collections.singletonList(builder.desc(actionLog.get(ACTION_TIME_COLUMN))));
     }
 

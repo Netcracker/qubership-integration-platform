@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.variables.management.service.exportimport.instructions.mapper;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.qubership.integration.platform.variables.management.model.exportimport.instructions.CommonVariablesImportInstructionsConfig;
 import org.qubership.integration.platform.variables.management.model.exportimport.instructions.ImportInstructionAction;
 import org.qubership.integration.platform.variables.management.model.exportimport.instructions.ImportInstructionsConfig;
@@ -23,7 +24,6 @@ import org.qubership.integration.platform.variables.management.persistence.confi
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.exportimport.instructions.ImportInstructionLabel;
 import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.instructions.ImportInstructionDTO;
 import org.qubership.integration.platform.variables.management.rest.v1.dto.variables.instructions.ImportInstructionsDTO;
-import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.*;

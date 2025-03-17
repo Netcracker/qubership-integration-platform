@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.variables.management.rest.v2.controller;
 
-import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.ImportVariablesResult;
-import org.qubership.integration.platform.variables.management.service.CommonVariablesService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.ImportVariablesResult;
+import org.qubership.integration.platform.variables.management.service.CommonVariablesService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;

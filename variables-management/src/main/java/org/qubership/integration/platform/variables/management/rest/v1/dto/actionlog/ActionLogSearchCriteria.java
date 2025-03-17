@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.dto.actionlog;
 
-import java.sql.Timestamp;
-import java.util.Collections;
-import java.util.List;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.sql.Timestamp;
+import java.util.Collections;
+import java.util.List;
 
 @Getter
 @Setter

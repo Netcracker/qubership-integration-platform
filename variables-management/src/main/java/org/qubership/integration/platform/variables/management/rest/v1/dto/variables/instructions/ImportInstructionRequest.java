@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.variables.management.rest.v1.dto.variables.instructions;
 
-import org.qubership.integration.platform.variables.management.validation.constraint.NotStartOrEndWithSpace;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -25,6 +24,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.variables.management.validation.constraint.NotStartOrEndWithSpace;
 
 import static org.qubership.integration.platform.variables.management.validation.EntityValidator.ENTITY_NAME_REGEXP;
 

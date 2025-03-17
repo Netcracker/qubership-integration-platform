@@ -17,13 +17,13 @@
 package org.qubership.integration.platform.variables.management.rest.v1.dto.instructions;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.qubership.integration.platform.variables.management.model.exportimport.instructions.ImportInstructionsFilterColumn;
-import org.qubership.integration.platform.variables.management.persistence.configs.entity.enums.filter.FilterCondition;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.qubership.integration.platform.variables.management.model.exportimport.instructions.ImportInstructionsFilterColumn;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.enums.filter.FilterCondition;
 
 @Data
 @NoArgsConstructor

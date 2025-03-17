@@ -19,6 +19,11 @@ package org.qubership.integration.platform.variables.management.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import jakarta.persistence.EntityExistsException;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.variables.management.consul.ConsulService;
 import org.qubership.integration.platform.variables.management.model.exportimport.instructions.PerformInstructionsResult;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.ActionLog;
@@ -33,11 +38,6 @@ import org.qubership.integration.platform.variables.management.rest.v1.dto.varia
 import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.ImportVariablesResult;
 import org.qubership.integration.platform.variables.management.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.variables.management.util.ExportImportUtils;
-import jakarta.persistence.EntityExistsException;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -158,9 +158,9 @@ public class CommonVariablesService {
     }
 
     public VariablesFileResponse exportVariables(List<String> variablesNames, boolean asArchive) {
-        Map<String, String> variablesForExport = CollectionUtils.isEmpty(variablesNames) ?
-                consulService.getAllCommonVariables() :
-                consulService.getCommonVariables(variablesNames);
+        Map<String, String> variablesForExport = CollectionUtils.isEmpty(variablesNames)
+                ? consulService.getAllCommonVariables()
+                : consulService.getCommonVariables(variablesNames);
 
         variablesForExport = variablesForExport.entrySet().stream()
                 .filter(name -> Arrays.stream(NON_EXPORTABLE_VARIABLES)

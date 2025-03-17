@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
- package org.qubership.integration.platform.variables.management.util;
+package org.qubership.integration.platform.variables.management.util;
 
 import java.sql.Timestamp;
 

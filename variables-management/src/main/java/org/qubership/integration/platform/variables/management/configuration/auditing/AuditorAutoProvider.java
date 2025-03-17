@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.variables.management.configuration.auditing;
 
-import org.qubership.integration.platform.variables.management.persistence.configs.entity.user.User;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.user.User;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
