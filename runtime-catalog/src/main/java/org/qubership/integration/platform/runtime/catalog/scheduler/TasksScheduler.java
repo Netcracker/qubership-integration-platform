@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.scheduler;
 
-import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
-import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.catalog.consul.ConsulService;
 import org.qubership.integration.platform.catalog.consul.exception.KVNotFoundException;
 import org.qubership.integration.platform.catalog.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
+import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;

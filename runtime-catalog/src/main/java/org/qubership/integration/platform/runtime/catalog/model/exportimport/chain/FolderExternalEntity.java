@@ -18,10 +18,10 @@ package org.qubership.integration.platform.runtime.catalog.model.exportimport.ch
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.BaseExternalEntity;
 import lombok.Getter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.BaseExternalEntity;
 
 @Getter
 @SuperBuilder

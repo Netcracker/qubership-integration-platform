@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment;
 
-import jakarta.validation.constraints.Pattern;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.BaseRequest;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.BaseRequest;
 
 @Getter
 @Setter

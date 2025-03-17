@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
+import org.mapstruct.IterableMapping;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.EventActionType;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.DomainResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.EngineResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.EngineUpdateResponse;
-import org.mapstruct.IterableMapping;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 import java.util.List;
 

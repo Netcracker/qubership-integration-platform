@@ -16,16 +16,16 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionsConfig;
+import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariablesResult;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportMode;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.variable.ImportVariablePreviewResult;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.variable.VariablesCommitRequest;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionsConfig;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionsDTO;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;

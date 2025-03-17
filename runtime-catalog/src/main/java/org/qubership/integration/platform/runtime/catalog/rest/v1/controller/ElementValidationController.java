@@ -16,18 +16,18 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
-import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.validation.RouteDeployment;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentMapper;
-import org.qubership.integration.platform.runtime.catalog.service.ElementValidationService;
-import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
-import org.qubership.integration.platform.catalog.model.ElementRoute;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.qubership.integration.platform.catalog.model.ElementRoute;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.validation.RouteDeployment;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentMapper;
+import org.qubership.integration.platform.runtime.catalog.service.ElementValidationService;
+import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;

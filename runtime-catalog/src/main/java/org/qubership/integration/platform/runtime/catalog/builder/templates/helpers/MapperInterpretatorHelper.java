@@ -20,12 +20,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
+import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
 import org.qubership.integration.platform.runtime.catalog.mapper.MappingDescriptionValidator;
 import org.qubership.integration.platform.runtime.catalog.mapper.MappingInterpreter;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.MappingDescription;
-import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 

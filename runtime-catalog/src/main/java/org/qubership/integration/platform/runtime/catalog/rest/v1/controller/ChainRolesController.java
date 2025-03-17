@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRolesResponse;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.UpdateRolesRequest;
-import org.qubership.integration.platform.runtime.catalog.service.ChainRolesService;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElementSearchCriteria;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElementSearchCriteria;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRolesResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.UpdateRolesRequest;
+import org.qubership.integration.platform.runtime.catalog.service.ChainRolesService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

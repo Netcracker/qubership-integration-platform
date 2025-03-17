@@ -18,7 +18,6 @@ package org.qubership.integration.platform.runtime.catalog.testutils.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
-import lombok.extern.jackson.Jacksonized;
 
 @Getter
 @JsonInclude(JsonInclude.Include.NON_EMPTY)

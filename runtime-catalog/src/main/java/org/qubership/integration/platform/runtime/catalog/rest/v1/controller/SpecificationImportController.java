@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.ImportSpecificationDTO;
-import org.qubership.integration.platform.catalog.exception.SpecificationImportWarningException;
-import org.qubership.integration.platform.catalog.service.exportimport.SpecificationImportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.exception.SpecificationImportWarningException;
+import org.qubership.integration.platform.catalog.service.exportimport.SpecificationImportService;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.ImportSpecificationDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

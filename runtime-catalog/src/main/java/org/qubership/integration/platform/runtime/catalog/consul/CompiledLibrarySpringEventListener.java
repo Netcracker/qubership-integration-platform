@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.consul;
 
-import org.qubership.integration.platform.catalog.model.compiledlibrary.CompiledLibraryEvent;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.model.compiledlibrary.CompiledLibraryEvent;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationStartedEvent;

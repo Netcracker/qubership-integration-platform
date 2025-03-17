@@ -18,13 +18,13 @@ package org.qubership.integration.platform.runtime.catalog.model.exportimport.va
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
 
 import java.util.ArrayList;
 import java.util.List;

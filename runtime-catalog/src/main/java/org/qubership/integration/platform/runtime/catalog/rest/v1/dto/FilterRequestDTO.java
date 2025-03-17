@@ -17,13 +17,13 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
-import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
 
 @Data
 @NoArgsConstructor

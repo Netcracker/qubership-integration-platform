@@ -18,13 +18,13 @@ package org.qubership.integration.platform.runtime.catalog.builder.templates.hel
 
 import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
-import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.model.library.ElementProperty;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
+import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;

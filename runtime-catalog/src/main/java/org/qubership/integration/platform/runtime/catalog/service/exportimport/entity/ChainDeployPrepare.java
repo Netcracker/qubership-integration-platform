@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.entity;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
 
 @AllArgsConstructor
 @Getter

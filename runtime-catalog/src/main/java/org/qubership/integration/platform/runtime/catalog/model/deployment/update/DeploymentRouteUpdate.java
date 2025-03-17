@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.deployment.update;
 
-import org.qubership.integration.platform.catalog.model.deployment.RouteType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import org.qubership.integration.platform.catalog.model.deployment.RouteType;
 
 import javax.annotation.Nullable;
 

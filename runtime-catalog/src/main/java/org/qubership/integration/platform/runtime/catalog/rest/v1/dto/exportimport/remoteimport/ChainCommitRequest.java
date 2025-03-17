@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport;
 
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.engine.ImportDomainDTO;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.engine.ImportDomainDTO;
 
 import java.util.List;
 

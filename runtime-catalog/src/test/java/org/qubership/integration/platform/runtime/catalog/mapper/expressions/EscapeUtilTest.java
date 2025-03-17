@@ -16,10 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper.expressions;
 
-import org.qubership.integration.platform.runtime.catalog.mapper.expressions.EscapeUtil;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class EscapeUtilTest {
     @Test

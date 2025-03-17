@@ -18,7 +18,6 @@ package org.qubership.integration.platform.runtime.catalog.model.mapper.datatype
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.Attribute;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.ObjectSchema;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.Metadata;

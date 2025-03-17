@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper.atlasmap;
 
+import io.atlasmap.v2.FieldType;
 import org.qubership.integration.platform.runtime.catalog.mapper.DataTypeUtils;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.ArrayType;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.DataType;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.TypeDefinition;
-import io.atlasmap.v2.FieldType;
 
 import java.util.Collections;
 import java.util.Map;

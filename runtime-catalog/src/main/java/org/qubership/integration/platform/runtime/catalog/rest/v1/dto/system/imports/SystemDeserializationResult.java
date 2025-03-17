@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
 
 @NoArgsConstructor
 @Getter

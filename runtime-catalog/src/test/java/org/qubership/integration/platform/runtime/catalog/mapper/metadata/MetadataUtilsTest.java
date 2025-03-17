@@ -16,12 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper.metadata;
 
-import org.qubership.integration.platform.runtime.catalog.mapper.metadata.DataFormat;
-import org.qubership.integration.platform.runtime.catalog.mapper.metadata.MetadataUtils;
-import org.qubership.integration.platform.runtime.catalog.mapper.metadata.SourceType;
-import org.qubership.integration.platform.runtime.catalog.mapper.metadata.XMLNamespace;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.Metadata;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.Metadata;
 
 import java.util.ArrayList;
 import java.util.List;

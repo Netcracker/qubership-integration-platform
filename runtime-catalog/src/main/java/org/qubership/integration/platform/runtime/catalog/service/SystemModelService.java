@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.CompiledLibrary;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
@@ -25,7 +26,6 @@ import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.catalog.service.SystemModelBaseService;
 import org.qubership.integration.platform.catalog.service.codegen.SystemModelCodeGenerator;
 import org.qubership.integration.platform.catalog.service.compiler.CompilerService;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;

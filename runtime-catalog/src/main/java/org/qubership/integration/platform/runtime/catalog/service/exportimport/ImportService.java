@@ -63,7 +63,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,6 +73,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import javax.annotation.Nullable;
 
 import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.SYSTEM_ID;
 import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;

@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.util;
 
-import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
 import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
 import org.qubership.integration.platform.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
 
 import java.util.ArrayList;
 import java.util.Arrays;

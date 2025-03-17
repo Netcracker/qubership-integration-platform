@@ -19,10 +19,9 @@ package org.qubership.integration.platform.runtime.catalog.builder.templates.hel
 import com.github.jknack.handlebars.Context;
 import com.github.jknack.handlebars.Options;
 import com.github.jknack.handlebars.TagType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.IdentifierHelper;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 
 import java.io.IOException;
 

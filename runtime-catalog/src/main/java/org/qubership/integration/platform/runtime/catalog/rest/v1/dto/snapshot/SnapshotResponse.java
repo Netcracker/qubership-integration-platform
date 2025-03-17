@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot;
 
-import org.qubership.integration.platform.catalog.model.dto.BaseResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.catalog.model.dto.BaseResponse;
 
 import java.util.List;
 

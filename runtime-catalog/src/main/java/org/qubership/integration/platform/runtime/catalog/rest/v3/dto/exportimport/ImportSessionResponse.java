@@ -17,11 +17,11 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
 
 @Getter
 @Setter

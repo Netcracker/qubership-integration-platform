@@ -16,6 +16,21 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.diagnostic;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
+import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.ConfigParameter;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationState;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationStatus;
+import org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic.ValidationChainAlertRepository;
+import org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic.ValidationStatusRepository;
+import org.qubership.integration.platform.catalog.service.ConfigParameterService;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationAlertsSet;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
@@ -26,27 +41,11 @@ import org.qubership.integration.platform.runtime.catalog.service.diagnostic.val
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.builtin.BuiltinValidation;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.external.ExternalValidation;
 import org.qubership.integration.platform.runtime.catalog.service.filter.ChainAlertFilterSpecificationBuilder;
-import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
-import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.ConfigParameter;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationState;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationStatus;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic.ValidationChainAlertRepository;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic.ValidationStatusRepository;
-import org.qubership.integration.platform.catalog.service.ConfigParameterService;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityNotFoundException;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.annotation.Nullable;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -55,6 +54,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
 @Slf4j
 @Component

@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.system.exportimport;
 
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ExportableObjectWriterVisitor;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ExportableObjectWriterVisitor;
 
 import java.io.IOException;
 import java.util.zip.ZipOutputStream;

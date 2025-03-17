@@ -17,8 +17,9 @@
 package org.qubership.integration.platform.runtime.catalog.builder;
 
 import com.ctc.wstx.stax.WstxOutputFactory;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplateService;
-import org.qubership.integration.platform.runtime.catalog.model.ChainRoute;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
+import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.catalog.consul.ConfigurationPropertiesConstants;
 import org.qubership.integration.platform.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
@@ -28,17 +29,16 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.cha
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.catalog.util.ElementUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
-import org.codehaus.stax2.XMLStreamWriter2;
+import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplateService;
+import org.qubership.integration.platform.runtime.catalog.model.ChainRoute;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.*;
 import java.util.stream.Collectors;
+import javax.xml.stream.XMLStreamException;
 
 import static org.qubership.integration.platform.catalog.model.constant.CamelNames.CONTAINER;
 

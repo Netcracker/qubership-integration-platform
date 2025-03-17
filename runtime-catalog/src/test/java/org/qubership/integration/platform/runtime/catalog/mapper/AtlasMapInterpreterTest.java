@@ -16,16 +16,15 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper;
 
-import org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.AtlasMapInterpreter;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.MappingDescription;
 import io.atlasmap.api.AtlasException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.AtlasMapInterpreter;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.MappingDescription;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.xmlunit.builder.DiffBuilder;
 import org.xmlunit.builder.Input;
 import org.xmlunit.diff.Diff;
-
 
 import java.io.File;
 import java.io.IOException;

@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment;
 
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.event.ObjectType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.event.ObjectType;
 
 @Data
 @AllArgsConstructor

@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.repository;
 
-import org.qubership.integration.platform.runtime.catalog.util.SQLUtils;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.util.SQLUtils;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

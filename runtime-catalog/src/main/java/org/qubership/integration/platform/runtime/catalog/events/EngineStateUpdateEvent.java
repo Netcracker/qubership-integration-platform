@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.events;
 
-import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
+import lombok.Getter;
 import org.qubership.integration.platform.catalog.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.catalog.model.deployment.engine.EngineInfo;
-import lombok.Getter;
+import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.springframework.context.ApplicationEvent;
 
 @Getter

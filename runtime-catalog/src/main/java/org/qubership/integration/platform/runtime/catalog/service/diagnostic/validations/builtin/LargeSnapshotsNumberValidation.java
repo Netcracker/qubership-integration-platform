@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.builtin;
 
+import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
+import org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic.ChainValidationRepository;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationImplementationType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationEntityType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationSeverity;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.DiagnosticValidationUnexpectedException;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic.ChainValidationRepository;
-import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

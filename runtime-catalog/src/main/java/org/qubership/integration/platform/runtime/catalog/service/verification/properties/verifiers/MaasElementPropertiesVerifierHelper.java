@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
 
+import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
-import org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.Collection;
 import java.util.Collections;

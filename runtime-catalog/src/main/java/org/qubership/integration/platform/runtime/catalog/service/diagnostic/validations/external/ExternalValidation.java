@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.external;
 
+import jakarta.persistence.EntityManager;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationImplementationType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationEntityType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationSeverity;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.AbstractValidation;
-import jakarta.persistence.EntityManager;
 import org.springframework.lang.Nullable;
 
 public abstract class ExternalValidation extends AbstractValidation {

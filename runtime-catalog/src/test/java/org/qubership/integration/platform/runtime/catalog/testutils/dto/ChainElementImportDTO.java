@@ -18,9 +18,9 @@ package org.qubership.integration.platform.runtime.catalog.testutils.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
+import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
 
 import java.util.ArrayList;
 import java.util.HashMap;

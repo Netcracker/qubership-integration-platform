@@ -19,13 +19,13 @@ package org.qubership.integration.platform.runtime.catalog.model.exportimport.ch
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.BaseExternalEntity;
-import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
+import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.BaseExternalEntity;
 
 import java.util.ArrayList;
 import java.util.HashMap;

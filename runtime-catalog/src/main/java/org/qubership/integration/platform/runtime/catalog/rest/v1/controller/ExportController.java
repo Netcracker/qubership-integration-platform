@@ -16,16 +16,17 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ApiSpecificationExportService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportService;
-import org.qubership.integration.platform.catalog.model.apispec.ApiSpecificationFormat;
-import org.qubership.integration.platform.catalog.model.apispec.ApiSpecificationType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.model.apispec.ApiSpecificationFormat;
+import org.qubership.integration.platform.catalog.model.apispec.ApiSpecificationType;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ApiSpecificationExportService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.util.Pair;
@@ -35,7 +36,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.validation.Valid;
 import java.util.List;
 
 @Slf4j

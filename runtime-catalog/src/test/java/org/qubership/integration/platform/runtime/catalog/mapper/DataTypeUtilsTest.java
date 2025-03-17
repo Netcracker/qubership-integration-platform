@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper;
 
-import org.qubership.integration.platform.runtime.catalog.mapper.DataTypeUtils;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.*;
 

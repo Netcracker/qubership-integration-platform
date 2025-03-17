@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.xml;
 
-import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.TypeDefinition;
 import lombok.Builder;
 import lombok.Data;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.TypeDefinition;
 import org.w3c.dom.Document;
 
 import java.util.Collection;

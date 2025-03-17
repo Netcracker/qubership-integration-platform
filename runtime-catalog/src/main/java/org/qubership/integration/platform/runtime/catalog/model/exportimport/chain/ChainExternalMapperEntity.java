@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.exportimport.chain;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Folder;
-import org.qubership.integration.platform.catalog.util.ChainUtils;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Folder;
+import org.qubership.integration.platform.catalog.util.ChainUtils;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 

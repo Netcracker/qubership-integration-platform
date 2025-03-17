@@ -18,11 +18,11 @@ package org.qubership.integration.platform.runtime.catalog.builder.templates.hel
 
 import com.github.jknack.handlebars.Context;
 import com.github.jknack.handlebars.Options;
-import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
-import org.qubership.integration.platform.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 
 import java.io.IOException;
 import java.util.List;

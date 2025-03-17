@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.builder.templates.helpers;
 
-import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
 import org.springframework.util.CollectionUtils;
 
 import java.util.LinkedHashMap;

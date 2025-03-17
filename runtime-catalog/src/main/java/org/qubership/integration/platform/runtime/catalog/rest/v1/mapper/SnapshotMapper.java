@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotLabelDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotResponse;
+import org.mapstruct.Mapper;
 import org.qubership.integration.platform.catalog.mapping.UserMapper;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.SnapshotLabel;
 import org.qubership.integration.platform.catalog.util.MapperUtils;
-import org.mapstruct.Mapper;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotLabelDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotRequest;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotResponse;
 
 import java.util.List;
 

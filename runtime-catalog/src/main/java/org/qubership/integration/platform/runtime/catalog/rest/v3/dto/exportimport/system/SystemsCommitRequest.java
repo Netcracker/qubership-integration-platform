@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system;
 
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportMode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportMode;
 
 import java.util.ArrayList;
 import java.util.List;

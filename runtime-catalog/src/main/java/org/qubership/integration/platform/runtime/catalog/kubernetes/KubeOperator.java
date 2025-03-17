@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.kubernetes;
 
-import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
-import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
-import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.PodRunningStatus;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
@@ -27,6 +24,9 @@ import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1DeploymentList;
 import io.kubernetes.client.openapi.models.V1PodList;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
+import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
+import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.PodRunningStatus;
 
 import java.util.List;
 import java.util.Objects;

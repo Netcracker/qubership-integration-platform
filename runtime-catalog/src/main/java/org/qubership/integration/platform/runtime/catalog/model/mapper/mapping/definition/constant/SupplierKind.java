@@ -19,8 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import static org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.constant.SupplierKind.Constants.GIVEN_VALUE;
 import static org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.constant.SupplierKind.Constants.GENERATED_VALUE;
+import static org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.constant.SupplierKind.Constants.GIVEN_VALUE;
 
 @JsonFormat(with = JsonFormat.Feature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
 public enum SupplierKind {

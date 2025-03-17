@@ -16,15 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.converter.ImportResultConverter;
+import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-
-import jakarta.persistence.*;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.converter.ImportResultConverter;
 
 import java.sql.Timestamp;
 import java.util.UUID;

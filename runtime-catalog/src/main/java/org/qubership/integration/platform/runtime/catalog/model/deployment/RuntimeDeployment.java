@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.deployment;
 
-import org.qubership.integration.platform.catalog.model.deployment.engine.EngineDeployment;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.model.deployment.engine.EngineDeployment;
 
 import java.util.HashMap;
 import java.util.Map;

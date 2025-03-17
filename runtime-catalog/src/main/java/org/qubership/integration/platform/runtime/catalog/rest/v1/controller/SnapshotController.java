@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotResponse;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.SnapshotMapper;
-import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotRequest;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.SnapshotMapper;
+import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;

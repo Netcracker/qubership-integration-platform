@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.systemscatalog;
 
+import lombok.Data;
 import org.qubership.integration.platform.catalog.model.dto.user.UserDTO;
 import org.qubership.integration.platform.catalog.model.system.IntegrationSystemType;
-import lombok.Data;
 
 @Data
 public class SystemResponse {

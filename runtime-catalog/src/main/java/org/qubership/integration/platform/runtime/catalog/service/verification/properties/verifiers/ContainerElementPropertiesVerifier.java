@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
 
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.apache.commons.collections4.CollectionUtils;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.catalog.util.ElementUtils;
-import org.apache.commons.collections4.CollectionUtils;
+import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
+import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

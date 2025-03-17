@@ -16,9 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine;
 
-import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.EventActionType;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.EventActionType;
 
 @Getter
 @Setter

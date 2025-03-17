@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.exception.SpecificationImportException;
 import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -27,8 +29,6 @@ import org.qubership.integration.platform.catalog.service.AbstractSpecificationG
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.catalog.service.exportimport.ProtocolExtractionService;
 import org.qubership.integration.platform.catalog.util.MultipartFileUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,9 +36,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.Optional;
 
+import static java.util.Objects.isNull;
 import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.DIFFERENT_PROTOCOL_ERROR_MESSAGE;
 import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.INVALID_INPUT_FILE_ERROR_MESSAGE;
-import static java.util.Objects.isNull;
 
 @Slf4j
 @Service

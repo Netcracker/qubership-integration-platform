@@ -16,10 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine;
 
-import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.PodRunningStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.PodRunningStatus;
 
 @Getter
 @Setter

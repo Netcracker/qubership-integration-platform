@@ -16,17 +16,17 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic;
 
-import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationImplementationType;
-import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationEntityType;
-import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationSeverity;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationImplementationType;
+import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationEntityType;
+import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationSeverity;
 
-import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nullable;
 
 @Getter
 @Setter

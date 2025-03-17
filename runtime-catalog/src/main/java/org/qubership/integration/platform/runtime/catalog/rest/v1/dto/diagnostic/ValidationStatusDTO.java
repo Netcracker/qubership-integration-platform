@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationState;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationState;
 
 import java.sql.Timestamp;
 

@@ -16,18 +16,18 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import org.qubership.integration.platform.runtime.catalog.events.EngineStateUpdateEvent;
-import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
-import org.qubership.integration.platform.catalog.model.deployment.engine.*;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.DeploymentRepository;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentMapper;
-import org.qubership.integration.platform.catalog.consul.exception.KVNotFoundException;
-import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.User;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.catalog.consul.exception.KVNotFoundException;
+import org.qubership.integration.platform.catalog.model.deployment.engine.*;
+import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.User;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.events.EngineStateUpdateEvent;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.DeploymentRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;

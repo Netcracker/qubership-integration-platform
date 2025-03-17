@@ -17,16 +17,16 @@
 package org.qubership.integration.platform.runtime.catalog.model.exportimport;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariableResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariableResult;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -18,8 +18,6 @@ package org.qubership.integration.platform.runtime.catalog.builder.templates.hel
 
 import com.github.jknack.handlebars.*;
 import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
-import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -30,6 +28,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 import org.xmlunit.matchers.CompareMatcher;
 
 import java.io.IOException;

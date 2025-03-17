@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.builder.templates.helpers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.*;
 import com.github.jknack.handlebars.helper.ConditionalHelpers;
 import com.github.jknack.handlebars.helper.StringHelpers;
@@ -28,13 +27,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.catalog.configuration.MapperBaseConfiguration;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplateService;
 import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
-import org.qubership.integration.platform.runtime.catalog.mapper.MappingDescriptionValidator;
-import org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.AtlasMapInterpreter;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.catalog.service.library.LibraryResourceLoader;
+import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplateService;
+import org.qubership.integration.platform.runtime.catalog.mapper.MappingDescriptionValidator;
+import org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.AtlasMapInterpreter;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainImportDTO;
 import org.qubership.integration.platform.runtime.catalog.testutils.mapper.ChainElementsMapper;

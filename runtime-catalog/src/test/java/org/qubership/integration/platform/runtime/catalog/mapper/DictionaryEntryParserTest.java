@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper;
 
-import org.qubership.integration.platform.runtime.catalog.mapper.DictionaryEntryParser;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

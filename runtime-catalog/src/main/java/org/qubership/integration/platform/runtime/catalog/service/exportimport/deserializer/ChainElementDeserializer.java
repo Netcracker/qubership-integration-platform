@@ -25,7 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ElementDeserializationResult;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.model.library.ElementType;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -33,7 +33,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.cha
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ElementDeserializationResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;

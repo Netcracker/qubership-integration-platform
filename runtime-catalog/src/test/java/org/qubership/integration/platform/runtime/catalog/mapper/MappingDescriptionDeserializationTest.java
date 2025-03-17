@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.mapper;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.*;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.MappingDescription;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.action.*;
@@ -26,11 +27,14 @@ import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.d
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.ObjectSchema;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.constant.*;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.Metadata;
-import org.junit.jupiter.api.Test;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MappingDescriptionDeserializationTest {
     private final ObjectMapper objectMapper = new ObjectMapper();

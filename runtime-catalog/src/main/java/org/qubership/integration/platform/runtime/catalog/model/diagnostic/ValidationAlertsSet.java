@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.diagnostic;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
 import lombok.*;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
 
 import java.util.ArrayList;
 import java.util.List;

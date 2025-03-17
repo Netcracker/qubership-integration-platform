@@ -16,7 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes;
 
-import com.fasterxml.jackson.annotation.*;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.Attribute;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.MetadataAware;
 

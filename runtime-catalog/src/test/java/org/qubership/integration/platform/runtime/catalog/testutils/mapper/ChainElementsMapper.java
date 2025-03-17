@@ -16,8 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.testutils.mapper;
 
-import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainElementImportDTO;
-import org.qubership.integration.platform.runtime.catalog.testutils.dto.DependencyImportDTO;
+import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.catalog.model.library.ElementType;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
@@ -26,7 +25,8 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.cha
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.catalog.util.DistinctByKey;
-import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainElementImportDTO;
+import org.qubership.integration.platform.runtime.catalog.testutils.dto.DependencyImportDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestComponent;
 

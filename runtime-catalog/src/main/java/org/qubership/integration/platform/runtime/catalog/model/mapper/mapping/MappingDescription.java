@@ -20,8 +20,8 @@ package org.qubership.integration.platform.runtime.catalog.model.mapper.mapping;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.action.MappingAction;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.constant.Constant;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.MessageSchema;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.constant.Constant;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.Metadata;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.ObjectWithMetadata;
 

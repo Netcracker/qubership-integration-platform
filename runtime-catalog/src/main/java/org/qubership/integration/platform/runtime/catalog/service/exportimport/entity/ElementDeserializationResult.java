@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.entity;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.lang.Nullable;
 
 import java.util.HashMap;

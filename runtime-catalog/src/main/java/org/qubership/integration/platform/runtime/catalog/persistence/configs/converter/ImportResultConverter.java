@@ -18,10 +18,9 @@ package org.qubership.integration.platform.runtime.catalog.persistence.configs.c
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
-
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
 
 import java.io.IOException;
 

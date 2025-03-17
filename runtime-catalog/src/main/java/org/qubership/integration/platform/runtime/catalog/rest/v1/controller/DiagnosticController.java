@@ -16,6 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationState;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationStatus;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationAlertsSet;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic.DiagnosticValidationDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic.DiagnosticValidationFilterDTO;
@@ -23,13 +30,6 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DiagnosticValidationMapper;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.DiagnosticService;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.AbstractValidation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationState;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationStatus;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

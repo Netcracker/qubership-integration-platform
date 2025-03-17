@@ -21,9 +21,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.jknack.handlebars.Context;
 import com.github.jknack.handlebars.Options;
 import com.github.jknack.handlebars.TagType;
-import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 
 import java.util.Collections;
 import java.util.Map;

@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations;
 
+import lombok.Getter;
+import org.qubership.integration.platform.catalog.model.diagnostic.ValidationAlert;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationImplementationType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationEntityType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationSeverity;
-import org.qubership.integration.platform.catalog.model.diagnostic.ValidationAlert;
-import lombok.Getter;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 

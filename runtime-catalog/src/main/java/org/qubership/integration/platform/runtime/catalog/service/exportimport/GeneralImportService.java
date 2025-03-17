@@ -16,16 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainsAndInstructionsResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariablesResult;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportPreviewResponse;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportRequest;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.catalog.mapping.exportimport.instructions.GeneralInstructionsMapper;
 import org.qubership.integration.platform.catalog.model.exportimport.instructions.GeneralImportInstructionsConfig;
@@ -36,7 +27,16 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.ins
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.catalog.service.difference.ChainDifferenceRequest;
 import org.qubership.integration.platform.catalog.service.difference.EntityDifferenceResult;
-import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainsAndInstructionsResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariablesResult;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportPreviewResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportRequest;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;

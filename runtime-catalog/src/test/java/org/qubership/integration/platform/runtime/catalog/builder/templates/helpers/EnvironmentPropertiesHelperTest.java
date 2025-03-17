@@ -17,14 +17,14 @@
 package org.qubership.integration.platform.runtime.catalog.builder.templates.helpers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
-import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
-import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.apache.commons.lang3.StringUtils;
 import org.json.JSONException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
+import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 

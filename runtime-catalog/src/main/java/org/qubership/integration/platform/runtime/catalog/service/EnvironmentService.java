@@ -17,23 +17,23 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.EnvironmentBaseService;
-import org.qubership.integration.platform.runtime.catalog.service.mapping.ServiceEnvironmentMapper;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.EnvironmentRepository;
+import org.qubership.integration.platform.catalog.service.ActionsLogService;
+import org.qubership.integration.platform.catalog.service.EnvironmentBaseService;
 import org.qubership.integration.platform.catalog.service.parsers.ParserUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.service.mapping.ServiceEnvironmentMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityNotFoundException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;

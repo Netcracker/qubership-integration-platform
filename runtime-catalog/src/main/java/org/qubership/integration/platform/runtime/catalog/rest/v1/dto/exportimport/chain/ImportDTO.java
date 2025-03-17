@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
 
 import java.util.ArrayList;
 import java.util.List;

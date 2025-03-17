@@ -20,10 +20,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.Options;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
-import org.qubership.integration.platform.catalog.model.constant.CamelNames;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 

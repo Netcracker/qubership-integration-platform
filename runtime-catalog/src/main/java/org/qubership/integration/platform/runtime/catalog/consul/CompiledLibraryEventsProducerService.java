@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.consul;
 
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.consul.ConsulService;
 import org.qubership.integration.platform.catalog.model.compiledlibrary.CompiledLibraryUpdate;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.SystemModelRepository;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

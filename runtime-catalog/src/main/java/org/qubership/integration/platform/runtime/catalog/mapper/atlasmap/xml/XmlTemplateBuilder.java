@@ -19,6 +19,9 @@ package org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.xml;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.DataType;
 import org.w3c.dom.Document;
 
+import java.io.StringWriter;
+import java.io.Writer;
+import java.util.Collections;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -26,9 +29,6 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.StringWriter;
-import java.io.Writer;
-import java.util.Collections;
 
 public class XmlTemplateBuilder {
     private DataType type;

@@ -18,14 +18,16 @@ package org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.Metadata;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.ObjectWithMetadata;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.DataType;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.NullType;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.TypeDefinition;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.TypeWithDefinitions;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.Metadata;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.ObjectWithMetadata;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;

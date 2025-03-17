@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic;
 
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 
 import java.util.List;
 

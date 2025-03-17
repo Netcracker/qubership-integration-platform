@@ -16,12 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import org.qubership.integration.platform.runtime.catalog.builder.XmlBuilder;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.*;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.runtime.catalog.service.verification.ElementPropertiesVerificationService;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.qubership.integration.platform.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
 import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
@@ -30,16 +28,18 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.Abs
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.*;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.DependencyRepository;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.SnapshotLabelsRepository;
-import jakarta.persistence.EntityNotFoundException;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.time.DurationFormatUtils;
+import org.qubership.integration.platform.catalog.service.ActionsLogService;
+import org.qubership.integration.platform.runtime.catalog.builder.XmlBuilder;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
+import org.qubership.integration.platform.runtime.catalog.service.verification.ElementPropertiesVerificationService;
+import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.lang.NonNull;

@@ -27,8 +27,8 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
-import javax.sql.DataSource;
 import java.util.List;
+import javax.sql.DataSource;
 
 @AutoConfiguration
 @ConditionalOnBean(PersistenceAutoConfiguration.class)
