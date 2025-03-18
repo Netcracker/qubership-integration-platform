@@ -56,10 +56,10 @@ public class TemplateDataBuilder {
             List<TemplateChainElement> httpTriggers = convertByTypes(chainElements, Map.of("http-trigger", DEFAULT_ELEMENT_FILTER));
 
             List<TemplateChainElement> httpServiceCalls = convertByTypes(chainElements, Map.of("service-call",
-                    (element) -> "http".equals(element.getProperty("integrationOperationProtocolType")) &&
-                            element.getProperty("integrationSystemId") != null &&
-                            element.getProperty("integrationSpecificationId") != null &&
-                            element.getProperty("integrationOperationId") != null));
+                    (element) -> "http".equals(element.getProperty("integrationOperationProtocolType"))
+                            && element.getProperty("integrationSystemId") != null
+                            && element.getProperty("integrationSpecificationId") != null
+                            && element.getProperty("integrationOperationId") != null));
 
             List<TemplateChainElement> serviceCalls = convertByTypes(chainElements, Map.of("service-call", DEFAULT_ELEMENT_FILTER));
             List<TemplateChainElement> errorHandling = convertByTypes(chainElements, Map.of(

@@ -66,15 +66,15 @@ public class ChainFilterSpecificationBuilder {
         List<FilterRequestDTO> commonFilters = new ArrayList<>();
         Map<FilterFeature, List<FilterRequestDTO>> orFilters = new HashMap<>();
         for (Map.Entry<FilterFeature, List<FilterRequestDTO>> entry : filtersMap.entrySet()) {
-            List<FilterRequestDTO> DTOs = entry.getValue();
-            commonFilters.addAll(DTOs.stream()
-                    .filter(dto -> !(dto.getCondition() != FilterCondition.IS_NOT &&
-                            ELEMENT_PARAMS_FEATURE_SET.contains(dto.getFeature())))
+            List<FilterRequestDTO> filterRequestDTOs = entry.getValue();
+            commonFilters.addAll(filterRequestDTOs.stream()
+                    .filter(dto -> !(dto.getCondition() != FilterCondition.IS_NOT
+                            && ELEMENT_PARAMS_FEATURE_SET.contains(dto.getFeature())))
                     .toList());
             // combine same filters with OR
-            orFilters.put(entry.getKey(), DTOs.stream()
-                    .filter(dto -> dto.getCondition() != FilterCondition.IS_NOT &&
-                            ELEMENT_PARAMS_FEATURE_SET.contains(dto.getFeature()))
+            orFilters.put(entry.getKey(), filterRequestDTOs.stream()
+                    .filter(dto -> dto.getCondition() != FilterCondition.IS_NOT
+                            && ELEMENT_PARAMS_FEATURE_SET.contains(dto.getFeature()))
                     .toList());
         }
 
@@ -97,9 +97,9 @@ public class ChainFilterSpecificationBuilder {
                         .map(filter -> buildPredicate(root, criteriaBuilder, filter))
                         .toArray(Predicate[]::new);
 
-                commonResult = commonFilters.size() > 1 ?
-                        predicateAccumulator.apply(criteriaBuilder, predicates) :
-                        predicates[0];
+                commonResult = commonFilters.size() > 1
+                        ? predicateAccumulator.apply(criteriaBuilder, predicates)
+                        : predicates[0];
             }
 
             Predicate orResult = null;
@@ -143,14 +143,14 @@ public class ChainFilterSpecificationBuilder {
 
                 if (!havingPredicates.isEmpty() && !orPredicates.isEmpty()) {
                     if (!searchMode) {
-                        query.having(havingPredicates.size() > 1 ?
-                                criteriaBuilder.and(havingPredicates.toArray(Predicate[]::new)) :
-                                havingPredicates.get(0));
+                        query.having(havingPredicates.size() > 1
+                                ? criteriaBuilder.and(havingPredicates.toArray(Predicate[]::new))
+                                : havingPredicates.get(0));
                     }
 
-                    orResult = orPredicates.size() > 1 ?
-                            criteriaBuilder.or(orPredicates.toArray(Predicate[]::new)) :
-                            orPredicates.get(0);
+                    orResult = orPredicates.size() > 1
+                            ? criteriaBuilder.or(orPredicates.toArray(Predicate[]::new))
+                            : orPredicates.get(0);
                 }
             }
 
@@ -176,8 +176,8 @@ public class ChainFilterSpecificationBuilder {
             FilterRequestDTO filter
     ) {
         boolean isNegativeElementFilter =
-                (filter.getCondition() == FilterCondition.IS_NOT || filter.getCondition() == FilterCondition.NOT_IN) &&
-                ELEMENT_PARAMS_FEATURE_SET.contains(filter.getFeature());
+                (filter.getCondition() == FilterCondition.IS_NOT || filter.getCondition() == FilterCondition.NOT_IN)
+                        && ELEMENT_PARAMS_FEATURE_SET.contains(filter.getFeature());
         var conditionPredicateBuilder = filterConditionPredicateBuilderFactory
                 .<String>getPredicateBuilder(criteriaBuilder, filter.getCondition());
         String value = filter.getValue();
@@ -244,57 +244,57 @@ public class ChainFilterSpecificationBuilder {
             case LABELS -> {
                 Predicate predicate = conditionPredicateBuilder.apply(getJoin(root, "labels").get("name"), value);
                 boolean negativeLabelFilter =
-                        filter.getCondition() == FilterCondition.IS_NOT ||
-                        filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
+                        filter.getCondition() == FilterCondition.IS_NOT
+                                || filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
 
-                yield negativeLabelFilter ?
-                        criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name"))) :
-                        predicate;
+                yield negativeLabelFilter
+                        ? criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name")))
+                        : predicate;
             }
             case TOPIC -> {
                 Function<Root<ChainElement>, Predicate> basePredicateFunc = (elRoot) -> criteriaBuilder.or(
                         buildAsyncOperationPredicate(root, elRoot, criteriaBuilder, conditionPredicateBuilder,
                                 OPERATION_PROTOCOL_TYPE_KAFKA, OPERATION_PATH_TOPIC, value),
-                        isNegativeElementFilter ?
-                                criteriaBuilder.equal(getElementPropertyExpression(elRoot.get("properties"), criteriaBuilder, TOPICS), value):
-                                conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, TOPICS), value));
+                        isNegativeElementFilter
+                                ? criteriaBuilder.equal(getElementPropertyExpression(elRoot.get("properties"), criteriaBuilder, TOPICS), value)
+                                : conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, TOPICS), value));
 
-                yield isNegativeElementFilter ?
-                        conditionPredicateBuilder.apply(getChainElementFilterSubquery(criteriaBuilder, basePredicateFunc), value) :
-                        basePredicateFunc.apply(null);
+                yield isNegativeElementFilter
+                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(criteriaBuilder, basePredicateFunc), value)
+                        : basePredicateFunc.apply(null);
             }
             case QUEUE -> {
                 Function<Root<ChainElement>, Predicate> basePredicateFunc = (elRoot) -> criteriaBuilder.or(
                         buildAsyncOperationPredicate(root, elRoot, criteriaBuilder, conditionPredicateBuilder,
                                 OPERATION_PROTOCOL_TYPE_AMQP, QUEUES, value),
-                        isNegativeElementFilter ?
-                                criteriaBuilder.equal(
-                                        getElementPropertyExpression(elRoot.get("properties"), criteriaBuilder, QUEUES), value):
-                                conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, QUEUES), value));
+                        isNegativeElementFilter
+                                ? criteriaBuilder.equal(
+                                        getElementPropertyExpression(elRoot.get("properties"), criteriaBuilder, QUEUES), value)
+                                : conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, QUEUES), value));
 
-                yield isNegativeElementFilter ?
-                        conditionPredicateBuilder.apply(getChainElementFilterSubquery(criteriaBuilder, basePredicateFunc), value) :
-                        basePredicateFunc.apply(null);
+                yield isNegativeElementFilter
+                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(criteriaBuilder, basePredicateFunc), value)
+                        : basePredicateFunc.apply(null);
             }
             case EXCHANGE -> {
                 Function<Root<ChainElement>, Predicate> basePredicateFunc = (elRoot) -> criteriaBuilder.or(
                         buildAsyncOperationPredicate(root, elRoot, criteriaBuilder, conditionPredicateBuilder,
                                 OPERATION_PROTOCOL_TYPE_AMQP, OPERATION_PATH_EXCHANGE, value),
-                        isNegativeElementFilter ?
-                                criteriaBuilder.equal(getElementPropertyExpression(elRoot.get("properties"), criteriaBuilder, EXCHANGE), value):
-                                conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, EXCHANGE), value));
+                        isNegativeElementFilter
+                                ? criteriaBuilder.equal(getElementPropertyExpression(elRoot.get("properties"), criteriaBuilder, EXCHANGE), value)
+                                : conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, EXCHANGE), value));
 
-                yield isNegativeElementFilter ?
-                        conditionPredicateBuilder.apply(getChainElementFilterSubquery(criteriaBuilder, basePredicateFunc), value) :
-                        basePredicateFunc.apply(null);
+                yield isNegativeElementFilter
+                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(criteriaBuilder, basePredicateFunc), value)
+                        : basePredicateFunc.apply(null);
             }
-            case SERVICE_ID -> conditionPredicateBuilder.apply(isNegativeElementFilter ?
-                            getChainElementFilterSubquery(
+            case SERVICE_ID -> conditionPredicateBuilder.apply(isNegativeElementFilter
+                            ? getChainElementFilterSubquery(
                                     criteriaBuilder,
                                     (elRoot) -> criteriaBuilder.equal(
                                             getElementPropertyExpression(elRoot.get("properties"), criteriaBuilder, SYSTEM_ID),
-                                            value)) :
-                            getChainElementPropertyExpression(root, criteriaBuilder, SYSTEM_ID),
+                                            value))
+                            : getChainElementPropertyExpression(root, criteriaBuilder, SYSTEM_ID),
                     value);
             default -> throw new IllegalStateException("Unexpected filter feature: " + filter.getFeature());
         };
@@ -361,12 +361,12 @@ public class ChainFilterSpecificationBuilder {
                         getChainElementPropertyExpression(root, criteriaBuilder, OPERATION_PROTOCOL_TYPE_PROP),
                         protocol
                 ),
-                elRoot == null ?
-                        conditionPredicateBuilder.apply(
+                elRoot == null
+                        ? conditionPredicateBuilder.apply(
                                 getChainElementPropertyExpression(root, criteriaBuilder, operationProperty),
                                 value
-                        ) :
-                        criteriaBuilder.equal(
+                        )
+                        : criteriaBuilder.equal(
                                 getChainElementPropertyExpression(root, criteriaBuilder, operationProperty),
                                 value)
         );

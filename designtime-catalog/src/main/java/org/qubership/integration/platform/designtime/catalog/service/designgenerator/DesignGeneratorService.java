@@ -131,8 +131,8 @@ public class DesignGeneratorService {
 
         List<ChainElement> triggers = elements.stream()
                 .filter(chainElement ->
-                        libraryService.getElementDescriptor(chainElement) != null &&
-                                libraryService.getElementDescriptor(chainElement).getType() == ElementType.TRIGGER)
+                        libraryService.getElementDescriptor(chainElement) != null
+                                && libraryService.getElementDescriptor(chainElement).getType() == ElementType.TRIGGER)
                 .sorted(Comparator.comparing(AbstractEntity::getName))
                 .collect(Collectors.toList());
 
@@ -529,7 +529,7 @@ public class DesignGeneratorService {
     }
 
     private static boolean shouldWriteElement(ChainElement currentElement, DiagramMode mode) {
-        return !(mode == DiagramMode.SIMPLE &&
-                SIMPLE_DIAGRAM_ELEMENT_EXCLUDE_SET.contains(currentElement.getType()));
+        return !(mode == DiagramMode.SIMPLE
+                && SIMPLE_DIAGRAM_ELEMENT_EXCLUDE_SET.contains(currentElement.getType()));
     }
 }

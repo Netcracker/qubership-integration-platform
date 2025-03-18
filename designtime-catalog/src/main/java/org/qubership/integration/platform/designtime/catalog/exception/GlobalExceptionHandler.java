@@ -134,11 +134,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getExceptionDTO(exception));
     }
 
-    @ExceptionHandler(ConsulException.class)
-    public ResponseEntity<ExceptionDTO> handleConsulException(ConsulException exception) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(getExceptionDTOWithoutStacktrace(exception));
-    }
-
     @ExceptionHandler(TxnConflictException.class)
     public ResponseEntity<ExceptionDTO> handleTxnConflictException(TxnConflictException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getExceptionDTOWithoutStacktrace(exception));
@@ -156,6 +151,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ChainDifferenceException.class)
     public ResponseEntity<ExceptionDTO> handleChainDifferenceException(ChainDifferenceException exception) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(getExceptionDTOWithoutStacktrace(exception));
+    }
+
+    @ExceptionHandler(ConsulException.class)
+    public ResponseEntity<ExceptionDTO> handleConsulException(ConsulException exception) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(getExceptionDTOWithoutStacktrace(exception));
     }
 

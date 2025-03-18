@@ -30,7 +30,7 @@ import java.util.Map;
 @Builder
 public class TemplateSchema {
     @Setter(AccessLevel.NONE)
-    public final static TemplateSchema EMPTY = TemplateSchema.builder().build();
+    public static final TemplateSchema EMPTY = TemplateSchema.builder().build();
 
     @Builder.Default
     private List<Map<String, String>> properties = new ArrayList<>();

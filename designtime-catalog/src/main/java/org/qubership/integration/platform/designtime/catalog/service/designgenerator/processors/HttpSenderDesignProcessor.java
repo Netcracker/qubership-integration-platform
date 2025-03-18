@@ -43,15 +43,16 @@ public class HttpSenderDesignProcessor implements DesignProcessor {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public String getExternalParticipantName(ChainElement element) {
         String host = element.getPropertyAsString("uri");
         try {
             host = SimpleHttpUriUtils.extractProtocolAndDomainWithPort(host);
         } catch (Exception ignored) {
         }
-        String message = element.getProperty("isExternalCall") == null || (boolean) element.getProperty("isExternalCall") ?
-                "External" :
-                "Internal";
+        String message = element.getProperty("isExternalCall") == null || (boolean) element.getProperty("isExternalCall")
+                ? "External"
+                : "Internal";
         return message + " service: " + (host == null ? EMPTY_PROPERTY_STUB : host);
     }
 
@@ -59,8 +60,8 @@ public class HttpSenderDesignProcessor implements DesignProcessor {
     public void processBefore(String refChainId, SequenceDiagramBuilder builder, ChainElement element) {
         String methods = element.getPropertyAsString("httpMethod");
         String path = SimpleHttpUriUtils.extractPathAndQueryFromUri(element.getPropertyAsString("uri"));
-        String title = (methods == null ? EMPTY_PROPERTY_STUB : methods) + ", " +
-                (path == null ? EMPTY_PROPERTY_STUB : path);
+        String title = (methods == null ? EMPTY_PROPERTY_STUB : methods) + ", "
+                + (path == null ? EMPTY_PROPERTY_STUB : path);
         String externalParticipantId = getExternalParticipantId(element);
 
         builder.append(LINE_WITH_ARROW_SOLID_RIGHT, refChainId, externalParticipantId, title);

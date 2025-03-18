@@ -294,8 +294,8 @@ public class FolderController {
 
     private boolean hasExtraChild(List<? extends FoldableEntity> entities, Map<String, Folder> folderMap, Map<String, Chain> chainMap) {
         for (FoldableEntity child : entities) {
-            if ((child instanceof Folder && !folderMap.containsKey(child.getId())) ||
-                    (child instanceof Chain && !chainMap.containsKey(child.getId()))) {
+            if ((child instanceof Folder && !folderMap.containsKey(child.getId()))
+                    || (child instanceof Chain && !chainMap.containsKey(child.getId()))) {
                 return true;
             }
         }

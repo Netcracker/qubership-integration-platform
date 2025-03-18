@@ -65,8 +65,8 @@ import static org.hamcrest.collection.IsIn.in;
 import static org.hamcrest.collection.IsMapWithSize.aMapWithSize;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
 import static org.qubership.integration.platform.designtime.catalog.service.ElementService.CONTAINER_DEFAULT_NAME;
 import static org.qubership.integration.platform.designtime.catalog.service.ElementService.CONTAINER_TYPE_NAME;
 

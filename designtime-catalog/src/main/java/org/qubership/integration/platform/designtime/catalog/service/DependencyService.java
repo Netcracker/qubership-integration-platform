@@ -163,11 +163,11 @@ public class DependencyService {
             ContainerChainElement elementFromParent = elementFrom.getParent();
             ContainerChainElement elementToParent = elementTo.getParent();
             BiPredicate<ContainerChainElement, ContainerChainElement> sameParents = (fromParent, toParent) ->
-                    StringUtils.equals(fromParent.getId(), toParent.getId()) ||
-                            (oldContainerUtils.isOldStyleContainer(fromParent.getType()) &&
-                                    (Objects.equals(toParent, fromParent.getParent())));
-            if (!CONTAINER_TYPE_NAME.equals(elementToParent.getType()) &&
-                    (elementFromParent == null || !sameParents.test(elementFromParent, elementToParent))) {
+                    StringUtils.equals(fromParent.getId(), toParent.getId())
+                            || (oldContainerUtils.isOldStyleContainer(fromParent.getType())
+                            && (Objects.equals(toParent, fromParent.getParent())));
+            if (!CONTAINER_TYPE_NAME.equals(elementToParent.getType())
+                    && (elementFromParent == null || !sameParents.test(elementFromParent, elementToParent))) {
                 throw new DependencyValidationException("Dependency to container child cannot be created");
             }
 
@@ -205,8 +205,8 @@ public class DependencyService {
             return;
         }
 
-        if (fromParent != null && !CONTAINER_TYPE_NAME.equals(fromParent.getType()) &&
-                elementTo.getInputDependencies().stream()
+        if (fromParent != null && !CONTAINER_TYPE_NAME.equals(fromParent.getType())
+                && elementTo.getInputDependencies().stream()
                         .anyMatch(dependency -> !Objects.equals(elementFrom, dependency.getElementFrom()))) {
             throw new DependencyValidationException("Element "
                     + elementTo.getId() + " already has input dependencies with a different parent");

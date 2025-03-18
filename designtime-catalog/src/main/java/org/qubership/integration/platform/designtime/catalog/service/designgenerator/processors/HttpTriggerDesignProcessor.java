@@ -55,9 +55,9 @@ public class HttpTriggerDesignProcessor implements DesignProcessor {
     @Override
     public String getExternalParticipantId(ChainElement element) {
         IntegrationSystem system = getSystem(element);
-        String serviceId = isManualSource(element) ?
-                getExternalParticipantName(element) :
-                (system == null ? null : system.getId());
+        String serviceId = isManualSource(element)
+                ? getExternalParticipantName(element)
+                : (system == null ? null : system.getId());
         return serviceId == null ? null : DiagramBuilderEscapeUtil.removeOrReplaceUnsupportedCharacters(serviceId);
     }
 
@@ -71,9 +71,9 @@ public class HttpTriggerDesignProcessor implements DesignProcessor {
                     isExternal || isPrivate ? "external (via " + getRouteMessage(isExternal, isPrivate) +  " route)" : "internal")
                 + " service";
 
-        message = isManualSource(element) ?
-                message :
-                (system == null ? null : ("Service: " + system.getName()));
+        message = isManualSource(element)
+                ? message
+                : (system == null ? null : ("Service: " + system.getName()));
 
         return message;
     }
@@ -90,11 +90,11 @@ public class HttpTriggerDesignProcessor implements DesignProcessor {
 
     private IntegrationSystem getSystem(ChainElement element) {
         Map<String, Object> properties = element.getProperties();
-        return properties.containsKey(SYSTEM_ID) ?
-                systemRepository.findById((String) properties.get(SYSTEM_ID))
+        return properties.containsKey(SYSTEM_ID)
+                ? systemRepository.findById((String) properties.get(SYSTEM_ID))
                         .orElseThrow(() -> new RuntimeException(
-                                SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + properties.get(SYSTEM_ID))) :
-                null;
+                                SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + properties.get(SYSTEM_ID)))
+                : null;
     }
 
     @Override
@@ -103,8 +103,8 @@ public class HttpTriggerDesignProcessor implements DesignProcessor {
         String methods = element.getPropertyAsString(HTTP_METHOD_RESTRICT);
         String uri = (String) (isManualSource(element) ? properties.get(CONTEXT_PATH) : properties.get(OPERATION_PATH));
         String title =
-                "HTTP request to " + (uri == null ? EMPTY_PROPERTY_STUB : uri) +
-                        ", allowed methods=[" + (StringUtils.isBlank(methods) ? "ALL" : methods) + "]";
+                "HTTP request to " + (uri == null ? EMPTY_PROPERTY_STUB : uri)
+                        + ", allowed methods=[" + (StringUtils.isBlank(methods) ? "ALL" : methods) + "]";
 
         builder.append(LINE_WITH_ARROW_SOLID_RIGHT, getExternalParticipantId(element), refChainId, title);
 

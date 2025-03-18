@@ -22,8 +22,7 @@ import java.util.Iterator;
 
 public final class JsonNodeUtils {
 
-    private JsonNodeUtils(){
-
+    private JsonNodeUtils() {
     }
 
     public static JsonNode removeEmptyNodes(JsonNode rootNode) {

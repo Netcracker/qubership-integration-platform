@@ -48,7 +48,10 @@ public interface SystemModelMapper {
     SystemModel asEntity(SystemModelDTO model);
 
     SystemModelLabel asLabelRequest(SystemModelLabelDTO snapshotLabel);
+
     List<SystemModelLabel> asLabelRequests(List<SystemModelLabelDTO> snapshotLabel);
+
     SystemModelLabelDTO asLabelResponse(SystemModelLabel snapshotLabel);
+
     List<SystemModelLabelDTO> asLabelResponse(List<SystemModelLabel> snapshotLabel);
 }

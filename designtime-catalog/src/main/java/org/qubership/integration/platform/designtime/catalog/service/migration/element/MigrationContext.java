@@ -105,7 +105,7 @@ public class MigrationContext {
         migratedElements.put(migratedElement.getId(), migratedElement);
     }
 
-    public void addReuseElement(String firstElementId,ContainerChainElement reuseElement) {
+    public void addReuseElement(String firstElementId, ContainerChainElement reuseElement) {
         reuseElements.put(firstElementId, reuseElement);
     }
 

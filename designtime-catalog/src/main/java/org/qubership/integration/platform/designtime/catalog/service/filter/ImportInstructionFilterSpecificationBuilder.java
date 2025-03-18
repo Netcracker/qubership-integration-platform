@@ -82,12 +82,12 @@ public class ImportInstructionFilterSpecificationBuilder {
             case LABELS -> {
                 Predicate predicate = conditionPredicateBuilder.apply(getJoin(root, "labels").get("name"), filterValue);
                 boolean negativeLabelFilter =
-                        filter.getCondition() == FilterCondition.IS_NOT ||
-                                filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
+                        filter.getCondition() == FilterCondition.IS_NOT
+                                || filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
 
-                yield negativeLabelFilter ?
-                        criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name"))) :
-                        predicate;
+                yield negativeLabelFilter
+                        ? criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name")))
+                        : predicate;
             }
             case MODIFIED_WHEN -> conditionPredicateBuilder.apply(root.get("modifiedWhen"), filterValue);
             default -> throw new IllegalStateException("Unexpected feature value: " + filter.getFeature());

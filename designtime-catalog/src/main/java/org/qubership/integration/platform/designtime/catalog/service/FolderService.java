@@ -92,7 +92,7 @@ public class FolderService {
         Folder folder = findById(folderId);
         Folder targetFolder = findEntityByIdOrNull(targetFolderId);
         if (targetFolder != null && checkIfMovingToChild(folder, targetFolder)) {
-            throw new FolderMoveException(folder.getName(),targetFolder.getName());
+            throw new FolderMoveException(folder.getName(), targetFolder.getName());
         }
         folder.setParentFolder(targetFolder);
         return folder;
@@ -101,7 +101,7 @@ public class FolderService {
     private boolean checkIfMovingToChild(Folder folder, Folder targetFolder) {
         while (targetFolder.getParentFolder() != null) {
             Folder parentFolder = targetFolder.getParentFolder();
-            if(parentFolder.getId().equals(folder.getId())) {
+            if (parentFolder.getId().equals(folder.getId())) {
                 return true;
             }
             targetFolder = parentFolder;
@@ -127,7 +127,7 @@ public class FolderService {
         return upsertFolder(folder, parentFolderId);
     }
 
-    public List<Folder> getFoldersHierarchically(List<Chain> relatedChains){
+    public List<Folder> getFoldersHierarchically(List<Chain> relatedChains) {
         List<String> foldersIds = relatedChains
                 .stream()
                 .map(Chain::getParentFolder)

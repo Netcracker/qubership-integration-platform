@@ -65,6 +65,7 @@ public class ServiceCallDDSConverter extends ElementDDSConverter {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public TemplateChainElement convert(ChainElement element) {
         Map<String, Object> elementProps = element.getProperties();
         Map<String, Object> elementTemplateProps = new HashMap<>();
@@ -92,8 +93,8 @@ public class ServiceCallDDSConverter extends ElementDDSConverter {
 
         Object authorizationConfiguration = elementProps.get(CamelOptions.AUTHORIZATION_CONFIGURATION);
         Map<String, Object> authProps = new HashMap<>();
-        authProps.put("type", authorizationConfiguration instanceof Map<?, ?> authConfig ?
-                StringUtils.capitalize((String) authConfig.get("type")) : null);
+        authProps.put("type", authorizationConfiguration instanceof Map<?, ?> authConfig
+                ? StringUtils.capitalize((String) authConfig.get("type")) : null);
         elementTemplateProps.put("authorization", authProps);
 
         try {
@@ -113,7 +114,7 @@ public class ServiceCallDDSConverter extends ElementDDSConverter {
             }
 
             elementTemplateUtils.addJSONSchemas(elementProps, elementTemplateProps);
-        } catch (EntityNotFoundException ignored) {}
+        } catch (EntityNotFoundException ignored) { }
 
         return builder.build();
     }

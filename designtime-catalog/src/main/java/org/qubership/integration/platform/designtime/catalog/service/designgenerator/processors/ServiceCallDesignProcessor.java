@@ -72,11 +72,11 @@ public class ServiceCallDesignProcessor implements DesignProcessor {
 
     private IntegrationSystem getSystem(ChainElement element) {
         Map<String, Object> properties = element.getProperties();
-        return properties.containsKey(SYSTEM_ID) ?
-                systemRepository.findById((String) properties.get(SYSTEM_ID))
+        return properties.containsKey(SYSTEM_ID)
+                ? systemRepository.findById((String) properties.get(SYSTEM_ID))
                         .orElseThrow(() -> new RuntimeException(
-                                SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + properties.get(SYSTEM_ID))) :
-                null;
+                                SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + properties.get(SYSTEM_ID)))
+                : null;
     }
 
     @Override
@@ -104,8 +104,8 @@ public class ServiceCallDesignProcessor implements DesignProcessor {
                     externalParticipantId,
                     lineMessage);
 
-            if (OPERATION_PROTOCOL_TYPE_HTTP.equals(protocol) ||
-                    OPERATION_PROTOCOL_TYPE_GRAPHQL.equals(protocol)) {
+            if (OPERATION_PROTOCOL_TYPE_HTTP.equals(protocol)
+                    || OPERATION_PROTOCOL_TYPE_GRAPHQL.equals(protocol)) {
                 builder.append(ACTIVATE, externalParticipantId);
                 builder.append(LINE_WITH_ARROW_DOTTED_RIGHT,
                         externalParticipantId,
@@ -173,10 +173,10 @@ public class ServiceCallDesignProcessor implements DesignProcessor {
             }
             case OPERATION_PROTOCOL_TYPE_GRAPHQL -> {
                 String operationName = (String) elementProperties.get(GQL_OPERATION_NAME_PROP);
-                return "GraphQL request (query/mutation)" +
-                        (StringUtils.isEmpty(operationName) ?
-                                "" :
-                                (", operation: " + operationName));
+                return "GraphQL request (query/mutation)"
+                        + (StringUtils.isEmpty(operationName)
+                                ? ""
+                                : (", operation: " + operationName));
             }
         }
 

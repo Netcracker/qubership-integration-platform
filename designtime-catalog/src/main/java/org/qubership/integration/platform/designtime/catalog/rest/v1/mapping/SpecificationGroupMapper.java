@@ -45,7 +45,10 @@ public interface SpecificationGroupMapper {
     void mergeWithoutLabels(SpecificationGroupRequestDTO specificationGroupDTO, @MappingTarget SpecificationGroup specificationGroup);
 
     SpecificationGroupLabel asLabelRequest(SpecificationGroupLabelDTO snapshotLabel);
+
     List<SpecificationGroupLabel> asLabelRequests(List<SpecificationGroupLabelDTO> snapshotLabel);
+
     SpecificationGroupLabelDTO asLabelResponse(SpecificationGroupLabel snapshotLabel);
+
     List<SpecificationGroupLabelDTO> asLabelResponse(List<SpecificationGroupLabel> snapshotLabel);
 }

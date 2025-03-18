@@ -393,7 +393,7 @@ public class DependencyServiceTest {
         verify(dependencyRepository, times(1)).save(eq(dependency));
     }
 
-    private static Stream<Arguments> createDependencyTestData_exceptionalCase() {
+    private static Stream<Arguments> createDependencyTestDataExceptionalCase() {
         return Stream.of(
                 Arguments.of(
                         "Between root element and element with disabled input",
@@ -435,8 +435,8 @@ public class DependencyServiceTest {
 
     @DisplayName("Creating dependency. Exceptional case")
     @ParameterizedTest(name = "#{index} => {0}")
-    @MethodSource("createDependencyTestData_exceptionalCase")
-    public void createDependencyTest_exceptionalCase(String scenario, String fromId, String toId) {
+    @MethodSource("createDependencyTestDataExceptionalCase")
+    public void createDependencyTestExceptionalCase(String scenario, String fromId, String toId) {
         ChainElement elementFrom = getElementById(fromId);
         ChainElement elementTo = getElementById(toId);
         when(elementRepository.findById(eq(fromId))).thenReturn(Optional.of(elementFrom));
@@ -447,7 +447,7 @@ public class DependencyServiceTest {
 
     @DisplayName("Creating a dependency that already exists")
     @Test
-    public void createAlreadyExistedDependencyTest_exceptionalCase() {
+    public void createAlreadyExistedDependencyTestExceptionalCase() {
         ChainElement elementFrom = getElementById(SCRIPT_1_TRY_INSIDE_MAPPER_ID);
         ChainElement elementTo = getElementById(SCRIPT_1_TRY_INSIDE_SCRIPT_ID);
         when(elementRepository.findById(eq(SCRIPT_1_TRY_INSIDE_MAPPER_ID))).thenReturn(Optional.of(elementFrom));

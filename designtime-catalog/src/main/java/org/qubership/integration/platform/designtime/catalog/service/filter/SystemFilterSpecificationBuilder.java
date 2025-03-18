@@ -58,9 +58,9 @@ public class SystemFilterSpecificationBuilder {
                         .map(filter -> buildPredicate(root, criteriaBuilder, filter))
                         .toArray(Predicate[]::new);
 
-                commonResult = filters.size() > 1 ?
-                        predicateAccumulator.apply(criteriaBuilder, predicates) :
-                        predicates[0];
+                commonResult = filters.size() > 1
+                        ? predicateAccumulator.apply(criteriaBuilder, predicates)
+                        : predicates[0];
             }
 
             return commonResult;
@@ -91,18 +91,18 @@ public class SystemFilterSpecificationBuilder {
             case LABELS -> {
                 Predicate predicate = conditionPredicateBuilder.apply(getJoin(root, "labels").get("name"), value);
                 boolean negativeLabelFilter =
-                        filter.getCondition() == FilterCondition.IS_NOT ||
-                                filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
+                        filter.getCondition() == FilterCondition.IS_NOT
+                                || filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
 
-                yield negativeLabelFilter ?
-                        criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name"))) :
-                        predicate;
+                yield negativeLabelFilter
+                        ? criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name")))
+                        : predicate;
             }
             default -> throw new IllegalStateException("Unexpected feature value: " + filter.getFeature());
         };
     }
 
-    private String convertProtocols (String value) {
+    private String convertProtocols(String value) {
         return Arrays.stream(String.valueOf(value).split(","))
                 .map(protocol -> "," + OperationProtocol.fromValue(protocol).ordinal())
                 .collect(Collectors.joining()).replaceFirst(",", "");

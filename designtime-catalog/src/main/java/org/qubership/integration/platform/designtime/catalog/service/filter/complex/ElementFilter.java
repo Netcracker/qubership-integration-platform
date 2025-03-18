@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters;
+package org.qubership.integration.platform.designtime.catalog.service.filter.complex;
 
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -24,7 +24,7 @@ import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.FilterR
 import java.util.Arrays;
 import java.util.List;
 
-public class ElementFilter implements FilterApplier{
+public class ElementFilter implements FilterApplier {
     @Override
     public List<Chain> apply(List<Chain> chains, List<FilterRequestDTO> filters) {
         List<FilterRequestDTO> elementFilters = filters.stream()

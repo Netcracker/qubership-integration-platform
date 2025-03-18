@@ -208,7 +208,7 @@ public class ChainMigrationServiceTest {
 
         Chain chain = chainMapper.toEntity(defaultYamlMapper.readValue(TestUtils.getResourceFileContent(inputPath), ChainImportDTO.class));
         MigrationContext context = new MigrationContext(elementMigrations);
-        Chain migratedChain = chainMigrationService.getMigratedChain(chain,context);
+        Chain migratedChain = chainMigrationService.getMigratedChain(chain, context);
         String actual = TestUtils.OBJECT_MAPPER.writeValueAsString(chainMapper.toDto(migratedChain));
 
         JSONAssert.assertEquals(expected, actual, JSONCompareMode.NON_EXTENSIBLE);

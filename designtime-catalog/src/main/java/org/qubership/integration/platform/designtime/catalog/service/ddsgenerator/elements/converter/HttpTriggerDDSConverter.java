@@ -77,8 +77,8 @@ public class HttpTriggerDDSConverter extends ElementDDSConverter {
         List<String> allowedContentTypes = (List<String>) elementProps.get(CamelOptions.ALLOWED_CONTENT_TYPES);
         elementTemplateProps.put("endpointUri", routePrefixProvider.getRoutePrefix(isExternal) + StringUtils.strip(contextPath, "/"));
         elementTemplateProps.put("endpointAllowedMethods", httpMethodRestrict == null ? "ALL" : httpMethodRestrict);
-        elementTemplateProps.put("validateRequestContentType", allowedContentTypes == null || allowedContentTypes.isEmpty() ?
-                "ALL" : String.join(", ", allowedContentTypes));
+        elementTemplateProps.put("validateRequestContentType", allowedContentTypes == null || allowedContentTypes.isEmpty()
+                ? "ALL" : String.join(", ", allowedContentTypes));
 
         try {
             List<String> rolesList = (List<String>) elementProps.getOrDefault("roles", Collections.emptyList());

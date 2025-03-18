@@ -33,7 +33,7 @@ import org.springframework.util.CollectionUtils;
 import java.util.ArrayList;
 import java.util.List;
 
-@Mapper(componentModel = "spring", uses = { MapperUtils.class })
+@Mapper(componentModel = "spring", uses = {MapperUtils.class})
 public abstract class DiscoveryServiceMapper {
 
     private SystemModelService systemModelService;
@@ -47,21 +47,25 @@ public abstract class DiscoveryServiceMapper {
 
     @AfterMapping
     protected void after(IntegrationSystem system, @MappingTarget DiscoveredServiceDTO discoveredServiceDTO) {
-        if (system.getSpecificationGroups() == null)
+        if (system.getSpecificationGroups() == null) {
             return;
+        }
 
         List<DiscoveredServiceGroupDTO> groupList = new ArrayList<>();
         for (SpecificationGroup group : system.getSpecificationGroups()) {
-            if (StringUtils.isBlank(group.getUrl())) // Not discovered group
+            if (StringUtils.isBlank(group.getUrl())) { // Not discovered group
                 continue;
+            }
             DiscoveredServiceGroupDTO discoveredServiceGroupDTO = toDiscoveredServiceGroupDTO(group);
-            if (StringUtils.isBlank(discoveredServiceGroupDTO.getSpecificationId()))
+            if (StringUtils.isBlank(discoveredServiceGroupDTO.getSpecificationId())) {
                 continue;
+            }
             groupList.add(discoveredServiceGroupDTO);
         }
 
-        if (!CollectionUtils.isEmpty(groupList))
+        if (!CollectionUtils.isEmpty(groupList)) {
             discoveredServiceDTO.setServiceGroups(groupList);
+        }
     }
 
     public abstract DiscoveredServiceGroupDTO toDiscoveredServiceGroupDTO(SpecificationGroup group);

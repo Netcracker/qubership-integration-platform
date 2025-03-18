@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.designtime.catalog.exception.exceptions;
 
-public class FolderMoveException extends Exception{
+public class FolderMoveException extends Exception {
     public FolderMoveException(String message) {
         super(message);
     }
+
     public FolderMoveException(String parentFolderName, String childFolderName) {
-        super("Movement of parent folder '"+parentFolderName+"' to child folder '"+childFolderName+"' is not allowed");
+        super("Movement of parent folder '" + parentFolderName + "' to child folder '" + childFolderName + "' is not allowed");
     }
 }

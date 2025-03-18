@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters;
+package org.qubership.integration.platform.designtime.catalog.service.filter.complex;
 
 import org.qubership.integration.platform.catalog.model.chain.SessionsLoggingLevel;
 import org.qubership.integration.platform.catalog.model.deployment.properties.DeploymentRuntimeProperties;
@@ -27,7 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class LoggingFilter implements FilterApplier{
+public class LoggingFilter implements FilterApplier {
 
     private final ChainRuntimePropertiesService chainRuntimePropertiesService;
 

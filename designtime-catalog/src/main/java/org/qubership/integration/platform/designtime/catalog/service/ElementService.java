@@ -282,94 +282,6 @@ public class ElementService extends ElementBaseService {
         return newElement;
     }
 
-    protected ChainElement findRootParent(@NonNull ChainElement element) {
-        ChainElement parentElement = element;
-        while (parentElement.getParent() != null) {
-            parentElement = parentElement.getParent();
-        }
-        return parentElement;
-    }
-
-    protected void checkElementParentRestriction(String elementType, String parentElementType) {
-        ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(elementType);
-        if (elementDescriptor == null)
-            throw new ElementValidationException("Element of type " + elementType + " cannot be a child");
-
-        if (elementDescriptor.getParentRestriction() == null || elementDescriptor.getParentRestriction().isEmpty())
-            return;
-
-        if (StringUtils.isBlank(parentElementType) || elementDescriptor.getParentRestriction().stream().
-                noneMatch(parentElType -> parentElType.equals(parentElementType)))
-            throw new ElementValidationException("Element " + elementType + " should be only inside parent element: " +
-                    StringUtils.join(elementDescriptor.getParentRestriction(), ", "));
-    }
-
-    protected void checkAddingChildParentRestriction(String childElementType, ContainerChainElement parent) {
-        ElementDescriptor parentDescriptor = libraryService.getElementDescriptor(parent.getType());
-        if (parentDescriptor != null) {
-            Map<String, Quantity> childrenMap = parentDescriptor.getAllowedChildren();
-
-            ElementDescriptor childElementDescriptor = libraryService.getElementDescriptor(childElementType);
-            if (MapUtils.getObject(childrenMap, childElementType) == null && !childElementDescriptor.isInputEnabled()) {
-                throw new ElementValidationException("Element with disabled input cannot be inside a parent element " +
-                        parent.getType());
-            }
-            if (MapUtils.isEmpty(childrenMap)) {
-                return;
-            }
-
-            Quantity elementCount = childrenMap.get(childElementType);
-            if (elementCount == null) {
-                throw new ElementValidationException("Element "
-                        + childElementType + " is not allowed to be inside parent element " + parent.getType());
-            }
-
-            long childCount = parent.getElements().stream().filter(child -> child.getType().equals(childElementType)).count();
-            if (!elementCount.test(((int) childCount) + 1)) {
-                throw new ElementValidationException("Number of "
-                        + childElementType + " elements inside parent " + parent.getType() + " element exceed limit");
-            }
-        }
-    }
-
-    protected void checkIfAllowedInContainers(String elementType) {
-        Optional.ofNullable(libraryService.getElementDescriptor(elementType))
-                .filter(descriptor -> !descriptor.isAllowedInContainers())
-                .ifPresent(descriptor -> {
-                    throw new ElementValidationException(
-                            "The " + descriptor.getName() + " element cannot be inside a container");
-                });
-    }
-
-    @ChainModification
-    protected ContainerChainElement deleteElementFromParent(ChainElement child, boolean isImportProcess) {
-        ContainerChainElement parent = child.getParent();
-        if (parent == null) return null;
-
-        parent.setModifiedWhen(null);
-        parent = elementRepository.save(auditingHandler.markModified(parent));
-
-        if (!isImportProcess) {
-            ElementDescriptor parentDescriptor = libraryService.getElementDescriptor(parent.getType());
-            if (parentDescriptor != null) {
-                Map<String, Quantity> childrenMap = parentDescriptor.getAllowedChildren();
-                if (MapUtils.isNotEmpty(childrenMap) && childrenMap.get(child.getType()) != null) {
-                    Quantity elementCount = childrenMap.get(child.getType());
-
-                    long childCount = parent.getElements().stream().filter(c -> c.getType().equals(child.getType())).count();
-
-                    if ((elementCount == Quantity.ONE && childCount == 1) ||
-                            (elementCount == Quantity.ONE_OR_MANY && childCount == 1) ||
-                            (elementCount == Quantity.TWO_OR_MANY && childCount == 2))
-                        throw new ElementValidationException("Number of " + child.getType() +
-                                " elements inside parent " + parent.getType() + " element can't be lowered");
-                }
-            }
-            parent.getElements().remove(child);
-        }
-        return parent;
-    }
-
     @ChainModification
     protected ChainElement create(String elementType, @NonNull ContainerChainElement parentElement) {
         checkIfAllowedInContainers(elementType);
@@ -415,8 +327,9 @@ public class ElementService extends ElementBaseService {
                 Quantity libraryElementQuantity = childDefinition.getValue();
 
                 ElementDescriptor childTypeDefinition = libraryService.getElementDescriptor(libraryElement);
-                if (childTypeDefinition.isDeprecated() && !descriptor.isDeprecated())
+                if (childTypeDefinition.isDeprecated() && !descriptor.isDeprecated()) {
                     continue;
+                }
 
                 int elementNumber;
                 if (libraryElementQuantity == Quantity.TWO_OR_MANY) {
@@ -435,14 +348,108 @@ public class ElementService extends ElementBaseService {
         return element;
     }
 
+    protected ChainElement findRootParent(@NonNull ChainElement element) {
+        ChainElement parentElement = element;
+        while (parentElement.getParent() != null) {
+            parentElement = parentElement.getParent();
+        }
+        return parentElement;
+    }
+
+    protected void checkElementParentRestriction(String elementType, String parentElementType) {
+        ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(elementType);
+        if (elementDescriptor == null) {
+            throw new ElementValidationException("Element of type " + elementType + " cannot be a child");
+        }
+
+        if (elementDescriptor.getParentRestriction() == null || elementDescriptor.getParentRestriction().isEmpty()) {
+            return;
+        }
+
+        if (StringUtils.isBlank(parentElementType) || elementDescriptor.getParentRestriction().stream()
+                .noneMatch(parentElType -> parentElType.equals(parentElementType))) {
+            throw new ElementValidationException("Element " + elementType + " should be only inside parent element: "
+                    + StringUtils.join(elementDescriptor.getParentRestriction(), ", "));
+        }
+    }
+
+    protected void checkAddingChildParentRestriction(String childElementType, ContainerChainElement parent) {
+        ElementDescriptor parentDescriptor = libraryService.getElementDescriptor(parent.getType());
+        if (parentDescriptor != null) {
+            Map<String, Quantity> childrenMap = parentDescriptor.getAllowedChildren();
+
+            ElementDescriptor childElementDescriptor = libraryService.getElementDescriptor(childElementType);
+            if (MapUtils.getObject(childrenMap, childElementType) == null && !childElementDescriptor.isInputEnabled()) {
+                throw new ElementValidationException("Element with disabled input cannot be inside a parent element "
+                        + parent.getType());
+            }
+            if (MapUtils.isEmpty(childrenMap)) {
+                return;
+            }
+
+            Quantity elementCount = childrenMap.get(childElementType);
+            if (elementCount == null) {
+                throw new ElementValidationException("Element "
+                        + childElementType + " is not allowed to be inside parent element " + parent.getType());
+            }
+
+            long childCount = parent.getElements().stream().filter(child -> child.getType().equals(childElementType)).count();
+            if (!elementCount.test(((int) childCount) + 1)) {
+                throw new ElementValidationException("Number of "
+                        + childElementType + " elements inside parent " + parent.getType() + " element exceed limit");
+            }
+        }
+    }
+
+    protected void checkIfAllowedInContainers(String elementType) {
+        Optional.ofNullable(libraryService.getElementDescriptor(elementType))
+                .filter(descriptor -> !descriptor.isAllowedInContainers())
+                .ifPresent(descriptor -> {
+                    throw new ElementValidationException(
+                            "The " + descriptor.getName() + " element cannot be inside a container");
+                });
+    }
+
+    @ChainModification
+    protected ContainerChainElement deleteElementFromParent(ChainElement child, boolean isImportProcess) {
+        ContainerChainElement parent = child.getParent();
+        if (parent == null) {
+            return null;
+        }
+
+        parent.setModifiedWhen(null);
+        parent = elementRepository.save(auditingHandler.markModified(parent));
+
+        if (!isImportProcess) {
+            ElementDescriptor parentDescriptor = libraryService.getElementDescriptor(parent.getType());
+            if (parentDescriptor != null) {
+                Map<String, Quantity> childrenMap = parentDescriptor.getAllowedChildren();
+                if (MapUtils.isNotEmpty(childrenMap) && childrenMap.get(child.getType()) != null) {
+                    Quantity elementCount = childrenMap.get(child.getType());
+
+                    long childCount = parent.getElements().stream().filter(c -> c.getType().equals(child.getType())).count();
+
+                    if ((elementCount == Quantity.ONE && childCount == 1)
+                            || (elementCount == Quantity.ONE_OR_MANY && childCount == 1)
+                            || (elementCount == Quantity.TWO_OR_MANY && childCount == 2)) {
+                        throw new ElementValidationException("Number of " + child.getType()
+                                + " elements inside parent " + parent.getType() + " element can't be lowered");
+                    }
+                }
+            }
+            parent.getElements().remove(child);
+        }
+        return parent;
+    }
+
     protected Map<String, Object> createPropertiesMap(ElementProperties properties, String elementId, String chainId) {
         return new HashMap<>(properties.getAll().stream()
                 .filter(prop -> StringUtils.isNotBlank(prop.getDefaultValue()))
                 .collect(Collectors.toMap(
                         ElementProperty::getName,
-                        prop -> PropertyValueType.STRING.equals(prop.getType()) ?
-                                ElementUtils.replaceDefaultValuePlaceholders(prop.getDefaultValue(), elementId, chainId) :
-                                prop.defaultValue()
+                        prop -> PropertyValueType.STRING.equals(prop.getType())
+                                ? ElementUtils.replaceDefaultValuePlaceholders(prop.getDefaultValue(), elementId, chainId)
+                                : prop.defaultValue()
                 )));
     }
 

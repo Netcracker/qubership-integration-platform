@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters;
+package org.qubership.integration.platform.designtime.catalog.service.filter.complex;
 
 import org.qubership.integration.platform.catalog.model.chain.ChainStatus;
 import org.qubership.integration.platform.catalog.model.deployment.engine.ChainRuntimeDeployment;
@@ -28,7 +28,7 @@ import org.springframework.util.CollectionUtils;
 import java.util.*;
 import java.util.function.Predicate;
 
-public class ChainStatusFilters implements FilterApplier{
+public class ChainStatusFilters implements FilterApplier {
     private static final String NO_DEPLOYMENTS_CAPTION = "No deployments yet";
 
     private final DeploymentService deploymentService;
@@ -80,8 +80,9 @@ public class ChainStatusFilters implements FilterApplier{
         Collection<ChainStatus> result = new ArrayList<>();
         for (Deployment deployment : deployments) {
             String deploymentId = deployment.getId();
-            ChainRuntimeDeployment runtimeDeployment = chainRuntimeDeployments == null ? null :
-                    chainRuntimeDeployments.stream()
+            ChainRuntimeDeployment runtimeDeployment = chainRuntimeDeployments == null
+                    ? null
+                    : chainRuntimeDeployments.stream()
                             .filter(dep -> deploymentId.equals(dep.getDeploymentInfo().getDeploymentId()))
                             .findAny().orElse(null);
             if (runtimeDeployment != null) {

@@ -71,10 +71,11 @@ public abstract class ElementMapper {
     public ElementResponse toElementResponse(ChainElement element) {
         return toElementResponse(element, new ElementResponse());
     }
+
     public ElementResponse toElementResponse(ChainElement element, ElementResponse response) {
         if (element instanceof ContainerChainElement) {
             containerElementToResponse(response, (ContainerChainElement) element);
-        } else if (element != null){
+        } else if (element != null) {
             elementToResponse(response, element);
         } else {
             return null;

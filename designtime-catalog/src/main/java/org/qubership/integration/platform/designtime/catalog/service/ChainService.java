@@ -43,9 +43,9 @@ import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.FilterR
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainSearchRequestDTO;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.folder.FolderContentFilter;
 import org.qubership.integration.platform.designtime.catalog.service.filter.ChainFilterSpecificationBuilder;
-import org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters.ChainStatusFilters;
-import org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters.ElementFilter;
-import org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters.LoggingFilter;
+import org.qubership.integration.platform.designtime.catalog.service.filter.complex.ChainStatusFilters;
+import org.qubership.integration.platform.designtime.catalog.service.filter.complex.ElementFilter;
+import org.qubership.integration.platform.designtime.catalog.service.filter.complex.LoggingFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.auditing.AuditingHandler;
@@ -231,9 +231,9 @@ public class ChainService extends ChainBaseService {
 
     public List<Chain> applyComplexFilters(List<Chain> chains, List<FilterRequestDTO> filters) {
 
-        chains = new ChainStatusFilters(deploymentService).apply(chains,filters);
-        chains = new ElementFilter().apply(chains,filters);
-        chains = new LoggingFilter(chainRuntimePropertiesService).apply(chains,filters);
+        chains = new ChainStatusFilters(deploymentService).apply(chains, filters);
+        chains = new ElementFilter().apply(chains, filters);
+        chains = new LoggingFilter(chainRuntimePropertiesService).apply(chains, filters);
 
         return chains;
     }
@@ -252,6 +252,10 @@ public class ChainService extends ChainBaseService {
         Chain savedChain = upsertChain(chain, null, parentFolderId);
         logChainAction(savedChain, LogOperation.CREATE);
         return savedChain;
+    }
+
+    public Chain save(Chain chain) {
+        return save(chain, null);
     }
 
     private Chain upsertChain(Chain chain, List<ChainLabel> newLabels, String parentFolderId) {
@@ -281,10 +285,6 @@ public class ChainService extends ChainBaseService {
         chain.addLabels(newLabels);
     }
 
-    public Chain save(Chain chain) {
-        return save(chain, null);
-    }
-
     public void deleteById(String chainId) {
         deploymentService.deleteAllByChainId(chainId);
         Chain chain = findById(chainId);
@@ -309,8 +309,9 @@ public class ChainService extends ChainBaseService {
     }
 
     public List<UsedSystem> getUsedSystemIdsByChainIds(List<String> chainIds) {
-        if (CollectionUtils.isEmpty(chainIds))
+        if (CollectionUtils.isEmpty(chainIds)) {
             return elementService.getAllUsedSystemIds();
+        }
         return elementService.getUsedSystemIdsByChainIds(chainIds);
     }
 
@@ -344,7 +345,7 @@ public class ChainService extends ChainBaseService {
         Set<ChainLabel> chainLabelsCopy = chain
                 .getLabels()
                 .stream()
-                .map(label -> new ChainLabel(label.getName(),chainCopy))
+                .map(label -> new ChainLabel(label.getName(), chainCopy))
                 .collect(Collectors.toSet());
         chainCopy.setLabels(chainLabelsCopy);
 
@@ -401,8 +402,9 @@ public class ChainService extends ChainBaseService {
     private Set<String> saveElementsModifiedState(List<ChainElement> elements) {
         Set<String> elementsModifiedState = new HashSet<>();
         for (ChainElement element : elements) {
-            if (element.getCreatedWhen() == null)
+            if (element.getCreatedWhen() == null) {
                 elementsModifiedState.add(element.getId());
+            }
         }
         return elementsModifiedState;
     }

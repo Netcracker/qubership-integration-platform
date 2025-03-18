@@ -27,7 +27,7 @@ public class EnvironmentSetUpException extends CatalogRuntimeException {
         super(ERROR_MESSAGE);
     }
 
-    public  EnvironmentSetUpException(String address){
+    public  EnvironmentSetUpException(String address) {
         super(ERROR_MESSAGE_WITH_ADDRESS.concat(address));
     }
 }

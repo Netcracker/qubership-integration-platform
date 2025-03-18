@@ -58,6 +58,9 @@ public abstract class FolderMapper {
         return folders.stream().map(this::asFolderSearchResponse).toList();
     }
 
+    @Mapping(source = "parentFolder.id", target = "parentId")
+    public abstract SearchFilterItemResponse asSearchItemResponse(Folder entity);
+
     public SearchFilterItemResponse asFolderSearchResponse(Folder entity) {
         SearchFilterItemResponse searchItemResponse = asSearchItemResponse(entity);
         boolean containsFolders = entity.getFolderList() != null;
@@ -67,17 +70,13 @@ public abstract class FolderMapper {
                     Stream.concat(
                                     !containsFolders ? Stream.empty() : entity.getFolderList().stream(),
                                     !containsChains ? Stream.empty() : entity.getChainList().stream())
-                            .map(foldableEntity -> foldableEntity instanceof Chain ?
-                                    chainMapper.asFolderItemResponse((Chain) foldableEntity) :
-                                    this.asFolderItemResponse((Folder) foldableEntity))
+                            .map(foldableEntity -> foldableEntity instanceof Chain
+                                    ? chainMapper.asFolderItemResponse((Chain) foldableEntity)
+                                    : this.asFolderItemResponse((Folder) foldableEntity))
                             .toList());
         }
         return searchItemResponse;
     }
-
-    @Mapping(source = "parentFolder.id", target = "parentId")
-    public abstract SearchFilterItemResponse asSearchItemResponse(Folder entity);
-
 
     @IterableMapping(elementTargetType = FolderItemResponse.class)
     public abstract List<FolderItemResponse> asFolderItemResponse(List<Folder> folder);

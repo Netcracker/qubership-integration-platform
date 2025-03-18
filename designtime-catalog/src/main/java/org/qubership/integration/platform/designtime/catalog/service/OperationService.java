@@ -69,8 +69,9 @@ public class OperationService {
             String prefixFilter,
             List<String> sortColumns) {
 
-        if (offset < 0 || limit < 0) // invalid indexes
+        if (offset < 0 || limit < 0) { // invalid indexes
             return Collections.emptyList();
+        }
 
         prefixFilter = prefixFilter.stripLeading().stripTrailing();
 
@@ -79,13 +80,13 @@ public class OperationService {
 
         List<Operation> operations;
         if (limit > 0) { // partial operations loading
-            operations = filterPresent ?
-                    operationRepository.getOperationsByFilter(modelId, query, sortColumns, offset, limit) :
-                    operationRepository.getOperations(modelId, sortColumns, offset, limit);
+            operations = filterPresent
+                    ? operationRepository.getOperationsByFilter(modelId, query, sortColumns, offset, limit)
+                    : operationRepository.getOperations(modelId, sortColumns, offset, limit);
         } else {
-            operations = filterPresent ?
-                    operationRepository.getOperationsByFilter(modelId, query, sortColumns) :
-                    operationRepository.getOperations(modelId, sortColumns);
+            operations = filterPresent
+                    ? operationRepository.getOperationsByFilter(modelId, query, sortColumns)
+                    : operationRepository.getOperations(modelId, sortColumns);
         }
 
         return operations.stream()

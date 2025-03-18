@@ -66,8 +66,8 @@ public class UsedPropertiesAnalyzer {
      * </code>
      */
     private static final Pattern GROOVY_GET_HEADERS_PATTERN = Pattern.compile(
-            "exchange\\.(message|getMessage\\(\\))\\.(headers|getHeader\\(|getHeaders\\(\\))" +
-                    "((\\[(['\"]))|(\\.?((get\\(([\"']))|([\"'])?)))([a-zA-Z0-9_.\\-]+)(?!([^\\n\\r]*[=(]))", Pattern.CASE_INSENSITIVE);
+            "exchange\\.(message|getMessage\\(\\))\\.(headers|getHeader\\(|getHeaders\\(\\))"
+                    + "((\\[(['\"]))|(\\.?((get\\(([\"']))|([\"'])?)))([a-zA-Z0-9_.\\-]+)(?!([^\\n\\r]*[=(]))", Pattern.CASE_INSENSITIVE);
     public static final int[] GROOVY_GET_HEADER_GROUPS = {11};
     /**
      * Match examples:
@@ -94,9 +94,9 @@ public class UsedPropertiesAnalyzer {
      * </code>
      */
     private static final Pattern GROOVY_SET_HEADERS_PATTERN = Pattern.compile(
-            "exchange\\.(message|getMessage\\(\\))\\.((headers([\\[.]['\"]?)([a-zA-Z0-9_.\\-]+)(['\"]]?)?\\s+=)|" +
-                    "(setHeader\\(['\"]([a-zA-Z0-9_.\\-]+)(['\")]?))|" +
-                    "(((getHeaders\\(\\)|headers)\\.remove|removeHeader)(\\(['\"])([a-zA-Z0-9_.\\-]+)))", Pattern.CASE_INSENSITIVE);
+            "exchange\\.(message|getMessage\\(\\))\\.((headers([\\[.]['\"]?)([a-zA-Z0-9_.\\-]+)(['\"]]?)?\\s+=)|"
+                    + "(setHeader\\(['\"]([a-zA-Z0-9_.\\-]+)(['\")]?))|"
+                    + "(((getHeaders\\(\\)|headers)\\.remove|removeHeader)(\\(['\"])([a-zA-Z0-9_.\\-]+)))", Pattern.CASE_INSENSITIVE);
     public static final int[] GROOVY_SET_HEADER_GROUPS = {5, 8, 14};
 
     /**
@@ -135,9 +135,9 @@ public class UsedPropertiesAnalyzer {
      * </code>
      */
     private static final Pattern GROOVY_SET_PROPERTIES_PATTERN = Pattern.compile(
-            "exchange\\.((properties[\\[.]['\"]?([a-zA-Z0-9_.\\-]+)(['\"]]?)?\\s+=)|" +
-                    "(setProperty\\(['\"]([a-zA-Z0-9_.\\-]+)['\"]\\)?)|" +
-                    "(properties\\.remove|getProperties\\(\\)\\.remove|removeProperty)(\\(['\"])([a-zA-Z0-9_.\\-]+))", Pattern.CASE_INSENSITIVE);
+            "exchange\\.((properties[\\[.]['\"]?([a-zA-Z0-9_.\\-]+)(['\"]]?)?\\s+=)|"
+                    + "(setProperty\\(['\"]([a-zA-Z0-9_.\\-]+)['\"]\\)?)|"
+                    + "(properties\\.remove|getProperties\\(\\)\\.remove|removeProperty)(\\(['\"])([a-zA-Z0-9_.\\-]+))", Pattern.CASE_INSENSITIVE);
     public static final int[] GROOVY_SET_PROPERTIES_GROUPS = {3, 6, 9};
 
     /**

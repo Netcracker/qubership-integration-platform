@@ -97,7 +97,7 @@ public class KubeOperatorAutoConfiguration {
                     .setAuthentication(new AccessTokenAuthentication(token))
                     .build();
 
-            return new KubeOperator(client,namespace);
+            return new KubeOperator(client, namespace);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
             return new KubeOperator();

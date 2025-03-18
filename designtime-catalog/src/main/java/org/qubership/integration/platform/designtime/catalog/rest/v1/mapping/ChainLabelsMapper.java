@@ -29,10 +29,13 @@ import java.util.List;
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface ChainLabelsMapper {
     ChainLabelDTO asDTO(ChainLabel label);
+
     @Mapping(source = "chain", target = "chain")
     @Mapping(source = "dto.name", target = "name")
     @Mapping(source = "dto.technical", target = "technical")
     ChainLabel asEntity(ChainLabelDTO dto, Chain chain);
+
     List<ChainLabelDTO> asDTOs(List<ChainLabel> label);
+
     List<ChainLabel> asEntities(List<ChainLabelDTO> label);
 }

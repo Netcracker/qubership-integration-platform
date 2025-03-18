@@ -81,8 +81,9 @@ public class MaskedFieldsService {
     private MaskedField createOrUpdate(MaskedField maskedField) {
         Optional<MaskedField> existingEntity =
                 maskedRepository.findFirstByChainIdAndName(maskedField.getChain().getId(), maskedField.getName());
-        if (existingEntity.isPresent() && !existingEntity.get().getId().equals(maskedField.getId()))
+        if (existingEntity.isPresent() && !existingEntity.get().getId().equals(maskedField.getId())) {
             throw new EntityExistsException("Field with name " + maskedField.getName() + " already exist");
+        }
         return maskedRepository.save(maskedField);
     }
 

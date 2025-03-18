@@ -76,8 +76,9 @@ public class SpecificationGroupService extends AbstractSpecificationGroupService
                                                               String specificationType,
                                                               String specificationUrl,
                                                               Boolean synchronization) {
-        if (system == null)
+        if (system == null) {
             throw new SpecificationImportException(SYSTEM_NOT_FOUND_ERROR_MESSAGE);
+        }
         if (specificationGroupRepository.findByNameAndSystem(specificationName, system) != null) {
             throw new SpecificationImportException(SPECIFICATION_GROUP_NAME_ERROR_MESSAGE);
         } else {
@@ -115,8 +116,9 @@ public class SpecificationGroupService extends AbstractSpecificationGroupService
             String url,
             boolean synchronization
     ) {
-        if (system == null)
+        if (system == null) {
             throw new SpecificationImportException(SYSTEM_NOT_FOUND_ERROR_MESSAGE);
+        }
         if (specificationGroupRepository.findByNameAndSystem(groupName, system) != null) {
             throw new SpecificationImportException(SPECIFICATION_GROUP_NAME_ERROR_MESSAGE);
         } else {
@@ -169,8 +171,8 @@ public class SpecificationGroupService extends AbstractSpecificationGroupService
     }
 
     public List<SpecificationGroup> getSpecificationGroups(String systemId) {
-        List <SpecificationGroup> specificationGroups = specificationGroupRepository.findAllBySystemId(systemId);
-        List <SpecificationGroup> specificationGroupsSorted = specificationGroups.stream()
+        List<SpecificationGroup> specificationGroups = specificationGroupRepository.findAllBySystemId(systemId);
+        List<SpecificationGroup> specificationGroupsSorted = specificationGroups.stream()
                 .peek(this::enrichSpecificationGroupWithChains)
                 .sorted((sg1, sg2) -> sg2.getName().compareTo(sg1.getName()))
                 .collect(Collectors.toList());
@@ -237,7 +239,9 @@ public class SpecificationGroupService extends AbstractSpecificationGroupService
     }
 
     private boolean specGroupWithNameExists(Collection<SpecificationGroup> specGroups, String name) {
-        if (specGroups == null) return false;
+        if (specGroups == null) {
+            return false;
+        }
         return specGroups.stream().anyMatch(specGroup ->
                 name.equals(specGroup.getName()));
     }

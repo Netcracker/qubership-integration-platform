@@ -71,11 +71,11 @@ public class AsyncApiTriggerDesignProcessor implements DesignProcessor {
 
     private IntegrationSystem getSystem(ChainElement element) {
         Map<String, Object> properties = element.getProperties();
-        return properties.containsKey(SYSTEM_ID) ?
-                systemRepository.findById((String) properties.get(SYSTEM_ID))
+        return properties.containsKey(SYSTEM_ID)
+                ? systemRepository.findById((String) properties.get(SYSTEM_ID))
                         .orElseThrow(() -> new RuntimeException(
-                                SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + properties.get(SYSTEM_ID))) :
-                null;
+                                SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + properties.get(SYSTEM_ID)))
+               : null;
     }
 
     @Override

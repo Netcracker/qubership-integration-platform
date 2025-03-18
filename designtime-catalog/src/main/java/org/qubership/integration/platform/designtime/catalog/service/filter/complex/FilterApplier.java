@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.designtime.catalog.service.filter.complexFilters;
+package org.qubership.integration.platform.designtime.catalog.service.filter.complex;
 
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.FilterRequestDTO;

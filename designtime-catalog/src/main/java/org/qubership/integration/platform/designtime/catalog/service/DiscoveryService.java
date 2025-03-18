@@ -116,7 +116,8 @@ public class DiscoveryService {
         this.actionLogger = actionLogger;
     }
 
-    private record DiscoveredSpecificationSource(String contentType, String content) {}
+    private record DiscoveredSpecificationSource(String contentType, String content) {
+    }
 
     @AllArgsConstructor
     @Getter
@@ -203,8 +204,9 @@ public class DiscoveryService {
 
     private void discoveryComplete(DiscoveryResultDTO result, Throwable throwable) {
         String errorMessage = null;
-        if (throwable != null)
+        if (throwable != null) {
             errorMessage = throwable.getMessage();
+        }
         actionLogger.logAction(ActionLog.builder()
                 .entityType(EntityType.SERVICE_DISCOVERY)
                 .operation(LogOperation.EXECUTE)
@@ -227,23 +229,23 @@ public class DiscoveryService {
 
         for (IntegrationSystem system : systems) {
             specificationChangedFuture.add(CompletableFuture.supplyAsync(() -> {
-                    MDC.put(ContextHeaders.REQUEST_ID, requestId);
-                    return makeSpecificationChange(system, errorMessages, services);
-                }));
+                MDC.put(ContextHeaders.REQUEST_ID, requestId);
+                return makeSpecificationChange(system, errorMessages, services);
+            }));
         }
 
         for (KubeService service : services) {
             newlyDiscoveredFuture.add(CompletableFuture.supplyAsync(() -> {
-                    MDC.put(ContextHeaders.REQUEST_ID, requestId);
-                    return createDiscoveredService(service, errorMessages);
-                }));
+                MDC.put(ContextHeaders.REQUEST_ID, requestId);
+                return createDiscoveredService(service, errorMessages);
+            }));
         }
 
         return toDiscoveryResultDTO(
-                        getFuturesResultFlat(newlyDiscoveredFuture),
-                        getFuturesResult(specificationChangedFuture),
-                        errorMessages
-                );
+                getFuturesResultFlat(newlyDiscoveredFuture),
+                getFuturesResult(specificationChangedFuture),
+                errorMessages
+        );
     }
 
     private <T> List<T> getFuturesResult(List<CompletableFuture<T>> futureList) {
@@ -261,12 +263,13 @@ public class DiscoveryService {
     }
 
     private SpecificationChanges makeSpecificationChange(IntegrationSystem system,
-                                                        List<SpecificationDiscoveryErrorMsg> errorMessages,
-                                                        List<KubeService> services) {
+                                                         List<SpecificationDiscoveryErrorMsg> errorMessages,
+                                                         List<KubeService> services) {
         List<String> ignoreUrl = Collections.emptyList();
-        if (system.getSpecificationGroups() != null)
+        if (system.getSpecificationGroups() != null) {
             ignoreUrl = system.getSpecificationGroups().stream().filter(group -> !group.isSynchronization())
                     .map(SpecificationGroup::getUrl).filter(Objects::nonNull).collect(Collectors.toList());
+        }
 
         KubeService service = findCorrespondingService(system, services);
         SpecificationDiscoveryResult specificationDiscoveryResult = null;
@@ -316,8 +319,9 @@ public class DiscoveryService {
                         msg -> addErrorMessage(errorMessages, system.getInternalServiceName(), specificationDTO.getName(), msg)
                 );
                 String groupId = specificationGroup.getId();
-                if (createdGroups.stream().noneMatch(group -> group.getId().equals(groupId)))
+                if (createdGroups.stream().noneMatch(group -> group.getId().equals(groupId))) {
                     createdSpecifications.add(model);
+                }
 
             } catch (SpecificationDiscoveryException e) {
                 addErrorMessage(errorMessages, system.getInternalServiceName(), specificationDTO.getName(), e.getMessage());
@@ -368,8 +372,9 @@ public class DiscoveryService {
                                             Set<String> oldSystemModelsIds,
                                             Consumer<String> messageHandler) {
         try {
-            if (specificationDTO == null || StringUtils.isBlank(specificationDTO.getContent()))
+            if (specificationDTO == null || StringUtils.isBlank(specificationDTO.getContent())) {
                 throw new SpecificationDiscoveryException("Specification file not found");
+            }
 
             SystemModel model = specificationImportService.importSimpleSpecification(
                     getSourceFileName(specificationGroup, specificationDTO),
@@ -444,8 +449,9 @@ public class DiscoveryService {
     }
 
     private String getSystemIdPostfix(String systemPostfix) {
-        if (systemPostfix.isBlank())
+        if (systemPostfix.isBlank()) {
             return systemPostfix;
+        }
         return "-" + systemPostfix;
     }
 
@@ -490,8 +496,9 @@ public class DiscoveryService {
             OperationProtocol protocolType = entry.getKey();
             String systemPostfix = entry.getValue();
 
-            if (systemService.getByIdOrNull(constructSystemId(service, systemPostfix)) != null)
+            if (systemService.getByIdOrNull(constructSystemId(service, systemPostfix)) != null) {
                 continue;
+            }
 
             SpecificationDiscoveryResult discoveryResult = runSpecificationDiscovery(service.getName(), service.getPorts(), protocolType);
             if (discoveryResult == null) {
@@ -514,9 +521,9 @@ public class DiscoveryService {
             Environment environment = Environment.builder()
                     .name(service.getName())
                     .address(discoveryResult.getServiceAddress())
-                    .sourceType(OperationProtocol.isAsyncProtocol(protocolType) ?
-                            MAAS_BY_CLASSIFIER :
-                            MANUAL)
+                    .sourceType(OperationProtocol.isAsyncProtocol(protocolType)
+                            ? MAAS_BY_CLASSIFIER
+                            : MANUAL)
                     .build();
             environment = environmentService.create(environment, system);
 
@@ -550,8 +557,9 @@ public class DiscoveryService {
 
     private void addErrorMessage(List<SpecificationDiscoveryErrorMsg> errorMessages, String serviceName,
                                  String specificationName, String message) {
-        if (!StringUtils.isBlank(specificationName))
+        if (!StringUtils.isBlank(specificationName)) {
             serviceName += " " + specificationName;
+        }
         errorMessages.add(new SpecificationDiscoveryErrorMsg(serviceName, message));
     }
 
@@ -566,45 +574,17 @@ public class DiscoveryService {
 
     private List<SpecificationDiscoveryDTO> getServiceSpecificationsDTO(String environmentAddress, OperationProtocol protocol, List<String> ignoreUrls) {
         Map<String, String> specificationUrls = new HashMap<>();
-        if (protocol == OperationProtocol.HTTP)
+        if (protocol == OperationProtocol.HTTP) {
             specificationUrls = getSwaggerUrls(environmentAddress);
-        else if (protocol == OperationProtocol.KAFKA)
+        } else if (protocol == OperationProtocol.KAFKA) {
             specificationUrls = getAsyncUrls(environmentAddress);
+        }
 
         if (protocol != null) {
             return getServiceSpecificationsDTO(specificationUrls, ignoreUrls, environmentAddress, protocol.getType());
         } else {
             return Collections.emptyList();
         }
-    }
-
-    private HashMap<String, String> getAsyncUrls(String environmentAddress) {
-        final String[] asyncConfigUrl = {"/asyncApi/specification"};
-
-        HashMap<String, String> asyncUrls = new HashMap<>();
-
-        for (String url : asyncConfigUrl) {
-            String address = constructSpecAddress(environmentAddress, url);
-            String httpResponse = getStringFromRemote(address);
-            if (StringUtils.isBlank(httpResponse))
-                continue;
-
-            try {
-                JsonNode node = this.objectMapper.readTree(httpResponse);
-                for (JsonNode asyncObjNode : node) {
-                    String specId = asyncObjNode.get(SPEC_FIELD_ID).asText();
-                    String specVersion = asyncObjNode.get(SPEC_FIELD_VERSION).asText();
-                    String specName = asyncObjNode.get(SPEC_FIELD_NAME) == null ? null : asyncObjNode.get(SPEC_FIELD_NAME).asText();
-                    if (StringUtils.isBlank(specName))
-                        specName = specId;
-                    asyncUrls.put(url + "/" + specId + "/version/" + specVersion, specName);
-                }
-            } catch (IOException | NullPointerException ignored) {
-                log.error("Error while reading response from address {}", address);
-            }
-        }
-
-        return asyncUrls;
     }
 
     private List<SpecificationDiscoveryDTO> getServiceSpecificationsDTO(Map<String, String> specificationUrls,
@@ -646,6 +626,38 @@ public class DiscoveryService {
         return result;
     }
 
+    private HashMap<String, String> getAsyncUrls(String environmentAddress) {
+        final String[] asyncConfigUrl = {"/asyncApi/specification"};
+
+        HashMap<String, String> asyncUrls = new HashMap<>();
+
+        for (String url : asyncConfigUrl) {
+            String address = constructSpecAddress(environmentAddress, url);
+            String httpResponse = getStringFromRemote(address);
+            if (StringUtils.isBlank(httpResponse)) {
+                continue;
+            }
+
+            try {
+                JsonNode node = this.objectMapper.readTree(httpResponse);
+                for (JsonNode asyncObjNode : node) {
+                    String specId = asyncObjNode.get(SPEC_FIELD_ID).asText();
+                    String specVersion = asyncObjNode.get(SPEC_FIELD_VERSION).asText();
+                    String specName = asyncObjNode.get(SPEC_FIELD_NAME) == null ? null : asyncObjNode.get(SPEC_FIELD_NAME).asText();
+                    if (StringUtils.isBlank(specName)) {
+                        specName = specId;
+                    }
+                    asyncUrls.put(url + "/" + specId + "/version/" + specVersion, specName);
+                }
+            } catch (IOException | NullPointerException ignored) {
+                log.error("Error while reading response from address {}", address);
+            }
+        }
+
+        return asyncUrls;
+    }
+
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     private HashMap<String, String> getSwaggerUrls(String environmentAddress) {
         final String[] swaggerConfigUrl = {"/v3/api-docs/swagger-config", "/swagger-resources"};
         final String[] swaggerDefaultUrl = {"/q/openapi", "/v3/api-docs", "/v2/api-docs", "/v1/api-docs", "/api-docs", "/swagger-ui/swagger.json"};
@@ -656,8 +668,9 @@ public class DiscoveryService {
         for (String url : swaggerConfigUrl) {
             String address = constructSpecAddress(environmentAddress, url);
             String httpResponse = getStringFromRemote(address);
-            if (StringUtils.isBlank(httpResponse))
+            if (StringUtils.isBlank(httpResponse)) {
                 continue;
+            }
 
             try {
                 JsonNode node = this.objectMapper.readTree(httpResponse);
@@ -667,8 +680,9 @@ public class DiscoveryService {
                     JsonNode rootArrUrlNode = node.has(SPEC_FIELD_URL_LIST) ? node.get(SPEC_FIELD_URL_LIST) : node;
                     for (JsonNode urlNode : rootArrUrlNode) {
                         String specName = urlNode.has(SPEC_FIELD_NAME) ? urlNode.get(SPEC_FIELD_NAME).asText() : null;
-                        if (StringUtils.isBlank(specName))
+                        if (StringUtils.isBlank(specName)) {
                             specName = urlNode.get(SPEC_FIELD_URL).asText();
+                        }
                         swaggerUrls.put(urlNode.get(SPEC_FIELD_URL).asText(), specName);
                     }
                 }
@@ -676,10 +690,11 @@ public class DiscoveryService {
             }
         }
 
-        if (swaggerUrls.isEmpty())
+        if (swaggerUrls.isEmpty()) {
             for (String url : swaggerDefaultUrl) {
                 swaggerUrls.put(url, defaultSpecName);
             }
+        }
 
         return swaggerUrls;
     }
@@ -750,10 +765,11 @@ public class DiscoveryService {
         ConfigParameter cp = configParameterService.findByName(DISCOVERY_NAMESPACE, DISCOVERY_PROGRESS_NAME);
         String progress = cp == null ? null : cp.getString().split("\\.")[0];
 
-        if (progress == null ||
-                cp.getModifiedWhen().before(
-                        Timestamp.valueOf(LocalDateTime.now().minusMinutes(entityExpiredTimeoutMinutes))))
+        if (progress == null
+                || cp.getModifiedWhen().before(
+                        Timestamp.valueOf(LocalDateTime.now().minusMinutes(entityExpiredTimeoutMinutes)))) {
             return DISCOVERY_COMPLETE;
+        }
 
         return progress;
     }
@@ -762,13 +778,15 @@ public class DiscoveryService {
         return getDiscoveryProgress().equals(DISCOVERY_COMPLETE);
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public DiscoveryResultDTO getDiscoveryResult() {
         ConfigParameter cp = configParameterService.findByName(DISCOVERY_NAMESPACE, DISCOVERY_RESULT_NAME);
         String rawStatusData = cp == null ? null : cp.getString();
         DiscoveryStatusDTO status = new DiscoveryStatusDTO();
         try {
             status = objectMapper.readValue(rawStatusData, DiscoveryStatusDTO.class);
-        } catch (JsonProcessingException | RuntimeException ignored) {}
+        } catch (JsonProcessingException | RuntimeException ignored) {
+        }
 
 
         if (status == null) {

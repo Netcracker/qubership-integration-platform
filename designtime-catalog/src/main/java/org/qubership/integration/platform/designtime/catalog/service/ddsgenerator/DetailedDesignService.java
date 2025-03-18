@@ -160,8 +160,8 @@ public class DetailedDesignService {
             freemakerConfiguration.getTemplate(templateId).process(templateData, writer);
         } catch (Exception e) {
             log.warn("Failed to build detailed design from template '{}': {}", templateId, e.getMessage());
-            throw new TemplateProcessingException("Failed to build detailed design from template '" +
-                    templateId + "': " + e.getMessage(), e);
+            throw new TemplateProcessingException("Failed to build detailed design from template '"
+                    + templateId + "': " + e.getMessage(), e);
         } finally {
             readWriteLock.readLock().unlock();
         }
@@ -268,8 +268,8 @@ public class DetailedDesignService {
         Map<String, DDSSpecificationSource> specs = new HashMap<>();
 
         for (ChainElement element : elements) {
-            if (CamelNames.HTTP_TRIGGER_COMPONENT.equals(element.getType()) &&
-                    IntegrationSystemType.IMPLEMENTED.toString().equals(element.getPropertyAsString(CamelOptions.SYSTEM_TYPE))) {
+            if (CamelNames.HTTP_TRIGGER_COMPONENT.equals(element.getType())
+                    && IntegrationSystemType.IMPLEMENTED.toString().equals(element.getPropertyAsString(CamelOptions.SYSTEM_TYPE))) {
                 String operationId = element.getPropertyAsString(CamelOptions.OPERATION_ID);
                 if (StringUtils.isNotEmpty(operationId)) {
                     Operation operation = operationService.getOperation(operationId);

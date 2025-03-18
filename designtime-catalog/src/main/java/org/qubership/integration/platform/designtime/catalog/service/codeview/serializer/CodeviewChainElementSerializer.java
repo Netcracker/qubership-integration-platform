@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 @Slf4j
-public class CodeviewChainElementSerializer extends StdSerializer<ChainElement> {;
+public class CodeviewChainElementSerializer extends StdSerializer<ChainElement> {
 
     public CodeviewChainElementSerializer() {
         super(ChainElement.class);

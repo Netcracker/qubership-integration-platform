@@ -44,8 +44,9 @@ public interface SystemMapper {
     SystemDTO toDTO(IntegrationSystem system);
 
     default String protocolToString(OperationProtocol protocol) {
-        if (protocol == null)
+        if (protocol == null) {
             return null;
+        }
         return protocol == OperationProtocol.SOAP ? "soap" : protocol.value;
     }
 
@@ -71,7 +72,10 @@ public interface SystemMapper {
     }
 
     IntegrationSystemLabel asLabelRequest(SystemLabelDTO snapshotLabel);
+
     List<IntegrationSystemLabel> asLabelRequests(List<SystemLabelDTO> snapshotLabel);
+
     SystemLabelDTO asLabelResponse(IntegrationSystemLabel snapshotLabel);
+
     List<SystemLabelDTO> asLabelResponse(List<IntegrationSystemLabel> snapshotLabel);
 }
