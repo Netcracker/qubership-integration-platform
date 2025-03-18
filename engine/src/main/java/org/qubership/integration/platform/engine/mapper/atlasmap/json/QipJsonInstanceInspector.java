@@ -70,15 +70,15 @@ public class QipJsonInstanceInspector implements JsonInspector {
                     String key = e.getKey();
                     JsonNode node = e.getValue();
                     if (node.isObject()) {
-                        handleObjectNode(jsonDocument, null, key, (ObjectNode)node, false);
+                        handleObjectNode(jsonDocument, null, key, (ObjectNode) node, false);
                     } else if (node.isArray()) {
-                        handleArrayNode(jsonDocument, null, key, (ArrayNode)node);
+                        handleArrayNode(jsonDocument, null, key, (ArrayNode) node);
                     } else {
-                        createChildJsonField(jsonDocument, null, key, (ValueNode)node, false);
+                        createChildJsonField(jsonDocument, null, key, (ValueNode) node, false);
                     }
                 }
             } else if (rootNode.isArray()) {
-                handleArrayNode(jsonDocument, null, "", (ArrayNode)rootNode);
+                handleArrayNode(jsonDocument, null, "", (ArrayNode) rootNode);
             } else {
                 throw new IllegalArgumentException("JSON root must be object or array");
             }
@@ -99,11 +99,11 @@ public class QipJsonInstanceInspector implements JsonInspector {
             String subKey = e.getKey();
             JsonNode subNode = e.getValue();
             if (subNode.isObject()) {
-                handleObjectNode(rootDocument, complexType, subKey, (ObjectNode)subNode, false);
+                handleObjectNode(rootDocument, complexType, subKey, (ObjectNode) subNode, false);
             } else if (subNode.isArray()) {
-                handleArrayNode(rootDocument, complexType, subKey, (ArrayNode)subNode);
+                handleArrayNode(rootDocument, complexType, subKey, (ArrayNode) subNode);
             } else {
-                createChildJsonField(rootDocument, complexType, subKey, (ValueNode)subNode, false);
+                createChildJsonField(rootDocument, complexType, subKey, (ValueNode) subNode, false);
             }
         }
         return complexType;
@@ -121,7 +121,7 @@ public class QipJsonInstanceInspector implements JsonInspector {
         for (int i = 0; i < arrayNode.size(); ++i) {
             JsonNode sample = arrayNode.get(i);
             if (sample.isObject()) {
-                JsonComplexType node = handleObjectNode(rootDocument, parent, key, (ObjectNode)sample, true);
+                JsonComplexType node = handleObjectNode(rootDocument, parent, key, (ObjectNode) sample, true);
                 if (isNull(previous)) {
                     previous = node;
                 } else {
@@ -130,7 +130,7 @@ public class QipJsonInstanceInspector implements JsonInspector {
             } else if (sample.isArray()) {
                 throw new IllegalArgumentException("Nested JSON array is not supported");
             } else {
-                createChildJsonField(rootDocument, parent, key, (ValueNode)sample, true);
+                createChildJsonField(rootDocument, parent, key, (ValueNode) sample, true);
             }
         }
     }

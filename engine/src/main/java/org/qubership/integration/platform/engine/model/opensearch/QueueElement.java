@@ -28,18 +28,22 @@ public class QueueElement {
     private long calculatedPayloadSize;
 
     /**
-     *  Comparing only element references
+     * Comparing only element references
      */
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         QueueElement that = (QueueElement) o;
         return element == that.element;
     }
 
     /**
-     *  Use default hashcode implementation for element
+     * Use default hashcode implementation for element
      */
     @Override
     public int hashCode() {

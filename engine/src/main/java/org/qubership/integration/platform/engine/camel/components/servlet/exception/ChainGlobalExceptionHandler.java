@@ -79,11 +79,6 @@ public class ChainGlobalExceptionHandler {
         makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
     }
 
-    @ChainExceptionHandler(value = ChainConsumerNotAvailableException.class, errorCode = ErrorCode.CHAIN_ENDPOINT_NOT_FOUND)
-    public void handleChainCallException(ChainConsumerNotAvailableException exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
-        makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
-    }
-
     @ChainExceptionHandler(value = UnknownHostException.class, errorCode = ErrorCode.REQUESTED_ENDPOINT_NOT_FOUND)
     public void handleException(UnknownHostException exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
         makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
@@ -96,11 +91,6 @@ public class ChainGlobalExceptionHandler {
             handleTimeoutException(exception, exchange, ErrorCode.SOCKET_TIMEOUT, extraParameters);
             return;
         }
-        makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
-    }
-
-    @ChainExceptionHandler(value = SocketTimeoutException.class, errorCode = ErrorCode.SOCKET_TIMEOUT)
-    public void handleTimeoutException(Exception exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
         makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
     }
 
@@ -121,6 +111,16 @@ public class ChainGlobalExceptionHandler {
 
     @ChainExceptionHandler(value = ChainExecutionTerminatedException.class, errorCode = ErrorCode.FORCE_TERMINATED)
     public void handleException(ChainExecutionTerminatedException exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
+        makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
+    }
+
+    @ChainExceptionHandler(value = ChainConsumerNotAvailableException.class, errorCode = ErrorCode.CHAIN_ENDPOINT_NOT_FOUND)
+    public void handleChainCallException(ChainConsumerNotAvailableException exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
+        makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
+    }
+
+    @ChainExceptionHandler(value = SocketTimeoutException.class, errorCode = ErrorCode.SOCKET_TIMEOUT)
+    public void handleTimeoutException(Exception exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
         makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
     }
 

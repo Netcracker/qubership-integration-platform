@@ -20,5 +20,6 @@ import org.apache.camel.spi.InterceptStrategy;
 
 public interface WeblogicSecurityInterceptStrategy extends InterceptStrategy {
     void setTargetId(String targetId);
+
     void setWeblogicSecurityBean(WeblogicSecurityBean weblogicSecurityBean);
 }

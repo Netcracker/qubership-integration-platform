@@ -80,8 +80,9 @@ public class ExchangeUtils {
 
                 return SessionElementProperty.builder()
                     .type(value.getClass().getName())
-                    .value((value instanceof Iterable<?> || value instanceof Map<?, ?>) ?
-                        value.toString() : JsonSerializationHelper.serializeJson(value))
+                    .value((value instanceof Iterable<?> || value instanceof Map<?, ?>)
+                            ? value.toString()
+                            : JsonSerializationHelper.serializeJson(value))
                     .build();
 
             } catch (JsonProcessingException exception) {

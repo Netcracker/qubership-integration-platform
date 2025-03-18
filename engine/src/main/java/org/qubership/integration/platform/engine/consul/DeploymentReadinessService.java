@@ -63,6 +63,7 @@ public class DeploymentReadinessService {
 
     @Async
     @EventListener(ApplicationStartedEvent.class)
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public void onApplicationStarted() {
         try {
             Thread.sleep(CONSUMER_STARTUP_CHECK_DELAY_MILLIS);

@@ -58,6 +58,7 @@ public abstract class ElementProcessingAction implements DeploymentProcessingAct
     } 
 
     public abstract boolean applicableTo(ElementProperties properties);
+
     public abstract void apply(
         SpringCamelContext context,
         ElementProperties properties,

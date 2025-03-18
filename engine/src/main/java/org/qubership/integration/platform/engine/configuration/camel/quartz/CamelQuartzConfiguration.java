@@ -132,9 +132,9 @@ public class CamelQuartzConfiguration {
             properties.setProperty(
                 propDatasourcePrefix + PoolingConnectionProvider.DB_MAX_CONNECTIONS, "12");
         } else {
-            log.error("Failed to get database parameters for CamelQuartzConfiguration." +
-                " DataSource instance is not HikariDataSource," +
-                " camel quartz scheduler may be not work properly!");
+            log.error("Failed to get database parameters for CamelQuartzConfiguration."
+                    + " DataSource instance is not HikariDataSource,"
+                    + " camel quartz scheduler may be not work properly!");
             throw new BeanInitializationException("Failed to create CamelQuartzConfiguration bean");
         }
     }

@@ -33,7 +33,7 @@ public final class IdentifierUtils {
     private static final String SESSION_WRAPPER_ELEMENT_ID = "SESSION_WRAPPER";
     private static final String SESSION_WRAPPER_CATCH_ID = "SESSION_WRAPPER_CATCH";
     private static final String SESSION_CATCH_LOG_ID = "SESSION_WRAPPER_CATCH_LOGGER";
-    private static final Pattern valid_uuid = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
+    private static final Pattern VALID_UUID = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
 
     private static final int MIN_ELEMENT_IDENTIFIER_PARTS = 3;
     private static final int MAX_ELEMENT_IDENTIFIERS_PARTS = 4;
@@ -141,7 +141,7 @@ public final class IdentifierUtils {
     }
 
     public static boolean isValidUUID(String text) {
-        return valid_uuid.matcher(text).matches();
+        return VALID_UUID.matcher(text).matches();
     }
 
     public static String getServiceCallRetryIteratorPropertyName(String elementId) {

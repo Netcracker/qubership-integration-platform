@@ -73,7 +73,7 @@ public class PayloadExtractor {
      *
      * @param exchange
      * @param maskedFields
-     * @return <body as is, masked body>
+     * @return body as is, masked body
      */
     public String extractBodyForLogging(Exchange exchange, Set<String> maskedFields, boolean maskingEnabled) {
         String maskedBody = MessageHelper.extractBody(exchange);
@@ -117,8 +117,9 @@ public class PayloadExtractor {
 
     public Map<String, String> extractContextForLogging(Set<String> maskedFields, boolean maskingEnabled) {
 
-        Map<String, String> headers = exchangeContextPropagation.isPresent() ?
-            exchangeContextPropagation.get().buildContextSnapshotForSessions(): new HashMap<>();
+        Map<String, String> headers = exchangeContextPropagation.isPresent()
+                ? exchangeContextPropagation.get().buildContextSnapshotForSessions()
+                : new HashMap<>();
         if (maskingEnabled) {
             maskingService.maskFields(headers, maskedFields);
         }
@@ -126,7 +127,9 @@ public class PayloadExtractor {
     }
 
     public String convertToJson(Map<String, ?> mapData) {
-        if (mapData == null) return null;
+        if (mapData == null) {
+            return null;
+        }
         try {
             return objectMapper.writeValueAsString(mapData);
         } catch (JsonProcessingException e) {

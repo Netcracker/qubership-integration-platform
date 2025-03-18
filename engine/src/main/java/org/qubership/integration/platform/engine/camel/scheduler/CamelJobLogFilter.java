@@ -24,14 +24,14 @@ import ch.qos.logback.core.spi.FilterReply;
 public class CamelJobLogFilter extends Filter<ILoggingEvent> {
     @Override
     public FilterReply decide(ILoggingEvent event) {
-        return  (event.getLevel().equals(Level.ERROR) &&
-                event.getLoggerName().equals("org.apache.camel.component.quartz.CamelJob") ||
-                event.getLevel().equals(Level.INFO) &&
-                event.getLoggerName().equals("org.quartz.core.JobRunShell")) &&
-                event.getThrowableProxy() != null &&
-                event.getThrowableProxy().getMessage() != null &&
-                event.getThrowableProxy().getMessage().startsWith("No CamelContext could be found with name") ?
-                    FilterReply.DENY :
-                    FilterReply.NEUTRAL;
+        return (event.getLevel().equals(Level.ERROR)
+                && event.getLoggerName().equals("org.apache.camel.component.quartz.CamelJob")
+                    || event.getLevel().equals(Level.INFO)
+                && event.getLoggerName().equals("org.quartz.core.JobRunShell"))
+                && event.getThrowableProxy() != null
+                && event.getThrowableProxy().getMessage() != null
+                && event.getThrowableProxy().getMessage().startsWith("No CamelContext could be found with name")
+                    ? FilterReply.DENY
+                    : FilterReply.NEUTRAL;
     }
 }

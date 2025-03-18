@@ -32,6 +32,7 @@ import static io.atlasmap.expression.internal.BooleanExpression.asBooleanExpress
  * Since the original class is generated, when updating the atlasmap version,
  * you need to pay attention to changes in original class
  */
+@SuppressWarnings("checkstyle:all")
 public class CustomExpressionParser implements ParserConstants {
 
 

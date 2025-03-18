@@ -118,10 +118,10 @@ public class MapperProcessor implements Processor {
                     AuditStatus status = audit.getStatus();
                     String message = audit.getMessage();
                     String path = audit.getPath();
-                    log.debug("Mapper issue for session {}. " +
-                              "\nAudit message: {}" +
-                              "\nIssue status: {}" +
-                              "\nPath: {}", sessionId, message, status, path);
+                    log.debug("Mapper issue for session {}. "
+                              + "\nAudit message: {}"
+                              + "\nIssue status: {}"
+                              + "\nPath: {}", sessionId, message, status, path);
                 });
     }
 

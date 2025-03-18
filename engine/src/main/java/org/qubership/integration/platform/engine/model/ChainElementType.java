@@ -71,27 +71,27 @@ public enum ChainElementType {
 
     private static final Map<String, ChainElementType> ELEMENTS;
     private static final Set<ChainElementType> KAFKA_ASYNC_ELEMENTS = Collections.unmodifiableSet(
-        EnumSet.of(KAFKA_SENDER, KAFKA_TRIGGER, KAFKA_SENDER_2, KAFKA_TRIGGER_2, ASYNCAPI_TRIGGER,
-            SERVICE_CALL));
+            EnumSet.of(KAFKA_SENDER, KAFKA_TRIGGER, KAFKA_SENDER_2, KAFKA_TRIGGER_2, ASYNCAPI_TRIGGER,
+                    SERVICE_CALL));
     private static final Set<ChainElementType> AMQP_ASYNC_ELEMENTS = Collections.unmodifiableSet(
-        EnumSet.of(RABBITMQ_SENDER, RABBITMQ_TRIGGER, RABBITMQ_SENDER_2, RABBITMQ_TRIGGER_2,
-            ASYNCAPI_TRIGGER, SERVICE_CALL));
+            EnumSet.of(RABBITMQ_SENDER, RABBITMQ_TRIGGER, RABBITMQ_SENDER_2, RABBITMQ_TRIGGER_2,
+                    ASYNCAPI_TRIGGER, SERVICE_CALL));
     private static final Set<ChainElementType> AMQP_PRODUCER_ELEMENTS = Collections.unmodifiableSet(
-        EnumSet.of(RABBITMQ_SENDER, RABBITMQ_SENDER_2, SERVICE_CALL));
+            EnumSet.of(RABBITMQ_SENDER, RABBITMQ_SENDER_2, SERVICE_CALL));
 
     private static final Set<ChainElementType> HTTP_ELEMENTS = Collections.unmodifiableSet(
             EnumSet.of(SERVICE_CALL, HTTP_SENDER, HTTP_TRIGGER, GRAPHQL_SENDER));
 
     private static final Set<ChainElementType> INFO_SESSIONS_ELEMENTS = Collections.unmodifiableSet(
-        EnumSet.of(
-            JMS_TRIGGER, JMS_SENDER, SFTP_TRIGGER, SFTP_TRIGGER_2, HTTP_TRIGGER, KAFKA_TRIGGER,
-            KAFKA_TRIGGER_2, RABBITMQ_TRIGGER, RABBITMQ_TRIGGER_2, ASYNCAPI_TRIGGER,
-            HTTP_SENDER, GRAPHQL_SENDER, MAIL_SENDER, KAFKA_SENDER, KAFKA_SENDER_2,
-            RABBITMQ_SENDER, RABBITMQ_SENDER_2, SERVICE_CALL, SCHEDULER, QUARTZ_SCHEDULER, CHECKPOINT, PUBSUB_SENDER,
-            PUBSUB_TRIGGER, SDS_TRIGGER, CHAIN_CALL));
+            EnumSet.of(
+                    JMS_TRIGGER, JMS_SENDER, SFTP_TRIGGER, SFTP_TRIGGER_2, HTTP_TRIGGER, KAFKA_TRIGGER,
+                    KAFKA_TRIGGER_2, RABBITMQ_TRIGGER, RABBITMQ_TRIGGER_2, ASYNCAPI_TRIGGER,
+                    HTTP_SENDER, GRAPHQL_SENDER, MAIL_SENDER, KAFKA_SENDER, KAFKA_SENDER_2,
+                    RABBITMQ_SENDER, RABBITMQ_SENDER_2, SERVICE_CALL, SCHEDULER, QUARTZ_SCHEDULER, CHECKPOINT, PUBSUB_SENDER,
+                    PUBSUB_TRIGGER, SDS_TRIGGER, CHAIN_CALL));
 
     private static final Set<ChainElementType> EXCEPTION_HANDLE_ELEMENTS = Collections.unmodifiableSet(
-            EnumSet.of(TRY,TRY_2,TRY_CATCH_FINALLY_2,TRY_CATCH_FINALLY,CIRCUIT_BREAKER_2,CIRCUIT_BREAKER)
+            EnumSet.of(TRY, TRY_2, TRY_CATCH_FINALLY_2, TRY_CATCH_FINALLY, CIRCUIT_BREAKER_2, CIRCUIT_BREAKER)
     );
 
     private static final Set<ChainElementType> WRAPPED_IN_STEP_ELEMENTS = Collections.unmodifiableSet(

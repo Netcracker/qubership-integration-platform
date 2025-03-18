@@ -32,7 +32,7 @@ import java.util.List;
 
 @Component
 public class SecurityAccessPolicyConverter implements TypeConverter {
-    private static final TypeReference<List<String>> stringListTypeReference = new TypeReference<>() {};
+    private static final TypeReference<List<String>> STRING_LIST_TYPE_REFERENCE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
 
@@ -49,7 +49,7 @@ public class SecurityAccessPolicyConverter implements TypeConverter {
     @Override
     public <T> T convertTo(Class<T> type, Object value) throws TypeConversionException {
         try {
-            List<String> attributes = objectMapper.readValue(value.toString(), stringListTypeReference);
+            List<String> attributes = objectMapper.readValue(value.toString(), STRING_LIST_TYPE_REFERENCE);
             return (T) QipSecurityAccessPolicy.fromStrings(attributes);
         } catch (JsonProcessingException exception) {
             throw new TypeConversionException(value, type, exception);

@@ -176,8 +176,8 @@ public class HttpTriggerProcessor implements Processor {
             Properties.REJECT_REQUEST_IF_NULL_BODY_GET_DELETE_PROP, false, Boolean.class);
         if (rejectRequestIfBodyNullGetDelete) {
             String method = exchange.getMessage().getHeader(Exchange.HTTP_METHOD, String.class);
-            if (StringUtils.isNotEmpty(MessageHelper.extractBody(exchange)) &&
-                ("GET".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))
+            if (StringUtils.isNotEmpty(MessageHelper.extractBody(exchange))
+                    && ("GET".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))
             ) {
                 throw new ValidationException(
                     "Not empty body is not allowed with [" + method + "] method, request rejected");

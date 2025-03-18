@@ -41,6 +41,7 @@ public class GenericRequest implements GenericSerializable, Request {
 
     /**
      * Create the {@linkplain GenericRequest}.
+     *
      * @param method the HTTP method
      * @param endpoint the path of the request (without scheme, host, port, or prefix)
      * @param headers list of headers
@@ -51,6 +52,7 @@ public class GenericRequest implements GenericSerializable, Request {
 
     /**
      * Create the {@linkplain GenericRequest}.
+     *
      * @param method the HTTP method
      * @param endpoint the path of the request (without scheme, host, port, or prefix)
      * @param headers list of headers
@@ -130,6 +132,7 @@ public class GenericRequest implements GenericSerializable, Request {
 
     /**
      * Compare two requests for equality
+     *
      * @param obj request instance to compare with
      */
     @Override

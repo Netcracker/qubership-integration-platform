@@ -18,7 +18,7 @@ package org.qubership.integration.platform.engine.errorhandling;
 
 public class ValidationException extends RuntimeException {
 
-    public ValidationException(String errorMessage){
+    public ValidationException(String errorMessage) {
         super(errorMessage);
     }
 

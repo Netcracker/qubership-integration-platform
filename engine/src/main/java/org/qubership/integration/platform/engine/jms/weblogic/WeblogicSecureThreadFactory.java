@@ -20,6 +20,7 @@ import java.util.concurrent.ThreadFactory;
 
 public interface WeblogicSecureThreadFactory extends ThreadFactory {
     void setWeblogicSecurityBean(WeblogicSecurityBean weblogicSecurityBean);
+
     void setName(String name);
 }
 

@@ -39,8 +39,8 @@ public class DeploymentsHealthIndicator extends ReadinessStateHealthIndicator {
 
     @Override
     protected AvailabilityState getState(ApplicationAvailability applicationAvailability) {
-        return deploymentReadinessService.isInitialized() ?
-            super.getState(applicationAvailability) :
-            ReadinessState.REFUSING_TRAFFIC;
+        return deploymentReadinessService.isInitialized()
+                ? super.getState(applicationAvailability)
+                : ReadinessState.REFUSING_TRAFFIC;
     }
 }

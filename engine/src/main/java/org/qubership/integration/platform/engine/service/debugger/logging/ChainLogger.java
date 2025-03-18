@@ -55,8 +55,9 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 @Slf4j
 @Component
 public class ChainLogger {
-
+    @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger chainLogger = ExtendedErrorLoggerFactory.getLogger(ChainLogger.class);
+
     public static final String MDC_TRACE_ID = "trace_id";
     public static final String MDC_SNAP_ID = "span_id";
 
@@ -253,7 +254,7 @@ public class ChainLogger {
         }
     }
 
-    public void logExchangeFinished (
+    public void logExchangeFinished(
             CamelDebuggerProperties dbgProperties,
             String bodyForLogging,
             String headersForLogging,
@@ -303,9 +304,9 @@ public class ChainLogger {
 
         int responseCode = PayloadExtractor.getServletResponseCode(exchange, exception);
         if (exception != null || !HttpUtil.isStatusCodeOk(responseCode, "100-399")) {
-            ErrorCode errorCode = exception != null ?
-                ErrorCode.match(exception) :
-                (ErrorCode) exchange.getProperty(Properties.HTTP_TRIGGER_EXTERNAL_ERROR_CODE);
+            ErrorCode errorCode = exception != null
+                    ? ErrorCode.match(exception)
+                    : (ErrorCode) exchange.getProperty(Properties.HTTP_TRIGGER_EXTERNAL_ERROR_CODE);
             chainLogger.error(errorCode,
                     "{} HTTP request {}. Headers: {}, body: {}, exchange properties: {}",
                     constructExtendedHTTPLogMessage(requestUrl,

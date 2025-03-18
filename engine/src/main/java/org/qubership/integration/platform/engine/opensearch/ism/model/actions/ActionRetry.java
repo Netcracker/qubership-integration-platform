@@ -39,7 +39,7 @@ public class ActionRetry {
     private Long count;
     private Backoff backoff;
 
-    @JsonDeserialize(using= TimeValueDeserializer.class)
+    @JsonDeserialize(using = TimeValueDeserializer.class)
     @JsonSerialize(using = TimeValueSerializer.class)
     private TimeValue delay;
 }

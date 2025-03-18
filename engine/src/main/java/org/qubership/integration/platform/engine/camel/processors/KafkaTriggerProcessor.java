@@ -32,7 +32,7 @@ public class KafkaTriggerProcessor implements Processor {
     private final JsonMessageValidator validator;
 
     @Autowired
-    public KafkaTriggerProcessor(JsonMessageValidator jsonMessageValidator){
+    public KafkaTriggerProcessor(JsonMessageValidator jsonMessageValidator) {
         this.validator = jsonMessageValidator;
     }
 

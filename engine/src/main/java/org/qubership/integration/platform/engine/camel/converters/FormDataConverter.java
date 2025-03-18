@@ -33,7 +33,7 @@ import java.util.List;
 
 @Component
 public class FormDataConverter implements TypeConverter {
-    private static final TypeReference<List<FormEntry>> formEntryListTypeReference = new TypeReference<>() {};
+    private static final TypeReference<List<FormEntry>> FORM_ENTRY_LIST_TYPE_REFERENCE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
 
@@ -50,7 +50,7 @@ public class FormDataConverter implements TypeConverter {
     @Override
     public <T> T convertTo(Class<T> type, Object value) throws TypeConversionException {
         try {
-            List<FormEntry> entries = objectMapper.readValue(value.toString(), formEntryListTypeReference);
+            List<FormEntry> entries = objectMapper.readValue(value.toString(), FORM_ENTRY_LIST_TYPE_REFERENCE);
             return (T) FormData.builder().entries(entries).build();
         } catch (JsonProcessingException exception) {
             throw new TypeConversionException(value, type, exception);

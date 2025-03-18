@@ -43,8 +43,8 @@ public class RequestFilterProcessor implements Processor {
 
         Map<String, Object> headers = exchange.getMessage().getHeaders();
         for (Map.Entry<String, String> filter : headerAllowList.entrySet()) {
-            if (!headers.containsKey(filter.getKey()) ||
-                    (!StringUtils.isBlank(filter.getValue()) && !headers.get(filter.getKey()).toString().equals(filter.getValue()))) {
+            if (!headers.containsKey(filter.getKey())
+                    || (!StringUtils.isBlank(filter.getValue()) && !headers.get(filter.getKey()).toString().equals(filter.getValue()))) {
                 terminateExchange(exchange);
             }
         }

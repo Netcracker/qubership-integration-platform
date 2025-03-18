@@ -17,5 +17,5 @@
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
 import java.util.List;
-public record ValueGeneratorInfo(String name, List<String> parameters) {
-}
+
+public record ValueGeneratorInfo(String name, List<String> parameters) { }

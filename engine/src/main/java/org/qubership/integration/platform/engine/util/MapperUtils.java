@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
- package org.qubership.integration.platform.engine.util;
+package org.qubership.integration.platform.engine.util;
 
 import java.sql.Timestamp;
 

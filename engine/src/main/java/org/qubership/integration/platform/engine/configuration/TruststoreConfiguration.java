@@ -42,14 +42,14 @@ public class TruststoreConfiguration {
     public final String storePassword;
     public final String certsLocation;
 
-    private final String JAVA_HOME_PROPERTY = "java.home";
+    private static final String JAVA_HOME_PROPERTY = "java.home";
 
-    private final String JAVA_TRUSTSTORE_PROPERTY = "javax.net.ssl.trustStore";
-    private final String JAVA_TRUSTSTORE_PASSWORD_PROPERTY = "javax.net.ssl.trustStorePassword";
+    private static final String JAVA_TRUSTSTORE_PROPERTY = "javax.net.ssl.trustStore";
+    private static final String JAVA_TRUSTSTORE_PASSWORD_PROPERTY = "javax.net.ssl.trustStorePassword";
 
-    private final String JAVA_DEFAULT_TRUSTSTORE_JSSE = "/lib/security/jssecacerts";
-    private final String JAVA_DEFAULT_TRUSTSTORE = "/lib/security/cacerts";
-    private final String JAVA_DEFAULT_TRUSTSTORE_PASSWORD = "changeit";
+    private static final String JAVA_DEFAULT_TRUSTSTORE_JSSE = "/lib/security/jssecacerts";
+    private static final String JAVA_DEFAULT_TRUSTSTORE = "/lib/security/cacerts";
+    private static final String JAVA_DEFAULT_TRUSTSTORE_PASSWORD = "changeit";
 
     @Autowired
     public TruststoreConfiguration(@Value("${qip.local-truststore.store.path}") String storeFilePath,
@@ -132,7 +132,7 @@ public class TruststoreConfiguration {
         }
 
         File trustStoreFile = StringUtils.isBlank(trustStorePath) ? null : new File(trustStorePath);
-        try(InputStream is = trustStoreFile == null || !trustStoreFile.isFile() ? null : new FileInputStream(trustStoreFile)) {
+        try (InputStream is = trustStoreFile == null || !trustStoreFile.isFile() ? null : new FileInputStream(trustStoreFile)) {
             KeyStore keyStore = KeyStore.getInstance("JKS");
             keyStore.load(is, trustStorePassword.toCharArray());
             return keyStore;

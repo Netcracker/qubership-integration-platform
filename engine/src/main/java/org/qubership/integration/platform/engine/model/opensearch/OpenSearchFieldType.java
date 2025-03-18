@@ -44,12 +44,20 @@ public enum OpenSearchFieldType {
     Percolator, //
     Flattened, //
     Search_As_You_Type, //
-    /** @since 4.1 */
+    /**
+     * @since 4.1
+     */
     Rank_Feature, //
-    /** @since 4.1 */
+    /**
+     * @since 4.1
+     */
     Rank_Features, //
-    /** since 4.2 */
+    /**
+     * since 4.2
+     */
     Wildcard, //
-    /** @since 4.2 */
+    /**
+     * @since 4.2
+     */
     Dense_Vector //
 }

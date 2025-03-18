@@ -34,7 +34,7 @@ import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
 public class ActionSerializer extends JsonSerializer<Action> {
-    private static final Map<Class<? extends Action>, String> classMap = Map.ofEntries(
+    private static final Map<Class<? extends Action>, String> CLASS_MAP = Map.ofEntries(
             new AbstractMap.SimpleEntry<Class<? extends Action>, String>(ForceMergeAction.class, "force_merge"),
             new AbstractMap.SimpleEntry<Class<? extends Action>, String>(ReadOnlyAction.class, "read_only"),
             new AbstractMap.SimpleEntry<Class<? extends Action>, String>(ReadWriteAction.class, "read_write"),
@@ -50,6 +50,7 @@ public class ActionSerializer extends JsonSerializer<Action> {
             new AbstractMap.SimpleEntry<Class<? extends Action>, String>(AllocationAction.class, "allocation"),
             new AbstractMap.SimpleEntry<Class<? extends Action>, String>(RollupAction.class, "rollup")
     );
+
     @Override
     public void serialize(Action action, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
         jsonGenerator.writeStartObject();
@@ -64,7 +65,7 @@ public class ActionSerializer extends JsonSerializer<Action> {
     }
 
     private void serializeOwnProperties(Action action, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
-        String fieldName = classMap.get(action.getClass());
+        String fieldName = CLASS_MAP.get(action.getClass());
         if (isNull(fieldName)) {
             String message = String.format("Unsupported Action class: %s", action.getClass().getCanonicalName());
             throw new IOException(message);

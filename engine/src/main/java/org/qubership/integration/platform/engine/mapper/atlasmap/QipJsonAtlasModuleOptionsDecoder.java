@@ -24,7 +24,7 @@ import static org.qubership.integration.platform.engine.util.AtlasMapUtils.getQu
 public class QipJsonAtlasModuleOptionsDecoder {
     public static QipJsonAtlasModuleOptions decode(String uri) {
         QipJsonAtlasModuleOptions options = new QipJsonAtlasModuleOptions();
-        for (var nameValuePair: URLEncodedUtils.parse(getQueryParameters(uri), Charsets.UTF_8)) {
+        for (var nameValuePair : URLEncodedUtils.parse(getQueryParameters(uri), Charsets.UTF_8)) {
             switch (nameValuePair.getName()) {
                 case "serializeTargetDocument" ->
                         options.setSerializeTargetDocument(Boolean.parseBoolean(nameValuePair.getValue()));

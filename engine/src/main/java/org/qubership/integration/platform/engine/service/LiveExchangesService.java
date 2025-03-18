@@ -40,7 +40,7 @@ import java.util.Map;
 @Service
 public class LiveExchangesService {
 
-    Comparator<InflightExchangeHolder> EXCHANGE_COMPARATOR =
+    private static final Comparator<InflightExchangeHolder> EXCHANGE_COMPARATOR =
             Comparator.comparingLong(holder -> holder.getInflightExchange().getDuration() * -1);
 
     @RequiredArgsConstructor

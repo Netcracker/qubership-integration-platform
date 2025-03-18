@@ -240,12 +240,13 @@ public class OpenSearchInitializer {
         }
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     private void tryToAddPolicyToIndex(OpenSearchClient client, String indexName, String policyId) {
         log.info("Trying to add {} policy to index {}.", policyId, indexName);
         IndexStateManagementClient ismClient = new IndexStateManagementClient(client, jsonMapper);
         try {
             ismClient.addPolicy(indexName, policyId);
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { }
     }
 
     private void handleISMStatusResponse(ISMStatusResponse response) throws Exception {

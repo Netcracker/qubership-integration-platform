@@ -41,10 +41,10 @@ import java.util.UUID;
         syntax = "servlet-custom:contextPath", consumerOnly = true, category = { Category.HTTP }
 )
 public class ServletCustomEndpoint extends ServletEndpoint {
-    @UriParam(label = "advanced", description="Metric tags provider")
+    @UriParam(label = "advanced", description = "Metric tags provider")
     private ServletTagsProvider tagsProvider;
 
-    @UriParam(label = "advanced", description="Unique ID for servlet")
+    @UriParam(label = "advanced", description = "Unique ID for servlet")
     private String servletCustomId;
 
     public ServletCustomEndpoint(String endPointURI, ServletComponent component, URI httpUri, HeaderFilterStrategy headerFilterStrategy) throws URISyntaxException {

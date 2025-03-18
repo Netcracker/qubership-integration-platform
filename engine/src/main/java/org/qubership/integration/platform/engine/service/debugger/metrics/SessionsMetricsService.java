@@ -72,13 +72,13 @@ public class SessionsMetricsService {
 
         ScriptedMetricAggregation sizeMetricAgg = AggregationBuilders.scriptedMetric()
                 .initScript(new Script.Builder().inline(new InlineScript.Builder().lang("painless")
-                        .source( "state.docSizes = []").build()).build())
+                        .source("state.docSizes = []").build()).build())
                 .mapScript(new Script.Builder().inline(new InlineScript.Builder().lang("painless")
-                        .source( "state.docSizes.add(doc.toString().length())").build()).build())
+                        .source("state.docSizes.add(doc.toString().length())").build()).build())
                 .combineScript(new Script.Builder().inline(new InlineScript.Builder().lang("painless")
-                        .source( "return state.docSizes").build()).build())
+                        .source("return state.docSizes").build()).build())
                 .reduceScript(new Script.Builder().inline(new InlineScript.Builder().lang("painless")
-                        .source( "def totalSize = 0; for (state in states) { for (size in state) { totalSize += size } } return totalSize")
+                        .source("def totalSize = 0; for (state in states) { for (size in state) { totalSize += size } } return totalSize")
                         .build()).build()).build();
 
         TopHitsAggregation chainNameAgg = AggregationBuilders.topHits()

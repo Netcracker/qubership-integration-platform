@@ -225,15 +225,14 @@ public class SessionsService {
                         .map(String::trim)
                         .toList();
                 for (String id : parentIds) {
-                    if (((Map<String, String>) exchange.getProperty(Properties.ELEMENT_EXECUTION_MAP)).
-                            containsKey(id)) {
+                    if (((Map<String, String>) exchange.getProperty(Properties.ELEMENT_EXECUTION_MAP))
+                                .containsKey(id)) {
 
                         sessionElement.setParentElementId(((Map<String, String>) exchange.getProperty(
                                 Properties.ELEMENT_EXECUTION_MAP)).get(id));
                     }
                 }
-            }
-            else {
+            } else {
                 sessionElement.setParentElementId(extractParentId(exchange, sessionId, elementStepProperties));
             }
             sessionElement.setChainElementId(stepId);
@@ -384,10 +383,9 @@ public class SessionsService {
         sessionElement.setContextAfter(extractor.convertToJson(contextHeaders));
         Exception exception = exchange.getException() != null ? exchange.getException() : externalException;
 
-        if (ChainElementType.isExceptionHandleElement(
-            ChainElementType.fromString(sessionElement.getCamelElementName())) &&
-            exception == null &&
-            Boolean.TRUE.equals(exchange.getProperty(Properties.ELEMENT_WARNING, Boolean.class))) {
+        if (ChainElementType.isExceptionHandleElement(ChainElementType.fromString(sessionElement.getCamelElementName()))
+                    && exception == null
+                    && Boolean.TRUE.equals(exchange.getProperty(Properties.ELEMENT_WARNING, Boolean.class))) {
             sessionElement.setExecutionStatus(ExecutionStatus.COMPLETED_WITH_WARNINGS);
         } else {
             sessionElement.setExecutionStatus(exception != null
@@ -416,8 +414,9 @@ public class SessionsService {
             Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(exchange.getProperty(
                     Properties.SESSION_ID).toString());
             String correlationId = String.valueOf(exchange.getProperty(CORRELATION_ID));
-            if (sessionPair != null && sessionPair.getRight() != null)
+            if (sessionPair != null && sessionPair.getRight() != null) {
                 sessionPair.getRight().setCorrelationId(correlationId);
+            }
         }
     }
 

@@ -44,7 +44,7 @@ public final class CamelConstants {
     public static final Pattern CUSTOM_STEP_ID_PATTERN = Pattern.compile(STEP_NAME_ID_PATTERN + UUID_REGEXP_STRING + "$", Pattern.CASE_INSENSITIVE);
 
     // exchange headers
-    public final static class Headers {
+    public static final class Headers {
         public static final String CAMEL_HTTP_RESPONSE_CODE = "CamelHttpResponseCode";
         public static final String URI_TEMPLATE = "CamelServletContextPath";
         public static final String TRACE_ME = "TraceMe"; // SET_FULL_SESSION_LOGGING_LEVEL_HTTP
@@ -63,7 +63,7 @@ public final class CamelConstants {
     }
 
     // exchange properties
-    public final static class Properties {
+    public static final class Properties {
         public static final String ELEMENT_EXECUTION_MAP = INTERNAL_PROPERTY_PREFIX + "elementExecutionMap";
         public static final String SESSION_ID = INTERNAL_PROPERTY_PREFIX + "sessionId";
         public static final String SESSION_SHOULD_BE_LOGGED = INTERNAL_PROPERTY_PREFIX + "sessionShouldBeLogged";
@@ -165,7 +165,7 @@ public final class CamelConstants {
         }
     }
 
-    public final static class ChainProperties {
+    public static final class ChainProperties {
         public static final String CHAIN_ID = "chainId";
         public static final String CHAIN_NAME = "chainName";
         public static final String SNAPSHOT_NAME = "snapshotName";
@@ -227,8 +227,8 @@ public final class CamelConstants {
     }
 
     public static boolean isInternalProperty(String key) {
-        return INTERNAL_PROPERTIES_NAMES.contains(key) ||
-                (key != null && key.startsWith(INTERNAL_PROPERTY_PREFIX));
+        return INTERNAL_PROPERTIES_NAMES.contains(key)
+                || (key != null && key.startsWith(INTERNAL_PROPERTY_PREFIX));
     }
 
     public static boolean isInternalHeader(String header) {

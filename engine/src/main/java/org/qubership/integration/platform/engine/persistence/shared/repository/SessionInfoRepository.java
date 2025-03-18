@@ -69,6 +69,7 @@ public interface SessionInfoRepository extends JpaRepository<SessionInfo, String
 
     /**
      * Remove old records for scheduled cleanup task
+     *
      * @param olderThan interval string, for example: '1 hour', '7 days', '2 years 3 month'
      */
     @Modifying

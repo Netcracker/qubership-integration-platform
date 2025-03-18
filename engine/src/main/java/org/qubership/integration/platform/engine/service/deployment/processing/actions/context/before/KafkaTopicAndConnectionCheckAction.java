@@ -118,12 +118,12 @@ public class KafkaTopicAndConnectionCheckAction extends ElementProcessingAction 
                     "Kafka predeploy check is failed with AuthorizationException. Exception not thrown",
                     e);
             } else {
-                log.warn("Kafka predeploy check is failed. " +
-                        "Connection configuration is invalid, topics not found or broker is unavailable",
+                log.warn("Kafka predeploy check is failed. "
+                            + "Connection configuration is invalid, topics not found or broker is unavailable",
                     e);
                 throw new DeploymentRetriableException(
-                    "Kafka predeploy check is failed. " +
-                        "Connection configuration is invalid, topics not found or broker is unavailable",
+                    "Kafka predeploy check is failed. "
+                            + "Connection configuration is invalid, topics not found or broker is unavailable",
                     e);
             }
         } catch (DeploymentRetriableException e) {

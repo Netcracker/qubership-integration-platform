@@ -41,13 +41,13 @@ public class GatewayHttpRegistry implements HttpRegistry {
     }
 
     @Override
-    public void unregister(HttpConsumer consumer) {
-        httpRegistry.unregister(consumer);
+    public void register(HttpRegistryProvider provider) {
+        httpRegistry.register(provider);
     }
 
     @Override
-    public void register(HttpRegistryProvider provider) {
-        httpRegistry.register(provider);
+    public void unregister(HttpConsumer consumer) {
+        httpRegistry.unregister(consumer);
     }
 
     @Override

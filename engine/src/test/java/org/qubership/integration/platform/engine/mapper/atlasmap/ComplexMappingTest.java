@@ -17,17 +17,19 @@
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.qubership.integration.platform.mapper.ComplexField;
 import io.atlasmap.api.AtlasContext;
 import io.atlasmap.api.AtlasSession;
 import io.atlasmap.core.DefaultAtlasContextFactory;
 import io.atlasmap.json.v2.JsonField;
 import io.atlasmap.v2.*;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.mapper.ComplexField;
 
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ComplexMappingTest {
     private static final String XML_SOURCE = """
@@ -58,7 +60,7 @@ class ComplexMappingTest {
             }
             """;
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static final String SOURCE_ID = "source-ds-id";
 
@@ -164,17 +166,17 @@ class ComplexMappingTest {
                     }
                 }
                 """;
-        assertEquals(objectMapper.readTree(expected), objectMapper.readTree(result.document()));
+        assertEquals(OBJECT_MAPPER.readTree(expected), OBJECT_MAPPER.readTree(result.document()));
     }
 
     @Test
     void testJsonToXmlMapping() throws Exception {
         MapResult result = doMappingWithoutSchema(Format.JSON, Format.XML);
 
-        assertEquals("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>" +
-                "<result><message><key>The answer to the ultimate question of life, the universe and everything</key>" +
-                "<value>42</value><metadata><reference>The Hitchhiker's Guide to the Galaxy</reference>" +
-                "<tags>42</tags><tags>meaning of life</tags><tags>Douglas Adams</tags></metadata></message></result>",
+        assertEquals("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>"
+                        + "<result><message><key>The answer to the ultimate question of life, the universe and everything</key>"
+                        + "<value>42</value><metadata><reference>The Hitchhiker's Guide to the Galaxy</reference>"
+                        + "<tags>42</tags><tags>meaning of life</tags><tags>Douglas Adams</tags></metadata></message></result>",
                 result.document());
     }
 
@@ -196,7 +198,7 @@ class ComplexMappingTest {
                     }
                 }
                 """;
-        assertEquals(objectMapper.readTree(expected), objectMapper.readTree(result.document()));
+        assertEquals(OBJECT_MAPPER.readTree(expected), OBJECT_MAPPER.readTree(result.document()));
 
     }
 
@@ -204,10 +206,10 @@ class ComplexMappingTest {
     void testXmlToXmlMapping() throws Exception {
         MapResult result = doMappingWithoutSchema(Format.XML, Format.XML);
 
-        assertEquals("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>" +
-                "<result><message><key>The answer to the ultimate question of life, the universe and everything</key>" +
-                "<value>42</value><metadata><reference>The Hitchhiker's Guide to the Galaxy</reference>" +
-                "<tags>42</tags><tags>meaning of life</tags><tags>Douglas Adams</tags></metadata></message></result>",
+        assertEquals("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>"
+                        + "<result><message><key>The answer to the ultimate question of life, the universe and everything</key>"
+                        + "<value>42</value><metadata><reference>The Hitchhiker's Guide to the Galaxy</reference>"
+                        + "<tags>42</tags><tags>meaning of life</tags><tags>Douglas Adams</tags></metadata></message></result>",
                 result.document());
     }
 
@@ -280,7 +282,7 @@ class ComplexMappingTest {
                     }
                 }
                 """;
-        assertEquals(objectMapper.readTree(expected), objectMapper.readTree(result.document()));
+        assertEquals(OBJECT_MAPPER.readTree(expected), OBJECT_MAPPER.readTree(result.document()));
     }
 
     @Test
@@ -342,7 +344,7 @@ class ComplexMappingTest {
                     }
                 }
                 """;
-        assertEquals(objectMapper.readTree(expected), objectMapper.readTree(result.document()));
+        assertEquals(OBJECT_MAPPER.readTree(expected), OBJECT_MAPPER.readTree(result.document()));
     }
 
     @Test
@@ -381,6 +383,6 @@ class ComplexMappingTest {
                     }
                 }
                 """;
-        assertEquals(objectMapper.readTree(expected), objectMapper.readTree(result.document()));
+        assertEquals(OBJECT_MAPPER.readTree(expected), OBJECT_MAPPER.readTree(result.document()));
     }
 }

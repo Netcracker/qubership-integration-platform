@@ -37,6 +37,7 @@ public class EngineStateReporter extends Thread {
     private final MetricsService metricsService;
 
     private final BlockingQueue<EngineState> statesQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
+
     @Autowired
     public EngineStateReporter(ConsulService consulService, MetricsService metricsService) {
         this.consulService = consulService;
@@ -51,6 +52,7 @@ public class EngineStateReporter extends Thread {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public void run() {
         while (true) {
             try {
@@ -61,17 +63,17 @@ public class EngineStateReporter extends Thread {
                         updateDeploymentMetrics(state);
 
                         break;
-                    } catch (Exception e1) {
-                        log.error("Failed to report engine state",  e1);
+                    } catch (Exception ex) {
+                        log.error("Failed to report engine state",  ex);
 
                         try {
                             Thread.sleep(REPORT_RETRY_DELAY);
-                        } catch (InterruptedException e2) {
-                            throw new RuntimeException(e2);
+                        } catch (InterruptedException interruptedException) {
+                            throw new RuntimeException(interruptedException);
                         }
                     }
                 }
-            } catch (InterruptedException ignored) {}
+            } catch (InterruptedException ignored) { }
         }
     }
 

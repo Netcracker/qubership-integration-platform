@@ -62,7 +62,7 @@ public class QipXmlAtlasModule extends ComplexMappingAtlasModule {
                 } catch (Exception e) {
                     throw new AtlasException("Failed to parse XML document: " + e.getMessage(), e);
                 }
-            };
+            }
         });
         inspectionService = new XmlInspectionService();
     }

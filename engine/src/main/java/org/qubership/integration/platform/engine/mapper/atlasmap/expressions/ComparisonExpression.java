@@ -34,12 +34,14 @@ import java.util.regex.Pattern;
 import static io.atlasmap.v2.AtlasModelFactory.wrapWithField;
 
 
-/** Copied from io.atlasmap.expression.internal.ComparisonExpression.
- *  Added support of comparison to null of complex objects.
+/**
+ * Copied from io.atlasmap.expression.internal.ComparisonExpression.
+ * Added support of comparison to null of complex objects.
  * A filter performing a comparison of two objects.
- * 
+ *
  * @version $Revision: 1.2 $
  */
+@SuppressWarnings("checkstyle:all")
 public abstract class ComparisonExpression extends BinaryExpression implements BooleanExpression {
 
     public static final ThreadLocal<Boolean> CONVERT_STRING_EXPRESSIONS = new ThreadLocal<Boolean>();
