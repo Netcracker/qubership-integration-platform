@@ -78,9 +78,9 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
                     request -> {
                         try {
                             return elementProperties.getProperties().get(
-                                ChainProperties.OPERATION_PATH) != null ?
-                                elementProperties.getProperties().get(ChainProperties.OPERATION_PATH) :
-                                request.getUri().toString();
+                                ChainProperties.OPERATION_PATH) != null
+                                        ? elementProperties.getProperties().get(ChainProperties.OPERATION_PATH)
+                                        : request.getUri().toString();
                         } catch (URISyntaxException e) {
                             log.error("Failed to get URI from request");
                             return "";

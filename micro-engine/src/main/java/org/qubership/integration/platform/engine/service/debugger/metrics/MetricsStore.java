@@ -390,6 +390,7 @@ public class MetricsStore {
      *   <li>Checkpoint context saved data in engine PostgreSQL DB </li>
      *</ul>
      * For chains not presented in current inbound date metric value should be set to 0
+     *
      * @param metricName cip_engine_chain_session_size | cip_engine_chain_checkpoint_size
      * @param metricMap gauge references map chainId__chainName, AtomicLong (Gauge reference)
      * @param chainDataAllocationSizes current chains measurements

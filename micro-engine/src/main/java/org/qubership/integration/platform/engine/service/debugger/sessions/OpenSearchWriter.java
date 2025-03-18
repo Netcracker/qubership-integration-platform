@@ -126,7 +126,7 @@ public class OpenSearchWriter implements Runnable {
                 }
                 sessionElementsQueue.drainTo(elementsToSave, queueDrainThreshold - 1);
                 elementsToSave.forEach(element -> queueTotalPayloadSize.addAndGet(
-                    -element.getCalculatedPayloadSize()));
+                        -element.getCalculatedPayloadSize()));
                 LinkedHashSet<QueueElement> filteredElements = new LinkedHashSet<>(elementsToSave);
 
                 if (!CollectionUtils.isEmpty(filteredElements)) {
@@ -188,8 +188,8 @@ public class OpenSearchWriter implements Runnable {
                     }
 
                     needToExecuteBulk =
-                            bulkRequestSize >= bulkRequestMaxSizeBytes ||
-                                    (!iterator.hasNext() && !updateRequests.isEmpty());
+                            bulkRequestSize >= bulkRequestMaxSizeBytes
+                                    || (!iterator.hasNext() && !updateRequests.isEmpty());
 
                     if (needToExecuteBulk) {
                         waitBeforeRequest();
@@ -273,6 +273,7 @@ public class OpenSearchWriter implements Runnable {
         log.info("OpenSearch write timeout has been increased to {}", currentWriteTimeout);
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     private void waitBeforeRequest() {
         try {
             Thread.sleep(currentWriteTimeout);
@@ -282,6 +283,24 @@ public class OpenSearchWriter implements Runnable {
 
     public void scheduleElementToLog(SessionElementElastic element) {
         scheduleElementToLog(element, false);
+    }
+
+    private void scheduleElementToLog(SessionElementElastic element, boolean addToCache) {
+        long payloadSize = calculatePayloadSizeInBytes(element);
+        if (queueTotalPayloadSize.get() >= queueMaxSizeBytes
+                || !sessionElementsQueue.offer(
+                QueueElement.builder()
+                        .element(element)
+                        .calculatedPayloadSize(payloadSize)
+                        .build())) {
+            log.error("Queue of opensearch elements is full, element is not added");
+        } else {
+            queueTotalPayloadSize.addAndGet(payloadSize);
+        }
+
+        if (addToCache) {
+            putSessionElementToCache(element);
+        }
     }
 
     public void scheduleElementToLogAndCache(SessionElementElastic element) {
@@ -301,24 +320,6 @@ public class OpenSearchWriter implements Runnable {
         } else {
             element.setExecutionStatus(ExecutionStatus.CANCELLED_OR_UNKNOWN);
             scheduleElementToLog(element, false);
-        }
-    }
-
-    private void scheduleElementToLog(SessionElementElastic element, boolean addToCache) {
-        long payloadSize = calculatePayloadSizeInBytes(element);
-        if (queueTotalPayloadSize.get() >= queueMaxSizeBytes ||
-            !sessionElementsQueue.offer(
-                QueueElement.builder()
-                    .element(element)
-                    .calculatedPayloadSize(payloadSize)
-                    .build())) {
-            log.error("Queue of opensearch elements is full, element is not added");
-        } else {
-            queueTotalPayloadSize.addAndGet(payloadSize);
-        }
-
-        if (addToCache) {
-            putSessionElementToCache(element);
         }
     }
 

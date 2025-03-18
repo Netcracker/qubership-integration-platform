@@ -73,8 +73,8 @@ public class ContextLoaderProcessor implements Processor {
                 log.error("Can't find checkpoint with session id: {}, checkpoint id: {}", checkpointInfo.sessionId(),
                         checkpointInfo.checkpointElementId());
                 throw new EntityNotFoundException(
-                        "Can't find checkpoint with session id: " + checkpointInfo.sessionId() +
-                                ", checkpoint id: " + checkpointInfo.checkpointElementId());
+                        "Can't find checkpoint with session id: " + checkpointInfo.sessionId()
+                                + ", checkpoint id: " + checkpointInfo.checkpointElementId());
             }
 
             CheckpointPayloadOptions replaceOptions = parseReplaceOptions(exchange);
@@ -95,9 +95,9 @@ public class ContextLoaderProcessor implements Processor {
     private CheckpointPayloadOptions parseReplaceOptions(Exchange exchange) throws Exception {
         String body = MessageHelper.extractBody(exchange);
         try {
-            return StringUtils.isNotEmpty(body) ?
-                    checkpointMapper.readValue(body, CheckpointPayloadOptions.class) :
-                    CheckpointPayloadOptions.EMPTY;
+            return StringUtils.isNotEmpty(body)
+                    ? checkpointMapper.readValue(body, CheckpointPayloadOptions.class)
+                    : CheckpointPayloadOptions.EMPTY;
         } catch (Exception e) {
             log.error("Failed to parse checkpoint options from retry request", e);
             throw new RuntimeException("Failed to parse checkpoint options from retry request", e);

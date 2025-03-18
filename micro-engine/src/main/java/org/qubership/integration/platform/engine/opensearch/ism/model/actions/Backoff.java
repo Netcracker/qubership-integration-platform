@@ -36,6 +36,7 @@ public enum Backoff {
     public static Backoff fromString(String type) {
         return Stream.of(Backoff.values()).filter(v -> v.getType().equals(type)).findAny().orElse(null);
     }
+
     @JsonValue
     public String getType() {
         return type;

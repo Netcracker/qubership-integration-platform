@@ -40,7 +40,7 @@ import static org.apache.camel.Exchange.HTTP_RESPONSE_CODE;
 
 public class GraphqlCustomProducer extends GraphqlProducer {
 
-    private final static Set<String> EXCLUDE_HEADERS = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+    private static final Set<String> EXCLUDE_HEADERS = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
     static {
         EXCLUDE_HEADERS.addAll(Set.of(

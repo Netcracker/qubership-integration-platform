@@ -39,7 +39,7 @@ import java.util.Arrays;
 @UriEndpoint(firstVersion = "3.0.0", scheme = "graphql-custom", title = "GraphQL", syntax = "graphql-custom:httpUri",
     category = { Category.API }, producerOnly = true, lenientProperties = true)
 public class GraphqlCustomEndpoint extends GraphqlEndpoint {
-    @UriParam(label = "advanced", description="HTTP client configurer")
+    @UriParam(label = "advanced", description = "HTTP client configurer")
     private HttpClientConfigurer httpClientConfigurer;
 
     public GraphqlCustomEndpoint(String uri, Component component) {

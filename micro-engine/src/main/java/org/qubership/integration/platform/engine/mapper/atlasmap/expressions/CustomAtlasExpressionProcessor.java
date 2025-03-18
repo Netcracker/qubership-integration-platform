@@ -85,7 +85,7 @@ public class CustomAtlasExpressionProcessor extends DefaultAtlasExpressionProces
                 }
             });
             if (answer instanceof Field) {
-                session.head().setSourceField((Field)answer);
+                session.head().setSourceField((Field) answer);
             } else {
                 Field from = session.head().getSourceField();
                 SimpleField to = new SimpleField();

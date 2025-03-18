@@ -40,9 +40,9 @@ public class GraphQLVariablesProcessor implements Processor {
     public void process(Exchange exchange) throws Exception {
         String variablesJSON = exchange.getProperty(Properties.GQL_VARIABLES_JSON, String.class);
 
-        JsonObject variables = StringUtils.isNotEmpty(variablesJSON) ?
-                objectMapper.readValue(variablesJSON, JsonObject.class) :
-                new JsonObject();
+        JsonObject variables = StringUtils.isNotEmpty(variablesJSON)
+                ? objectMapper.readValue(variablesJSON, JsonObject.class)
+                : new JsonObject();
 
         exchange.getMessage().setHeader(Headers.GQL_VARIABLES_HEADER, variables);
     }

@@ -44,6 +44,7 @@ public class GrpcProcessorUtils {
 
     /***
      * Retrieves method from generated class for GRPC service
+     *
      * @param exchange
      * @return main method to call
      * @throws NoSuchMethodException

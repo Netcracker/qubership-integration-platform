@@ -37,7 +37,7 @@ import static java.util.Objects.isNull;
 @Component("cip-chain")
 public class ChainComponent extends DefaultComponent {
     // <key, consumers>
-    private static final ConcurrentMap<String, List<ChainConsumer>> consumers = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, List<ChainConsumer>> CONSUMERS = new ConcurrentHashMap<>();
 
     @Metadata(label = "producer", defaultValue = "true")
     private boolean block = true;
@@ -91,7 +91,7 @@ public class ChainComponent extends DefaultComponent {
     }
 
     private ConcurrentMap<String, List<ChainConsumer>> getConsumers() {
-        return consumers;
+        return CONSUMERS;
     }
 
     private static String getConsumerKey(String uri) {

@@ -56,8 +56,8 @@ public class ExchangeRolesVoter implements AccessDecisionVoter<Exchange> {
     @Override
     public int vote(Authentication authentication, Exchange object, Collection<ConfigAttribute> attributes) {
         QipSecurityAccessPolicy accessPolicy = extractSecurityPolicy(object);
-        return isNull(accessPolicy) || devModeUtil.isDevMode() ?
-                ACCESS_GRANTED
+        return isNull(accessPolicy) || devModeUtil.isDevMode()
+                ? ACCESS_GRANTED
                 : roleVoter.vote(authentication, object, accessPolicy.getConfigAttributes());
     }
 

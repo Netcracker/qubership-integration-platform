@@ -157,7 +157,7 @@ public class CustomAtlasContext extends DefaultAtlasContext {
                     List<AtlasPath.SegmentContext> segments = path.getCollectionSegments(true);
                     for (int i = 0; i < copyTo.getIndexes().size(); i++) {
                         if (i < segments.size()) { // In case there are too many indexes specified
-                            path.setCollectionIndex(i + 1, copyTo.getIndexes().get(i));// +1 since 0 is the root segment
+                            path.setCollectionIndex(i + 1, copyTo.getIndexes().get(i)); // +1 since 0 is the root segment
                         }
                     }
                     field.setPath(path.toString());
@@ -174,7 +174,7 @@ public class CustomAtlasContext extends DefaultAtlasContext {
             Field sourceField = sourceFields.get(i);
             session.head().setSourceField(sourceField);
             if (sourceField instanceof FieldGroup) {
-                processSourceFields(session, ((FieldGroup)sourceField).getField());
+                processSourceFields(session, ((FieldGroup) sourceField).getField());
                 Field processed = applyFieldActions(session, sourceField);
                 session.head().setSourceField(processed);
                 continue;

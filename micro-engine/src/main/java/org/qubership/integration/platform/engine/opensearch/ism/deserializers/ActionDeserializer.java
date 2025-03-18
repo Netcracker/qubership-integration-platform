@@ -33,7 +33,7 @@ import java.util.Map;
 import static java.util.Objects.isNull;
 
 public class ActionDeserializer extends JsonDeserializer<Action> {
-    private static final Map<String, Class<? extends Action>> classMap = Map.ofEntries(
+    private static final Map<String, Class<? extends Action>> CLASS_MAP = Map.ofEntries(
             new AbstractMap.SimpleEntry<String, Class<? extends Action>>("force_merge", ForceMergeAction.class),
             new AbstractMap.SimpleEntry<String, Class<? extends Action>>("read_only", ReadOnlyAction.class),
             new AbstractMap.SimpleEntry<String, Class<? extends Action>>("read_write", ReadWriteAction.class),
@@ -67,7 +67,7 @@ public class ActionDeserializer extends JsonDeserializer<Action> {
     }
 
     private Action deserializeAction(JsonParser jsonParser, ObjectNode node) throws IOException, JacksonException {
-        Map.Entry<String, Class<? extends Action>> entry = classMap.entrySet().stream()
+        Map.Entry<String, Class<? extends Action>> entry = CLASS_MAP.entrySet().stream()
                 .filter(e -> node.has(e.getKey()))
                 .findFirst()
                 .orElseThrow(() -> InvalidFormatException.from(

@@ -40,6 +40,7 @@ public final class ServiceVariableUtils {
         serviceVariablesName.addAll(getServiceVariablesName(CamelDebugger.class));
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     private List<String> getServiceVariablesName(Class<?> clazz) {
         var fields = clazz.getDeclaredFields();
         return Arrays.stream(fields)
@@ -51,7 +52,7 @@ public final class ServiceVariableUtils {
                     field.setAccessible(true);
                     try {
                         return (String) field.get(clazz);
-                    } catch (IllegalAccessException e) {}
+                    } catch (IllegalAccessException e) { }
                     return null;
                 })
                 .filter(Objects::nonNull)

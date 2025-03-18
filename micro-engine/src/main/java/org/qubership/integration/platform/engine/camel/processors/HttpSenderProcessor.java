@@ -39,7 +39,7 @@ public class HttpSenderProcessor implements Processor {
     }
 
     private String fixUrlProtocol(String url) {
-        return !url.startsWith("http://") && !url.startsWith("https://") ?
-            (DEFAULT_PROTOCOL + "://" + url) : url;
+        return !url.startsWith("http://") && !url.startsWith("https://")
+                ? (DEFAULT_PROTOCOL + "://" + url) : url;
     }
 }

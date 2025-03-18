@@ -44,7 +44,7 @@ import java.util.Map;
 @Component
 @ConditionalOnProperty(
     name = "qip.camel.component.rabbitmq.predeploy-check-enabled",
-    havingValue="true",
+    havingValue = "true",
     matchIfMissing = true
 )
 @OnBeforeDeploymentContextCreated
@@ -109,8 +109,7 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
 
             ConnectionFactory factory = new ConnectionFactory();
 
-            factory.setUri((StringUtils.isNotBlank(ssl) && ssl.equals("true") ?
-                "amqps://" : "amqp://") + addresses);
+            factory.setUri((StringUtils.isNotBlank(ssl) && ssl.equals("true") ? "amqps://" : "amqp://") + addresses);
 
             if (StringUtils.isNotBlank(username)) {
                 factory.setUsername(username);
@@ -135,9 +134,8 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
                     }
                 } catch (IOException e) {
                     throw new DeploymentRetriableException(
-                        "AMQP " + (isProducerElement ?
-                            ("exchange " + exchange) : ("queue(s) " + queues)) +
-                            " not found, check configuration");
+                        "AMQP " + (isProducerElement ? ("exchange " + exchange) : ("queue(s) " + queues))
+                                + " not found, check configuration");
                 }
             } catch (IOException e) {
                 throw new DeploymentRetriableException(

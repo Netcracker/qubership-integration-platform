@@ -97,6 +97,7 @@ import static org.apache.camel.xml.jaxb.JaxbHelper.loadRoutesDefinition;
 
 @Service
 public class IntegrationRuntimeService implements ApplicationContextAware {
+    @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger log = ExtendedErrorLoggerFactory.getLogger(IntegrationRuntimeService.class);
 
     private final ServerConfiguration serverConfiguration;
@@ -354,8 +355,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                             removeOldDeployments(
                                     deployment,
                                     (deploymentStatus) ->
-                                            deploymentStatus == DeploymentStatus.FAILED ||
-                                                    deploymentStatus == DeploymentStatus.PROCESSING);
+                                            deploymentStatus == DeploymentStatus.FAILED
+                                                    || deploymentStatus == DeploymentStatus.PROCESSING);
                         }
 
                         // If Pod is not initialized yet and this is first deploy -
@@ -496,10 +497,9 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             Map.Entry<String, EngineDeployment> entry = iterator.next();
 
             DeploymentInfo depInfo = entry.getValue().getDeploymentInfo();
-            if (depInfo.getChainId().equals(deployment.getDeploymentInfo().getChainId()) &&
-                statusPredicate.test(entry.getValue().getStatus()) &&
-                !depInfo.getDeploymentId()
-                    .equals(deployment.getDeploymentInfo().getDeploymentId())) {
+            if (depInfo.getChainId().equals(deployment.getDeploymentInfo().getChainId())
+                    && statusPredicate.test(entry.getValue().getStatus())
+                    && !depInfo.getDeploymentId().equals(deployment.getDeploymentInfo().getDeploymentId())) {
 
                 SpringCamelContext toRemoveContext = getCache().getContexts()
                     .remove(entry.getKey());
@@ -598,9 +598,9 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             .map(properties -> properties.get(ChainProperties.OPERATION_SPECIFICATION_ID))
             .filter(Objects::nonNull)
             .toList();
-        ClassLoader classLoader = externalLibraryService.isPresent() ?
-            externalLibraryService.get().getClassLoaderForSystemModels(systemModelIds, context.getApplicationContextClassLoader()) :
-            getClass().getClassLoader();
+        ClassLoader classLoader = externalLibraryService.isPresent()
+                ? externalLibraryService.get().getClassLoaderForSystemModels(systemModelIds, context.getApplicationContextClassLoader())
+                : getClass().getClassLoader();
         return new QipCustomClassResolver(classLoader);
     }
 

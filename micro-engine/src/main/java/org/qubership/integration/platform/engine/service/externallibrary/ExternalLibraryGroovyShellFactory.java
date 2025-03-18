@@ -41,9 +41,10 @@ public class ExternalLibraryGroovyShellFactory implements GroovyShellFactory {
 
     @Override
     public GroovyShell createGroovyShell(Exchange exchange) {
-        log.debug("Requesting groovy shell for {}", isNull(exchange)? Collections.emptyMap() : exchange.getProperties());
-        GroovyClassLoader groovyClassLoader = new GroovyClassLoader(externalLibraryService.isPresent() ?
-            externalLibraryService.get().getShellClassLoader() : getClass().getClassLoader());
+        log.debug("Requesting groovy shell for {}", isNull(exchange) ? Collections.emptyMap() : exchange.getProperties());
+        GroovyClassLoader groovyClassLoader = new GroovyClassLoader(externalLibraryService.isPresent()
+                ? externalLibraryService.get().getShellClassLoader()
+                : getClass().getClassLoader());
         return new GroovyShell(groovyClassLoader);
     }
 }

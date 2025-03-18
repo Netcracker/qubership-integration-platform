@@ -39,9 +39,9 @@ public class DebuggerUtils {
     }
 
     public static String getNodeIdFormatted(String nodeId) {
-        return CamelConstants.CUSTOM_STEP_ID_PATTERN.matcher(nodeId).matches() ?
-            CamelConstants.NAME_STEP_REG_EXP_PATTERN.matcher(nodeId).replaceAll("") :
-            nodeId;
+        return CamelConstants.CUSTOM_STEP_ID_PATTERN.matcher(nodeId).matches()
+                ? CamelConstants.NAME_STEP_REG_EXP_PATTERN.matcher(nodeId).replaceAll("")
+                : nodeId;
     }
 
     public static String getStepChainElementId(String fullStepId) {
@@ -54,9 +54,9 @@ public class DebuggerUtils {
     }
 
     public static String getStepNameFormatted(String nodeId) {
-        return CamelConstants.CUSTOM_STEP_ID_PATTERN.matcher(nodeId).matches() ?
-            CamelConstants.UUID_STEP_REG_EXP_PATTERN.matcher(nodeId).replaceAll("") :
-            nodeId;
+        return CamelConstants.CUSTOM_STEP_ID_PATTERN.matcher(nodeId).matches()
+                ? CamelConstants.UUID_STEP_REG_EXP_PATTERN.matcher(nodeId).replaceAll("")
+                : nodeId;
     }
 
     public static ExecutionStatus extractExecutionStatus(Exchange exchange) {
@@ -100,15 +100,14 @@ public class DebuggerUtils {
 
     public static void initInternalExchangeVariables(Exchange exchange) {
         exchange.setProperty(Properties.STEPS,
-            exchange.getProperty(Properties.STEPS) == null ?
-                new ConcurrentLinkedDeque<>() :
-                new ConcurrentLinkedDeque<>(exchange.getProperty(Properties.STEPS, ConcurrentLinkedDeque.class)));
+            exchange.getProperty(Properties.STEPS) == null
+                    ? new ConcurrentLinkedDeque<>()
+                    : new ConcurrentLinkedDeque<>(exchange.getProperty(Properties.STEPS, ConcurrentLinkedDeque.class)));
 
         exchange.setProperty(Properties.EXCHANGES,
-            exchange.getProperty(Properties.EXCHANGES) == null ?
-                new ConcurrentHashMap<>() :
-                new ConcurrentHashMap<>(exchange.getProperty(
-                    Properties.EXCHANGES, ConcurrentHashMap.class)));
+            exchange.getProperty(Properties.EXCHANGES) == null
+                    ? new ConcurrentHashMap<>()
+                    : new ConcurrentHashMap<>(exchange.getProperty(Properties.EXCHANGES, ConcurrentHashMap.class)));
 
         exchange.setProperty(Properties.IS_MAIN_EXCHANGE,
                 exchange.getProperty(Properties.IS_MAIN_EXCHANGE) == null

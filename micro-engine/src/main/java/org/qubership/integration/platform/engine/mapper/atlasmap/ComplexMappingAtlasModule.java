@@ -50,6 +50,7 @@ public abstract class ComplexMappingAtlasModule extends DelegatingAtlasModule {
     }
 
     protected abstract BaseModuleValidationService<?> getValidationService();
+
     protected abstract BiFunction<AtlasInternalSession, String, Document> getInspectionService();
 
     @Override
@@ -387,7 +388,8 @@ public abstract class ComplexMappingAtlasModule extends DelegatingAtlasModule {
         ) {
             if (isNull(segment.getCollectionIndex()) && isNull(currentField.getIndex())) {
                 return findFields(currentField, path.subList(1, path.size()));
-            } if (
+            }
+            if (
                     nonNull(segment.getCollectionIndex())
                             && segment.getCollectionIndex().equals(currentField.getIndex())
                             && (currentField instanceof FieldGroup g)

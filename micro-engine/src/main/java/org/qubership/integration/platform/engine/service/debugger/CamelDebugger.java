@@ -125,13 +125,14 @@ public class CamelDebugger extends DefaultDebugger {
             case StepFailedEvent ev -> stepFinished(exchange, (StepEvent) event, dbgProperties, true);
             case ExchangeCompletedEvent ev -> exchangeFinished(exchange);
             case ExchangeFailedEvent ev -> exchangeFinished(exchange);
-            default -> {}
+            default -> { }
         }
 
         return super.onEvent(exchange, event);
     }
 
     @Override
+    @SuppressWarnings("checkstyle:FallThrough")
     public boolean beforeProcess(Exchange exchange, Processor processor, NamedNode definition) {
         CamelDebuggerProperties dbgProperties = getRelatedProperties(exchange);
 
@@ -179,9 +180,8 @@ public class CamelDebugger extends DefaultDebugger {
             boolean isElementForSessionsLevel = ChainElementType.isElementForInfoSessionsLevel(
                     chainElementType);
 
-            if ((sessionShouldBeLogged && SessionsLoggingLevel.hasPayload(sessionLevel,
-                    isElementForSessionsLevel)) ||
-                    logLoggingLevel.isInfoLevel()) {
+            if ((sessionShouldBeLogged && SessionsLoggingLevel.hasPayload(sessionLevel, isElementForSessionsLevel))
+                    || logLoggingLevel.isInfoLevel()) {
                 headersForLogging = payloadExtractor.extractHeadersForLogging(exchange,
                         dbgProperties.getMaskedFields(),
                         dbgProperties.getRuntimeProperties(exchange)
@@ -246,6 +246,7 @@ public class CamelDebugger extends DefaultDebugger {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:FallThrough")
     public boolean afterProcess(Exchange exchange, Processor processor, NamedNode definition,
         long timeTaken) {
         CamelDebuggerProperties dbgProperties = getRelatedProperties(exchange);
@@ -281,10 +282,9 @@ public class CamelDebugger extends DefaultDebugger {
 
             setFailedElementId(exchange, elementProperties);
 
-            if ((sessionShouldBeLogged && SessionsLoggingLevel.hasPayload(actualSessionLevel,
-                isElementForSessionsLevel)) ||
-                logLoggingLevel.isInfoLevel() ||
-                DebuggerUtils.isFailedOperation(exchange)) {
+            if ((sessionShouldBeLogged && SessionsLoggingLevel.hasPayload(actualSessionLevel, isElementForSessionsLevel))
+                    || logLoggingLevel.isInfoLevel()
+                    || DebuggerUtils.isFailedOperation(exchange)) {
                 headersForLogging = payloadExtractor.extractHeadersForLogging(exchange,
                     dbgProperties.getMaskedFields(), dbgProperties.getRuntimeProperties(exchange)
                         .isMaskingEnabled());
@@ -433,6 +433,7 @@ public class CamelDebugger extends DefaultDebugger {
         log.debug("Exchange finished in thread '{}'", Thread.currentThread().getName());
     }
 
+    @SuppressWarnings("checkstyle:FallThrough")
     private void stepStarted(Exchange exchange,
         StepEvent event,
         CamelDebuggerProperties dbgProperties) {
@@ -485,6 +486,7 @@ public class CamelDebugger extends DefaultDebugger {
         exchange.getProperty(CamelConstants.Properties.STEPS, Deque.class).push(sessionElementId);
     }
 
+    @SuppressWarnings("checkstyle:FallThrough")
     private void stepFinished(Exchange exchange, StepEvent event,
         CamelDebuggerProperties dbgProperties, boolean failed) {
         String sessionId = exchange.getProperty(CamelConstants.Properties.SESSION_ID).toString();
@@ -532,9 +534,9 @@ public class CamelDebugger extends DefaultDebugger {
 
         // detect checkpoint context saver
         if (!failed && dbgProperties.getRuntimeProperties(exchange).isDptEventsEnabled()
-            && elementType == ChainElementType.CHECKPOINT &&
-            !exchange.getProperty(CamelConstants.Properties.CHECKPOINT_IS_TRIGGER_STEP, false, Boolean.class) &&
-            sessionsKafkaReportingService.isPresent()
+                && elementType == ChainElementType.CHECKPOINT
+                && !exchange.getProperty(CamelConstants.Properties.CHECKPOINT_IS_TRIGGER_STEP, false, Boolean.class)
+                && sessionsKafkaReportingService.isPresent()
         ) {
             String parentSessionId = exchange.getProperty(
                 CamelConstants.Properties.CHECKPOINT_INTERNAL_PARENT_SESSION_ID, String.class);
@@ -682,8 +684,9 @@ public class CamelDebugger extends DefaultDebugger {
             getContextInitMarkers(exchange).add(currentThreadId);
             log.debug("New exchange created in thread '{}'", Thread.currentThread().getName());
             exchangeContextPropagation.ifPresent(bean -> bean.removeContextHeaders(exchangeHeaders));
-            Map<String, Object> snapshot = exchangeContextPropagation.isPresent() ?
-                exchangeContextPropagation.get().createContextSnapshot() : Collections.emptyMap();
+            Map<String, Object> snapshot = exchangeContextPropagation.isPresent()
+                    ? exchangeContextPropagation.get().createContextSnapshot()
+                    : Collections.emptyMap();
             exchange.setProperty(CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT, snapshot);
         }
     }
@@ -745,7 +748,7 @@ public class CamelDebugger extends DefaultDebugger {
                 ChainProperties.ELEMENT_NAME));
             exchange.setProperty(
                 ChainProperties.FAILED_ELEMENT_ID, elementProperties.get(ChainProperties.ELEMENT_ID));
-            exchange.setProperty(CamelConstants.Properties.ELEMENT_WARNING,Boolean.FALSE);
+            exchange.setProperty(CamelConstants.Properties.ELEMENT_WARNING, Boolean.FALSE);
             DebuggerUtils.setOverallWarning(exchange, false);
         } else if (DebuggerUtils.isFailedOperation(exchange)
                 && exchange.getProperties().get(CamelConstants.Properties.LAST_EXCEPTION) != exchange.getException()) {
@@ -756,7 +759,7 @@ public class CamelDebugger extends DefaultDebugger {
                 ChainProperties.ELEMENT_NAME));
             exchange.setProperty(
                 ChainProperties.FAILED_ELEMENT_ID, elementProperties.get(ChainProperties.ELEMENT_ID));
-            exchange.setProperty(CamelConstants.Properties.ELEMENT_WARNING,Boolean.FALSE);
+            exchange.setProperty(CamelConstants.Properties.ELEMENT_WARNING, Boolean.FALSE);
             DebuggerUtils.setOverallWarning(exchange, false);
         }
     }
@@ -771,8 +774,8 @@ public class CamelDebugger extends DefaultDebugger {
         boolean isTimedOut = exchange.getProperty(CamelConstants.Properties.CHAIN_TIMED_OUT, false, Boolean.class);
 
         if (duration > timeoutAfter && !isTimedOut) {
-            Exception exception = new ChainExecutionTimeoutException("Chain execution timed out after " + duration +
-                    " ms. Desired limit is " + timeoutAfter + " ms.");
+            Exception exception = new ChainExecutionTimeoutException("Chain execution timed out after " + duration
+                    + " ms. Desired limit is " + timeoutAfter + " ms.");
             exchange.setProperty(CamelConstants.Properties.CHAIN_TIMED_OUT, true);
             exchange.setException(exception);
         }

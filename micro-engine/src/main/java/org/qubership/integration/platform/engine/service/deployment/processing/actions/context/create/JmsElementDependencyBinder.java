@@ -129,8 +129,8 @@ public class JmsElementDependencyBinder extends ElementProcessingAction {
         WeblogicSecurityBean wlSecurityBean = wlSecurityBeanProvider.getIfAvailable();
         WeblogicSecureThreadFactory wlSecureThreadFactory = wlSecureThreadFactoryProvider.getIfAvailable();
         WeblogicSecurityInterceptStrategy wlSecurityInterceptStrategy = wlSecurityInterceptStrategyProvider.getIfAvailable();
-        if (secured && wlSecurityBean != null && wlSecureThreadFactory != null &&
-            wlSecurityInterceptStrategy != null
+        if (secured && wlSecurityBean != null && wlSecureThreadFactory != null
+                && wlSecurityInterceptStrategy != null
         ) {
             wlSecurityBean.setProviderUrl(jmsProviderUrl);
             wlSecurityBean.setSecurityPrincipal(username);

@@ -115,8 +115,8 @@ public class ConsulService {
         this.applicationEventPublisher = applicationEventPublisher;
 
         EngineInfo engineInfo = serverConfiguration.getEngineInfo();
-        this.keyEngineName = "/" + engineInfo.getEngineDeploymentName() + "-" +
-            engineInfo.getDomain() + "-" + engineInfo.getHost();
+        this.keyEngineName = "/" + engineInfo.getEngineDeploymentName() + "-"
+                + engineInfo.getDomain() + "-" + engineInfo.getHost();
     }
 
     public synchronized void createOrRenewSession() {
@@ -207,9 +207,9 @@ public class ConsulService {
                 return Collections.emptyList();
             case 1:
                 String json = response.get(0).getDecodedValue();
-                return json == null ?
-                    Collections.emptyList() :
-                    objectMapper.readValue(json, new TypeReference<>() {});
+                return json == null
+                        ? Collections.emptyList()
+                        : objectMapper.readValue(json, new TypeReference<>() {});
         }
         throw new RuntimeException("Failed to parse response, target key in consul has invalid format/size: " + response);
     }
@@ -308,6 +308,7 @@ public class ConsulService {
 
     /**
      * Get last path word as a key and decode value
+     *
      * @return key and value
      */
     private Pair<String, String> parseCommonVariable(KeyResponse k) {

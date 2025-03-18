@@ -25,8 +25,12 @@ import java.security.PrivilegedExceptionAction;
 
 public interface WeblogicSecurityBean extends InitializingBean {
     void setSecurityPrincipal(String securityPrincipal);
+
     void setProviderUrl(String providerUrl);
+
     void setSecurityCredentials(String securityCredentials);
+
     void runPrivilegedExceptionActionAsSubject(PrivilegedExceptionAction privilegedExceptionAction) throws IOException, PrivilegedActionException;
+
     void runPrivilegedActionAsSubject(PrivilegedAction privilegedAction) throws IOException;
 }

@@ -20,5 +20,6 @@ import org.opensearch.client.opensearch.OpenSearchClient;
 
 public interface OpenSearchClientSupplier {
     OpenSearchClient getClient();
+
     String normalize(String name);
 }

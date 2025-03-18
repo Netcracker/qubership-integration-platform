@@ -22,6 +22,8 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 
 public interface TestingService {
     boolean canBeMocked(ElementProperties properties);
+
     HttpRequestInterceptor buildEndpointMockInterceptor(String chainId, ElementProperties elementProperties);
+
     HttpRoutePlanner buildRoutePlanner(String chainId, ElementProperties elementProperties);
 }

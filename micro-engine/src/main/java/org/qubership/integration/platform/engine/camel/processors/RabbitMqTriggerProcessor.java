@@ -36,7 +36,7 @@ public class RabbitMqTriggerProcessor implements Processor {
     private final JsonMessageValidator validator;
 
     @Autowired
-    public RabbitMqTriggerProcessor(JsonMessageValidator jsonMessageValidator){
+    public RabbitMqTriggerProcessor(JsonMessageValidator jsonMessageValidator) {
         this.validator = jsonMessageValidator;
     }
 

@@ -57,8 +57,9 @@ public class ErrorCodeException extends RuntimeException {
     public String getMessage() {
         return String.format("[%s] %s",
             this.errorCode.getFormattedCode(),
-            compiledMessage != null ?
-                compiledMessage : this.errorCode.getPayload().getReason());
+            compiledMessage != null
+                    ? compiledMessage
+                    : this.errorCode.getPayload().getReason());
     }
 
     public ErrorEntry buildResponseObject() {

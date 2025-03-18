@@ -158,13 +158,13 @@ public class QipAtlasJsonFieldReader implements AtlasFieldReader {
             fields.addAll(arrayFields);
         } else {
             //if index not included, iterate over all
-            for (int i=0; i<child.size(); i++) {
+            for (int i = 0; i < child.size(); i++) {
                 Field itemField;
                 if (field instanceof FieldGroup) {
-                    itemField = AtlasJsonModelFactory.cloneFieldGroup((FieldGroup)field);
-                    AtlasPath.setCollectionIndexRecursively((FieldGroup)itemField, depth, i);
+                    itemField = AtlasJsonModelFactory.cloneFieldGroup((FieldGroup) field);
+                    AtlasPath.setCollectionIndexRecursively((FieldGroup) itemField, depth, i);
                 } else {
-                    itemField = AtlasJsonModelFactory.cloneField((JsonField)field, false);
+                    itemField = AtlasJsonModelFactory.cloneField((JsonField) field, false);
                     AtlasPath itemPath = new AtlasPath(field.getPath());
                     itemPath.setCollectionIndex(depth, i);
                     itemField.setPath(itemPath.toString());
@@ -187,13 +187,13 @@ public class QipAtlasJsonFieldReader implements AtlasFieldReader {
                 continue;
             }
             if (childPath.getLastSegment().getCollectionType() != CollectionType.NONE) {
-                FieldGroup childGroup = populateCollectionItems(session, (ArrayNode)childNode, child);
+                FieldGroup childGroup = populateCollectionItems(session, (ArrayNode) childNode, child);
                 newChildren.add(childGroup);
             } else {
                 if (child instanceof FieldGroup) {
-                    populateChildFields(session, childNode, (FieldGroup)child, childPath);
+                    populateChildFields(session, childNode, (FieldGroup) child, childPath);
                 } else {
-                    Object value = handleValueNode(session, childNode, (JsonField)child);
+                    Object value = handleValueNode(session, childNode, (JsonField) child);
                     child.setValue(value);
                 }
                 newChildren.add(child);
@@ -209,20 +209,20 @@ public class QipAtlasJsonFieldReader implements AtlasFieldReader {
             throw new AtlasException(String.format("Couldn't find JSON array for field %s:%s",
                     field.getDocId(), field.getPath()));
         }
-        FieldGroup group = field instanceof FieldGroup ?
-                (FieldGroup)field : AtlasModelFactory.createFieldGroupFrom(field, true);
-        ArrayNode arrayNode = (ArrayNode)node;
-        for (int i=0; i<arrayNode.size(); i++) {
+        FieldGroup group = field instanceof FieldGroup
+                ? (FieldGroup) field : AtlasModelFactory.createFieldGroupFrom(field, true);
+        ArrayNode arrayNode = (ArrayNode) node;
+        for (int i = 0; i < arrayNode.size(); i++) {
             AtlasPath itemPath = new AtlasPath(group.getPath());
             List<SegmentContext> segments = itemPath.getSegments(true);
             itemPath.setCollectionIndex(segments.size() - 1, i);
             if (field instanceof FieldGroup) {
-                FieldGroup itemGroup = AtlasJsonModelFactory.cloneFieldGroup((FieldGroup)field);
+                FieldGroup itemGroup = AtlasJsonModelFactory.cloneFieldGroup((FieldGroup) field);
                 AtlasPath.setCollectionIndexRecursively(itemGroup, segments.size() - 1, i);
                 populateChildFields(session, arrayNode.get(i), itemGroup, itemPath);
                 group.getField().add(itemGroup);
             } else {
-                JsonField itemField = AtlasJsonModelFactory.cloneField((JsonField)field, false);
+                JsonField itemField = AtlasJsonModelFactory.cloneField((JsonField) field, false);
                 itemField.setPath(itemPath.toString());
                 Object value = handleValueNode(session, arrayNode.get(i), itemField);
                 itemField.setValue(value);

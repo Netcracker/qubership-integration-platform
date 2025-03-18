@@ -36,8 +36,8 @@ public class EngineDomainUtils {
     public String extractEngineDomain(String microserviceName) {
         boolean isDefault = defaultEngineMicroserviceName.equals(microserviceName);
 
-        return isDefault ?
-            engineDefaultDomain :
-            microserviceName;
+        return isDefault
+                ? engineDefaultDomain
+                : microserviceName;
     }
 }

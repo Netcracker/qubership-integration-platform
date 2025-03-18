@@ -83,7 +83,7 @@ public class FormBuilderProcessor implements Processor {
     }
 
     private FormEntryBuilder getFormEntryBuilder(MediaType formType) {
-        return isMultipart(formType)? this::buildHttpEntity : this::buildGenericEntity;
+        return isMultipart(formType) ? this::buildHttpEntity : this::buildGenericEntity;
     }
 
     private boolean isMultipart(MediaType formType) {
@@ -105,7 +105,7 @@ public class FormBuilderProcessor implements Processor {
         if (Strings.isNotBlank(fileName)) {
             headers.setContentDispositionFormData(entry.getName(), fileName);
         }
-        Object body = (value instanceof HttpEntity)? ((HttpEntity<?>) value).getBody() : value;
+        Object body = (value instanceof HttpEntity) ? ((HttpEntity<?>) value).getBody() : value;
         return new HttpEntity<>(body, headers);
     }
 

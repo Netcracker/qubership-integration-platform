@@ -62,9 +62,9 @@ public abstract class CustomPlusArithmeticExpression extends ArithmeticExpressio
         Field lfield = left.evaluate(message);
         Field rfield = right.evaluate(message);
 
-        if (lfield == null || rfield == null ||
-            (lfield.getFieldType() != null && lfield.getFieldType() != FieldType.STRING) ||
-            (lfield.getFieldType() == null && !(lfield.getValue() instanceof String))
+        if (lfield == null || rfield == null
+                || (lfield.getFieldType() != null && lfield.getFieldType() != FieldType.STRING)
+                || (lfield.getFieldType() == null && !(lfield.getValue() instanceof String))
         ) {
             // default branch
             if (lfield == null || lfield.getValue() == null) {

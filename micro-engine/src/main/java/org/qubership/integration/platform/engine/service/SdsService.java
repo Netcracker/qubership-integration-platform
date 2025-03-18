@@ -24,9 +24,14 @@ import java.util.Map;
 
 public interface SdsService {
     void removeSchedulerJobs(Iterable<SpringCamelContext> contextsToRemove);
+
     void removeSchedulerJobs(String deploymentId);
+
     void registerSchedulerJobs(SpringCamelContext context, DeploymentInfo deploymentInfo, List<Map<String, String>> propertiesList);
+
     void setJobInstanceFinished(String jobExecutionId);
+
     void setJobInstanceFailed(String jobExecutionId, Throwable exception);
+
     void getJobsMetadata();
 }

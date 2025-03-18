@@ -75,8 +75,8 @@ public class MaskingService {
                 "Content type is empty, failed to mask fields in payload");
         }
 
-        if (MimeTypeUtils.APPLICATION_JSON.equalsTypeAndSubtype(contentType) ||
-            JSON_PATCH_JSON_CONTENT_TYPE.equalsTypeAndSubtype(contentType)
+        if (MimeTypeUtils.APPLICATION_JSON.equalsTypeAndSubtype(contentType)
+                || JSON_PATCH_JSON_CONTENT_TYPE.equalsTypeAndSubtype(contentType)
         ) {
             try {
                 return maskJSON(target, fields);
@@ -86,9 +86,9 @@ public class MaskingService {
             }
         }
 
-        if (MimeTypeUtils.APPLICATION_XML.equalsTypeAndSubtype(contentType) ||
-            MimeTypeUtils.TEXT_XML.equalsTypeAndSubtype(contentType) ||
-            SOAP_XML_CONTENT_TYPE.equalsTypeAndSubtype(contentType)
+        if (MimeTypeUtils.APPLICATION_XML.equalsTypeAndSubtype(contentType)
+                || MimeTypeUtils.TEXT_XML.equalsTypeAndSubtype(contentType)
+                || SOAP_XML_CONTENT_TYPE.equalsTypeAndSubtype(contentType)
         ) {
             try {
                 return maskXML(target, fields);
@@ -111,18 +111,18 @@ public class MaskingService {
             "Content type " + contentType.toString() + " not supported for masking");
     }
 
+    public void maskFields(Map<String, String> target, Set<String> maskedFields) {
+        for (String field : maskedFields) {
+            target.computeIfPresent(field, (key, value) -> CamelConstants.MASKING_TEMPLATE);
+        }
+    }
+
     public void maskPropertiesFields(Map<String, SessionElementProperty> target, Set<String> maskedFields) {
         for (String field : maskedFields) {
             target.computeIfPresent(field, (key, value) -> {
                 value.setValue(CamelConstants.MASKING_TEMPLATE);
                 return value;
             });
-        }
-    }
-
-    public void maskFields(Map<String, String> target, Set<String> maskedFields) {
-        for (String field : maskedFields) {
-            target.computeIfPresent(field, (key, value) -> CamelConstants.MASKING_TEMPLATE);
         }
     }
 

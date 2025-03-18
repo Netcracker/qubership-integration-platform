@@ -42,6 +42,10 @@ public class ExtendedErrorLogger implements Logger {
         return this.log.isTraceEnabled();
     }
 
+    public boolean isTraceEnabled(Marker marker) {
+        return this.log.isTraceEnabled(marker);
+    }
+
     public void trace(String msg) {
         this.log.trace(msg);
     }
@@ -62,10 +66,6 @@ public class ExtendedErrorLogger implements Logger {
         this.log.trace(msg, t);
     }
 
-    public boolean isTraceEnabled(Marker marker) {
-        return this.log.isTraceEnabled(marker);
-    }
-
     public void trace(Marker marker, String msg) {
         this.log.trace(marker, msg);
     }
@@ -84,6 +84,10 @@ public class ExtendedErrorLogger implements Logger {
 
     public void trace(Marker marker, String msg, Throwable t) {
         this.log.trace(marker, msg, t);
+    }
+
+    public boolean isDebugEnabled(Marker marker) {
+        return this.log.isDebugEnabled(marker);
     }
 
     public boolean isDebugEnabled() {
@@ -110,10 +114,6 @@ public class ExtendedErrorLogger implements Logger {
         this.log.debug(msg, t);
     }
 
-    public boolean isDebugEnabled(Marker marker) {
-        return this.log.isDebugEnabled(marker);
-    }
-
     public void debug(Marker marker, String msg) {
         this.log.debug(marker, msg);
     }
@@ -138,6 +138,10 @@ public class ExtendedErrorLogger implements Logger {
         return this.log.isInfoEnabled();
     }
 
+    public boolean isInfoEnabled(Marker marker) {
+        return this.log.isInfoEnabled(marker);
+    }
+
     public void info(String msg) {
         this.log.info(msg);
     }
@@ -156,10 +160,6 @@ public class ExtendedErrorLogger implements Logger {
 
     public void info(String msg, Throwable t) {
         this.log.info(msg, t);
-    }
-
-    public boolean isInfoEnabled(Marker marker) {
-        return this.log.isInfoEnabled(marker);
     }
 
     public void info(Marker marker, String msg) {
@@ -186,6 +186,10 @@ public class ExtendedErrorLogger implements Logger {
         return this.log.isWarnEnabled();
     }
 
+    public boolean isWarnEnabled(Marker marker) {
+        return this.log.isWarnEnabled(marker);
+    }
+
     public void warn(String msg) {
         this.log.warn(msg);
     }
@@ -204,10 +208,6 @@ public class ExtendedErrorLogger implements Logger {
 
     public void warn(String msg, Throwable t) {
         this.log.warn(msg, t);
-    }
-
-    public boolean isWarnEnabled(Marker marker) {
-        return this.log.isWarnEnabled(marker);
     }
 
     public void warn(Marker marker, String msg) {
@@ -232,6 +232,10 @@ public class ExtendedErrorLogger implements Logger {
 
     public boolean isErrorEnabled() {
         return this.log.isErrorEnabled();
+    }
+
+    public boolean isErrorEnabled(Marker marker) {
+        return this.log.isErrorEnabled(marker);
     }
 
     public void error(String msg) {
@@ -272,10 +276,6 @@ public class ExtendedErrorLogger implements Logger {
 
     public void error(@Nullable ErrorCode errorCode, String msg, Throwable t) {
         this.log.error(appendErrorCode(msg, errorCode), t);
-    }
-
-    public boolean isErrorEnabled(Marker marker) {
-        return this.log.isErrorEnabled(marker);
     }
 
     public void error(Marker marker, String msg) {

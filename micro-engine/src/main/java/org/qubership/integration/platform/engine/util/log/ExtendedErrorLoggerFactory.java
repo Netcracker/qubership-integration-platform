@@ -18,7 +18,7 @@ package org.qubership.integration.platform.engine.util.log;
 
 public class ExtendedErrorLoggerFactory {
 
-    public ExtendedErrorLoggerFactory(){}
+    public ExtendedErrorLoggerFactory() {}
 
     public static ExtendedErrorLogger getLogger(String name) {
         return new ExtendedErrorLogger(name);

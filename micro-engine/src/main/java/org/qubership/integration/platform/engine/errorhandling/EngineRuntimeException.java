@@ -25,15 +25,15 @@ public class EngineRuntimeException extends RuntimeException {
 
     private Exception originalException;
 
-    public EngineRuntimeException(){
+    public EngineRuntimeException() {
         super();
     }
 
-    public EngineRuntimeException(String errorMessage){
+    public EngineRuntimeException(String errorMessage) {
         super(errorMessage);
     }
 
-    public EngineRuntimeException(String errorMessage, Exception originalException){
+    public EngineRuntimeException(String errorMessage, Exception originalException) {
         super(errorMessage);
         this.originalException = originalException;
     }

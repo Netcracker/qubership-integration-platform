@@ -28,6 +28,7 @@ import java.io.InputStream;
 @Slf4j
 public class MessageHelper {
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public static String extractBody(Exchange exchange) {
         Object body = exchange.getMessage().getBody();
 
@@ -53,18 +54,18 @@ public class MessageHelper {
             // InputStream is closed unexpectedly when using camel type converter stream -> string, let's read manually
             try {
                 body = is.readAllBytes();
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) { }
         }
 
         // Grab the message body as a string
         String stringBody = null;
         try {
             stringBody = exchange.getContext().getTypeConverter().tryConvertTo(String.class, exchange, body);
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) { }
         if (stringBody == null) {
             try {
                 stringBody = body.toString();
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) { }
         }
 
         // Reset stream cache after use
@@ -73,16 +74,17 @@ public class MessageHelper {
         return stringBody;
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     private static void resetCache(StreamCache sc, InputStream is) {
         if (sc != null) {
             try {
                 sc.reset();
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) { }
         }
         if (is != null) {
             try {
                 is.reset();
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) { }
         }
     }
 }

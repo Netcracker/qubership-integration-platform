@@ -24,6 +24,7 @@ import java.util.function.Predicate;
 @Component("camelMessageHistoryFilter")
 public class CamelMessageHistoryFilter implements Predicate<FilteringMessageHistoryFactory.FilteringEntity> {
     private static final String HTTP_TRIGGER_PROCESSOR = "ref:httpTriggerProcessor";
+
     @Override
     public boolean test(FilteringMessageHistoryFactory.FilteringEntity filteringEntity) {
         return HTTP_TRIGGER_PROCESSOR.equals(filteringEntity.node().getLabel());

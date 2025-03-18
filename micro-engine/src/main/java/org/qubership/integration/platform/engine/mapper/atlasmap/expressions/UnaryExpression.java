@@ -36,9 +36,10 @@ import static io.atlasmap.v2.AtlasModelFactory.wrapWithField;
 /** Copied from io.atlasmap.expression.internal.BooleanExpression
  * Added all the types from JsonFieldReader to negate.
  * An expression which performs an operation on two expression values.
- * 
+ *
  * @version $Revision: 1.3 $
  */
+@SuppressWarnings("checkstyle:all")
 public abstract class UnaryExpression implements Expression {
 
     private static final BigDecimal BD_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE);

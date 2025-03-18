@@ -42,7 +42,8 @@ public class JsonSerializationHelper {
     public static String serializeJson(Object value) throws JsonProcessingException {
         Set<Object> selfReferencedObjects = createIdentitySet();
         String serializedValue = serialize(value, new CircularReferencesFinderSerializer(selfReferencedObjects::add));
-        return selfReferencedObjects.isEmpty()? serializedValue
+        return selfReferencedObjects.isEmpty()
+                ? serializedValue
                 : serialize(value, new CircularReferencesAwareSerializer(selfReferencedObjects));
     }
 }

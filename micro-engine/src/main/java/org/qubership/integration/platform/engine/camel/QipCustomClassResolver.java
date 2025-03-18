@@ -22,8 +22,8 @@ import org.apache.camel.util.CastUtils;
 public class QipCustomClassResolver extends DefaultClassResolver {
     private final ClassLoader classLoader;
 
-    public QipCustomClassResolver(ClassLoader сlassLoader) {
-        this.classLoader = сlassLoader;
+    public QipCustomClassResolver(ClassLoader classLoader) {
+        this.classLoader = classLoader;
     }
 
     @Override
