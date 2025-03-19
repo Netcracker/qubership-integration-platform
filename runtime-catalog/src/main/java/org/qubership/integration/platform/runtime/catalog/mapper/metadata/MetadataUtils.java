@@ -25,6 +25,7 @@ import static java.util.Objects.isNull;
 
 public class MetadataUtils {
     private MetadataUtils() {}
+
     public static class Keys {
         public static final String DATA_FORMAT = "dataFormat";
         public static final String SOURCE_FORMAT = "sourceFormat";

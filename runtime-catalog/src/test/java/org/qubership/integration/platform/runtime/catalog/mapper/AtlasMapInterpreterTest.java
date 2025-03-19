@@ -52,11 +52,11 @@ public class AtlasMapInterpreterTest {
 
     @BeforeEach
     void setUp() {
-        interpreter = new AtlasMapInterpreter(MapperTestUtils.objectMapper);
+        interpreter = new AtlasMapInterpreter(MapperTestUtils.OBJECT_MAPPER);
     }
 
     // TODO: fix this
-//    @Test
+    // @Test
     void interpretationWithNoBody() {
         File file = MapperTestUtils.getConfigurationFile(CONSTANTS_HEADERS_PROPERTIES_ACTIONS_NO_BODY);
         MappingDescription mappingDescriptionActual = MapperTestUtils.getMappingFromFile(file);
@@ -67,7 +67,7 @@ public class AtlasMapInterpreterTest {
     }
 
     // TODO: fix this
-//    @Test
+    // @Test
     void interpretationJsonToJsonMapping() throws IOException, AtlasException {
         String sourceContent = MapperTestUtils.getJsonContentFromFile(JSON_TO_JSON_SOURCE);
 
@@ -88,7 +88,7 @@ public class AtlasMapInterpreterTest {
     }
 
     // TODO: fix this
-//    @Test
+    // @Test
     void interpretationXMLToJsonMapping() throws IOException, AtlasException {
         String sourceContent = MapperTestUtils.getJsonContentFromFile(XML_TO_JSON_SOURCE);
 
@@ -102,14 +102,14 @@ public class AtlasMapInterpreterTest {
         String targetContentActual = MapperTestUtils.processJsonMapping(sourceContent, atlasMapInterpretation);
 
         assertAll(
-                () -> assertNotNull(atlasMapInterpretation)
-                , () -> assertTrue(targetContentActual != null && !(targetContentActual.equals("") || targetContentActual.equals("null")))
-                , () -> JSONAssert.assertEquals(targetContentExpected, targetContentActual, false)
+                () -> assertNotNull(atlasMapInterpretation),
+                () -> assertTrue(targetContentActual != null && !(targetContentActual.equals("") || targetContentActual.equals("null"))),
+                () -> JSONAssert.assertEquals(targetContentExpected, targetContentActual, false)
         );
     }
 
     // TODO: fix this
-//    @Test
+    // @Test
     void interpretationXMLToXMLMapping() throws IOException, AtlasException {
         String sourceContent = MapperTestUtils.getJsonContentFromFile(XML_TO_XML_SOURCE);
 
@@ -129,9 +129,9 @@ public class AtlasMapInterpreterTest {
                 .build();
 
         assertAll(
-                () -> assertNotNull(atlasMapInterpretation)
-                , () -> assertTrue(targetContentActual != null && !(targetContentActual.equals("") || targetContentActual.equals("null")))
-                , () -> assertFalse(myDiff.hasDifferences())
+                () -> assertNotNull(atlasMapInterpretation),
+                () -> assertTrue(targetContentActual != null && !(targetContentActual.equals("") || targetContentActual.equals("null"))),
+                () -> assertFalse(myDiff.hasDifferences())
         );
     }
 
@@ -149,7 +149,7 @@ public class AtlasMapInterpreterTest {
     }
 
     // TODO: fix this
-//    @Test
+    // @Test
     void interpretationWithLookup() throws IOException, AtlasException {
         String sourceContent = MapperTestUtils.getJsonContentFromFile(LOOKUP_VALUE_SOURCE);
 
@@ -165,7 +165,7 @@ public class AtlasMapInterpreterTest {
         assertAll(
                 () -> assertNotNull(atlasMapInterpretation),
                 () -> assertTrue(targetContentActual != null && !(targetContentActual.equals("") || targetContentActual.equals("null")))
-                //,() -> JSONAssert.assertEquals(targetContentExpected, targetContentActual, false)
+        //      () -> JSONAssert.assertEquals(targetContentExpected, targetContentActual, false)
         );
     }
 

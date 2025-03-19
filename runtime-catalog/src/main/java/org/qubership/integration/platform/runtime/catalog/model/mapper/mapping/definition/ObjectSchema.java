@@ -41,7 +41,7 @@ public class ObjectSchema extends ObjectWithMetadata {
     ) {
         super(metadata);
         this.id = id;
-        this.attributes = isNull(attributes)? Collections.emptyList() : attributes;
+        this.attributes = isNull(attributes) ? Collections.emptyList() : attributes;
     }
 
     public String getId() {

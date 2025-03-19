@@ -56,7 +56,7 @@ public class ChildrenHelper extends BaseHelper implements Helper<String> {
      * @param container Parent element, from which list of eleme
      * @param name      Name of camel elements
      * @return Children list from <code>container</code> container argument with property
-     * NAME equals <code>name</code> argument.
+     *      NAME equals <code>name</code> argument.
      */
     private List<ChainElement> findChildrenByType(ContainerChainElement container, String name, String comparisonKeyProperty) {
         return container.getElements().stream()

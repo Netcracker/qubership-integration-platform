@@ -66,7 +66,7 @@ public class ElementValidationController {
             @RequestParam @Parameter(description = "Id of chains to exclude from check") String excludeChainId,
             @RequestParam(required = false, defaultValue = "true") @Parameter(description = "Whether to check external routes") boolean isExternalRoute,
             @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether to check private routes") boolean isPrivateRoute,
-            @ArraySchema(uniqueItems = true, schema = @Schema(type="string", allowableValues = {
+            @ArraySchema(uniqueItems = true, schema = @Schema(type = "string", allowableValues = {
                     "GET",
                     "HEAD",
                     "POST",
@@ -90,7 +90,7 @@ public class ElementValidationController {
             @RequestParam @Parameter(description = "Id of chains to exclude from check") String excludeChainId,
             @RequestParam(required = false, defaultValue = "true") @Parameter(description = "Whether to check external routes") boolean isExternalRoute,
             @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether to check private routes") boolean isPrivateRoute,
-            @ArraySchema(uniqueItems = true, schema = @Schema(type="string", allowableValues = {
+            @ArraySchema(uniqueItems = true, schema = @Schema(type = "string", allowableValues = {
                     "GET",
                     "HEAD",
                     "POST",

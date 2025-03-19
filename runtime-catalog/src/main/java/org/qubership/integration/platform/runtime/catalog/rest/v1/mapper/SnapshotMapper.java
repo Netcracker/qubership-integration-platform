@@ -29,8 +29,8 @@ import java.util.List;
 
 @Mapper(componentModel = "spring",
         uses = {
-            MapperUtils.class,
-            UserMapper.class,
+                MapperUtils.class,
+                UserMapper.class,
         }
 )
 public interface SnapshotMapper {
@@ -42,7 +42,10 @@ public interface SnapshotMapper {
     Snapshot asRequest(SnapshotRequest snapshot);
 
     SnapshotLabel asLabelRequest(SnapshotLabelDTO snapshotLabel);
+
     List<SnapshotLabel> asLabelRequests(List<SnapshotLabelDTO> snapshotLabel);
+
     SnapshotLabelDTO asLabelResponse(SnapshotLabel snapshotLabel);
+
     List<SnapshotLabelDTO> asLabelResponse(List<SnapshotLabel> snapshotLabel);
 }

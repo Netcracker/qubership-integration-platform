@@ -35,7 +35,7 @@ public class ImportSpecificationDTO {
     @Schema(description = "Specification group id")
     private String specificationGroupId;
 
-    public ImportSpecificationDTO(String id, Boolean isDone){
+    public ImportSpecificationDTO(String id, Boolean isDone) {
         this.id = id;
         this.isDone = isDone;
     }

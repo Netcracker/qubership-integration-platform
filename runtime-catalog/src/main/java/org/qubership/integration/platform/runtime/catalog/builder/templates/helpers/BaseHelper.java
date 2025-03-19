@@ -46,14 +46,14 @@ public class BaseHelper {
     public Object getPropertyValue(String propertyName, Options options) {
         var context = options.context.model();
 
-        if(context instanceof ChainElement) {
+        if (context instanceof ChainElement) {
             var element = (ChainElement) context;
             String elementType = element.getType();
-            if (isMaasParamProperty(propertyName, elementType, element) ) {
+            if (isMaasParamProperty(propertyName, elementType, element)) {
                 return MaasUtils.getMaasParamPlaceholder(element.getOriginalId(), propertyName);
             }
             return element.getProperty(propertyName);
-        } else if(context instanceof Map) {
+        } else if (context instanceof Map) {
             var map = (Map) context;
             return map.get(propertyName);
         } else {
@@ -67,11 +67,11 @@ public class BaseHelper {
     private static boolean isMaasParamProperty(String propertyName, String elementType, ChainElement element) {
         Map<String, Object> elementProperties = element.getProperties();
         String operationProtocolType = (String) elementProperties.get(CamelNames.OPERATION_PROTOCOL_TYPE_PROP);
-        if((isTopicProperty(propertyName, elementType) && isKafkaTrigger2OrKafkaSender2Component(elementType))
+        if ((isTopicProperty(propertyName, elementType) && isKafkaTrigger2OrKafkaSender2Component(elementType))
                 || ((isOperationPathProperty(propertyName, elementType) && isOperationProtocolTypeKafka(operationProtocolType)
                 && isServiceCallOrAsyncApiTriggerComponent(elementType)))) {
             List<String> maasParamList = MaasUtils.getMaasParams(element);
-            if(!maasParamList.isEmpty()) {
+            if (!maasParamList.isEmpty()) {
                 return true;
             }
         }
@@ -79,7 +79,7 @@ public class BaseHelper {
     }
 
     private static boolean isOperationProtocolTypeKafka(String operationProtocolType) {
-        if(StringUtils.isNotEmpty(operationProtocolType) && StringUtils.equalsIgnoreCase(operationProtocolType, CamelNames.OPERATION_PROTOCOL_TYPE_KAFKA)) {
+        if (StringUtils.isNotEmpty(operationProtocolType) && StringUtils.equalsIgnoreCase(operationProtocolType, CamelNames.OPERATION_PROTOCOL_TYPE_KAFKA)) {
             return  true;
         }
         return false;
@@ -94,13 +94,13 @@ public class BaseHelper {
     }
 
     private static boolean isKafkaTrigger2OrKafkaSender2Component(final String elementType) {
-        return StringUtils.equalsIgnoreCase(elementType, CamelNames.KAFKA_TRIGGER_2_COMPONENT) ||
-                StringUtils.equalsIgnoreCase(elementType, CamelNames.KAFKA_SENDER_2_COMPONENT);
+        return StringUtils.equalsIgnoreCase(elementType, CamelNames.KAFKA_TRIGGER_2_COMPONENT)
+                || StringUtils.equalsIgnoreCase(elementType, CamelNames.KAFKA_SENDER_2_COMPONENT);
     }
 
     private static boolean isServiceCallOrAsyncApiTriggerComponent(final String elementType) {
-        return StringUtils.equalsIgnoreCase(elementType, CamelNames.SERVICE_CALL_COMPONENT) ||
-                StringUtils.equalsIgnoreCase(elementType, CamelNames.ASYNC_API_TRIGGER_COMPONENT);
+        return StringUtils.equalsIgnoreCase(elementType, CamelNames.SERVICE_CALL_COMPONENT)
+                || StringUtils.equalsIgnoreCase(elementType, CamelNames.ASYNC_API_TRIGGER_COMPONENT);
     }
 
     protected Options.Buffer putCollectionAsContext(Iterable<?> objects, Options options) throws IOException {

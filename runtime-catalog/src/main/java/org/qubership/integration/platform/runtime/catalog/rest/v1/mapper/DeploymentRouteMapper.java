@@ -26,9 +26,10 @@ import java.util.List;
 
 @Mapper(
         componentModel = "spring",
-        uses = { UserMapper.class, MapperUtils.class}
+        uses = {UserMapper.class, MapperUtils.class}
 )
 public interface DeploymentRouteMapper {
     DeploymentRouteUpdate asUpdate(DeploymentRoute deploymentRoutes);
+
     List<DeploymentRouteUpdate> asUpdates(List<DeploymentRoute> deploymentRoutes);
 }

@@ -70,7 +70,7 @@ import static org.qubership.integration.platform.runtime.catalog.testutils.TestU
 public class ChildrenHelperTest {
 
     private static Handlebars hbs;
-    private static final ChildrenHelper childrenHelper = new ChildrenHelper();
+    private static final ChildrenHelper CHILDREN_HELPER = new ChildrenHelper();
 
     private final ChainMapper chainMapper;
 
@@ -88,7 +88,7 @@ public class ChildrenHelperTest {
         hbs.setPrettyPrint(true);
         hbs.registerHelpers(StringHelpers.class);
         hbs.registerHelpers(ConditionalHelpers.class);
-        hbs.registerHelper("children", childrenHelper);
+        hbs.registerHelper("children", CHILDREN_HELPER);
     }
 
     private static Stream<Arguments> childrenTestData() {
@@ -135,7 +135,7 @@ public class ChildrenHelperTest {
                     .setWriter(stringWriter)
                     .setHash(Collections.singletonMap(SORT_PROP, "priorityNumber"))
                     .build();
-            childrenHelper.apply(childName, options);
+            CHILDREN_HELPER.apply(childName, options);
             actual = wrap(stringWriter.toString());
         }
 

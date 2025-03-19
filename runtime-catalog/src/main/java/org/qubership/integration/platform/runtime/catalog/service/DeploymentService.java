@@ -111,6 +111,7 @@ public class DeploymentService {
     private MultiConsumer.Consumer5<String, String, String, GenericMessageType, Map<String, String>> messagesCallback = (a, b, c, d, e) -> {
     };
 
+    @SuppressWarnings("checkstyle:ConstantName")
     private static final Map<String, DeploymentsUpdate> fullDeploymentsUpdateCache = new ConcurrentHashMap<>();
     private static Long deploymentsUpdateVersion = 0L;
 
@@ -236,19 +237,20 @@ public class DeploymentService {
         final AtomicReference<Boolean> failed = new AtomicReference<>(false);
         List<BulkDeploymentResponse> statuses = new ArrayList<>();
 
-        final Map<String, Chain> chains = (CollectionUtils.isEmpty(request.getChainIds()) ?
-                chainService.findAll() : chainService.findAllById(request.getChainIds())).stream()
-                .filter(chain -> {
-                    if (chain.getOverriddenByChainId() != null) {
-                        statuses.add(BulkDeploymentResponse.builder()
-                                .chainId(chain.getId())
-                                .chainName(chain.getName())
-                                .status(BulkDeploymentStatus.IGNORED)
-                                .build());
-                        return false;
-                    }
-                    return true;
-                })
+        final Map<String, Chain> chains = (CollectionUtils.isEmpty(request.getChainIds())
+                ? chainService.findAll()
+                : chainService.findAllById(request.getChainIds())).stream()
+                    .filter(chain -> {
+                        if (chain.getOverriddenByChainId() != null) {
+                            statuses.add(BulkDeploymentResponse.builder()
+                                    .chainId(chain.getId())
+                                    .chainName(chain.getName())
+                                    .status(BulkDeploymentStatus.IGNORED)
+                                    .build());
+                            return false;
+                        }
+                        return true;
+                    })
                 .collect(Collectors.toMap(AbstractEntity::getId, Function.identity()));
 
         log.info("Bulk deploy for {} chains", chains.size());
@@ -358,8 +360,9 @@ public class DeploymentService {
             return;
         }
 
-        List<String> excludeDeploymentIds = excludeDeployments == null ?
-                null : excludeDeployments.stream().map(Deployment::getId).collect(Collectors.toList());
+        List<String> excludeDeploymentIds = excludeDeployments == null
+                ? null
+                : excludeDeployments.stream().map(Deployment::getId).collect(Collectors.toList());
 
         checkHttpTriggers(snapshotId, chainId, excludeDeploymentIds, domain);
 
@@ -419,8 +422,8 @@ public class DeploymentService {
         Set<String> otherDomainsEqualPaths = findSameHttpTriggerPaths(pendingRoutes, otherDomainsRoutes, false);
 
         if (!gatewayEqualPaths.isEmpty()) {
-            throw new EntityExistsException("Found similar triggers paths registered on public/private gateway: " +
-                    gatewayEqualPaths);
+            throw new EntityExistsException("Found similar triggers paths registered on public/private gateway: "
+                    + gatewayEqualPaths);
         }
         if (!otherDomainsEqualPaths.isEmpty()) {
             throw new EntityExistsException("Found similar triggers path registered on other domains: " + otherDomainsEqualPaths);
@@ -486,13 +489,13 @@ public class DeploymentService {
     public void deleteAllByChainId(String chainId) throws DeploymentProcessingException {
         List<Deployment> deployments = findAllByChainId(chainId);
         transactionHandler.runInNewTransaction(() -> deploymentRepository.deleteAllByChainId(chainId));
-        deployments.forEach(deployment -> {logDeploymentAction(deployment,deployment.getId(),deployment.getChain().getName(),LogOperation.DELETE);});
+        deployments.forEach(deployment -> logDeploymentAction(deployment, deployment.getId(), deployment.getChain().getName(), LogOperation.DELETE));
      }
 
     @DeploymentModification
     public void deleteAllBySnapshotId(String snapshotId) throws DeploymentProcessingException {
         Snapshot snapshot = snapshotService.findById(snapshotId);
-        snapshot.getDeployments().forEach(deployment -> {logDeploymentAction(deployment,deployment.getId(),deployment.getChain().getName(),LogOperation.DELETE);});
+        snapshot.getDeployments().forEach(deployment -> logDeploymentAction(deployment, deployment.getId(), deployment.getChain().getName(), LogOperation.DELETE));
         transactionHandler.runInNewTransaction(() -> deploymentRepository.deleteAllBySnapshotId(snapshotId));
     }
 
@@ -574,7 +577,7 @@ public class DeploymentService {
                 .map(sender -> {
                     try {
                         String targetURL = SimpleHttpUriUtils.extractProtocolAndDomainWithPort(sender.getPropertyAsString(CamelOptions.URI));
-						
+
                         String gatewayPrefix = String.format("/%s/%s/%s", sender.getType(), sender.getOriginalId(), getEncodedURL(getHttpConnectionTimeout(sender), targetURL));
 
                         DeploymentRoute.DeploymentRouteBuilder builder = DeploymentRoute.builder()
@@ -656,7 +659,7 @@ public class DeploymentService {
 
     private String getEncodedURL(final Long connectTimeout, final String targetURL) {
         String senderURL = targetURL;
-        if(!Objects.isNull(connectTimeout) && connectTimeout > -1L){
+        if (!Objects.isNull(connectTimeout) && connectTimeout > -1L) {
             senderURL = senderURL + connectTimeout;
         }
         return HashUtils.sha1hex(senderURL);

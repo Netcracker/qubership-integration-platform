@@ -56,8 +56,9 @@ public class SystemExportImportController {
     public ResponseEntity<Object> exportSystems(@RequestParam(required = false) @Parameter(description = "List of service ids, separated by comma") List<String> systemIds,
                                                 @RequestParam(required = false) @Parameter(description = "If specified, only these specifications will be exported") List<String> usedSystemModelIds) {
         byte[] zip = systemExportImportService.exportSystemsRequest(systemIds, usedSystemModelIds);
-        if (zip == null)
+        if (zip == null) {
             return ResponseEntity.noContent().build();
+        }
 
         return ExportImportUtils.convertFileToResponse(zip, ExportImportUtils.generateArchiveExportName());
     }
@@ -76,8 +77,9 @@ public class SystemExportImportController {
         if (result.isEmpty()) {
             return ResponseEntity.noContent().build();
         } else {
-            HttpStatus responseCode = result.stream().anyMatch(dto -> dto.getStatus().equals(ImportSystemStatus.ERROR)) ?
-                    HttpStatus.MULTI_STATUS : HttpStatus.OK;
+            HttpStatus responseCode = result.stream().anyMatch(dto -> dto.getStatus().equals(ImportSystemStatus.ERROR))
+                    ? HttpStatus.MULTI_STATUS
+                    : HttpStatus.OK;
             return ResponseEntity.status(responseCode).body(result);
         }
     }

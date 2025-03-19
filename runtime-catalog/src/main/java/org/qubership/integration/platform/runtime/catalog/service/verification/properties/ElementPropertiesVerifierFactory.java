@@ -26,6 +26,7 @@ import java.util.Collection;
 @Component
 public class ElementPropertiesVerifierFactory {
     private final Collection<ElementPropertiesVerifier> verifiers;
+
     @Autowired
     ElementPropertiesVerifierFactory(Collection<ElementPropertiesVerifier> verifiers) {
         this.verifiers = verifiers;

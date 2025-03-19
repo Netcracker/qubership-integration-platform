@@ -19,7 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimp
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Applied action")
-public enum ChainCommitRequestAction{
+public enum ChainCommitRequestAction {
     NONE,
     SNAPSHOT,
     DEPLOY,

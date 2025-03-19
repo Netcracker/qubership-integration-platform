@@ -105,8 +105,9 @@ public class ChainDeserializer extends StdDeserializer<ChainDeserializationResul
                 resultChain = Chain.builder()
                         .id(idNode.asText())
                         .createdWhen(new Timestamp(System.currentTimeMillis()))
-                        .modifiedWhen(new Timestamp(modifiedWhenNode == null ?
-                                System.currentTimeMillis() : modifiedWhenNode.asLong()))
+                        .modifiedWhen(new Timestamp(modifiedWhenNode == null
+                                ? System.currentTimeMillis()
+                                : modifiedWhenNode.asLong()))
                         .build();
                 result.setStatus(ImportEntityStatus.CREATED);
             }

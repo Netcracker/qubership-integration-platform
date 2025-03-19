@@ -21,9 +21,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.atlasmap.json.v2.JsonDataSource;
 import io.atlasmap.json.v2.JsonField;
+import io.atlasmap.v2.*;
 import io.atlasmap.v2.Constant;
 import io.atlasmap.v2.Properties;
-import io.atlasmap.v2.*;
 import io.atlasmap.xml.v2.XmlDataSource;
 import io.atlasmap.xml.v2.XmlField;
 import lombok.extern.slf4j.Slf4j;
@@ -57,8 +57,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
 import java.util.*;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -102,7 +102,7 @@ public class AtlasMapInterpreter implements MappingInterpreter {
     private static final String CONSTANT_DOC_ID = "DOC.Properties.1";
     private static final String PROPERTIES_DOC_ID = "DOC.Properties.2";
 
-    private static final Pattern xmlTextPathPattern = Pattern.compile("\\/#text$");
+    private static final Pattern XML_TEXT_PATH_PATTERN = Pattern.compile("\\/#text$");
 
     private final ObjectMapper objectMapper;
 
@@ -647,10 +647,10 @@ public class AtlasMapInterpreter implements MappingInterpreter {
                 case XML -> {
                     boolean isXmlAttribute = fieldName.startsWith("@");
 
-                    Matcher pathMatcher = xmlTextPathPattern.matcher(fieldPath);
+                    Matcher pathMatcher = XML_TEXT_PATH_PATTERN.matcher(fieldPath);
                     if (pathMatcher.find()) {
                         fieldName = path.get(path.size() - 2).getName();
-                        fieldPath = fieldPath.replaceAll(xmlTextPathPattern.pattern(), "");
+                        fieldPath = fieldPath.replaceAll(XML_TEXT_PATH_PATTERN.pattern(), "");
                     }
 
                     field = new XmlField();
@@ -766,7 +766,9 @@ public class AtlasMapInterpreter implements MappingInterpreter {
             Map<String, ElementMapBuilder.ElementWithContext> targetElementMap
     ) {
         Transformation transformation = action.getTransformation();
-        if (transformation == null) return mapping;
+        if (transformation == null) {
+            return mapping;
+        }
 
         Mapping processedMapping = null;
         if (mapping instanceof Mapping) {

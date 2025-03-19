@@ -64,16 +64,6 @@ public abstract class DeploymentMapper {
     @Mapping(source = "chain.id", target = "chainId")
     public abstract DeploymentResponse asResponse(Deployment deployment);
 
-    public List<DeploymentResponse> asResponses(List<Deployment> deploymentEntityEngineList) {
-        if (deploymentEntityEngineList == null) {
-            return null;
-        }
-
-        return deploymentEntityEngineList.stream()
-                .map(deployment -> asResponse(deployment, runtimeDeploymentService.getRuntimeDeployment(deployment.getId())))
-                .collect(Collectors.toList());
-    }
-
     @Mapping(source = "deployment.id", target = "id")
     @Mapping(source = "deployment.chain.id", target = "chainId")
     @Mapping(source = "deployment.snapshot.id", target = "snapshotId")
@@ -83,6 +73,15 @@ public abstract class DeploymentMapper {
     @Mapping(source = "deployment.name", target = "name")
     public abstract DeploymentResponse asResponse(Deployment deployment, RuntimeDeployment state);
 
+    public List<DeploymentResponse> asResponses(List<Deployment> deploymentEntityEngineList) {
+        if (deploymentEntityEngineList == null) {
+            return null;
+        }
+
+        return deploymentEntityEngineList.stream()
+                .map(deployment -> asResponse(deployment, runtimeDeploymentService.getRuntimeDeployment(deployment.getId())))
+                .collect(Collectors.toList());
+    }
 
     @Mapping(source = "status", target = "status")
     @Mapping(source = "errorMessage", target = "error")

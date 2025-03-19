@@ -342,7 +342,7 @@ public class ChainImportService {
             chainExternalEntity = yamlMapper.readValue(chainYAML, ChainExternalEntity.class);
 
             String chainId = chainExternalEntity.getId();
-            String externalHash = ChainUtils.getChainFilesHash(chainFilesDir,artifactDescriptorVersion);
+            String externalHash = ChainUtils.getChainFilesHash(chainFilesDir, artifactDescriptorVersion);
 
             if (isSameHash(chainId, externalHash) && validateByHash) {
                 log.warn(CHAINS_HASH_MATCHED_LOG_MESSAGE, chainId);
@@ -443,7 +443,7 @@ public class ChainImportService {
             chain.getLabels().removeIf(label -> label.isTechnical() && !technicalLabels.contains(label.getName()));
             // Add to database only missing labels
             Set<String> currentChainTechnicalLabels = chain.getLabels().stream().filter(ChainLabel::isTechnical).map(ChainLabel::getName).collect(Collectors.toSet());
-            Set<String> technicalLabelsToAdd = technicalLabels.stream().filter(labelName ->!currentChainTechnicalLabels.contains(labelName)).collect(Collectors.toSet());
+            Set<String> technicalLabelsToAdd = technicalLabels.stream().filter(labelName -> !currentChainTechnicalLabels.contains(labelName)).collect(Collectors.toSet());
 
             technicalLabelsToAdd.forEach(labelName -> chain.addLabel(new ChainLabel(labelName, chain, true)));
         } else {
@@ -475,8 +475,7 @@ public class ChainImportService {
                     IntStream.rangeClosed(1, fileNode.get(IMPORT_VERSION_FIELD_OLD).asInt())
                             .boxed()
                             .toList();
-        }
-        else {
+        } else {
             importVersions =
                     fileNode.get(IMPORT_MIGRATIONS_FIELD) != null
                             ? Arrays.stream(

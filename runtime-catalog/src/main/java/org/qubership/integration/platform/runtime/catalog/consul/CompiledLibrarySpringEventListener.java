@@ -56,7 +56,7 @@ public class CompiledLibrarySpringEventListener {
     private void sendAllCompiledLibrariesUpdateRetryable() {
         while (true) { // worker loop
             try {
-                Object event = updateEvent.take();// wait for events
+                Object event = updateEvent.take(); // wait for events
                 log.debug("Catch library update event: {}", event);
 
                 while (true) { // retry loop
@@ -69,8 +69,8 @@ public class CompiledLibrarySpringEventListener {
                         break;
                     } catch (Exception e) {
                         MDC.put("error_code", "8050");
-                        log.warn("Retry of Event Listener failed with error: " +
-                                "Attempt to collect and send all compiled libraries update failed: {}", e.getMessage());
+                        log.warn("Retry of Event Listener failed with error: "
+                                + "Attempt to collect and send all compiled libraries update failed: {}", e.getMessage());
                         MDC.remove("error_code");
 
                         try {

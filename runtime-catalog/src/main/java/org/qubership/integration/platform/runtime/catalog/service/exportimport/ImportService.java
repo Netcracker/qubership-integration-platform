@@ -445,8 +445,8 @@ public class ImportService {
             String migratedYaml = migrateToActualFileVersion(yaml);
             basicChainInfo = getYamlBasicChainInfo(migratedYaml);
             ChainCompareDTO finalBasicChainInfo = basicChainInfo;
-            if (CollectionUtils.isEmpty(commitRequests) ||
-                    commitRequests.stream()
+            if (CollectionUtils.isEmpty(commitRequests)
+                    || commitRequests.stream()
                             .anyMatch(request -> request.getId().equals(finalBasicChainInfo.getId()))) {
 
                 ChainExternalEntity chainExternalEntity = yamlMapper.readValue(migratedYaml, ChainExternalEntity.class);
@@ -619,8 +619,8 @@ public class ImportService {
                 throw new IOException("Could not find file with properties: " + propertiesFilename);
             }
 
-        } else if (ExportImportUtils.isPropertiesFileGroove(element.getProperties()) ||
-                ExportImportUtils.isPropertiesFileSql(element.getProperties())
+        } else if (ExportImportUtils.isPropertiesFileGroove(element.getProperties())
+                || ExportImportUtils.isPropertiesFileSql(element.getProperties())
                 || propertiesFilename.endsWith(".groovy")) {
             String stringValue = ExportImportUtils.getFileContentByName(chainFilesDir,
                     propertiesFilename);
@@ -636,8 +636,8 @@ public class ImportService {
             }
         } else {
             throw new IllegalArgumentException(
-                    "Invalid property '" + EXPORT_FILE_EXTENSION_PROPERTY +
-                            "' of element " + element.getId());
+                    "Invalid property '" + EXPORT_FILE_EXTENSION_PROPERTY
+                            + "' of element " + element.getId());
         }
     }
 
@@ -870,10 +870,8 @@ public class ImportService {
         ObjectNode fileNode = (ObjectNode) yamlMapper.readTree(fileContent);
 
         if ((!fileNode.has(ImportFileMigration.IMPORT_VERSION_FIELD_OLD) && !fileNode.has(ImportFileMigration.IMPORT_MIGRATIONS_FIELD))
-            ||
-            (fileNode.has(ImportFileMigration.IMPORT_VERSION_FIELD_OLD) && fileNode.get(ImportFileMigration.IMPORT_VERSION_FIELD_OLD) != null
-             &&
-             fileNode.has(ImportFileMigration.IMPORT_MIGRATIONS_FIELD) && fileNode.get(ImportFileMigration.IMPORT_MIGRATIONS_FIELD) != null)
+                || (fileNode.has(ImportFileMigration.IMPORT_VERSION_FIELD_OLD) && fileNode.get(ImportFileMigration.IMPORT_VERSION_FIELD_OLD) != null
+                    && fileNode.has(ImportFileMigration.IMPORT_MIGRATIONS_FIELD) && fileNode.get(ImportFileMigration.IMPORT_MIGRATIONS_FIELD) != null)
         ) {
             log.error(
                     "Incorrect combination of \"{}\" and \"{}\" fields for a chain migration data",
@@ -888,8 +886,7 @@ public class ImportService {
                     IntStream.rangeClosed(1, fileNode.get(ImportFileMigration.IMPORT_VERSION_FIELD_OLD).asInt())
                             .boxed()
                             .toList();
-        }
-        else {
+        } else {
             importVersions =
                     fileNode.get(ImportFileMigration.IMPORT_MIGRATIONS_FIELD) != null
                             ? Arrays.stream(

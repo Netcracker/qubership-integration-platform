@@ -24,22 +24,22 @@ import java.util.regex.Pattern;
 
 @Component
 public class EngineDomainUtils {
-    private final String DASH_VERSION_REGEX = "-v\\d+$";
-    private final Pattern DEFAULT_VERSIONED_DOMAIN_PATTERN;
+    private static final String DASH_VERSION_REGEX = "-v\\d+$";
+    private final Pattern defaultVersionedDomainPattern;
 
     @Value("${qip.domain.default}")
     private String engineDefaultDomain;
 
     @Autowired
     public EngineDomainUtils(@Value("${qip.internal-services.engine}") String engineNamePrefix) {
-        DEFAULT_VERSIONED_DOMAIN_PATTERN = Pattern.compile("^" + engineNamePrefix + DASH_VERSION_REGEX);
+        defaultVersionedDomainPattern = Pattern.compile("^" + engineNamePrefix + DASH_VERSION_REGEX);
     }
 
     public String convertKubeDeploymentToDomainName(String deploymentName) {
-        boolean isDefault = DEFAULT_VERSIONED_DOMAIN_PATTERN.matcher(deploymentName).find();
+        boolean isDefault = defaultVersionedDomainPattern.matcher(deploymentName).find();
 
-        return isDefault ?
-                engineDefaultDomain :
-                deploymentName.replaceFirst(DASH_VERSION_REGEX, "");
+        return isDefault
+                ? engineDefaultDomain
+                : deploymentName.replaceFirst(DASH_VERSION_REGEX, "");
     }
 }

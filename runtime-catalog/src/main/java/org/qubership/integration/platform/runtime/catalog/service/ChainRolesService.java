@@ -87,8 +87,9 @@ public class ChainRolesService {
         int offset = request.getOffset();
         int limit = request.getLimit();
         List<ChainElementFilterRequestDTO> filters = request.getFilters();
-        if (offset < 0 || limit < 1)
+        if (offset < 0 || limit < 1) {
             return new ChainRolesResponse(0, Collections.emptyList());
+        }
 
         List<ChainElement> elementList = elementRepository.findElementsByFilter(offset, limit, List.of(CamelNames.HTTP_TRIGGER_COMPONENT), filters, isImplementedOnly);
         List<ChainRolesDTO> chainRolesResponse = chainRolesMapper.asChainRolesResponses(elementList);
@@ -103,8 +104,7 @@ public class ChainRolesService {
     }
 
 
-    public ChainRolesResponse chainFilters(ChainRolesResponse chainRolesResponse)
-    {
+    public ChainRolesResponse chainFilters(ChainRolesResponse chainRolesResponse) {
         this.chainRolesAndFilters = chainRolesResponse;
         return chainRolesAndFilters;
     }

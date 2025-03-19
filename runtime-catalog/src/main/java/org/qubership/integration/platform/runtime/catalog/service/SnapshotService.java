@@ -178,8 +178,9 @@ public class SnapshotService {
             snapshot.setXmlDefinition(xmlBuilder.build(snapshotElements));
         } catch (Exception e) {
             log.error("Failed to build xml configuration: {}", e.getMessage());
-            throw (e instanceof RuntimeException) ?
-                    (RuntimeException) e : new RuntimeException("Failed to build xml configuration", e);
+            throw (e instanceof RuntimeException)
+                    ? (RuntimeException) e
+                    : new RuntimeException("Failed to build xml configuration", e);
         }
         chainService.setCurrentSnapshot(chain.getId(), snapshot);
 
@@ -354,7 +355,7 @@ public class SnapshotService {
         deploymentService.deleteAllByChainId(chainId);
         chainService.clearCurrentSnapshot(chainId);
         snapshotRepository.deleteAllByChainId(chainId);
-        snapshots.forEach(snapshot -> {logSnapshotAction(snapshot,snapshot.getChain(),LogOperation.DELETE);});
+        snapshots.forEach(snapshot -> logSnapshotAction(snapshot, snapshot.getChain(), LogOperation.DELETE));
     }
 
     public void deleteById(String snapshotId) {
@@ -363,7 +364,7 @@ public class SnapshotService {
 
         Chain chain = snapshot.getChain();
         if (chain.getCurrentSnapshot() != null) {
-            if (chain.getCurrentSnapshot().getId().equals(snapshotId)){
+            if (chain.getCurrentSnapshot().getId().equals(snapshotId)) {
                 chain.setCurrentSnapshot(null);
             }
         }

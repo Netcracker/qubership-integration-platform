@@ -92,7 +92,7 @@ public class ExportController {
             @RequestParam(required = false, defaultValue = "YAML") @Parameter(description = "Specification format") ApiSpecificationFormat format
             ) {
         log.info("Request to export {} specification for {} routes from deployments {}, snapshots {}, and chains {}",
-                specificationType, externalRoutes? "external" : "", deploymentIds, snapshotIds, chainIds);
+                specificationType, externalRoutes ? "external" : "", deploymentIds, snapshotIds, chainIds);
         Pair<String, byte[]> spec = apiSpecificationExportService.exportApiSpecification(
                 deploymentIds, snapshotIds, chainIds, httpTriggerIds, externalRoutes, specificationType, format);
         return asResponse(spec);

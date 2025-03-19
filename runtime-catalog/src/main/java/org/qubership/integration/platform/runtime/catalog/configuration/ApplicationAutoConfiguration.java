@@ -77,8 +77,8 @@ public class ApplicationAutoConfiguration {
         try {
             return DocumentBuilderFactory.newDefaultInstance().newDocumentBuilder();
         } catch (Exception e) {
-            throw new BeanInitializationException("Can't provide document builder for " +
-                    "building xml configurations");
+            throw new BeanInitializationException("Can't provide document builder for "
+                    + "building xml configurations");
         }
     }
 

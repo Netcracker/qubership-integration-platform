@@ -36,8 +36,8 @@ public class CompiledLibrariesHealthIndicator extends ReadinessStateHealthIndica
 
     @Override
     protected AvailabilityState getState(ApplicationAvailability applicationAvailability) {
-        return libraryService.isInitUpdateCompleted() ?
-                super.getState(applicationAvailability) :
-                ReadinessState.REFUSING_TRAFFIC;
+        return libraryService.isInitUpdateCompleted() 
+                ? super.getState(applicationAvailability) 
+                : ReadinessState.REFUSING_TRAFFIC;
     }
 }

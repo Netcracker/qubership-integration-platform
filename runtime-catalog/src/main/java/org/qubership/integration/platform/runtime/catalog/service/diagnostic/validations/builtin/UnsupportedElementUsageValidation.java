@@ -41,8 +41,8 @@ public class UnsupportedElementUsageValidation extends BuiltinValidation {
                 "unsupported-element-usage_9HTTGFAK",
                 "Unsupported elements found in the chain",
                 "Rule allows to find chains with unsupported elements.",
-                "Chain contains elements, not supported by the system anymore." +
-                        " Such elements must be removed or replaced before the deployment.",
+                "Chain contains elements, not supported by the system anymore."
+                        + " Such elements must be removed or replaced before the deployment.",
                 ValidationEntityType.CHAIN_ELEMENT,
                 ValidationImplementationType.BUILT_IN,
                 ValidationSeverity.ERROR

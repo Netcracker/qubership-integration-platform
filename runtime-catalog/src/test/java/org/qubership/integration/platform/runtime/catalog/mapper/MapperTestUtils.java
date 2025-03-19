@@ -35,9 +35,9 @@ import java.util.Objects;
 
 public class MapperTestUtils {
 
-    public static final ObjectMapper objectMapper = new ObjectMapper();
-    public static final YAMLMapper yamlMapper = new YAMLMapper();
-    public static final DefaultAtlasContextFactory factory = DefaultAtlasContextFactory.getInstance();
+    public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    public static final YAMLMapper YAML_MAPPER = new YAMLMapper();
+    public static final DefaultAtlasContextFactory FACTORY = DefaultAtlasContextFactory.getInstance();
 
     public static File getConfigurationFile(String fileName) {
         ClassLoader classLoader = MapperTestUtils.class.getClassLoader();
@@ -49,13 +49,12 @@ public class MapperTestUtils {
         ClassLoader classLoader = MapperTestUtils.class.getClassLoader();
         File contentFile = new File(Objects.requireNonNull(classLoader.getResource(fileName)).getFile());
         return Files.readString(Path.of(contentFile.getPath()));
-
     }
 
     public static MappingDescription getMappingFromFile(File file) {
         MappingDescription mappingDescription = null;
         try {
-            mappingDescription = yamlMapper.readValue(file, MappingDescription.class);
+            mappingDescription = YAML_MAPPER.readValue(file, MappingDescription.class);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -67,8 +66,8 @@ public class MapperTestUtils {
 
         StringReader stringReader = new StringReader(mapping);
 
-        AtlasMapping atlasMapping = objectMapper.readValue(stringReader, AtlasMapping.class);
-        AtlasContext context = factory.createContext(atlasMapping);
+        AtlasMapping atlasMapping = OBJECT_MAPPER.readValue(stringReader, AtlasMapping.class);
+        AtlasContext context = FACTORY.createContext(atlasMapping);
         AtlasSession session = context.createSession();
         session.setDefaultSourceDocument(source);
 
@@ -85,5 +84,4 @@ public class MapperTestUtils {
     public static String processXmlMapping(String source, String mappingConfig) throws IOException, AtlasException {
         return (String) processMapping(source, mappingConfig);
     }
-
 }

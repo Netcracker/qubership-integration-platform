@@ -32,14 +32,16 @@ import java.util.Optional;
 @Repository
 public interface SnapshotRepository extends SnapshotBaseRepository {
     @Query(nativeQuery = true,
-            value = "DELETE FROM {h-schema}snapshots where ctid in " +
-                        "(SELECT s.ctid " +
-                        "FROM {h-schema}snapshots s " +
-                        "LEFT JOIN {h-schema}deployments d ON d.snapshot_id = s.id " +
-                        "LEFT JOIN {h-schema}chains c ON c.current_snapshot_id = s.id " +
-                        "WHERE s.created_when < :createdWhen AND " +
-                              "d.id IS NULL AND c.id IS NULL " +
-                        "LIMIT :chunk) RETURNING id, name, chain_id as chain")
+            value = """
+                    DELETE FROM {h-schema}snapshots where ctid in 
+                    (SELECT s.ctid 
+                    FROM {h-schema}snapshots s 
+                    LEFT JOIN {h-schema}deployments d ON d.snapshot_id = s.id 
+                    LEFT JOIN {h-schema}chains c ON c.current_snapshot_id = s.id 
+                    WHERE s.created_when < :createdWhen AND 
+                    d.id IS NULL AND c.id IS NULL 
+                    LIMIT :chunk) RETURNING id, name, chain_id as chain"""
+    )
     List<Map<String, String>> pruneByCreatedWhen(@NonNull Timestamp createdWhen, int chunk);
 
     List<Snapshot> findAllByChainId(String chainId);
@@ -48,23 +50,24 @@ public interface SnapshotRepository extends SnapshotBaseRepository {
 
     void deleteAllByChainId(String chainId);
 
-    @Query( nativeQuery = true,
-            value = "select 'V' || (max(val) + 1) \n" +
-                    "FROM (" +
-                    "    select num as val\n" +
-                    "    from (\n" +
-                    "        select CAST(replace(name, 'V', '') AS INTEGER) num\n" +
-                    "        from {h-schema}snapshots\n" +
-                    "        where chain_id = :chainId\n" +
-                    "          and name ~ 'V[0-9]+$'\n" +
-                    "        order by CAST(replace(name, 'V', '')AS INTEGER) desc\n" +
-                    "        LIMIT 1\n" +
-                    "    ) t2\n" +
-                    "    union all\n" +
-                    "    select count(name) as val\n" +
-                    "    from {h-schema}snapshots as t1\n" +
-                    "    where chain_id = :chainId\n" +
-                    ") t"
+    @Query(nativeQuery = true,
+            value = """
+                    select 'V' || (max(val) + 1)
+                    FROM (
+                        select num as val
+                        from (
+                            select CAST(replace(name, 'V', '') AS INTEGER) num
+                            from {h-schema}snapshots
+                            where chain_id = :chainId
+                              and name ~ 'V[0-9]+$'
+                            order by CAST(replace(name, 'V', '')AS INTEGER) desc
+                            LIMIT 1
+                        ) t2
+                        union all
+                        select count(name) as val
+                        from {h-schema}snapshots as t1
+                        where chain_id = :chainId
+                    ) t"""
     )
     String getNextAvailableName(String chainId);
 

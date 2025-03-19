@@ -101,8 +101,8 @@ public class DiagnosticController {
     @PatchMapping("/validations")
     @Operation(description = "Run diagnostic validations")
     public ResponseEntity<Void> runValidations(
-            @RequestParam(required = false, defaultValue = "") @Parameter(description = "List of validation IDs that need to be run." +
-                    " If the parameter is empty, then all validations will be run") Set<String> validationIds
+            @RequestParam(required = false, defaultValue = "") @Parameter(description = "List of validation IDs that need to be run."
+                    + " If the parameter is empty, then all validations will be run") Set<String> validationIds
     ) {
         log.info("Request to start validations processing for: {}",
                 validationIds == null || validationIds.isEmpty() ? "all validations" : validationIds);
@@ -112,9 +112,9 @@ public class DiagnosticController {
 
     // clear entities for failed and in-progress validations
     private static void clearEntitiesByState(DiagnosticValidationDTO dto) {
-        if (dto.getStatus().getState() == ValidationState.FAILED ||
-            dto.getStatus().getState() == ValidationState.IN_PROGRESS ||
-            dto.getStatus().getState() == ValidationState.NOT_STARTED
+        if (dto.getStatus().getState() == ValidationState.FAILED
+                || dto.getStatus().getState() == ValidationState.IN_PROGRESS
+                || dto.getStatus().getState() == ValidationState.NOT_STARTED
         ) {
             dto.setAlertsCount(0);
             dto.setChainEntities(dto.getChainEntities() == null ? null : Collections.emptyList());

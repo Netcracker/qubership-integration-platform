@@ -36,14 +36,16 @@ public enum QIPCustomActionType {
 
     private final String value;
 
-    QIPCustomActionType(String value){
+    QIPCustomActionType(String value) {
         this.value = value;
     }
 
-    public String value() {return value;}
+    public String value() {
+        return value;
+    }
 
     public static QIPCustomActionType fromValue(String v) {
-        for (QIPCustomActionType c: QIPCustomActionType.values()) {
+        for (QIPCustomActionType c : QIPCustomActionType.values()) {
             if (c.value.equalsIgnoreCase(v)) {
                 return c;
             }

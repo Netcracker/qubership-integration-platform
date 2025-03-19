@@ -27,8 +27,9 @@ public class UriHelper extends BaseHelper {
      * Extract path and query from provided URI
      */
     public CharSequence extractPathAndQuery(Object uri) {
-        if (!SimpleHttpUriUtils.isValidProtocolAndDomainWithPort(uri.toString()))
+        if (!SimpleHttpUriUtils.isValidProtocolAndDomainWithPort(uri.toString())) {
             throw new SnapshotCreationException("Invalid URI format.");
+        }
         return SimpleHttpUriUtils.extractPathAndQueryFromUri(uri.toString());
     }
 }

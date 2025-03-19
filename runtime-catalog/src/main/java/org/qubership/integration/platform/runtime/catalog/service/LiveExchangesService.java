@@ -80,11 +80,12 @@ public class LiveExchangesService {
         result.forEach(r -> r.setChainName(idNameChainMap.get(r.getChainId())));
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public void sendKillExchangeRequest(String podIp, String deploymentId, String exchangeId) {
         String domainName = null;
         try {
             domainName = deploymentService.findById(deploymentId).getDomain();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { }
         actionLogger.logAction(ActionLog.builder()
                 .entityType(EntityType.EXCHANGE)
                 .entityId(exchangeId)

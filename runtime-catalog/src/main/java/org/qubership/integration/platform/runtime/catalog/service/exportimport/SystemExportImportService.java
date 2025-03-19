@@ -187,8 +187,9 @@ public class SystemExportImportService {
             systems.addAll(systemIds.stream().map(systemService::getByIdOrNull).filter(Objects::nonNull)
                     .toList());
         }
-        if (systems.isEmpty())
+        if (systems.isEmpty()) {
             return null;
+        }
 
         List<ExportedSystemObject> exportedSystems = exportSystems(systems, usedSystemModelIds);
         byte[] archive = serviceSerializer.writeSerializedArchive(exportedSystems);
@@ -522,19 +523,22 @@ public class SystemExportImportService {
             Consumer<String> messageHandler,
             Set<String> technicalLabels) {
         if (IntegrationSystemType.INTERNAL == newSystem.getIntegrationSystemType()) {
-            if (newSystem.getEnvironments().size() > 1)
+            if (newSystem.getEnvironments().size() > 1) {
                 throw new RuntimeException("Can't have more than 1 environment on internal system");
+            }
 
             Environment environment = newSystem.getEnvironments().isEmpty() ? null : newSystem.getEnvironments().get(0);
             Environment oldEnvironment = oldSystem.getEnvironments().isEmpty() ? null : oldSystem.getEnvironments().get(0);
 
-            if (isInternalEnvironmentAddressChanged(environment, oldEnvironment))
+            if (isInternalEnvironmentAddressChanged(environment, oldEnvironment)) {
                 messageHandler.accept(CHAINS_REDEPLOY_NEEDED_MSG);
+            }
 
-            if (environment == null && oldEnvironment != null)
+            if (environment == null && oldEnvironment != null) {
                 environmentService.deleteEnvironment(newSystem.getId(), oldEnvironment.getId());
-            else if (environment != null && oldEnvironment != null)
+            } else if (environment != null && oldEnvironment != null) {
                 environment.setId(oldEnvironment.getId());
+            }
 
             changeDiscoveredSourceLabels(newSystem, false);
 
@@ -580,7 +584,7 @@ public class SystemExportImportService {
             specificationGroup.getLabels().removeIf(label -> label.isTechnical() && !technicalLabels.contains(label.getName()));
             // Add to database only missing labels
             Set<String> currentSystemTechnicalLabels = specificationGroup.getLabels().stream().filter(AbstractLabel::isTechnical).map(AbstractLabel::getName).collect(Collectors.toSet());
-            Set<String> technicalLabelsToAdd = technicalLabels.stream().filter(labelName ->!currentSystemTechnicalLabels.contains(labelName)).collect(Collectors.toSet());
+            Set<String> technicalLabelsToAdd = technicalLabels.stream().filter(labelName -> !currentSystemTechnicalLabels.contains(labelName)).collect(Collectors.toSet());
 
             technicalLabelsToAdd.forEach(labelName -> specificationGroup.addLabel(new SpecificationGroupLabel(labelName, specificationGroup, true)));
         } else {
@@ -595,7 +599,7 @@ public class SystemExportImportService {
             systemModel.getLabels().removeIf(label -> label.isTechnical() && !technicalLabels.contains(label.getName()));
             // Add to database only missing labels
             Set<String> currentSystemTechnicalLabels = systemModel.getLabels().stream().filter(AbstractLabel::isTechnical).map(AbstractLabel::getName).collect(Collectors.toSet());
-            Set<String> technicalLabelsToAdd = technicalLabels.stream().filter(labelName ->!currentSystemTechnicalLabels.contains(labelName)).collect(Collectors.toSet());
+            Set<String> technicalLabelsToAdd = technicalLabels.stream().filter(labelName -> !currentSystemTechnicalLabels.contains(labelName)).collect(Collectors.toSet());
 
             technicalLabelsToAdd.forEach(labelName -> systemModel.addLabel(new SystemModelLabel(labelName, systemModel, true)));
         } else {
@@ -659,13 +663,12 @@ public class SystemExportImportService {
                         addUniqueSpecificationLabels(oldSpecGroupModelsNameMap.get(newSpecGroupModel.getName()), newSpecGroupModel.getLabels());
                         // compare sources for a warning message
                         String warnMessage = newSpecGroupModel.isSourcesEquals(
-                                    oldSpecGroupModelsNameMap.get(newSpecGroupModel.getName()).getSpecificationSources(),
-                                false) ?
-                                ("It already exists in specification group '" + sameOldSpecGroup.getName() + "'. ") :
-                                ("Specification with same version and different file(s) content already exists. ");
-                        messageHandler.accept(SPECIFICATION_EXISTS_ERROR_MESSAGE_START + newSpecGroupModel.getName() +
-                                "' from group '" + newSpecGroupModel.getSpecificationGroup().getName() +
-                                SPECIFICATION_EXISTS_ERROR_MESSAGE_END + warnMessage);
+                                oldSpecGroupModelsNameMap.get(newSpecGroupModel.getName()).getSpecificationSources(), false)
+                                        ? ("It already exists in specification group '" + sameOldSpecGroup.getName() + "'. ")
+                                        : ("Specification with same version and different file(s) content already exists. ");
+                        messageHandler.accept(SPECIFICATION_EXISTS_ERROR_MESSAGE_START + newSpecGroupModel.getName()
+                                + "' from group '" + newSpecGroupModel.getSpecificationGroup().getName()
+                                + SPECIFICATION_EXISTS_ERROR_MESSAGE_END + warnMessage);
                     } else {
                         // spec has a unique name in a group
                         sameOldSpecGroup.addSystemModel(newSpecGroupModel);
@@ -741,8 +744,8 @@ public class SystemExportImportService {
         for (SpecificationGroup specificationGroup : system.getSpecificationGroups()) {
             for (SystemModel systemModel : specificationGroup.getSystemModels()) {
                 SystemModelSource modelSourceType = systemModel.getSource();
-                if (modelSourceType == null ||
-                        (SystemModelSource.DISCOVERED.equals(modelSourceType)
+                if (modelSourceType == null
+                        || (SystemModelSource.DISCOVERED.equals(modelSourceType)
                                 && isNotDiscoveredOnThisEnvironment(systemModel, isNewSystem))) {
                     systemModel.setSource(SystemModelSource.MANUAL);
                 }
@@ -803,6 +806,7 @@ public class SystemExportImportService {
         setActiveEnvironmentId(system, null, deployLabel, messageHandler);
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     private void setActiveEnvironmentId(IntegrationSystem system, IntegrationSystem oldSystem, String deployLabelString, Consumer<String> messageHandler) {
         String environmentIdToActivate = null;
         try {

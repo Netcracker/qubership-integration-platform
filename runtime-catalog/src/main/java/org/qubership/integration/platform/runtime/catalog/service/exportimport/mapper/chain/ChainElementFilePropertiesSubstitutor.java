@@ -183,8 +183,8 @@ public class ChainElementFilePropertiesSubstitutor {
                     propertyContent = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(propsToExportSeparatelyMap);
                 }
             } else {
-                throw new IllegalArgumentException("Invalid property '" + EXPORT_FILE_EXTENSION_PROPERTY +
-                        "' of element " + externalElement.getId());
+                throw new IllegalArgumentException("Invalid property '" + EXPORT_FILE_EXTENSION_PROPERTY
+                        + "' of element " + externalElement.getId());
             }
 
             if (propertyContent != null) {
@@ -274,7 +274,7 @@ public class ChainElementFilePropertiesSubstitutor {
         return MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
     }
 
-    private Object getIdOrCode(Map<String, Object> mapProp){
+    private Object getIdOrCode(Map<String, Object> mapProp) {
         return mapProp.get(ID) == null ? mapProp.get(CODE) : mapProp.get(ID);
     }
 

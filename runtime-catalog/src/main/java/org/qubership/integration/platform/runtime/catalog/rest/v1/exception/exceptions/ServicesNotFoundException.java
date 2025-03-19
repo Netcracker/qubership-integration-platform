@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions;
 
-public class ServicesNotFoundException extends RuntimeException{
+public class ServicesNotFoundException extends RuntimeException {
 
     public ServicesNotFoundException(String message) {
         super(message);

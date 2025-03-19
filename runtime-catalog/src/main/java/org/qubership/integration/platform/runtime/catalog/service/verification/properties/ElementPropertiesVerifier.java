@@ -22,5 +22,6 @@ import java.util.Collection;
 
 public interface ElementPropertiesVerifier {
     boolean applicableTo(ChainElement element);
+
     Collection<VerificationError> verify(ChainElement element);
 }

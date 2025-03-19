@@ -44,8 +44,8 @@ public class DeprecatedElementUsageValidation extends BuiltinValidation {
                 "deprecated-element_YLTU14X8",
                 "Deprecated elements found in the chain",
                 "Rule allows to find chains with deprecated elements.",
-                "Chain contains deprecated elements. Please consider automatic migration option," +
-                        " available on the configuration graph, or manually re-configure the chain.",
+                "Chain contains deprecated elements. Please consider automatic migration option,"
+                        + " available on the configuration graph, or manually re-configure the chain.",
                 ValidationEntityType.CHAIN_ELEMENT,
                 ValidationImplementationType.BUILT_IN,
                 ValidationSeverity.ERROR

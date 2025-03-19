@@ -48,9 +48,9 @@ public class SpecificationExportController {
     public ResponseEntity<Object> exportSpecifications(@RequestParam(required = false) @Parameter(description = "List of specification ids separated by comma") List<String> specificationIds,
                                                        @RequestParam(required = false) @Parameter(description = "List of specification group ids separated by comma") String specificationGroupId) {
         Pair<byte[], String> archivePair = specificationExportService.exportSpecifications(specificationIds, specificationGroupId);
-        return archivePair == null ?
-                ResponseEntity.noContent().build() :
-                ExportImportUtils.convertFileToResponse(archivePair.getFirst(), archivePair.getSecond());
+        return archivePair == null
+                ? ResponseEntity.noContent().build()
+                : ExportImportUtils.convertFileToResponse(archivePair.getFirst(), archivePair.getSecond());
 
     }
 }

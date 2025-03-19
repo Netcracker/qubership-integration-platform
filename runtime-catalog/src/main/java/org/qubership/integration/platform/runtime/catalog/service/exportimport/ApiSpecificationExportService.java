@@ -273,7 +273,7 @@ public class ApiSpecificationExportService {
 
     private Chain getElementChain(ChainElement element) {
         Chain chain = element.getChain();
-        return isNull(chain)? element.getSnapshot().getChain() : chain;
+        return isNull(chain) ? element.getSnapshot().getChain() : chain;
     }
 
     private Paths buildPaths(Collection<ChainElement> elements) {
@@ -599,7 +599,7 @@ public class ApiSpecificationExportService {
             }
             updateReferencesForSchemas(schema.getProperties(), refModifier);
             if (schema instanceof ArraySchema) {
-                updateReferencesForSchema(((ArraySchema)schema).getItems(), refModifier);
+                updateReferencesForSchema(((ArraySchema) schema).getItems(), refModifier);
             }
             if (schema instanceof ComposedSchema) {
                 ComposedSchema composedSchema = (ComposedSchema) schema;
@@ -683,7 +683,7 @@ public class ApiSpecificationExportService {
         }
         Content content = buildContentFromValidationSchema(validationSchemaText);
         updateReferencesForContent(content, ref -> updateSchemasRefAndAddSuffixToRef(ref, element.getId()));
-        return isNull(content)? null : new RequestBody().content(content);
+        return isNull(content) ? null : new RequestBody().content(content);
     }
 
     private Content buildContentFromValidationSchema(String validationSchemaText) {

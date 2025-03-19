@@ -28,11 +28,11 @@ import java.util.Set;
 public class DependencyService {
     private final DependencyRepository dependencyRepository;
 
-    public DependencyService(DependencyRepository dependencyRepository){
+    public DependencyService(DependencyRepository dependencyRepository) {
         this.dependencyRepository = dependencyRepository;
     }
 
-    public void setActualizedElementDependencyStates(Set<Dependency> oldDependencyStates, Set<Dependency> newDependencyStates){
-        dependencyRepository.actualizeCollectionState(oldDependencyStates,newDependencyStates);
+    public void setActualizedElementDependencyStates(Set<Dependency> oldDependencyStates, Set<Dependency> newDependencyStates) {
+        dependencyRepository.actualizeCollectionState(oldDependencyStates, newDependencyStates);
     }
 }

@@ -134,15 +134,15 @@ public class DeploymentBuilderService {
         Snapshot snapshot = deployment.getSnapshot();
 
         Set<ChainElement> groupContainers = snapshot.getElements().stream()
-                .filter(item -> ElementService.CONTAINER_TYPE_NAME.equals(item.getType()) ||
-                        Optional.ofNullable(libraryService.getElementDescriptor(item.getType()))
+                .filter(item -> ElementService.CONTAINER_TYPE_NAME.equals(item.getType())
+                        || Optional.ofNullable(libraryService.getElementDescriptor(item.getType()))
                                 .map(descriptor -> ElementType.REUSE == descriptor.getType())
                                 .orElse(false))
                 .collect(Collectors.toSet());
 
         List<ChainElement> filteredElements = snapshot.getElements().stream()
-                .filter(item -> !item.getType().equals(ElementService.CONTAINER_TYPE_NAME) &&
-                        Optional.ofNullable(libraryService.getElementDescriptor(item.getType()))
+                .filter(item -> !item.getType().equals(ElementService.CONTAINER_TYPE_NAME)
+                        && Optional.ofNullable(libraryService.getElementDescriptor(item.getType()))
                                 .map(ElementDescriptor::getType)
                                 .map(type -> ElementType.REUSE != type
                                         && ElementType.REUSE_REFERENCE != type
@@ -197,14 +197,14 @@ public class DeploymentBuilderService {
 
     private boolean containsCheckpointsElements(List<ElementProperties> elementProperties) {
         return elementProperties.stream().anyMatch(
-                properties -> properties.getProperties() != null &&
-                        CHECKPOINT.equals(properties.getProperties().get(ELEMENT_TYPE)));
+                properties -> properties.getProperties() != null
+                        && CHECKPOINT.equals(properties.getProperties().get(ELEMENT_TYPE)));
     }
 
     private boolean containsSchedulerElements(List<ElementProperties> elementProperties) {
         return elementProperties.stream().anyMatch(
-                properties -> properties.getProperties() != null &&
-                        SCHEDULER.equals(properties.getProperties().get(ELEMENT_TYPE)));
+                properties -> properties.getProperties() != null
+                        && SCHEDULER.equals(properties.getProperties().get(ELEMENT_TYPE)));
     }
 
     private String replacePlaceholders(Snapshot snapshot, Deployment deployment) {

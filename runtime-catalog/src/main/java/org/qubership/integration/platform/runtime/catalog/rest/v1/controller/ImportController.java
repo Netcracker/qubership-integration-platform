@@ -86,9 +86,9 @@ public class ImportController {
 
         ImportDTO importDTO = importService.importFile(file, chainCommitRequestsList, new HashSet<>(technicalLabels));
 
-        HttpStatus responseCode = (importDTO != null && importDTO.getChains() != null &&
-                importDTO.getChains().stream().anyMatch(dto -> dto.getStatus().equals(ImportEntityStatus.ERROR))) ?
-                HttpStatus.MULTI_STATUS : HttpStatus.OK;
+        HttpStatus responseCode = (importDTO != null && importDTO.getChains() != null
+                && importDTO.getChains().stream().anyMatch(dto -> dto.getStatus().equals(ImportEntityStatus.ERROR)))
+                        ? HttpStatus.MULTI_STATUS : HttpStatus.OK;
         log.info("File {} imported successfully", file.getOriginalFilename());
         return ResponseEntity.status(responseCode).body(importDTO);
     }

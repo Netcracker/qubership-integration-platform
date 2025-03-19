@@ -51,8 +51,8 @@ public class BulkDeploymentController {
     public ResponseEntity<List<BulkDeploymentResponse>> bulkCreate(@RequestBody @Valid @Parameter(description = "Chain bulk deploy request object") BulkDeploymentRequest request) {
         log.info("Request to bulk redeploy chains");
         Pair<Boolean, List<BulkDeploymentResponse>> bulkDeploymentResponses = deploymentService.bulkCreate(request);
-        return bulkDeploymentResponses.getLeft() ?
-                ResponseEntity.status(HttpStatus.MULTI_STATUS).body(bulkDeploymentResponses.getRight()) :
-                ResponseEntity.ok(bulkDeploymentResponses.getRight());
+        return bulkDeploymentResponses.getLeft()
+                ? ResponseEntity.status(HttpStatus.MULTI_STATUS).body(bulkDeploymentResponses.getRight())
+                : ResponseEntity.ok(bulkDeploymentResponses.getRight());
     }
 }

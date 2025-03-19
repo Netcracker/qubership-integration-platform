@@ -54,8 +54,9 @@ public class EnvironmentPropertiesHelper {
     @SuppressWarnings("unused")
     public CharSequence environmentPropertiesJson(ChainElement element) {
         ServiceEnvironment environment = element.getEnvironment();
-        if (environment == null)
+        if (environment == null) {
             throw new SnapshotCreationException("Couldn't find service or active service environment.", element);
+        }
         Map<String, Object> environmentProperties = environment.getProperties();
         if (environmentProperties != null) {
             Map<String, Object> mergedProperties =
@@ -79,11 +80,12 @@ public class EnvironmentPropertiesHelper {
     @SuppressWarnings("unused")
     public CharSequence asyncPropertiesJson(ChainElement element) {
         ServiceEnvironment environment = element.getEnvironment();
-        if (environment == null)
+        if (environment == null) {
             throw new SnapshotCreationException("Couldn't find service or active service environment.", element);
+        }
         ArrayList<String> maasParamList = MaasUtils.getMaasParams(element);
         if (environment.getProperties() != null) {
-            if(!maasParamList.isEmpty() ) {
+            if (!maasParamList.isEmpty()) {
                 putMassParams(element, environment);
             }
             Map<String, Object> filteredEnvProperties = environment.getProperties();
@@ -108,10 +110,10 @@ public class EnvironmentPropertiesHelper {
         Map<String, Object> elementProperties = element.getProperties();
         ArrayList<String> maasParamList = new ArrayList<>();
         String operationProtocolType = "";
-        if(elementProperties.get(OPERATION_PROTOCOL_TYPE_PROP) != null){
+        if (elementProperties.get(OPERATION_PROTOCOL_TYPE_PROP) != null) {
             operationProtocolType = (String) elementProperties.get(OPERATION_PROTOCOL_TYPE_PROP);
         }
-        if(StringUtils.isNotEmpty(operationProtocolType)) {
+        if (StringUtils.isNotEmpty(operationProtocolType)) {
             if (StringUtils.equalsIgnoreCase(OPERATION_PROTOCOL_TYPE_KAFKA, operationProtocolType)) {
                 maasParamList = KAFKA_MAAS_PARAM_LIST;
             } else if (StringUtils.isNotEmpty(operationProtocolType) && StringUtils.equalsIgnoreCase(OPERATION_PROTOCOL_TYPE_AMQP, operationProtocolType)) {

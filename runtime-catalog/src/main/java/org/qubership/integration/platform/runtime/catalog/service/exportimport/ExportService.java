@@ -118,8 +118,8 @@ public class ExportService {
         String chainFileName = generateChainYamlName(chain);
         List<Deployment> deployments = chain.getDeployments();
         if (deployments.size() > 1) {
-            String curSnapShot = Optional.ofNullable(chain.getCurrentSnapshot()).
-                    map(Snapshot::getId).orElse("");
+            String curSnapShot = Optional.ofNullable(chain.getCurrentSnapshot())
+                    .map(Snapshot::getId).orElse("");
             chain.setDeployments(Collections.singletonList(deployments
                     .stream().filter(deployment -> curSnapShot.equals(deployment.getSnapshot()
                             .getId())).findFirst().orElse(deployments.stream()
@@ -188,8 +188,8 @@ public class ExportService {
             if (!CollectionUtils.isEmpty(propsToExportSeparately)) {
                 Map<String, Object> properties = element.getProperties();
                 String propString = null;
-                if (ExportImportUtils.isPropertiesFileGroove(element.getProperties()) ||
-                        ExportImportUtils.isPropertiesFileSql(element.getProperties())) {
+                if (ExportImportUtils.isPropertiesFileGroove(element.getProperties())
+                        || ExportImportUtils.isPropertiesFileSql(element.getProperties())) {
                     Object propObject = properties.get(propsToExportSeparately.get(0));
                     if (propObject != null) {
                         propString = propObject.toString();
@@ -205,8 +205,8 @@ public class ExportService {
                                 .toString(4);
                     }
                 } else {
-                    throw new IllegalArgumentException("Invalid property '" + EXPORT_FILE_EXTENSION_PROPERTY +
-                            "' of element " + element.getId());
+                    throw new IllegalArgumentException("Invalid property '" + EXPORT_FILE_EXTENSION_PROPERTY
+                            + "' of element " + element.getId());
                 }
 
                 if (propString != null) {
@@ -245,9 +245,9 @@ public class ExportService {
 
     private String getPropertyStringForMapper(Map beforeProperty) throws JsonProcessingException, JSONException {
         String propString = "";
-        List<String> props = List.of(MAPPING_DESCRIPTION, MAPPING, SOURCE, TARGET) ;
+        List<String> props = List.of(MAPPING_DESCRIPTION, MAPPING, SOURCE, TARGET);
         Map<String, Object> propsToExportSeparatelyMap = (Map<String, Object>) beforeProperty.keySet().stream()
-                .filter(p -> props.stream().anyMatch(p1-> p1.equals(p)) && beforeProperty.get(p) != null)
+                .filter(p -> props.stream().anyMatch(p1 -> p1.equals(p)) && beforeProperty.get(p) != null)
                 .collect(Collectors.toMap(p -> p, beforeProperty::get));
         if (!CollectionUtils.isEmpty(propsToExportSeparatelyMap)) {
             propString = new JSONObject(objectMapper.writeValueAsString(propsToExportSeparatelyMap))

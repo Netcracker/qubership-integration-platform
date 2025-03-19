@@ -87,8 +87,9 @@ public final class TemplateService {
 
     public String applyTemplate(ChainElement element) {
         Template template = getTemplate(element);
-        if (template == null)
+        if (template == null) {
             throw new SnapshotCreationException("Element is not supposed to be outside a parent container.", element);
+        }
 
         String renderedElement;
         try {
@@ -96,10 +97,11 @@ public final class TemplateService {
         } catch (IOException | RuntimeException e) {
             log.warn("Error while applying template to the element {}: {}", element.getType(), e.getMessage());
             if (e.getCause() instanceof SnapshotCreationException) {
-                if (StringUtils.isBlank(((SnapshotCreationException) e.getCause()).getElementId()))
+                if (StringUtils.isBlank(((SnapshotCreationException) e.getCause()).getElementId())) {
                     throw new SnapshotCreationException(e.getCause().getMessage(), element, e);
-                else
+                } else {
                     throw (SnapshotCreationException) e.getCause();
+                }
             }
             throw new SnapshotCreationException("Fields are not properly defined or require mandatory connection", element, e);
         }
@@ -109,12 +111,13 @@ public final class TemplateService {
 
     public Template getTemplate(ChainElement element) {
         return libraryService.getElementDescriptor(element).getType() == ElementType.COMPOSITE_TRIGGER
-                ? getTemplate(element.getType() + (element.getInputDependencies().isEmpty() && element.getParent() == null ?
-                        COMPOSITE_TRIGGER_DIR_SUFFIX :
-                        COMPOSITE_TRIGGER_MODULE_DIR_SUFFIX))
+                ? getTemplate(element.getType() + (element.getInputDependencies().isEmpty() && element.getParent() == null
+                        ? COMPOSITE_TRIGGER_DIR_SUFFIX
+                        : COMPOSITE_TRIGGER_MODULE_DIR_SUFFIX))
                 : getTemplate(element.getType());
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public Template getTemplate(String name) {
         try {
             return handlebars.compile(name);

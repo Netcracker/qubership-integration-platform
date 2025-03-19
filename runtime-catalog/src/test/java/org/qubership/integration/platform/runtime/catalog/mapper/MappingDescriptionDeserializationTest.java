@@ -101,8 +101,8 @@ public class MappingDescriptionDeserializationTest {
                 }
                 """, DataType.class);
         assertTrue(type instanceof ArrayType);
-        assertTrue(((ArrayType)type).getItemType() instanceof StringType);
-        assertTrue(((ArrayType)type).getDefinitions().isEmpty());
+        assertTrue(((ArrayType) type).getItemType() instanceof StringType);
+        assertTrue(((ArrayType) type).getDefinitions().isEmpty());
     }
 
     @Test
@@ -121,10 +121,10 @@ public class MappingDescriptionDeserializationTest {
                 }
                 """, DataType.class);
         assertTrue(type instanceof ArrayType);
-        assertTrue(((ArrayType)type).getItemType() instanceof StringType);
-        assertEquals(1, ((ArrayType)type).getDefinitions().size());
+        assertTrue(((ArrayType) type).getItemType() instanceof StringType);
+        assertEquals(1, ((ArrayType) type).getDefinitions().size());
 
-        TypeDefinition typeDefinition = ((ArrayType)type).getDefinitions().iterator().next();
+        TypeDefinition typeDefinition = ((ArrayType) type).getDefinitions().iterator().next();
         assertEquals("foo", typeDefinition.getId());
         assertEquals("bar", typeDefinition.getName());
         assertTrue(typeDefinition.getType() instanceof StringType);

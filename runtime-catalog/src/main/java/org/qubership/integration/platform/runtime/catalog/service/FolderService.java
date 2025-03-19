@@ -74,7 +74,7 @@ public class FolderService {
         return newFolder;
     }
 
-    public Folder setActualizedFolderState(Folder folderState){
+    public Folder setActualizedFolderState(Folder folderState) {
         List<Folder> actualizedFolderList = new LinkedList<>(folderState
                 .getFolderList()
                 .stream()

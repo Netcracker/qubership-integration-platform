@@ -26,6 +26,7 @@ import java.util.Collection;
 @Component
 public class ElementPropertiesBuilderFactory {
     private final Collection<ElementPropertiesBuilder> builders;
+
     @Autowired
     ElementPropertiesBuilderFactory(Collection<ElementPropertiesBuilder> builders) {
         this.builders = builders;

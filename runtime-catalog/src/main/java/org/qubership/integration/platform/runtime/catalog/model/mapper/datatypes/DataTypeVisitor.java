@@ -22,15 +22,22 @@ public interface DataTypeVisitor<R, A, E extends Exception> {
     }
 
     R visitAllOfType(AllOfType type, A arg) throws E;
+
     R visitAnyOfType(AnyOfType type, A arg) throws E;
+
     R visitOneOfType(OneOfType type, A arg) throws E;
 
     R visitNullType(NullType type, A arg) throws E;
+
     R visitBooleanType(BooleanType type, A arg) throws E;
+
     R visitIntegerType(IntegerType type, A arg) throws E;
+
     R visitStringType(StringType type, A arg) throws E;
 
     R visitArrayType(ArrayType type, A arg) throws E;
+
     R visitObjectType(ObjectType type, A arg) throws E;
+
     R visitReferenceType(ReferenceType type, A arg) throws E;
 }

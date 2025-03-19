@@ -91,9 +91,8 @@ public class EventService {
         try {
             for (Event event : circularFifoQueue) {
                 if (lastEventFound) {
-                    if (now - event.getTime() < EVENT_TIME_THRESHOLD_MS &&
-                            (event.getUserId() == null || event.getUserId().equals(userId))) {
-
+                    if (now - event.getTime() < EVENT_TIME_THRESHOLD_MS
+                            && (event.getUserId() == null || event.getUserId().equals(userId))) {
                         result.add(event);
                     }
                 } else {

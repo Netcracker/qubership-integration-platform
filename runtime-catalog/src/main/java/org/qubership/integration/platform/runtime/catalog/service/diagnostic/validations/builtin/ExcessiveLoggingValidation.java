@@ -49,9 +49,9 @@ public class ExcessiveLoggingValidation extends BuiltinValidation {
                 "excessive-logging_I8P3SG4G",
                 "Deployment has excessive logging settings",
                 "Rule allows to detect chains, deployed with \"Debug\" session level of logging.",
-                "Utilizing the \"Debug\" logging level might lead" +
-                        " to issues with log storage space or drastically degrade performance." +
-                        " It is recommended to reduce the level of logging and use \"Debug\" mode only on test environments.",
+                "Utilizing the \"Debug\" logging level might lead"
+                        + " to issues with log storage space or drastically degrade performance."
+                        + " It is recommended to reduce the level of logging and use \"Debug\" mode only on test environments.",
                 ValidationEntityType.CHAIN,
                 ValidationImplementationType.BUILT_IN,
                 ValidationSeverity.WARNING

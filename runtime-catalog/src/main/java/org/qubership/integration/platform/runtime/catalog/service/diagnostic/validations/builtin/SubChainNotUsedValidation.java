@@ -42,10 +42,10 @@ public class SubChainNotUsedValidation extends BuiltinValidation {
                 "sub-chain-not-used_4NIY0ODV",
                 "Sub-chain is used by single chain or not used at all",
                 "Rule allows to find chains which were not used in other chains, or they were used only once.",
-                "Sub-chains are designed to handle frequent and common scenarios and are expected to be linked" +
-                        " with large numbers of chains. Verify that sub-chains are properly linked to all chains," +
-                        " where they are supposed to be used. Consider including sub-chain logic into the main chain" +
-                        " if only this chain uses it.",
+                "Sub-chains are designed to handle frequent and common scenarios and are expected to be linked"
+                        + " with large numbers of chains. Verify that sub-chains are properly linked to all chains,"
+                        + " where they are supposed to be used. Consider including sub-chain logic into the main chain"
+                        + " if only this chain uses it.",
                 ValidationEntityType.CHAIN_ELEMENT,
                 ValidationImplementationType.BUILT_IN,
                 ValidationSeverity.ERROR

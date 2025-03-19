@@ -27,6 +27,7 @@ public class DictionaryEntryParser {
     private static final Pattern ENTRY_REGEX = Pattern.compile(
             "((?:[^=;\\\\]|\\\\[=;\\\\])*)=((?:[^=;\\\\]|\\\\[=;\\\\])*)"
     );
+
     public static Map.Entry<String, String> parse(String value) {
         Matcher matcher = ENTRY_REGEX.matcher(value);
         if (!matcher.matches()) {

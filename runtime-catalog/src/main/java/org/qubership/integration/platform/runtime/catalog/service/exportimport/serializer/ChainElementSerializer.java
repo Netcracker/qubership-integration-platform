@@ -169,7 +169,7 @@ public class ChainElementSerializer extends StdSerializer<ChainElement> {
     }
 
     private void setMapperFileNameInProperty(String key, Map<String, Object> properties, String fileName, Map<String, Object> scriptContent) {
-        if (MAPPER.equals(properties.get(TYPE))){
+        if (MAPPER.equals(properties.get(TYPE))) {
             scriptContent.put(key, properties.get(MAPPING));
             setSourceAndTargetValue(scriptContent, properties);
             properties.keySet().removeAll(Arrays.asList(MAPPING, SOURCE, TARGET));

@@ -38,8 +38,9 @@ public class RemoteImportEntity {
 
     public String getFileName() {
         String result = FilenameUtils.getName(this.fileUri);
-        if (result.isBlank())
+        if (result.isBlank()) {
             throw new RuntimeException("No filename");
+        }
         return result;
     }
 
@@ -54,19 +55,21 @@ public class RemoteImportEntity {
     public String getFileVersion() {
         String baseName = FilenameUtils.getBaseName(getFileName());
         int versionIndex = baseName.lastIndexOf('-') + 1;
-        if (versionIndex > 0)
+        if (versionIndex > 0) {
             return baseName.substring(versionIndex);
-        else
+        } else {
             return "";
+        }
     }
 
     public String getFileUriWoVersion() {
         String baseName = FilenameUtils.getBaseName(getFileName());
-        if (!getFileVersion().isBlank())
-            return getRelativeDirUri() + baseName.substring(0, baseName.lastIndexOf(getFileVersion()) - 1) +
-                    FilenameUtils.EXTENSION_SEPARATOR + FilenameUtils.getExtension(getFileName());
-        else
+        if (!getFileVersion().isBlank()) {
+            return getRelativeDirUri() + baseName.substring(0, baseName.lastIndexOf(getFileVersion()) - 1)
+                    + FilenameUtils.EXTENSION_SEPARATOR + FilenameUtils.getExtension(getFileName());
+        } else {
             return getRelativeDirUri() + getFileName();
+        }
     }
 
     private String formatUriDir(String uri) {

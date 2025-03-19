@@ -66,7 +66,7 @@ public class ExportableObjectWriterVisitor {
             return;
         }
 
-        ExportImportUtils.writeSystemObject(zipOut,entryPath + exportedSpecificationSource.getName(),
+        ExportImportUtils.writeSystemObject(zipOut, entryPath + exportedSpecificationSource.getName(),
                 exportedSpecificationSource.getSource());
     }
 }

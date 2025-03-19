@@ -142,8 +142,8 @@ public class ImportControllerV3 {
             boolean responseHasErrors = importResult.getChains().stream().anyMatch(chainResult -> ImportEntityStatus.ERROR.equals(chainResult.getStatus()))
                     || importResult.getSystems().stream().anyMatch(systemResult -> ImportSystemStatus.ERROR.equals(systemResult.getStatus()))
                     || importResult.getVariables().stream().anyMatch(variableResult -> ImportEntityStatus.ERROR.equals(variableResult.getStatus()))
-                    || importResult.getInstructionsResult().stream().anyMatch(instructionResult -> ImportInstructionStatus.ERROR_ON_DELETE.equals(instructionResult.getStatus()) ||
-                            ImportInstructionStatus.ERROR_ON_OVERRIDE.equals(instructionResult.getStatus()));
+                    || importResult.getInstructionsResult().stream().anyMatch(instructionResult -> ImportInstructionStatus.ERROR_ON_DELETE.equals(instructionResult.getStatus())
+                    || ImportInstructionStatus.ERROR_ON_OVERRIDE.equals(instructionResult.getStatus()));
             if (responseHasErrors) {
                 responseStatus = HttpStatus.MULTI_STATUS;
             }

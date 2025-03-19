@@ -28,7 +28,7 @@ public class QIPCustomAction extends Action implements Serializable {
     @JsonIgnore
     private QIPCustomActionType qipActionType;
 
-    public QIPCustomAction(){}
+    public QIPCustomAction() {}
 
     public QIPCustomAction(QIPCustomActionType type) {
         this.qipActionType = type;

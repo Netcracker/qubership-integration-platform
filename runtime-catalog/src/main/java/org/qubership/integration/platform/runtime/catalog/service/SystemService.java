@@ -83,12 +83,11 @@ public class SystemService extends SystemBaseService {
     }
 
     private boolean shouldCallControlPlane(IntegrationSystem system) {
-        return StringUtils.isNotEmpty(system.getActiveEnvironmentId()) &&
-                IntegrationSystemType.EXTERNAL.equals(system.getIntegrationSystemType()) &&
-                (
-                        OperationProtocol.HTTP.equals(system.getProtocol()) ||
-                                OperationProtocol.SOAP.equals(system.getProtocol()) ||
-                                OperationProtocol.GRAPHQL.equals(system.getProtocol())
+        return StringUtils.isNotEmpty(system.getActiveEnvironmentId())
+                && IntegrationSystemType.EXTERNAL.equals(system.getIntegrationSystemType())
+                && (OperationProtocol.HTTP.equals(system.getProtocol())
+                        || OperationProtocol.SOAP.equals(system.getProtocol())
+                        || OperationProtocol.GRAPHQL.equals(system.getProtocol())
                 );
     }
 

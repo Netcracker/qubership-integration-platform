@@ -188,11 +188,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/mail_sender.xml"
                 ),
                 // TODO: update test data
-//                Arguments.of(
-//                        "Mapper-2 element",
-//                        "/testData/input/builder/templates/mapper_2.yml",
-//                        "/testData/output/builder/templates/mapper_2.xml"
-//                ),
+                // Arguments.of(
+                //         "Mapper-2 element",
+                //         "/testData/input/builder/templates/mapper_2.yml",
+                //         "/testData/output/builder/templates/mapper_2.xml"
+                // ),
                 Arguments.of(
                         "Quartz Scheduler element",
                         "/testData/input/builder/templates/quartz_scheduler.yml",

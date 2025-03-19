@@ -118,9 +118,9 @@ public class KubeOperator {
             return list.getItems().stream()
                     .map(item -> {
                         boolean ready = false;
-                        if (item.getStatus() != null &&
-                                item.getStatus().getContainerStatuses() != null &&
-                                !item.getStatus().getContainerStatuses().isEmpty()) {
+                        if (item.getStatus() != null
+                                && item.getStatus().getContainerStatuses() != null
+                                && !item.getStatus().getContainerStatuses().isEmpty()) {
                             ready = item.getStatus().getContainerStatuses().get(0).getReady();
                         }
 

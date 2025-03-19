@@ -46,13 +46,14 @@ public class RestTemplateMsResponseErrorHandler implements ResponseErrorHandler 
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public void handleError(ClientHttpResponse response) throws IOException {
         String errorMessage = IOUtils.toString(response.getBody(), StandardCharsets.UTF_8);
 
         try {
             ExceptionDTO exceptionDTO = objectMapper.readValue(errorMessage, ExceptionDTO.class);
             errorMessage = exceptionDTO.getErrorMessage();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { }
 
         throw new MicroserviceErrorResponseException(errorMessage, (HttpStatus) response.getStatusCode(), response.getHeaders());
     }

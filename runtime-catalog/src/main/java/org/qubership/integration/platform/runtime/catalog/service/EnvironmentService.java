@@ -48,6 +48,7 @@ public class EnvironmentService extends EnvironmentBaseService {
 
     private final SystemService systemService;
     private final ServiceEnvironmentMapper serviceEnvironmentMapper;
+
     @Autowired
     public EnvironmentService(EnvironmentRepository environmentRepository,
                               ActionsLogService actionLogger,
@@ -68,8 +69,10 @@ public class EnvironmentService extends EnvironmentBaseService {
     public List<Environment> getActiveEnvironmentsBySystems(List<IntegrationSystem> systems) {
         return systems.stream().map(system -> {
             List<Environment> systemEnvironments = system.getEnvironments();
-            if (systemEnvironments == null || systemEnvironments.isEmpty())
+            if (systemEnvironments == null || systemEnvironments.isEmpty()) {
                 return null;
+            }
+
             switch (system.getIntegrationSystemType()) {
                 case INTERNAL:
                     return systemEnvironments.get(0);

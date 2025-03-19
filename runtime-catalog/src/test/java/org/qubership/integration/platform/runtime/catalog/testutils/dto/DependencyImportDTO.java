@@ -40,9 +40,9 @@ public class DependencyImportDTO {
 
     @Override
     public String toString() {
-        return "{" +
-                "from='" + from + '\'' +
-                ", to='" + to + '\'' +
-                '}';
+        return "{"
+                + "from='" + from + '\''
+                + ", to='" + to + '\''
+                + '}';
     }
 }

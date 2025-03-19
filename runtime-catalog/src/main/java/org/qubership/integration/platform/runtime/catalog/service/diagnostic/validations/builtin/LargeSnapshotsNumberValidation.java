@@ -45,8 +45,8 @@ public class LargeSnapshotsNumberValidation extends BuiltinValidation {
                 "large-snapshot-number_P860TWJZ",
                 "Large number of snapshots",
                 "Rule allows to check the number of snapshots that older than configured value.",
-                "Large number of snapshots might cause space consumption issues." +
-                        " Delete old and unused snapshots and only keep actual ones.",
+                "Large number of snapshots might cause space consumption issues."
+                        + " Delete old and unused snapshots and only keep actual ones.",
                 ValidationEntityType.CHAIN,
                 ValidationImplementationType.BUILT_IN,
                 ValidationSeverity.WARNING

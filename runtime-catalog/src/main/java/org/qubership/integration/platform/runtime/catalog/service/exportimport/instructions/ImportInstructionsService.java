@@ -197,6 +197,40 @@ public class ImportInstructionsService {
         }
     }
 
+    private List<ImportInstructionResult> uploadImportInstructionsConfig(
+            String fileName,
+            byte[] fileContent,
+            Set<String> labels
+    ) {
+        GeneralImportInstructionsConfig importInstructionsConfig = parseImportInstructionsConfig(fileName, fileContent);
+        importInstructionsConfig.setLabels(labels);
+
+        entityValidator.validate(importInstructionsConfig);
+
+        logAction(fileName, null, EntityType.IMPORT_INSTRUCTIONS, LogOperation.IMPORT);
+
+        List<ImportInstructionResult> importInstructionResults = new ArrayList<>();
+        importInstructionResults.addAll(performChainDeleteInstructions(importInstructionsConfig));
+        importInstructionResults.addAll(performSpecificationDeleteInstructions(importInstructionsConfig));
+        importInstructionResults.addAll(performSpecificationGroupDeleteInstructions(importInstructionsConfig));
+        importInstructionResults.addAll(performServiceDeleteInstructions(importInstructionsConfig));
+
+        List<ImportInstruction> savedImportInstructions = saveImportInstructions(importInstructionsConfig);
+        importInstructionResults.addAll(commonVariablesImportService
+                .uploadCommonVariablesImportInstructions(fileName, fileContent, labels));
+
+        savedImportInstructions.forEach(importInstruction ->
+                logSingleInstructionAction(
+                        importInstruction.getId(),
+                        importInstruction.getEntityType(),
+                        LogOperation.CREATE_OR_UPDATE
+                )
+        );
+
+        log.info("Import instructions file {} successfully uploaded", fileName);
+
+        return importInstructionResults;
+    }
 
     public Pair<String, byte[]> exportImportInstructions() {
         GeneralImportInstructionsConfig importInstructionsConfig = getAllImportInstructionsConfig();
@@ -327,41 +361,6 @@ public class ImportInstructionsService {
                 .asConfig(importInstructionsRepository.findAll());
         importInstructionsConfig.setCommonVariables(commonVariablesImportService.getCommonVariablesImportInstructionsConfig());
         return importInstructionsConfig;
-    }
-
-    private List<ImportInstructionResult> uploadImportInstructionsConfig(
-            String fileName,
-            byte[] fileContent,
-            Set<String> labels
-    ) {
-        GeneralImportInstructionsConfig importInstructionsConfig = parseImportInstructionsConfig(fileName, fileContent);
-        importInstructionsConfig.setLabels(labels);
-
-        entityValidator.validate(importInstructionsConfig);
-
-        logAction(fileName, null, EntityType.IMPORT_INSTRUCTIONS, LogOperation.IMPORT);
-
-        List<ImportInstructionResult> importInstructionResults = new ArrayList<>();
-        importInstructionResults.addAll(performChainDeleteInstructions(importInstructionsConfig));
-        importInstructionResults.addAll(performSpecificationDeleteInstructions(importInstructionsConfig));
-        importInstructionResults.addAll(performSpecificationGroupDeleteInstructions(importInstructionsConfig));
-        importInstructionResults.addAll(performServiceDeleteInstructions(importInstructionsConfig));
-
-        List<ImportInstruction> savedImportInstructions = saveImportInstructions(importInstructionsConfig);
-        importInstructionResults.addAll(commonVariablesImportService
-                .uploadCommonVariablesImportInstructions(fileName, fileContent, labels));
-
-        savedImportInstructions.forEach(importInstruction ->
-                logSingleInstructionAction(
-                        importInstruction.getId(),
-                        importInstruction.getEntityType(),
-                        LogOperation.CREATE_OR_UPDATE
-                )
-        );
-
-        log.info("Import instructions file {} successfully uploaded", fileName);
-
-        return importInstructionResults;
     }
 
     private GeneralImportInstructionsConfig parseImportInstructionsConfig(String fileName, byte[] fileContent) {

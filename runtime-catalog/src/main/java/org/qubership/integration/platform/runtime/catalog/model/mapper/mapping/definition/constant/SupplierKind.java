@@ -31,12 +31,12 @@ public enum SupplierKind {
 
     private final String value;
 
-    SupplierKind(String value){
+    SupplierKind(String value) {
         this.value = value;
     }
 
     public static SupplierKind fromValue(String v) {
-        for (SupplierKind c: SupplierKind.values()) {
+        for (SupplierKind c : SupplierKind.values()) {
             if (c.value.equalsIgnoreCase(v)) {
                 return c;
             }

@@ -28,8 +28,8 @@ public interface ImportSessionRepository extends JpaRepository<ImportSession, St
     @Modifying
     @Query(
             nativeQuery = true,
-            value = "DELETE FROM catalog.import_sessions " +
-                    "WHERE modified_when <= NOW() - make_interval(0, 0, 0, 0, 0, :sessionLifetimeMinutes, 0)"
+            value = "DELETE FROM catalog.import_sessions "
+                    + "WHERE modified_when <= NOW() - make_interval(0, 0, 0, 0, 0, :sessionLifetimeMinutes, 0)"
     )
     void deleteSessionsOlderThan(int sessionLifetimeMinutes);
 }

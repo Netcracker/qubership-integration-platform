@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 
 public class ElementMapBuilder {
     public record ElementContext(Map<String, TypeDefinition> definitionMap) {}
+
     public record ElementWithContext(
             Element element,
             ElementContext context

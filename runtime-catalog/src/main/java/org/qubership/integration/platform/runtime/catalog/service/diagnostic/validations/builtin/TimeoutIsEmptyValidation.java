@@ -40,8 +40,8 @@ public class TimeoutIsEmptyValidation extends BuiltinValidation {
                 "timeout-is-empty_SKWPF0NJ",
                 "Timeout is empty",
                 "Rule allows to find chain elements with empty timeout value.",
-                "Please consider specifying proper timeout values for chain elements or services" +
-                        " environments linked to them in order to ensure compliance with project needs.",
+                "Please consider specifying proper timeout values for chain elements or services"
+                        + " environments linked to them in order to ensure compliance with project needs.",
                 ValidationEntityType.CHAIN_ELEMENT,
                 ValidationImplementationType.BUILT_IN,
                 ValidationSeverity.ERROR

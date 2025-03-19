@@ -29,10 +29,11 @@ import java.util.Map;
 @TemplatesHelper
 public class GenerateURLHelper {
 
-    private final static String CHECK_REQUIRED_FIELDS_FOR_ELEMENT = "Check required fields for element.";
+    private static final String CHECK_REQUIRED_FIELDS_FOR_ELEMENT = "Check required fields for element.";
 
     /**
      * Method is used to append the path and query parameter for URL
+     *
      * @param element
      * @return
      */
@@ -57,8 +58,8 @@ public class GenerateURLHelper {
         }
 
         if (pathMap != null) {
-            for(String key : pathMap.keySet()) {
-                if(StringUtils.isEmpty(pathMap.get(key))) {
+            for (String key : pathMap.keySet()) {
+                if (StringUtils.isEmpty(pathMap.get(key))) {
                     continue;
                 }
 
@@ -69,8 +70,8 @@ public class GenerateURLHelper {
         }
 
         if (queryMap != null) {
-            for(String key : queryMap.keySet()) {
-                if(StringUtils.isEmpty(queryMap.get(key))) {
+            for (String key : queryMap.keySet()) {
+                if (StringUtils.isEmpty(queryMap.get(key))) {
                     continue;
                 }
 
@@ -92,11 +93,14 @@ public class GenerateURLHelper {
 
         Map<String, String> map = (LinkedHashMap) element.getProperty(CamelOptions.OPERATION_PATH_PARAMETERS);
 
-        if (map == null || map.isEmpty()) return baseURL;
+        if (map == null || map.isEmpty()) {
+            return baseURL;
+        }
 
         for (String key : map.keySet()) {
-            if (StringUtils.isEmpty(map.get(key)))
+            if (StringUtils.isEmpty(map.get(key))) {
                 throw new SnapshotCreationException(CHECK_REQUIRED_FIELDS_FOR_ELEMENT, element);
+            }
 
             baseURL = baseURL.replace("{" + key + "}", map.get(key));
         }
@@ -104,14 +108,16 @@ public class GenerateURLHelper {
         return baseURL;
     }
 
-    private String generateQueryParamString (ChainElement element) {
+    private String generateQueryParamString(ChainElement element) {
         StringBuilder result = new StringBuilder();
         Map<String, String> map = (LinkedHashMap) element.getProperty(CamelOptions.OPERATION_QUERY_PARAMETERS);
 
-        if(map == null || map.isEmpty()) return result.toString();
+        if (map == null || map.isEmpty()) {
+            return result.toString();
+        }
 
-        for(String key : map.keySet()) {
-            if(!StringUtils.isEmpty(map.get(key))) {
+        for (String key : map.keySet()) {
+            if (!StringUtils.isEmpty(map.get(key))) {
                 if (result.length() == 0) {
                     result.append("?");
                 } else {

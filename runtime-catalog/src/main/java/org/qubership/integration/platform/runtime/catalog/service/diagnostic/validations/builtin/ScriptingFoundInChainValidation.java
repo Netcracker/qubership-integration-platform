@@ -40,8 +40,8 @@ public class ScriptingFoundInChainValidation extends BuiltinValidation {
                 "scripting-found-in-chain_0WHKW1A3",
                 "Scripting found in the chain",
                 "Rule allows to find chains and chain elements which contain scripting.",
-                "Scripting is not recommended, as it often causes unexpected harm to the data or instance if done incorrectly." +
-                        " Please consider replacing scripts with mapper, if possible.",
+                "Scripting is not recommended, as it often causes unexpected harm to the data or instance if done incorrectly."
+                        + " Please consider replacing scripts with mapper, if possible.",
                 ValidationEntityType.CHAIN_ELEMENT,
                 ValidationImplementationType.BUILT_IN,
                 ValidationSeverity.WARNING

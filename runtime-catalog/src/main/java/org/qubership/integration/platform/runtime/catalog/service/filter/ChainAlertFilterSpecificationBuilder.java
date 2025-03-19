@@ -57,9 +57,9 @@ public class ChainAlertFilterSpecificationBuilder {
                         .map(filter -> buildPredicate(root, criteriaBuilder, filter))
                         .toArray(Predicate[]::new);
 
-                return filters.size() > 1 ?
-                        predicateAccumulator.apply(criteriaBuilder, predicates) :
-                        predicates[0];
+                return filters.size() > 1
+                        ? predicateAccumulator.apply(criteriaBuilder, predicates)
+                        : predicates[0];
             }
 
             return null;

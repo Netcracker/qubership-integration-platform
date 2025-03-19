@@ -50,9 +50,9 @@ public class EndpointHelperSource {
     @Value("${qip.gateway.service-path-prefix:/qip/}")
     private String gatewayServicePathPrefix;
 
-    private final static String ADDRESS_IS_EMPTY_MSG = "Please fill environment address field on the service.";
-    private final static String NO_ACTIVE_ENVIRONMENT_MSG = "Please select active environment on the service.";
-    private final static String NO_SERVICE_MSG = "Please check required services.";
+    private static final String ADDRESS_IS_EMPTY_MSG = "Please fill environment address field on the service.";
+    private static final String NO_ACTIVE_ENVIRONMENT_MSG = "Please select active environment on the service.";
+    private static final String NO_SERVICE_MSG = "Please check required services.";
 
     @PostConstruct
     private void afterInit() {
@@ -75,17 +75,20 @@ public class EndpointHelperSource {
 
         switch (type) {
             case CamelOptions.SYSTEM_TYPE_EXTERNAL -> {
-                if (environment == null)
+                if (environment == null) {
                     throw new SnapshotCreationException(NO_ACTIVE_ENVIRONMENT_MSG, element);
+                }
                 address = String.format("%s://%s/system/%s/%s",
                         this.gatewayProtocol, this.gatewayUrl, element.getOriginalId(), HashUtils.sha1hex(environment.getAddress()));
             }
             case CamelOptions.SYSTEM_TYPE_INTERNAL -> {
-                if (environment == null)
+                if (environment == null) {
                     throw new SnapshotCreationException(NO_ACTIVE_ENVIRONMENT_MSG, element);
+                }
                 address = environment.getAddress();
-                if (StringUtils.isBlank(address))
+                if (StringUtils.isBlank(address)) {
                     throw new SnapshotCreationException(ADDRESS_IS_EMPTY_MSG, element);
+                }
             }
             case CamelOptions.SYSTEM_TYPE_IMPLEMENTED ->
                     address = (environment == null) ? "" : environment.getAddress();
@@ -100,26 +103,28 @@ public class EndpointHelperSource {
     public CharSequence integrationEndpoint(ChainElement element) {
         ServiceEnvironment environment = element.getEnvironment();
         ArrayList<String> maasParamList = MaasUtils.getMaasParams(element);
-        if (environment == null)
+        if (environment == null) {
             throw new SnapshotCreationException(NO_SERVICE_MSG, element);
+        }
         if (environment.isNotActivated()) {
             throw new SnapshotCreationException(NO_ACTIVE_ENVIRONMENT_MSG, element);
         }
         String endpoint = environment.getAddress();
-        if(!maasParamList.isEmpty()){
+        if (!maasParamList.isEmpty()) {
             endpoint = getMaasParam(element, endpoint);
         }
-        if (StringUtils.isBlank(endpoint))
+        if (StringUtils.isBlank(endpoint)) {
             throw new SnapshotCreationException(ADDRESS_IS_EMPTY_MSG, element);
+        }
 
         return endpoint;
     }
 
     private static String getMaasParam(ChainElement element, String endpoint) {
         Map<String, Object> elementProperties = element.getProperties();
-        if(StringUtils.equalsIgnoreCase(OPERATION_PROTOCOL_TYPE_KAFKA, (String) elementProperties.get(OPERATION_PROTOCOL_TYPE_PROP) )) {
+        if (StringUtils.equalsIgnoreCase(OPERATION_PROTOCOL_TYPE_KAFKA, (String) elementProperties.get(OPERATION_PROTOCOL_TYPE_PROP))) {
             endpoint = MaasUtils.getMaasParamPlaceholder(element.getOriginalId(), BROKERS);
-        }else if(StringUtils.equalsIgnoreCase(OPERATION_PROTOCOL_TYPE_AMQP, (String) elementProperties.get(OPERATION_PROTOCOL_TYPE_PROP) )) {
+        } else if (StringUtils.equalsIgnoreCase(OPERATION_PROTOCOL_TYPE_AMQP, (String) elementProperties.get(OPERATION_PROTOCOL_TYPE_PROP))) {
             endpoint = MaasUtils.getMaasParamPlaceholder(element.getOriginalId(), ADDRESSES);
         }
         return endpoint;

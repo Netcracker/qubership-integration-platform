@@ -22,5 +22,6 @@ import java.util.Map;
 
 public interface ElementPropertiesBuilder {
     boolean applicableTo(ChainElement element);
+
     Map<String, String> build(ChainElement element);
 }

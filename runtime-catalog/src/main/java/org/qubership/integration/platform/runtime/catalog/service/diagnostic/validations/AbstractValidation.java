@@ -51,8 +51,8 @@ public abstract class AbstractValidation {
                               ValidationEntityType entityType, ValidationImplementationType implementationType,
                               ValidationSeverity severity) {
         if (!ID_VALIDATION_PATTERN.matcher(id).find()) {
-            throw new IllegalArgumentException("Validation has invalid ID: " + id +
-                    ". ID must match the pattern: " + ID_VALIDATION_PATTERN.pattern());
+            throw new IllegalArgumentException("Validation has invalid ID: " + id
+                    + ". ID must match the pattern: " + ID_VALIDATION_PATTERN.pattern());
         }
         this.id = id;
         this.title = title;

@@ -38,6 +38,7 @@ import java.util.Collection;
 })
 public interface DataType extends MetadataAware {
     TypeKind getKind();
+
     <R, A, E extends Exception> R accept(DataTypeVisitor<R, A, E> visitor, A arg) throws E;
 
     Collection<Attribute> getNestedAttributes();

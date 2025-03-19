@@ -24,8 +24,8 @@ public class KubeApiException extends CatalogRuntimeException {
         super(message);
     }
 
-    public KubeApiException(String message, Exception exception){
-        super(message,exception);
+    public KubeApiException(String message, Exception exception) {
+        super(message, exception);
     }
 
 }

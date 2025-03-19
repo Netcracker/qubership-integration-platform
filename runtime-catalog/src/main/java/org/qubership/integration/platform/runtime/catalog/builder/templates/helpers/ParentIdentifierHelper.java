@@ -29,8 +29,8 @@ public class ParentIdentifierHelper implements Helper<ChainElement> {
 
     @Override
     public Object apply(ChainElement element, Options options) {
-        return element.getParent() != null ?
-                Optional.ofNullable(element.getParent().getId()).orElse(StringUtils.EMPTY) :
-                StringUtils.EMPTY;
+        return element.getParent() != null
+                ? Optional.ofNullable(element.getParent().getId()).orElse(StringUtils.EMPTY)
+                : StringUtils.EMPTY;
     }
 }

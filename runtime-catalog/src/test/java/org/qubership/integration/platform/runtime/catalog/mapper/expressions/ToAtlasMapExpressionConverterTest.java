@@ -21,10 +21,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ToAtlasMapExpressionConverterTest {
-    private static final ToAtlasMapExpressionConverter converter = new ToAtlasMapExpressionConverter();
+    private static final ToAtlasMapExpressionConverter CONVERTER = new ToAtlasMapExpressionConverter();
+
     @Test
     public void testConvert() {
-        String result = converter.convert(
+        String result = CONVERTER.convert(
                 "foo() || bar(body.property.header, constant.hello\\ world)",
                 reference -> reference.kind().name() + ":" + String.join("/", reference.path())
         );
@@ -33,7 +34,7 @@ class ToAtlasMapExpressionConverterTest {
 
     @Test
     public void testConvertConstantWithIntegerNumberAsName() {
-        String result = converter.convert("constant.42",
+        String result = CONVERTER.convert("constant.42",
                 reference -> reference.kind().name() + ":" + String.join("/", reference.path()));
         assertEquals("${CONSTANT:42}", result);
     }

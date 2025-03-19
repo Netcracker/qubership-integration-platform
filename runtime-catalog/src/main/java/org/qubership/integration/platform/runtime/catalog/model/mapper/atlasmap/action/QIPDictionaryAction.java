@@ -28,7 +28,7 @@ public class QIPDictionaryAction extends QIPCustomAction {
     private String defaultValue = "";
 
     @JsonProperty("dictionary")
-    private Map<String,String> dictionary = new HashMap<>();
+    private Map<String, String> dictionary = new HashMap<>();
 
 
     public QIPDictionaryAction() {

@@ -125,7 +125,7 @@ public class GeneralImportService {
         }
     }
 
-    public String importFileAsync(MultipartFile file, ImportRequest importRequest, Set<String> technicalLabels , boolean validateByHash) {
+    public String importFileAsync(MultipartFile file, ImportRequest importRequest, Set<String> technicalLabels, boolean validateByHash) {
         String importId = UUID.randomUUID().toString();
 
         importSessionService.deleteObsoleteImportSessionStatuses();
