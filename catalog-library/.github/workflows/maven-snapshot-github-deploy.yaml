@@ -33,15 +33,19 @@ jobs:
           if [[ "${IS_SNAPSHOT}" == "" ]]
           then
             echo "❗ The project/properties/revision in the pom.xml has no '-SNAPSHOT' postfix." >> $GITHUB_STEP_SUMMARY
-            echo "❗ Workflow fail. Please add '-SNAPSHOT' to the revision." >> $GITHUB_STEP_SUMMARY
+            echo "❗ Workflow will not deploy any artifacts. Please add '-SNAPSHOT' to the revision." >> $GITHUB_STEP_SUMMARY
             echo "❗ The project/properties/revision in the pom.xml has no '-SNAPSHOT' postfix."
-            echo "Workflow fail. Please add '-SNAPSHOT' to the revision."
-            exit 1
+            echo "❗ Workflow will not deploy any artifacts. Please add '-SNAPSHOT' to the revision."
+            echo "IS_SNAPSHOT=false" >> $GITHUB_ENV
           else
-            echo "✅ The project/properties/revision in the pom.xml has '-SNAPSHOT' postfix: ${IS_SNAPSHOT}" >> $GITHUB_STEP_SUMMARY
-            echo "✅ The project/properties/revision in the pom.xml has '-SNAPSHOT' postfix: ${IS_SNAPSHOT}"
+            echo "✅ The project/properties/revision in the pom.xml has '-SNAPSHOT' postfix" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Workflow will deploy SNAPSHOT artifact" >> $GITHUB_STEP_SUMMARY
+            echo "✅ The project/properties/revision in the pom.xml has '-SNAPSHOT' postfix."
+            echo "✅ Workflow will deploy SNAPSHOT artifact"
+            echo "IS_SNAPSHOT=true" >> $GITHUB_ENV
           fi
       - name: "Set up JDK"
+        if: ${{ env.IS_SNAPSHOT == 'true' }}
         uses: actions/setup-java@v4
         with:
           java-version: "21"
@@ -53,12 +57,15 @@ jobs:
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - name: Display settings.xml
+        if: ${{ env.IS_SNAPSHOT == 'true' }}
         run: cat ~/.m2/settings.xml
       - name: "Disable Maven Central Deploy"
+        if: ${{ env.IS_SNAPSHOT == 'true' }}
         run: |
           xmlstarlet ed -L -d "/_:project/_:build/_:plugins/_:plugin[./_:artifactId='central-publishing-maven-plugin']" ./pom.xml
 
       - name: "Maven deploy"
+        if: ${{ env.IS_SNAPSHOT == 'true' }}
         run: |
           mvn --batch-mode deploy -DaltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} \
           -Dgpg.skip=true
