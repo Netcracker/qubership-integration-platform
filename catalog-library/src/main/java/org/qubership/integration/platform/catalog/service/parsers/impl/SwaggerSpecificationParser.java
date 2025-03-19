@@ -190,13 +190,13 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                 for (var method : path.getValue().entrySet()) {
                     io.swagger.v3.oas.models.Operation operation = method.getValue();
                     ObjectNode specification = (ObjectNode) objectMapper.readTree(objectMapper.writeValueAsString(operation));
-                    if (!pathItemParams.isEmpty()){
+                    if (!pathItemParams.isEmpty()) {
                         ArrayNode specificationParameters = objectMapper.createArrayNode();
-                        if (specification.has(PARAMETERS_NODE)){
-                            specificationParameters.addAll( (ArrayNode) specification.get(PARAMETERS_NODE));
+                        if (specification.has(PARAMETERS_NODE)) {
+                            specificationParameters.addAll((ArrayNode) specification.get(PARAMETERS_NODE));
                         }
                         specificationParameters.addAll(pathItemParams);
-                        specification.set(PARAMETERS_NODE,specificationParameters);
+                        specification.set(PARAMETERS_NODE, specificationParameters);
                     }
                     if (operation != null) {
                         Operation resultOperation = Operation.builder()
@@ -234,7 +234,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                 }
             }
         } catch (IOException e) {
-            throw new SpecificationImportException(ERROR_CONVERTING_OPERATION_MESSAGE,e.getCause());
+            throw new SpecificationImportException(ERROR_CONVERTING_OPERATION_MESSAGE, e.getCause());
         }
         return generatedOperations;
     }
@@ -289,9 +289,9 @@ public class SwaggerSpecificationParser implements SpecificationParser {
 
                     MutablePair<String, String> processedSchemaPair = schemaProcessor.process(schema);
                     String ref = processedSchemaPair.left;
-                    String schemaAsString = ref != null ?
-                            swaggerSchemaResolver.resolveRef(ref, importedComponents) :
-                            processedSchemaPair.right;
+                    String schemaAsString = ref != null
+                            ? swaggerSchemaResolver.resolveRef(ref, importedComponents)
+                            : processedSchemaPair.right;
 
                     return new MutablePair<>(mediaType, schemaProcessor.applySchemaType(schemaAsString));
                 })
@@ -312,12 +312,11 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         StringBuilder operationId = new StringBuilder(method.toLowerCase());
         if (!"/".equals(url)) {
             int slashIndex = url.lastIndexOf("/");
-            if (slashIndex+1 == url.length()) {
-                slashIndex = url.substring(0, url.length()-2).lastIndexOf("/");
+            if (slashIndex + 1 == url.length()) {
+                slashIndex = url.substring(0, url.length() - 2).lastIndexOf("/");
             }
             operationId.append(StringUtils.capitalize(url.substring(++slashIndex)));
-        }
-        else {
+        } else {
             if (operation.getParameters() != null) {
                 for (Parameter parameter : operation.getParameters()) {
                     operationId
@@ -325,8 +324,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                             .append(StringUtils.capitalize(parameter.getName()))
                             .append("}");
                 }
-            }
-            else {
+            } else {
                 operationId.append("/");
             }
         }
@@ -371,7 +369,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         }
     }
 
-    private Environment setDefaultProperties(SpecificationGroup specificationGroup){
+    private Environment setDefaultProperties(SpecificationGroup specificationGroup) {
         Environment environment = specificationGroup.getSystem().getEnvironments().get(0);
         environmentBaseService.setDefaultProperties(environment);
         return environment;

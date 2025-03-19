@@ -66,15 +66,21 @@ public abstract class AbstractLabel implements Serializable {
     }
 
     public boolean equals(Object o, boolean strict) {
-        if (this == o) return true;
-        if (o == null) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
         Class<?> oEffectiveClass = o instanceof HibernateProxy ? ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass() : o.getClass();
         Class<?> thisEffectiveClass = this instanceof HibernateProxy ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass() : this.getClass();
-        if (thisEffectiveClass != oEffectiveClass) return false;
+        if (thisEffectiveClass != oEffectiveClass) {
+            return false;
+        }
         AbstractLabel that = (AbstractLabel) o;
-        return (!strict || StringUtils.equals(this.getId(), that.getId())) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(technical, that.technical);
+        return (!strict || StringUtils.equals(this.getId(), that.getId()))
+                && Objects.equals(name, that.name)
+                && Objects.equals(technical, that.technical);
     }
 
     @Override

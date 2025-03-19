@@ -31,13 +31,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ResourceLoaderUtils {
 
-    private static final ResourcePatternResolver resourceResolver =
+    private static final ResourcePatternResolver RESOURCE_RESOLVER =
             new PathMatchingResourcePatternResolver(ResourceLoaderUtils.class.getClassLoader());
 
     public static Map<String, Resource> loadFiles(String locationPattern) {
         try {
             return Arrays
-                    .stream(resourceResolver.getResources(locationPattern))
+                    .stream(RESOURCE_RESOLVER.getResources(locationPattern))
                     .map(descriptorFile -> extractDirPath(descriptorFile)
                             .map(dirPath -> Map.entry(dirPath, descriptorFile))
                             .orElse(null))

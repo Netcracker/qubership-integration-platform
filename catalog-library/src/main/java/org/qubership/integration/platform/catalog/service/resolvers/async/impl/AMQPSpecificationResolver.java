@@ -75,7 +75,7 @@ public class AMQPSpecificationResolver implements AsyncApiSpecificationResolver 
             }
             return specificationNode;
         } catch (JsonProcessingException e) {
-            throw new SpecificationImportException(CONVERTING_OPERATION_TO_JSON_ERROR,e);
+            throw new SpecificationImportException(CONVERTING_OPERATION_TO_JSON_ERROR, e);
         }
     }
 

@@ -188,7 +188,7 @@ public class SystemModelBaseService {
             }
             Manifest manifest = codeGenerator.generateManifest(model);
             log.debug("Compiling library for system model with id {}", model.getId());
-            Map<String, byte[]> compiledCode = code.isEmpty()? Collections.emptyMap() : compilerService.compile(code);
+            Map<String, byte[]> compiledCode = code.isEmpty() ? Collections.emptyMap() : compilerService.compile(code);
             JarBuilder jarBuilder = new JarBuilder();
             try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
                 jarBuilder.writeJar(outputStream, compiledCode, manifest);

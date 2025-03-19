@@ -140,7 +140,7 @@ public class ActionsLogService {
     }
 
     private void consoleLogAction(ActionLog action) {
-        MDC.put("logType","audit");
+        MDC.put("logType", "audit");
         String actionOperationName = action.getOperation() != null ? action.getOperation().name() : "-";
         String entityTypeName = action.getEntityType() != null ? action.getEntityType().name() : "-";
         String entityNameDescriptionString = action.getEntityName() != null ? " with name ".concat(action.getEntityName()) : "";

@@ -93,7 +93,7 @@ public class PackageInternalsFinder {
     private String getJarUri(URL packageFolderUrl) {
         String urlString = packageFolderUrl.toExternalForm();
         int index = urlString.lastIndexOf("!");
-        return index >= 0? urlString.substring(0, index) : urlString;
+        return index >= 0 ? urlString.substring(0, index) : urlString;
     }
 
     private List<JavaFileObject> processDir(String packageName, File directory) {

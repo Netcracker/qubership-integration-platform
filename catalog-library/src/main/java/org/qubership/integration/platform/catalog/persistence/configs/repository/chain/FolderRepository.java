@@ -34,62 +34,66 @@ public interface FolderRepository extends CommonRepository<Folder>, JpaRepositor
 
     List<Folder> findAllByParentFolderEquals(Folder folder);
 
-    @Query(nativeQuery = true,
-     value = "WITH RECURSIVE folder_hierarchy AS (\n" +
-             "        SELECT\n" +
-             "            f1.*\n" +
-             "        FROM\n" +
-             "            catalog.folders f1\n" +
-             "        WHERE f1.id in :chainFolderIds\n" +
-             "        UNION ALL\n" +
-             "        SELECT\n" +
-             "            f2.*\n" +
-             "        FROM catalog.folders f2 INNER JOIN folder_hierarchy fh\n" +
-             "            ON f2.id = fh.parent_folder_id)\n" +
-             "SELECT DISTINCT * FROM folder_hierarchy;"
+    @Query(
+            nativeQuery = true,
+            value = """
+                    WITH RECURSIVE folder_hierarchy AS (
+                            SELECT
+                                f1.*
+                            FROM
+                                catalog.folders f1
+                            WHERE f1.id in :chainFolderIds
+                            UNION ALL
+                            SELECT
+                                f2.*
+                            FROM catalog.folders f2 INNER JOIN folder_hierarchy fh
+                                ON f2.id = fh.parent_folder_id)
+                    SELECT DISTINCT * FROM folder_hierarchy;"""
     )
     List<Folder> getFoldersHierarchically(List<String> chainFolderIds);
 
     @Query(
             nativeQuery = true,
-            value = "with recursive nested_folders as (" +
-                    "    select f1.* from catalog.folders f1" +
-                    "           where f1.parent_folder_id = :folderId" +
-                    "    union all" +
-                    "    select f2.* from catalog.folders f2" +
-                    "           inner join nested_folders nf" +
-                    "                   on f2.parent_folder_id = nf.id" +
-                    ") select distinct * from nested_folders"
+            value = """
+                    with recursive nested_folders as (
+                        select f1.* from catalog.folders f1
+                               where f1.parent_folder_id = :folderId
+                        union all
+                        select f2.* from catalog.folders f2
+                               inner join nested_folders nf
+                                       on f2.parent_folder_id = nf.id
+                    ) select distinct * from nested_folders"""
     )
     List<Folder> findNestedFolders(String folderId);
 
     @Query(
             nativeQuery = true,
             value = """
-                WITH parent_folders_table AS (
-                    WITH RECURSIVE parent_folders AS (
-                        SELECT f1.*
-                        FROM catalog.folders f1
-                        WHERE f1.id = :folderId OR f1.parent_folder_id = :folderId
-                
-                        UNION ALL
-                
-                        SELECT f2.*
-                        FROM catalog.folders f2
-                                 INNER JOIN parent_folders pf ON f2.id = pf.parent_folder_id
+                    WITH parent_folders_table AS (
+                        WITH RECURSIVE parent_folders AS (
+                            SELECT f1.*
+                            FROM catalog.folders f1
+                            WHERE f1.id = :folderId OR f1.parent_folder_id = :folderId
+                    
+                            UNION ALL
+                    
+                            SELECT f2.*
+                            FROM catalog.folders f2
+                                     INNER JOIN parent_folders pf ON f2.id = pf.parent_folder_id
+                        )
+                        SELECT DISTINCT *
+                        FROM parent_folders
                     )
-                    SELECT DISTINCT *
-                    FROM parent_folders
-                )
-                
-                SELECT *
-                FROM catalog.folders result
-                WHERE result.id IN (
-                        SELECT id
-                        FROM parent_folders_table)
-                    OR result.parent_folder_id IN (
-                        SELECT id
-                        FROM parent_folders_table
-                        WHERE parent_folder_id <> :folderId OR parent_folder_id IS NULL)""")
+                    
+                    SELECT *
+                    FROM catalog.folders result
+                    WHERE result.id IN (
+                            SELECT id
+                            FROM parent_folders_table)
+                        OR result.parent_folder_id IN (
+                            SELECT id
+                            FROM parent_folders_table
+                            WHERE parent_folder_id <> :folderId OR parent_folder_id IS NULL)"""
+    )
     List<Folder> findAllFoldersToRootParentFolder(String folderId);
 }

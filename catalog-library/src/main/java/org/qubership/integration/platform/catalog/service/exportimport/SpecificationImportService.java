@@ -63,7 +63,7 @@ import static java.util.Objects.nonNull;
 public class SpecificationImportService {
     private static final String IMPORT_SESSION_NOT_FOUND_MESSAGE = "Import session with specified id not found";
     private static final String SET_IMPORT_SESSION_STATUS_MESSAGE = "Unable to set import session status";
-    private static final Pattern wsdlExtensionPattern = Pattern.compile("^.*\\.(WSDL)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WSDL_EXTENSION_PATTERN = Pattern.compile("^.*\\.(WSDL)$", Pattern.CASE_INSENSITIVE);
 
     private final OperationParserService operationParserService;
     private final SpecificationSourceRepository specificationSourceRepository;
@@ -121,8 +121,9 @@ public class SpecificationImportService {
             deleteImportSessionStatus(importId);
             throw new SpecificationImportWarningException(sessionStatus.getWarningMessage(), sessionStatus.getStackTrace());
         }
-        if (sessionStatus.isImportIsDone())
+        if (sessionStatus.isImportIsDone()) {
             deleteImportSessionStatus(importId);
+        }
 
         return sessionStatus.isImportIsDone();
     }
@@ -200,12 +201,12 @@ public class SpecificationImportService {
 
         String requestId = RequestIdContext.get();
         return operationParserService.parse(
-                    specificationType.toLowerCase(),
-                    specificationGroupId,
-                    sources,
-                    true,
-                    oldSystemModelsIds,
-                    messageHandler)
+                        specificationType.toLowerCase(),
+                        specificationGroupId,
+                        sources,
+                        true,
+                        oldSystemModelsIds,
+                        messageHandler)
                 .thenApply(model -> compileModelLibraryOrDeleteModel(requestId, model));
     }
 
@@ -221,7 +222,7 @@ public class SpecificationImportService {
     }
 
     private boolean isMainSpecificationSource(OperationProtocol protocol, MultipartFile file) {
-        return (OperationProtocol.SOAP.equals(protocol) && wsdlExtensionPattern.matcher(file.getOriginalFilename()).matches())
+        return (OperationProtocol.SOAP.equals(protocol) && WSDL_EXTENSION_PATTERN.matcher(file.getOriginalFilename()).matches())
                 || (List.of(
                 OperationProtocol.HTTP,
                 OperationProtocol.AMQP,
@@ -303,8 +304,9 @@ public class SpecificationImportService {
         List<ConfigParameter> params = configParameterService.findAllByNamespace(SPECIFICATION_IMPORT_STATUS_CONFIG_NAMESPACE);
         for (ConfigParameter cp : params) {
             if (cp.getModifiedWhen().before(
-                    Timestamp.valueOf(LocalDateTime.now().minusMinutes(entityExpiredTimeoutMinutes))))
+                    Timestamp.valueOf(LocalDateTime.now().minusMinutes(entityExpiredTimeoutMinutes)))) {
                 configParameterService.delete(cp);
+            }
         }
     }
 
@@ -312,6 +314,7 @@ public class SpecificationImportService {
         saveImportSessionStatus(importId, false, null, null, null, false);
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     private ImportSessionStatusDTO getImportSessionStatus(String importId) {
         ConfigParameter cp = configParameterService.findByName(SPECIFICATION_IMPORT_STATUS_CONFIG_NAMESPACE, importId);
         String rawStatusData = cp == null ? null : cp.getString();
@@ -319,10 +322,10 @@ public class SpecificationImportService {
         ImportSessionStatusDTO status = null;
         try {
             status = objectMapper.readValue(rawStatusData, ImportSessionStatusDTO.class);
-        } catch (JsonProcessingException | RuntimeException ignored) {
-        }
-        if (status == null)
+        } catch (JsonProcessingException | RuntimeException ignored) { }
+        if (status == null) {
             throw new SpecificationImportException(IMPORT_SESSION_NOT_FOUND_MESSAGE);
+        }
         return status;
     }
 }

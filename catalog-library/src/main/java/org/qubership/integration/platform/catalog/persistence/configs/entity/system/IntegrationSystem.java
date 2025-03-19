@@ -76,9 +76,9 @@ public class IntegrationSystem extends AbstractSystemEntity {
     private List<SpecificationGroup> specificationGroups = new LinkedList<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "system"
-            ,orphanRemoval = true
-            ,cascade = {PERSIST,REMOVE,MERGE}
+    @OneToMany(mappedBy = "system",
+            orphanRemoval = true,
+            cascade = {PERSIST, REMOVE, MERGE}
     )
     private Set<IntegrationSystemLabel> labels = new LinkedHashSet<>();
 
@@ -125,20 +125,28 @@ public class IntegrationSystem extends AbstractSystemEntity {
     }
 
     public boolean equals(Object o, boolean strict) {
-        if (this == o) return true;
-        if (o == null) return false;
-        Class<?> oEffectiveClass = o instanceof HibernateProxy ?
-                ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass() : o.getClass();
-        Class<?> thisEffectiveClass = this instanceof HibernateProxy ?
-                ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass() : this.getClass();
-        if (thisEffectiveClass != oEffectiveClass) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        Class<?> oEffectiveClass = o instanceof HibernateProxy
+                ? ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass()
+                : o.getClass();
+        Class<?> thisEffectiveClass = this instanceof HibernateProxy
+                ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass()
+                : this.getClass();
+        if (thisEffectiveClass != oEffectiveClass) {
+            return false;
+        }
 
         IntegrationSystem that = (IntegrationSystem) o;
-        return super.equals(o, strict) &&
-                StringUtils.equals(this.getInternalServiceName(), that.getInternalServiceName()) &&
-                isLabelsEquals(that.getLabels(), strict) &&
-                isEnvironmentEquals(that.getEnvironments(), strict) &&
-                isSpecificationGroupEquals(that.getSpecificationGroups(), strict);
+        return super.equals(o, strict)
+                && StringUtils.equals(this.getInternalServiceName(), that.getInternalServiceName())
+                && isLabelsEquals(that.getLabels(), strict)
+                && isEnvironmentEquals(that.getEnvironments(), strict)
+                && isSpecificationGroupEquals(that.getSpecificationGroups(), strict);
     }
 
     private boolean isLabelsEquals(Set<IntegrationSystemLabel> newLabels, boolean strict) {

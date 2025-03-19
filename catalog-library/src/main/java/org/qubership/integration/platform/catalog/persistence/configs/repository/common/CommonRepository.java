@@ -29,6 +29,7 @@ public interface CommonRepository<T> {
     /**
      * Move brand-new entity from transient to managed state.
      * <ul>Generate INSERT SQL statement at flush stage.</ul>
+     *
      * @param entity brand-new entity which need to be created in DB
      */
     <S extends T> S persist(S entity);
@@ -39,6 +40,7 @@ public interface CommonRepository<T> {
      * in case when it has to be replaced with different version
      * (e.g. during import configuration for chain that exists on environment).
      * <ul>Generate UPDATE SQL statement at flush stage</ul>
+     *
      * @param entity entity which need to be replaced with different version
      */
     <S extends T> void detach(S entity);
@@ -48,6 +50,7 @@ public interface CommonRepository<T> {
      * Replace entity already associated with record in DB with different version
      * (e.g. during import configuration for chain that exists on environment).
      * <ul>Generate UPDATE SQL statement at flush stage</ul>
+     *
      * @param entity different version of existing entity
      */
     <S extends T> S merge(S entity);
@@ -57,6 +60,7 @@ public interface CommonRepository<T> {
      * For entity that should be deleted
      * (e.g. during merging states of entities collection).
      * <ul>Generate DELETE SQL statement at flush stage</ul>
+     *
      * @param entity entity that should be deleted from DB
      */
     <S extends T> void remove(S entity);
@@ -66,11 +70,13 @@ public interface CommonRepository<T> {
      * <ul>Generate INSERT or DELETE SQL statement at flush stage</ul>
      */
     <S extends T> S saveEntity(S entity);
+
     <S extends T> void clearContext();
 
     /**
      * Replace current state of entity with new one.
      * <ul>Generate INSERT or UPDATE SQL statement at flush stage</ul>
+     *
      * @param currentState entity object retried from DB
      * @param newState entity object created at runtime (e.g. during configuration import)
      */
@@ -84,6 +90,7 @@ public interface CommonRepository<T> {
      * <li>Generate INSERT for new entities which not exists in current state of collection.</li>
      * </ul>
      * Entities comparing using {@link EntityComparator}.
+     *
      * @param currentStates entities collection retried from DB
      * @param newStates entities collection created at runtime (e.g. during configuration import)
      */

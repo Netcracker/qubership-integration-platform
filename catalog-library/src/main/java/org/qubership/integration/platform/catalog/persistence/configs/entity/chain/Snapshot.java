@@ -79,9 +79,9 @@ public class Snapshot extends AbstractEntity {
     private Set<MaskedField> maskedFields = new LinkedHashSet<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "snapshot"
-            ,orphanRemoval = true
-            ,cascade = {PERSIST,REMOVE,MERGE}
+    @OneToMany(mappedBy = "snapshot",
+            orphanRemoval = true,
+            cascade = {PERSIST, REMOVE, MERGE}
     )
     private Set<SnapshotLabel> labels = new LinkedHashSet<>();
 

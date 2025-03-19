@@ -122,14 +122,14 @@ public class LibraryElementsService {
         return elements.get(name);
     }
 
+    public ElementDescriptor getElementDescriptor(ChainElement element) {
+        return elements.getOrDefault(element.getType(), new ElementDescriptor());
+    }
+
     public List<ElementDescriptor> getElementDescriptorsByType(ElementType type) {
         return elements.values().stream()
                 .filter(element -> element.getType() == type)
                 .collect(Collectors.toList());
-    }
-
-    public ElementDescriptor getElementDescriptor(ChainElement element) {
-        return elements.getOrDefault(element.getType(), new ElementDescriptor());
     }
 
     public LibraryElements getElementsHierarchy() {

@@ -95,13 +95,14 @@ public abstract class AbstractEntity implements Serializable, Comparable<Abstrac
 
     @PreUpdate
     public void preUpdate() {
-        if (this.createdWhen == null)
+        if (this.createdWhen == null) {
             this.createdWhen = this.modifiedWhen;
+        }
     }
 
     @Override
     public int compareTo(@NotNull AbstractEntity abstractEntity) {
         return Comparator.comparing(AbstractEntity::getId)
-                .compare(this,abstractEntity);
+                .compare(this, abstractEntity);
     }
 }

@@ -70,7 +70,7 @@ public abstract class EntityDifferenceService<T> {
                         field.setAccessible(true);
                         Object fieldValue = field.get(finalObject);
                         Map<String, Object> resultMap = new HashMap<>();
-                        if (fieldValue instanceof Map<?,?> fieldValueMap) {
+                        if (fieldValue instanceof Map<?, ?> fieldValueMap) {
                             for (Object key : fieldValueMap.keySet()) {
                                 Object value = fieldValueMap.get(key);
                                 if (value != null) {

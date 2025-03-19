@@ -118,6 +118,10 @@ public class EnvironmentBaseService {
         }
     }
 
+    protected void setDefaultProperties(Environment environment, Map<String, String> defaultProperties) {
+        environment.setProperties(jsonMapper.convertValue(defaultProperties, JsonNode.class));
+    }
+
     /**
      * Resolve environments from specification
      */
@@ -135,10 +139,6 @@ public class EnvironmentBaseService {
             log.warn("Failed to resolve environments", e);
             messageHandler.accept("Failed to resolve environments, " + e.getMessage());
         }
-    }
-
-    protected void setDefaultProperties(Environment environment, Map<String, String> defaultProperties) {
-        environment.setProperties(jsonMapper.convertValue(defaultProperties, JsonNode.class));
     }
 
     protected void activateDefaultEnvForExternalSystem(Environment environment, IntegrationSystem system) {

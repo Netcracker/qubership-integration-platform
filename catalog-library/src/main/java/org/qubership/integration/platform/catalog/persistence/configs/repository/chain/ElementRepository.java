@@ -116,14 +116,14 @@ public interface ElementRepository extends CommonRepository<ChainElement>, JpaRe
             Collection<String> deploymentIds
     );
 
-    @Query("SELECT e " +
-            "FROM elements e " +
-            "INNER JOIN deployments d " +
-            "ON e.snapshot.id = d.snapshot.id " +
-            "WHERE " +
-            "e.type IN :types " +
-            "AND d.chain.id = :chainId " +
-            "AND d.id <> :excludeDeploymentId")
+    @Query("SELECT e "
+            + "FROM elements e "
+            + "INNER JOIN deployments d "
+            + "ON e.snapshot.id = d.snapshot.id "
+            + "WHERE "
+            + "e.type IN :types "
+            + "AND d.chain.id = :chainId "
+            + "AND d.id <> :excludeDeploymentId")
     List<ChainElement> findDeployedElementsByTypesAndChainId(
             Collection<String> types,
             String chainId,
@@ -145,11 +145,11 @@ public interface ElementRepository extends CommonRepository<ChainElement>, JpaRe
     @Query("SELECT e FROM elements e INNER JOIN deployments d ON e.snapshot.id = d.snapshot.id WHERE e.type IN :types")
     Collection<ChainElement> findAllDeployedElementsByTypes(Collection<String> types);
 
-    @Query("SELECT e " +
-            "FROM elements e " +
-            "INNER JOIN deployments d " +
-            "ON e.snapshot.id = d.snapshot.id " +
-            "WHERE e.type IN :types AND d.chain.id <> :excludeChainId")
+    @Query("SELECT e "
+            + "FROM elements e "
+            + "INNER JOIN deployments d "
+            + "ON e.snapshot.id = d.snapshot.id "
+            + "WHERE e.type IN :types AND d.chain.id <> :excludeChainId")
     List<ChainElement> findElementsForRouteExistenceCheck(
             List<String> types,
             String excludeChainId);
@@ -164,5 +164,5 @@ public interface ElementRepository extends CommonRepository<ChainElement>, JpaRe
     void deleteAllByChainId(String chainId);
 
     @Query("SELECT e.type FROM elements e GROUP BY e.type")
-    List<String> findAllGroupByType ();
+    List<String> findAllGroupByType();
 }

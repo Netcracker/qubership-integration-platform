@@ -55,7 +55,7 @@ public enum OperationProtocol {
 
     public static List<OperationProtocol> receiveProtocolsFromType(String type) {
         List<OperationProtocol> operationProtocols = new ArrayList<>();
-        for (OperationProtocol protocol: OperationProtocol.values()) {
+        for (OperationProtocol protocol : OperationProtocol.values()) {
             if (String.valueOf(protocol.type).equals(type)) {
                 operationProtocols.add(protocol);
             }

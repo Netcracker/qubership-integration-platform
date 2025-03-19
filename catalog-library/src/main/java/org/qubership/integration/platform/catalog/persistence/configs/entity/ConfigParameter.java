@@ -27,7 +27,7 @@ import java.util.Base64;
 @NoArgsConstructor
 @Getter
 @Table(uniqueConstraints = @UniqueConstraint(
-        columnNames={"namespace", "name"}, name = "uk_config_parameters_on_namespace_name"))
+        columnNames = {"namespace", "name"}, name = "uk_config_parameters_on_namespace_name"))
 @Entity(name = "config_parameters")
 public class ConfigParameter extends AbstractEntity {
 
@@ -37,7 +37,7 @@ public class ConfigParameter extends AbstractEntity {
     @Enumerated(EnumType.STRING)
     private ConfigParameterValueType valueType;
 
-    @Column(columnDefinition="TEXT")
+    @Column(columnDefinition = "TEXT")
     private String value;
 
     public ConfigParameter(String namespace, String name) {
@@ -53,15 +53,18 @@ public class ConfigParameter extends AbstractEntity {
     }
 
     public void checkValueType(ConfigParameterValueType newValueType) {
-        if (newValueType == valueType)
+        if (newValueType == valueType) {
             return;
-        if (newValueType != null && valueType != null)
+        }
+        if (newValueType != null && valueType != null) {
             throw new IllegalStateException("Value type should be reset before type change");
+        }
     }
 
     private void compareValueType(ConfigParameterValueType requestValueType) {
-        if (valueType != requestValueType)
+        if (valueType != requestValueType) {
             throw new ClassCastException("Value types didn't match!");
+        }
     }
 
     public void resetValueType() {
@@ -146,15 +149,15 @@ public class ConfigParameter extends AbstractEntity {
                     getByte();
                     break;
             }
-        }
-        catch (RuntimeException e) {
+        } catch (RuntimeException e) {
             value = oldValue;
             valueType = oldValueType;
             return false;
         }
 
-        if (valueType == ConfigParameterValueType.BOOLEAN)
+        if (valueType == ConfigParameterValueType.BOOLEAN) {
             setBoolean(getBoolean()); // Random string interpreting as false, let's store actual booleans true\false
+        }
 
         return true;
     }

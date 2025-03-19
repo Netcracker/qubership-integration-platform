@@ -69,8 +69,8 @@ public class DiagramConstants {
 
         operationsMap.put(START_COLORED_GROUP,
                 createOperation(
-                        "rect rgb(" + ARG_PLACEHOLDER + ", " + ARG_PLACEHOLDER + ", " + ARG_PLACEHOLDER + ");\n" +
-                                "note right of " + ARG_PLACEHOLDER + " : " + ARG_PLACEHOLDER
+                        "rect rgb(" + ARG_PLACEHOLDER + ", " + ARG_PLACEHOLDER + ", " + ARG_PLACEHOLDER + ");\n"
+                                + "note right of " + ARG_PLACEHOLDER + " : " + ARG_PLACEHOLDER
                 ));
 
         buildLines(operationsMap, "->>", "-->>", "-)", "--)");
@@ -94,7 +94,7 @@ public class DiagramConstants {
         ));
         operationsMap.put(DELAY, createOperation("..."));
 
-        buildLines(operationsMap, "->", "-->","->>", "-->>");
+        buildLines(operationsMap, "->", "-->", "->>", "-->>");
         fillCommonOperations(operationsMap);
 
         operations.put(PLANT_UML, operationsMap);

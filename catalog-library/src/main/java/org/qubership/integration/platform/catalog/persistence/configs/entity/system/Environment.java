@@ -73,19 +73,27 @@ public class Environment extends AbstractSystemEntity {
     }
 
     public boolean equals(Object o, boolean strict) {
-        if (this == o) return true;
-        if (o == null) return false;
-        Class<?> oEffectiveClass = o instanceof HibernateProxy ?
-                ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass() : o.getClass();
-        Class<?> thisEffectiveClass = this instanceof HibernateProxy ?
-                ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass() : this.getClass();
-        if (thisEffectiveClass != oEffectiveClass) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        Class<?> oEffectiveClass = o instanceof HibernateProxy
+                ? ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass()
+                : o.getClass();
+        Class<?> thisEffectiveClass = this instanceof HibernateProxy
+                ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass()
+                : this.getClass();
+        if (thisEffectiveClass != oEffectiveClass) {
+            return false;
+        }
 
         Environment that = (Environment) o;
-        return super.equals(o, strict) && Objects.equals(this.getAddress(), that.getAddress()) &&
-                this.getSourceType() == that.getSourceType() &&
-                isLabelEquals(that.getLabels()) &&
-                Objects.equals(this.getProperties(), that.getProperties());
+        return super.equals(o, strict) && Objects.equals(this.getAddress(), that.getAddress())
+                && this.getSourceType() == that.getSourceType()
+                && isLabelEquals(that.getLabels())
+                && Objects.equals(this.getProperties(), that.getProperties());
     }
 
     @Override

@@ -23,5 +23,6 @@ import java.util.jar.Manifest;
 
 public interface SystemModelCodeGenerator {
     Manifest generateManifest(SystemModel model);
+
     Map<String, String> generateCode(SystemModel model) throws Exception;
 }

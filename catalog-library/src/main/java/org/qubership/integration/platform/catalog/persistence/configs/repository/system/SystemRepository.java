@@ -32,6 +32,7 @@ public interface SystemRepository extends JpaRepository<IntegrationSystem, Strin
 
     /**
      * Find all systems with at least one not deprecated model
+     *
      * @return
      */
     @Query(value =
@@ -55,7 +56,7 @@ public interface SystemRepository extends JpaRepository<IntegrationSystem, Strin
     List<IntegrationSystem> findAllByNotDeprecatedAndWithSpecsAndModelType(List<OperationProtocol> modelType);
 
     @Query(nativeQuery = true,
-            value= """
+            value = """
                     SELECT * FROM catalog.integration_system sys WHERE sys.id = :searchCondition
                     UNION
                     SELECT * FROM catalog.integration_system sys

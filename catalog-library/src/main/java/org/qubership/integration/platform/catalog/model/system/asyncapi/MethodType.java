@@ -20,9 +20,11 @@ public enum MethodType {
     PUBLISH("publish"), SUBSCRIBE("subscribe");
 
     private final String methodName;
+
     MethodType(String methodName) {
         this.methodName = methodName;
     }
+
     public String getMethodName() {
         return methodName;
     }

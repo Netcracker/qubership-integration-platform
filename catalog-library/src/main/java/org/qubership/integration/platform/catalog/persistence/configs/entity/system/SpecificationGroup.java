@@ -63,9 +63,9 @@ public class SpecificationGroup extends AbstractSystemEntity {
     private List<SystemModel> systemModels;
 
     @Builder.Default
-    @OneToMany(mappedBy = "specificationGroup"
-            ,orphanRemoval = true
-            ,cascade = {PERSIST,REMOVE,MERGE}
+    @OneToMany(mappedBy = "specificationGroup",
+            orphanRemoval = true,
+            cascade = {PERSIST, REMOVE, MERGE}
     )
     private Set<SpecificationGroupLabel> labels = new LinkedHashSet<>();
 
@@ -73,8 +73,9 @@ public class SpecificationGroup extends AbstractSystemEntity {
     private List<Chain> chains;
 
     public void addSystemModel(SystemModel systemModel) {
-        if (systemModels == null)
+        if (systemModels == null) {
             systemModels = new ArrayList<>();
+        }
         systemModels.add(systemModel);
         systemModel.setSpecificationGroup(this);
     }
@@ -129,18 +130,26 @@ public class SpecificationGroup extends AbstractSystemEntity {
     }
 
     public boolean equals(Object o, boolean strict) {
-        if (this == o) return true;
-        if (o == null) return false;
-        Class<?> oEffectiveClass = o instanceof HibernateProxy ?
-                ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass() : o.getClass();
-        Class<?> thisEffectiveClass = this instanceof HibernateProxy ?
-                ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass() : this.getClass();
-        if (thisEffectiveClass != oEffectiveClass) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        Class<?> oEffectiveClass = o instanceof HibernateProxy
+                ? ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass()
+                : o.getClass();
+        Class<?> thisEffectiveClass = this instanceof HibernateProxy
+                ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass()
+                : this.getClass();
+        if (thisEffectiveClass != oEffectiveClass) {
+            return false;
+        }
 
         SpecificationGroup that = (SpecificationGroup) o;
-        return super.equals(o, strict) &&
-                StringUtils.equals(this.getUrl(), that.getUrl()) &&
-                isSystemModelEquals(that.getSystemModels(), strict);
+        return super.equals(o, strict)
+                && StringUtils.equals(this.getUrl(), that.getUrl())
+                && isSystemModelEquals(that.getSystemModels(), strict);
     }
 
     private boolean isSystemModelEquals(List<SystemModel> newSystemModels, boolean strict) {

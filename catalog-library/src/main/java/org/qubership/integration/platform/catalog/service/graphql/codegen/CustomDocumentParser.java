@@ -14,21 +14,18 @@
  * limitations under the License.
  */
 
-/**
- *
- */
 package org.qubership.integration.platform.catalog.service.graphql.codegen;
 
 import com.graphql_java_generator.plugin.DocumentParser;
 import com.graphql_java_generator.plugin.conf.CommonConfiguration;
 import com.graphql_java_generator.plugin.conf.GenerateCodeCommonConfiguration;
 import com.graphql_java_generator.plugin.conf.GraphQLConfiguration;
+import com.graphql_java_generator.plugin.language.*;
 import com.graphql_java_generator.plugin.language.Directive;
 import com.graphql_java_generator.plugin.language.DirectiveLocation;
 import com.graphql_java_generator.plugin.language.EnumValue;
 import com.graphql_java_generator.plugin.language.Field;
 import com.graphql_java_generator.plugin.language.Type;
-import com.graphql_java_generator.plugin.language.*;
 import com.graphql_java_generator.plugin.language.impl.*;
 import com.graphql_java_generator.util.GraphqlUtils;
 import graphql.language.*;
@@ -58,12 +55,12 @@ import java.util.stream.Stream;
 
 @Getter
 public abstract class CustomDocumentParser extends DocumentParser {
-
+    @SuppressWarnings("checkstyle:ConstantName")
     private static final Logger logger = LoggerFactory.getLogger(CustomDocumentParser.class);
 
-    protected final String DEFAULT_QUERY_NAME = "Query";
-    protected final String DEFAULT_MUTATION_NAME = "Mutation";
-    protected final String DEFAULT_SUBSCRIPTION_NAME = "Subscription";
+    protected static final String DEFAULT_QUERY_NAME = "Query";
+    protected static final String DEFAULT_MUTATION_NAME = "Mutation";
+    protected static final String DEFAULT_SUBSCRIPTION_NAME = "Subscription";
 
     /**
      * This instance is responsible for providing all the configuration parameter from the project (Maven, Gradle...)
@@ -226,6 +223,7 @@ public abstract class CustomDocumentParser extends DocumentParser {
      * @param IDclass
      *
      */
+    @SuppressWarnings("checkstyle:ParameterName")
     protected void initScalarTypes(Class<?> IDclass) {
         scalarTypes.add(new ScalarType("Boolean", "java.lang", "Boolean", configuration, this));
         // GraphQL Float is a double precision number
@@ -240,9 +238,9 @@ public abstract class CustomDocumentParser extends DocumentParser {
     /**
      * The main method of the class: it graphqlUtils.executes the generation of the given documents
      *
-     * @return
+     * @return count
      * @throws IOException
-     *             When an error occurs, during the parsing of the GraphQL schemas
+     *      When an error occurs, during the parsing of the GraphQL schemas
      */
     public int parseDocuments() throws IOException {
         logger.debug("Starting documents parsing");
@@ -512,7 +510,7 @@ public abstract class CustomDocumentParser extends DocumentParser {
                 default:
                     throw new RuntimeException(
                             "Unexpected OperationTypeDefinition while reading schema: " + opDef.getName());
-            }// switch
+            } // switch
         } // for
     }
 
@@ -856,7 +854,7 @@ public abstract class CustomDocumentParser extends DocumentParser {
      * Returns the type for the given name
      *
      * @param typeName
-     * @return
+     * @return The found type, or null if the type is not found and throwExceptionIfNotFound is false
      * @throws RuntimeException
      *             if the type could not be found
      * @See {@link #getType(String, boolean)}
@@ -878,8 +876,9 @@ public abstract class CustomDocumentParser extends DocumentParser {
      */
     public Type getType(String typeName, boolean throwExceptionIfNotFound) {
         Type ret = types.get(typeName);
-        if (throwExceptionIfNotFound && ret == null)
+        if (throwExceptionIfNotFound && ret == null) {
             throw new RuntimeException("The type named '" + typeName + "' could not be found");
+        }
         return ret;
     }
 

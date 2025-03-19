@@ -58,8 +58,8 @@ public class Deployment implements Serializable {
     @CreatedBy
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride( name = "id", column = @Column(name = "created_by_id")),
-            @AttributeOverride( name = "username", column = @Column(name = "created_by_name"))
+            @AttributeOverride(name = "id", column = @Column(name = "created_by_id")),
+            @AttributeOverride(name = "username", column = @Column(name = "created_by_name"))
     })
     private User createdBy;
 

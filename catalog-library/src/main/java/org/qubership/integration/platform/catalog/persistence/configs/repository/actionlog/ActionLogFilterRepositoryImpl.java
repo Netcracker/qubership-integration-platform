@@ -80,9 +80,9 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
         query = query.select(builder.count(actionLog));
         Predicate finalPredicate = builder.and(predicates.toArray(new Predicate[0]));
 
-        return (!predicates.isEmpty() ?
-                query.where(finalPredicate) :
-                query);
+        return (!predicates.isEmpty()
+                ? query.where(finalPredicate)
+                : query);
     }
 
     private CriteriaQuery<ActionLog> buildFilterQuery(
@@ -105,9 +105,9 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
         query = query.select(actionLog);
         Predicate finalPredicate = builder.and(predicates.toArray(new Predicate[0]));
 
-        return (!predicates.isEmpty() ?
-                query.where(finalPredicate) :
-                query)
+        return (!predicates.isEmpty()
+                    ? query.where(finalPredicate)
+                    : query)
                 .orderBy(Collections.singletonList(builder.desc(actionLog.get(ACTION_TIME_COLUMN))));
     }
 

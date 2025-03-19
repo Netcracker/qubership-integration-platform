@@ -62,7 +62,7 @@ public class ActionLog {
 
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride( name = "id", column = @Column(name = "user_id"))
+            @AttributeOverride(name = "id", column = @Column(name = "user_id"))
     })
     protected User user;
 

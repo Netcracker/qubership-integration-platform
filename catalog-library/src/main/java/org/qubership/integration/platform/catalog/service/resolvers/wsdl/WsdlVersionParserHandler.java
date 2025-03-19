@@ -26,13 +26,13 @@ public class WsdlVersionParserHandler extends DefaultHandler {
     private static final String DESCRIPTION_TAG_NAME = "description";
 
     @Override
-    public void startDocument(){
+    public void startDocument() {
         this.version = WsdlVersion.WSDL_1;
     }
 
     @Override
     public void startElement(String uri, String lName, String qName, Attributes attr) {
-        if (qName.contains(DESCRIPTION_TAG_NAME)){
+        if (qName.contains(DESCRIPTION_TAG_NAME)) {
             this.version = WsdlVersion.WSDL_2;
         }
     }

@@ -41,10 +41,11 @@ public class ChainUtils {
 
     /**
      * Deep clone a Chain using serialization.
+     *
      * @param chain - chain instance
      * @return deep copy of chain instance
      * @throws CatalogRuntimeException if chain properties can not been initialized
-     * or chain instance can not been serialized
+     *     or chain instance can not been serialized
      */
     public static Chain getChainCopy(Chain chain) {
         if (chain != null) {
@@ -53,8 +54,7 @@ public class ChainUtils {
                 return SerializationUtils.clone(chain);
             } catch (HibernateException e) {
                 throw new CatalogRuntimeException(CHAIN_PROPERTIES_INITIALIZATION_ERROR_MESSAGE + chain.getId(), e);
-            }
-            catch (SerializationException e){
+            } catch (SerializationException e) {
                 throw new CatalogRuntimeException(CHAIN_SERIALIZATION_ERROR_MESSAGE + chain.getId(), e);
             }
         }
@@ -77,6 +77,7 @@ public class ChainUtils {
     /**
      * Generate hash value of provided chain configuration files to support uniqueness of chain instance
      * and reduce same chain states overwrites during import
+     *
      * @param filesDir chain configuration files from import
      * @param currentArtifactDescriptorVersion current cip build versions. Uses as salt for hash
      * @return Hexadecimal string representation of the hash digest of the given bytes.

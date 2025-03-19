@@ -42,6 +42,17 @@ public class CommonVariablesInstructionsMapper implements ImportInstructionsMapp
         );
     }
 
+    public List<ImportInstruction> asEntities(@NotNull ImportInstructionsDTO importInstructionsDTO) {
+        List<ImportInstruction> importInstructions = new ArrayList<>();
+        for (ImportInstructionDTO deleteInstructionDTO : importInstructionsDTO.getDelete()) {
+            importInstructions.add(variableInstructionDtoToEntity(deleteInstructionDTO, ImportInstructionAction.DELETE));
+        }
+        for (ImportInstructionDTO ignoreInstructionDTO : importInstructionsDTO.getIgnore()) {
+            importInstructions.add(variableInstructionDtoToEntity(ignoreInstructionDTO, ImportInstructionAction.IGNORE));
+        }
+        return importInstructions;
+    }
+
     @Override
     public List<ImportInstruction> asEntitiesIncludingDeletes(@NotNull GeneralImportInstructionsConfig generalImportInstructionsConfig) {
         ImportInstructionsConfig instructionsConfig = generalImportInstructionsConfig.getCommonVariables();
@@ -52,17 +63,6 @@ public class CommonVariablesInstructionsMapper implements ImportInstructionsMapp
                 ImportInstructionAction.DELETE,
                 generalImportInstructionsConfig.getLabels()
         ));
-        return importInstructions;
-    }
-
-    public List<ImportInstruction> asEntities(@NotNull ImportInstructionsDTO importInstructionsDTO) {
-        List<ImportInstruction> importInstructions = new ArrayList<>();
-        for (ImportInstructionDTO deleteInstructionDTO : importInstructionsDTO.getDelete()) {
-            importInstructions.add(variableInstructionDtoToEntity(deleteInstructionDTO, ImportInstructionAction.DELETE));
-        }
-        for (ImportInstructionDTO ignoreInstructionDTO : importInstructionsDTO.getIgnore()) {
-            importInstructions.add(variableInstructionDtoToEntity(ignoreInstructionDTO, ImportInstructionAction.IGNORE));
-        }
         return importInstructions;
     }
 

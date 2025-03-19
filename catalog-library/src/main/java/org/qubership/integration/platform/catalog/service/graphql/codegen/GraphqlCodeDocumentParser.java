@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-/**
- *
- */
 package org.qubership.integration.platform.catalog.service.graphql.codegen;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -67,7 +64,7 @@ import java.util.stream.Stream;
 @Getter
 @Slf4j
 public class GraphqlCodeDocumentParser extends CustomDocumentParser {
-
+    @SuppressWarnings("checkstyle:ConstantName")
     private static final Logger logger = LoggerFactory.getLogger(GraphqlCodeDocumentParser.class);
 
     /**
@@ -175,7 +172,7 @@ public class GraphqlCodeDocumentParser extends CustomDocumentParser {
     /**
      * The main method of the class: it graphqlUtils.executes the generation of the given documents
      *
-     * @return
+     * @return count
      * @throws IOException
      *             When an error occurs, during the parsing of the GraphQL schemas
      */
@@ -184,8 +181,8 @@ public class GraphqlCodeDocumentParser extends CustomDocumentParser {
         /////////////////////////////////////////////////////////////////////////////////////////////////////
         // Let's start by some controls on the configuration parameters
         if (configuration.getMode().equals(PluginMode.server)) {
-            if (configuration.isAddRelayConnections() && // Let's have a test that works for windows (\) and unix (/)
-                    configuration.getSchemaFilePattern()
+            if (configuration.isAddRelayConnections()  // Let's have a test that works for windows (\) and unix (/)
+                    && configuration.getSchemaFilePattern()
                             .endsWith(GenerateGraphQLSchemaConfiguration.DEFAULT_TARGET_SCHEMA_FILE_NAME)) {
                 // In server mode, the graphql-java needs to have access to the GraphQL schema.
                 throw new IllegalArgumentException(
@@ -227,7 +224,7 @@ public class GraphqlCodeDocumentParser extends CustomDocumentParser {
 
         // Apply the user's schema personalization
         logger.debug("Apply schema personalization");
-//		jsonSchemaPersonalization.applySchemaPersonalization(); // TODO uncomment if need
+        // jsonSchemaPersonalization.applySchemaPersonalization(); // TODO uncomment if need
 
         // We're done
         int nbClasses = getObjectTypes().size() + getEnumTypes().size() + getInterfaceTypes().size();
@@ -351,17 +348,19 @@ public class GraphqlCodeDocumentParser extends CustomDocumentParser {
 
                 boolean addSeparator = false;
                 List<ObjectType> types;
-                if (type instanceof InterfaceType)
+                if (type instanceof InterfaceType) {
                     types = ((InterfaceType) type).getImplementingTypes();
-                else
+                } else {
                     types = ((UnionType) type).getMemberTypes();
+                }
 
                 for (ObjectType t : types) {
                     // No separator for the first iteration
-                    if (addSeparator)
+                    if (addSeparator) {
                         jsonSubTypes.append(",");
-                    else
+                    } else {
                         addSeparator = true;
+                    }
                     jsonSubTypes.append(" @Type(value = ").append(t.getName()).append(".class, name = \"")
                             .append(t.getName()).append("\")");
                 }
@@ -791,26 +790,28 @@ public class GraphqlCodeDocumentParser extends CustomDocumentParser {
      * @param o
      * @return
      */
+    @SuppressWarnings("checkstyle:MethodName")
     private FieldImpl get__TypeField(Type o) {
-        FieldImpl __type = FieldImpl.builder().documentParser(this).name("__type")
+        FieldImpl type = FieldImpl.builder().documentParser(this).name("__type")
                 .fieldTypeAST(FieldTypeAST.builder().graphQLTypeSimpleName("__Type").mandatory(true).build())//
                 .owningType(o).build();
-        __type.getInputParameters()
+        type.getInputParameters()
                 .add(FieldImpl.builder().documentParser(this).name("name")
                         .fieldTypeAST(FieldTypeAST.builder().graphQLTypeSimpleName("String").mandatory(true).build())//
                         .owningType(o).build());
-        return __type;
+        return type;
     }
 
     /**
      * @param o
      * @return
      */
+    @SuppressWarnings("checkstyle:MethodName")
     private FieldImpl get__SchemaField(Type o) {
-        FieldImpl __schema = FieldImpl.builder().documentParser(this).name("__schema")
+        FieldImpl schema = FieldImpl.builder().documentParser(this).name("__schema")
                 .fieldTypeAST(FieldTypeAST.builder().graphQLTypeSimpleName("__Schema").mandatory(true).build())//
                 .owningType(o).build();
-        return __schema;
+        return schema;
     }
 
     /**

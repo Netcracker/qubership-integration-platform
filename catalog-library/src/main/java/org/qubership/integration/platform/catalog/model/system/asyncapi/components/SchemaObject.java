@@ -59,16 +59,17 @@ public class SchemaObject {
     private Boolean readOnly;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean writeOnly;
+    @SuppressWarnings("checkstyle:MemberName")
     private String $ref;
-    private List<Map<String,Object>> oneOf;
-    private List<Map<String,Object>> allOf;
-    private List<Map<String,Object>> anyOf;
-    private List<Map<String,Object>> not;
+    private List<Map<String, Object>> oneOf;
+    private List<Map<String, Object>> allOf;
+    private List<Map<String, Object>> anyOf;
+    private List<Map<String, Object>> not;
     private Map<String, Object> properties;
     private Map<String, Object> propertyNames;
     private Map<String, Object> patternProperties;
     private Map<String, Object> additionalProperties;
     private Object items;
     private Object additionalItems;
-    private Map<String,String> contains;
+    private Map<String, String> contains;
 }

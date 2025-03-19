@@ -76,9 +76,9 @@ public class Chain extends FoldableEntity {
     private Set<MaskedField> maskedFields = new LinkedHashSet<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "chain"
-            ,orphanRemoval = true
-            ,cascade = {PERSIST,REMOVE,MERGE}
+    @OneToMany(mappedBy = "chain",
+            orphanRemoval = true,
+            cascade = {PERSIST, REMOVE, MERGE}
     )
     private Set<ChainLabel> labels = new LinkedHashSet<>();
 
@@ -108,7 +108,7 @@ public class Chain extends FoldableEntity {
     private String assumptions;
     private String outOfScope;
 
-    @Column(name="last_import_hash")
+    @Column(name = "last_import_hash")
     private String lastImportHash;
 
     /**

@@ -115,8 +115,8 @@ public class GrpcCodeGenerator implements SystemModelCodeGenerator {
             String compilerOutput = new String(IOUtils.toByteArray(process.getErrorStream()))
                     .replace(rootDirectory.toString(), "");
             String message = String.format(
-                    "Protocol buffer definition compiler returned non-zero exit code: %d." +
-                            " Protobuf compiler output:\n%s",
+                    "Protocol buffer definition compiler returned non-zero exit code: %d."
+                            + " Protobuf compiler output:\n%s",
                     exitCode, compilerOutput);
             log.error(message);
             throw new Exception(message);

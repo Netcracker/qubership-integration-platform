@@ -36,9 +36,9 @@ public interface SystemModelRepository extends JpaRepository<SystemModel, String
 
     long countBySpecificationGroupIdAndVersion(String specificationId, String version);
 
-    @Query("select model.id, lib.modifiedWhen " +
-            "from SystemModel model " +
-            "inner join model.compiledLibrary lib " +
-            "where lib.data is not null")
+    @Query("select model.id, lib.modifiedWhen "
+            + "from SystemModel model "
+            + "inner join model.compiledLibrary lib "
+            + "where lib.data is not null")
     List<Object[]> findAllWithCompiledLibraries();
 }

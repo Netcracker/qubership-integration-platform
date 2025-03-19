@@ -55,7 +55,7 @@ public class UUIDSchemaProcessor extends DefaultSchemaProcessor implements Schem
            String schemaAsString = objectMapper.writeValueAsString(schemaAsNode);
            return new MutablePair<>(uuidSchema.get$ref(), schemaAsString);
         } catch (JsonProcessingException e) {
-            log.error("Error during converting content uuid schema to JSON",e);
+            log.error("Error during converting content uuid schema to JSON", e);
         }
         return new MutablePair<>();
     }

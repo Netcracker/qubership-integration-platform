@@ -277,7 +277,7 @@ public class WSDLSpecificationParser implements SpecificationParser {
     private List<Operation> generateWoodenOperationsList(Description description) {
         return Arrays.stream(description.getServices())
                 .flatMap(service -> Arrays.stream(service.getEndpoints()))
-                .map(Endpoint::getBinding )
+                .map(Endpoint::getBinding)
                 .flatMap(binding -> Arrays.stream(binding.getBindingOperations()))
                 .map(BindingOperation::toElement)
                 .map(bindingOperationElement -> Operation.builder()

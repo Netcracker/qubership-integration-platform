@@ -35,7 +35,7 @@ public class PackageNameUtil {
         String packageName = StringUtils.strip(name.replaceAll("([^\\w\\d]|_)+", "_").toLowerCase(), "_");
         return StringUtils.isBlank(packageName)
                 ? defaultName
-                : Character.isAlphabetic(packageName.charAt(0))? packageName : prefix + packageName;
+                : Character.isAlphabetic(packageName.charAt(0)) ? packageName : prefix + packageName;
     }
 
     private PackageNameUtil() {

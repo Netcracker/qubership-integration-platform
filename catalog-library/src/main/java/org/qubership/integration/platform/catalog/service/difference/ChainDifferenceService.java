@@ -66,7 +66,7 @@ public class ChainDifferenceService {
      *
      * @param entityDiffRequest contains chain ids/snapshot ids
      * @return difference result containing the left and right chain/snapshot entities,
-     * as well as a list of difference result objects of chain elements
+     *      as well as a list of difference result objects of chain elements
      */
     public EntityDifferenceResult findChainsDifferences(ChainDifferenceRequest entityDiffRequest) {
         if (entityDiffRequest.getLeftSnapshotId() != null) {
@@ -185,9 +185,9 @@ public class ChainDifferenceService {
         if (!StringUtils.equals(leftElement.getType(), rightElement.getType())) {
             return false;
         }
-        return StringUtils.equals(leftElement.getName(), rightElement.getName()) &&
-                StringUtils.equals(leftElement.getDescription(), rightElement.getDescription()) &&
-                leftElement.getProperties().equals(rightElement.getProperties());
+        return StringUtils.equals(leftElement.getName(), rightElement.getName())
+                && StringUtils.equals(leftElement.getDescription(), rightElement.getDescription())
+                && leftElement.getProperties().equals(rightElement.getProperties());
     }
 
     private List<ChainElement> filterOutElementsFromSwimlanes(List<ChainElement> elements) {

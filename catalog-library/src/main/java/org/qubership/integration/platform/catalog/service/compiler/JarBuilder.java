@@ -35,7 +35,7 @@ public class JarBuilder {
         try (JarOutputStream jarOutputStream = new JarOutputStream(outputStream, manifest)) {
             Set<String> directories = new HashSet<>();
             for (Map.Entry<String, byte[]> entry : files.entrySet()) {
-                String path = entry.getKey().startsWith("/")? entry.getKey().substring(1) : entry.getKey();
+                String path = entry.getKey().startsWith("/") ? entry.getKey().substring(1) : entry.getKey();
                 addDirectoryEntries(jarOutputStream, path, directories);
                 byte[] data = entry.getValue();
                 JarEntry jarEntry = new JarEntry(path);

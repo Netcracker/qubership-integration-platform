@@ -16,10 +16,12 @@
 
 package org.qubership.integration.platform.catalog.model.system.asyncapi.components;
 
+@SuppressWarnings({"checkstyle:MemberName", "checkstyle:MethodName", "checkstyle:ParameterName"})
 public class ReferenceObject {
+
     private String $ref;
 
-    public ReferenceObject(String $ref){
+    public ReferenceObject(String $ref) {
         this.$ref = $ref;
     }
 

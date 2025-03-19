@@ -30,7 +30,6 @@ import java.util.List;
 public interface ImportInstructionsRepository extends
         JpaRepository<ImportInstruction, String>,
         JpaSpecificationExecutor<ImportInstruction>,
-        ImportInstructionsExtendedRepository
-{
+        ImportInstructionsExtendedRepository {
     List<ImportInstruction> findByEntityTypeAndActionIn(ImportEntityType entityType, Collection<ImportInstructionAction> actions);
 }

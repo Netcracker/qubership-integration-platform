@@ -113,14 +113,12 @@ public class ChainElementDifferenceServiceTest {
                                 .name("HTTP Trigger")
                                 .description("HTTP Trigger description")
                                 .originalId("53a6b1a0-56f0-402c-82fa-fbc87c4ef8d0")
-                                .properties(new HashMap<>() {
-                                    {
-                                        put("chunked", true);
-                                        put("accessControlType", "RBAC");
-                                        put("httpBinding", "left/handlingHttpBinding");
-                                        put("contextPath", null);
-                                    }
-                                })
+                                .properties(Map.ofEntries(
+                                        new AbstractMap.SimpleEntry<>("chunked", true),
+                                        new AbstractMap.SimpleEntry<>("accessControlType", "RBAC"),
+                                        new AbstractMap.SimpleEntry<>("httpBinding", "left/handlingHttpBinding"),
+                                        new AbstractMap.SimpleEntry<>("contextPath", null)
+                                ))
                                 .build(),
                         ChainElement.builder()
                                 .id(MOCKED_UUID)

@@ -77,13 +77,13 @@ public class ProtocolExtractionService {
         String fileExtension = FilenameUtils.getExtension(files.stream()
                 .map(MultipartFile::getOriginalFilename).findFirst().orElse(""));
 
-        if (WSDL_EXTENSION.equalsIgnoreCase(fileExtension) ||
-                XSD_EXTENSION.equalsIgnoreCase(fileExtension)) {
+        if (WSDL_EXTENSION.equalsIgnoreCase(fileExtension)
+                || XSD_EXTENSION.equalsIgnoreCase(fileExtension)) {
             return OperationProtocol.SOAP;
         }
 
-        if (GRAPHQL_EXTENSION.equalsIgnoreCase(fileExtension) ||
-                GRAPHQLS_EXTENSION.equalsIgnoreCase(fileExtension)) {
+        if (GRAPHQL_EXTENSION.equalsIgnoreCase(fileExtension)
+                || GRAPHQLS_EXTENSION.equalsIgnoreCase(fileExtension)) {
             return OperationProtocol.GRAPHQL;
         }
 
@@ -92,8 +92,8 @@ public class ProtocolExtractionService {
         }
 
         try {
-            if (YAML_EXTENSION.equalsIgnoreCase(fileExtension) ||
-                    YML_EXTENSION.equalsIgnoreCase(fileExtension)) {
+            if (YAML_EXTENSION.equalsIgnoreCase(fileExtension)
+                    || YML_EXTENSION.equalsIgnoreCase(fileExtension)) {
                 return getProtocolFromYaml(files);
             } else {
                 return getProtocolFromJson(files);

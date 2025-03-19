@@ -41,8 +41,8 @@ public class KVResponse {
     private String value;
 
     public String getDecodedValue() {
-        return this.value == null ?
-                null :
-                new String(Base64.getDecoder().decode(this.value), StandardCharsets.UTF_8);
+        return this.value == null
+                ? null
+                : new String(Base64.getDecoder().decode(this.value), StandardCharsets.UTF_8);
     }
 }

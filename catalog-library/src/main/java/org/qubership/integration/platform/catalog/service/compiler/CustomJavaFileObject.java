@@ -107,10 +107,10 @@ public class CustomJavaFileObject implements JavaFileObject {
 
     @Override
     public String toString() {
-        return "CustomJavaFileObject{" +
-                "binaryName='" + binaryName + '\'' +
-                ", uri=" + uri +
-                ", name='" + name + '\'' +
-                '}';
+        return "CustomJavaFileObject{"
+                + "binaryName='" + binaryName + '\''
+                + ", uri=" + uri
+                + ", name='" + name + '\''
+                + '}';
     }
 }

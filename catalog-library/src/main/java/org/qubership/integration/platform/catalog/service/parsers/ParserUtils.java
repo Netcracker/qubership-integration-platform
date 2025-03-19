@@ -70,8 +70,9 @@ public class ParserUtils {
 
     private String checkSimilarVersions(String specificationGroupId, String version) {
         long count = systemModelBaseService.countBySpecificationGroupIdAndVersion(specificationGroupId, version);
-        if (count > 0)
+        if (count > 0) {
             throw new SpecificationSimilarVersionException(version);
+        }
         return version;
     }
 
@@ -83,9 +84,9 @@ public class ParserUtils {
     public JsonNode receiveEmptyProperties(OperationProtocol protocol) {
         try {
             return jsonMapper.readTree(
-                    OperationProtocol.AMQP.equals(protocol) ?
-                            jsonMapper.writeValueAsString(EnvironmentDefaultParameters.RABBIT_ENVIRONMENT_PARAMETERS):
-                            jsonMapper.writeValueAsString(EnvironmentDefaultParameters.KAFKA_ENVIRONMENT_PARAMETERS));
+                    OperationProtocol.AMQP.equals(protocol)
+                            ? jsonMapper.writeValueAsString(EnvironmentDefaultParameters.RABBIT_ENVIRONMENT_PARAMETERS)
+                            : jsonMapper.writeValueAsString(EnvironmentDefaultParameters.KAFKA_ENVIRONMENT_PARAMETERS));
         } catch (JsonProcessingException e) {
             throw new SpecificationImportException("Error while receiving environment properties for " + protocol + " protocol", e);
         }

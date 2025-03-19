@@ -36,7 +36,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     private static final String SCHEMA_ID_VALUE_DOMAIN = "http://system.catalog/schemas/";
     private static final String DEFAULT_SCHEMA_VALUE = "{\"$schema\": \"http://json-schema.org/draft-07/schema#\"}";
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String REF_FIELD_NAME = "$ref";
     private static final String ITEMS_FIELD_NAME = "items";
     private static final String PAYLOAD_FIELD_NAME = "payload";
@@ -55,7 +55,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     public abstract String resolveRef(String schemaRef, JsonNode componentsNode);
 
     protected ObjectNode getSchemaNode(String schemaRef, JsonNode componentsJsonNode) {
-        ObjectNode resolvedSchema = objectMapper.createObjectNode();
+        ObjectNode resolvedSchema = OBJECT_MAPPER.createObjectNode();
 
         JsonNode componentNode = componentsJsonNode.at(schemaRef.replace(COMPONENTS_PREFIX, EMPTY_STRING_REPLACEMENT));
         if (!componentNode.isMissingNode()) {
@@ -66,13 +66,13 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
 
     protected String getResolvedSchema(String schemaRef, ObjectNode resolvedSchemaOriginal, Map<String, JsonNode> schemaRefs) {
         ObjectNode resolvedSchema = resolvedSchemaOriginal.deepCopy();
-        ObjectNode definitions = objectMapper.createObjectNode();
+        ObjectNode definitions = OBJECT_MAPPER.createObjectNode();
         schemaRefs.forEach(definitions::set);
         try {
-            resolvedSchema.set(DEFINITIONS_NODE_NAME, objectMapper.readTree(objectMapper.writeValueAsString(definitions)));
+            resolvedSchema.set(DEFINITIONS_NODE_NAME, OBJECT_MAPPER.readTree(OBJECT_MAPPER.writeValueAsString(definitions)));
             resolvedSchema.set(SCHEMA_ID_NODE_NAME, new TextNode(SCHEMA_ID_VALUE_DOMAIN.concat(schemaRef.replace(MESSAGES_PREFIX, EMPTY_STRING_REPLACEMENT))));
             resolvedSchema.set(SCHEMA_HEADER_NODE_NAME, SCHEMA_HEADER_VALUE);
-                return objectMapper.writeValueAsString(resolvedSchema);
+                return OBJECT_MAPPER.writeValueAsString(resolvedSchema);
         } catch (JsonProcessingException e) {
             log.error("Error during parsing components node", e);
         }
@@ -95,7 +95,9 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
 
     protected Map<String, JsonNode> getNestedRefs(ObjectNode schemaNode, JsonNode componentsNode, String modelType, List<String> refList) {
         Map<String, JsonNode> result = new TreeMap<>();
-        if (refList.isEmpty()) refList = new LinkedList<>();
+        if (refList.isEmpty()) {
+            refList = new LinkedList<>();
+        }
 
         if (schemaNode.has(TYPE_FIELD_NAME)) {
             switch (schemaNode.get(TYPE_FIELD_NAME).asText()) {
@@ -154,8 +156,9 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     private Map<String, ObjectNode> getRefs(ObjectNode property, JsonNode componentsNode, String modelType) {
         ObjectNode iterableProperties = property.has(ITEMS_FIELD_NAME) ? (ObjectNode) property.get(ITEMS_FIELD_NAME) : property;
         Map<String, ObjectNode> iterablePropertiesRefs = getIterablePropertyRefs(iterableProperties, componentsNode, modelType);
-        if (iterablePropertiesRefs != null)
+        if (iterablePropertiesRefs != null) {
             return iterablePropertiesRefs;
+        }
 
         Map<String, ObjectNode> result = new TreeMap<>();
         String refKey = EMPTY_REF;
@@ -181,7 +184,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         if (!refKey.equals(refKeyNew)) {
             JsonNode componentJsonNode = componentsNode.at(refKey);
             if (componentJsonNode.isMissingNode()) {
-                componentJsonNode = objectMapper.createObjectNode();
+                componentJsonNode = OBJECT_MAPPER.createObjectNode();
             }
             ObjectNode componentNode = (ObjectNode) componentJsonNode;
 
@@ -197,16 +200,16 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     private Map<String, ObjectNode> getIterablePropertyRefs(ObjectNode property, JsonNode componentsNode, String modelType) {
         Map<String, ObjectNode> result = new TreeMap<>();
         String fieldName = "";
-        if (property.has(PROPERTIES_FIELD_NAME)){
+        if (property.has(PROPERTIES_FIELD_NAME)) {
             fieldName = PROPERTIES_FIELD_NAME;
         }
-        if (property.has(ALL_OF_FIELD_NAME)){
+        if (property.has(ALL_OF_FIELD_NAME)) {
             fieldName = ALL_OF_FIELD_NAME;
         }
-        if (property.has(ANY_OF_FIELD_NAME)){
+        if (property.has(ANY_OF_FIELD_NAME)) {
             fieldName = ANY_OF_FIELD_NAME;
         }
-        if (!fieldName.isEmpty()){
+        if (!fieldName.isEmpty()) {
             JsonNode nestedProperties = property.get(fieldName);
             Iterator<JsonNode> propertiesIterator = nestedProperties.elements();
             while (propertiesIterator.hasNext()) {

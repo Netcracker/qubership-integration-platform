@@ -37,8 +37,8 @@ public interface ActionLogRepository extends
     @Modifying
     @Query(
             nativeQuery = true,
-            value = "DELETE FROM catalog.logged_actions act " +
-                    "WHERE act.action_time < now() - ( :olderThan )\\:\\:interval"
+            value = "DELETE FROM catalog.logged_actions act "
+                        + "WHERE act.action_time < now() - ( :olderThan )\\:\\:interval"
     )
     void deleteAllOldRecordsByInterval(String olderThan);
 

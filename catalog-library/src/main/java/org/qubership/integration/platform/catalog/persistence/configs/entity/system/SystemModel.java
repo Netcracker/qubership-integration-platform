@@ -68,7 +68,7 @@ public class SystemModel extends AbstractSystemEntity {
     private List<Operation> operations = new LinkedList<>();
 
     @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
-    @JsonIdentityReference(alwaysAsId=true)
+    @JsonIdentityReference(alwaysAsId = true)
     @JsonProperty("parentId")
     @ManyToOne
     @JoinColumn(name = "specification_group_id")
@@ -81,9 +81,9 @@ public class SystemModel extends AbstractSystemEntity {
     private List<SpecificationSource> specificationSources = new LinkedList<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "specification"
-            ,orphanRemoval = true
-            ,cascade = {PERSIST,REMOVE,MERGE}
+    @OneToMany(mappedBy = "specification",
+            orphanRemoval = true,
+            cascade = {PERSIST, REMOVE, MERGE}
     )
     private Set<SystemModelLabel> labels = new LinkedHashSet<>();
 
@@ -100,12 +100,12 @@ public class SystemModel extends AbstractSystemEntity {
         operation.setSystemModel(null);
     }
 
-    public void addProvidedSpecificationSource(SpecificationSource specificationSource){
+    public void addProvidedSpecificationSource(SpecificationSource specificationSource) {
         getSpecificationSources().add(specificationSource);
         specificationSource.setSystemModel(this);
     }
 
-    public void removeSpecificationSource(SpecificationSource specificationSource){
+    public void removeSpecificationSource(SpecificationSource specificationSource) {
         getSpecificationSources().remove(specificationSource);
         specificationSource.setSystemModel(null);
     }
@@ -155,19 +155,27 @@ public class SystemModel extends AbstractSystemEntity {
     }
 
     public boolean equals(Object o, boolean strict) {
-        if (this == o) return true;
-        if (o == null) return false;
-        Class<?> oEffectiveClass = o instanceof HibernateProxy ?
-                ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass() : o.getClass();
-        Class<?> thisEffectiveClass = this instanceof HibernateProxy ?
-                ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass() : this.getClass();
-        if (thisEffectiveClass != oEffectiveClass) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        Class<?> oEffectiveClass = o instanceof HibernateProxy
+                ? ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass()
+                : o.getClass();
+        Class<?> thisEffectiveClass = this instanceof HibernateProxy
+                ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass()
+                : this.getClass();
+        if (thisEffectiveClass != oEffectiveClass) {
+            return false;
+        }
 
         SystemModel that = (SystemModel) o;
-        return super.equals(o, strict) &&
-                this.isDeprecated() == that.isDeprecated() &&
-                isEqualsSourceType(that.getSource(), strict) &&
-                isSourcesEquals(that.getSpecificationSources(), strict);
+        return super.equals(o, strict)
+                && this.isDeprecated() == that.isDeprecated()
+                && isEqualsSourceType(that.getSource(), strict)
+                && isSourcesEquals(that.getSpecificationSources(), strict);
     }
 
     public boolean isSourcesEquals(List<SpecificationSource> sources, boolean strict) {
@@ -176,10 +184,12 @@ public class SystemModel extends AbstractSystemEntity {
 
     private boolean isEqualsSourceType(SystemModelSource newSource, boolean strict) {
         SystemModelSource source = this.getSource();
-        if (source == newSource) return true;
+        if (source == newSource) {
+            return true;
+        }
         if (!strict) {
-            return (source == SystemModelSource.DISCOVERED && newSource == SystemModelSource.MANUAL) ||
-                    (newSource == SystemModelSource.DISCOVERED && source == SystemModelSource.MANUAL);
+            return (source == SystemModelSource.DISCOVERED && newSource == SystemModelSource.MANUAL)
+                    || (newSource == SystemModelSource.DISCOVERED && source == SystemModelSource.MANUAL);
         }
         return false;
     }

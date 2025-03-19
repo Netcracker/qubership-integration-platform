@@ -55,7 +55,7 @@ public class DefaultSchemaProcessor implements SchemaProcessor {
     }
 
     @Override
-    public ObjectNode applySchemaType(String schemaAsString){
+    public ObjectNode applySchemaType(String schemaAsString) {
         try {
             return (ObjectNode) objectMapper.readTree(schemaAsString);
         } catch (JsonProcessingException e) {

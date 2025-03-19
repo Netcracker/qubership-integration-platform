@@ -22,8 +22,10 @@ import java.util.List;
 
 public interface OperationFilterRepository {
     List<Operation> getOperations(String modelId, List<String> sortColumns);
+
     List<Operation> getOperations(String modelId, List<String> sortColumns, int offset, int count);
 
     List<Operation> getOperationsByFilter(String modelId, List<String> filter, List<String> sortColumns);
+
     List<Operation> getOperationsByFilter(String modelId, List<String> filter, List<String> sortColumns, int offset, int count);
 }

@@ -28,7 +28,7 @@ import java.util.Optional;
 @Configuration
 @Slf4j
 public class AuditorProvider {
-@Bean
+    @Bean
     @ConditionalOnMissingBean
     public AuditorAware<User> localAuditor() {
         return () -> Optional.of(new User("0", "developer"));

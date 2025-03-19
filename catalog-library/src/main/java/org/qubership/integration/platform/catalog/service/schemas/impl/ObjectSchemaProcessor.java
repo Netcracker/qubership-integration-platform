@@ -57,7 +57,7 @@ public class ObjectSchemaProcessor extends DefaultSchemaProcessor implements Sch
             String schemaAsString = objectMapper.writeValueAsString(schemaAsNode);
             return new MutablePair<>(objectSchema.get$ref(), schemaAsString);
         } catch (JsonProcessingException e) {
-            log.error("Error during converting content object schema to JSON",e);
+            log.error("Error during converting content object schema to JSON", e);
         }
         return new MutablePair<>();
     }

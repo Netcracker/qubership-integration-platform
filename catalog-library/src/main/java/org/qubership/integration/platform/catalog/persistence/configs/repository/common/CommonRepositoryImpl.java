@@ -110,12 +110,11 @@ class CommonRepositoryImpl<T> implements CommonRepository<T> {
     }
 
     private <S extends T> Iterable<S> getFilteredEntities(Supplier<Stream<S>> entitiesToBeFiltered, Supplier<Stream<S>> entitiesAsFilter, Comparator<S> filterEntityMatcher, boolean isMatched) {
-        Predicate<? super S> filterPredicate = isMatched ?
-                (entityToBeFiltered) -> entitiesAsFilter
+        Predicate<? super S> filterPredicate = isMatched
+                ? (entityToBeFiltered) -> entitiesAsFilter
                         .get()
                         .anyMatch(entityAsFilter -> filterEntityMatcher.compare(entityToBeFiltered, entityAsFilter) == 0)
-                :
-                (entityToBeFiltered) -> entitiesAsFilter
+                : (entityToBeFiltered) -> entitiesAsFilter
                         .get()
                         .noneMatch(entityAsFilter -> filterEntityMatcher.compare(entityToBeFiltered, entityAsFilter) == 0);
 

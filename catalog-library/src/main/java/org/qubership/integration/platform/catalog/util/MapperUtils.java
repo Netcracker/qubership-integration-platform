@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
- package org.qubership.integration.platform.catalog.util;
+package org.qubership.integration.platform.catalog.util;
 
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 

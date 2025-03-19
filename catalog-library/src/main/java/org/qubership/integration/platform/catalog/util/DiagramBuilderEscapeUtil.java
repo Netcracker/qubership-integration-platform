@@ -107,9 +107,9 @@ public class DiagramBuilderEscapeUtil {
                     break;
                 default:
                     Object property = currentElement.getProperties().getOrDefault(entry.getValue(), DiagramConstants.EMPTY_PROPERTY_STUB);
-                    replacement = property == null || StringUtils.isEmpty(property.toString()) ?
-                        DiagramConstants.EMPTY_PROPERTY_STUB :
-                        property.toString();
+                    replacement = property == null || StringUtils.isEmpty(property.toString())
+                            ? DiagramConstants.EMPTY_PROPERTY_STUB
+                            : property.toString();
                     break;
             }
             result = result.replace(entry.getKey(), replacement);

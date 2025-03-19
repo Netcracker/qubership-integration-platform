@@ -36,17 +36,25 @@ public abstract class AbstractSystemEntity extends AbstractEntity {
     }
 
     public boolean equals(Object object, boolean strict) {
-        if (this == object) return true;
-        if (object == null) return false;
-        Class<?> oEffectiveClass = object instanceof HibernateProxy ?
-                ((HibernateProxy) object).getHibernateLazyInitializer().getPersistentClass() : object.getClass();
-        Class<?> thisEffectiveClass = this instanceof HibernateProxy ?
-                ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass() : this.getClass();
-        if (thisEffectiveClass != oEffectiveClass) return false;
+        if (this == object) {
+            return true;
+        }
+        if (object == null) {
+            return false;
+        }
+        Class<?> oEffectiveClass = object instanceof HibernateProxy
+                ? ((HibernateProxy) object).getHibernateLazyInitializer().getPersistentClass()
+                : object.getClass();
+        Class<?> thisEffectiveClass = this instanceof HibernateProxy
+                ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass()
+                : this.getClass();
+        if (thisEffectiveClass != oEffectiveClass) {
+            return false;
+        }
         AbstractSystemEntity that = (AbstractSystemEntity) object;
-        return (!strict || StringUtils.equals(this.getId(), that.getId())) &&
-                StringUtils.equals(this.getName(), that.getName()) &&
-                StringUtils.equals(this.getDescription(), that.getDescription());
+        return (!strict || StringUtils.equals(this.getId(), that.getId()))
+                && StringUtils.equals(this.getName(), that.getName())
+                && StringUtils.equals(this.getDescription(), that.getDescription());
     }
 
     @Override

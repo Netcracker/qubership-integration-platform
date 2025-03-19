@@ -52,9 +52,9 @@ public class DiagramOperation {
      * Escape argument characters, true by default
      */
     public boolean isEscapeArgument(int outputOrderNumber) {
-        return argsOutputOrder == null ||
-                !argsOutputOrder.containsKey(outputOrderNumber) ||
-                argsOutputOrder.get(outputOrderNumber).isEscapeArgument();
+        return argsOutputOrder == null
+                || !argsOutputOrder.containsKey(outputOrderNumber)
+                || argsOutputOrder.get(outputOrderNumber).isEscapeArgument();
     }
 
     /**

@@ -121,7 +121,7 @@ public class KafkaSpecificationResolver implements AsyncApiSpecificationResolver
             try {
                 importedComponents = objectMapper.readTree(objectMapper.writeValueAsString(components));
             } catch (JsonProcessingException e) {
-                throw new SpecificationImportException(COMPONENTS_CONVERTING_ERROR,e);
+                throw new SpecificationImportException(COMPONENTS_CONVERTING_ERROR, e);
             }
 
             if (message.get$ref() != null) {
@@ -191,7 +191,7 @@ public class KafkaSpecificationResolver implements AsyncApiSpecificationResolver
             String resolvedSchema = asyncApiSchemaResolver.resolveRef(ref, importedComponents);
             return new MutablePair<>(refName, objectMapper.readTree(resolvedSchema));
         } catch (JsonProcessingException e) {
-            throw new SpecificationImportException(SCHEMA_RESOLVING_ERROR,e);
+            throw new SpecificationImportException(SCHEMA_RESOLVING_ERROR, e);
         }
     }
 }

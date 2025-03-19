@@ -42,16 +42,16 @@ public class ElementBaseService {
                 .orElseThrow(() -> new EntityNotFoundException(CHAIN_ELEMENT_WITH_ID_NOT_FOUND_MESSAGE + id));
     }
 
-    public Optional<ChainElement> findByIdOptional(String id) {
-        return elementRepository.findById(id);
-    }
-
     public <T extends ChainElement> T findById(String id, Class<T> elementClass) {
         ChainElement element = findById(id);
         if (elementClass.isAssignableFrom(element.getClass())) {
             return elementClass.cast(element);
         }
         return null;
+    }
+
+    public Optional<ChainElement> findByIdOptional(String id) {
+        return elementRepository.findById(id);
     }
 
     public void delete(ChainElement element) {

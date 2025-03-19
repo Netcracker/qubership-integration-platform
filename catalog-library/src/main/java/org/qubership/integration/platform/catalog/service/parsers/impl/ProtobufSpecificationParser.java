@@ -60,7 +60,7 @@ import static org.qubership.integration.platform.catalog.service.schemas.Schemas
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class ProtobufSpecificationParser implements SpecificationParser {
     private static final String JAVA_PACKAGE_OPTION_NAME = "java_package";
-    private static final Pattern mapTypeRegex =
+    private static final Pattern MAP_TYPE_REGEX =
             Pattern.compile("^map<\\s*([a-zA-Z0-9_\\-.]+)\\s*,\\s*([a-zA-Z0-9_\\-.]+)\\s*>$");
 
     private final SystemModelRepository systemModelRepository;
@@ -252,7 +252,7 @@ public class ProtobufSpecificationParser implements SpecificationParser {
     private JsonNode buildFieldType(FieldElement fieldElement, Function<String, String> typeResolver) {
         ObjectNode type;
 
-        Matcher m = mapTypeRegex.matcher(fieldElement.getType());
+        Matcher m = MAP_TYPE_REGEX.matcher(fieldElement.getType());
         if (m.matches()) {
             type = objectMapper.createObjectNode();
             type.put("type", "object");

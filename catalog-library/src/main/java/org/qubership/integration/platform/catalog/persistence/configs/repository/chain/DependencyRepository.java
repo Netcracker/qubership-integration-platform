@@ -29,13 +29,13 @@ import java.util.Optional;
 @Repository
 public interface DependencyRepository extends CommonRepository<Dependency>, JpaRepository<Dependency, String> {
 
-    @Query(value = "SELECT d FROM dependencies d " +
-            "WHERE d.elementFrom.id = :from " +
-            "and d.elementTo.id = :to")
+    @Query(value = "SELECT d FROM dependencies d "
+            + "WHERE d.elementFrom.id = :from "
+            + "and d.elementTo.id = :to")
     Optional<Dependency> findByFromAndTo(@Param("from") String from, @Param("to") String to);
 
-    @Query(value = "SELECT d FROM dependencies d " +
-                   "WHERE d.elementFrom.id in :elementIDs " +
-                   "or d.elementTo.id in :elementIDs")
+    @Query(value = "SELECT d FROM dependencies d "
+            + "WHERE d.elementFrom.id in :elementIDs "
+            + "or d.elementTo.id in :elementIDs")
     List<Dependency> findByElementIDs(List<String> elementIDs);
 }
