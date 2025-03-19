@@ -25,6 +25,7 @@ import java.util.Map;
 
 @TemplatesHelper
 public class PropertyHelperSource extends BaseHelper {
+    private static final String OPTION_RAW = "raw";
 
     /**
      * Method is used to receive ChainElement's sub property with name
@@ -53,12 +54,15 @@ public class PropertyHelperSource extends BaseHelper {
      * @param options      Object, which contains handlebars information.
      * @return Property string value
      */
-    public CharSequence property(String propertyName, Options options) {
+    public Object property(String propertyName, Options options) {
         if (propertyName == null) {
             throw new NullPointerException("propertyName parameter can't be null");
         }
 
-        return getPropertyStringValue(propertyName, options);
+        boolean isRaw = options.hash.containsKey(OPTION_RAW);
+        return isRaw
+                ? getPropertyValue(propertyName, options)
+                : getPropertyStringValue(propertyName, options);
     }
 
     /**

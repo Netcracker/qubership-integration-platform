@@ -19,27 +19,6 @@
         <setProperty name="serviceCallPath">
             <simple>/RestNotify_1</simple>
         </setProperty>
-        <setProperty name="serviceCallQueryParametersJson">
-            <simple/>
-        </setProperty>
-        <setProperty name="serviceCallQueryParameters">
-            <jq resultType="java.util.Map" source="property:serviceCallQueryParametersJson">.</jq>
-        </setProperty>
-        <removeProperty name="serviceCallQueryParametersJson"/>
-        <setProperty name="serviceCallPathParametersJson">
-            <simple>{}</simple>
-        </setProperty>
-        <setProperty name="serviceCallPathParameters">
-            <jq resultType="java.util.Map" source="property:serviceCallPathParametersJson">.</jq>
-        </setProperty>
-        <removeProperty name="serviceCallPathParametersJson"/>
-        <setProperty name="serviceCallParametersJson">
-            <simple>{}</simple>
-        </setProperty>
-        <setProperty name="serviceCallParameters">
-            <jq resultType="java.util.Map" source="property:serviceCallParametersJson">.</jq>
-        </setProperty>
-        <removeProperty name="serviceCallParametersJson"/>
         <removeHeader name="CamelHttpQuery"/>
         <step id="Prepare request--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
             <setProperty name="internalProperty_mappingConfig">
@@ -178,9 +157,9 @@
     <removeProperty name="serviceCallUrl"/>
     <removeProperty name="serviceCallMethod"/>
     <removeProperty name="serviceCallPath"/>
-    <removeProperty name="serviceCallQueryParameters"/>
-    <removeProperty name="serviceCallPathParameters"/>
-    <removeProperty name="serviceCallParameters"/>
+    <removeProperties pattern="serviceCallQueryParameter_*"/>
+    <removeProperties pattern="serviceCallPathParameter_*"/>
+    <removeProperties pattern="serviceCallParameter_*"/>
     <removeProperty name="serviceCallTopic"/>
     <removeProperty name="serviceCallBrokers"/>
     <removeProperty name="serviceCallExchange"/>

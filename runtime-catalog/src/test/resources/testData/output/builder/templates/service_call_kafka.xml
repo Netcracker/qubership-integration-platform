@@ -16,13 +16,24 @@
         <setProperty name="serviceCallBrokers">
             <simple>{KAFKA_BROKERS}</simple>
         </setProperty>
-        <setProperty name="serviceCallParametersJson">
-            <simple>{"securityProtocol":"{KAFKA_SECURITY_PROTOCOL}","maxPollIntervalMs":"600000","groupId":"{ENV}-qip-kafka-consumer-group","maxPollRecords":"5","saslMechanism":"{KAFKA_SASL_MECHANISM}","saslJaasConfig":"{KAFKA_SASL_JAAS_CONFIG}"}</simple>
+        <setProperty name="serviceCallParameter_securityProtocol">
+            <simple>{KAFKA_SECURITY_PROTOCOL}</simple>
         </setProperty>
-        <setProperty name="serviceCallParameters">
-            <jq resultType="java.util.Map" source="property:serviceCallParametersJson">.</jq>
+        <setProperty name="serviceCallParameter_maxPollIntervalMs">
+            <simple>600000</simple>
         </setProperty>
-        <removeProperty name="serviceCallParametersJson"/>
+        <setProperty name="serviceCallParameter_groupId">
+            <simple>{ENV}-qip-kafka-consumer-group</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameter_maxPollRecords">
+            <simple>5</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameter_saslMechanism">
+            <simple>{KAFKA_SASL_MECHANISM}</simple>
+        </setProperty>
+        <setProperty name="serviceCallParameter_saslJaasConfig">
+            <simple>{KAFKA_SASL_JAAS_CONFIG}</simple>
+        </setProperty>
         <removeHeader name="CamelHttpQuery"/>
         <step id="Prepare request--1f6d1551-e965-48f3-b3c7-c68556be1004">
             <script>
@@ -150,9 +161,9 @@
     <removeProperty name="serviceCallUrl"/>
     <removeProperty name="serviceCallMethod"/>
     <removeProperty name="serviceCallPath"/>
-    <removeProperty name="serviceCallQueryParameters"/>
-    <removeProperty name="serviceCallPathParameters"/>
-    <removeProperty name="serviceCallParameters"/>
+    <removeProperties pattern="serviceCallQueryParameter_*"/>
+    <removeProperties pattern="serviceCallPathParameter_*"/>
+    <removeProperties pattern="serviceCallParameter_*"/>
     <removeProperty name="serviceCallTopic"/>
     <removeProperty name="serviceCallBrokers"/>
     <removeProperty name="serviceCallExchange"/>
