@@ -162,6 +162,10 @@ public class EnvironmentPropertiesHelper {
         return properties;
     }
 
+    private static Predicate<Entry<String, Object>> grpcProperties() {
+        return prop -> nonNull(prop.getValue()) && GRPC_PROPERTY_NAMES.contains(prop.getKey());
+    }
+
     /**
      * Handlebars helper, that returns merged [environment + element grpc] properties in json format
      */
@@ -177,10 +181,6 @@ public class EnvironmentPropertiesHelper {
 
     private static Predicate<Entry<String, Object>> filterAsyncProperties() {
         return prop -> prop.getValue() != null && !(prop.getKey().startsWith(MAAS_ENV_PROP_PREFIX));
-    }
-
-    private static Predicate<Entry<String, Object>> grpcProperties() {
-        return prop -> nonNull(prop.getValue()) && GRPC_PROPERTY_NAMES.contains(prop.getKey());
     }
 
     private static ObjectMapper initObjectMapper() {

@@ -25,8 +25,8 @@ public class MultipleAsyncConsumersValidation extends BuiltinValidation {
                 "multiple-async-consumers-found-in-chain_5WS1CT0Z",
                 "Multiple async consumers found in the chain",
                 "Rule allows to find duplicate consumers in chains",
-                "Duplicate consumers in different chains may result in unpredictable behavior and trigger additional errors." +
-                " Make sure that only unique consumers are retained",
+                "Duplicate consumers in different chains may result in unpredictable behavior and trigger additional errors."
+                        + " Make sure that only unique consumers are retained",
                 ValidationEntityType.CHAIN_ELEMENT,
                 ValidationImplementationType.BUILT_IN,
                 ValidationSeverity.WARNING
