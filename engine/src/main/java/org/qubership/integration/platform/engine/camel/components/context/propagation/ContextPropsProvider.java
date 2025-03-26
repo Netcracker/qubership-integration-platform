@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.engine.camel.components.context.propagation;
 
-import java.util.Map;
+import java.util.Set;
 
 public interface ContextPropsProvider {
-    Map<String, String> getHeaderToContextMapping();
+    Set<String> getDownstreamHeaders();
 }
