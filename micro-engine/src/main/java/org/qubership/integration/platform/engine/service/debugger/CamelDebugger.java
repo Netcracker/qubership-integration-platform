@@ -16,15 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.debugger;
 
-import lombok.Getter;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.Exchange;
-import org.apache.camel.NamedNode;
-import org.apache.camel.Processor;
-import org.apache.camel.impl.debugger.DefaultDebugger;
-import org.apache.camel.model.StepDefinition;
-import org.apache.camel.spi.CamelEvent.*;
 import org.qubership.integration.platform.engine.camel.context.propagation.CamelExchangeContextPropagation;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTimeoutException;
@@ -53,6 +44,16 @@ import org.qubership.integration.platform.engine.service.debugger.tracing.Tracin
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.Exchange;
+import org.apache.camel.NamedNode;
+import org.apache.camel.Processor;
+import org.apache.camel.impl.debugger.DefaultDebugger;
+import org.apache.camel.model.StepDefinition;
+import org.apache.camel.spi.CamelEvent.*;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
@@ -67,6 +68,7 @@ import javax.annotation.Nullable;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.SERVICE_CALL_RETRY_COUNT;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.SERVICE_CALL_RETRY_DELAY;
 import static org.qubership.integration.platform.engine.util.CheckpointUtils.*;
+import static java.util.Objects.nonNull;
 
 @Slf4j
 @Component
@@ -683,10 +685,15 @@ public class CamelDebugger extends DefaultDebugger {
             exchangeContextPropagation.ifPresent(bean -> bean.initRequestContext(exchangeHeaders));
             getContextInitMarkers(exchange).add(currentThreadId);
             log.debug("New exchange created in thread '{}'", Thread.currentThread().getName());
-            exchangeContextPropagation.ifPresent(bean -> bean.removeContextHeaders(exchangeHeaders));
-            Map<String, Object> snapshot = exchangeContextPropagation.isPresent()
-                    ? exchangeContextPropagation.get().createContextSnapshot()
-                    : Collections.emptyMap();
+            exchangeContextPropagation.ifPresent(bean -> {
+                Object authorization = exchangeHeaders.get(HttpHeaders.AUTHORIZATION);
+                bean.removeContextHeaders(exchangeHeaders);
+                if (nonNull(authorization)) {
+                    exchangeHeaders.put(HttpHeaders.AUTHORIZATION, authorization);
+                }
+            });
+            Map<String, Object> snapshot = exchangeContextPropagation.isPresent() ?
+                exchangeContextPropagation.get().createContextSnapshot() : Collections.emptyMap();
             exchange.setProperty(CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT, snapshot);
         }
     }

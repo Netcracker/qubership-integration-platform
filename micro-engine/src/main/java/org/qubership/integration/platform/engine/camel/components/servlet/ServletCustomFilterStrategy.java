@@ -16,16 +16,44 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
-import org.apache.camel.http.common.HttpHeaderFilterStrategy;
-import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
-
-import java.util.Locale;
 import java.util.Optional;
 
-public class ServletCustomFilterStrategy extends HttpHeaderFilterStrategy {
+import org.apache.camel.Exchange;
+import org.apache.camel.http.common.HttpHeaderFilterStrategy;
+import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
-    public ServletCustomFilterStrategy(Optional<ContextPropsProvider> propsProvider) {
-        propsProvider.ifPresent(bean -> bean.getHeaderToContextMapping().keySet()
-            .forEach(header -> getOutFilter().add(header.toLowerCase(Locale.ENGLISH))));
+import static java.util.Objects.nonNull;
+
+import java.util.Collection;
+import java.util.List;
+
+@Component
+public class ServletCustomFilterStrategy extends HttpHeaderFilterStrategy {
+    private static final Collection<String> FILTERED_HEADERS = List.of(
+        "span-id",
+        "trace-id",
+        "x-requestedsystem"
+    );
+
+    private final Optional<ContextPropsProvider> contextPropsProvider;
+
+    @Autowired
+    public ServletCustomFilterStrategy(Optional<ContextPropsProvider> contextPropsProvider) {
+        this.contextPropsProvider = contextPropsProvider;
+        this.getOutFilter().addAll(FILTERED_HEADERS);
+    }
+
+    @Override
+    protected boolean extendedFilter(Direction direction, String headerName, Object headerValue, Exchange exchange) {
+        return (Direction.OUT.equals(direction) && isHeaderInContext(headerName)) == isFilterOnMatch();
+    }
+
+    private boolean isHeaderInContext(String name) {
+        return this.contextPropsProvider
+            .map(ContextPropsProvider::getDownstreamHeaders)
+            .map(headers -> nonNull(headers) && headers.contains(name))
+            .orElse(false);
     }
 }
