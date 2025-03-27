@@ -39,7 +39,7 @@ import static org.qubership.integration.platform.catalog.model.constant.CamelOpt
 @Component
 public class ChainFilterSpecificationBuilder {
     private static final Set<FilterFeature> ELEMENT_PARAMS_FEATURE_SET = Set.of(
-            FilterFeature.EXCHANGE, FilterFeature.QUEUE, FilterFeature.TOPIC, FilterFeature.SERVICE_ID);
+            FilterFeature.EXCHANGE, FilterFeature.QUEUE, FilterFeature.TOPIC, FilterFeature.SERVICE_ID, FilterFeature.CLASSIFIER);
     private final FilterConditionPredicateBuilderFactory filterConditionPredicateBuilderFactory;
 
     @Autowired
@@ -132,6 +132,14 @@ public class ChainFilterSpecificationBuilder {
                                     criteriaBuilder.countDistinct(getChainElementPropertyExpression(root, criteriaBuilder, EXCHANGE)));
                             case SERVICE_ID ->
                                     criteriaBuilder.countDistinct(getChainElementPropertyExpression(root, criteriaBuilder, SYSTEM_ID));
+                            case CLASSIFIER ->
+                                    criteriaBuilder.sum(
+                                            criteriaBuilder.sum(
+                                                    criteriaBuilder.countDistinct(getChainElementPropertyExpression(root, criteriaBuilder, MAAS_TOPICS_CLASSIFIER_NAME_PROP)),
+                                                    criteriaBuilder.countDistinct(getChainElementPropertyExpression(root, criteriaBuilder, MAAS_VHOST_CLASSIFIER_NAME_PROP))
+                                            ),
+                                            criteriaBuilder.countDistinct(getChainElementSubPropertyExpression(root, criteriaBuilder, OPERATION_ASYNC_PROPERTIES, MAAS_CLASSIFIER_NAME_PROP))
+                                    );
                             default -> null;
                         };
 
@@ -260,7 +268,7 @@ public class ChainFilterSpecificationBuilder {
                                 : conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, TOPICS), value));
 
                 yield isNegativeElementFilter
-                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(criteriaBuilder, basePredicateFunc), value)
+                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(root, criteriaBuilder, basePredicateFunc), value)
                         : basePredicateFunc.apply(null);
             }
             case QUEUE -> {
@@ -273,7 +281,7 @@ public class ChainFilterSpecificationBuilder {
                                 : conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, QUEUES), value));
 
                 yield isNegativeElementFilter
-                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(criteriaBuilder, basePredicateFunc), value)
+                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(root, criteriaBuilder, basePredicateFunc), value)
                         : basePredicateFunc.apply(null);
             }
             case EXCHANGE -> {
@@ -285,30 +293,54 @@ public class ChainFilterSpecificationBuilder {
                                 : conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, EXCHANGE), value));
 
                 yield isNegativeElementFilter
-                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(criteriaBuilder, basePredicateFunc), value)
+                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(root, criteriaBuilder, basePredicateFunc), value)
                         : basePredicateFunc.apply(null);
             }
             case SERVICE_ID -> conditionPredicateBuilder.apply(isNegativeElementFilter
                             ? getChainElementFilterSubquery(
+                                    root,
                                     criteriaBuilder,
                                     (elRoot) -> criteriaBuilder.equal(
                                             getElementPropertyExpression(elRoot.get("properties"), criteriaBuilder, SYSTEM_ID),
                                             value))
                             : getChainElementPropertyExpression(root, criteriaBuilder, SYSTEM_ID),
                     value);
+            case CLASSIFIER -> {
+                Function<Root<ChainElement>, Predicate> basePredicateFunc = (elRoot) -> criteriaBuilder.or(
+                        buildAsyncOperationPredicate(root, elRoot, criteriaBuilder, conditionPredicateBuilder,
+                                OPERATION_PROTOCOL_TYPE_KAFKA, MAAS_CLASSIFIER_NAME_PROP, value),
+                        buildAsyncOperationPredicate(root, elRoot, criteriaBuilder, conditionPredicateBuilder,
+                                OPERATION_PROTOCOL_TYPE_AMQP, MAAS_CLASSIFIER_NAME_PROP, value),
+                        isNegativeElementFilter
+                                ? criteriaBuilder.or(
+                                        criteriaBuilder.equal(getChainElementPropertyExpression(root, criteriaBuilder, MAAS_TOPICS_CLASSIFIER_NAME_PROP), value),
+                                        criteriaBuilder.equal(getChainElementPropertyExpression(root, criteriaBuilder, MAAS_VHOST_CLASSIFIER_NAME_PROP), value))
+                                : criteriaBuilder.or(
+                                        conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, MAAS_TOPICS_CLASSIFIER_NAME_PROP), value),
+                                        conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, MAAS_VHOST_CLASSIFIER_NAME_PROP), value)));
+
+                yield isNegativeElementFilter
+                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(root, criteriaBuilder, basePredicateFunc), value)
+                        : basePredicateFunc.apply(null);
+            }
             default -> throw new IllegalStateException("Unexpected filter feature: " + filter.getFeature());
         };
     }
 
     @NotNull
-    private Subquery<String> getChainElementFilterSubquery(CriteriaBuilder criteriaBuilder, Function<Root<ChainElement>, Predicate> basePredicateFunc) {
+    private Subquery<String> getChainElementFilterSubquery(
+            Root<Chain> root,
+            CriteriaBuilder criteriaBuilder,
+            Function<Root<ChainElement>, Predicate> basePredicateFunc
+    ) {
         Subquery<String> negativeSubquery = criteriaBuilder.createQuery().subquery(String.class);
         Root<ChainElement> elRoot = negativeSubquery.from(ChainElement.class);
         negativeSubquery
                 .select(elRoot.get("chain").get("id"))
                 .where(criteriaBuilder.and(
                         basePredicateFunc.apply(elRoot),
-                        criteriaBuilder.isNotNull(elRoot.get("chain").get("id"))));
+                        criteriaBuilder.isNotNull(elRoot.get("chain").get("id")),
+                        criteriaBuilder.notEqual(root.get("id"), elRoot.get("chain").get("id"))));
         return negativeSubquery;
     }
 
@@ -362,16 +394,15 @@ public class ChainFilterSpecificationBuilder {
                         protocol
                 ),
                 elRoot == null
-                        ? conditionPredicateBuilder.apply(
-                                getChainElementPropertyExpression(root, criteriaBuilder, operationProperty),
-                                value
-                        )
-                        : criteriaBuilder.equal(
-                                getChainElementPropertyExpression(root, criteriaBuilder, operationProperty),
-                                value)
+                        ? criteriaBuilder.or(
+                            conditionPredicateBuilder.apply(getChainElementSubPropertyExpression(root, criteriaBuilder, OPERATION_ASYNC_PROPERTIES, operationProperty), value),
+                            conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, operationProperty), value))
+                        : criteriaBuilder.or(
+                            criteriaBuilder.equal(getChainElementSubPropertyExpression(root, criteriaBuilder, OPERATION_ASYNC_PROPERTIES, operationProperty), value),
+                            criteriaBuilder.equal(getChainElementPropertyExpression(root, criteriaBuilder, operationProperty), value))
         );
     }
-    
+
     private Predicate elementTypeIs(Root<Chain> root, CriteriaBuilder criteriaBuilder, String typeName) {
         Join<Chain, ?> elementJoin = getJoin(root, "elements");
         return criteriaBuilder.equal(elementJoin.get("type"), typeName);

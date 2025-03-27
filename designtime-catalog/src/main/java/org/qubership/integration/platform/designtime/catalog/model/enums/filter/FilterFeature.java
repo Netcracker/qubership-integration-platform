@@ -42,5 +42,6 @@ public enum FilterFeature {
     ENTITY_TYPE,
     INSTRUCTION_ACTION,
     OVERRIDDEN_BY,
-    MODIFIED_WHEN
+    MODIFIED_WHEN,
+    CLASSIFIER
 }

@@ -209,7 +209,8 @@ public class ChainService extends ChainBaseService {
                 FilterFeature.EXCHANGE,
                 FilterFeature.TOPIC,
                 FilterFeature.QUEUE,
-                FilterFeature.LABELS
+                FilterFeature.LABELS,
+                FilterFeature.CLASSIFIER
         ).map(feature -> FilterRequestDTO
                 .builder()
                 .feature(feature)
