@@ -56,4 +56,6 @@ public class Session {
     private String correlationId;
 
     private String parentSessionId;
+
+    private long syncDuration;
 }

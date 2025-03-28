@@ -40,6 +40,8 @@ public class AbstractElementElastic {
 
     private long duration;
 
+    private long syncDuration;
+
     @OpenSearchField(type = OpenSearchFieldType.Keyword)
     private ExecutionStatus executionStatus;
 

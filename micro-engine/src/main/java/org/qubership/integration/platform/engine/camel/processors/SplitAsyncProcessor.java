@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 public class SplitAsyncProcessor implements Processor {
     @Override
     public void process(Exchange exchange) throws Exception {
+        exchange.setProperty(Properties.IS_MAIN_EXCHANGE, false);
         exchange.removeProperty(Properties.CHAIN_TIME_OUT_AFTER);
     }
 }

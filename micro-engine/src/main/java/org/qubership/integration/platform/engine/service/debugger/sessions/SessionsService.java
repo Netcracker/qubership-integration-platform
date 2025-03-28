@@ -105,7 +105,8 @@ public class SessionsService {
         CamelDebuggerProperties dbgProperties,
         ExecutionStatus executionStatus,
         String finishTime,
-        long duration
+        long duration,
+        long syncDuration
     ) {
         String sessionId = exchange.getProperty(Properties.SESSION_ID, String.class);
         boolean cacheCleared = false;
@@ -131,9 +132,11 @@ public class SessionsService {
                                             ChainProperties.EXECUTION_STATUS)),
                                 executionStatus);
                         }
+
                         session.setExecutionStatus(executionStatus);
                         session.setFinished(finishTime);
                         session.setDuration(duration);
+                        session.setSyncDuration(syncDuration);
 
                         // update general session data for every related element
                         Collection<SessionElementElastic> elements =

@@ -46,6 +46,8 @@ public class SessionElementElastic extends AbstractElementElastic {
 
     private long sessionDuration;
 
+    private long sessionSyncDuration;
+
     @OpenSearchField(type = OpenSearchFieldType.Keyword)
     private ExecutionStatus sessionExecutionStatus;
 
@@ -115,6 +117,7 @@ public class SessionElementElastic extends AbstractElementElastic {
             setSessionFinished(session.getFinished());
             setSessionDuration(session.getDuration());
             setSessionExecutionStatus(session.getExecutionStatus());
+            setSessionSyncDuration(session.getSyncDuration());
             setChainId(session.getChainId());
             setChainName(session.getChainName());
             setDomain(session.getDomain());

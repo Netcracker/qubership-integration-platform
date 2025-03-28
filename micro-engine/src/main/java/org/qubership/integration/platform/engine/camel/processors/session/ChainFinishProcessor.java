@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
@@ -60,6 +61,7 @@ public class ChainFinishProcessor implements Processor {
     private final Optional<SdsService> sdsService;
     private final ChainLogger chainLogger;
     private final PayloadExtractor payloadExtractor;
+    private final ConcurrentHashMap<String, Long> syncDurationMap = new ConcurrentHashMap<>();
 
     @Autowired
     public ChainFinishProcessor(MetricsService metricsService,
@@ -96,13 +98,22 @@ public class ChainFinishProcessor implements Processor {
         }
         threadsStatuses.put(currentThreadId, currentExchangeStatus);
 
+        String sessionId = exchange.getProperty(CamelConstants.Properties.SESSION_ID, String.class);
+        Boolean isMainExchange = exchange.getProperty(Properties.IS_MAIN_EXCHANGE, false, Boolean.class);
+
+        if (isMainExchange) {
+            String started = exchange.getProperty(CamelConstants.Properties.START_TIME, String.class);
+
+            long syncDuration = Duration.between(LocalDateTime.parse(started), LocalDateTime.now()).toMillis();
+
+            syncDurationMap.merge(sessionId, syncDuration, Long::sum);
+        }
+
         // finish session if this is the last thread
         if (sessionActiveThreadCounter == null || sessionActiveThreadCounter.decrementAndGet() <= 0) {
             CamelDebugger camelDebugger = ((CamelDebugger) exchange.getContext().getDebugger());
             CamelDebuggerProperties dbgProperties = propertiesService.getProperties(exchange,
-                camelDebugger.getDeploymentId());
-            String sessionId = exchange.getProperty(CamelConstants.Properties.SESSION_ID)
-                .toString();
+                    camelDebugger.getDeploymentId());
 
             ExecutionStatus executionStatus = ExecutionStatus.COMPLETED_NORMALLY;
             for (Entry<Long, ExecutionStatus> entry : threadsStatuses.entrySet()) {
@@ -132,11 +143,12 @@ public class ChainFinishProcessor implements Processor {
                 }
             }
 
-            camelDebugger.finishCheckpointSession(exchange, dbgProperties, sessionId,
-                executionStatus, duration);
+            camelDebugger.finishCheckpointSession(exchange, dbgProperties, sessionId, executionStatus, duration);
 
-            sessionsService.finishSession(exchange, dbgProperties, executionStatus,
-                finished, duration);
+            sessionsService.finishSession(exchange, dbgProperties, executionStatus, finished, duration,
+                    syncDurationMap.getOrDefault(sessionId, 0L));
+
+            syncDurationMap.remove(sessionId);
 
             if (runtimeProperties.getLogLoggingLevel().isInfoLevel()) {
 
