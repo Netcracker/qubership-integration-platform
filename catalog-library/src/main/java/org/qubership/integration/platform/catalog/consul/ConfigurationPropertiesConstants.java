@@ -59,6 +59,11 @@ public class ConfigurationPropertiesConstants {
     public static final String SERVICE_CALL_RETRY_COUNT = "retryCount";
     public static final String SERVICE_CALL_RETRY_DELAY = "retryDelay";
 
+    public static final String IDEMPOTENCY_ENABLED = "idempotencyEnabled";
+    public static final String EXPIRY = "expiry";
+    public static final String METHOD = "method";
+    public static final String PATH = "path";
+
     /**
      * The list contains element types. These are container-type elements whose children must be
      * placed inside an intermediate step in the session tree. This is for steps in a template with

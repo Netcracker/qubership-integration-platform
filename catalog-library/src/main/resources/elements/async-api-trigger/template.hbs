@@ -21,7 +21,10 @@
     <setProperty name="internalProperty_acknowledgeMode">
         <constant>{{subProperty 'integrationOperationAsyncProperties' 'acknowledgeMode'}}</constant>
     </setProperty>
-    <process id="{{identifier}}" ref="rabbitMqTriggerProcessor"/>
+    <step id="{{identifier}}">
+        <process ref="rabbitMqTriggerProcessor"/>
+        {{> idempotency}}
+    </step>
 {{/if-property}}
 
 {{#if-property 'integrationOperationProtocolType' equals='kafka'}}
@@ -38,5 +41,8 @@
     <setProperty name="internalProperty_asyncValidationSchema">
         <constant>{{property 'asyncValidationSchema'}}</constant>
     </setProperty>
-    <process id="{{identifier}}" ref="kafkaTriggerProcessor"/>
+    <step id="{{identifier}}">
+        <process ref="kafkaTriggerProcessor"/>
+        {{> idempotency}}
+    </step>
 {{/if-property}}

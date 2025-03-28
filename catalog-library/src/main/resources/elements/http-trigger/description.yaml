@@ -32,6 +32,8 @@ customTabs:
     uiComponent: http-request-validation-failure-handler
 -   name: Failure Response Mapping
     uiComponent: http-request-chain-failure-handler
+-   name: Idempotency
+    uiComponent: idempotency-parameters
 # <WARNING 1> 'matchOnUriPrefix' param not supported now! See qip-engine -> RestConsumerContextPathCustomMatcher::matchBestPath
 # <WARNING 2> at runtime, the 'servletCustomId' property will be added to the ServletCustomEndpoint (append to URI)
 properties:
@@ -79,6 +81,33 @@ properties:
         type: boolean
         default: false
     hidden:
+    -   name: idempotencyKeyExpression
+        title: Key expression
+        type: string
+    -   name: enableIdempotency
+        title: Enable idempotency
+        type: boolean
+        default: false
+    -   name: idempotencyKeyExpiry
+        title: Key expiration time (seconds)
+        type: number
+        default: 600
+    -   name: actionOnDuplicate
+        title: Action on duplicate message
+        type: string
+        allowedValues:
+            - ignore
+            - throw-exception
+            - execute-subchain
+        default: ignore
+    -   name: chainTriggerElementId
+        title: Reference to chain trigger
+        type: string
+        reference: true
+    -   name: chainCallTimeout
+        title: Timeout (ms)
+        type: number
+        default: 30000
     -   name: accessControlType
         title: Access Control Type
         type: string

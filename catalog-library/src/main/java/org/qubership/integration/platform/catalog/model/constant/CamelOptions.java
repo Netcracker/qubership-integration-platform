@@ -35,6 +35,7 @@ public final class CamelOptions {
     // kafka
     public static final String BROKERS = "brokers";
     public static final String TOPICS = "topics";
+    public static final String GROUP_ID = "groupId";
     public static final String SECURITY_PROTOCOL = "securityProtocol";
     public static final String SASL_MECHANISM = "saslMechanism";
     public static final String SASL_JAAS_CONFIG = "saslJaasConfig";
@@ -112,6 +113,9 @@ public final class CamelOptions {
     public static final String DEFAULT_VHOST_CLASSIFIER_NAME = "public";
 
     public static final String SDS_JOB_ID = "jobId";
+
+    public static final String ENABLE_IDEMPOTENCY_PROP = "enableIdempotency";
+    public static final String EXPIRY_PROP = "idempotencyKeyExpiry";
 
     @Deprecated(since = "23.1", forRemoval = true)
     public static final String MAAS_ENV_PROP_PREFIX = "maas.";

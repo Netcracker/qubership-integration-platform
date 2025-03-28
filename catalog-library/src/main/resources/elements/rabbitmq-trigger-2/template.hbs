@@ -2,4 +2,8 @@
 <setProperty name="internalProperty_acknowledgeMode">
     <constant>{{property 'acknowledgeMode'}}</constant>
 </setProperty>
-<process id="{{identifier}}" ref="rabbitMqTriggerProcessor"/>
+<step id="{{identifier}}">
+    <process ref="rabbitMqTriggerProcessor"/>
+    {{> idempotency}}
+</step>
+

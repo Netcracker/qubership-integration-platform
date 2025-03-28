@@ -57,6 +57,8 @@ public final class CamelNames {
     public static final String SDS_TRIGGER_COMPONENT = "sds-trigger";
     public static final String UNSUPPORTED_COMPONENT = "unsupported";
     public static final String CHAIN_CALL_2_COMPONENT = "chain-call-2";
+    public static final String PUBSUB_TRIGGER_COMPONENT = "pubsub-trigger";
+    public static final String PUBSUB_SENDER_COMPONENT = "pubsub-sender";
 
     public static final String SYSTEM = "System";
     public static final String EXTERNAL_SYSTEM = "externalSystem";
