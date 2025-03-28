@@ -63,6 +63,12 @@ spring:
   jackson:
     serialization:
       indent-output: true
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USER:}
+      password: ${REDIS_PASSWORD:}
 
 app:
   prefix: qip
@@ -261,6 +267,8 @@ qip:
       url: ${RUNTIME_CATALOG_SERVICE_URL:http://runtime-catalog:8080}
   restclient:
     timeout: 300000
+  idempotency:
+    enabled: ${IDEMPOTENCY_ENABLED:true}
 
 kubernetes:
   devmode: ${KUBE_DEV_MODE:false}
