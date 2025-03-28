@@ -42,6 +42,8 @@ import java.util.Map;
 public final class TemplateService {
 
     private static final String TEMPLATE_FOLDER = "/elements";
+    private static final String SHARED_TEMPLATE_FOLDER = "/shared";
+    private static final String SHARED_TEMPLATE_SUFFIX = ".hbs";
     private static final String DEFAULT_TEMPLATE_SUFFIX = "/template.hbs";
     private static final String COMPOSITE_TRIGGER_DIR_SUFFIX = "/trigger";
     private static final String COMPOSITE_TRIGGER_MODULE_DIR_SUFFIX = "/module";
@@ -53,7 +55,9 @@ public final class TemplateService {
     public TemplateService(ListableBeanFactory beanFactory, LibraryElementsService libraryService) {
         this.libraryService = libraryService;
         this.handlebars = new Handlebars()
-                .with(new ClassPathTemplateLoader(TEMPLATE_FOLDER, DEFAULT_TEMPLATE_SUFFIX))
+                .with(
+                    new ClassPathTemplateLoader(TEMPLATE_FOLDER, DEFAULT_TEMPLATE_SUFFIX),
+                    new ClassPathTemplateLoader(SHARED_TEMPLATE_FOLDER, SHARED_TEMPLATE_SUFFIX))
                 .with(EscapingStrategy.NOOP);
 
         handlebars.setInfiniteLoops(true);

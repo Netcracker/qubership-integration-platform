@@ -3,5 +3,7 @@
     <setProperty name="internalProperty_asyncValidationSchema">
         <constant></constant>
     </setProperty>
-    <process id="5e5cecb4-b800-4a20-b91f-231134da0dc0" ref="kafkaTriggerProcessor"/>
+    <step id="5e5cecb4-b800-4a20-b91f-231134da0dc0">
+        <process ref="kafkaTriggerProcessor"/>
+    </step>
 </route>

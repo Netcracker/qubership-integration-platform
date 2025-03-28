@@ -1,4 +1,6 @@
 <route>
     <from uri="kafka-custom:test-topic?groupId=test-topic-group&amp;reconnectBackoffMaxMs=30000&amp;sslProtocol=TLS&amp;sslEndpointAlgorithm=http://localhost:8080&amp;autoOffsetReset=latest&amp;consumersCount=1&amp;keyDeserializer=org.apache.kafka.common.serialization.StringDeserializer&amp;valueDeserializer=org.apache.kafka.common.serialization.StringDeserializer&amp;brokers=kafka-main:9092&amp;securityProtocol=SASL_PLAINTEXT&amp;saslMechanism=SCRAM-SHA-512&amp;saslJaasConfig=org.apache.kafka.common.security.scram.ScramLoginModule required username=client password=client;&amp;headerDeserializer=#kafkaHeaderStringDeserializer&amp;kafkaClientFactory=#e6356abd-71ed-4a14-8a1b-daa11eeee1c4-v2"/>
-    <process id="e6356abd-71ed-4a14-8a1b-daa11eeee1c4" ref="kafkaTriggerProcessor"/>
+    <step id="e6356abd-71ed-4a14-8a1b-daa11eeee1c4">
+        <process ref="kafkaTriggerProcessor"/>
+    </step>
 </route>

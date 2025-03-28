@@ -3,5 +3,7 @@
     <setProperty name="internalProperty_acknowledgeMode">
         <constant>AUTO</constant>
     </setProperty>
-    <process id="5528e3fb-b970-4261-b72d-9c22742b2ef2" ref="rabbitMqTriggerProcessor"/>
+    <step id="5528e3fb-b970-4261-b72d-9c22742b2ef2">
+        <process ref="rabbitMqTriggerProcessor"/>
+    </step>
 </route>
