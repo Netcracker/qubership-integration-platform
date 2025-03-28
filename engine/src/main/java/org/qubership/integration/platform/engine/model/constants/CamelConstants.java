@@ -200,6 +200,8 @@ public final class CamelConstants {
         public static final String JMS_CONNECTION_FACTORY_NAME = "connectionFactoryName";
         public static final String JMS_USERNAME = "username";
         public static final String JMS_PASSWORD = "password";
+        public static final String JMS_DESTINATION_TYPE = "destinationType";
+        public static final String JMS_DESTINATION_NAME = "destinationName";
         public static final String SDS_JOB_ID = "jobId";
         public static final String SDS_CRON_EXPRESSION = "cron";
         public static final String SDS_FEATURE_PROHIBIT_PARALLEL_RUN = "prohibitParallelRun";
@@ -221,6 +223,11 @@ public final class CamelConstants {
         public static final String EXTERNAL_SERVICE_NAME_PROP = "external-service-name";
         public static final String EXTERNAL_SERVICE_ENV_NAME = "externalServiceEnvName";
         public static final String EXTERNAL_SERVICE_ENV_NAME_PROP = "external-service-environment-name";
+
+        public static final String IDEMPOTENCY_ENABLED = "idempotencyEnabled";
+        public static final String EXPIRY = "expiry";
+        public static final String PATH = "path";
+        public static final String METHOD = "method";
 
         private ChainProperties() {
         }

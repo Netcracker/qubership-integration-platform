@@ -21,6 +21,7 @@ public class ElementOptions {
     // kafka
     public static final String BROKERS = "brokers";
     public static final String TOPICS = "topics";
+    public static final String GROUP_ID = "groupId";
     public static final String SECURITY_PROTOCOL = "securityProtocol";
     public static final String SASL_MECHANISM = "saslMechanism";
     public static final String SASL_JAAS_CONFIG = "saslJaasConfig";
@@ -33,6 +34,10 @@ public class ElementOptions {
     public static final String PASSWORD = "password";
     public static final String VHOST = "vhost";
     public static final String SSL = "sslProtocol";
+
+    // pubsub
+    public static final String PROJECT_ID = "projectId";
+    public static final String DESTINATION_NAME = "destinationName";
 
     public static final String CONNECTION_SOURCE_TYPE_PROP = "connectionSourceType";
 
