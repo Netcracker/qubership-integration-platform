@@ -109,9 +109,6 @@ public class DebuggerUtils {
                     ? new ConcurrentHashMap<>()
                     : new ConcurrentHashMap<>(exchange.getProperty(Properties.EXCHANGES, ConcurrentHashMap.class)));
 
-        exchange.setProperty(Properties.IS_MAIN_EXCHANGE,
-                exchange.getProperty(Properties.IS_MAIN_EXCHANGE) == null
-        );
         exchange.setProperty(Properties.EXCHANGE_START_TIME_MS, System.currentTimeMillis());
     }
 

@@ -65,8 +65,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
-import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.SERVICE_CALL_RETRY_COUNT;
-import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.SERVICE_CALL_RETRY_DELAY;
+import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.*;
 import static org.qubership.integration.platform.engine.util.CheckpointUtils.*;
 import static java.util.Objects.nonNull;
 
@@ -372,6 +371,7 @@ public class CamelDebugger extends DefaultDebugger {
             exchange.setProperty(CamelConstants.Properties.SESSION_ID, sessionId);
             exchange.setProperty(CamelConstants.Properties.SESSION_SHOULD_BE_LOGGED,
                 sessionsService.sessionShouldBeLogged());
+            exchange.setProperty(IS_MAIN_EXCHANGE, true);
             exchange.setProperty(CamelConstants.Properties.START_TIME, started);
             exchange.setProperty(CamelConstants.Properties.START_TIME_MS, startedMillis);
             exchange.getProperty(CamelConstants.Properties.EXCHANGES, ConcurrentHashMap.class)
