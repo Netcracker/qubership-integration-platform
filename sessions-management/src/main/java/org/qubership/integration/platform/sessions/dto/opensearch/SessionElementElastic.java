@@ -40,6 +40,8 @@ public class SessionElementElastic extends AbstractElement {
 
     private ExecutionStatus sessionExecutionStatus;
 
+    private long sessionSyncDuration;
+
     private boolean importedSession;
 
     private String chainId;

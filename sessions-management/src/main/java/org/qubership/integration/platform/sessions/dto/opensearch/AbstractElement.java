@@ -36,6 +36,8 @@ public class AbstractElement {
 
     private long duration;
 
+    private long syncDuration;
+
     private ExecutionStatus executionStatus;
 
 }

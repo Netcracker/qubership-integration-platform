@@ -38,6 +38,7 @@ public abstract class SessionAggregateMapper {
     @Mapping(target = "finished", source = "element.sessionFinished")
     @Mapping(target = "duration", source = "element.sessionDuration")
     @Mapping(target = "executionStatus", source = "element.sessionExecutionStatus")
+    @Mapping(target = "syncDuration", source = "element.sessionSyncDuration")
     @Mapping(target = "parentSessionId", source = "element.parentSessionId")
     protected abstract Session toPreview(SessionElementElastic element, @MappingTarget Session session);
 

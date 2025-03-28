@@ -38,4 +38,7 @@ public abstract class AbstractRunnableElement {
     private long duration;
 
     private ExecutionStatus executionStatus;
+
+    @Schema(description = "Synchronous duration of session execution in ms")
+    private long syncDuration;
 }

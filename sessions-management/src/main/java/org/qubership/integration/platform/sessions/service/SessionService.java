@@ -66,7 +66,7 @@ public class SessionService {
     };
     private static final String AGGREGATION_COLUMN = "sessionId";
     private static final List<String> SESSION_OPENSEARCH_FIELDS = Arrays.asList("sessionId", "sessionStarted", "sessionFinished",
-            "sessionDuration", "sessionExecutionStatus", "chainId", "chainName", "engineAddress", "loggingLevel");
+            "sessionDuration", "sessionExecutionStatus", "chainId", "chainName", "engineAddress", "loggingLevel", "sessionSyncDuration");
     private static final int SCROLL_WINDOW = 300;
     private static final String ELEMENT_EXECUTION_ERROR_MESSAGE = "Error during element execution";
     public static final String SESSION_ID_KEY = "sessionId";
