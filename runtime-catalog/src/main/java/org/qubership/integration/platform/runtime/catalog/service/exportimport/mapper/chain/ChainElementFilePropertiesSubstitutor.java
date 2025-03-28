@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.internal.lang3.tuple.Pair;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
 
 @Component
+@Slf4j
 public class ChainElementFilePropertiesSubstitutor {
 
     private final ObjectMapper objectMapper;
@@ -95,32 +97,47 @@ public class ChainElementFilePropertiesSubstitutor {
             return;
         }
 
-        List<Map<String, Object>> afterPropertiesList = (List<Map<String, Object>>) element.getProperties()
-                .getOrDefault(AFTER, Collections.emptyList());
-        for (Map<String, Object> afterProperties : afterPropertiesList) {
-            String afterPropertiesFilename = (String) afterProperties.get(FILE_NAME_PROPERTY);
-            if (afterPropertiesFilename == null) {
-                continue;
+        Object afterPropertiesObj = element.getProperties().getOrDefault(AFTER, Collections.emptyList());
+        if (afterPropertiesObj instanceof List<?> afterPropertiesList) {
+            for (Object obj : afterPropertiesList) {
+                if (obj instanceof Map<?, ?> afterProperties) {
+                    String afterPropertiesFilename = (String) afterProperties.get(FILE_NAME_PROPERTY);
+                    if (afterPropertiesFilename == null) {
+                        continue;
+                    }
+                    addServiceCallHandlerContent(
+                            (Map<String, Object>) afterProperties,
+                            extractPropertiesFileContent((Map<String, Object>) afterProperties, chainFilesDir, afterPropertiesFilename)
+                    );
+                    afterProperties.remove(FILE_NAME_PROPERTY);
+                } else {
+                    log.error("Either the 'after' property is missing, or it is not formatted as a key-value pair " + obj.getClass().getName());
+                    throw new IllegalArgumentException("Either the 'after' property is missing, or it is not formatted as a key-value pair");
+                }
             }
+        } else {
+            log.error(("Either the 'after' property is missing or it is not in the required format " + afterPropertiesObj.getClass().getName()));
+            throw new IllegalArgumentException("Either the 'after' property is missing or it is not in the required format");
+        }
+
+        Object beforePropertiesObj = element.getProperties().getOrDefault(BEFORE, Collections.emptyMap());
+
+        if (beforePropertiesObj instanceof Map<?, ?> beforeProperties) {
+            String beforePropertiesFilename = (String) beforeProperties.get(FILE_NAME_PROPERTY);
+            if (beforePropertiesFilename == null) {
+                return;
+            }
+
             addServiceCallHandlerContent(
-                    afterProperties,
-                    extractPropertiesFileContent(afterProperties, chainFilesDir, afterPropertiesFilename)
+                    (Map<String, Object>) beforeProperties,
+                    extractPropertiesFileContent((Map<String, Object>) beforeProperties, chainFilesDir, beforePropertiesFilename)
             );
-            afterProperties.remove(FILE_NAME_PROPERTY);
+            beforeProperties.remove(FILE_NAME_PROPERTY);
+        } else {
+            log.error(("Either the 'before' property is missing, or it is not formatted as a key-value pair " + beforePropertiesObj.getClass().getName()));
+            throw new IllegalArgumentException("Either the 'before' property is missing, or it is not formatted as a key-value pair");
         }
 
-        Map<String, Object> beforeProperties = (Map<String, Object>) element.getProperties()
-                .getOrDefault(BEFORE, Collections.emptyMap());
-        String beforePropertiesFilename = (String) beforeProperties.get(FILE_NAME_PROPERTY);
-        if (beforePropertiesFilename == null) {
-            return;
-        }
-
-        addServiceCallHandlerContent(
-                beforeProperties,
-                extractPropertiesFileContent(beforeProperties, chainFilesDir, beforePropertiesFilename)
-        );
-        beforeProperties.remove(FILE_NAME_PROPERTY);
     }
 
     private Object extractPropertiesFileContent(Map<String, Object> properties, File chainFilesDir, String propertiesFilename) throws IOException {
