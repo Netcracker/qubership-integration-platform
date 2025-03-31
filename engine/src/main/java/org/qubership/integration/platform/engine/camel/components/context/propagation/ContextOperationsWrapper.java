@@ -19,6 +19,8 @@ package org.qubership.integration.platform.engine.camel.components.context.propa
 import java.util.Map;
 
 public interface ContextOperationsWrapper {
+
     void activateWithSerializableContextData(Map<String, Map<String, Object>> contextData);
+
     Map<String, Map<String, Object>> getSerializableContextData();
 }
