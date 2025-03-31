@@ -16,18 +16,17 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
-import java.util.Optional;
-
 import org.apache.camel.Exchange;
 import org.apache.camel.http.common.HttpHeaderFilterStrategy;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import static java.util.Objects.nonNull;
-
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+
+import static java.util.Objects.nonNull;
 
 @Component
 public class ServletCustomFilterStrategy extends HttpHeaderFilterStrategy {

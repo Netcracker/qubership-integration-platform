@@ -19,10 +19,16 @@ package org.qubership.integration.platform.engine.camel.context.propagation;
 import java.util.Map;
 
 public interface CamelExchangeContextPropagation {
+
     void initRequestContext(Map<String, Object> headers);
+
     Map<String, Object> createContextSnapshot();
+
     Map<String, String> buildContextSnapshotForSessions();
+
     void activateContextSnapshot(Map<String, Object> snapshot);
+
     void removeContextHeaders(Map<String, Object> exchangeHeaders);
+
     void clear();
 }
