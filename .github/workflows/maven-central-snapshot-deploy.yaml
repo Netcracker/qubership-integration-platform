@@ -1,0 +1,39 @@
+---
+# The workflow to deploy snapshot artifact versions to Maven Central
+# Fill free to adjust java version and additional mvn command-line parameters
+# The workflow will trigger on pushes into branches different from main and release
+# Please make sure that the version in the pom.xml file has the SNAPSHOT postfix
+
+# Please adjust pom.xml file for your project according to the instructions:
+# https://github.com/Netcracker/qubership-workflow-hub/blob/main/docs/maven-publish-pom-preparation_doc.md
+
+name: Maven deploy snapshot
+
+on:
+  push:
+    branches-ignore:
+    - "main"
+    - "**release*"
+    - "prettier/**"
+    - "dependabot/**"
+    paths-ignore:
+    - "docs/**"
+    - "README.md"
+    - ".github/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  mvn-snapshot-deploy:
+    uses: netcracker/qubership-workflow-hub/.github/workflows/re-maven-snapshot-deploy.yaml@main
+    with:
+      java-version: "21"
+      additional-mvn-args: ""
+      target-store: "maven-central"
+    secrets:
+      maven-username: ${{ secrets.MAVEN_USER }}
+      maven-token: ${{ secrets.MAVEN_PASSWORD }}
+      gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
