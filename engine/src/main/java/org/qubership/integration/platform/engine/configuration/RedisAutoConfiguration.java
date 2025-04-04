@@ -24,6 +24,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -31,6 +32,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import java.util.function.Function;
 
 @AutoConfiguration
+@Import({org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration.class})
 @ConditionalOnProperty(value = "qip.idempotency.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisAutoConfiguration {
     private static final String IDEMPOTENT_REPOSITORY_KEY_PROPERTY = "IdempotentRepositoryKey";
