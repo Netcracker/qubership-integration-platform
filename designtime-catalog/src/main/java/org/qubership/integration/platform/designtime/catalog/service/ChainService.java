@@ -516,6 +516,10 @@ public class ChainService extends ChainBaseService {
         return chainRepository.findAllChainsToRootParentFolder(openedFolderId);
     }
 
+    public List<Chain> findAllChainsInFolders(List<String> folderIds) {
+        return chainRepository.findAllChainsInFolders(folderIds);
+    }
+
     public long getChainsCount() {
         return chainRepository.count();
     }

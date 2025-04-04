@@ -43,9 +43,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -166,11 +169,23 @@ public class FolderController {
     @PostMapping(value = "/search", produces = "application/json")
     @Operation(description = "Search from root folder with chains")
     public ResponseEntity<List<? extends FolderItemResponse>> searchRootFolderWithChains(@RequestBody @Parameter(description = "Folder search request object") ChainSearchRequestDTO chainSearchRequestDTO) {
-        List<Chain> chains = chainService.searchChains(chainSearchRequestDTO);
-        List<Folder> relatedFolders = folderService.getFoldersHierarchically(chains);
+        List<Chain> foundChains = chainService.searchChains(chainSearchRequestDTO);
+        List<Folder> foundFolders = folderService.searchFolders(chainSearchRequestDTO);
+        List<Chain> chainsInSubfolders = chainService.findAllChainsInFolders(foundFolders.stream().map(Folder::getId).toList());
+        
+        Set<Chain> chains = new TreeSet<>(Comparator.comparing(Chain::getId));
+        chains.addAll(foundChains);
+        chains.addAll(chainsInSubfolders);
+        
+        List<? extends FoldableEntity> entities = Stream.concat(chains.stream(), foundFolders.stream()).toList();
+        List<Folder> relatedFolders = folderService.getFoldersHierarchically(entities);
 
-        prepareSearchFilterResult(chains, relatedFolders);
-        List<? extends FolderItemResponse> response = getListResponse(chains, relatedFolders, true);
+        Set<Folder> folders = new TreeSet<>(Comparator.comparing(Folder::getId));
+        folders.addAll(relatedFolders);
+        folders.addAll(foundFolders);
+
+        prepareSearchFilterResult(chains, folders);
+        List<? extends FolderItemResponse> response = getListResponse(chains, folders, true);
         return ResponseEntity.ok(response);
     }
 
@@ -185,7 +200,7 @@ public class FolderController {
         return ResponseEntity.ok(response);
     }
 
-    private void prepareSearchFilterResult(List<Chain> chains, List<Folder> folders) {
+    private void prepareSearchFilterResult(Collection<Chain> chains, Collection<Folder> folders) {
         Map<String, Folder> folderMap = folders.stream()
                 .collect(Collectors.toMap(Folder::getId, Function.identity()));
 
@@ -252,8 +267,8 @@ public class FolderController {
     }
 
     private List<? extends FolderItemResponse> getListResponse(
-            List<Chain> chainSearchResult,
-            List<Folder> relatedFolders,
+            Collection<Chain> chainSearchResult,
+            Collection<Folder> relatedFolders,
             boolean includeItems
     ) {
         List<? extends FolderItemResponse> responseList =

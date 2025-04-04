@@ -27,6 +27,7 @@ import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.C
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.chain.ChainsBySpecificationGroup;
 import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.folder.FolderItemResponse;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -57,7 +58,7 @@ public interface ChainMapper {
     List<ChainDTO> asDTO(List<Chain> chains);
 
     @IterableMapping(elementTargetType = FolderItemResponse.class)
-    List<FolderItemResponse> asFolderItemResponse(List<Chain> chains);
+    List<FolderItemResponse> asFolderItemResponse(Collection<Chain> chains);
 
     @Mapping(source = "parentFolder.id", target = "parentId")
     @Mapping(source = "overriddenByChain.name", target = "overriddenByChainName")

@@ -29,6 +29,7 @@ import org.qubership.integration.platform.designtime.catalog.rest.v1.dto.folder.
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -54,7 +55,7 @@ public abstract class FolderMapper {
         return folderItem;
     }
 
-    public List<SearchFilterItemResponse> asSearchItemResponse(List<Folder> folders) {
+    public List<SearchFilterItemResponse> asSearchItemResponse(Collection<Folder> folders) {
         return folders.stream().map(this::asFolderSearchResponse).toList();
     }
 
@@ -79,7 +80,7 @@ public abstract class FolderMapper {
     }
 
     @IterableMapping(elementTargetType = FolderItemResponse.class)
-    public abstract List<FolderItemResponse> asFolderItemResponse(List<Folder> folder);
+    public abstract List<FolderItemResponse> asFolderItemResponse(Collection<Folder> folder);
 
     @Mapping(source = "parentFolder.id", target = "parentId")
     public abstract FolderItemResponse asFolderItemResponse(Folder entity);
