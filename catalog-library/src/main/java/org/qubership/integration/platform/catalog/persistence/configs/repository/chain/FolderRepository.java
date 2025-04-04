@@ -30,6 +30,8 @@ public interface FolderRepository extends CommonRepository<Folder>, JpaRepositor
 
     Folder findFirstByNameAndParentFolder(String name, Folder parentFolder);
 
+    List<Folder> findByNameContaining(String name);
+
     List<Folder> findAllByParentFolderIsNull();
 
     List<Folder> findAllByParentFolderEquals(Folder folder);

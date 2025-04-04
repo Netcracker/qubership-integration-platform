@@ -67,6 +67,28 @@ public interface ChainRepository extends CommonRepository<Chain>, JpaRepository<
     @Query(
             nativeQuery = true,
             value = """
+                SELECT *
+                FROM catalog.chains ch
+                WHERE ch.parent_folder_id IN (
+                    WITH RECURSIVE parent_folders AS (
+                        SELECT f1.*
+                        FROM catalog.folders f1
+                        WHERE f1.id in :folderIds
+                
+                        UNION ALL
+                
+                        SELECT f2.*
+                        FROM catalog.folders f2
+                                 INNER JOIN parent_folders pf ON f2.parent_folder_id = pf.id
+                    )
+                    SELECT DISTINCT id
+                    FROM parent_folders)"""
+    )
+    List<Chain> findAllChainsInFolders(List<String> folderIds);
+
+    @Query(
+            nativeQuery = true,
+            value = """
                 select chain_id
                 from catalog.elements
                 where id in (select properties ->> 'elementId'
