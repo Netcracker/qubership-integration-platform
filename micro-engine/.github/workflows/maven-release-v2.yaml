@@ -1,0 +1,79 @@
+---
+
+name: Maven release V2
+description: 'Release Maven artifact and publish to GitHub Packages or Maven Central'
+run-name: ${{ github.event.inputs.version-type }} release for ${{ github.event.repository.name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version-type:
+        description: 'Version type to release'
+        type: choice
+        options:
+          - 'major'
+          - 'minor'
+          - 'patch'
+        required: true
+        default: 'patch'
+      profile:
+        description: 'Maven profile to use'
+        type: choice
+        options:
+          - 'github'
+          - 'central'
+        required: false
+        default: 'github'
+      mvn-args:
+        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  dry-run-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Build and Publish"
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@feature/maven-release-plugin
+        with:
+          version-type: ${{ github.event.inputs.version-type }}
+          module: ${{ github.event.repository.name }}
+          maven-args: ${{ inputs.mvn-args }}
+          profile: ${{ inputs.profile }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          dry-run: 'true'
+#   deploy:
+#     needs: dry-run-build
+#     if: ${{ needs.dry-run-build.result == 'success' }}
+#     outputs:
+#       release-version: ${{ steps.build-and-publish.outputs.release-version }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: "Build and Publish"
+#         id: build-and-publish
+#         uses: netcracker/qubership-workflow-hub/actions/maven-release@feature/maven-release-plugin
+#         with:
+#           version-type: ${{ github.event.inputs.version-type }}
+#           module: ${{ github.event.repository.name }}
+#           maven-args: ${{ inputs.mvn-args }}
+#           token: ${{ secrets.GITHUB_TOKEN }}
+#           server-id: ${{ inputs.profile }}
+#           profile: ${{ inputs.profile }}
+#           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+#           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+#           dry-run: 'false'
+
+#   github-release:
+#     needs: deploy
+#     if: ${{ needs.deploy.result == 'success' }}
+#     uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
+#     with:
+#       version: ${{ needs.deploy.outputs.release-version }}
+#       publish: true
