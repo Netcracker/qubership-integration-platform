@@ -43,6 +43,7 @@ jobs:
         with:
           version-type: ${{ github.event.inputs.version-type }}
           module: ${{ github.event.repository.name }}
+          ref: ${{ github.ref }}
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           token: ${{ secrets.GITHUB_TOKEN }}
