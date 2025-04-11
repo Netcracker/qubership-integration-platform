@@ -46,7 +46,7 @@
         <jacoco-plugin.version>0.8.11</jacoco-plugin.version>
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
-        <qip-checkstyle-revision>0.0.1</qip-checkstyle-revision>
+        <qip-checkstyle-revision>0.0.2</qip-checkstyle-revision>
     </properties>
 
     <dependencyManagement>
@@ -143,7 +143,7 @@
 
     <dependencies>
         <!-- OpenSearch -->
-        
+
         <dependency>
             <groupId>org.opensearch.client</groupId>
             <artifactId>opensearch-java</artifactId>
@@ -247,7 +247,7 @@
         </dependency>
 
         <!-- OpenAPI -->
-        
+
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
