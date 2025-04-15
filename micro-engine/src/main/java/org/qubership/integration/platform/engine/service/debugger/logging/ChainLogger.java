@@ -34,6 +34,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.constants.CamelNames;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
+import org.qubership.integration.platform.engine.model.logging.ElementRetryProperties;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.debugger.tracing.TracingService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
@@ -49,8 +50,6 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
-
-import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.*;
 
 @Slf4j
 @Component
@@ -424,19 +423,19 @@ public class ChainLogger {
 
     public void logRequestAttempt(
             Exchange exchange,
-            CamelDebuggerProperties dbgProperties,
+            ElementRetryProperties elementRetryProperties,
             String elementId
     ) {
-        RetryParameters retryParameters = getRetryParameters(exchange, dbgProperties, elementId);
+        RetryParameters retryParameters = getRetryParameters(exchange, elementRetryProperties, elementId);
         chainLogger.info("Request attempt: {} (max {}).", retryParameters.iteration + 1, retryParameters.count + 1);
     }
 
     public void logRetryRequestAttempt(
             Exchange exchange,
-            CamelDebuggerProperties dbgProperties,
+            ElementRetryProperties elementRetryProperties,
             String elementId
     ) {
-        RetryParameters retryParameters = getRetryParameters(exchange, dbgProperties, elementId);
+        RetryParameters retryParameters = getRetryParameters(exchange, elementRetryProperties, elementId);
         if (retryParameters.enable && retryParameters.iteration > 0 && retryParameters.count > 0) {
             Throwable exception = exchange.getProperty(ExchangePropertyKey.EXCEPTION_CAUGHT, Throwable.class);
             chainLogger.warn("Request failed and will be retried after {}ms delay (retries left: {}): {}",
@@ -449,19 +448,15 @@ public class ChainLogger {
 
     private RetryParameters getRetryParameters(
             Exchange exchange,
-            CamelDebuggerProperties dbgProperties,
+            ElementRetryProperties elementRetryProperties,
             String elementId
     ) {
         try {
-            int retryCount = Integer.parseInt((String) exchange.getProperties()
-                    .getOrDefault(SERVICE_CALL_RETRY_COUNT, "0"));
-            int retryDelay = Integer.parseInt((String) exchange.getProperties()
-                    .getOrDefault(SERVICE_CALL_RETRY_DELAY, String.valueOf(SERVICE_CALL_DEFAULT_RETRY_DELAY)));
             String iteratorPropertyName = IdentifierUtils.getServiceCallRetryIteratorPropertyName(elementId);
             int iteration = Integer.parseInt(String.valueOf(exchange.getProperties().getOrDefault(iteratorPropertyName, 0)));
             String enableProperty = IdentifierUtils.getServiceCallRetryPropertyName(elementId);
             boolean enable = Boolean.parseBoolean(String.valueOf(exchange.getProperties().getOrDefault(enableProperty, "false")));
-            return new RetryParameters(retryCount, retryDelay, iteration, enable);
+            return new RetryParameters(elementRetryProperties.retryCount(), elementRetryProperties.retryDelay(), iteration, enable);
         } catch (NumberFormatException ex) {
             chainLogger.error("Failed to get retry parameters.", ex);
             return new RetryParameters(0, 0, 0, false);

@@ -38,6 +38,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelNames;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
+import org.qubership.integration.platform.engine.model.logging.ElementRetryProperties;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 import org.qubership.integration.platform.engine.model.sessionsreporting.EventSourceType;
@@ -563,8 +564,7 @@ public class CamelDebugger extends DefaultDebugger {
             case SERVICE_CALL:
                 if (CamelNames.REQUEST_ATTEMPT_STEP_PREFIX.equals(stepName)) {
                     if (logLoggingLevel.isInfoLevel()) {
-                        setRetryParameters(exchange, dbgProperties, elementId);
-                        chainLogger.logRequestAttempt(exchange, dbgProperties, elementId);
+                        chainLogger.logRequestAttempt(exchange, getElementRetryProperties(dbgProperties, elementId), elementId);
                     }
                 } else if (CamelNames.REQUEST_PREFIX.equals(stepName)) {
                     if (logLoggingLevel.isInfoLevel()) {
@@ -625,8 +625,7 @@ public class CamelDebugger extends DefaultDebugger {
             case SERVICE_CALL:
                 if (CamelNames.REQUEST_ATTEMPT_STEP_PREFIX.equals(stepName)) {
                     if (logLoggingLevel.isWarnLevel()) {
-                        setRetryParameters(exchange, dbgProperties, elementId);
-                        chainLogger.logRetryRequestAttempt(exchange, dbgProperties, elementId);
+                        chainLogger.logRetryRequestAttempt(exchange, getElementRetryProperties(dbgProperties, elementId), elementId);
                     }
                 }
                 break;
@@ -791,15 +790,17 @@ public class CamelDebugger extends DefaultDebugger {
         }
     }
 
-    private void setRetryParameters(Exchange exchange, CamelDebuggerProperties dbgProperties, String elementId) {
+    private ElementRetryProperties getElementRetryProperties(CamelDebuggerProperties dbgProperties, String elementId) {
+        String retryCountString = null;
+        String retryDelayString = null;
         try {
             Map<String, String> elementProperties = Optional.ofNullable(dbgProperties.getElementProperty(elementId)).orElse(Collections.emptyMap());
-            exchange.setProperty(SERVICE_CALL_RETRY_COUNT, variablesService.injectVariables(
-                    String.valueOf(elementProperties.get(SERVICE_CALL_RETRY_COUNT))));
-            exchange.setProperty(SERVICE_CALL_RETRY_DELAY, variablesService.injectVariables(
-                    String.valueOf(elementProperties.get(SERVICE_CALL_RETRY_DELAY))));
+            retryCountString = variablesService.injectVariables(elementProperties.get(SERVICE_CALL_RETRY_COUNT));
+            retryDelayString = variablesService.injectVariables(elementProperties.get(SERVICE_CALL_RETRY_DELAY));
         } catch (Exception e) {
             log.error("Failed to set retry parameters for elementId: {}", elementId, e);
         }
+
+        return new ElementRetryProperties(retryCountString, retryDelayString);
     }
 }
