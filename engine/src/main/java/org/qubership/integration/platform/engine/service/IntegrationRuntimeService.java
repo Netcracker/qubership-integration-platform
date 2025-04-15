@@ -69,6 +69,7 @@ import org.qubership.integration.platform.engine.service.xmlpreprocessor.XmlConf
 import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
+import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -113,17 +114,17 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private final EngineStateReporter engineStateReporter;
     private final CamelDebuggerPropertiesService propertiesService;
     private final DeploymentReadinessService deploymentReadinessService;
-
+    private final FormDataConverter formDataConverter;
+    private final SecurityAccessPolicyConverter securityAccessPolicyConverter;
     private final Predicate<FilteringEntity> camelMessageHistoryFilter;
-
     private final RuntimeIntegrationCache deploymentCache = new RuntimeIntegrationCache();
     private final ReadWriteLock processLock = new ReentrantReadWriteLock();
-
+    private final DeploymentProcessingService deploymentProcessingService;
     private final Executor deploymentExecutor;
+    private final ObjectFactory<CamelDebugger> camelDebuggerFactory;
+    private final ObjectFactory<MicrometerObservationTracer> tracerFactory;
 
     private ApplicationContext applicationContext;
-
-    private final DeploymentProcessingService deploymentProcessingService;
 
     static {
         ProcessorReifier.registerReifier(StepDefinition.class, CustomStepReifier::new);
@@ -154,7 +155,12 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         @Value("${qip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
         Predicate<FilteringEntity> camelMessageHistoryFilter,
         DeploymentReadinessService deploymentReadinessService,
-        DeploymentProcessingService deploymentProcessingService
+        DeploymentProcessingService deploymentProcessingService,
+        FormDataConverter formDataConverter,
+        SecurityAccessPolicyConverter securityAccessPolicyConverter,
+        ObjectFactory<CamelDebugger> camelDebuggerFactory,
+        @Qualifier("camelObservationTracer") ObjectFactory<MicrometerObservationTracer> tracerFactory
+
     ) {
         this.serverConfiguration = serverConfiguration;
         this.quartzSchedulerService = quartzSchedulerService;
@@ -169,13 +175,14 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         this.engineStateReporter = engineStateReporter;
         this.deploymentExecutor = deploymentExecutor;
         this.propertiesService = propertiesService;
-
         this.streamCachingBufferSize = streamCachingBufferSizeKb * 1024;
-
         this.camelMessageHistoryFilter = camelMessageHistoryFilter;
-
         this.deploymentReadinessService = deploymentReadinessService;
         this.deploymentProcessingService = deploymentProcessingService;
+        this.formDataConverter = formDataConverter;
+        this.securityAccessPolicyConverter = securityAccessPolicyConverter;
+        this.camelDebuggerFactory = camelDebuggerFactory;
+        this.tracerFactory = tracerFactory;
     }
 
     @Override
@@ -544,11 +551,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         context.getTypeConverterRegistry().addTypeConverter(
             FormData.class,
             String.class,
-            applicationContext.getBean(FormDataConverter.class));
+            formDataConverter);
         context.getTypeConverterRegistry().addTypeConverter(
             QipSecurityAccessPolicy.class,
             String.class,
-            applicationContext.getBean(SecurityAccessPolicyConverter.class));
+            securityAccessPolicyConverter);
         context.getGlobalOptions().put(JacksonConstants.ENABLE_TYPE_CONVERTER, "true");
         context.getGlobalOptions().put(JacksonConstants.TYPE_CONVERTER_TO_POJO, "true");
         context.getInflightRepository().setInflightBrowseEnabled(true);
@@ -567,7 +574,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         context.setManagementName("camel-context_" + deploymentId); // use repeatable after restart context name
         context.setManagementStrategy(new DefaultManagementStrategy(context));
 
-        CamelDebugger debugger = applicationContext.getBean(CamelDebugger.class);
+        CamelDebugger debugger = camelDebuggerFactory.getObject();
         debugger.setDeploymentId(deploymentId);
         context.setDebugger(debugger);
         context.setDebugging(true);
@@ -606,16 +613,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
     private void startContext(SpringCamelContext context) {
         if (tracingConfiguration.isTracingEnabled()) {
-            Tracer tracer = applicationContext.getBean("camelObservationTracer", MicrometerObservationTracer.class);
+            Tracer tracer = tracerFactory.getObject();
             tracer.init(context);
         }
 
         context.start();
-
-        CamelDebugger debugger = (CamelDebugger) context.getDebugger();
-        if (!debugger.isStartingOrStarted()) {
-            debugger.start();
-        }
     }
 
     private void configureMessageHistoryFactory(SpringCamelContext context) {

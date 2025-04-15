@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.engine;
 
+import org.apache.camel.spring.boot.CamelAutoConfiguration;
 import org.qubership.integration.platform.engine.opensearch.ism.converters.OpenSearchTypeConvertersRegistrar;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = CamelAutoConfiguration.class)
 public class IntegrationEngineApplication {
     public static void main(String[] args) {
         SpringApplication application = new SpringApplication(IntegrationEngineApplication.class);
