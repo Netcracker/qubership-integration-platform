@@ -18,6 +18,12 @@ import java.util.stream.Collectors;
 
 @Component
 public class MultipleAsyncConsumersValidation extends BuiltinValidation {
+    private static final String GROUP_ID = "groupId";
+    private static final String QUEUES = "queues";
+    private static final String INTEGRATION_OPERATION_ASYNC_PROPERTIES = "integrationOperationAsyncProperties";
+    private static final String INTEGRATION_OPERATION_PROTOCOL_TYPE = "integrationOperationProtocolType";
+    private static final String MAAS_CLASSIFIER_NAMESPACE = "maasClassifierNamespace";
+
     private final ElementRepository elementRepository;
 
     public MultipleAsyncConsumersValidation(ElementRepository elementRepository) {
@@ -39,15 +45,19 @@ public class MultipleAsyncConsumersValidation extends BuiltinValidation {
         List<ChainElement> elements = elementRepository.findAllByTypeInAndChainNotNull(
                 List.of("kafka-trigger-2", "async-api-trigger", "rabbitmq-trigger-2")
         );
-        Map<String, Long> occurrences = elements.stream().collect(Collectors.collectingAndThen(
-                Collectors.groupingBy(
-                        this::getGroupingString, Collectors.counting()
-                ),
-                map -> {
-                    map.entrySet().removeIf(entry -> entry.getValue() < 2);
-                    return map;
-                }
-        ));
+        Map<String, Long> occurrences = elements.stream()
+                .filter(element -> element.getProperties().get(GROUP_ID) != null
+                                   || element.getProperties().get(QUEUES) != null
+                                   || element.getProperties().get(INTEGRATION_OPERATION_ASYNC_PROPERTIES) != null)
+                .collect(Collectors.collectingAndThen(
+                        Collectors.groupingBy(
+                                this::getGroupingString, Collectors.counting()
+                        ),
+                        map -> {
+                            map.entrySet().removeIf(entry -> entry.getValue() < 2 || entry.getKey().isEmpty());
+                            return map;
+                        }
+                ));
 
         List<ChainElement> duplicates = elements.stream()
                 .filter(element -> occurrences.containsKey(getGroupingString(element)))
@@ -70,28 +80,28 @@ public class MultipleAsyncConsumersValidation extends BuiltinValidation {
             case "kafka-trigger-2":
                 if ("maas".equals(properties.get("connectionSourceType"))) {
                     stringBuilder.append(properties.get("topicsClassifierName"));
-                    stringBuilder.append(properties.get("maasClassifierNamespace"));
+                    stringBuilder.append(properties.get(MAAS_CLASSIFIER_NAMESPACE));
                 } else {
                     stringBuilder.append(properties.get("topics"));
                 }
-                stringBuilder.append(properties.get("groupId"));
+                stringBuilder.append(properties.get(GROUP_ID));
                 break;
             case "rabbitmq-trigger-2":
                 stringBuilder.append(properties.get("vhostClassifierName"));
-                stringBuilder.append(properties.get("maasClassifierNamespace"));
-                stringBuilder.append(properties.get("queues"));
+                stringBuilder.append(properties.get(MAAS_CLASSIFIER_NAMESPACE));
+                stringBuilder.append(properties.get(QUEUES));
                 break;
             case "async-api-trigger":
-                Object asyncProperties = properties.get("integrationOperationAsyncProperties");
+                Object asyncProperties = properties.get(INTEGRATION_OPERATION_ASYNC_PROPERTIES);
                 Map<String, Object> asyncPropertiesMap =
                         (asyncProperties instanceof Map<?, ?>) ? (Map<String, Object>) asyncProperties : Collections.emptyMap();
                 stringBuilder.append(asyncPropertiesMap.get("maas.classifier.name"));
                 stringBuilder.append(asyncPropertiesMap.get("maas.classifier.namespace"));
-                if ("kafka".equals(properties.get("integrationOperationProtocolType"))) {
+                if ("kafka".equals(properties.get(INTEGRATION_OPERATION_PROTOCOL_TYPE))) {
                     stringBuilder.append(properties.get("integrationOperationPath"));
-                    stringBuilder.append(asyncPropertiesMap.get("groupId"));
-                } else if ("amqp".equals(properties.get("integrationOperationProtocolType"))) {
-                    stringBuilder.append(asyncPropertiesMap.get("queues"));
+                    stringBuilder.append(asyncPropertiesMap.get(GROUP_ID));
+                } else if ("amqp".equals(properties.get(INTEGRATION_OPERATION_PROTOCOL_TYPE))) {
+                    stringBuilder.append(asyncPropertiesMap.get(QUEUES));
                 }
         }
         return stringBuilder.toString();
