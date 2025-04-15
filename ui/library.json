@@ -1,0 +1,177 @@
+{
+  "groups": [
+    {
+      "groups": [],
+      "elements": [
+        {
+          "name": "circuit-breaker-2",
+          "title": "Circuit Breaker",
+          "folder": "routing",
+          "type": "module",
+          "inputEnabled": true,
+          "inputQuantity": "any",
+          "outputEnabled": true,
+          "container": true,
+          "ordered": false,
+          "allowedInContainers": true,
+          "priorityProperty": "priority",
+          "reuseReferenceProperty": "reuseElementId",
+          "mandatoryInnerElement": false,
+          "parentRestriction": [],
+          "allowedChildren": {
+            "circuit-breaker-configuration-2": "one",
+            "on-fallback-2": "one"
+          },
+          "properties": {
+            "common": [],
+            "advanced": [],
+            "hidden": [],
+            "async": []
+          },
+          "customTabs": [],
+          "deprecated": false,
+          "unsupported": false,
+          "oldStyleContainer": false,
+          "referencedByAnotherElement": false,
+          "designContainerParameters": {
+            "endOperations": [
+              {
+                "type": "END",
+                "args": []
+              }
+            ],
+            "children": [
+              {
+                "name": "circuit-breaker-configuration-2",
+                "primaryOperation": {
+                  "type": "START_ALT",
+                  "args": ["Failure rate < ##{failureRateThreshold}%"]
+                }
+              },
+              {
+                "name": "on-fallback-2",
+                "primaryOperation": {
+                  "type": "ELSE",
+                  "args": ["##{ELEMENT_NAME_REF}"]
+                }
+              }
+            ]
+          },
+          "queryProperties": [],
+          "referenceProperties": []
+        }
+      ],
+      "childElements": {},
+      "name": "routing",
+      "title": "Routing"
+    },
+    {
+      "groups": [],
+      "elements": [
+        {
+          "name": "unsupported",
+          "title": "Unsupported element",
+          "folder": "hidden",
+          "colorType": "unsupported",
+          "type": "module",
+          "inputEnabled": true,
+          "inputQuantity": "any",
+          "outputEnabled": true,
+          "container": false,
+          "ordered": false,
+          "allowedInContainers": true,
+          "priorityProperty": "priority",
+          "reuseReferenceProperty": "reuseElementId",
+          "mandatoryInnerElement": false,
+          "parentRestriction": [],
+          "allowedChildren": {},
+          "properties": {
+            "common": [],
+            "advanced": [],
+            "hidden": [],
+            "async": []
+          },
+          "customTabs": [],
+          "deprecated": false,
+          "unsupported": true,
+          "oldStyleContainer": false,
+          "referencedByAnotherElement": false,
+          "queryProperties": [],
+          "referenceProperties": []
+        }
+      ],
+      "childElements": {},
+      "name": "hidden",
+      "title": "Hidden"
+    }
+  ],
+  "elements": [],
+  "childElements": {
+    "catch-2": {
+      "name": "catch-2",
+      "title": "Catch",
+      "folder": "routing",
+      "descriptionFormatter": "catch-formatter",
+      "type": "module",
+      "inputEnabled": false,
+      "inputQuantity": "any",
+      "outputEnabled": false,
+      "container": true,
+      "ordered": true,
+      "allowedInContainers": true,
+      "priorityProperty": "priority",
+      "reuseReferenceProperty": "reuseElementId",
+      "mandatoryInnerElement": true,
+      "parentRestriction": ["try-catch-finally-2"],
+      "allowedChildren": {},
+      "properties": {
+        "common": [
+          {
+            "name": "exception",
+            "title": "Exception",
+            "description": "Exception that should be handled",
+            "type": "string",
+            "resetValueOnCopy": false,
+            "unique": false,
+            "caseInsensitive": false,
+            "mandatory": true,
+            "autofocus": true,
+            "query": false,
+            "allowedValues": [],
+            "allowCustomValue": true,
+            "multiple": false,
+            "reference": false,
+            "default": "java.lang.Exception"
+          },
+          {
+            "name": "priority",
+            "title": "Priority",
+            "description": "Determines the order of the catch blocks. The lower the number, the earlier the exception will be handled. For general exception classes such as Exception, you need to set a big number.",
+            "type": "number",
+            "resetValueOnCopy": false,
+            "mask": "^0{1}$|^[1-9][0-9]*$",
+            "unique": false,
+            "caseInsensitive": false,
+            "mandatory": true,
+            "autofocus": false,
+            "query": false,
+            "allowedValues": [],
+            "allowCustomValue": true,
+            "multiple": false,
+            "reference": false
+          }
+        ],
+        "advanced": [],
+        "hidden": [],
+        "async": []
+      },
+      "customTabs": [],
+      "deprecated": false,
+      "unsupported": false,
+      "oldStyleContainer": false,
+      "referencedByAnotherElement": false,
+      "queryProperties": [],
+      "referenceProperties": []
+    }
+  }
+}

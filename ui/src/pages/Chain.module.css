@@ -1,0 +1,6 @@
+.content {
+    height: calc(100vh - 30px - 48px);
+    padding: 12px;
+    display: flex;
+    border-radius: 12px;
+}
