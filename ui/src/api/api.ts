@@ -10,25 +10,18 @@ import type {
   ConnectionRequest,
 } from "./apiTypes.ts";
 
-const instance = axios.create({
-  //TODO move instance inside class
-  baseURL: "http://localhost:8090/", //TODO: move to env param
-  timeout: 1000,
-  headers: { "content-type": "application/json" },
-});
-
-//TODO remove second instance after introduction of gateway for services
-const instance2 = axios.create({
-  //TODO move instance inside class
-  baseURL: "http://localhost:8091/", //TODO: move to env param
-  timeout: 1000,
-  headers: { "content-type": "application/json" },
-});
-
 class Api {
+  instance = axios.create({
+    baseURL: import.meta.env.VITE_GATEWAY,
+    timeout: 1000,
+    headers: { "content-type": "application/json" },
+  });
+  
   getChains = async (): Promise<Chain[]> => {
     try {
-      const response = await instance.get<Chain[]>("/v1/chains");
+      const response = await this.instance.get<Chain[]>(
+        "/api/v1/qip/catalog/chains",
+      );
       return response.data;
     } catch (err) {
       throw err;
@@ -37,7 +30,7 @@ class Api {
 
   createChain = async (chain: ChainCreationRequest): Promise<Chain> => {
     try {
-      const response = await instance.post<Chain>("/v1/chains", chain);
+      const response = await this.instance.post<Chain>("/api/v1/qip/catalog/chains", chain);
       return response.data;
     } catch (err) {
       throw err;
@@ -45,12 +38,12 @@ class Api {
   };
 
   deleteChain = async (chainId: string): Promise<AxiosResponse> => {
-    return await instance.delete<Chain>(`/v1/chains/${chainId}`);
+    return await this.instance.delete<Chain>(`/api/v1/qip/catalog/chains/${chainId}`);
   };
 
   getLibrary = async (): Promise<LibraryData> => {
     try {
-      const response = await instance.get<LibraryData>("/v1/library");
+      const response = await this.instance.get<LibraryData>("/api/v1/qip/catalog/library");
       console.log(response);
       return response.data;
     } catch (err) {
@@ -60,8 +53,8 @@ class Api {
 
   getElements = async (chainId: string): Promise<Element[]> => {
     try {
-      const response = await instance.get<Element[]>(
-        `/v1/chains/${chainId}/elements`,
+      const response = await this.instance.get<Element[]>(
+        `/api/v1/qip/catalog/chains/${chainId}/elements`,
       );
       return response.data;
     } catch (err) {
@@ -73,8 +66,8 @@ class Api {
     elementRequest: ElementRequest,
     chainId: string,
   ): Promise<AxiosResponse> => {
-    return await instance.post<Element>(
-      `/v1/chains/${chainId}/elements`,
+    return await this.instance.post<Element>(
+      `/api/v1/qip/catalog/chains/${chainId}/elements`,
       elementRequest,
     );
   };
@@ -83,21 +76,21 @@ class Api {
     chainId: string,
     elementId: string,
   ): Promise<AxiosResponse> => {
-    return await instance.put(`/v1/chains/${chainId}/elements/${elementId}`);
+    return await this.instance.put(`/api/v1/qip/catalog/chains/${chainId}/elements/${elementId}`);
   };
 
   deleteElement = async (
     elementId: string,
     chainId: string,
   ): Promise<AxiosResponse> => {
-    return await instance.delete(`/v1/chains/${chainId}/elements`, {
+    return await this.instance.delete(`/api/v1/qip/catalog/chains/${chainId}/elements`, {
       params: { elementsIds: elementId }, //TODO send array
     });
   };
 
   getConnections = async (chainId: string): Promise<Connection[]> => {
     try {
-      const response = await instance.get(`/v1/chains/${chainId}/dependencies`);
+      const response = await this.instance.get(`/api/v1/qip/catalog/chains/${chainId}/dependencies`);
       return response.data;
     } catch (err) {
       throw err;
@@ -108,8 +101,8 @@ class Api {
     connectionRequest: ConnectionRequest,
     chainId: string,
   ): Promise<AxiosResponse> => {
-    return await instance.post<Connection>(
-      `/v1/chains/${chainId}/dependencies`,
+    return await this.instance.post<Connection>(
+      `/api/v1/qip/catalog/chains/${chainId}/dependencies`,
       connectionRequest,
     );
   };
@@ -118,19 +111,19 @@ class Api {
     connectionId: string,
     chainId: string,
   ): Promise<AxiosResponse> => {
-    return await instance.delete(`/v1/chains/${chainId}/dependencies`, {
+    return await this.instance.delete(`/api/v1/qip/catalog/chains/${chainId}/dependencies`, {
       params: { dependenciesIds: connectionId }, //TODO send array
     });
   };
 
   createSnapshot = async (chainId: string): Promise<AxiosResponse> => {
-    return await instance2.post(`/v1/catalog/chains/${chainId}/snapshots`);
+    return await this.instance.post(`/api/v1/qip/catalog/chains/${chainId}/snapshots`);
   };
 
   getSnapshots = async (chainId: string): Promise<Snapshot[]> => {
     try {
-      const response = await instance2.get(
-        `/v1/catalog/chains/${chainId}/snapshots`,
+      const response = await this.instance.get(
+        `/api/v1/qip/catalog/chains/${chainId}/snapshots`,
       );
       return response.data;
     } catch (err) {
@@ -140,7 +133,7 @@ class Api {
 
   getLibraryElementByType = async (type: string): Promise<Element> => {
     try {
-      const response = await instance.get(`/v1/library/${type}`);
+      const response = await this.instance.get(`/api/v1/qip/catalog/library/${type}`);
       return response.data;
     } catch (err) {
       throw err;
