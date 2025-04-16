@@ -20,7 +20,7 @@ class Api {
   getChains = async (): Promise<Chain[]> => {
     try {
       const response = await this.instance.get<Chain[]>(
-        "/api/v1/qip/catalog/chains",
+        `/api/v1/${import.meta.env.VITE_APP}/catalog/chains`,
       );
       return response.data;
     } catch (err) {
@@ -30,7 +30,7 @@ class Api {
 
   createChain = async (chain: ChainCreationRequest): Promise<Chain> => {
     try {
-      const response = await this.instance.post<Chain>("/api/v1/qip/catalog/chains", chain);
+      const response = await this.instance.post<Chain>(`/api/v1/${import.meta.env.VITE_APP}/catalog/chains`, chain);
       return response.data;
     } catch (err) {
       throw err;
@@ -38,12 +38,12 @@ class Api {
   };
 
   deleteChain = async (chainId: string): Promise<AxiosResponse> => {
-    return await this.instance.delete<Chain>(`/api/v1/qip/catalog/chains/${chainId}`);
+    return await this.instance.delete<Chain>(`/api/v1/${import.meta.env.VITE_APP}/catalog/chains/${chainId}`);
   };
 
   getLibrary = async (): Promise<LibraryData> => {
     try {
-      const response = await this.instance.get<LibraryData>("/api/v1/qip/catalog/library");
+      const response = await this.instance.get<LibraryData>(`/api/v1/${import.meta.env.VITE_APP}/catalog/library`);
       console.log(response);
       return response.data;
     } catch (err) {
@@ -54,7 +54,7 @@ class Api {
   getElements = async (chainId: string): Promise<Element[]> => {
     try {
       const response = await this.instance.get<Element[]>(
-        `/api/v1/qip/catalog/chains/${chainId}/elements`,
+        `/api/v1/${import.meta.env.VITE_APP}/catalog/chains/${chainId}/elements`,
       );
       return response.data;
     } catch (err) {
@@ -67,7 +67,7 @@ class Api {
     chainId: string,
   ): Promise<AxiosResponse> => {
     return await this.instance.post<Element>(
-      `/api/v1/qip/catalog/chains/${chainId}/elements`,
+      `/api/v1/${import.meta.env.VITE_APP}/catalog/chains/${chainId}/elements`,
       elementRequest,
     );
   };
@@ -76,21 +76,21 @@ class Api {
     chainId: string,
     elementId: string,
   ): Promise<AxiosResponse> => {
-    return await this.instance.put(`/api/v1/qip/catalog/chains/${chainId}/elements/${elementId}`);
+    return await this.instance.put(`/api/v1/${import.meta.env.VITE_APP}/catalog/chains/${chainId}/elements/${elementId}`);
   };
 
   deleteElement = async (
     elementId: string,
     chainId: string,
   ): Promise<AxiosResponse> => {
-    return await this.instance.delete(`/api/v1/qip/catalog/chains/${chainId}/elements`, {
+    return await this.instance.delete(`/api/v1/${import.meta.env.VITE_APP}/catalog/chains/${chainId}/elements`, {
       params: { elementsIds: elementId }, //TODO send array
     });
   };
 
   getConnections = async (chainId: string): Promise<Connection[]> => {
     try {
-      const response = await this.instance.get(`/api/v1/qip/catalog/chains/${chainId}/dependencies`);
+      const response = await this.instance.get(`/api/v1/${import.meta.env.VITE_APP}/catalog/chains/${chainId}/dependencies`);
       return response.data;
     } catch (err) {
       throw err;
@@ -102,7 +102,7 @@ class Api {
     chainId: string,
   ): Promise<AxiosResponse> => {
     return await this.instance.post<Connection>(
-      `/api/v1/qip/catalog/chains/${chainId}/dependencies`,
+      `/api/v1/${import.meta.env.VITE_APP}/catalog/chains/${chainId}/dependencies`,
       connectionRequest,
     );
   };
