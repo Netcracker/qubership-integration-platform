@@ -1,4 +1,3 @@
-version: '2.3'
 services:
 
     ###### QIP
@@ -194,7 +193,24 @@ services:
             postgres:
                 condition: service_healthy
 
-
+    ui-proxy:
+      image: nginx:latest
+      container_name: ui-proxy
+      ports:
+        - 8080:8080
+      volumes:
+        - ./nginx:/etc/nginx/
+      depends_on:
+        qip-runtime-catalog:
+          condition: service_started
+        qip-design-time-catalog:
+          condition: service_started
+        qip-sessions-management:
+          condition: service_started
+        qip-variables-management:
+          condition: service_started
+        qip-engine:
+          condition: service_started
 
     ###### 3rd party services
 
