@@ -20,7 +20,7 @@ on:
   workflow_dispatch: {}
 permissions:
   packages: write
-  contents: read
+  contents: write
 
 jobs:
   mvn-snapshot-deploy:
