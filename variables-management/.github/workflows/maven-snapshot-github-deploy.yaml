@@ -30,6 +30,6 @@ jobs:
       additional-mvn-args: ""
       target-store: "github-packages"
     secrets:
-      maven-token: ${{ github.token }}
+      maven-token: ${{ secrets.GITHUB_TOKEN }}
       gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
       gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
