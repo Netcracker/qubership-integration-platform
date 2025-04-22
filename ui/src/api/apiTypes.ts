@@ -108,3 +108,13 @@ export type Snapshot = {
   id: string;
   name: string;
 };
+
+export type ActionDifference = {
+  createdElements?: Element[];
+  updatedElements?: Element[];
+  removedElements?: Element[];
+  createdDefaultSwimlaneId?: string;
+  createdReuseSwimlaneId?: string;
+  createdDependencies?: Connection[];
+  removedDependencies?: Connection[];
+}

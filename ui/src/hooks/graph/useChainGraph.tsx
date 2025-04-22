@@ -79,8 +79,8 @@ export const useChainGraph = (chainId?: string) => {
           chainId,
         );
 
-        console.log(response.data.createdDependencies?.[0]?.id);
-        params.id = response.data.createdDependencies?.[0]?.id;
+        console.log(response.createdDependencies?.[0]?.id);
+        params.id = response.createdDependencies?.[0]?.id;
 
         console.log(params);
         setEdges((eds) => addEdge(params, eds));
@@ -116,21 +116,21 @@ export const useChainGraph = (chainId?: string) => {
           chainId,
         );
 
-        const createdElement = response.data.createdElements[0];
-
-        const newNode: Node = {
-          id: createdElement.id,
-          type: createdElement.type,
-          position,
-          data: {
-            label: createdElement.name,
-            direction: elkDirectionControl.elkDirection,
-          },
-          targetPosition: isHorizontal ? Position.Left : Position.Top,
-          sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
-        };
-
-        setNodes((nodes) => nodes.concat(newNode));
+        const createdElement = response.createdElements?.[0];
+        if (createdElement) {
+          const newNode: Node = {
+            id: createdElement.id,
+            type: createdElement.type,
+            position,
+            data: {
+              label: createdElement.name,
+              direction: elkDirectionControl.elkDirection,
+            },
+            targetPosition: isHorizontal ? Position.Left : Position.Top,
+            sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
+          };
+          setNodes((nodes) => nodes.concat(newNode));
+        }
       } catch (error) {
         notification.error({
           message: "Request failed",

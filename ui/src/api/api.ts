@@ -1,5 +1,4 @@
-import axios, { AxiosResponse } from "axios";
-import type {
+import {
   Chain,
   ChainCreationRequest,
   Connection,
@@ -7,138 +6,53 @@ import type {
   LibraryData,
   Element,
   Snapshot,
-  ConnectionRequest,
+  ConnectionRequest, ActionDifference
 } from "./apiTypes.ts";
+import { RestApi } from "./rest/restApi.ts";
 
-class Api {
-  instance = axios.create({
-    baseURL: import.meta.env.GATEWAY,
-    timeout: 1000,
-    headers: { "content-type": "application/json" },
-  });
-  
-  getChains = async (): Promise<Chain[]> => {
-    try {
-      const response = await this.instance.get<Chain[]>(
-        `/api/v1/${import.meta.env.API_APP}/catalog/chains`,
-      );
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
-  };
+export interface Api {
+  getChains(): Promise<Chain[]>;
 
-  createChain = async (chain: ChainCreationRequest): Promise<Chain> => {
-    try {
-      const response = await this.instance.post<Chain>(`/api/v1/${import.meta.env.API_APP}/catalog/chains`, chain);
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
-  };
+  createChain(chain: ChainCreationRequest): Promise<Chain>;
 
-  deleteChain = async (chainId: string): Promise<AxiosResponse> => {
-    return await this.instance.delete<Chain>(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}`);
-  };
+  deleteChain(chainId: string): Promise<void>;
 
-  getLibrary = async (): Promise<LibraryData> => {
-    try {
-      const response = await this.instance.get<LibraryData>(`/api/v1/${import.meta.env.API_APP}/catalog/library`);
-      console.log(response);
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
-  };
+  getLibrary(): Promise<LibraryData>;
 
-  getElements = async (chainId: string): Promise<Element[]> => {
-    try {
-      const response = await this.instance.get<Element[]>(
-        `/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/elements`,
-      );
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
-  };
+  getElements(chainId: string): Promise<Element[]>;
 
-  createElement = async (
+  createElement(
     elementRequest: ElementRequest,
     chainId: string,
-  ): Promise<AxiosResponse> => {
-    return await this.instance.post<Element>(
-      `/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/elements`,
-      elementRequest,
-    );
-  };
+  ): Promise<ActionDifference>;
 
-  updateElement = async (
+  updateElement(
     chainId: string,
     elementId: string,
-  ): Promise<AxiosResponse> => {
-    return await this.instance.put(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/elements/${elementId}`);
-  };
+  ): Promise<ActionDifference>;
 
-  deleteElement = async (
+  deleteElement(
     elementId: string,
     chainId: string,
-  ): Promise<AxiosResponse> => {
-    return await this.instance.delete(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/elements`, {
-      params: { elementsIds: elementId }, //TODO send array
-    });
-  };
+  ): Promise<ActionDifference>;
 
-  getConnections = async (chainId: string): Promise<Connection[]> => {
-    try {
-      const response = await this.instance.get(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/dependencies`);
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
-  };
+  getConnections(chainId: string): Promise<Connection[]>;
 
-  createConnection = async (
+  createConnection(
     connectionRequest: ConnectionRequest,
     chainId: string,
-  ): Promise<AxiosResponse> => {
-    return await this.instance.post<Connection>(
-      `/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/dependencies`,
-      connectionRequest,
-    );
-  };
+  ): Promise<ActionDifference>;
 
-  deleteConnection = async (
+  deleteConnection(
     connectionId: string,
     chainId: string,
-  ): Promise<AxiosResponse> => {
-    return await this.instance.delete(`/api/v1/qip/catalog/chains/${chainId}/dependencies`, {
-      params: { dependenciesIds: connectionId }, //TODO send array
-    });
-  };
+  ): Promise<ActionDifference>;
 
-  createSnapshot = async (chainId: string): Promise<AxiosResponse> => {
-    return await this.instance.post(`/api/v1/qip/catalog/chains/${chainId}/snapshots`);
-  };
+  createSnapshot(chainId: string): Promise<void>;
 
-  getSnapshots = async (chainId: string): Promise<Snapshot[]> => {
-    try {
-      const response = await this.instance.get(
-        `/api/v1/qip/catalog/chains/${chainId}/snapshots`,
-      );
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
-  };
+  getSnapshots(chainId: string): Promise<Snapshot[]>;
 
-  getLibraryElementByType = async (type: string): Promise<Element> => {
-    try {
-      const response = await this.instance.get(`/api/v1/qip/catalog/library/${type}`);
-      return response.data;
-    } catch (err) {
-      throw err;
-    }
-  };
+  getLibraryElementByType(type: string): Promise<Element>;
 }
 
-export const api = new Api();
+export const api: Api = new RestApi(); 
