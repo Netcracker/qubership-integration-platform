@@ -26,14 +26,11 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
-import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.idempotency.IdempotencyKeyStrategyFactory;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.util.Collection;
-import java.util.Map;
 import java.util.function.Function;
 
 @Slf4j
@@ -42,15 +39,12 @@ import java.util.function.Function;
 @ConditionalOnProperty(value = "qip.idempotency.enabled", havingValue = "true", matchIfMissing = true)
 public class IdempotentConsumerDependencyBinder extends ElementProcessingAction {
     private final Function<IdempotentRepositoryParameters, IdempotentRepository> idempotentRepositoryFactory;
-    private final Collection<IdempotencyKeyStrategyFactory> keyStrategyFactories;
-    
+
     @Autowired
     public IdempotentConsumerDependencyBinder(
-        Function<IdempotentRepositoryParameters, IdempotentRepository> idempotentRepositoryFactory,
-        Collection<IdempotencyKeyStrategyFactory> keyStrategyFactories
+        Function<IdempotentRepositoryParameters, IdempotentRepository> idempotentRepositoryFactory
     ) {
         this.idempotentRepositoryFactory = idempotentRepositoryFactory;
-        this.keyStrategyFactories = keyStrategyFactories;
     }
 
     @Override
@@ -62,6 +56,7 @@ public class IdempotentConsumerDependencyBinder extends ElementProcessingAction 
             || ChainElementType.KAFKA_TRIGGER_2.equals(chainElementType)
             || ChainElementType.RABBITMQ_TRIGGER_2.equals(chainElementType)
             || ChainElementType.ASYNCAPI_TRIGGER.equals(chainElementType)
+            || ChainElementType.JMS_TRIGGER.equals(chainElementType)
         ) && Boolean.valueOf(properties.getProperties().get(ChainProperties.IDEMPOTENCY_ENABLED));
     }
 
@@ -80,20 +75,7 @@ public class IdempotentConsumerDependencyBinder extends ElementProcessingAction 
         ElementProperties properties,
         DeploymentInfo deploymentInfo
     ) {
-        Map<String, String> props = properties.getProperties();
-        String elementType = props.get(ChainProperties.ELEMENT_TYPE);
-        ChainElementType chainElementType = ChainElementType.fromString(elementType);
-        return keyStrategyFactories.stream()
-            .filter(factory -> factory.getElementTypes().contains(chainElementType))
-            .findFirst()
-            .map(factory -> factory.getStrategy(properties, deploymentInfo))
-            .orElseThrow(() -> {
-                String message = String.format(
-                    "Failed to find an idempotency key strategy factory for element type: %s",
-                    elementType
-                );
-                return new RuntimeException(message);
-        });
+        return key -> key;
     }
 
 }

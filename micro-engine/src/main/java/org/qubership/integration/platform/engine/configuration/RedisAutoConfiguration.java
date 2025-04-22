@@ -35,8 +35,6 @@ import java.util.function.Function;
 @Import({org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration.class})
 @ConditionalOnProperty(value = "qip.idempotency.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisAutoConfiguration {
-    private static final String IDEMPOTENT_REPOSITORY_KEY_PROPERTY = "IdempotentRepositoryKey";
-
     @Bean
     RedisTemplate<String, String> redisTemplate(
         RedisConnectionFactory redisConnectionFactory
@@ -57,8 +55,7 @@ public class RedisAutoConfiguration {
         return keyParameters -> new RedisIdempotentRepository(
             redisTemplate,
             objectMapper,
-            keyParameters,
-            (key, exchange) -> exchange.setProperty(IDEMPOTENT_REPOSITORY_KEY_PROPERTY, key)
+            keyParameters
         );
     }
 }
