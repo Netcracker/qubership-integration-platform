@@ -6,7 +6,8 @@ import {
   LibraryData,
   Element,
   Snapshot,
-  ConnectionRequest, ActionDifference
+  ConnectionRequest,
+  ActionDifference
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
