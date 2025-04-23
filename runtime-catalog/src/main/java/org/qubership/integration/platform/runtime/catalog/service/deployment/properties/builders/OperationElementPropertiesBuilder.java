@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.qubership.integration.platform.catalog.model.constant.CamelNames.OPERATION_PATH_TOPIC;
-import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.GROUP_ID;
 import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.SASL_MECHANISM;
 
 @Component
@@ -84,7 +83,6 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
                             environment.getSourceType() != null ? String.valueOf(environment.getSourceType()) : null
                     ))
                     .orElseThrow(() -> getEnvironmentNotFoundException(element));
-            elementProperties.put(GROUP_ID, getGroupId(element, environment));
             kafkaElementPropertiesBuilder.enrichWithAdditionalProperties(element, elementProperties);
             return elementProperties;
         } else if (CamelNames.OPERATION_PROTOCOL_TYPE_AMQP.equals(protocolType)) {
@@ -106,16 +104,6 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
             return buildGrpcProperties(element);
         }
         return Collections.emptyMap();
-    }
-
-    private static String getGroupId(ChainElement element, ServiceEnvironment environment) {
-        return Optional.ofNullable(element.getPropertyAsString(GROUP_ID))
-            .or(() -> Optional.ofNullable(element.getProperty(CamelNames.OPERATION_ASYNC_PROPERTIES))
-                    .map(properties -> ((Map<String, String>) properties).get(GROUP_ID)))
-            .or(() -> Optional.ofNullable(environment.getProperties())
-                    .map(properties -> properties.get(GROUP_ID))
-                    .map(Object::toString))
-            .orElse("");
     }
 
     private static String getQueueName(ChainElement element, String queueNameFromEnv) {

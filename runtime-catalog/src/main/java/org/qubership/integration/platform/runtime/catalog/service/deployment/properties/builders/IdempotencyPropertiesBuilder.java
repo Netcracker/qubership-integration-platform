@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service.deployment.pr
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.consul.ConfigurationPropertiesConstants;
+import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
 import org.qubership.integration.platform.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -26,26 +27,42 @@ import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+
+import static java.util.Objects.isNull;
 
 @Slf4j
 @Component
 public class IdempotencyPropertiesBuilder implements ElementPropertiesBuilder {
+    private static final Integer DEFAULT_KEY_EXPIRY = 600;
+    private static final String ENABLED_PROPERTY = "enabled";
+
     @Override
     public boolean applicableTo(ChainElement element) {
         String type = element.getType();
         return CamelNames.HTTP_TRIGGER_COMPONENT.equals(type)
             || CamelNames.RABBITMQ_TRIGGER_2_COMPONENT.equals(type)
             || CamelNames.KAFKA_TRIGGER_2_COMPONENT.equals(type)
-            || CamelNames.ASYNC_API_TRIGGER_COMPONENT.equals(type);
+            || CamelNames.ASYNC_API_TRIGGER_COMPONENT.equals(type)
+            || CamelNames.JMS_TRIGGER_COMPONENT.equals(type);
     }
 
     @Override
     public Map<String, String> build(ChainElement element) {
         Map<String, String> properties = new HashMap<>();
-        Boolean enableIdempotency = Boolean.valueOf(element.getPropertyAsString(CamelOptions.ENABLE_IDEMPOTENCY_PROP));
-        properties.put(ConfigurationPropertiesConstants.IDEMPOTENCY_ENABLED, enableIdempotency.toString());
-        if (enableIdempotency) {
-            properties.put(ConfigurationPropertiesConstants.EXPIRY, element.getPropertyAsString(CamelOptions.EXPIRY_PROP));
+        Object idempotencyProperty = element.getProperty(CamelOptions.IDEMPOTENCY_PROP);
+        if (isNull(idempotencyProperty)) {
+            properties.put(ConfigurationPropertiesConstants.IDEMPOTENCY_ENABLED, Boolean.toString(false));
+        } else if (idempotencyProperty instanceof Map idempotencyParameters) {
+            Object enabled = Optional.ofNullable(idempotencyParameters.get(ENABLED_PROPERTY)).orElse(Boolean.FALSE);
+            properties.put(ConfigurationPropertiesConstants.IDEMPOTENCY_ENABLED, enabled.toString());
+            boolean isEnabled = Boolean.parseBoolean(enabled.toString());
+            if (isEnabled) {
+                Object expiry = Optional.ofNullable(idempotencyParameters.get(CamelOptions.EXPIRY_PROP)).orElse(DEFAULT_KEY_EXPIRY);
+                properties.put(ConfigurationPropertiesConstants.EXPIRY, expiry.toString());
+            }
+        } else {
+            throw new SnapshotCreationException("Malformed idempotency property");
         }
         return properties;
     }

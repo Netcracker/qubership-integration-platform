@@ -60,9 +60,6 @@ public class KafkaElementPropertiesBuilder implements ElementPropertiesBuilder {
                 element.getPropertyAsString(CamelOptions.SASL_JAAS_CONFIG),
                 element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP)
         );
-        if (CamelNames.KAFKA_TRIGGER_2_COMPONENT.equals(element.getType())) {
-            elementProperties.put(CamelOptions.GROUP_ID, element.getPropertyAsString(CamelOptions.GROUP_ID));
-        }
         enrichWithAdditionalProperties(element, elementProperties);
         return elementProperties;
     }
