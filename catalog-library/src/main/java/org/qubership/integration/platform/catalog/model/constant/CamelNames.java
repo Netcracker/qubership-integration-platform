@@ -41,6 +41,7 @@ public final class CamelNames {
     public static final String LOOP_EXPRESSION = "loop-expression";
     public static final String MAIN_SPLIT_ELEMENT = "main-split-element";
     public static final String JMS_SENDER_COMPONENT = "jms-sender";
+    public static final String JMS_TRIGGER_COMPONENT = "jms-trigger";
     public static final String FILE = "file";
     public static final String DIRECT = "direct";
     public static final String CONTAINER = "container";
