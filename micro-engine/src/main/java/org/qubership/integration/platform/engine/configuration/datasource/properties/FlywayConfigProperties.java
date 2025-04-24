@@ -20,18 +20,34 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import org.flywaydb.core.api.configuration.ClassicConfiguration;
+import org.flywaydb.core.internal.configuration.ConfigUtils;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
 @AllArgsConstructor
 @ConfigurationProperties(prefix = "db")
 public class FlywayConfigProperties {
-    private Map<String, ClassicConfiguration> flyway;
+    private Map<String, Properties> flyway;
 
     public ClassicConfiguration getConfig(String name) {
-        return flyway.get(name);
+        return Optional.ofNullable(flyway.get(name)).map(props -> {
+            ClassicConfiguration configuration = new ClassicConfiguration();
+            configuration.configure(getConfigurationMap(props));
+            return configuration;
+        }).orElseGet(ClassicConfiguration::new);
+    }
+
+    private Map<String, String> getConfigurationMap(Properties properties) {
+        return addPrefix("flyway.", ConfigUtils.propertiesToMap(properties));
+    }
+
+    private Map<String, String> addPrefix(String prefix, Map<String, String> map) {
+        return map.entrySet().stream().collect(Collectors.toMap(e -> prefix + e.getKey(), Map.Entry::getValue));
     }
 }
