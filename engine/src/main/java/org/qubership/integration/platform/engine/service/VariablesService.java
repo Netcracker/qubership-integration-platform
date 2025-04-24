@@ -62,10 +62,8 @@ public class VariablesService {
     private Map<String, String> securedVariables = Collections.emptyMap();
     private Map<String, String> mergedVariables = Collections.emptyMap();
 
-    @Deprecated(since = "22.1")
-    private StringSubstitutor substitutorV1;
-    private StringSubstitutor substitutorV2;
-    private StringSubstitutor substitutorV2Escaped;
+    private StringSubstitutor substitutor;
+    private StringSubstitutor substitutorEscaped;
 
     private boolean isInitialSecuredEvent = true;
     private boolean isInitialCommonEvent = true;
@@ -105,12 +103,11 @@ public class VariablesService {
             // substitute variables
             // #{var}
             if (!escapeDesignTimeVariables) {
-                text = substitutorV2.replace(text);
+                text = substitutor.replace(text);
             } else {
-                text = substitutorV2Escaped.replace(text);
+                text = substitutorEscaped.replace(text);
             }
 
-            text = substitutorV1.replace(text); // {var}
         } finally {
             lock.readLock().unlock();
         }
@@ -194,11 +191,10 @@ public class VariablesService {
             mergedVariables.putAll(securedVariables);
 
             // build substitutors
-            substitutorV1 = buildSubst(mergedVariables, "{");
-            substitutorV2 = buildSubst(mergedVariables, "#{");
+            substitutor = buildSubst(mergedVariables, "#{");
             Map<String, String> variablesToEscape = new HashMap<>(mergedVariables);
             variablesToEscape.forEach((k, v) -> variablesToEscape.replace(k, StringEscapeUtils.escapeXml10(v)));
-            substitutorV2Escaped = buildSubst(variablesToEscape, "#{");
+            substitutorEscaped = buildSubst(variablesToEscape, "#{");
         } finally {
             lock.writeLock().unlock();
         }
