@@ -106,21 +106,21 @@ logging:
 db:
   flyway:
     checkpoints-datasource:
-      baseline-on-migrate: true
+      baselineOnMigrate: true
       schemas: ${spring.jpa.properties.hibernate.default_schema}
-      default-schema: ${spring.jpa.properties.hibernate.default_schema}
-      create-schemas: true
+      defaultSchema: ${spring.jpa.properties.hibernate.default_schema}
+      createSchemas: true
       outOfOrder: true
-      ignoreMigrationPatterns: ''
+      ignoreMigrationPatterns: '*:future,*:missing'
       locations: 'classpath:db/migration/postgresql/static'
       validateOnMigrate: true
     qrtz-datasource:
-      baseline-on-migrate: true
+      baselineOnMigrate: true
       schemas: ${spring.jpa.properties.hibernate.default_schema}
-      default-schema: ${spring.jpa.properties.hibernate.default_schema}
-      create-schemas: true
+      defaultSchema: ${spring.jpa.properties.hibernate.default_schema}
+      createSchemas: true
       outOfOrder: true
-      ignoreMigrationPatterns: ''
+      ignoreMigrationPatterns: '*:future,*:missing'
       locations: 'classpath:db/migration/postgresql/configs'
   hikari:
     datasources:
