@@ -92,6 +92,26 @@ public abstract class ComplexMappingAtlasModule extends DelegatingAtlasModule {
 
     @Override
     public void processPreValidation(AtlasInternalSession atlasSession) throws AtlasException {
+        if (atlasSession == null || atlasSession.getMapping() == null) {
+            throw new AtlasValidationException("Invalid session: Session and AtlasMapping must be specified");
+        }
+
+        Validations validations = atlasSession.getValidations();
+        BaseModuleValidationService<?> validationService = getValidationService();
+        validationService.setMode(getMode());
+        validationService.setDocId(getDocId());
+        List<Validation> currentModuleValidations = validationService.validateMapping(atlasSession.getMapping());
+        if (nonNull(currentModuleValidations) && !currentModuleValidations.isEmpty()) {
+            validations.getValidation().addAll(currentModuleValidations);
+        }
+
+        if (LOG.isDebugEnabled() && nonNull(currentModuleValidations)) {
+            LOG.debug("Detected " + currentModuleValidations.size() + " validation notices");
+        }
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("{}: processPreValidation completed", getDocId());
+        }
     }
 
     @Override

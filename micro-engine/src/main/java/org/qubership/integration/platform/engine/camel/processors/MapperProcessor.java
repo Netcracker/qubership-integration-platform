@@ -21,7 +21,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import io.atlasmap.api.AtlasContext;
 import io.atlasmap.api.AtlasSession;
 import io.atlasmap.core.DefaultAtlasContextFactory;
 import io.atlasmap.core.DefaultAtlasFunctionResolver;
@@ -35,6 +34,7 @@ import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import org.qubership.integration.platform.engine.mapper.atlasmap.CustomAtlasContext;
+import org.qubership.integration.platform.engine.mapper.atlasmap.ValidationResult;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -48,6 +48,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 /**
  * Processor is used to receive input body and map it to
@@ -87,10 +90,12 @@ public class MapperProcessor implements Processor {
     public void process(Exchange exchange) throws Exception {
         String mapping = exchange.getProperty(Properties.MAPPING_CONFIG, String.class);
         AtlasMapping atlasMapping = null;
+        ValidationResult cachedValidationResult = null;
         if (cacheEnabled) {
             String mappingId = exchange.getProperty(Properties.MAPPING_ID, String.class);
             if (StringUtils.isNotEmpty(mappingId)) {
                 atlasMapping = exchange.getContext().getRegistry().lookupByNameAndType(mappingId, AtlasMapping.class);
+                cachedValidationResult = exchange.getContext().getRegistry().lookupByNameAndType(mappingId, ValidationResult.class);
                 if (atlasMapping == null) {
                     atlasMapping = getAtlasMappingObj(mapping);
                     exchange.getContext().getRegistry().bind(mappingId, AtlasMapping.class, atlasMapping);
@@ -104,12 +109,30 @@ public class MapperProcessor implements Processor {
             atlasMapping = getAtlasMappingObj(mapping);
         }
 
-        AtlasContext context = new CustomAtlasContext(factory, atlasMapping);
+        CustomAtlasContext context = new CustomAtlasContext(factory, atlasMapping);
+
+        if (nonNull(cachedValidationResult)) {
+            context.setCachedValidationResult(cachedValidationResult);
+        }
+
         AtlasSession session = context.createSession();
         uploadProperties(exchange, session);
         setDataSourcesDocuments(exchange, atlasMapping, session);
 
-        context.process(session);
+        try {
+            context.process(session);
+        } finally {
+            if (cacheEnabled && isNull(cachedValidationResult)) {
+                String mappingId = exchange.getProperty(Properties.MAPPING_ID, String.class);
+                if (StringUtils.isNotEmpty(mappingId)) {
+                    cachedValidationResult = context.getCachedValidationResult();
+                    if (nonNull(cachedValidationResult)) {
+                        exchange.getContext().getRegistry().bind(mappingId, ValidationResult.class, cachedValidationResult);
+                    }
+                }
+            }
+        }
+
         logIssues(exchange, session);
 
         throwExceptionOnErrors(exchange, session);

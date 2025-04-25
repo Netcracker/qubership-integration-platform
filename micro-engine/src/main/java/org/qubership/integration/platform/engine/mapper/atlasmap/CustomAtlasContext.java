@@ -28,11 +28,16 @@ import org.qubership.integration.platform.engine.mapper.atlasmap.expressions.Cus
 
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
+
 @Slf4j
 public class CustomAtlasContext extends DefaultAtlasContext {
+    private ValidationResult cachedValidationResult;
 
     public CustomAtlasContext(URI atlasMappingUri) {
         super(atlasMappingUri);
@@ -51,6 +56,49 @@ public class CustomAtlasContext extends DefaultAtlasContext {
         Format format, InputStream stream)
         throws AtlasException {
         super(factory, format, stream);
+    }
+
+    public ValidationResult getCachedValidationResult() {
+        return cachedValidationResult;
+    }
+
+    public void setCachedValidationResult(ValidationResult cachedValidationResult) {
+        this.cachedValidationResult = cachedValidationResult;
+    }
+
+    @Override
+    public void processValidation(AtlasSession userSession) throws AtlasException {
+        if (isNull(cachedValidationResult)) {
+            processValidationAndSaveResult(userSession);
+        } else {
+            restoreValidationResult(userSession);
+        }
+    }
+
+    private void processValidationAndSaveResult(AtlasSession userSession) throws AtlasException {
+        ValidationResult.ValidationResultBuilder resultBuilder = ValidationResult.builder();
+        try {
+            super.processValidation(userSession);
+        } catch (AtlasException e) {
+            resultBuilder = resultBuilder.exception(e);
+            throw e;
+        } catch (RuntimeException e) {
+            resultBuilder = resultBuilder.runtimeException(e);
+            throw e;
+        } finally {
+            List<Validation> validations = new ArrayList<>(userSession.getValidations().getValidation());
+            cachedValidationResult = resultBuilder.validations(validations).build();
+        }
+    }
+
+    private void restoreValidationResult(AtlasSession userSession) throws AtlasException {
+        userSession.getValidations().getValidation().addAll(cachedValidationResult.getValidations());
+        if (nonNull(cachedValidationResult.getException())) {
+            throw cachedValidationResult.getException();
+        }
+        if (nonNull(cachedValidationResult.getRuntimeException())) {
+            throw cachedValidationResult.getRuntimeException();
+        }
     }
 
     @Override
