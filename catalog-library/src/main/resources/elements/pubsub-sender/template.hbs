@@ -1,18 +1,20 @@
-<doTry>
-    {{#if-property 'propagateContext' equals='true'}}
-        {{#if-property 'overrideContextParams' presented=''}}
-            <setProperty name="internalProperty_overrideContextParams">
-                <simple>{{escape (property-json 'overrideContextParams')}}</simple>
-            </setProperty>
+<step id="{{identifier}}">
+    <doTry>
+        {{#if-property 'propagateContext' equals='true'}}
+            {{#if-property 'overrideContextParams' presented=''}}
+                <setProperty name="internalProperty_overrideContextParams">
+                    <simple>{{escape (property-json 'overrideContextParams')}}</simple>
+                </setProperty>
+            {{/if-property}}
+
+            <process ref="contextPropagationProcessor"/>
         {{/if-property}}
 
-        <process id="{{identifier}}" ref="contextPropagationProcessor"/>
-    {{/if-property}}
+        <toD uri="google-pubsub:{{property 'projectId'}}:{{property 'destinationName'}}{{escape (query)}}&amp;serviceAccountKey=base64:{{property 'serviceAccountKey'}}&amp;serializer=#bean:customGooglePubSubSerializer"/>
 
-    <toD uri="google-pubsub:{{property 'projectId'}}:{{property 'destinationName'}}{{escape (query)}}&amp;serviceAccountKey=base64:{{property 'serviceAccountKey'}}&amp;serializer=#bean:customGooglePubSubSerializer"/>
-
-    <doFinally>
-        <removeProperty name="internalProperty_overrideContextParams"/>
-        <process ref="contextRestoreProcessor"/>
-    </doFinally>
-</doTry>
+        <doFinally>
+            <removeProperty name="internalProperty_overrideContextParams"/>
+            <process ref="contextRestoreProcessor"/>
+        </doFinally>
+    </doTry>
+</step>
