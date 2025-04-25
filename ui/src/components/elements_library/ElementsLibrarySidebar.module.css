@@ -3,3 +3,7 @@
     scrollbar-gutter: stable;
     border-radius: 15px 0 0 15px;
 }
+
+.libraryElements {
+    position: absolute;
+}

@@ -61,6 +61,7 @@ export const ElementsLibrarySidebar = () => {
         <Spin />
       ) : (
           <Menu
+            className={styles.libraryElements}
             mode="inline"
             theme="light"
             items={items}
