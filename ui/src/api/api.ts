@@ -7,12 +7,16 @@ import {
   Element,
   Snapshot,
   ConnectionRequest,
-  ActionDifference
+  ActionDifference, Deployment
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
 export interface Api {
   getChains(): Promise<Chain[]>;
+
+  getChain(id: string): Promise<Chain>;
+
+  updateChain(id: string, chain: Partial<Chain>): Promise<Chain>;
 
   createChain(chain: ChainCreationRequest): Promise<Chain>;
 
@@ -54,6 +58,8 @@ export interface Api {
   getSnapshots(chainId: string): Promise<Snapshot[]>;
 
   getLibraryElementByType(type: string): Promise<Element>;
+
+  getDeployments(chainId: string): Promise<Deployment[]>;
 }
 
 export const api: Api = new RestApi(); 

@@ -118,3 +118,31 @@ export type ActionDifference = {
   createdDependencies?: Connection[];
   removedDependencies?: Connection[];
 }
+
+export type RuntimeState = {
+  status: string;
+  error: string;
+  stacktrace: string;
+  suspended: boolean;
+}
+
+export type RuntimeStates = {
+  states: { [key: string]: RuntimeState };
+}
+
+export type User = {
+  id: string;
+  username: string;
+}
+
+export type Deployment = {
+  id: string;
+  chainId: string;
+  snapshotId: string;
+  name: string;
+  domain: string;
+  createdWhen : number;
+  createdBy: User;
+  runtime: RuntimeStates;
+  serviceName: string;
+}

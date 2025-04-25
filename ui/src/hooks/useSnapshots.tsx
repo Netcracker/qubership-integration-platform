@@ -15,7 +15,7 @@ export const useSnapshots = (chainId?: string) => {
   useEffect(() => {
     if (!chainId) return;
     getSnapshots(chainId);
-  });
+  }, []);
 
   const createSnapshot = async (chainId: string) => {
     try {

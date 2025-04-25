@@ -7,7 +7,9 @@ import type {
   LibraryData,
   Element,
   Snapshot,
-  ConnectionRequest, ActionDifference
+  ConnectionRequest,
+  ActionDifference,
+  Deployment
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -28,6 +30,24 @@ export class RestApi implements Api {
       throw err;
     }
   };
+
+  getChain = async (id: string): Promise<Chain> => {
+    try {
+      const response = await this.instance.get<Chain>(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${id}`)
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  updateChain = async (id: string, chain: Partial<Chain>): Promise<Chain> => {
+    try {
+      const response = await this.instance.put<Chain>(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${id}`, chain);
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
 
   createChain = async (chain: ChainCreationRequest): Promise<Chain> => {
     try {
@@ -133,7 +153,7 @@ export class RestApi implements Api {
     chainId: string,
   ): Promise<ActionDifference> => {
     try {
-      const response = await this.instance.delete(`/api/v1/qip/catalog/chains/${chainId}/dependencies`, {
+      const response = await this.instance.delete(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/dependencies`, {
         params: { dependenciesIds: connectionId }, //TODO send array
       });
       return response.data;
@@ -143,13 +163,13 @@ export class RestApi implements Api {
   };
 
   createSnapshot = async (chainId: string): Promise<void> => {
-    await this.instance.post(`/api/v1/qip/catalog/chains/${chainId}/snapshots`);
+    await this.instance.post(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/snapshots`);
   };
 
   getSnapshots = async (chainId: string): Promise<Snapshot[]> => {
     try {
       const response = await this.instance.get(
-        `/api/v1/qip/catalog/chains/${chainId}/snapshots`,
+        `/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/snapshots`,
       );
       return response.data;
     } catch (err) {
@@ -159,10 +179,19 @@ export class RestApi implements Api {
 
   getLibraryElementByType = async (type: string): Promise<Element> => {
     try {
-      const response = await this.instance.get(`/api/v1/qip/catalog/library/${type}`);
+      const response = await this.instance.get(`/api/v1/${import.meta.env.API_APP}/catalog/library/${type}`);
       return response.data;
     } catch (err) {
       throw err;
     }
   };
+
+  getDeployments = async (chainId: string): Promise<Deployment[]> => {
+    try {
+      const response = await this.instance.get(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/deployments`);
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
 }
