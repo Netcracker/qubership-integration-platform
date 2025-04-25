@@ -7,6 +7,12 @@ import { Layout } from "antd";
 
 import styles from "./App.module.css";
 import { Modals } from "./Modals.tsx";
+import { Snapshots } from "./pages/Snapshots.tsx";
+import { Deployments } from "./pages/Deployments.tsx";
+import ChainGraph from "./pages/ChainGraph.tsx";
+import NotFound from "./pages/NotFound.tsx";
+import { Content } from "antd/es/layout/layout";
+import { NotImplemented } from "./pages/NotImplemented.tsx";
 
 const { Header } = Layout;
 
@@ -16,14 +22,24 @@ const App = () => (
       <Header className={styles.header}>
         <Navigation />
       </Header>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/admin" element={<Admin />} />
-          <Route index path="/" element={<Chains />} />
-          <Route index path="/chains" element={<Chains />} />
-          <Route path="/chains/:chainId" element={<Chain />} />
-        </Routes>
-      </BrowserRouter>
+      <Content className={styles.content}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/admin" element={<Admin />} />
+            <Route index path="/" element={<Chains />} />
+            <Route index path="/chains" element={<Chains />} />
+            <Route path="/chains/:chainId" element={<Chain />}>
+              <Route index element={ <ChainGraph />} />
+              <Route index path="graph" element={ <ChainGraph />} />
+              <Route path="snapshots" element={<Snapshots />} />
+              <Route path="deployments" element={<Deployments />} />
+              <Route path="sessions" element={<NotImplemented />} />
+              <Route path="logging-settings" element={ <NotImplemented />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </Content>
     </Modals>
   </Layout>
 );

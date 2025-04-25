@@ -60,12 +60,11 @@ export const ElementsLibrarySidebar = () => {
       {loading ? (
         <Spin />
       ) : (
-        <Menu
-          mode="inline"
-          className="library-elemetns"
-          theme="light"
-          items={items}
-        />
+          <Menu
+            mode="inline"
+            theme="light"
+            items={items}
+          />
       )}
     </Sider>
   );

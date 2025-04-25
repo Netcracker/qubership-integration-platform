@@ -1,4 +1,5 @@
 .sideMenu {
-    overflow: scroll;
+    overflow: auto;
+    scrollbar-gutter: stable;
     border-radius: 15px 0 0 15px;
 }

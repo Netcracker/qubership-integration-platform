@@ -1,105 +1,59 @@
-import {
-  Background,
-  BackgroundVariant,
-  MiniMap,
-  ReactFlow,
-  ReactFlowProvider,
-} from "@xyflow/react";
-
 import "@xyflow/react/dist/style.css";
-import { useCallback, useRef, MouseEvent } from "react";
-import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
-import { DnDProvider } from "../components/DndContext.tsx";
-import { FloatButton, Layout } from "antd";
-import { DiffOutlined, SettingOutlined } from "@ant-design/icons";
-import { Content } from "antd/es/layout/layout";
-import { Node } from "@xyflow/react";
-import { useParams } from "react-router";
-import { CustomControls } from "../components/graph/CustomControls.tsx";
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
-import { useModalsContext } from "../Modals.tsx";
-import { Snapshots } from "../components/modal/Snapshots.tsx";
-import { ChainSettings } from "../components/modal/ChainSettings.tsx";
-import { ChainElementModification } from "../components/modal/ChainElementModification.tsx";
-
+import { Breadcrumb, Col, Flex, Radio, RadioChangeEvent, Row } from "antd";
+import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
+import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
-import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
-import { ElkDirectionContextProvider } from "./ElkDirectionContext.tsx";
 
 const Chain = () => {
   const { chainId } = useParams<string>();
-  const { showModal } = useModalsContext();
-  const reactFlowWrapper = useRef(null);
 
-  const {
-    nodes,
-    edges,
-    onConnect,
-    onDrop,
-    onEdgesChange,
-    onNodesChange,
-    elkDirectionControl,
-  } = useChainGraph(chainId);
+  const location = useLocation();
+  const { pathname } = location;
+  const navigate = useNavigate();
+  const activeKey = getActiveTabKey(pathname);
 
-  const onDragOver = useCallback((event: any) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-  }, []);
+  const { chain } = useChain(chainId);
 
-  const onNodeDoubleClick = (_event: MouseEvent, node: Node) => {
-    if (!node.type) return;
-    showModal({ component: <ChainElementModification nodeType={node.type} /> });
+  const handlePageChange = (event: RadioChangeEvent) => {
+    navigate(`${event.target.value}`); // Update the URL with the selected tab key
   };
 
   return (
-    <div className={"chain-wrapper"}>
-      <Layout className="chain-layout">
-        <Content className={styles.content}>
-          <ElementsLibrarySidebar />
-          <div className="react-flow-container" ref={reactFlowWrapper}>
-            <ElkDirectionContextProvider
-              elkDirectionControl={elkDirectionControl}
-            >
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onDrop={onDrop}
-                onDragOver={onDragOver}
-                onNodeDoubleClick={onNodeDoubleClick}
-                fitView
-              >
-                <Background variant={BackgroundVariant.Dots} />
-                <MiniMap zoomable pannable />
-                <CustomControls />
-              </ReactFlow>
-            </ElkDirectionContextProvider>
-          </div>
-        </Content>
-        <FloatButtonGroup trigger="hover" icon={<SettingOutlined />}>
-          <FloatButton
-            onClick={() =>
-              chainId &&
-              showModal({ component: <Snapshots chainId={chainId} /> })
-            }
-            icon={<DiffOutlined />}
-          />
-          <FloatButton
-            onClick={() => showModal({ component: <ChainSettings /> })}
-            icon={<SettingOutlined />}
-          />
-        </FloatButtonGroup>
-      </Layout>
-    </div>
+      <Flex className={styles.stretched} gap={"middle"} vertical>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Breadcrumb>
+              <Breadcrumb.Item>
+                <Link to="/chains">Chains</Link>
+              </Breadcrumb.Item>
+              <Breadcrumb.Item>
+                {chain?.name}
+              </Breadcrumb.Item>
+            </Breadcrumb>
+          </Col>
+          <Col>
+            <Radio.Group value={activeKey} onChange={handlePageChange} defaultValue="graph">
+              <Radio.Button value="graph">Graph</Radio.Button>
+              <Radio.Button value="snapshots">Snapshots</Radio.Button>
+              <Radio.Button value="deployments">Deployments</Radio.Button>
+              <Radio.Button value="sessions">Sessions</Radio.Button>
+              <Radio.Button value="logging-settings">Logging Settings</Radio.Button>
+            </Radio.Group>
+          </Col>
+        </Row>
+        <Row className={styles.stretched}>
+          <Col span={24}>
+            <Outlet />
+          </Col>
+        </Row>
+      </Flex>
+    // </div>
   );
 };
 
-export default () => (
-  <ReactFlowProvider>
-    <DnDProvider>
-      <Chain />
-    </DnDProvider>
-  </ReactFlowProvider>
-);
+function getActiveTabKey(path: string) {
+  const segment = path?.split("/")[3];
+  return segment ?? "graph";
+}
+
+export default Chain;
