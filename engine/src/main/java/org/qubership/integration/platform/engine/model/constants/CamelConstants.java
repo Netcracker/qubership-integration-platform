@@ -125,6 +125,7 @@ public final class CamelConstants {
 
         public static final String MAPPING_THROW_EXCEPTION = INTERNAL_PROPERTY_PREFIX + "mappingThrowException";
         public static final String MAPPING_CONFIG = INTERNAL_PROPERTY_PREFIX + "mappingConfig";
+        public static final String MAPPING_ID = INTERNAL_PROPERTY_PREFIX + "mappingId";
         public static final String RBAC_ACCESS_POLICY = INTERNAL_PROPERTY_PREFIX + "rbac_access_policy";
         public static final String HEADER_MODIFICATION_TO_ADD = INTERNAL_PROPERTY_PREFIX + "headerModificationToAdd";
         public static final String HEADER_MODIFICATION_TO_REMOVE = INTERNAL_PROPERTY_PREFIX + "headerModificationToRemove";
