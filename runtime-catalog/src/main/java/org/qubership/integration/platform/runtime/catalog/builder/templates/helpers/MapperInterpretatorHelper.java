@@ -18,8 +18,8 @@ package org.qubership.integration.platform.runtime.catalog.builder.templates.hel
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
+import com.github.jknack.handlebars.helper.HelperFunction;
 import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
@@ -30,12 +30,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static java.util.Objects.isNull;
 
-@TemplatesHelper("mapper-interpretation")
-public class MapperInterpretatorHelper extends BaseHelper implements Helper<String> {
-
+@TemplatesHelper
+public class MapperInterpretatorHelper extends BaseHelper {
     private final ObjectMapper objectMapper;
     private final MappingInterpreter interpreter;
     private final MappingDescriptionValidator validator;
@@ -51,8 +51,7 @@ public class MapperInterpretatorHelper extends BaseHelper implements Helper<Stri
         this.validator = validator;
     }
 
-
-    @Override
+    @HelperFunction("mapper-interpretation")
     public String apply(String mappingDescriptionAsString, Options options) {
         try {
             MappingDescription mappingDescription = isNull(mappingDescriptionAsString)
@@ -61,7 +60,7 @@ public class MapperInterpretatorHelper extends BaseHelper implements Helper<Stri
             validator.validate(mappingDescription);
             return interpreter.getInterpretation(mappingDescription);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error processing json in property-json helper", e);
+            throw new RuntimeException("Error processing JSON in property-json helper", e);
         } catch (SnapshotCreationException e) {
             var context = options.context.model();
             if (context instanceof ChainElement element && isNull(e.getElementId())) {
@@ -70,5 +69,9 @@ public class MapperInterpretatorHelper extends BaseHelper implements Helper<Stri
             }
             throw e;
         }
+    }
+
+    public CharSequence mappingId(Options options) {
+        return UUID.randomUUID().toString();
     }
 }
