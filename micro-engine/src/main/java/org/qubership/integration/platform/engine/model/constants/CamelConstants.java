@@ -33,6 +33,7 @@ public final class CamelConstants {
     private static final Set<String> INTERNAL_HEADERS_NAMES;
 
     public static final String INTERNAL_PROPERTY_PREFIX = "internalProperty_";
+    public static final String SYSTEM_PROPERTY_PREFIX = "systemProperty_";
 
     public static final String LOG_TYPE_KEY = "logType";
     public static final String LOG_TYPE_VALUE = "int";
@@ -160,6 +161,8 @@ public final class CamelConstants {
         public static final String SERVICE_CALL_RETRY_DELAY = "retryDelay";
 
         public static final int SERVICE_CALL_DEFAULT_RETRY_DELAY = 5000;
+
+        public static final String SYSTEM_PROPERTY_BLUEGREEN_STATE = SYSTEM_PROPERTY_PREFIX + "bluegreenState";
 
         private Properties() {
         }
