@@ -45,6 +45,7 @@ import org.qubership.integration.platform.engine.model.sessionsreporting.EventSo
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
+import org.qubership.integration.platform.engine.service.ExchangePropertyService;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.debugger.kafkareporting.SessionsKafkaReportingService;
@@ -86,6 +87,7 @@ public class CamelDebugger extends DefaultDebugger {
     private final VariablesService variablesService;
     private final CamelDebuggerPropertiesService propertiesService;
     private final Optional<CamelExchangeContextPropagation> exchangeContextPropagation;
+    private final ExchangePropertyService exchangePropertyService;
     @Setter
     @Getter
     private String deploymentId;
@@ -102,7 +104,8 @@ public class CamelDebugger extends DefaultDebugger {
             PayloadExtractor payloadExtractor,
             VariablesService variablesService,
             CamelDebuggerPropertiesService propertiesService,
-            Optional<CamelExchangeContextPropagation> exchangeContextPropagation
+            Optional<CamelExchangeContextPropagation> exchangeContextPropagation,
+            ExchangePropertyService exchangePropertyService
     ) {
         this.serverConfiguration = serverConfiguration;
         this.tracingService = tracingService;
@@ -115,6 +118,7 @@ public class CamelDebugger extends DefaultDebugger {
         this.variablesService = variablesService;
         this.propertiesService = propertiesService;
         this.exchangeContextPropagation = exchangeContextPropagation;
+        this.exchangePropertyService = exchangePropertyService;
     }
 
     @Override
@@ -697,6 +701,8 @@ public class CamelDebugger extends DefaultDebugger {
                     ? exchangeContextPropagation.get().createContextSnapshot()
                     : Collections.emptyMap();
             exchange.setProperty(CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT, snapshot);
+
+            this.exchangePropertyService.initAdditionalExchangeProperties(exchange);
         }
     }
 
