@@ -107,7 +107,19 @@ export type ChildElement = {
 export type Snapshot = {
   id: string;
   name: string;
+  description: string;
+  createdWhen: number;
+  createdBy: User;
+  modifiedWhen: number;
+  modifiedBy: User;
+  xmlDefinition: string;
+  labels: SnapshotLabel[];
 };
+
+export type SnapshotLabel = {
+  name: string;
+  technical: boolean;
+}
 
 export type ActionDifference = {
   createdElements?: Element[];
@@ -143,6 +155,20 @@ export type Deployment = {
   domain: string;
   createdWhen : number;
   createdBy: User;
-  runtime: RuntimeStates;
+  runtime?: RuntimeStates;
   serviceName: string;
+}
+
+export type CreateDeploymentRequest = {
+  domain: string;
+  snapshotId: string;
+  suspended: boolean;
+}
+
+export type EngineDomain = {
+  id: string;
+  name: string;
+  replicas: number;
+  namespace: string;
+  version?: string;
 }

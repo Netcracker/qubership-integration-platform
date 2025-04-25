@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { notification } from "antd";
 
 export const useSnapshots = (chainId?: string) => {
+  const [isLoading, setIsLoading] = useState(false);
+
   const columns: TableProps<Snapshot>["columns"] = [
     { title: "ID", dataIndex: "id", key: "id" },
     { title: "Name", dataIndex: "name", key: "name" },
@@ -15,7 +17,7 @@ export const useSnapshots = (chainId?: string) => {
   useEffect(() => {
     if (!chainId) return;
     getSnapshots(chainId);
-  }, []);
+  }, [chainId]);
 
   const createSnapshot = async (chainId: string) => {
     try {
@@ -30,6 +32,7 @@ export const useSnapshots = (chainId?: string) => {
 
   const getSnapshots = async (chainId: string) => {
     try {
+      setIsLoading(true);
       const data = await api.getSnapshots(chainId);
       setSnapshots(data);
     } catch (error) {
@@ -37,8 +40,10 @@ export const useSnapshots = (chainId?: string) => {
         message: "Request failed",
         description: "Failed to load snapshots",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  return { columns, snapshots, createSnapshot };
+  return { isLoading, columns, snapshots, createSnapshot };
 };

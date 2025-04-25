@@ -7,7 +7,10 @@ import {
   Element,
   Snapshot,
   ConnectionRequest,
-  ActionDifference, Deployment
+  ActionDifference,
+  Deployment,
+  CreateDeploymentRequest,
+  EngineDomain
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -60,6 +63,12 @@ export interface Api {
   getLibraryElementByType(type: string): Promise<Element>;
 
   getDeployments(chainId: string): Promise<Deployment[]>;
+
+  createDeployment(chainId: string, request: CreateDeploymentRequest): Promise<Deployment>;
+
+  deleteDeployment(deploymentId: string): Promise<void>;
+
+  getDomains(): Promise<EngineDomain[]>;
 }
 
 export const api: Api = new RestApi(); 

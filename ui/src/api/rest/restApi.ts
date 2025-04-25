@@ -9,7 +9,9 @@ import type {
   Snapshot,
   ConnectionRequest,
   ActionDifference,
-  Deployment
+  Deployment,
+  CreateDeploymentRequest,
+  EngineDomain
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -189,6 +191,38 @@ export class RestApi implements Api {
   getDeployments = async (chainId: string): Promise<Deployment[]> => {
     try {
       const response = await this.instance.get(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/deployments`);
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  createDeployment = async (chainId: string, request: CreateDeploymentRequest): Promise<Deployment> => {
+    try {
+      const response = await this.instance.post(
+        `/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/deployments`,
+        request,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  deleteDeployment = async (deploymentId: string): Promise<void> => {
+    try {
+      // @ts-ignore
+      const response = await this.instance.delete(
+        `/api/v1/${import.meta.env.API_APP}/catalog/chains/chainId/deployments/${deploymentId}`
+      );
+    } catch (err) {
+      throw err;
+    }
+  }
+  
+  getDomains = async (): Promise<EngineDomain[]> => {
+    try {
+      const response = await this.instance.get(`/api/v1/${import.meta.env.API_APP}/catalog/domains`);
       return response.data;
     } catch (err) {
       throw err;
