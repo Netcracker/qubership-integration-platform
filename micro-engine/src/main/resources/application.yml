@@ -240,6 +240,8 @@ qip:
       # Delay in seconds between init and update new metric (Counter)
       init:
         delay: 30
+  mapper:
+    cache-enabled: ${MAPPER_CACHE_ENABLED:true}
   # sessions writer performance parameters
   sessions:
     sampler:

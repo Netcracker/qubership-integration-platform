@@ -32,13 +32,16 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import org.qubership.integration.platform.engine.mapper.atlasmap.CustomAtlasContext;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.io.StringReader;
 import java.util.Collection;
 import java.util.HashMap;
@@ -70,6 +73,9 @@ public class MapperProcessor implements Processor {
     private final DefaultAtlasContextFactory factory;
     private final ObjectMapper objectMapper;
 
+    @Value("${qip.mapper.cache-enabled}")
+    private boolean cacheEnabled;
+
     @Autowired
     public MapperProcessor(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
         DefaultAtlasFunctionResolver.getInstance(); // To fix time when function factories are loaded
@@ -80,10 +86,24 @@ public class MapperProcessor implements Processor {
     @Override
     public void process(Exchange exchange) throws Exception {
         String mapping = exchange.getProperty(Properties.MAPPING_CONFIG, String.class);
-        mapping = StringEscapeUtils.unescapeXml(mapping);
-        StringReader stringReader = new StringReader(mapping);
+        AtlasMapping atlasMapping = null;
+        if (cacheEnabled) {
+            String mappingId = exchange.getProperty(Properties.MAPPING_ID, String.class);
+            if (StringUtils.isNotEmpty(mappingId)) {
+                atlasMapping = exchange.getContext().getRegistry().lookupByNameAndType(mappingId, AtlasMapping.class);
+                if (atlasMapping == null) {
+                    atlasMapping = getAtlasMappingObj(mapping);
+                    exchange.getContext().getRegistry().bind(mappingId, AtlasMapping.class, atlasMapping);
+                }
+            } else {
+                log.warn("Mapping ID is missing from the configuration");
+            }
+        }
 
-        AtlasMapping atlasMapping = objectMapper.readValue(stringReader, AtlasMapping.class);
+        if (atlasMapping == null) {
+            atlasMapping = getAtlasMappingObj(mapping);
+        }
+
         AtlasContext context = new CustomAtlasContext(factory, atlasMapping);
         AtlasSession session = context.createSession();
         uploadProperties(exchange, session);
@@ -97,6 +117,12 @@ public class MapperProcessor implements Processor {
         setUpOutputContentType(exchange, atlasMapping);
         downloadProperties(exchange, session);
         getDataSourcesDocuments(exchange, atlasMapping, session);
+    }
+
+    private AtlasMapping getAtlasMappingObj(String mappingConfig) throws IOException {
+        String mapping = StringEscapeUtils.unescapeXml(mappingConfig);
+        StringReader stringReader = new StringReader(mapping);
+        return objectMapper.readValue(stringReader, AtlasMapping.class);
     }
 
     private void throwExceptionOnErrors(Exchange exchange, AtlasSession session) throws Exception {
