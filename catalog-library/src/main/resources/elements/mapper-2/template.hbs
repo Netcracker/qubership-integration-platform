@@ -14,7 +14,13 @@
             {{escape (mapper-interpretation (property-json 'mappingDescription'))}}
         </constant>
     </setProperty>
+    <setProperty name='internalProperty_mappingId'>
+        <constant>
+            {{mappingId}}
+        </constant>
+    </setProperty>
     <process ref='mapperProcessor'/>
     <removeProperty name='internalProperty_mappingConfig'/>
+    <removeProperty name='internalProperty_mappingId'/>
     <removeProperty name="internalProperty_mappingThrowException"/>
 {{#if (identifier)}}</step>{{/if}}
