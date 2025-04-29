@@ -21,12 +21,14 @@ import { useModalsContext } from "../Modals.tsx";
 import {
   getTextColumnFilterFn,
   getTextListColumnFilterFn,
-  TextColumnFilterDropdown
+  TextColumnFilterDropdown,
 } from "../components/table/TextColumnFilterDropdown.tsx";
 import {
   getTimestampColumnFilterFn,
-  TimestampColumnFilterDropdown
+  TimestampColumnFilterDropdown,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
+import { SnapshotsCompare } from "../components/modal/SnapshotsCompare.tsx";
+import { SnapshotSequenceDiagram } from "../components/modal/SnapshotSequenceDiagram.tsx";
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -50,9 +52,13 @@ export const Snapshots: React.FC = () => {
 
   const deleteSelectedSnapshots = async () => {
     try {
-      const ids = selectedRowKeys.map(key => key.toString());
+      const ids = selectedRowKeys.map((key) => key.toString());
       await api.deleteSnapshots(ids);
-      setSnapshots(snapshots?.filter((snapshot) => !ids.some(id => snapshot.id === id)) ?? []);
+      setSnapshots(
+        snapshots?.filter(
+          (snapshot) => !ids.some((id) => snapshot.id === id),
+        ) ?? [],
+      );
     } catch (error) {
       notification.error({
         message: "Request failed",
@@ -74,7 +80,11 @@ export const Snapshots: React.FC = () => {
   };
 
   const onCompareBtnClick = async () => {
-    // TODO
+    if (selectedRowKeys.length !== 2) return;
+    const [oneId, otherId] = selectedRowKeys.map((key) => key.toString());
+    showModal({
+      component: <SnapshotsCompare oneId={oneId} otherId={otherId} />,
+    });
   };
 
   const onRollbackBtnClick = async () => {
@@ -106,7 +116,11 @@ export const Snapshots: React.FC = () => {
   };
 
   const onViewDiagramBtnClick = async () => {
-    // TODO
+    if (selectedRowKeys.length !== 1) return;
+    const snapshotId = selectedRowKeys[0].toString();
+    showModal({
+      component: <SnapshotSequenceDiagram snapshotId={snapshotId} />,
+    });
   };
 
   const onViewXmlBtnClick = async () => {
@@ -130,8 +144,11 @@ export const Snapshots: React.FC = () => {
       title: "Labels",
       dataIndex: "labels",
       key: "labels",
-      filterDropdown: (props) => TextColumnFilterDropdown({ ...props, enableExact: true }),
-      onFilter: getTextListColumnFilterFn((snapshot) => snapshot.labels.map(l => l.name)),
+      filterDropdown: (props) =>
+        TextColumnFilterDropdown({ ...props, enableExact: true }),
+      onFilter: getTextListColumnFilterFn((snapshot) =>
+        snapshot.labels.map((l) => l.name),
+      ),
       render: (_, snapshot) => <EntityLabels labels={snapshot.labels} />,
     },
     {
@@ -142,7 +159,9 @@ export const Snapshots: React.FC = () => {
       sorter: (a, b) =>
         a.createdBy.username.localeCompare(b.createdBy.username),
       filterDropdown: TextColumnFilterDropdown,
-      onFilter: getTextColumnFilterFn((snapshot) => snapshot.createdBy.username),
+      onFilter: getTextColumnFilterFn(
+        (snapshot) => snapshot.createdBy.username,
+      ),
     },
     {
       title: "Created At",
