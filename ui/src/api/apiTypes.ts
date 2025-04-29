@@ -113,10 +113,10 @@ export type Snapshot = {
   modifiedWhen: number;
   modifiedBy: User;
   xmlDefinition: string;
-  labels: SnapshotLabel[];
+  labels: EntityLabel[];
 };
 
-export type SnapshotLabel = {
+export type EntityLabel = {
   name: string;
   technical: boolean;
 }

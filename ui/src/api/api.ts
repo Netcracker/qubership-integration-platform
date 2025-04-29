@@ -56,9 +56,17 @@ export interface Api {
     chainId: string,
   ): Promise<ActionDifference>;
 
-  createSnapshot(chainId: string): Promise<void>;
+  createSnapshot(chainId: string): Promise<Snapshot>;
 
   getSnapshots(chainId: string): Promise<Snapshot[]>;
+
+  getSnapshot(snapshotId: string): Promise<Snapshot>;
+
+  deleteSnapshot(snapshotId: string): Promise<void>;
+
+  deleteSnapshots(snapshotIds: string[]): Promise<void>;
+
+  revertToSnapshot(chainId: string, snapshotId: string): Promise<Snapshot>;
 
   getLibraryElementByType(type: string): Promise<Element>;
 

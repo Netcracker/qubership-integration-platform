@@ -164,8 +164,13 @@ export class RestApi implements Api {
     }
   };
 
-  createSnapshot = async (chainId: string): Promise<void> => {
-    await this.instance.post(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/snapshots`);
+  createSnapshot = async (chainId: string): Promise<Snapshot> => {
+    try {
+      const response = await this.instance.post(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/snapshots`);
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
   };
 
   getSnapshots = async (chainId: string): Promise<Snapshot[]> => {
@@ -178,6 +183,42 @@ export class RestApi implements Api {
       throw err;
     }
   };
+
+  getSnapshot = async (snapshotId: string): Promise<Snapshot> => {
+    try {
+      const response = await this.instance.get(
+        `/api/v1/${import.meta.env.API_APP}/catalog/chains/chainId/snapshots/${snapshotId}`,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  deleteSnapshot = async (snapshotId: string): Promise<void> => {
+    try {
+      await this.instance.delete(`/api/v1/${import.meta.env.API_APP}/catalog/chains/chainId/snapshots/${snapshotId}`);
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  deleteSnapshots = async (snapshotIds: string[]): Promise<void> => {
+    try {
+      await this.instance.post(`/api/v2/${import.meta.env.API_APP}/catalog/snapshots/bulk-delete`, snapshotIds);
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  revertToSnapshot = async (chainId: string, snapshotId: string): Promise<Snapshot> => {
+    try {
+      const response = await this.instance.post(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/snapshots/${snapshotId}/revert`);
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
 
   getLibraryElementByType = async (type: string): Promise<Element> => {
     try {
