@@ -35,7 +35,7 @@ export class RestApi implements Api {
 
   getChain = async (id: string): Promise<Chain> => {
     try {
-      const response = await this.instance.get<Chain>(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${id}`)
+      const response = await this.instance.get<Chain>(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${id}`)
       return response.data;
     } catch (err) {
       throw err;
@@ -44,7 +44,7 @@ export class RestApi implements Api {
 
   updateChain = async (id: string, chain: Partial<Chain>): Promise<Chain> => {
     try {
-      const response = await this.instance.put<Chain>(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${id}`, chain);
+      const response = await this.instance.put<Chain>(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${id}`, chain);
       return response.data;
     } catch (err) {
       throw err;
@@ -166,7 +166,7 @@ export class RestApi implements Api {
 
   createSnapshot = async (chainId: string): Promise<Snapshot> => {
     try {
-      const response = await this.instance.post(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/snapshots`);
+      const response = await this.instance.post(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/snapshots`);
       return response.data;
     } catch (err) {
       throw err;
@@ -176,7 +176,7 @@ export class RestApi implements Api {
   getSnapshots = async (chainId: string): Promise<Snapshot[]> => {
     try {
       const response = await this.instance.get(
-        `/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/snapshots`,
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/snapshots`,
       );
       return response.data;
     } catch (err) {
@@ -187,7 +187,7 @@ export class RestApi implements Api {
   getSnapshot = async (snapshotId: string): Promise<Snapshot> => {
     try {
       const response = await this.instance.get(
-        `/api/v1/${import.meta.env.API_APP}/catalog/chains/chainId/snapshots/${snapshotId}`,
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/chainId/snapshots/${snapshotId}`,
       );
       return response.data;
     } catch (err) {
@@ -197,7 +197,7 @@ export class RestApi implements Api {
 
   deleteSnapshot = async (snapshotId: string): Promise<void> => {
     try {
-      await this.instance.delete(`/api/v1/${import.meta.env.API_APP}/catalog/chains/chainId/snapshots/${snapshotId}`);
+      await this.instance.delete(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/chainId/snapshots/${snapshotId}`);
     } catch (err) {
       throw err;
     }
@@ -205,7 +205,7 @@ export class RestApi implements Api {
 
   deleteSnapshots = async (snapshotIds: string[]): Promise<void> => {
     try {
-      await this.instance.post(`/api/v2/${import.meta.env.API_APP}/catalog/snapshots/bulk-delete`, snapshotIds);
+      await this.instance.post(`/api/v2/${import.meta.env.VITE_API_APP}/catalog/snapshots/bulk-delete`, snapshotIds);
     } catch (err) {
       throw err;
     }
@@ -213,7 +213,7 @@ export class RestApi implements Api {
 
   revertToSnapshot = async (chainId: string, snapshotId: string): Promise<Snapshot> => {
     try {
-      const response = await this.instance.post(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/snapshots/${snapshotId}/revert`);
+      const response = await this.instance.post(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/snapshots/${snapshotId}/revert`);
       return response.data;
     } catch (err) {
       throw err;
@@ -222,7 +222,7 @@ export class RestApi implements Api {
 
   getLibraryElementByType = async (type: string): Promise<Element> => {
     try {
-      const response = await this.instance.get(`/api/v1/${import.meta.env.API_APP}/catalog/library/${type}`);
+      const response = await this.instance.get(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/library/${type}`);
       return response.data;
     } catch (err) {
       throw err;
@@ -231,7 +231,7 @@ export class RestApi implements Api {
 
   getDeployments = async (chainId: string): Promise<Deployment[]> => {
     try {
-      const response = await this.instance.get(`/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/deployments`);
+      const response = await this.instance.get(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/deployments`);
       return response.data;
     } catch (err) {
       throw err;
@@ -241,7 +241,7 @@ export class RestApi implements Api {
   createDeployment = async (chainId: string, request: CreateDeploymentRequest): Promise<Deployment> => {
     try {
       const response = await this.instance.post(
-        `/api/v1/${import.meta.env.API_APP}/catalog/chains/${chainId}/deployments`,
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/deployments`,
         request,
       );
       return response.data;
@@ -254,7 +254,7 @@ export class RestApi implements Api {
     try {
       // @ts-ignore
       const response = await this.instance.delete(
-        `/api/v1/${import.meta.env.API_APP}/catalog/chains/chainId/deployments/${deploymentId}`
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/chainId/deployments/${deploymentId}`
       );
     } catch (err) {
       throw err;
@@ -263,7 +263,7 @@ export class RestApi implements Api {
 
   getDomains = async (): Promise<EngineDomain[]> => {
     try {
-      const response = await this.instance.get(`/api/v1/${import.meta.env.API_APP}/catalog/domains`);
+      const response = await this.instance.get(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/domains`);
       return response.data;
     } catch (err) {
       throw err;
