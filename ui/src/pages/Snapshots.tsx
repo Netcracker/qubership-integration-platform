@@ -1,5 +1,14 @@
 import React, { useContext, useState } from "react";
-import { FloatButton, Form, Input, Modal, notification, Table } from "antd";
+import {
+  FloatButton,
+  Form,
+  Input,
+  Modal,
+  notification,
+  Select,
+  SelectProps,
+  Table,
+} from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import {
@@ -28,11 +37,40 @@ import { SnapshotsCompare } from "../components/modal/SnapshotsCompare.tsx";
 import { SnapshotSequenceDiagram } from "../components/modal/SnapshotSequenceDiagram.tsx";
 import { InlineEdit, InlineEditContext } from "../components/InlineEdit.tsx";
 
-type TextValueEditProps = {
+type EditorProps = {
   name: string;
 };
 
-const TextValueEdit: React.FC<TextValueEditProps> = ({ name }) => {
+const LabelsEdit: React.FC<EditorProps> = ({ name }) => {
+  const [options, setOptions] = useState<SelectProps["options"]>([]);
+  const inlineEditContext = useContext(InlineEditContext);
+  const form = Form.useFormInstance();
+
+  return (
+    <Form.Item name={name} style={{ marginBottom: 0 }}>
+      <Select
+        autoFocus
+        mode="tags"
+        style={{ width: "100%" }}
+        onChange={(_, opts) => {
+          setOptions(opts as SelectProps["options"]);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            form.submit();
+          }
+        }}
+        tokenSeparators={[" "]}
+        options={options}
+        onBlur={() => inlineEditContext?.toggle()}
+        popupClassName="not-displayed"
+        suffixIcon={<></>}
+      />
+    </Form.Item>
+  );
+};
+
+const TextValueEdit: React.FC<EditorProps> = ({ name }) => {
   const inlineEditContext = useContext(InlineEditContext);
   const form = Form.useFormInstance();
 
@@ -197,7 +235,24 @@ export const Snapshots: React.FC = () => {
       onFilter: getTextListColumnFilterFn((snapshot) =>
         snapshot.labels.map((l) => l.name),
       ),
-      render: (_, snapshot) => <EntityLabels labels={snapshot.labels} />,
+      render: (_, snapshot) => (
+        <InlineEdit<{ labels: string[] }>
+          values={{
+            labels: snapshot.labels
+              ?.filter((l) => !l.technical)
+              .map((l) => l.name),
+          }}
+          editor={<LabelsEdit name={"labels"} />}
+          viewer={<EntityLabels labels={snapshot.labels} />}
+          onSubmit={async ({ labels }) => {
+            await updateSnapshot(
+              snapshot.id,
+              snapshot.name,
+              labels.map((name) => ({ name, technical: false })),
+            );
+          }}
+        />
+      ),
     },
     {
       title: "Created By",

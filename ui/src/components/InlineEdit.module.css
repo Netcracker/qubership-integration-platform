@@ -1,6 +1,7 @@
 .inlineEditValueWrap {
     padding: 5px 12px;
     cursor: pointer;
+    min-height: 32px;
 }
 
 .inlineEditValueWrap:hover {

@@ -117,3 +117,7 @@ button:focus-visible {
 .ant-table-body {
   overflow-y: auto !important;
 }
+
+.not-displayed {
+  display: none;
+}
