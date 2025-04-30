@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { FloatButton, Modal, notification, Table } from "antd";
+import React, { useContext, useState } from "react";
+import { FloatButton, Form, Input, Modal, notification, Table } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import {
@@ -10,7 +10,7 @@ import {
   RollbackOutlined,
 } from "@ant-design/icons";
 import { TableProps } from "antd/lib/table";
-import { Snapshot } from "../api/apiTypes.ts";
+import { EntityLabel, Snapshot } from "../api/apiTypes.ts";
 import { formatTimestamp } from "../misc/format-utils.ts";
 import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
@@ -23,12 +23,33 @@ import {
   getTextListColumnFilterFn,
   TextColumnFilterDropdown,
 } from "../components/table/TextColumnFilterDropdown.tsx";
-import {
-  getTimestampColumnFilterFn,
-  TimestampColumnFilterDropdown,
-} from "../components/table/TimestampColumnFilterDropdown.tsx";
+import { getTimestampColumnFilterFn } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { SnapshotsCompare } from "../components/modal/SnapshotsCompare.tsx";
 import { SnapshotSequenceDiagram } from "../components/modal/SnapshotSequenceDiagram.tsx";
+import { InlineEdit, InlineEditContext } from "../components/InlineEdit.tsx";
+
+type TextValueEditProps = {
+  name: string;
+};
+
+const TextValueEdit: React.FC<TextValueEditProps> = ({ name }) => {
+  const inlineEditContext = useContext(InlineEditContext);
+  const form = Form.useFormInstance();
+
+  return (
+    <Form.Item
+      name={name}
+      rules={[{ required: true, message: "Value is required." }]}
+      style={{ marginBottom: 0 }}
+    >
+      <Input
+        autoFocus
+        onPressEnter={() => form.submit()}
+        onBlur={() => inlineEditContext?.toggle()}
+      />
+    </Form.Item>
+  );
+};
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -75,6 +96,22 @@ export const Snapshots: React.FC = () => {
       notification.error({
         message: "Request failed",
         description: "Failed to create snapshot",
+      });
+    }
+  };
+
+  const updateSnapshot = async (
+    snapshotId: string,
+    name: string,
+    labels: EntityLabel[],
+  ) => {
+    try {
+      const snapshot = await api.updateSnapshot(snapshotId, name, labels);
+      setSnapshots(snapshots?.map((s) => (s.id === snapshotId ? snapshot : s)));
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to update snapshot",
       });
     }
   };
@@ -137,15 +174,26 @@ export const Snapshots: React.FC = () => {
       dataIndex: "name",
       key: "name",
       sorter: (a, b) => a.name.localeCompare(b.name),
-      filterDropdown: TextColumnFilterDropdown,
+      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       onFilter: getTextColumnFilterFn((snapshot) => snapshot.name),
+      render: (_, snapshot) => (
+        <InlineEdit<{ name: string }>
+          values={{ name: snapshot.name }}
+          editor={<TextValueEdit name={"name"} />}
+          viewer={snapshot.name}
+          onSubmit={async ({ name }) => {
+            await updateSnapshot(snapshot.id, name, snapshot.labels);
+          }}
+        />
+      ),
     },
     {
       title: "Labels",
       dataIndex: "labels",
       key: "labels",
-      filterDropdown: (props) =>
-        TextColumnFilterDropdown({ ...props, enableExact: true }),
+      filterDropdown: (props) => (
+        <TextColumnFilterDropdown {...props} enableExact />
+      ),
       onFilter: getTextListColumnFilterFn((snapshot) =>
         snapshot.labels.map((l) => l.name),
       ),
@@ -158,7 +206,7 @@ export const Snapshots: React.FC = () => {
       render: (_, snapshot) => <>{snapshot.createdBy.username}</>,
       sorter: (a, b) =>
         a.createdBy.username.localeCompare(b.createdBy.username),
-      filterDropdown: TextColumnFilterDropdown,
+      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       onFilter: getTextColumnFilterFn(
         (snapshot) => snapshot.createdBy.username,
       ),
@@ -169,8 +217,29 @@ export const Snapshots: React.FC = () => {
       key: "createdWhen",
       render: (_, snapshot) => <>{formatTimestamp(snapshot.createdWhen)}</>,
       sorter: (a, b) => a.createdWhen - b.createdWhen,
-      filterDropdown: TimestampColumnFilterDropdown,
+      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.createdWhen),
+    },
+    {
+      title: "Modified By",
+      dataIndex: "modifiedBy",
+      key: "modifiedBy",
+      render: (_, snapshot) => <>{snapshot.modifiedBy.username}</>,
+      sorter: (a, b) =>
+        a.modifiedBy.username.localeCompare(b.modifiedBy.username),
+      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
+      onFilter: getTextColumnFilterFn(
+        (snapshot) => snapshot.modifiedBy.username,
+      ),
+    },
+    {
+      title: "Modified At",
+      dataIndex: "modifiedWhen",
+      key: "modifiedWhen",
+      render: (_, snapshot) => <>{formatTimestamp(snapshot.modifiedWhen)}</>,
+      sorter: (a, b) => a.modifiedWhen - b.modifiedWhen,
+      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
+      onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.modifiedWhen),
     },
   ];
 

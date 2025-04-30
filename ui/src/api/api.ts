@@ -10,7 +10,7 @@ import {
   ActionDifference,
   Deployment,
   CreateDeploymentRequest,
-  EngineDomain
+  EngineDomain, EntityLabel
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -65,6 +65,8 @@ export interface Api {
   deleteSnapshot(snapshotId: string): Promise<void>;
 
   deleteSnapshots(snapshotIds: string[]): Promise<void>;
+
+  updateSnapshot(snapshotId: string, name: string, labels: EntityLabel[]): Promise<Snapshot>;
 
   revertToSnapshot(chainId: string, snapshotId: string): Promise<Snapshot>;
 
