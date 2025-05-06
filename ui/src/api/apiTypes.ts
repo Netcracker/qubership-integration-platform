@@ -172,3 +172,50 @@ export type EngineDomain = {
   namespace: string;
   version?: string;
 }
+
+export type ChainLoggingSettings = {
+  fallbackDefault: ChainLoggingProperties;
+  consulDefault?: ChainLoggingProperties;
+  custom?: ChainLoggingProperties;
+}
+
+export type ChainLoggingProperties = {
+  sessionsLoggingLevel: SessionsLoggingLevel;
+  logLoggingLevel: LogLoggingLevel;
+  logPayloadEnabled?: boolean; //Deprecated since 24.4
+  logPayload: LogPayload[];
+  dptEventsEnabled: boolean;
+  maskingEnabled: boolean;
+}
+
+export enum SessionsLoggingLevel {
+  OFF = 'OFF',
+  ERROR = 'ERROR',
+  INFO = 'INFO',
+  DEBUG = 'DEBUG',
+}
+
+export enum LogLoggingLevel {
+  ERROR = 'ERROR',
+  WARN = 'WARN',
+  INFO = 'INFO',
+}
+
+export enum LogPayload {
+  BODY = 'Body',
+  HEADERS = 'Headers',
+  PROPERTIES = 'Properties',
+}
+
+export type MaskedFields = {
+  fields: MaskedField[];
+}
+
+export type MaskedField = {
+  id: string;
+  name: string;
+  createdWhen: number;
+  createdBy: User;
+  modifiedWhen: number;
+  modifiedBy: User;
+}

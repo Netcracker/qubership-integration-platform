@@ -1,12 +1,8 @@
-import React, { useContext, useState } from "react";
+import React, { useState } from "react";
 import {
   FloatButton,
-  Form,
-  Input,
   Modal,
   notification,
-  Select,
-  SelectProps,
   Table,
 } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
@@ -35,59 +31,9 @@ import {
 import { getTimestampColumnFilterFn } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { SnapshotsCompare } from "../components/modal/SnapshotsCompare.tsx";
 import { SnapshotSequenceDiagram } from "../components/modal/SnapshotSequenceDiagram.tsx";
-import { InlineEdit, InlineEditContext } from "../components/InlineEdit.tsx";
-
-type EditorProps = {
-  name: string;
-};
-
-const LabelsEdit: React.FC<EditorProps> = ({ name }) => {
-  const [options, setOptions] = useState<SelectProps["options"]>([]);
-  const inlineEditContext = useContext(InlineEditContext);
-  const form = Form.useFormInstance();
-
-  return (
-    <Form.Item name={name} style={{ marginBottom: 0 }}>
-      <Select
-        autoFocus
-        mode="tags"
-        style={{ width: "100%" }}
-        onChange={(_, opts) => {
-          setOptions(opts as SelectProps["options"]);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            form.submit();
-          }
-        }}
-        tokenSeparators={[" "]}
-        options={options}
-        onBlur={() => inlineEditContext?.toggle()}
-        popupClassName="not-displayed"
-        suffixIcon={<></>}
-      />
-    </Form.Item>
-  );
-};
-
-const TextValueEdit: React.FC<EditorProps> = ({ name }) => {
-  const inlineEditContext = useContext(InlineEditContext);
-  const form = Form.useFormInstance();
-
-  return (
-    <Form.Item
-      name={name}
-      rules={[{ required: true, message: "Value is required." }]}
-      style={{ marginBottom: 0 }}
-    >
-      <Input
-        autoFocus
-        onPressEnter={() => form.submit()}
-        onBlur={() => inlineEditContext?.toggle()}
-      />
-    </Form.Item>
-  );
-};
+import { InlineEdit } from "../components/InlineEdit.tsx";
+import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
+import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();

@@ -13,6 +13,10 @@ import {
   CreateDeploymentRequest,
   EngineDomain,
   EntityLabel,
+  ChainLoggingSettings,
+  ChainLoggingProperties,
+  MaskedField,
+  MaskedFields,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -326,6 +330,115 @@ export class RestApi implements Api {
     try {
       const response = await this.instance.get(
         `/api/v1/${import.meta.env.VITE_API_APP}/catalog/domains`,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  getLoggingSettings = async (
+    chainId: string,
+  ): Promise<ChainLoggingSettings> => {
+    try {
+      const response = await this.instance.get(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/properties/logging`,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  setLoggingProperties = async (
+    chainId: string,
+    properties: ChainLoggingProperties,
+  ): Promise<void> => {
+    try {
+      // @ts-ignore
+      const response = await this.instance.post(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/properties/logging`,
+        properties,
+      );
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  deleteLoggingSettings = async (chainId: string): Promise<void> => {
+    try {
+      // @ts-ignore
+      const response = await this.instance.delete(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/properties/logging`,
+      );
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  getMaskedFields = async (chainId: string): Promise<MaskedField[]> => {
+    try {
+      const response = await this.instance.get<MaskedFields>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking`,
+      );
+      return response.data.fields;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  createMaskedField = async (
+    chainId: string,
+    maskedField: Partial<Omit<MaskedField, "id">>,
+  ): Promise<MaskedField> => {
+    try {
+      // @ts-ignore
+      const response = await this.instance.post(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking`,
+        maskedField,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  deleteMaskedFields = async (chainId: string, maskedFieldIds: string[]): Promise<void> => {
+    try {
+      // @ts-ignore
+      const response = await this.instance.post(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking/field`,
+        maskedFieldIds
+      );
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  deleteMaskedField = async (
+    chainId: string,
+    maskedFieldId: string,
+  ): Promise<void> => {
+    try {
+      // @ts-ignore
+      const response = await this.instance.delete(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking/field/${maskedFieldId}`,
+      );
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  updateMaskedField = async (
+    chainId: string,
+    maskedFieldId: string,
+    changes: Partial<Omit<MaskedField, "id">>,
+  ): Promise<MaskedField> => {
+    try {
+      // @ts-ignore
+      const response = await this.instance.put(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking/field/${maskedFieldId}`,
+        changes,
       );
       return response.data;
     } catch (err) {

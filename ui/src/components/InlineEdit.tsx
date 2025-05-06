@@ -11,7 +11,9 @@ export type InlineEditProps<Values = any> = {
   values: Values;
   editor: ReactNode;
   viewer: ReactNode;
-  onSubmit: (values: Values) => void;
+  onSubmit?: (values: Values) => void;
+  onCancel?: () => void;
+  initialActive?: boolean;
 };
 
 export const InlineEditContext = createContext<InlineEditContextProps | null>(
@@ -23,18 +25,24 @@ export function InlineEdit<Values = any>({
   editor,
   viewer,
   onSubmit,
+  onCancel,
+  initialActive,
 }: InlineEditProps<Values>): ReactNode {
   const [form] = useForm();
-  const [active, setActive] = useState<boolean>(false);
+  const [active, setActive] = useState<boolean>(initialActive ?? false);
 
   useEffect(() => {
-    form.setFieldsValue(values);
-  }, [values]);
+    if (active) {
+      form.setFieldsValue(values);
+    }
+  }, [values, active]);
 
   const toggle = () => {
     setActive(!active);
     if (!active) {
       form.setFieldsValue(values);
+    } else {
+      onCancel?.();
     }
   };
 
