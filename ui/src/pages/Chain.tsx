@@ -39,6 +39,8 @@ const Chain = () => {
             value={activeKey}
             onChange={handlePageChange}
             defaultValue="graph"
+            optionType="button"
+            buttonStyle="solid"
           >
             <Radio.Button value="graph">Graph</Radio.Button>
             <Radio.Button value="snapshots">Snapshots</Radio.Button>
