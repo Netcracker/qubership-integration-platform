@@ -15,7 +15,7 @@ export function formatTimestamp(
 ): string {
   const formatter = (t: string | number | Date) => {
     const date = new Date(t);
-    const dateTimeFormatter = Intl.DateTimeFormat(undefined, {
+    const dateTimeFormatter = Intl.DateTimeFormat("en-US", {
       year: "numeric",
       month: "short",
       day: "2-digit",
