@@ -1,5 +1,5 @@
 import React from "react";
-import { FloatButton, notification, Table } from "antd";
+import { FloatButton, notification, Table, Tooltip } from "antd";
 import { useDeployments } from "../hooks/useDeployments.tsx";
 import { useParams } from "react-router";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
@@ -59,12 +59,16 @@ export const Deployments: React.FC = () => {
     {
       title: "Actions",
       key: "actions",
+      width: 80,
+      className: "actions-column",
       render: (_, deployment) => (
-        <LongActionButton
-          icon={<DeleteOutlined />}
-          type="text"
-          onAction={async () => deleteDeployment(deployment)}
-        />
+        <Tooltip title="Delete deployment" placement="topRight">
+          <LongActionButton
+            icon={<DeleteOutlined />}
+            type="text"
+            onAction={async () => deleteDeployment(deployment)}
+          />
+        </Tooltip>
       ),
     },
   ];

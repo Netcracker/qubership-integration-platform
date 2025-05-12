@@ -1,10 +1,5 @@
 import React, { useState } from "react";
-import {
-  FloatButton,
-  Modal,
-  notification,
-  Table,
-} from "antd";
+import { Button, FloatButton, Modal, notification, Table, Tooltip } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import {
@@ -30,13 +25,14 @@ import {
 } from "../components/table/TextColumnFilterDropdown.tsx";
 import {
   getTimestampColumnFilterFn,
-  TimestampColumnFilterDropdown
+  TimestampColumnFilterDropdown,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { SnapshotsCompare } from "../components/modal/SnapshotsCompare.tsx";
 import { SnapshotSequenceDiagram } from "../components/modal/SnapshotSequenceDiagram.tsx";
 import { InlineEdit } from "../components/InlineEdit.tsx";
 import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
 import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
+import { LongActionButton } from "../components/LongActionButton.tsx";
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -58,6 +54,26 @@ export const Snapshots: React.FC = () => {
     });
   };
 
+  const deleteSnapshotWithConfirmation = async (snapshot: Snapshot) => {
+    Modal.confirm({
+      title: "Delete Snapshot",
+      content: `Are you sure you want to delete snapshot and related deployments?`,
+      onOk: async () => deleteSnapshot(snapshot),
+    });
+  };
+
+  const deleteSnapshot = async (snapshot: Snapshot) => {
+    try {
+      await api.deleteSnapshot(snapshot.id);
+      setSnapshots(snapshots?.filter((s) => s.id !== snapshot.id) ?? []);
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to delete snapshot",
+      });
+    }
+  };
+
   const deleteSelectedSnapshots = async () => {
     try {
       const ids = selectedRowKeys.map((key) => key.toString());
@@ -70,7 +86,7 @@ export const Snapshots: React.FC = () => {
     } catch (error) {
       notification.error({
         message: "Request failed",
-        description: "Failed to delete snapshot",
+        description: "Failed to delete snapshots",
       });
     }
   };
@@ -111,9 +127,7 @@ export const Snapshots: React.FC = () => {
     });
   };
 
-  const onRollbackBtnClick = async () => {
-    if (selectedRowKeys.length !== 1) return;
-    console.log({ selectedRowKeys });
+  const revertToSnapshotWithConfirmation = async (snapshot: Snapshot) => {
     Modal.confirm({
       title: "Revert to Snapshot",
       content: (
@@ -123,7 +137,7 @@ export const Snapshots: React.FC = () => {
           All unsaved changes in the chain will be permanently lost!
         </>
       ),
-      onOk: async () => revertToSnapshot(selectedRowKeys[0].toString()),
+      onOk: async () => revertToSnapshot(snapshot.id),
     });
   };
 
@@ -139,19 +153,15 @@ export const Snapshots: React.FC = () => {
     }
   };
 
-  const onViewDiagramBtnClick = async () => {
-    if (selectedRowKeys.length !== 1) return;
-    const snapshotId = selectedRowKeys[0].toString();
+  const showSnapshotDiagram = async (snapshot: Snapshot) => {
     showModal({
-      component: <SnapshotSequenceDiagram snapshotId={snapshotId} />,
+      component: <SnapshotSequenceDiagram snapshotId={snapshot.id} />,
     });
   };
 
-  const onViewXmlBtnClick = async () => {
-    if (selectedRowKeys.length !== 1) return;
-    const snapshotId = selectedRowKeys[0].toString();
+  const showSnapshotXml = async (snapshot: Snapshot) => {
     showModal({
-      component: <SnapshotXmlView snapshotId={snapshotId} />,
+      component: <SnapshotXmlView snapshotId={snapshot.id} />,
     });
   };
 
@@ -245,6 +255,44 @@ export const Snapshots: React.FC = () => {
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.modifiedWhen),
     },
+    {
+      title: "Actions",
+      key: "actions",
+      width: 160,
+      className: "actions-column",
+      render: (_, snapshot) => (
+        <>
+          <Tooltip title="Delete snapshot" placement="topRight">
+            <LongActionButton
+              icon={<DeleteOutlined />}
+              type="text"
+              onAction={async () => deleteSnapshotWithConfirmation(snapshot)}
+            />
+          </Tooltip>
+          <Tooltip title="Revert to snapshot" placement="topRight">
+            <LongActionButton
+              icon={<RollbackOutlined />}
+              type="text"
+              onAction={async () => revertToSnapshotWithConfirmation(snapshot)}
+            />
+          </Tooltip>
+          <Tooltip title="Show snapshot XML" placement="topRight">
+            <Button
+              type="text"
+              icon={<FileTextOutlined />}
+              onClick={async () => showSnapshotXml(snapshot)}
+            />
+          </Tooltip>
+          <Tooltip title="Show snapshot diagram" placement="topRight">
+            <Button
+              type="text"
+              icon={<>⭾</>}
+              onClick={async () => showSnapshotDiagram(snapshot)}
+            />
+          </Tooltip>
+        </>
+      ),
+    },
   ];
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
@@ -269,12 +317,21 @@ export const Snapshots: React.FC = () => {
         scroll={{ y: "calc(100vh - 200px)" }}
       />
       <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
-        <FloatButton icon={<FileTextOutlined />} onClick={onViewXmlBtnClick} />
-        <FloatButton icon={<>⭾</>} onClick={onViewDiagramBtnClick} />
-        <FloatButton icon={<>⇄</>} onClick={onCompareBtnClick} />
-        <FloatButton icon={<RollbackOutlined />} onClick={onRollbackBtnClick} />
-        <FloatButton icon={<DeleteOutlined />} onClick={onDeleteBtnClick} />
-        <FloatButton icon={<PlusOutlined />} onClick={onCreateBtnClick} />
+        <FloatButton
+          tooltip="Compare selected snapshots"
+          icon={<>⇄</>}
+          onClick={onCompareBtnClick}
+        />
+        <FloatButton
+          tooltip="Delete selected snapshots"
+          icon={<DeleteOutlined />}
+          onClick={onDeleteBtnClick}
+        />
+        <FloatButton
+          tooltip="Create snapshot"
+          icon={<PlusOutlined />}
+          onClick={onCreateBtnClick}
+        />
       </FloatButtonGroup>
     </>
   );

@@ -121,3 +121,7 @@ button:focus-visible {
 .not-displayed {
   display: none;
 }
+
+.ant-table-cell.actions-column:not(.ant-table-cell-row-hover) > * {
+  display: none;
+}
