@@ -28,7 +28,10 @@ import {
   TextColumnFilterDropdown,
 } from "../components/table/TextColumnFilterDropdown.tsx";
 import { formatTimestamp } from "../misc/format-utils.ts";
-import { getTimestampColumnFilterFn } from "../components/table/TimestampColumnFilterDropdown.tsx";
+import {
+  getTimestampColumnFilterFn,
+  TimestampColumnFilterDropdown
+} from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { InlineEdit } from "../components/InlineEdit.tsx";
 import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
@@ -284,7 +287,7 @@ export const LoggingSettings: React.FC = () => {
       key: "createdWhen",
       render: (_, field) => <>{formatTimestamp(field.createdWhen)}</>,
       sorter: (a, b) => a.createdWhen - b.createdWhen,
-      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
+      filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.createdWhen),
     },
     {
@@ -305,7 +308,7 @@ export const LoggingSettings: React.FC = () => {
       key: "modifiedWhen",
       render: (_, field) => <>{formatTimestamp(field.modifiedWhen)}</>,
       sorter: (a, b) => a.modifiedWhen - b.modifiedWhen,
-      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
+      filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.modifiedWhen),
     },
   ];

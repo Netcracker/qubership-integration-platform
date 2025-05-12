@@ -28,7 +28,10 @@ import {
   getTextListColumnFilterFn,
   TextColumnFilterDropdown,
 } from "../components/table/TextColumnFilterDropdown.tsx";
-import { getTimestampColumnFilterFn } from "../components/table/TimestampColumnFilterDropdown.tsx";
+import {
+  getTimestampColumnFilterFn,
+  TimestampColumnFilterDropdown
+} from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { SnapshotsCompare } from "../components/modal/SnapshotsCompare.tsx";
 import { SnapshotSequenceDiagram } from "../components/modal/SnapshotSequenceDiagram.tsx";
 import { InlineEdit } from "../components/InlineEdit.tsx";
@@ -218,7 +221,7 @@ export const Snapshots: React.FC = () => {
       key: "createdWhen",
       render: (_, snapshot) => <>{formatTimestamp(snapshot.createdWhen)}</>,
       sorter: (a, b) => a.createdWhen - b.createdWhen,
-      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
+      filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.createdWhen),
     },
     {
@@ -239,7 +242,7 @@ export const Snapshots: React.FC = () => {
       key: "modifiedWhen",
       render: (_, snapshot) => <>{formatTimestamp(snapshot.modifiedWhen)}</>,
       sorter: (a, b) => a.modifiedWhen - b.modifiedWhen,
-      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
+      filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.modifiedWhen),
     },
   ];
