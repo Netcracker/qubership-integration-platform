@@ -4,8 +4,10 @@ import { Button, Col, DatePicker, Row, Select } from "antd";
 import type { AnyObject } from "antd/lib/_util/type";
 import dayjs, { Dayjs } from "dayjs";
 
-type TimestampFilter = {
-  condition: string;
+export type TimestampFilterCondition = "is-before" | "is-after" | "is-within";
+
+export type TimestampFilter = {
+  condition: TimestampFilterCondition;
   value: number[];
 };
 
@@ -18,7 +20,7 @@ function toDayjs(v: number | null | undefined): Dayjs | undefined {
 }
 
 function getTimestampFilterFunction(
-  condition: string,
+  condition: TimestampFilterCondition,
 ): (filter: number[], value: number) => boolean {
   switch (condition) {
     case "is-before":
@@ -86,7 +88,7 @@ export const TimestampColumnFilterDropdown: React.FC<FilterDropdownProps> = ({
     >
       <Row gutter={[8, 16]}>
         <Col>
-          <Select
+          <Select<TimestampFilterCondition>
             style={{ width: 150 }}
             onChange={(value) => updateFilter({ condition: value })}
             options={options}

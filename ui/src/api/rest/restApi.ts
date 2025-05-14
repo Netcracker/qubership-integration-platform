@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosHeaders } from "axios";
 import {
   Chain,
   ChainCreationRequest,
@@ -17,6 +17,9 @@ import {
   ChainLoggingProperties,
   MaskedField,
   MaskedFields,
+  SessionFilterAndSearchRequest,
+  PaginationOptions,
+  SessionSearchResponse, Session
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -403,17 +406,20 @@ export class RestApi implements Api {
     }
   };
 
-  deleteMaskedFields = async (chainId: string, maskedFieldIds: string[]): Promise<void> => {
+  deleteMaskedFields = async (
+    chainId: string,
+    maskedFieldIds: string[],
+  ): Promise<void> => {
     try {
       // @ts-ignore
       const response = await this.instance.post(
         `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking/field`,
-        maskedFieldIds
+        maskedFieldIds,
       );
     } catch (err) {
       throw err;
     }
-  }
+  };
 
   deleteMaskedField = async (
     chainId: string,
@@ -441,6 +447,101 @@ export class RestApi implements Api {
         changes,
       );
       return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  getSessions = async (
+    chainId: string | undefined,
+    filters: SessionFilterAndSearchRequest,
+    paginationOptions: PaginationOptions,
+  ): Promise<SessionSearchResponse> => {
+    try {
+      const prefix = `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions`;
+      const url = chainId ? `${prefix}/chains/${chainId}` : prefix;
+      const params: Record<string, string> = {};
+      if (paginationOptions.offset) {
+        params["offset"] = paginationOptions.offset.toString(10);
+      }
+      if (paginationOptions.count) {
+        params["count"] = paginationOptions.count.toString(10);
+      }
+      // @ts-ignore
+      const response = await this.instance.post(url, filters, { params });
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  deleteSessions = async (sessionIds: string[]): Promise<void> => {
+    try {
+      await this.instance.post(
+        `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions/bulk-delete`,
+        sessionIds,
+      );
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  deleteSessionsByChainId = async (
+    chainId: string | undefined,
+  ): Promise<void> => {
+    try {
+      const prefix = `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions`;
+      const url = chainId ? `${prefix}/chains/${chainId}` : prefix;
+      const response = await this.instance.delete(url);
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  exportSessions = async (sessionIds: string[]): Promise<File> => {
+    try {
+      const response = await this.instance.post(
+        `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions/export`,
+        sessionIds,
+        { responseType: "blob" },
+      );
+      const contentDisposition = response.headers?.["content-disposition"];
+      const fileName = contentDisposition?.replace("attachment; filename=", "");
+      return new File([response.data], fileName, {
+        type: response.data.type.toString(),
+      });
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  importSessions = async (files: File[]): Promise<Session[]> => {
+    const formData: FormData = new FormData();
+    files.forEach(file => formData.append('files', file, file.name));
+    const headers = new AxiosHeaders();
+    headers.set('Content-Type', 'multipart/form-data');
+    headers.set('accept', '*/*');
+    try {
+      const response = await this.instance.post(
+        `/api/v1/cip/sessions-management/sessions/import`,
+        formData,
+        { headers },
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  retryFromLastCheckpoint = async (
+    chainId: string,
+    sessionId: string,
+  ): Promise<void> => {
+    try {
+      const response = await this.instance.post(
+        `/api/v1/${import.meta.env.VITE_API_APP}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
+        null,
+      );
     } catch (err) {
       throw err;
     }

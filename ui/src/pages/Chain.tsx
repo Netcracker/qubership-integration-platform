@@ -1,16 +1,11 @@
 import "@xyflow/react/dist/style.css";
 import { Breadcrumb, Col, Flex, Radio, RadioChangeEvent, Row } from "antd";
-import {
-  Outlet,
-  useLocation,
-  useNavigate,
-  useParams,
-} from "react-router";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
 
 const Chain = () => {
-  const { chainId } = useParams<string>();
+  const { chainId, sessionId } = useParams();
 
   const location = useLocation();
   const { pathname } = location;
@@ -31,6 +26,12 @@ const Chain = () => {
             items={[
               { href: "/chains", title: "Chains" },
               { title: chain?.name },
+              ...(sessionId
+                ? [
+                    { title: "Sessions", href: `/chains/${chainId}/sessions` },
+                    { title: sessionId },
+                  ]
+                : []),
             ]}
           />
         </Col>

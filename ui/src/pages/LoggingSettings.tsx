@@ -30,7 +30,7 @@ import {
 import { formatTimestamp } from "../misc/format-utils.ts";
 import {
   getTimestampColumnFilterFn,
-  TimestampColumnFilterDropdown
+  TimestampColumnFilterDropdown,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { InlineEdit } from "../components/InlineEdit.tsx";
@@ -38,6 +38,7 @@ import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
 import { api } from "../api/api.ts";
 import { DeleteOutlined, MoreOutlined, PlusOutlined } from "@ant-design/icons";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
+import capitalize from "antd/es/_util/capitalize";
 
 type LogSettingsFormState = ChainLoggingProperties & { custom: boolean };
 
@@ -233,21 +234,21 @@ export const LoggingSettings: React.FC = () => {
     Object.values(SessionsLoggingLevel).map((value) => {
       return {
         value: value,
-        label: value[0].toUpperCase() + value.slice(1).toLowerCase(),
+        label: capitalize(value[0]),
       };
     });
 
   const logLoggingLevelOptions: SelectProps<LogLoggingLevel>["options"] =
     Object.values(LogLoggingLevel).map((value) => ({
       value: value,
-      label: value[0].toUpperCase() + value.slice(1).toLowerCase(),
+      label: capitalize(value),
     }));
 
   const logPayloadOptions: SelectProps<LogPayload>["options"] = Object.values(
     LogPayload,
   ).map((value) => ({
     value: value,
-    label: value[0].toUpperCase() + value.slice(1).toLowerCase(),
+    label: capitalize(value),
   }));
 
   const columns: TableProps<MaskedField>["columns"] = [
@@ -418,8 +419,16 @@ export const LoggingSettings: React.FC = () => {
         </Col>
       </Row>
       <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
-        <FloatButton icon={<DeleteOutlined />} onClick={onDeleteBtnClick} />
-        <FloatButton icon={<PlusOutlined />} onClick={onCreateBtnClick} />
+        <FloatButton
+          tooltip="Delete selected masked fields"
+          icon={<DeleteOutlined />}
+          onClick={onDeleteBtnClick}
+        />
+        <FloatButton
+          tooltip="Add new masked field"
+          icon={<PlusOutlined />}
+          onClick={onCreateBtnClick}
+        />
       </FloatButtonGroup>
     </>
   );

@@ -4,6 +4,7 @@ import { formatTimestamp } from "../../misc/format-utils.ts";
 import { DownloadOutlined, CopyOutlined } from "@ant-design/icons";
 import styles from "./ErrorDetails.module.css";
 import React from "react";
+import { downloadFile } from "../../misc/download-utils.ts";
 
 type ErrorDetailsProps = {
   service: string;
@@ -34,13 +35,7 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
     const blob = new Blob([getErrorDetailsText()]);
     const fileName = `Error at ${service} at ${formatTimestamp(timestamp)}.txt`;
     const file = new File([blob], fileName, { type: "text/plain" });
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(file);
-    link.download = fileName;
-    link.target = "_blank";
-    link.click();
-    link.remove();
+    downloadFile(file);
   };
 
   const copyErrorDetailsToClipboard = async () => {

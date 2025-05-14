@@ -219,3 +219,71 @@ export type MaskedField = {
   modifiedWhen: number;
   modifiedBy: User;
 }
+
+export type SessionFilterAndSearchRequest = {
+  filterRequestList: SessionFilterRequest[];
+  searchString: string;
+}
+
+export type SessionFilterRequest = {
+  feature: SessionFilterFeature;
+  condition: SessionFilterCondition;
+  value: string;
+}
+
+export enum SessionFilterFeature {
+  CHAIN_NAME = 'CHAIN_NAME',
+  STATUS = 'STATUS',
+  START_TIME = 'START_TIME',
+  FINISH_TIME = 'FINISH_TIME',
+  ENGINE = 'ENGINE',
+}
+
+export enum SessionFilterCondition {
+  IN = 'IN',
+  NOT_IN = 'NOT_IN',
+  IS_AFTER = 'IS_AFTER',
+  IS_BEFORE = 'IS_BEFORE',
+  IS_WITHIN = 'IS_WITHIN',
+  CONTAINS = 'CONTAINS',
+  DOES_NOT_CONTAIN = 'DOES_NOT_CONTAIN',
+  STARTS_WITH = 'STARTS_WITH',
+  ENDS_WITH = 'ENDS_WITH',
+}
+
+export type PaginationOptions = {
+  offset?: number;
+  count?: number;
+}
+
+export type SessionSearchResponse = {
+  offset: number;
+  sessions: Session[];
+}
+
+export type Session = {
+  id: string;
+  started: string;
+  finished: string;
+  duration: number;
+  executionStatus: ExecutionStatus;
+  syncDuration: number;
+  importedSession: boolean;
+  externalSessionCipId: string;
+  chainId: string;
+  chainName: string;
+  domain: string;
+  engineAddress: string;
+  loggingLevel: SessionsLoggingLevel | string;
+  snapshotName: string;
+  correlationId: string;
+  parentSessionId: string;
+}
+
+export enum ExecutionStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED_NORMALLY = 'COMPLETED_NORMALLY',
+  COMPLETED_WITH_WARNINGS = 'COMPLETED_WITH_WARNINGS',
+  COMPLETED_WITH_ERRORS = 'COMPLETED_WITH_ERRORS',
+  CANCELLED_OR_UNKNOWN = 'CANCELLED_OR_UNKNOWN',
+}

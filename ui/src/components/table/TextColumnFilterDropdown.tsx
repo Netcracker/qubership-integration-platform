@@ -1,15 +1,17 @@
 import { FilterDropdownProps } from "antd/lib/table/interface";
 import React, { ReactNode } from "react";
-import { Button, Col, Input, Row, Select } from "antd";
+import { Button, Col, Input, Row, Select, SelectProps } from "antd";
 import type { AnyObject } from "antd/lib/_util/type";
 
-type TextFilter = {
-  condition: string;
+export type TextFilterCondition = "contains" | "not-contains" | "starts-with" | "ends-with" | "is" | "is-not";
+
+export type TextFilter = {
+  condition: TextFilterCondition;
   value: string;
 };
 
 function getTextFilterFunction(
-  condition: string,
+  condition: TextFilterCondition,
 ): (filter: string, value: string) => boolean {
   switch (condition) {
     case "contains":
@@ -71,7 +73,7 @@ export const TextColumnFilterDropdown: React.FC<
   setSelectedKeys,
   enableExact,
 }): ReactNode => {
-  const options = [
+  const options: SelectProps<TextFilterCondition>["options"] = [
     ...(enableExact
       ? [
           { label: "Is", value: "is" },
@@ -108,12 +110,12 @@ export const TextColumnFilterDropdown: React.FC<
     >
       <Row gutter={[8, 16]}>
         <Col>
-          <Select
+          <Select<TextFilterCondition>
             style={{ width: 150 }}
             onChange={(value) => updateTextFilter({ condition: value })}
             options={options}
-            value={getTextFilter()?.condition ?? options[0].value}
-            defaultValue={options[0].value}
+            value={getTextFilter()?.condition ?? (options[0].value as TextFilterCondition)}
+            defaultValue={options[0].value as TextFilterCondition}
           />
         </Col>
         <Col>
