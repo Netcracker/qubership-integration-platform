@@ -20,6 +20,7 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
+import org.springframework.data.jpa.repository.query.EscapeCharacter;
 import org.springframework.stereotype.Component;
 
 import java.sql.Timestamp;
@@ -38,18 +39,18 @@ public class FilterConditionPredicateBuilderFactory {
                     criteriaBuilder::notEqual;
             case CONTAINS -> (expression, value) -> criteriaBuilder.like(
                     criteriaBuilder.lower(expression.as(String.class)),
-                    criteriaBuilder.lower(criteriaBuilder.literal("%" + value + '%'))
+                    criteriaBuilder.lower(criteriaBuilder.literal("%" + EscapeCharacter.DEFAULT.escape((String) value) + '%')), EscapeCharacter.DEFAULT.getEscapeCharacter()
             );
             case DOES_NOT_CONTAIN -> (expression, value) -> criteriaBuilder.notLike(
                     criteriaBuilder.lower(expression.as(String.class)),
-                    criteriaBuilder.lower(criteriaBuilder.literal("%" + value + '%'))
+                    criteriaBuilder.lower(criteriaBuilder.literal("%" + EscapeCharacter.DEFAULT.escape((String) value) + '%')), EscapeCharacter.DEFAULT.getEscapeCharacter()
             );
             case START_WITH -> (expression, value) -> criteriaBuilder.like(
                     criteriaBuilder.lower(expression.as(String.class)),
-                    String.valueOf(value).toLowerCase() + "%");
+                    String.valueOf(EscapeCharacter.DEFAULT.escape((String) value)).toLowerCase() + "%", EscapeCharacter.DEFAULT.getEscapeCharacter());
             case ENDS_WITH -> (expression, value) -> criteriaBuilder.like(
                     criteriaBuilder.lower(expression.as(String.class)),
-                    "%" + String.valueOf(value).toLowerCase());
+                    "%" + String.valueOf(EscapeCharacter.DEFAULT.escape((String) value)).toLowerCase(), EscapeCharacter.DEFAULT.getEscapeCharacter());
             case IN -> (expression, value) -> expression.as(String.class).in(Arrays.asList(String.valueOf(value).split(",")));
             case NOT_IN -> (expression, value) -> criteriaBuilder.not(expression.as(String.class).in(Arrays.asList(String.valueOf(value).split(","))));
             case EMPTY -> (expression, value) -> criteriaBuilder.or(expression.isNull(), criteriaBuilder.equal(expression.as(String.class), ""));
