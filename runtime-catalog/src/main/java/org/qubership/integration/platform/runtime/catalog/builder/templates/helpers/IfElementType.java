@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.builder.templates.helpers;
 
+import com.github.jknack.handlebars.Context;
 import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
 import org.apache.commons.collections4.CollectionUtils;
@@ -27,24 +28,33 @@ import java.io.IOException;
 import java.util.Set;
 
 @TemplatesHelper("if-element-type")
-public class IfElementType implements Helper<ChainElement> {
+public class IfElementType implements Helper<Object> {
 
     public static final String EQUALS = "equals";
     public static final String NOT_EQUALS = "not-equals";
 
     @Override
-    public Object apply(ChainElement element, Options options) throws IOException {
+    public Object apply(Object context, Options options) throws IOException {
         Set<String> keySet = options.hash.keySet();
         if (CollectionUtils.isEmpty(keySet)) {
             throw new IllegalArgumentException("Operation must be provided");
         }
 
-        String operation = keySet.iterator().next().toLowerCase();
-        String expected = String.valueOf(options.hash.get(operation));
-        if (test(element, expected, operation)) {
-            options.buffer().append(options.fn());
-        } else {
-            options.buffer().append(options.inverse());
+        if (!(context instanceof ChainElement)) {
+            Context parentContext = options.context.parent();
+            if (parentContext != null) {
+                context = parentContext.model();
+            }
+        }
+
+        if (context instanceof ChainElement element) {
+            String operation = keySet.iterator().next().toLowerCase();
+            String expected = String.valueOf(options.hash.get(operation));
+            if (test(element, expected, operation)) {
+                options.buffer().append(options.fn());
+            } else {
+                options.buffer().append(options.inverse());
+            }
         }
         return options.buffer();
     }
