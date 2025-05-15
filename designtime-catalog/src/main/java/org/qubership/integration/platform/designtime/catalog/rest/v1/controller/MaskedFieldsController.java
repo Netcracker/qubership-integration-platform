@@ -30,6 +30,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Slf4j
 @RestController
 @RequestMapping(value = "/v1/chains/{chainId}/masking")
@@ -62,6 +64,14 @@ public class MaskedFieldsController {
                                                       @RequestBody @Parameter(description = "Masked field data") MaskedFieldDTO maskedField) {
         log.info("Request to create masked fields for chain: {}", chainId);
         return ResponseEntity.ok(mapper.asDto(maskedService.create(mapper.asEntity(chainService.findById(chainId), maskedField))));
+    }
+
+    @PostMapping("/field")
+    @Operation(description = "Bulk delete masked fields from a chain")
+    public ResponseEntity<Void> deleteFields(@PathVariable @Parameter(description = "Chain id") String chainId, @RequestBody @Parameter(description = "Masked field IDs") List<String> maskedFieldIds) {
+        log.info("Request to delete masked fields for chain: {}, field IDs: {}", chainId, maskedFieldIds);
+        maskedService.deleteAllByIds(maskedFieldIds);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/field/{fieldId}")

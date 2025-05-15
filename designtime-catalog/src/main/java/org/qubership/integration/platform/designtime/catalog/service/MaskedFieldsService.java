@@ -30,6 +30,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -58,6 +60,13 @@ public class MaskedFieldsService {
         maskedRepository.deleteById(fieldId);
         logMaskedFieldsAction(field, LogOperation.DELETE);
         return field;
+    }
+
+    @ChainModification
+    public void deleteAllByIds(List<String> ids) {
+        Collection<MaskedField> maskedFields = maskedRepository.findAllById(ids);
+        maskedRepository.deleteAllByIdInBatch(ids);
+        maskedFields.forEach(maskedField -> logMaskedFieldsAction(maskedField, LogOperation.DELETE));
     }
 
     @ChainModification
