@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,6 +50,12 @@ public class EngineService {
     @Value("${qip.engine.app-check-custom-label}")
     private String engineAppCheckLabel;
 
+    @Value("${qip.domain.default}")
+    private String engineDefaultDomain;
+
+    @Value("${kubernetes.cluster.namespace}")
+    private String namespace;
+
     @Autowired
     public EngineService(KubeOperator operator,
                          DeploymentService deploymentService,
@@ -65,6 +72,15 @@ public class EngineService {
      * @throws KubeApiException
      */
     public List<KubeDeployment> getDomains() throws KubeApiException {
+        if (isDevMode()) {
+            return Collections.singletonList(KubeDeployment.builder()
+                    .id(engineDefaultDomain)
+                    .name(engineDefaultDomain)
+                    .replicas(1)
+                    .namespace(namespace)
+                    .build()
+            );
+        }
         List<KubeDeployment> deployments = getDeployments();
         deployments.forEach(deployment -> deployment.setName(domainUtils.convertKubeDeploymentToDomainName(deployment.getName())));
         return deployments;
