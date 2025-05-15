@@ -1,6 +1,6 @@
 interface ImportMetaEnv {
-  readonly GATEWAY: string;
-  readonly API_APP: string;
+  readonly VITE_GATEWAY: string;
+  readonly VITE_API_APP: string;
 }
 
 interface ImportMeta {

@@ -1,6 +1,11 @@
 import "@xyflow/react/dist/style.css";
 import { Breadcrumb, Col, Flex, Radio, RadioChangeEvent, Row } from "antd";
-import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
+import {
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
 
@@ -19,35 +24,40 @@ const Chain = () => {
   };
 
   return (
-      <Flex className={styles.stretched} gap={"middle"} vertical>
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Breadcrumb>
-              <Breadcrumb.Item>
-                <Link to="/chains">Chains</Link>
-              </Breadcrumb.Item>
-              <Breadcrumb.Item>
-                {chain?.name}
-              </Breadcrumb.Item>
-            </Breadcrumb>
-          </Col>
-          <Col>
-            <Radio.Group value={activeKey} onChange={handlePageChange} defaultValue="graph">
-              <Radio.Button value="graph">Graph</Radio.Button>
-              <Radio.Button value="snapshots">Snapshots</Radio.Button>
-              <Radio.Button value="deployments">Deployments</Radio.Button>
-              <Radio.Button value="sessions">Sessions</Radio.Button>
-              <Radio.Button value="logging-settings">Logging Settings</Radio.Button>
-            </Radio.Group>
-          </Col>
-        </Row>
-        <Row className={styles.stretched}>
-          <Col span={24}>
-            <Outlet />
-          </Col>
-        </Row>
-      </Flex>
-    // </div>
+    <Flex className={styles.stretched} gap={"middle"} vertical>
+      <Row justify="space-between" align="middle">
+        <Col>
+          <Breadcrumb
+            items={[
+              { href: "/chains", title: "Chains" },
+              { title: chain?.name },
+            ]}
+          />
+        </Col>
+        <Col>
+          <Radio.Group
+            value={activeKey}
+            onChange={handlePageChange}
+            defaultValue="graph"
+            optionType="button"
+            buttonStyle="solid"
+          >
+            <Radio.Button value="graph">Graph</Radio.Button>
+            <Radio.Button value="snapshots">Snapshots</Radio.Button>
+            <Radio.Button value="deployments">Deployments</Radio.Button>
+            <Radio.Button value="sessions">Sessions</Radio.Button>
+            <Radio.Button value="logging-settings">
+              Logging Settings
+            </Radio.Button>
+          </Radio.Group>
+        </Col>
+      </Row>
+      <Row className={styles.stretched}>
+        <Col span={24}>
+          <Outlet />
+        </Col>
+      </Row>
+    </Flex>
   );
 };
 

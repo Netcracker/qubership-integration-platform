@@ -13,6 +13,7 @@ import ChainGraph from "./pages/ChainGraph.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { Content } from "antd/es/layout/layout";
 import { NotImplemented } from "./pages/NotImplemented.tsx";
+import { LoggingSettings } from "./pages/LoggingSettings.tsx";
 
 const { Header } = Layout;
 
@@ -34,7 +35,7 @@ const App = () => (
               <Route path="snapshots" element={<Snapshots />} />
               <Route path="deployments" element={<Deployments />} />
               <Route path="sessions" element={<NotImplemented />} />
-              <Route path="logging-settings" element={ <NotImplemented />} />
+              <Route path="logging-settings" element={ <LoggingSettings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

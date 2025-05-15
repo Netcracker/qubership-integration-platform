@@ -1,0 +1,10 @@
+.label {
+  font-weight: 600;
+}
+
+.stacktrace {
+  min-height: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  word-wrap: normal;
+}

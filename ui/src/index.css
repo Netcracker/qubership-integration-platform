@@ -114,3 +114,14 @@ button:focus-visible {
   visibility: hidden;
 }
 
+.ant-table-body {
+  overflow-y: auto !important;
+}
+
+.not-displayed {
+  display: none;
+}
+
+.ant-table-cell.actions-column:not(.ant-table-cell-row-hover) > * {
+  display: none;
+}

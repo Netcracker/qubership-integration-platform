@@ -107,7 +107,19 @@ export type ChildElement = {
 export type Snapshot = {
   id: string;
   name: string;
+  description: string;
+  createdWhen: number;
+  createdBy: User;
+  modifiedWhen: number;
+  modifiedBy: User;
+  xmlDefinition: string;
+  labels: EntityLabel[];
 };
+
+export type EntityLabel = {
+  name: string;
+  technical: boolean;
+}
 
 export type ActionDifference = {
   createdElements?: Element[];
@@ -143,6 +155,67 @@ export type Deployment = {
   domain: string;
   createdWhen : number;
   createdBy: User;
-  runtime: RuntimeStates;
+  runtime?: RuntimeStates;
   serviceName: string;
+}
+
+export type CreateDeploymentRequest = {
+  domain: string;
+  snapshotId: string;
+  suspended: boolean;
+}
+
+export type EngineDomain = {
+  id: string;
+  name: string;
+  replicas: number;
+  namespace: string;
+  version?: string;
+}
+
+export type ChainLoggingSettings = {
+  fallbackDefault: ChainLoggingProperties;
+  consulDefault?: ChainLoggingProperties;
+  custom?: ChainLoggingProperties;
+}
+
+export type ChainLoggingProperties = {
+  sessionsLoggingLevel: SessionsLoggingLevel;
+  logLoggingLevel: LogLoggingLevel;
+  logPayloadEnabled?: boolean; //Deprecated since 24.4
+  logPayload: LogPayload[];
+  dptEventsEnabled: boolean;
+  maskingEnabled: boolean;
+}
+
+export enum SessionsLoggingLevel {
+  OFF = 'OFF',
+  ERROR = 'ERROR',
+  INFO = 'INFO',
+  DEBUG = 'DEBUG',
+}
+
+export enum LogLoggingLevel {
+  ERROR = 'ERROR',
+  WARN = 'WARN',
+  INFO = 'INFO',
+}
+
+export enum LogPayload {
+  BODY = 'Body',
+  HEADERS = 'Headers',
+  PROPERTIES = 'Properties',
+}
+
+export type MaskedFields = {
+  fields: MaskedField[];
+}
+
+export type MaskedField = {
+  id: string;
+  name: string;
+  createdWhen: number;
+  createdBy: User;
+  modifiedWhen: number;
+  modifiedBy: User;
 }
