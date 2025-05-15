@@ -104,7 +104,7 @@ public class SystemFilterSpecificationBuilder {
 
     private String convertProtocols(String value) {
         return Arrays.stream(String.valueOf(value).split(","))
-                .map(protocol -> "," + OperationProtocol.fromValue(protocol).ordinal())
+                .map(protocol -> "," + OperationProtocol.fromValue(protocol).getValue())
                 .collect(Collectors.joining()).replaceFirst(",", "");
     }
 
