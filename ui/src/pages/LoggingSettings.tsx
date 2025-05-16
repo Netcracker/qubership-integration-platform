@@ -26,7 +26,7 @@ import {
   getTextColumnFilterFn,
   TextColumnFilterDropdown,
 } from "../components/table/TextColumnFilterDropdown.tsx";
-import { formatTimestamp } from "../misc/format-utils.ts";
+import { capitalize, formatTimestamp } from "../misc/format-utils.ts";
 import {
   getTimestampColumnFilterFn,
   TimestampColumnFilterDropdown,
@@ -37,7 +37,6 @@ import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
 import { api } from "../api/api.ts";
 import { DeleteOutlined, MoreOutlined, PlusOutlined } from "@ant-design/icons";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
-import capitalize from "antd/es/_util/capitalize";
 
 type LogSettingsFormState = ChainLoggingProperties & { custom: boolean };
 
@@ -233,7 +232,7 @@ export const LoggingSettings: React.FC = () => {
     Object.values(SessionsLoggingLevel).map((value) => {
       return {
         value: value,
-        label: capitalize(value[0]),
+        label: capitalize(value),
       };
     });
 
