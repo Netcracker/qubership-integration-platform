@@ -5,23 +5,20 @@ import { Editor } from "@monaco-editor/react";
 type SessionElementBodyViewProps = React.HTMLAttributes<HTMLElement> & {
   title: string;
   headers: Record<string, string>;
-  body: string;
+  body?: string;
 };
 
 function guessLanguageFromContentType(
   contentType: string | undefined,
 ): string | undefined {
-  if (!contentType) {
-    return undefined;
-  }
-  if (contentType.includes("json")) {
+  if (contentType?.includes("json")) {
     return "json";
-  } else if (contentType.includes("xml")) {
+  } else if (contentType?.includes("xml")) {
     return "xml";
-  } else if (contentType.includes("yaml") || contentType.includes("yml")) {
+  } else if (contentType?.includes("yaml") || contentType?.includes("yml")) {
     return "yaml";
   }
-  return undefined;
+  return contentType;
 }
 
 function getContentType(headers: Record<string, string>): string | undefined {
