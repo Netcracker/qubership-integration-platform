@@ -130,6 +130,7 @@ export const SessionElementKVChanges = <ValueType = any>({
         <span>Only modified</span>
       </Flex>
       <Table<KVChangesTableItem<ValueType>>
+        size="small"
         pagination={false}
         rowKey="name"
         columns={columns}

@@ -407,6 +407,7 @@ export const LoggingSettings: React.FC = () => {
         <Flex vertical gap={8} style={{ flexShrink: 1, flexGrow: 1, overflow: 'auto' }}>
           <h3>Masked fields</h3>
           <Table
+            size="small"
             columns={columns}
             rowSelection={rowSelection}
             dataSource={maskedFields}

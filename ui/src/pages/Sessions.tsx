@@ -480,6 +480,7 @@ export const Sessions: React.FC = () => {
         onSearch={(value) => setFilters({ ...filters, searchString: value })}
       />
       <Table<SessionTableItem>
+        size="small"
         className="flex-table"
         columns={columns}
         rowSelection={rowSelection}

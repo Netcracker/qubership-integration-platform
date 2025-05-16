@@ -308,6 +308,7 @@ export const Snapshots: React.FC = () => {
   return (
     <>
       <Table
+        size="small"
         columns={columns}
         rowSelection={rowSelection}
         dataSource={snapshots}

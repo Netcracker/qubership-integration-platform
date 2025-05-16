@@ -13,6 +13,7 @@ const Chains = () => {
   return (
     <>
       <Table
+        size="small"
         dataSource={chains}
         columns={columns}
         pagination={false}

@@ -105,6 +105,7 @@ export const Deployments: React.FC = () => {
   return (
     <>
       <Table
+        size="small"
         columns={columns}
         dataSource={deployments}
         pagination={false}

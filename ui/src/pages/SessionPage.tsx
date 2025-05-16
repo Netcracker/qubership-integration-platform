@@ -162,6 +162,7 @@ export const SessionPage: React.FC = () => {
         )}
       </Flex>
       <Table<SessionElement>
+        size="small"
         rowKey="elementId"
         columns={columns}
         dataSource={session?.sessionElements}
