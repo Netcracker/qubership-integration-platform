@@ -1,12 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { Session, SessionElement } from "../../api/apiTypes.ts";
-import { Button, Flex, Modal, Tabs, TabsProps, Tag } from "antd";
+import { Button, Flex, message, Modal, Tabs, TabsProps, Tag } from "antd";
 import { LeftOutlined, LinkOutlined, RightOutlined } from "@ant-design/icons";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
 import { SessionStatus } from "../sessions/SessionStatus.tsx";
-import { SessionElementKVChanges } from "../sessions/SessionElementKVChanges.tsx";
+import {
+  ColumnName,
+  KVChangesTableItem,
+  SessionElementKVChanges,
+} from "../sessions/SessionElementKVChanges.tsx";
 import { SessionElementBodyView } from "../sessions/SessionElementBodyView.tsx";
+import { copyToClipboard } from "../../misc/clipboard-util.ts";
 
 type SessionElementDetailsProps = {
   session: Session;
@@ -46,6 +51,26 @@ function buildElementOrderMap(
   );
 }
 
+function getTextToCopy<ValueType>(
+  item: KVChangesTableItem<ValueType>,
+  column: ColumnName,
+  typeTextGetter?: (v: ValueType | undefined) => string | undefined,
+  valueTextGetter?: (v: ValueType | undefined) => string | undefined,
+): string | undefined {
+  switch (column) {
+    case "name":
+      return item.name;
+    case "typeBefore":
+      return typeTextGetter ? typeTextGetter(item.before) : `${item.before}`;
+    case "typeAfter":
+      return typeTextGetter ? typeTextGetter(item.after) : `${item.after}`;
+    case "valueBefore":
+      return valueTextGetter ? valueTextGetter(item.before) : `${item.before}`;
+    case "valueAfter":
+      return valueTextGetter ? valueTextGetter(item.after) : `${item.after}`;
+  }
+}
+
 export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
   session,
   elementId,
@@ -55,6 +80,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
   const [elementOrderMap, setElementOrderMap] =
     useState<SessionElementOrderMap>(new Map());
   const [tabItems, setTabItems] = useState<TabsProps["items"]>([]);
+  const [messageApi, contextHolder] = message.useMessage();
 
   useEffect(() => {
     setElementOrderMap(buildElementOrderMap(session.sessionElements));
@@ -67,6 +93,21 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
   useEffect(() => {
     setTabItems(buildTabItems());
   }, [element]);
+
+  const copyItemFieldToClipboard = async <ValueType = any,>(
+    item: KVChangesTableItem<ValueType>,
+    column: ColumnName,
+    typeTextGetter?: (v: ValueType | undefined) => string | undefined,
+    valueTextGetter?: (v: ValueType | undefined) => string | undefined,
+  ): Promise<void> => {
+    const text = getTextToCopy(item, column, typeTextGetter, valueTextGetter);
+    if (text) {
+      return copyToClipboard(text).then(() => {
+        messageApi.info("Copied to clipboard");
+        return;
+      });
+    }
+  };
 
   const buildTabItems = (): TabsProps["items"] => [
     {
@@ -96,6 +137,9 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
         <SessionElementKVChanges
           before={element?.headersBefore}
           after={element?.headersAfter}
+          onColumnClick={(item, column) =>
+            copyItemFieldToClipboard(item, column)
+          }
           style={{ height: "100%" }}
         />
       ),
@@ -115,6 +159,14 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
           }
           typeRenderer={(property) => property.type}
           valueRenderer={(property) => property.value}
+          onColumnClick={(item, column) =>
+            copyItemFieldToClipboard(
+              item,
+              column,
+              (v) => v?.type,
+              (v) => v?.value,
+            )
+          }
           style={{ height: "100%" }}
         />
       ),
@@ -126,6 +178,9 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
         <SessionElementKVChanges
           before={element?.contextBefore}
           after={element?.contextAfter}
+          onColumnClick={(item, column) =>
+            copyItemFieldToClipboard(item, column)
+          }
           style={{ height: "100%" }}
         />
       ),
@@ -179,6 +234,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
       width={"90%"}
       footer={null}
     >
+      {contextHolder}
       <Flex vertical style={{ height: "80vh", paddingTop: 8 }}>
         <Flex vertical={false} align="center" justify="space-between">
           <Flex vertical={false} gap={8}>

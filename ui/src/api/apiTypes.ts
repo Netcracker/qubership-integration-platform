@@ -313,12 +313,12 @@ export type SessionElement = AbstractRunnableElement & {
   exceptionInfo: ExceptionInfoElastic;
 }
 
-type SessionElementProperty = {
+export type SessionElementProperty = {
   type: string;
   value: string;
 }
 
-type ExceptionInfoElastic = {
+export type ExceptionInfoElastic = {
   message: string;
   stackTrace: string;
 }

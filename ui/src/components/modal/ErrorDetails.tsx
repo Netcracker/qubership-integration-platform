@@ -5,6 +5,7 @@ import { DownloadOutlined, CopyOutlined } from "@ant-design/icons";
 import styles from "./ErrorDetails.module.css";
 import React from "react";
 import { downloadFile } from "../../misc/download-utils.ts";
+import { copyToClipboard } from "../../misc/clipboard-util.ts";
 
 type ErrorDetailsProps = {
   service: string;
@@ -38,10 +39,6 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
     downloadFile(file);
   };
 
-  const copyErrorDetailsToClipboard = async () => {
-    await navigator.clipboard.writeText(getErrorDetailsText());
-  };
-
   return (
     <Modal
       title="Error Details"
@@ -58,7 +55,7 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
         <Button
           icon={<CopyOutlined />}
           type="text"
-          onClick={copyErrorDetailsToClipboard}
+          onClick={async () => copyToClipboard(getErrorDetailsText()) }
         >
           Copy
         </Button>,
