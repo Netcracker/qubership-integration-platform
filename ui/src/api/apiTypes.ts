@@ -322,3 +322,24 @@ export type ExceptionInfoElastic = {
   message: string;
   stackTrace: string;
 }
+
+export type CheckpointSession = {
+    id: string;
+    started: string;
+    finished: string;
+    duration: number;
+    executionStatus: ExecutionStatus;
+    chainId: string;
+    chainName: string;
+    engineAddress: string;
+    loggingLevel: SessionsLoggingLevel;
+    snapshotName: string;
+    correlationId: string;
+    checkpoints: Checkpoint[];
+}
+
+export type Checkpoint = {
+  id: string;
+  checkpointElementId: string;
+  timestamp: string;
+}

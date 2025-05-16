@@ -21,6 +21,7 @@ import {
   PaginationOptions,
   SessionSearchResponse,
   Session,
+  CheckpointSession,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -493,6 +494,7 @@ export class RestApi implements Api {
     try {
       const prefix = `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions`;
       const url = chainId ? `${prefix}/chains/${chainId}` : prefix;
+      // @ts-ignore
       const response = await this.instance.delete(url);
     } catch (err) {
       throw err;
@@ -539,6 +541,7 @@ export class RestApi implements Api {
     sessionId: string,
   ): Promise<void> => {
     try {
+      // @ts-ignore
       const response = await this.instance.post(
         `/api/v1/${import.meta.env.VITE_API_APP}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
         null,
@@ -558,4 +561,34 @@ export class RestApi implements Api {
       throw err;
     }
   };
+
+  getCheckpointSessions = async (
+    sessionIds: string[],
+  ): Promise<CheckpointSession[]> => {
+    try {
+      const response = await this.instance.get(
+        `/api/v1/${import.meta.env.VITE_API_APP}/engine/sessions`,
+        {
+          params: { ids: sessionIds },
+          paramsSerializer: {
+            indexes: null,
+          },
+        },
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  retrySessionFromLastCheckpoint = async (chainId: string, sessionId: string): Promise<void> => {
+    try {
+      return this.instance.post(
+        `/api/v1/${import.meta.env.VITE_API_APP}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
+        null
+      );
+    } catch (err) {
+      throw err;
+    }
+  }
 }

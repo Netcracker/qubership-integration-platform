@@ -17,7 +17,9 @@ import {
   MaskedField,
   SessionFilterAndSearchRequest,
   PaginationOptions,
-  SessionSearchResponse, Session
+  SessionSearchResponse,
+  Session,
+  CheckpointSession,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -131,6 +133,13 @@ export interface Api {
   retryFromLastCheckpoint(chainId: string, sessionId: string): Promise<void>;
 
   getSession(sessionId: string): Promise<Session>;
+
+  getCheckpointSessions(sessionIds: string[]): Promise<CheckpointSession[]>;
+
+  retrySessionFromLastCheckpoint(
+    chainId: string,
+    sessionId: string,
+  ): Promise<void>;
 }
 
 export const api: Api = new RestApi();

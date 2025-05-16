@@ -1,5 +1,13 @@
 import React, { UIEvent, useEffect, useState } from "react";
-import { Flex, FloatButton, Modal, notification, Table } from "antd";
+import {
+  Button,
+  Flex,
+  FloatButton,
+  message,
+  Modal,
+  notification,
+  Table,
+} from "antd";
 import { useNavigate, useParams } from "react-router";
 import {
   DeleteOutlined,
@@ -10,6 +18,7 @@ import {
 } from "@ant-design/icons";
 import { TableProps } from "antd/lib/table";
 import {
+  Checkpoint,
   ExecutionStatus,
   PaginationOptions,
   Session,
@@ -47,7 +56,10 @@ import {
   TextFilterCondition,
 } from "../components/table/TextColumnFilterDropdown.tsx";
 
-type SessionTableItem = Session & { children?: SessionTableItem[] };
+type SessionTableItem = Session & {
+  children?: SessionTableItem[];
+  checkpoints?: Checkpoint[];
+};
 
 function sortByStartTime(items?: SessionTableItem[]) {
   items?.sort((i1, i2) => compareTimestamps(i1.started, i2.started));
@@ -122,6 +134,10 @@ export const Sessions: React.FC = () => {
     TableProps<SessionTableItem>["columns"]
   >([]);
   const [tableData, setTableData] = useState<SessionTableItem[]>([]);
+  const [checkpointMap, setCheckpointMap] = useState<Map<string, Checkpoint[]>>(
+    new Map(),
+  );
+  const [messageApi, contextHolder] = message.useMessage();
 
   useEffect(() => {
     fetchSessions(true);
@@ -133,12 +149,15 @@ export const Sessions: React.FC = () => {
 
   useEffect(() => {
     updateTableData();
-  }, [sessions]);
+  }, [sessions, checkpointMap]);
 
   const updateTableData = async () => {
     setIsLoading(true);
     const rowMap = new Map<string, SessionTableItem>(
-      sessions.map((session) => [session.id, { ...session }]),
+      sessions.map((session) => [
+        session.id,
+        { ...session, checkpoints: checkpointMap.get(session.id) },
+      ]),
     );
     const itemsByCorrelationId = new Map<string, SessionTableItem[]>();
     const items: SessionTableItem[] = [];
@@ -258,6 +277,13 @@ export const Sessions: React.FC = () => {
       setSessions([...(reset ? [] : sessions), ...response.sessions]);
       setOffset(response.offset);
       setAllSessionsLoaded(response.sessions.length === 0);
+      const ids = response.sessions.map((session) => session.id);
+      const checkpointSessions = await api.getCheckpointSessions(ids);
+      const m = new Map(reset ? [] : checkpointMap.entries());
+      checkpointSessions.forEach((session) =>
+        m.set(session.id, session.checkpoints),
+      );
+      setCheckpointMap(m);
     } catch (error) {
       notification.error({
         message: "Request failed",
@@ -265,6 +291,23 @@ export const Sessions: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const retryFromLastCheckpoint = async (
+    chainId: string,
+    sessionId: string,
+  ) => {
+    try {
+      await api.retrySessionFromLastCheckpoint(chainId, sessionId);
+      messageApi.info(
+        "Session was retried successfully. Please update table to see session result.",
+      );
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to retry session",
+      });
     }
   };
 
@@ -277,13 +320,25 @@ export const Sessions: React.FC = () => {
         isCorrelationItem(item) ? (
           <span style={{ fontWeight: 600 }}>{item.id}</span>
         ) : (
-          <a
-            onClick={async () =>
-              navigate(`/chains/${item.chainId}/sessions/${item.id}`)
-            }
-          >
-            {item.id}
-          </a>
+          <Flex gap={8}>
+            <a
+              onClick={async () =>
+                navigate(`/chains/${item.chainId}/sessions/${item.id}`)
+              }
+            >
+              {item.id}
+            </a>
+            {item.checkpoints && item.checkpoints?.length > 0 ? (
+              <Button
+                size="small"
+                type="text"
+                icon={<RedoOutlined />}
+                onClick={async () =>
+                  retryFromLastCheckpoint(item.chainId, item.id)
+                }
+              />
+            ) : null}
+          </Flex>
         ),
     },
     ...(chainId
@@ -473,50 +528,53 @@ export const Sessions: React.FC = () => {
   };
 
   return (
-    <Flex vertical gap={16} style={{ height: "100%" }}>
-      <Search
-        placeholder="Full text search"
-        allowClear
-        onSearch={(value) => setFilters({ ...filters, searchString: value })}
-      />
-      <Table<SessionTableItem>
-        size="small"
-        className="flex-table"
-        columns={columns}
-        rowSelection={rowSelection}
-        dataSource={tableData}
-        pagination={false}
-        loading={isLoading}
-        rowKey="id"
-        sticky
-        scroll={{ y: "" }}
-        onScroll={onScroll}
-        onChange={(_, tableFilters) => setTableFilters(tableFilters)}
-      />
-      <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
-        <FloatButton
-          tooltip="Retry selected sessions"
-          icon={<RedoOutlined />}
-          onClick={onRetryBtnClick}
+    <>
+      {contextHolder}
+      <Flex vertical gap={16} style={{ height: "100%" }}>
+        <Search
+          placeholder="Full text search"
+          allowClear
+          onSearch={(value) => setFilters({ ...filters, searchString: value })}
         />
-        {chainId ? null : (
+        <Table<SessionTableItem>
+          size="small"
+          className="flex-table"
+          columns={columns}
+          rowSelection={rowSelection}
+          dataSource={tableData}
+          pagination={false}
+          loading={isLoading}
+          rowKey="id"
+          sticky
+          scroll={{ y: "" }}
+          onScroll={onScroll}
+          onChange={(_, tableFilters) => setTableFilters(tableFilters)}
+        />
+        <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
           <FloatButton
-            tooltip="Import sessions"
-            icon={<ImportOutlined />}
-            onClick={onImportBtnClick}
+            tooltip="Retry selected sessions"
+            icon={<RedoOutlined />}
+            onClick={onRetryBtnClick}
           />
-        )}
-        <FloatButton
-          tooltip="Export selected sessions"
-          icon={<ExportOutlined />}
-          onClick={onExportBtnClick}
-        />
-        <FloatButton
-          tooltip="Delete selected sessions"
-          icon={<DeleteOutlined />}
-          onClick={onDeleteBtnClick}
-        />
-      </FloatButtonGroup>
-    </Flex>
+          {chainId ? null : (
+            <FloatButton
+              tooltip="Import sessions"
+              icon={<ImportOutlined />}
+              onClick={onImportBtnClick}
+            />
+          )}
+          <FloatButton
+            tooltip="Export selected sessions"
+            icon={<ExportOutlined />}
+            onClick={onExportBtnClick}
+          />
+          <FloatButton
+            tooltip="Delete selected sessions"
+            icon={<DeleteOutlined />}
+            onClick={onDeleteBtnClick}
+          />
+        </FloatButtonGroup>
+      </Flex>
+    </>
   );
 };
