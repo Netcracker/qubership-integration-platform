@@ -64,6 +64,7 @@ export const Deployments: React.FC = () => {
       render: (_, deployment) => (
         <Tooltip title="Delete deployment" placement="topRight">
           <LongActionButton
+            size="small"
             icon={<DeleteOutlined />}
             type="text"
             onAction={async () => deleteDeployment(deployment)}
