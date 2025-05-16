@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from "react";
 import {
   Button,
-  Col,
+  Flex,
   FloatButton,
   Form,
   notification,
-  Row,
   Select,
   SelectProps,
   Spin,
-  Table,
+  Table
 } from "antd";
 import { useParams } from "react-router";
 import { useForm } from "antd/lib/form/Form";
@@ -335,8 +334,8 @@ export const LoggingSettings: React.FC = () => {
 
   return (
     <>
-      <Row gutter={[24, 16]}>
-        <Col span={8}>
+      <Flex vertical={false} gap={16} style={{ height: "100%" }}>
+        <Flex vertical gap={8} style={{ minWidth: 350, maxWidth: 350 }}>
           <h3>Logging Properties</h3>
           {isLoggingSettingsLoading ? (
             <Spin
@@ -404,8 +403,8 @@ export const LoggingSettings: React.FC = () => {
               </Button>
             </Form.Item>
           </Form>
-        </Col>
-        <Col span={16}>
+        </Flex>
+        <Flex vertical gap={8} style={{ flexShrink: 1, flexGrow: 1, overflow: 'auto' }}>
           <h3>Masked fields</h3>
           <Table
             columns={columns}
@@ -414,10 +413,11 @@ export const LoggingSettings: React.FC = () => {
             pagination={false}
             loading={isMaskedFieldsLoading}
             rowKey="id"
-            scroll={{ y: "calc(100vh - 280px)" }}
+            className="flex-table"
+            scroll={{ y: "" }}
           />
-        </Col>
-      </Row>
+        </Flex>
+      </Flex>
       <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
         <FloatButton
           tooltip="Delete selected masked fields"

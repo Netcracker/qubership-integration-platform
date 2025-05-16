@@ -314,7 +314,9 @@ export const Snapshots: React.FC = () => {
         pagination={false}
         loading={isLoading}
         rowKey="id"
-        scroll={{ y: "calc(100vh - 200px)" }}
+        className="flex-table"
+        style={{ height: "100%" }}
+        scroll={{ y: "" }}
       />
       <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
         <FloatButton

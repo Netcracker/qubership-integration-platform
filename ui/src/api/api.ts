@@ -129,6 +129,8 @@ export interface Api {
   importSessions(files: File[]): Promise<Session[]>;
 
   retryFromLastCheckpoint(chainId: string, sessionId: string): Promise<void>;
+
+  getSession(sessionId: string): Promise<Session>;
 }
 
 export const api: Api = new RestApi();

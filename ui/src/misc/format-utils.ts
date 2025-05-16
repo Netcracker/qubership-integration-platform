@@ -1,4 +1,4 @@
-const PLACEHOLDER = "—";
+export const PLACEHOLDER = "—";
 
 export function formatOptional<T>(
   value: T,
@@ -24,13 +24,18 @@ export function formatTimestamp(
       second: millis ? "2-digit" : undefined,
       // @ts-ignore
       fractionalSecondDigits: millis ? 3 : undefined,
+      hour12: false,
     });
     return dateTimeFormatter.format(date);
   };
   return formatOptional(timestamp, formatter);
 }
 
-export function formatDuration(value: number): string {
+export function formatUTCSessionDate(date: string, millis?: boolean): string {
+  return formatTimestamp(date?.concat('Z'), millis);
+}
+
+export function formatDuration(value?: number): string {
   if (value === undefined || value === null || value === 0) {
     return '';
   }

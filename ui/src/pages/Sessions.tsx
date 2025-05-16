@@ -22,7 +22,7 @@ import {
   capitalize,
   formatDuration,
   formatSnakeCased,
-  formatTimestamp,
+  formatUTCSessionDate,
 } from "../misc/format-utils.ts";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import {
@@ -51,7 +51,7 @@ type SessionTableItem = Session & { children?: SessionTableItem[] };
 
 function sortByStartTime(items?: SessionTableItem[]) {
   items?.sort((i1, i2) => compareTimestamps(i1.started, i2.started));
-  items?.forEach(i => sortByStartTime(i.children));
+  items?.forEach((i) => sortByStartTime(i.children));
 }
 
 function isCorrelationItem(item: SessionTableItem) {
@@ -162,10 +162,19 @@ export const Sessions: React.FC = () => {
 
     const correlationIdItems = Array.from(itemsByCorrelationId.entries()).map(
       ([correlationId, items]) => {
-        const { started, finished } = items.reduce((acc, item) => ({
-          started: compareTimestamps(acc.started, item.started) > 0 ? acc.started : item.started,
-          finished: compareTimestamps(acc.finished, item.finished) < 0 ? acc.finished : item.finished,
-        }), { started: items[0].started, finished: items[0].finished });
+        const { started, finished } = items.reduce(
+          (acc, item) => ({
+            started:
+              compareTimestamps(acc.started, item.started) > 0
+                ? acc.started
+                : item.started,
+            finished:
+              compareTimestamps(acc.finished, item.finished) < 0
+                ? acc.finished
+                : item.finished,
+          }),
+          { started: items[0].started, finished: items[0].finished },
+        );
         const duration = Date.parse(finished) - Date.parse(started);
         return {
           ...items[0],
@@ -264,17 +273,18 @@ export const Sessions: React.FC = () => {
       title: "ID",
       dataIndex: "id",
       key: "id",
-      render: (_, item) => (
-        isCorrelationItem(item)
-          ? <span style={{ fontWeight: 600 }}>{item.id}</span>
-          : <a
+      render: (_, item) =>
+        isCorrelationItem(item) ? (
+          <span style={{ fontWeight: 600 }}>{item.id}</span>
+        ) : (
+          <a
             onClick={async () =>
               navigate(`/chains/${item.chainId}/sessions/${item.id}`)
             }
           >
             {item.id}
           </a>
-      ),
+        ),
     },
     ...(chainId
       ? []
@@ -295,31 +305,36 @@ export const Sessions: React.FC = () => {
         ]),
     {
       title: "Status",
-      dataIndex: "status",
-      key: "status",
+      dataIndex: "executionStatus",
+      key: "executionStatus",
       filters: Object.values(ExecutionStatus).map((value) => ({
         value,
         text: formatSnakeCased(value),
       })),
-      render: (_, item) => (
-        isCorrelationItem(item)
-          ? <>{`${item.children?.length} session${item.children?.length === 1 ? "" : "s"}`}</>
-          : <SessionStatus withIcon status={item.executionStatus} />
-      ),
+      render: (_, item) =>
+        isCorrelationItem(item) ? (
+          <>{`${item.children?.length} session${item.children?.length === 1 ? "" : "s"}`}</>
+        ) : (
+          <SessionStatus status={item.executionStatus} />
+        ),
     },
     {
       title: "Start time",
       dataIndex: "started",
       key: "started",
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
-      render: (_, session) => <>{formatTimestamp(session.started, true)}</>,
+      render: (_, session) => (
+        <>{formatUTCSessionDate(session.started, true)}</>
+      ),
     },
     {
       title: "Finish time",
       dataIndex: "finished",
       key: "finished",
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
-      render: (_, session) => <>{formatTimestamp(session.finished, true)}</>,
+      render: (_, session) => (
+        <>{formatUTCSessionDate(session.finished, true)}</>
+      ),
     },
     {
       title: "Session level",
@@ -346,9 +361,12 @@ export const Sessions: React.FC = () => {
       filterDropdown: (props) => (
         <TextColumnFilterDropdown {...props} enableExact={false} />
       ),
-      render: (_, item) => (
-        isCorrelationItem(item) ? <></> : <>{`${item.domain} (${item.engineAddress})`}</>
-      ),
+      render: (_, item) =>
+        isCorrelationItem(item) ? (
+          <></>
+        ) : (
+          <>{`${item.domain} (${item.engineAddress})`}</>
+        ),
     },
   ];
 
@@ -455,13 +473,14 @@ export const Sessions: React.FC = () => {
   };
 
   return (
-    <Flex vertical gap={16}>
+    <Flex vertical gap={16} style={{ height: "100%" }}>
       <Search
         placeholder="Full text search"
         allowClear
         onSearch={(value) => setFilters({ ...filters, searchString: value })}
       />
       <Table<SessionTableItem>
+        className="flex-table"
         columns={columns}
         rowSelection={rowSelection}
         dataSource={tableData}
@@ -469,7 +488,7 @@ export const Sessions: React.FC = () => {
         loading={isLoading}
         rowKey="id"
         sticky
-        scroll={{ y: "calc(100vh - 248px)" }}
+        scroll={{ y: "" }}
         onScroll={onScroll}
         onChange={(_, tableFilters) => setTableFilters(tableFilters)}
       />

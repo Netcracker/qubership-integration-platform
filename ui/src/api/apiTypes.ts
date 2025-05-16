@@ -261,13 +261,16 @@ export type SessionSearchResponse = {
   sessions: Session[];
 }
 
-export type Session = {
-  id: string;
+export type AbstractRunnableElement = {
   started: string;
   finished: string;
   duration: number;
-  executionStatus: ExecutionStatus;
   syncDuration: number;
+  executionStatus: ExecutionStatus;
+}
+
+export type Session = AbstractRunnableElement & {
+  id: string;
   importedSession: boolean;
   externalSessionCipId: string;
   chainId: string;
@@ -278,6 +281,7 @@ export type Session = {
   snapshotName: string;
   correlationId: string;
   parentSessionId: string;
+  sessionElements?: SessionElement[];
 }
 
 export enum ExecutionStatus {
@@ -286,4 +290,35 @@ export enum ExecutionStatus {
   COMPLETED_WITH_WARNINGS = 'COMPLETED_WITH_WARNINGS',
   COMPLETED_WITH_ERRORS = 'COMPLETED_WITH_ERRORS',
   CANCELLED_OR_UNKNOWN = 'CANCELLED_OR_UNKNOWN',
+}
+
+export type SessionElement = AbstractRunnableElement & {
+  elementId: string;
+  sessionId: string;
+  chainElementId: string;
+  actualElementChainId: string;
+  parentElement: string;
+  previousElement: string;
+  elementName: string;
+  camelName: string;
+  bodyBefore: string;
+  bodyAfter: string;
+  headersBefore: Record<string, string>;
+  headersAfter: Record<string, string>;
+  propertiesBefore: Record<string, SessionElementProperty>;
+  propertiesAfter: Record<string, SessionElementProperty>;
+  contextBefore: Record<string, string>;
+  contextAfter: Record<string, string>;
+  children?: SessionElement[];
+  exceptionInfo: ExceptionInfoElastic;
+}
+
+type SessionElementProperty = {
+  type: string;
+  value: string;
+}
+
+type ExceptionInfoElastic = {
+  message: string;
+  stackTrace: string;
 }

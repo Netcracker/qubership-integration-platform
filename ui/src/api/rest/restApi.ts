@@ -19,7 +19,8 @@ import {
   MaskedFields,
   SessionFilterAndSearchRequest,
   PaginationOptions,
-  SessionSearchResponse, Session
+  SessionSearchResponse,
+  Session,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -517,10 +518,10 @@ export class RestApi implements Api {
 
   importSessions = async (files: File[]): Promise<Session[]> => {
     const formData: FormData = new FormData();
-    files.forEach(file => formData.append('files', file, file.name));
+    files.forEach((file) => formData.append("files", file, file.name));
     const headers = new AxiosHeaders();
-    headers.set('Content-Type', 'multipart/form-data');
-    headers.set('accept', '*/*');
+    headers.set("Content-Type", "multipart/form-data");
+    headers.set("accept", "*/*");
     try {
       const response = await this.instance.post(
         `/api/v1/cip/sessions-management/sessions/import`,
@@ -531,7 +532,7 @@ export class RestApi implements Api {
     } catch (err) {
       throw err;
     }
-  }
+  };
 
   retryFromLastCheckpoint = async (
     chainId: string,
@@ -542,6 +543,17 @@ export class RestApi implements Api {
         `/api/v1/${import.meta.env.VITE_API_APP}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
         null,
       );
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  getSession = async (sessionId: string): Promise<Session> => {
+    try {
+      const response = await this.instance.get(
+        `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions/${sessionId}`,
+      );
+      return response.data;
     } catch (err) {
       throw err;
     }

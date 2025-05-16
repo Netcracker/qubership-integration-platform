@@ -14,7 +14,7 @@ import NotFound from "./pages/NotFound.tsx";
 import { Content } from "antd/es/layout/layout";
 import { LoggingSettings } from "./pages/LoggingSettings.tsx";
 import { Sessions } from "./pages/Sessions.tsx";
-import { NotImplemented } from "./pages/NotImplemented.tsx";
+import { SessionPage } from "./pages/SessionPage.tsx";
 
 const { Header } = Layout;
 
@@ -36,7 +36,7 @@ const App = () => (
               <Route path="snapshots" element={<Snapshots />} />
               <Route path="deployments" element={<Deployments />} />
               <Route path="sessions" element={<Sessions />} />
-              <Route path="sessions/:sessionId" element={<NotImplemented/>} />
+              <Route path="sessions/:sessionId" element={<SessionPage />} />
               <Route path="logging-settings" element={ <LoggingSettings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
