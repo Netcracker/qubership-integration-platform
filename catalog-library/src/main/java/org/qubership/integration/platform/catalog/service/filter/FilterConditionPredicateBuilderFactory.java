@@ -51,8 +51,8 @@ public class FilterConditionPredicateBuilderFactory {
             case ENDS_WITH -> (expression, value) -> criteriaBuilder.like(
                     criteriaBuilder.lower(expression.as(String.class)),
                     "%" + String.valueOf(EscapeCharacter.DEFAULT.escape((String) value)).toLowerCase(), EscapeCharacter.DEFAULT.getEscapeCharacter());
-            case IN -> (expression, value) -> expression.as(String.class).in(Arrays.asList(String.valueOf(value).split(",")));
-            case NOT_IN -> (expression, value) -> criteriaBuilder.not(expression.as(String.class).in(Arrays.asList(String.valueOf(value).split(","))));
+            case IN -> (expression, value) -> criteriaBuilder.lower(expression.as(String.class)).in(Arrays.asList(String.valueOf(value).split(",")));
+            case NOT_IN -> (expression, value) -> criteriaBuilder.not(criteriaBuilder.lower(expression.as(String.class)).in(Arrays.asList(String.valueOf(value).split(","))));
             case EMPTY -> (expression, value) -> criteriaBuilder.or(expression.isNull(), criteriaBuilder.equal(expression.as(String.class), ""));
             case NOT_EMPTY -> (expression, value) -> criteriaBuilder.notEqual(expression.as(String.class), "");
             case IS_AFTER -> (expression, value) -> criteriaBuilder.greaterThan(expression.as(Timestamp.class), new Timestamp(Long.parseLong(String.valueOf(value))));
