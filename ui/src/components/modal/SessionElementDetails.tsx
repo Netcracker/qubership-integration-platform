@@ -54,6 +54,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
   const [element, setElement] = useState<SessionElement | undefined>();
   const [elementOrderMap, setElementOrderMap] =
     useState<SessionElementOrderMap>(new Map());
+  const [tabItems, setTabItems] = useState<TabsProps["items"]>([]);
 
   useEffect(() => {
     setElementOrderMap(buildElementOrderMap(session.sessionElements));
@@ -63,7 +64,11 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
     setElement(elementOrderMap.get(elementId)?.current);
   }, [elementId, elementOrderMap]);
 
-  const tabItems: TabsProps["items"] = [
+  useEffect(() => {
+    setTabItems(buildTabItems());
+  }, [element]);
+
+  const buildTabItems = (): TabsProps["items"] => [
     {
       key: "body",
       label: "Body",
@@ -125,6 +130,32 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
         />
       ),
     },
+    ...(element?.exceptionInfo
+      ? [
+          {
+            key: "error",
+            label: "Errors",
+            children: (
+              <Flex vertical style={{ height: "100%" }}>
+                <h5>Message</h5>
+                <div>{element.exceptionInfo.message}</div>
+                <h5>Stacktrace</h5>
+                <div
+                  style={{
+                    flexGrow: 1,
+                    flexShrink: 1,
+                    minHeight: 0,
+                    overflow: "auto",
+                    height: 0,
+                  }}
+                >
+                  {element.exceptionInfo.stackTrace}
+                </div>
+              </Flex>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
