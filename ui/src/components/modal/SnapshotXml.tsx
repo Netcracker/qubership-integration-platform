@@ -1,9 +1,9 @@
 import { Modal, notification } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import React, { useEffect, useState } from "react";
-import TextArea from "antd/lib/input/TextArea";
 import { Snapshot } from "../../api/apiTypes.ts";
 import { api } from "../../api/api.ts";
+import { Editor } from "@monaco-editor/react";
 
 type SnapshotXmlViewProps = {
   snapshotId: string;
@@ -32,7 +32,7 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Modal
@@ -44,10 +44,13 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
       width={"90%"}
       loading={isLoading}
     >
-      <TextArea
-        style={{ height: "80vh", resize: "none" }}
+      <Editor
+        className="qip-editor"
+        height={"80vh"}
+        defaultLanguage="xml"
         defaultValue={snapshot?.xmlDefinition}
-      ></TextArea>
+        options={{ readOnly: true }}
+      />
     </Modal>
   );
 };

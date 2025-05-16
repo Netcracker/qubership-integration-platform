@@ -175,3 +175,9 @@ button:focus-visible {
     }
   }
 }
+
+.qip-editor {
+  border: solid 1px lightgrey;
+  border-radius: 8px;
+  overflow: hidden;
+}
