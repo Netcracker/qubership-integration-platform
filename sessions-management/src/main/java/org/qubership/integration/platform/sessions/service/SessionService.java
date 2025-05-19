@@ -70,6 +70,7 @@ public class SessionService {
     private static final int SCROLL_WINDOW = 300;
     private static final String ELEMENT_EXECUTION_ERROR_MESSAGE = "Error during element execution";
     public static final String SESSION_ID_KEY = "sessionId";
+    public static final String CHAIN_ID_KEY = "chainId";
     public static final String EXTERNAL_SESSION_ID_KEY = "externalSessionId";
     public static final String STARTED_KEY = "started";
 
@@ -151,7 +152,7 @@ public class SessionService {
     }
 
     public void deleteByChainId(String chainId) {
-        deleteByField("chainId", chainId, true);
+        deleteByField(CHAIN_ID_KEY, chainId, true);
     }
 
     public void deleteAllSessions() {
@@ -172,8 +173,28 @@ public class SessionService {
         delete(request);
     }
 
+    public void deleteByFieldValues(String fieldName, List<String> values, boolean refresh) {
+        Query query = new TermsQuery.Builder()
+                .field(fieldName)
+                .terms(new TermsQueryField.Builder()
+                        .value(values.stream().map(FieldValue::of).toList())
+                        .build())
+                .build()
+                .toQuery();
+        DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
+                .index(openSearchClientSupplier.normalize(indexName))
+                .query(query)
+                .refresh(true)
+                .build();
+        delete(request);
+    }
+
     public void deleteAllByChainIds(List<String> chainIds) {
-        chainIds.forEach(this::deleteByChainId);
+        deleteByFieldValues(CHAIN_ID_KEY, chainIds, true);
+    }
+
+    public void deleteBySessionIds(List<String> sessionIds) {
+        deleteByFieldValues(SESSION_ID_KEY, sessionIds, true);
     }
 
     public SessionSearchResponse getSessions(String chainId,
@@ -223,7 +244,7 @@ public class SessionService {
         BoolQuery.Builder queryBuilder = new BoolQuery.Builder();
 
         if (StringUtils.isNotEmpty(chainId)) {
-            queryBuilder.must(new TermQuery.Builder().field("chainId").value(FieldValue.of(chainId)).build().toQuery());
+            queryBuilder.must(new TermQuery.Builder().field(CHAIN_ID_KEY).value(FieldValue.of(chainId)).build().toQuery());
         }
 
         String searchString = filterAndSearch.getSearchString();

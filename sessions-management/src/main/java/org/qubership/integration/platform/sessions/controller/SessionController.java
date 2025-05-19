@@ -93,7 +93,7 @@ public class SessionController {
         if (session == null) {
             throw new SessionsNotFoundException("Can't find session " + sessionId);
         }
-        
+
         return ResponseEntity.ok(session);
     }
 
@@ -175,6 +175,14 @@ public class SessionController {
     public ResponseEntity<Void> deleteAllByChainId(@PathVariable @Parameter(description = "Chain id") String chainId) {
         log.info("Request to delete all sessions by chain id: {}", chainId);
         sessionService.deleteByChainId(chainId);
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+
+    @Operation(description = "Bulk delete sessions")
+    @PostMapping("/bulk-delete")
+    public ResponseEntity<Void> deleteByIds(@RequestBody List<String> sessionIds) {
+        log.info("Request to delete sessions by ids: {}", sessionIds);
+        sessionService.deleteBySessionIds(sessionIds);
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
