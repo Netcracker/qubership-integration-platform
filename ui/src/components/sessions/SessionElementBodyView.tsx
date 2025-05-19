@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { Flex } from "antd";
 import { Editor } from "@monaco-editor/react";
+import { editor as editor_ } from "monaco-editor";
 
 type SessionElementBodyViewProps = React.HTMLAttributes<HTMLElement> & {
-  title: string;
   headers: Record<string, string>;
   body?: string;
 };
 
-function guessLanguageFromContentType(
+export function guessLanguageFromContentType(
   contentType: string | undefined,
 ): string | undefined {
   if (contentType?.includes("json")) {
@@ -21,17 +20,39 @@ function guessLanguageFromContentType(
   return contentType;
 }
 
-function getContentType(headers: Record<string, string>): string | undefined {
+export function getContentType(
+  headers: Record<string, string>,
+): string | undefined {
   return Object.entries(headers).find(
     ([name]) => name.toLowerCase() === "content-type",
   )?.[1];
 }
 
+export function formatDocumentInEditor(
+  editor: editor_.IStandaloneCodeEditor | undefined,
+) {
+  editor?.updateOptions({ readOnly: false });
+  editor
+    ?.getAction("editor.action.formatDocument")
+    ?.run()
+    .then(() => editor?.updateOptions({ readOnly: true }));
+}
+
+export function setUpDocumentFormatting(editor: editor_.IStandaloneCodeEditor) {
+  const formatDocument = () => formatDocumentInEditor(editor);
+
+  // on first initialization
+  editor.onDidChangeModelLanguageConfiguration(formatDocument);
+
+  // on every initialization
+  editor.onDidLayoutChange(formatDocument);
+
+  editor.onDidChangeModelContent(() => setTimeout(formatDocument, 1))
+}
+
 export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
-  title,
   headers,
-  body,
-  ...rest
+  body
 }) => {
   const [language, setLanguage] = useState<string | undefined>(undefined);
 
@@ -40,14 +61,12 @@ export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
   }, [headers]);
 
   return (
-    <Flex {...rest} vertical gap={8}>
-      <div>{title}</div>
-      <Editor
-        className="qip-editor"
-        language={language}
-        value={body}
-        options={{ readOnly: true }}
-      />
-    </Flex>
+    <Editor
+      className="qip-editor"
+      language={language}
+      value={body}
+      options={{ readOnly: true }}
+      onMount={setUpDocumentFormatting}
+    />
   );
 };

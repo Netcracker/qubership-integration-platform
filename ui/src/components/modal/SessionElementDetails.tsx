@@ -10,8 +10,8 @@ import {
   KVChangesTableItem,
   SessionElementKVChanges,
 } from "../sessions/SessionElementKVChanges.tsx";
-import { SessionElementBodyView } from "../sessions/SessionElementBodyView.tsx";
 import { copyToClipboard } from "../../misc/clipboard-util.ts";
+import { SessionElementBodyChangesView } from "../sessions/SessionElementBodyChangesView.tsx";
 
 type SessionElementDetailsProps = {
   session: Session;
@@ -114,20 +114,13 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
       key: "body",
       label: "Body",
       children: (
-        <Flex vertical={false} gap={8} style={{ height: "100%" }}>
-          <SessionElementBodyView
-            style={{ flexGrow: 1, flexShrink: 1 }}
-            title="Body Before"
-            headers={element?.headersBefore ?? {}}
-            body={element?.bodyBefore ?? ""}
-          />
-          <SessionElementBodyView
-            style={{ flexGrow: 1, flexShrink: 1 }}
-            title="Body After"
-            headers={element?.headersAfter ?? {}}
-            body={element?.bodyAfter ?? ""}
-          />
-        </Flex>
+        <SessionElementBodyChangesView
+          style={{ height:"100%" }}
+          headersBefore={element?.headersBefore}
+          headersAfter={element?.headersAfter}
+          bodyBefore={element?.bodyBefore}
+          bodyAfter={element?.bodyAfter}
+        />
       ),
     },
     {
