@@ -264,6 +264,7 @@ export const Snapshots: React.FC = () => {
         <>
           <Tooltip title="Delete snapshot" placement="topRight">
             <LongActionButton
+              size="small"
               icon={<DeleteOutlined />}
               type="text"
               onAction={async () => deleteSnapshotWithConfirmation(snapshot)}
@@ -271,6 +272,7 @@ export const Snapshots: React.FC = () => {
           </Tooltip>
           <Tooltip title="Revert to snapshot" placement="topRight">
             <LongActionButton
+              size="small"
               icon={<RollbackOutlined />}
               type="text"
               onAction={async () => revertToSnapshotWithConfirmation(snapshot)}
@@ -278,6 +280,7 @@ export const Snapshots: React.FC = () => {
           </Tooltip>
           <Tooltip title="Show snapshot XML" placement="topRight">
             <Button
+              size="small"
               type="text"
               icon={<FileTextOutlined />}
               onClick={async () => showSnapshotXml(snapshot)}
@@ -285,6 +288,7 @@ export const Snapshots: React.FC = () => {
           </Tooltip>
           <Tooltip title="Show snapshot diagram" placement="topRight">
             <Button
+              size="small"
               type="text"
               icon={<>⭾</>}
               onClick={async () => showSnapshotDiagram(snapshot)}
@@ -308,13 +312,16 @@ export const Snapshots: React.FC = () => {
   return (
     <>
       <Table
+        size="small"
         columns={columns}
         rowSelection={rowSelection}
         dataSource={snapshots}
         pagination={false}
         loading={isLoading}
         rowKey="id"
-        scroll={{ y: "calc(100vh - 200px)" }}
+        className="flex-table"
+        style={{ height: "100%" }}
+        scroll={{ y: "" }}
       />
       <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
         <FloatButton

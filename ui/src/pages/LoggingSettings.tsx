@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from "react";
 import {
   Button,
-  Col,
+  Flex,
   FloatButton,
   Form,
   notification,
-  Row,
   Select,
   SelectProps,
   Spin,
-  Table,
+  Table
 } from "antd";
 import { useParams } from "react-router";
 import { useForm } from "antd/lib/form/Form";
@@ -27,10 +26,10 @@ import {
   getTextColumnFilterFn,
   TextColumnFilterDropdown,
 } from "../components/table/TextColumnFilterDropdown.tsx";
-import { formatTimestamp } from "../misc/format-utils.ts";
+import { capitalize, formatTimestamp } from "../misc/format-utils.ts";
 import {
   getTimestampColumnFilterFn,
-  TimestampColumnFilterDropdown
+  TimestampColumnFilterDropdown,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { InlineEdit } from "../components/InlineEdit.tsx";
@@ -233,21 +232,21 @@ export const LoggingSettings: React.FC = () => {
     Object.values(SessionsLoggingLevel).map((value) => {
       return {
         value: value,
-        label: value[0].toUpperCase() + value.slice(1).toLowerCase(),
+        label: capitalize(value),
       };
     });
 
   const logLoggingLevelOptions: SelectProps<LogLoggingLevel>["options"] =
     Object.values(LogLoggingLevel).map((value) => ({
       value: value,
-      label: value[0].toUpperCase() + value.slice(1).toLowerCase(),
+      label: capitalize(value),
     }));
 
   const logPayloadOptions: SelectProps<LogPayload>["options"] = Object.values(
     LogPayload,
   ).map((value) => ({
     value: value,
-    label: value[0].toUpperCase() + value.slice(1).toLowerCase(),
+    label: capitalize(value),
   }));
 
   const columns: TableProps<MaskedField>["columns"] = [
@@ -334,8 +333,8 @@ export const LoggingSettings: React.FC = () => {
 
   return (
     <>
-      <Row gutter={[24, 16]}>
-        <Col span={8}>
+      <Flex vertical={false} gap={16} style={{ height: "100%" }}>
+        <Flex vertical gap={8} style={{ minWidth: 350, maxWidth: 350 }}>
           <h3>Logging Properties</h3>
           {isLoggingSettingsLoading ? (
             <Spin
@@ -403,23 +402,33 @@ export const LoggingSettings: React.FC = () => {
               </Button>
             </Form.Item>
           </Form>
-        </Col>
-        <Col span={16}>
+        </Flex>
+        <Flex vertical gap={8} style={{ flexShrink: 1, flexGrow: 1, overflow: 'auto' }}>
           <h3>Masked fields</h3>
           <Table
+            size="small"
             columns={columns}
             rowSelection={rowSelection}
             dataSource={maskedFields}
             pagination={false}
             loading={isMaskedFieldsLoading}
             rowKey="id"
-            scroll={{ y: "calc(100vh - 280px)" }}
+            className="flex-table"
+            scroll={{ y: "" }}
           />
-        </Col>
-      </Row>
+        </Flex>
+      </Flex>
       <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
-        <FloatButton icon={<DeleteOutlined />} onClick={onDeleteBtnClick} />
-        <FloatButton icon={<PlusOutlined />} onClick={onCreateBtnClick} />
+        <FloatButton
+          tooltip="Delete selected masked fields"
+          icon={<DeleteOutlined />}
+          onClick={onDeleteBtnClick}
+        />
+        <FloatButton
+          tooltip="Add new masked field"
+          icon={<PlusOutlined />}
+          onClick={onCreateBtnClick}
+        />
       </FloatButtonGroup>
     </>
   );
