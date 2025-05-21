@@ -36,9 +36,6 @@ import { TableRowSelection } from "antd/lib/table/interface";
 import Search from "antd/lib/input/Search";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
-import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
-import { InlineEdit } from "../components/InlineEdit.tsx";
-import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
 
 type ChainTableItem = FolderItem & {
   children?: ChainTableItem[];
@@ -189,25 +186,6 @@ const Chains = () => {
       s.add(folderId);
       setLoadedFolders(s);
     });
-  };
-
-  const updateChain = async (chainId: string, changes: Partial<Chain>) => {
-    setIsLoading(true);
-    try {
-      const response = await api.updateChain(chainId, changes);
-      setFolderItems(
-        folderItems.map((item) =>
-          item.id === chainId ? { ...item, ...response } : item,
-        ),
-      );
-    } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to update chain",
-      });
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const updateFolder = async (
