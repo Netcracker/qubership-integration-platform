@@ -21,7 +21,7 @@ import {
   PaginationOptions,
   SessionSearchResponse,
   Session,
-  CheckpointSession,
+  CheckpointSession, FolderItem, FolderResponse
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -89,7 +89,6 @@ export class RestApi implements Api {
       const response = await this.instance.get<LibraryData>(
         `/api/v1/${import.meta.env.VITE_API_APP}/catalog/library`,
       );
-      console.log(response);
       return response.data;
     } catch (err) {
       throw err;
@@ -587,6 +586,40 @@ export class RestApi implements Api {
         `/api/v1/${import.meta.env.VITE_API_APP}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
         null
       );
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  getRootFolder = async (): Promise<FolderItem[]> => {
+    try {
+      const response = await this.instance.get(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders`
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  getFolder = async (folderId: string): Promise<FolderResponse> => {
+    try {
+      const response = await this.instance.get(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  updateFolder = async (folderId: string, changes: Partial<FolderItem>): Promise<FolderResponse> => {
+    try {
+      const response = await this.instance.put<FolderResponse>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
+        changes,
+      );
+      return response.data;
     } catch (err) {
       throw err;
     }

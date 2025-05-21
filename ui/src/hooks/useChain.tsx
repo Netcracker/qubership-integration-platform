@@ -17,7 +17,7 @@ export const useChain = (chainId?: string) => {
     } catch (error) {
       notification.error({
         message: "Request failed",
-        description: "Failed to create snapshot",
+        description: "Failed to update chain",
       });
     }
   };
@@ -29,7 +29,7 @@ export const useChain = (chainId?: string) => {
     } catch (error) {
       notification.error({
         message: "Request failed",
-        description: "Failed to load snapshots",
+        description: "Failed to get chain",
       });
     }
   };
