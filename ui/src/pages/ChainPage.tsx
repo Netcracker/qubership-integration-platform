@@ -3,8 +3,19 @@ import { Breadcrumb, Col, Flex, Radio, RadioChangeEvent, Row } from "antd";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
+import { createContext } from "react";
+import { Chain } from "../api/apiTypes.ts";
 
-const Chain = () => {
+export type ChainContextData = {
+  chain: Chain | undefined;
+  update: (changes: Partial<Chain>) => Promise<void>;
+};
+
+export const ChainContext = createContext<ChainContextData | undefined>(
+  undefined,
+);
+
+const ChainPage = () => {
   const { chainId, sessionId } = useParams();
 
   const location = useLocation();
@@ -12,7 +23,7 @@ const Chain = () => {
   const navigate = useNavigate();
   const activeKey = getActiveTabKey(pathname);
 
-  const { chain } = useChain(chainId);
+  const { chain, setChain, updateChain } = useChain(chainId);
 
   const handlePageChange = (event: RadioChangeEvent) => {
     navigate(`${event.target.value}`); // Update the URL with the selected tab key
@@ -50,12 +61,21 @@ const Chain = () => {
             <Radio.Button value="logging-settings">
               Logging Settings
             </Radio.Button>
+            <Radio.Button value="properties">Properties</Radio.Button>
           </Radio.Group>
         </Col>
       </Row>
       <Row className={styles.stretched}>
         <Col span={24}>
-          <Outlet />
+          <ChainContext.Provider
+            value={{
+              chain,
+              update: async (changes) =>
+                updateChain(changes).then(setChain),
+            }}
+          >
+            <Outlet />
+          </ChainContext.Provider>
         </Col>
       </Row>
     </Flex>
@@ -67,4 +87,4 @@ function getActiveTabKey(path: string) {
   return segment ?? "graph";
 }
 
-export default Chain;
+export default ChainPage;
