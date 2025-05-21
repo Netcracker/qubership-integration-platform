@@ -268,7 +268,7 @@ public class ChainFilterSpecificationBuilder {
                                 : conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, TOPICS), value));
 
                 yield isNegativeElementFilter
-                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(root, criteriaBuilder, basePredicateFunc), value)
+                        ? getNegativeFilterPredicate(root, criteriaBuilder, basePredicateFunc)
                         : basePredicateFunc.apply(null);
             }
             case QUEUE -> {
@@ -281,7 +281,7 @@ public class ChainFilterSpecificationBuilder {
                                 : conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, QUEUES), value));
 
                 yield isNegativeElementFilter
-                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(root, criteriaBuilder, basePredicateFunc), value)
+                        ? getNegativeFilterPredicate(root, criteriaBuilder, basePredicateFunc)
                         : basePredicateFunc.apply(null);
             }
             case EXCHANGE -> {
@@ -293,18 +293,10 @@ public class ChainFilterSpecificationBuilder {
                                 : conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, EXCHANGE), value));
 
                 yield isNegativeElementFilter
-                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(root, criteriaBuilder, basePredicateFunc), value)
+                        ? getNegativeFilterPredicate(root, criteriaBuilder, basePredicateFunc)
                         : basePredicateFunc.apply(null);
             }
-            case SERVICE_ID -> conditionPredicateBuilder.apply(isNegativeElementFilter
-                            ? getChainElementFilterSubquery(
-                                    root,
-                                    criteriaBuilder,
-                                    (elRoot) -> criteriaBuilder.equal(
-                                            getElementPropertyExpression(elRoot.get("properties"), criteriaBuilder, SYSTEM_ID),
-                                            value))
-                            : getChainElementPropertyExpression(root, criteriaBuilder, SYSTEM_ID),
-                    value);
+            case SERVICE_ID -> conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, SYSTEM_ID), value);
             case CLASSIFIER -> {
                 Function<Root<ChainElement>, Predicate> basePredicateFunc = (elRoot) -> criteriaBuilder.or(
                         buildAsyncOperationPredicate(root, elRoot, criteriaBuilder, conditionPredicateBuilder,
@@ -320,7 +312,7 @@ public class ChainFilterSpecificationBuilder {
                                         conditionPredicateBuilder.apply(getChainElementPropertyExpression(root, criteriaBuilder, MAAS_VHOST_CLASSIFIER_NAME_PROP), value)));
 
                 yield isNegativeElementFilter
-                        ? conditionPredicateBuilder.apply(getChainElementFilterSubquery(root, criteriaBuilder, basePredicateFunc), value)
+                        ? getNegativeFilterPredicate(root, criteriaBuilder, basePredicateFunc)
                         : basePredicateFunc.apply(null);
             }
             default -> throw new IllegalStateException("Unexpected filter feature: " + filter.getFeature());
@@ -328,7 +320,7 @@ public class ChainFilterSpecificationBuilder {
     }
 
     @NotNull
-    private Subquery<String> getChainElementFilterSubquery(
+    private Predicate getNegativeFilterPredicate(
             Root<Chain> root,
             CriteriaBuilder criteriaBuilder,
             Function<Root<ChainElement>, Predicate> basePredicateFunc
@@ -339,9 +331,8 @@ public class ChainFilterSpecificationBuilder {
                 .select(elRoot.get("chain").get("id"))
                 .where(criteriaBuilder.and(
                         basePredicateFunc.apply(elRoot),
-                        criteriaBuilder.isNotNull(elRoot.get("chain").get("id")),
-                        criteriaBuilder.notEqual(root.get("id"), elRoot.get("chain").get("id"))));
-        return negativeSubquery;
+                        criteriaBuilder.isNotNull(elRoot.get("chain").get("id"))));
+        return criteriaBuilder.not(root.get("id").in(negativeSubquery));
     }
 
     private Predicate buildPredicateForHttpTriggerMethod(
