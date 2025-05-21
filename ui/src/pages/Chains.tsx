@@ -86,7 +86,7 @@ function compareChainTableItemsByTypeAndName(
   }
 }
 
-function buildPathItems(path: Map<string, string>): BreadcrumbProps["items"] {
+export function buildPathItems(path: Map<string, string>): BreadcrumbProps["items"] {
   const entries = Object.entries(path).reverse();
   const items = entries.map(([key, value], index) => ({
     title: value,
