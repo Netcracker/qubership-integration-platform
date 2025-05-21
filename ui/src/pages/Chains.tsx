@@ -290,36 +290,18 @@ const Chains = () => {
           ) : (
             <FileOutlined />
           )}
-          <InlineEdit<{ name: string }>
-            values={{ name: item.name }}
-            editor={<TextValueEdit name={"name"} />}
-            viewer={
-              item.itemType === FolderItemType.FOLDER ? (
-                <a
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    navigate(`/chains?folder=${item.id}`);
-                  }}
-                >
-                  {item.name}
-                </a>
-              ) : (
-                <a
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    navigate(`/chains/${item.id}`);
-                  }}
-                >
-                  {item.name}
-                </a>
-              )
-            }
-            onSubmit={async ({ name }) => {
-              return item.itemType === FolderItemType.CHAIN
-                ? updateChain(item.id, { name })
-                : updateFolder(item.id, { name });
+          <a
+            onClick={(event) => {
+              event.stopPropagation();
+              navigate(
+                item.itemType === FolderItemType.FOLDER
+                  ? `/chains?folder=${item.id}`
+                  : `/chains/${item.id}`,
+              );
             }}
-          />
+          >
+            {item.name}
+          </a>
         </Flex>
       ),
     },
@@ -337,18 +319,6 @@ const Chains = () => {
       hidden: !selectedKeys.includes("description"),
       sorter: (a, b) => a.description.localeCompare(b.description),
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
-      render: (_, item) => (
-        <InlineEdit
-          values={{ description: item.description }}
-          editor={<TextValueEdit name={"description"} />}
-          viewer={item.description}
-          onSubmit={async ({ description }) => {
-            return item.itemType === FolderItemType.CHAIN
-              ? updateChain(item.id, { description })
-              : updateFolder(item.id, { description });
-          }}
-        />
-      ),
     },
     {
       title: "Business Description",
@@ -358,19 +328,6 @@ const Chains = () => {
       sorter: (a, b) =>
         a.businessDescription.localeCompare(b.businessDescription),
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
-      render: (_, item) =>
-        item.itemType === FolderItemType.CHAIN ? (
-          <InlineEdit
-            values={{ businessDescription: item.businessDescription }}
-            editor={<TextValueEdit name={"businessDescription"} />}
-            viewer={item.businessDescription}
-            onSubmit={async ({ businessDescription }) => {
-              return updateChain(item.id, { businessDescription });
-            }}
-          />
-        ) : (
-          item.businessDescription
-        ),
     },
     {
       title: "Assumptions",
@@ -379,19 +336,6 @@ const Chains = () => {
       hidden: !selectedKeys.includes("assumptions"),
       sorter: (a, b) => a.assumptions.localeCompare(b.assumptions),
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
-      render: (_, item) =>
-        item.itemType === FolderItemType.CHAIN ? (
-          <InlineEdit
-            values={{ assumptions: item.assumptions }}
-            editor={<TextValueEdit name={"assumptions"} />}
-            viewer={item.assumptions}
-            onSubmit={async ({ assumptions }) => {
-              return updateChain(item.id, { assumptions });
-            }}
-          />
-        ) : (
-          item.assumptions
-        ),
     },
     {
       title: "Out of Scope",
@@ -400,19 +344,6 @@ const Chains = () => {
       hidden: !selectedKeys.includes("outOfScope"),
       sorter: (a, b) => a.outOfScope.localeCompare(b.outOfScope),
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
-      render: (_, item) =>
-        item.itemType === FolderItemType.CHAIN ? (
-          <InlineEdit
-            values={{ outOfScope: item.outOfScope }}
-            editor={<TextValueEdit name={"outOfScope"} />}
-            viewer={item.outOfScope}
-            onSubmit={async ({ outOfScope }) => {
-              return updateChain(item.id, { outOfScope });
-            }}
-          />
-        ) : (
-          item.outOfScope
-        ),
     },
     {
       title: "Status",
@@ -427,21 +358,7 @@ const Chains = () => {
       filterDropdown: (props) => (
         <TextColumnFilterDropdown {...props} enableExact />
       ),
-      render: (_, item) => (
-        <InlineEdit<{ labels: string[] }>
-          values={{
-            labels: item.labels?.filter((l) => !l.technical).map((l) => l.name),
-          }}
-          editor={<LabelsEdit name={"labels"} />}
-          viewer={<EntityLabels labels={item.labels} />}
-          onSubmit={async ({ labels }) => {
-            const l = labels.map((name) => ({ name, technical: false }));
-            return item.itemType === FolderItemType.CHAIN
-              ? updateChain(item.id, { labels: l })
-              : updateFolder(item.id, { labels: l });
-          }}
-        />
-      ),
+      render: (_, item) => <EntityLabels labels={item.labels} />,
     },
     {
       title: "Created By",
