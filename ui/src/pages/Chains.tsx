@@ -4,9 +4,11 @@ import {
   Dropdown,
   Flex,
   FloatButton,
-  MenuProps, message,
+  MenuProps,
+  message,
+  Modal,
   notification,
-  Table
+  Table,
 } from "antd";
 import { useNavigate, useSearchParams } from "react-router";
 import {
@@ -45,6 +47,7 @@ import { DeploymentsCumulativeState } from "../components/deployment_runtime_sta
 import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
 import { ChainCreate } from "../components/modal/ChainCreate.tsx";
 import { copyToClipboard } from "../misc/clipboard-util.ts";
+import { traverseElementsDepthFirst } from "../misc/tree-utils.ts";
 
 type ChainTableItem = FolderItem & {
   children?: ChainTableItem[];
@@ -257,6 +260,27 @@ const Chains = () => {
     }
   };
 
+  const deleteFolder = async (folderId: string) => {
+    setIsLoading(true);
+    try {
+      await api.deleteFolder(folderId);
+      const ids = new Set<string>([folderId]);
+      traverseElementsDepthFirst(tableItems, (element, path) => {
+        if (path.some((i) => i.id === folderId)) {
+          ids.add(element.id);
+        }
+      });
+      setFolderItems(folderItems.filter((i) => !ids.has(i.id)));
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to delete folder",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const createChain = async (
     request: ChainCreationRequest,
     openChain: boolean,
@@ -282,6 +306,40 @@ const Chains = () => {
       notification.error({
         message: "Request failed",
         description: "Failed to create chain",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteChain = async (chainId: string) => {
+    setIsLoading(true);
+    try {
+      await api.deleteChain(chainId);
+      setFolderItems(folderItems.filter((item) => item.id !== chainId));
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to delete chain",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const duplicateChain = async (chainId: string) => {
+    setIsLoading(true);
+    try {
+      const chain = await api.duplicateChain(chainId);
+      setFolderItems([
+        ...folderItems,
+        // @ts-ignore
+        { itemType: FolderItemType.CHAIN, ...chain } as FolderItem,
+      ]);
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to delete chain",
       });
     } finally {
       setIsLoading(false);
@@ -357,6 +415,22 @@ const Chains = () => {
         ).then(() => {
           messageApi.info("Link to a chain was copied to the clipboard");
         });
+      case "deleteFolder":
+        return Modal.confirm({
+          title: "Delete Folder",
+          content: `Are you sure you want to delete "${item.name}" folder?`,
+          onOk: async () => deleteFolder(item.id),
+        });
+      case "deleteChain":
+        return Modal.confirm({
+          title: "Delete Chain",
+          content: `Are you sure you want to delete "${item.name}" chain?`,
+          onOk: async () => deleteChain(item.id),
+        });
+      case "duplicateChain":
+        return duplicateChain(item.id);
+      default:
+        return Modal.error({ title: "Not implemented yet" });
     }
   };
 
@@ -388,7 +462,7 @@ const Chains = () => {
     { type: "divider" },
     { label: "Cut", key: "cut" },
     { label: "Copy", key: "copy" },
-    { label: "Duplicate", key: "duplicate" },
+    { label: "Duplicate", key: "duplicateChain" },
     { label: "Delete", key: "deleteChain" },
   ];
 
@@ -480,7 +554,11 @@ const Chains = () => {
       key: "status",
       hidden: !selectedKeys.includes("status"),
       render: (_, item) => (
-        <DeploymentsCumulativeState deployments={item.deployments} />
+        <>
+          {item.itemType === FolderItemType.FOLDER ? null : (
+            <DeploymentsCumulativeState chainId={item.id} />
+          )}
+        </>
       ),
     },
     {

@@ -87,6 +87,15 @@ export class RestApi implements Api {
     );
   };
 
+  duplicateChain = async (chainId: string): Promise<Chain> => {
+    try {
+      const response = await this.instance.post<Chain>(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/duplicate`);
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  }
+
   getLibrary = async (): Promise<LibraryData> => {
     try {
       const response = await this.instance.get<LibraryData>(
@@ -647,4 +656,15 @@ export class RestApi implements Api {
       throw err;
     }
   };
+
+  deleteFolder = async (folderId: string): Promise<void> => {
+    try {
+      await this.instance.delete<Chain>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
+      );
+    } catch (err) {
+      throw err;
+    }
+
+  }
 }

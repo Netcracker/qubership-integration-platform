@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Deployment } from "../../api/apiTypes.ts";
-import { Badge, BadgeProps } from "antd";
+import { Badge, BadgeProps, Spin } from "antd";
+import { api } from "../../api/api.ts";
+import { capitalize } from "../../misc/format-utils.ts";
 
 type DeploymentsCumulativeStateProps = {
-  deployments: Deployment[];
+  chainId: string;
 };
 
 function getDeploymentsStatus(deployments: Deployment[]): string {
@@ -26,14 +28,48 @@ function getDeploymentsStatus(deployments: Deployment[]): string {
   }
 }
 
+function getDeploymentBadgeStatus(status: string): BadgeProps["status"] {
+  switch (status) {
+    case "DRAFT":
+      return "default";
+    case "PROCESSING":
+      return "processing";
+    case "FAILED":
+      return "error";
+    case "DEPLOYED":
+      return "success";
+    case "WARNING":
+      return "warning";
+    default:
+      return "default";
+  }
+}
+
 export const DeploymentsCumulativeState: React.FC<
   DeploymentsCumulativeStateProps
-> = ({ deployments }) => {
+> = ({ chainId }) => {
+  const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<string>("DRAFT");
-  const [color, setColor] = useState<BadgeProps["color"]>("green");
+  const [badgeStatus, setBadgeStatus] = useState<BadgeProps["status"]>("default");
 
   useEffect(() => {
-    setStatus(getDeploymentsStatus(deployments));
-  }, [deployments]);
-  return <Badge color={color} text={status} />;
+    getDeployments().then((d) => {
+      setDeployments(d);
+      const cumulativeStatus = getDeploymentsStatus(deployments);
+      setStatus(cumulativeStatus);
+      setBadgeStatus(getDeploymentBadgeStatus(cumulativeStatus));
+    });
+  }, [chainId]);
+
+    const getDeployments = async () => {
+    setIsLoading(true);
+    try {
+      return api.getDeployments(chainId);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return isLoading ? <Spin /> : <Badge status={badgeStatus} text={capitalize(status)} />;
 };

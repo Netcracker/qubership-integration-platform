@@ -37,6 +37,8 @@ export interface Api {
 
   deleteChain(chainId: string): Promise<void>;
 
+  duplicateChain(chainId: string): Promise<Chain>;
+
   getLibrary(): Promise<LibraryData>;
 
   getElements(chainId: string): Promise<Element[]>;
@@ -154,6 +156,8 @@ export interface Api {
     folderId: string,
     changes: FolderUpdateRequest,
   ): Promise<FolderResponse>;
+
+  deleteFolder(folderId: string): Promise<void>;
 }
 
 export const api: Api = new RestApi();

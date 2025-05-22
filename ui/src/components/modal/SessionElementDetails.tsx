@@ -12,6 +12,7 @@ import {
 } from "../sessions/SessionElementKVChanges.tsx";
 import { copyToClipboard } from "../../misc/clipboard-util.ts";
 import { SessionElementBodyChangesView } from "../sessions/SessionElementBodyChangesView.tsx";
+import { traverseElementsDepthFirst } from "../../misc/tree-utils.ts";
 
 type SessionElementDetailsProps = {
   session: Session;
@@ -26,16 +27,6 @@ type SessionElementOrderMap = Map<
     next: SessionElement | undefined;
   }
 >;
-
-function traverseElementsDepthFirst(
-  elements: SessionElement[] | undefined,
-  fn: (element: SessionElement) => void,
-): void {
-  for (const element of elements ?? []) {
-    fn(element);
-    traverseElementsDepthFirst(element.children, fn);
-  }
-}
 
 function buildElementOrderMap(
   elements: SessionElement[] | undefined,
