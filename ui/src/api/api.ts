@@ -19,7 +19,10 @@ import {
   PaginationOptions,
   SessionSearchResponse,
   Session,
-  CheckpointSession, FolderItem, FolderResponse
+  CheckpointSession,
+  FolderItem,
+  FolderResponse,
+  FolderUpdateRequest,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -145,7 +148,12 @@ export interface Api {
 
   getFolder(folderId: string): Promise<FolderResponse>;
 
-  updateFolder(folderId: string, changes: Partial<FolderItem>): Promise<FolderResponse>;
+  createFolder(request: FolderUpdateRequest): Promise<FolderResponse>;
+
+  updateFolder(
+    folderId: string,
+    changes: FolderUpdateRequest,
+  ): Promise<FolderResponse>;
 }
 
 export const api: Api = new RestApi();

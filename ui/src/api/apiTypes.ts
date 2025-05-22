@@ -26,7 +26,13 @@ export type FolderItem = BaseEntity & {
 export enum FolderItemType {
   FOLDER = "FOLDER",
   CHAIN = "CHAIN",
-};
+}
+
+export type FolderUpdateRequest = {
+  name: string;
+  description: string;
+  parentId?: string;
+}
 
 export type FolderResponse = BaseEntity & {
   navigationPath: Map<string, string>; // Need to be a Map to preserve key order
@@ -81,7 +87,12 @@ export type Connection = {
 
 export type ChainCreationRequest = {
   name: string;
-  labels: string[];
+  labels?: EntityLabel[];
+  description?: string;
+  businessDescription?: string;
+  assumptions?: string;
+  outOfScope?: string;
+  parentId?: string;
 };
 
 export type LibraryData = {

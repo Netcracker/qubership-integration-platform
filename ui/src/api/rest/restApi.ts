@@ -21,7 +21,10 @@ import {
   PaginationOptions,
   SessionSearchResponse,
   Session,
-  CheckpointSession, FolderItem, FolderResponse
+  CheckpointSession,
+  FolderItem,
+  FolderResponse,
+  FolderUpdateRequest,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -580,40 +583,60 @@ export class RestApi implements Api {
     }
   };
 
-  retrySessionFromLastCheckpoint = async (chainId: string, sessionId: string): Promise<void> => {
+  retrySessionFromLastCheckpoint = async (
+    chainId: string,
+    sessionId: string,
+  ): Promise<void> => {
     try {
       return this.instance.post(
         `/api/v1/${import.meta.env.VITE_API_APP}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
-        null
+        null,
       );
     } catch (err) {
       throw err;
     }
-  }
+  };
 
   getRootFolder = async (): Promise<FolderItem[]> => {
     try {
       const response = await this.instance.get(
-        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders`
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders`,
       );
       return response.data;
     } catch (err) {
       throw err;
     }
-  }
+  };
 
   getFolder = async (folderId: string): Promise<FolderResponse> => {
     try {
       const response = await this.instance.get(
-        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
       );
       return response.data;
     } catch (err) {
       throw err;
     }
-  }
+  };
 
-  updateFolder = async (folderId: string, changes: Partial<FolderItem>): Promise<FolderResponse> => {
+  createFolder = async (
+    request: FolderUpdateRequest,
+  ): Promise<FolderResponse> => {
+    try {
+      const response = await this.instance.post<FolderResponse>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders`,
+        request,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  updateFolder = async (
+    folderId: string,
+    changes: FolderUpdateRequest,
+  ): Promise<FolderResponse> => {
     try {
       const response = await this.instance.put<FolderResponse>(
         `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
@@ -623,5 +646,5 @@ export class RestApi implements Api {
     } catch (err) {
       throw err;
     }
-  }
+  };
 }

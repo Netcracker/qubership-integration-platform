@@ -24,7 +24,12 @@ import {
   SettingOutlined,
 } from "@ant-design/icons";
 import { useModalsContext } from "../Modals.tsx";
-import { Chain, FolderItem, FolderItemType } from "../api/apiTypes.ts";
+import {
+  ChainCreationRequest,
+  FolderItem,
+  FolderItemType,
+  FolderUpdateRequest,
+} from "../api/apiTypes.ts";
 import React, { useEffect, useState } from "react";
 import { api } from "../api/api.ts";
 import { TableProps } from "antd/lib/table";
@@ -36,6 +41,9 @@ import { TableRowSelection } from "antd/lib/table/interface";
 import Search from "antd/lib/input/Search";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
+import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
+import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
+import { ChainCreate } from "../components/modal/ChainCreate.tsx";
 
 type ChainTableItem = FolderItem & {
   children?: ChainTableItem[];
@@ -86,7 +94,9 @@ function compareChainTableItemsByTypeAndName(
   }
 }
 
-export function buildPathItems(path: Map<string, string>): BreadcrumbProps["items"] {
+export function buildPathItems(
+  path: Map<string, string>,
+): BreadcrumbProps["items"] {
   const entries = Object.entries(path).reverse();
   const items = entries.map(([key, value], index) => ({
     title: value,
@@ -121,7 +131,7 @@ const Chains = () => {
   ]);
 
   useEffect(() => {
-    const folderId = searchParams.get("folder");
+    const folderId = getFolderId();
     const itemsPromise = folderId
       ? getFolder(folderId).then((response) => {
           setPathItems(buildPathItems(response?.navigationPath ?? new Map()));
@@ -141,6 +151,10 @@ const Chains = () => {
   useEffect(() => {
     setTableItems(buildTableItems(folderItems));
   }, [folderItems]);
+
+  const getFolderId = (): string | undefined => {
+    return searchParams.get("folder") ?? undefined;
+  };
 
   const getRootFolderItems = async (): Promise<FolderItem[]> => {
     setIsLoading(true);
@@ -188,9 +202,40 @@ const Chains = () => {
     });
   };
 
+  const createFolder = async (
+    request: FolderUpdateRequest,
+    openFolder: boolean,
+    newTab: boolean,
+  ) => {
+    setIsLoading(true);
+    try {
+      const response = await api.createFolder(request);
+      setFolderItems([
+        ...folderItems,
+        // @ts-ignore
+        { ...(response as FolderItem), itemType: FolderItemType.FOLDER },
+      ]);
+      if (openFolder) {
+        const path = `/chains?folder=${response.id}`;
+        if (newTab) {
+          window.open(path, "_blank", "noreferrer");
+        } else {
+          navigate(path);
+        }
+      }
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to create folder",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const updateFolder = async (
     folderId: string,
-    changes: Partial<FolderItem>,
+    changes: FolderUpdateRequest,
   ) => {
     setIsLoading(true);
     try {
@@ -210,6 +255,97 @@ const Chains = () => {
     }
   };
 
+  const createChain = async (
+    request: ChainCreationRequest,
+    openChain: boolean,
+    newTab: boolean,
+  ) => {
+    setIsLoading(true);
+    try {
+      const chain = await api.createChain(request);
+      setFolderItems([
+        ...folderItems,
+        // @ts-ignore
+        { itemType: FolderItemType.CHAIN, ...chain } as FolderItem,
+      ]);
+      if (openChain) {
+        const path = `/chains/${chain.id}`;
+        if (newTab) {
+          window.open(path, "_blank", "noreferrer");
+        } else {
+          navigate(path);
+        }
+      }
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to create chain",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const showEditFolderModal = (
+    mode: FolderEditMode,
+    name?: string,
+    description?: string,
+    parentOrItemId?: string,
+  ) => {
+    showModal({
+      component: (
+        <FolderEdit
+          mode={mode}
+          name={name}
+          description={description}
+          onSubmit={(name, description, openFolder, newTab) => {
+            return mode === "create"
+              ? createFolder(
+                  { name, description, parentId: parentOrItemId },
+                  openFolder,
+                  newTab,
+                )
+              : updateFolder(parentOrItemId ?? "", { name, description });
+          }}
+        />
+      ),
+    });
+  };
+
+  const onCreateFolderBtnClick = async (parentId?: string) => {
+    showEditFolderModal("create", undefined, undefined, parentId);
+  };
+
+  const onCreateChainBtnClick = async (parentId?: string) => {
+    showModal({
+      component: (
+        <ChainCreate
+          onSubmit={(request, openChain, newTab) => {
+            return createChain({ ...request, parentId }, openChain, newTab);
+          }}
+        />
+      ),
+    });
+  };
+
+  const onContextMenuItemClick = async (item: FolderItem, key: React.Key) => {
+    switch (key) {
+      case "createNewFolder":
+        return showEditFolderModal("create", undefined, undefined, item.id);
+      case "createNewChain":
+        return onCreateChainBtnClick(item.id);
+      case "editFolder":
+        return showEditFolderModal(
+          "update",
+          item.name,
+          item.description,
+          item.id,
+        );
+      case "editChain":
+        return navigate(`/chains/${item.id}`);
+    }
+  };
+
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
   };
@@ -221,23 +357,25 @@ const Chains = () => {
     { label: "Expand All", key: "expandAll" },
     { label: "Collapse All", key: "collapseAll" },
     { type: "divider" },
-    { label: "Copy Link", key: "copyLink" },
+    { label: "Copy Link", key: "copyFolderLink" },
+    { label: "Edit", key: "editFolder" },
     { label: "Export", key: "export" },
     { type: "divider" },
     { label: "Cut", key: "cut" },
     { label: "Paste", key: "paste" },
-    { label: "Delete", key: "delete" },
+    { label: "Delete", key: "deleteFolder" },
   ];
 
   const chainMenuItems: MenuProps["items"] = [
-    { label: "Copy Link", key: "copyLink" },
+    { label: "Copy Link", key: "copyChainLink" },
+    { label: "Edit", key: "editChain" },
     { label: "Export", key: "export" },
     { label: "Generate DDS", key: "generateDDS" },
     { type: "divider" },
     { label: "Cut", key: "cut" },
     { label: "Copy", key: "copy" },
     { label: "Duplicate", key: "duplicate" },
-    { label: "Delete", key: "delete" },
+    { label: "Delete", key: "deleteChain" },
   ];
 
   const columnVisibilityMenuItems: MenuProps["items"] = [
@@ -327,6 +465,9 @@ const Chains = () => {
       title: "Status",
       key: "status",
       hidden: !selectedKeys.includes("status"),
+      render: (_, item) => (
+        <DeploymentsCumulativeState deployments={item.deployments} />
+      ),
     },
     {
       title: "Labels",
@@ -397,6 +538,7 @@ const Chains = () => {
                 item.itemType === FolderItemType.FOLDER
                   ? folderMenuItems
                   : chainMenuItems,
+              onClick: ({ key }) => onContextMenuItemClick(item, key),
             }}
             trigger={["click"]}
             placement="bottomRight"
@@ -492,12 +634,12 @@ const Chains = () => {
         <FloatButton
           tooltip="Create folder"
           icon={<FolderAddOutlined />}
-          // onClick={onCreateChainBtnClick}
+          onClick={() => onCreateFolderBtnClick(getFolderId())}
         />
         <FloatButton
           tooltip="Create chain"
           icon={<FileAddOutlined />}
-          // onClick={onCreateFolderBtnClick}
+          onClick={() => onCreateChainBtnClick(getFolderId())}
         />
       </FloatButtonGroup>
     </Flex>
