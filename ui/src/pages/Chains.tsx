@@ -4,9 +4,9 @@ import {
   Dropdown,
   Flex,
   FloatButton,
-  MenuProps,
+  MenuProps, message,
   notification,
-  Table,
+  Table
 } from "antd";
 import { useNavigate, useSearchParams } from "react-router";
 import {
@@ -44,6 +44,7 @@ import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
 import { ChainCreate } from "../components/modal/ChainCreate.tsx";
+import { copyToClipboard } from "../misc/clipboard-util.ts";
 
 type ChainTableItem = FolderItem & {
   children?: ChainTableItem[];
@@ -114,6 +115,7 @@ export function buildPathItems(
 const Chains = () => {
   const navigate = useNavigate();
   const { showModal } = useModalsContext();
+  const [messageApi, contextHolder] = message.useMessage();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [folderItems, setFolderItems] = useState<FolderItem[]>([]);
   const [tableItems, setTableItems] = useState<ChainTableItem[]>([]);
@@ -343,6 +345,18 @@ const Chains = () => {
         );
       case "editChain":
         return navigate(`/chains/${item.id}`);
+      case "copyFolderLink":
+        return copyToClipboard(
+          `${window.location.origin}/chains?folder=${item.id}`,
+        ).then(() => {
+          messageApi.info("Link to a folder was copied to the clipboard");
+        });
+      case "copyChainLink":
+        return copyToClipboard(
+          `${window.location.origin}/chains/${item.id}`,
+        ).then(() => {
+          messageApi.info("Link to a chain was copied to the clipboard");
+        });
     }
   };
 
@@ -558,91 +572,94 @@ const Chains = () => {
   };
 
   return (
-    <Flex vertical gap={16} style={{ height: "100%" }}>
-      {pathItems && pathItems.length > 0 ? (
-        <Breadcrumb items={pathItems} />
-      ) : null}
-      <Flex vertical={false} gap={8}>
-        <Search
-          placeholder="Full text search"
-          allowClear
-          // onSearch={(value) => setFilters({ ...filters, searchString: value })}
-        />
-        <Dropdown
-          menu={{
-            items: columnVisibilityMenuItems,
-            selectable: true,
-            multiple: true,
-            selectedKeys,
-            onSelect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
-            onDeselect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
+    <>
+      {contextHolder}
+      <Flex vertical gap={16} style={{ height: "100%" }}>
+        {pathItems && pathItems.length > 0 ? (
+          <Breadcrumb items={pathItems} />
+        ) : null}
+        <Flex vertical={false} gap={8}>
+          <Search
+            placeholder="Full text search"
+            allowClear
+            // onSearch={(value) => setFilters({ ...filters, searchString: value })}
+          />
+          <Dropdown
+            menu={{
+              items: columnVisibilityMenuItems,
+              selectable: true,
+              multiple: true,
+              selectedKeys,
+              onSelect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
+              onDeselect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
+            }}
+          >
+            <Button icon={<SettingOutlined />} />
+          </Dropdown>
+        </Flex>
+        <Table<ChainTableItem>
+          className="flex-table"
+          size="small"
+          dataSource={tableItems}
+          columns={columns}
+          rowSelection={rowSelection}
+          pagination={false}
+          scroll={{ y: "" }}
+          rowKey="id"
+          rowClassName="clickable-row"
+          loading={isLoading}
+          expandable={{
+            onExpand: async (expanded, item) => {
+              if (expanded && !loadedFolders.has(item.id)) {
+                return openFolder(item.id);
+              }
+            },
           }}
-        >
-          <Button icon={<SettingOutlined />} />
-        </Dropdown>
+        />
+        <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+          <FloatButton
+            tooltip="Deploy selected chains"
+            icon={<SendOutlined />}
+            // onClick={onDeployBtnClick}
+          />
+          <FloatButton
+            tooltip="Paste"
+            icon={<CarryOutOutlined />}
+            // onClick={onPasteBtnClick}
+          />
+          <FloatButton
+            tooltip="Compare selected chains"
+            icon={<>⇄</>}
+            // onClick={onCompareBtnClick}
+          />
+          <FloatButton
+            tooltip="Import chains"
+            icon={<ImportOutlined />}
+            // onClick={onImportBtnClick}
+          />
+          <FloatButton
+            tooltip="Export selected chains"
+            icon={<ExportOutlined />}
+            // onClick={onExportBtnClick}
+          />
+          <FloatButton
+            tooltip="Delete selected chains and folders"
+            icon={<DeleteOutlined />}
+            // onClick={onDeleteBtnClick}
+          />
+          <FloatButton
+            tooltip="Create folder"
+            icon={<FolderAddOutlined />}
+            onClick={() => onCreateFolderBtnClick(getFolderId())}
+          />
+          <FloatButton
+            tooltip="Create chain"
+            icon={<FileAddOutlined />}
+            onClick={() => onCreateChainBtnClick(getFolderId())}
+          />
+        </FloatButtonGroup>
       </Flex>
-      <Table<ChainTableItem>
-        className="flex-table"
-        size="small"
-        dataSource={tableItems}
-        columns={columns}
-        rowSelection={rowSelection}
-        pagination={false}
-        scroll={{ y: "" }}
-        rowKey="id"
-        rowClassName="clickable-row"
-        loading={isLoading}
-        expandable={{
-          onExpand: async (expanded, item) => {
-            if (expanded && !loadedFolders.has(item.id)) {
-              return openFolder(item.id);
-            }
-          },
-        }}
-      />
-      <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
-        <FloatButton
-          tooltip="Deploy selected chains"
-          icon={<SendOutlined />}
-          // onClick={onDeployBtnClick}
-        />
-        <FloatButton
-          tooltip="Paste"
-          icon={<CarryOutOutlined />}
-          // onClick={onPasteBtnClick}
-        />
-        <FloatButton
-          tooltip="Compare selected chains"
-          icon={<>⇄</>}
-          // onClick={onCompareBtnClick}
-        />
-        <FloatButton
-          tooltip="Import chains"
-          icon={<ImportOutlined />}
-          // onClick={onImportBtnClick}
-        />
-        <FloatButton
-          tooltip="Export selected chains"
-          icon={<ExportOutlined />}
-          // onClick={onExportBtnClick}
-        />
-        <FloatButton
-          tooltip="Delete selected chains and folders"
-          icon={<DeleteOutlined />}
-          // onClick={onDeleteBtnClick}
-        />
-        <FloatButton
-          tooltip="Create folder"
-          icon={<FolderAddOutlined />}
-          onClick={() => onCreateFolderBtnClick(getFolderId())}
-        />
-        <FloatButton
-          tooltip="Create chain"
-          icon={<FileAddOutlined />}
-          onClick={() => onCreateChainBtnClick(getFolderId())}
-        />
-      </FloatButtonGroup>
-    </Flex>
+    </>
   );
 };
 
