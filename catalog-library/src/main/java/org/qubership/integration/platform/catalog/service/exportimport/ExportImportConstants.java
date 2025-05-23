@@ -68,6 +68,8 @@ public class ExportImportConstants {
     public static final String DIFFERENT_PROTOCOL_ERROR_MESSAGE = "Protocol of provided specification doesn't match with a system protocol";
     public static final String INVALID_INPUT_FILE_ERROR_MESSAGE = "Input file is invalid";
     public static final String NO_SPECIFICATION_SOURCE_ERROR_MESSAGE = "Can't find specification source";
+    public static final String NO_MAIN_SOURCE_ERROR_MESSAGE = "Can't find Main specification source";
+    public static final String MULTIPLE_MAIN_SOURCES_ERROR_MESSAGE = "Multiple Main specification sources found";
     public static final String FILE_CREATION_ERROR_MESSAGE = "Unknown exception during file creation: ";
     public static final String DDL_SCRIPT_FILE_NAME = "ddlScriptFileName";
     public static final String ARCH_PARENT_DIR = "services";

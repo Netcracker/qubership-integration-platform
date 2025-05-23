@@ -25,7 +25,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.qubership.integration.platform.catalog.context.RequestIdContext;
-import org.qubership.integration.platform.catalog.exception.*;
+import org.qubership.integration.platform.catalog.exception.CatalogRuntimeException;
+import org.qubership.integration.platform.catalog.exception.SpecificationImportException;
+import org.qubership.integration.platform.catalog.exception.SpecificationImportWarningException;
+import org.qubership.integration.platform.catalog.exception.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.ConfigParameter;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
@@ -37,6 +40,7 @@ import org.qubership.integration.platform.catalog.service.ConfigParameterService
 import org.qubership.integration.platform.catalog.service.SystemBaseService;
 import org.qubership.integration.platform.catalog.service.SystemModelBaseService;
 import org.qubership.integration.platform.catalog.service.parsers.OperationParserService;
+import org.qubership.integration.platform.catalog.service.resolvers.wsdl.WsdlRootFileParser;
 import org.qubership.integration.platform.catalog.util.MultipartFileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -73,6 +77,7 @@ public class SpecificationImportService {
     private final ObjectMapper objectMapper;
     private final SystemBaseService systemBaseService;
     private final SystemModelBaseService systemModelService;
+    private final WsdlRootFileParser wsdlRootFileParser;
 
     @Autowired
     public SpecificationImportService(OperationParserService operationParserService,
@@ -82,7 +87,8 @@ public class SpecificationImportService {
                                       ProtocolExtractionService protocolExtractionService,
                                       @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
                                       SystemBaseService systemBaseService,
-                                      SystemModelBaseService systemModelService
+                                      SystemModelBaseService systemModelService,
+                                      WsdlRootFileParser wsdlRootFileParser
     ) {
         this.operationParserService = operationParserService;
         this.specificationGroupRepository = specificationGroupRepository;
@@ -92,6 +98,7 @@ public class SpecificationImportService {
         this.objectMapper = objectMapper;
         this.systemBaseService = systemBaseService;
         this.systemModelService = systemModelService;
+        this.wsdlRootFileParser = wsdlRootFileParser;
     }
 
     @AllArgsConstructor
@@ -221,14 +228,29 @@ public class SpecificationImportService {
         }
     }
 
-    private boolean isMainSpecificationSource(OperationProtocol protocol, MultipartFile file) {
-        return (OperationProtocol.SOAP.equals(protocol) && WSDL_EXTENSION_PATTERN.matcher(file.getOriginalFilename()).matches())
+    private boolean isMainSpecificationSource(OperationProtocol protocol, MultipartFile file) throws IOException {
+        return (OperationProtocol.SOAP.equals(protocol)
+                && WSDL_EXTENSION_PATTERN.matcher(String.valueOf(file.getOriginalFilename())).matches()
+                && isMainSource(file.getBytes())
+        )
                 || (List.of(
                 OperationProtocol.HTTP,
                 OperationProtocol.AMQP,
                 OperationProtocol.GRAPHQL,
                 OperationProtocol.KAFKA
         ).contains(protocol));
+    }
+
+    /**
+     * Checks whether the given WSDL content represents a main source by verifying the presence
+     * of both {@literal <binding>} and {@literal <service>} elements.
+     *
+     * @param content the byte array of the WSDL file content
+     * @return true if both binding and service tags are found; false otherwise
+     */
+    private boolean isMainSource(byte[] content) {
+        String wsdlString = new String(content);
+        return wsdlRootFileParser.checkRootFile(wsdlString);
     }
 
     private List<SpecificationSource> getSpecificationSources(
@@ -247,8 +269,11 @@ public class SpecificationImportService {
                 throw new SpecificationImportException(ExportImportConstants.INVALID_INPUT_FILE_ERROR_MESSAGE, exception);
             }
         }).collect(Collectors.toList());
-        boolean mainSourceIsNotSpecified = specificationSources.stream().noneMatch(SpecificationSource::isMainSource);
-        if (!specificationSources.isEmpty() && mainSourceIsNotSpecified) {
+        long mainSourceCount = specificationSources.stream().filter(SpecificationSource::isMainSource).count();
+        if (mainSourceCount > 1) {
+            log.error(ExportImportConstants.MULTIPLE_MAIN_SOURCES_ERROR_MESSAGE);
+        } else if (mainSourceCount == 0) {
+            log.error(ExportImportConstants.NO_MAIN_SOURCE_ERROR_MESSAGE);
             specificationSources.get(0).setMainSource(true);
         }
         specificationSourceRepository.saveAll(specificationSources);

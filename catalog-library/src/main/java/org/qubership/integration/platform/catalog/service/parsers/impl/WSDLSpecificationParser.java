@@ -60,7 +60,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -139,9 +138,23 @@ public class WSDLSpecificationParser implements SpecificationParser {
     ) throws SpecificationImportException {
         SpecificationSource mainSource = getMainSource(sources);
         WsdlVersion wsdlVersion = wsdlVersionParser.getWSDLVersion(mainSource.getSource());
-        return getOperationListBuilder(wsdlVersion).apply(specificationGroup, sources);
+        if (WsdlVersion.WSDL_2.equals(wsdlVersion)) {
+            return extractOperationsFromWsdlV2(specificationGroup, sources, mainSource);
+        } else {
+            return extractOperationsFromWsdlV1(specificationGroup, sources, mainSource);
+        }
     }
 
+    /**
+     * Retrieves the main WSDL specification source from the provided collection.
+     * <p>
+     * This method filters the collection for sources explicitly marked as the main source
+     * using {@code isMainSource()}. If no such source is found, an exception is thrown.
+     *
+     * @param sources the collection of WSDL specification sources to evaluate
+     * @return the main {@link SpecificationSource} marked as primary
+     * @throws SpecificationImportException if no main source could be determined
+     */
     private SpecificationSource getMainSource(Collection<SpecificationSource> sources) {
         return sources.stream()
                 .filter(SpecificationSource::isMainSource)
@@ -149,13 +162,10 @@ public class WSDLSpecificationParser implements SpecificationParser {
                 .orElseThrow(() -> new SpecificationImportException("Couldn't determine main specification source"));
     }
 
-    private BiFunction<SpecificationGroup, Collection<SpecificationSource>, List<Operation>> getOperationListBuilder(WsdlVersion version) {
-        return WsdlVersion.WSDL_2.equals(version) ? this::extractOperationsFromWsdlV2 : this::extractOperationsFromWsdlV1;
-    }
-
     private List<Operation> extractOperationsFromWsdlV2(
             SpecificationGroup specificationGroup,
-            Collection<SpecificationSource> sources
+            Collection<SpecificationSource> sources,
+            SpecificationSource mainSource
     ) {
         try {
             Map<SpecificationSource, String> sourceFileMap = sources.stream().collect(Collectors.toMap(
@@ -182,7 +192,6 @@ public class WSDLSpecificationParser implements SpecificationParser {
                             return null;
                         }
                     }).orElse(simpleURIResolver.resolveURI(uri)));
-            SpecificationSource mainSource = getMainSource(sources);
             DescriptionElement descElem = (DescriptionElement) reader.readWSDL(sourceFileMap.get(mainSource));
             Description description = descElem.toComponent();
             setUpWoodenEnvironment(specificationGroup, description);
@@ -197,11 +206,10 @@ public class WSDLSpecificationParser implements SpecificationParser {
 
     private List<Operation> extractOperationsFromWsdlV1(
             SpecificationGroup specificationGroup,
-            Collection<SpecificationSource> sources
+            Collection<SpecificationSource> sources,
+            SpecificationSource mainSource
     ) {
         try {
-            SpecificationSource mainSource = getMainSource(sources);
-
             WSDLParser parser = new WSDLParser();
             parser.setResourceResolver(buildResourceResolver(sources));
 
