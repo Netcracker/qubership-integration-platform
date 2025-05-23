@@ -81,10 +81,10 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
           }
         }}
       >
-        <Form.Item name="name" label="name" rules={[{ required: true }]}>
+        <Form.Item name="name" label="Name" rules={[{ required: true, message: "Name is required" }]}>
           <Input />
         </Form.Item>
-        <Form.Item name="description" label="description">
+        <Form.Item name="Description" label="description">
           <TextArea style={{ height: 120, resize: "none" }} />
         </Form.Item>
         {mode === "create" ? (

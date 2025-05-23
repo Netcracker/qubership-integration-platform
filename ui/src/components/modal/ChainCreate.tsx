@@ -87,7 +87,7 @@ export const ChainCreate: React.FC<ChainCreateProps> = ({ onSubmit }) => {
                   <Form.Item
                     label="Name"
                     name="name"
-                    rules={[{ required: true }]}
+                    rules={[{ required: true, message: "Name is required" }]}
                   >
                     <Input />
                   </Form.Item>
