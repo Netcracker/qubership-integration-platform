@@ -9,7 +9,7 @@ import { copyToClipboard } from "../../misc/clipboard-util.ts";
 
 type ErrorDetailsProps = {
   service: string;
-  timestamp: number;
+  timestamp: number | string;
   message: string;
   stacktrace: string;
 };

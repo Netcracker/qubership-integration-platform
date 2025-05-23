@@ -1,11 +1,12 @@
 import { api } from "../api/api.ts";
 import { Snapshot } from "../api/apiTypes.ts";
 import { useEffect, useState } from "react";
-import { notification } from "antd";
+import { useNotificationService } from "./useNotificationService.tsx";
 
 export const useSnapshots = (chainId?: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [snapshots, setSnapshots] = useState<Snapshot[]>();
+  const notificationService = useNotificationService();
 
   useEffect(() => {
     if (!chainId) return;
@@ -18,10 +19,7 @@ export const useSnapshots = (chainId?: string) => {
       const data = await api.getSnapshots(chainId);
       setSnapshots(data);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to load snapshots",
-      });
+      notificationService.requestFailed("Failed to load snapshots", error);
     } finally {
       setIsLoading(false);
     }

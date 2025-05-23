@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, FloatButton, Modal, notification, Table, Tooltip } from "antd";
+import { Button, FloatButton, Modal, Table, Tooltip } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import {
@@ -33,12 +33,14 @@ import { InlineEdit } from "../components/InlineEdit.tsx";
 import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
 import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
 import { LongActionButton } from "../components/LongActionButton.tsx";
+import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
   const { isLoading, snapshots, setSnapshots } = useSnapshots(chainId);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const { showModal } = useModalsContext();
+  const notificationService = useNotificationService();
 
   const onCreateBtnClick = async () => {
     if (!chainId) return;
@@ -67,10 +69,7 @@ export const Snapshots: React.FC = () => {
       await api.deleteSnapshot(snapshot.id);
       setSnapshots(snapshots?.filter((s) => s.id !== snapshot.id) ?? []);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to delete snapshot",
-      });
+      notificationService.requestFailed("Failed to delete snapshot", error);
     }
   };
 
@@ -84,10 +83,7 @@ export const Snapshots: React.FC = () => {
         ) ?? [],
       );
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to delete snapshots",
-      });
+      notificationService.requestFailed("Failed to delete snapshots", error);
     }
   };
 
@@ -96,10 +92,7 @@ export const Snapshots: React.FC = () => {
       const snapshot = await api.createSnapshot(chainId);
       setSnapshots([...(snapshots ?? []), snapshot]);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to create snapshot",
-      });
+      notificationService.requestFailed("Failed to create snapshot", error);
     }
   };
 
@@ -112,10 +105,7 @@ export const Snapshots: React.FC = () => {
       const snapshot = await api.updateSnapshot(snapshotId, name, labels);
       setSnapshots(snapshots?.map((s) => (s.id === snapshotId ? snapshot : s)));
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to update snapshot",
-      });
+      notificationService.requestFailed("Failed to update snapshot", error);
     }
   };
 
@@ -146,10 +136,7 @@ export const Snapshots: React.FC = () => {
     try {
       await api.revertToSnapshot(chainId, id);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to revert to snapshot",
-      });
+      notificationService.requestFailed("Failed to revert to snapshot", error);
     }
   };
 

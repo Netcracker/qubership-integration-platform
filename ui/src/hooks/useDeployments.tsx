@@ -1,11 +1,12 @@
 import { api } from "../api/api.ts";
 import { Deployment } from "../api/apiTypes.ts";
 import { useEffect, useState } from "react";
-import { notification } from "antd";
+import { useNotificationService } from "./useNotificationService.tsx";
 
 export const useDeployments = (chainId?: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [deployments, setDeployments] = useState<Deployment[]>();
+  const notificationService = useNotificationService();
 
   useEffect(() => {
     updateDeployments();
@@ -17,10 +18,7 @@ export const useDeployments = (chainId?: string) => {
       setIsLoading(true);
       return await api.getDeployments(chainId);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to load deployments",
-      });
+      notificationService.requestFailed("Failed to load deployments", error);
     } finally {
       setIsLoading(false);
     }

@@ -4,7 +4,6 @@ import {
   Flex,
   FloatButton,
   Form,
-  notification,
   Select,
   SelectProps,
   Spin,
@@ -37,6 +36,7 @@ import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
 import { api } from "../api/api.ts";
 import { DeleteOutlined, MoreOutlined, PlusOutlined } from "@ant-design/icons";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
+import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 type LogSettingsFormState = ChainLoggingProperties & { custom: boolean };
 
@@ -51,6 +51,7 @@ export const LoggingSettings: React.FC = () => {
   const [isMaskedFieldsLoading, setIsMaskedFieldsLoading] = useState(false);
   const [isCustom, setIsCustom] = useState(false);
   const [form] = useForm();
+  const notificationService = useNotificationService();
 
   useEffect(() => {
     getLoggingSettings().then(setLoggingSettings);
@@ -77,10 +78,7 @@ export const LoggingSettings: React.FC = () => {
     try {
       return api.getLoggingSettings(chainId);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to get logging settings",
-      });
+      notificationService.requestFailed("Failed to get logging settings", error);
       return null;
     } finally {
       setIsLoggingSettingsLoading(false);
@@ -95,10 +93,7 @@ export const LoggingSettings: React.FC = () => {
     try {
       return api.getMaskedFields(chainId);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to get masked fields",
-      });
+      notificationService.requestFailed("Failed to get masked fields", error);
       return [];
     } finally {
       setIsMaskedFieldsLoading(false);
@@ -117,10 +112,7 @@ export const LoggingSettings: React.FC = () => {
       const field = await api.updateMaskedField(chainId, fieldId, changes);
       setMaskedFields(maskedFields.map((f) => (f.id === fieldId ? field : f)));
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to update masked field",
-      });
+      notificationService.requestFailed("Failed to update masked field", error);
     } finally {
       setIsMaskedFieldsLoading(false);
     }
@@ -135,10 +127,7 @@ export const LoggingSettings: React.FC = () => {
       const field = await api.createMaskedField(chainId, { name: "" });
       setMaskedFields([field, ...maskedFields]);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to create masked field",
-      });
+      notificationService.requestFailed("Failed to create masked field", error);
     } finally {
       setIsMaskedFieldsLoading(false);
     }
@@ -157,10 +146,7 @@ export const LoggingSettings: React.FC = () => {
           [],
       );
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to delete masked fields",
-      });
+      notificationService.requestFailed("Failed to delete masked fields", error);
     } finally {
       setIsMaskedFieldsLoading(false);
     }
@@ -176,10 +162,7 @@ export const LoggingSettings: React.FC = () => {
       delete loggingSettings?.custom;
       setLoggingSettings(loggingSettings);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to delete logging settings",
-      });
+      notificationService.requestFailed("Failed to delete logging settings", error);
       return null;
     } finally {
       setIsLoggingSettingsLoading(false);
@@ -201,10 +184,7 @@ export const LoggingSettings: React.FC = () => {
         custom: properties,
       });
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to update logging settings",
-      });
+      notificationService.requestFailed("Failed to update logging settings", error);
     } finally {
       setIsLoggingSettingsLoading(false);
     }

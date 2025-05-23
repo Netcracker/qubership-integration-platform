@@ -14,8 +14,8 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/api.ts";
 import { Connection, Element } from "../../api/apiTypes.ts";
-import { notification } from "antd";
 import { useAutoLayout } from "./useAutoLayout.tsx";
+import { useNotificationService } from "../useNotificationService.tsx";
 
 export const useChainGraph = (chainId?: string) => {
   const { screenToFlowPosition } = useReactFlow();
@@ -23,6 +23,7 @@ export const useChainGraph = (chainId?: string) => {
   const [nodes, setNodes] = useNodesState<Node>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const notificationService = useNotificationService();
 
   const { autoLayout, elkDirectionControl } = useAutoLayout(
     nodes,
@@ -62,10 +63,7 @@ export const useChainGraph = (chainId?: string) => {
 
         autoLayout(newNodes, newEdges);
       } catch (error) {
-        notification.error({
-          message: "Request failed",
-          description: "Failed to load elements or connections",
-        });
+        notificationService.requestFailed("Failed to load elements or connections", error);
       } finally {
         setIsLoading(false);
       }
@@ -91,10 +89,7 @@ export const useChainGraph = (chainId?: string) => {
         console.log(params);
         setEdges((eds) => addEdge(params, eds));
       } catch (error) {
-        notification.error({
-          message: "Request failed",
-          description: "Failed to create connection",
-        });
+        notificationService.requestFailed("Failed to create connection", error);
       }
     },
     [setEdges],
@@ -138,10 +133,7 @@ export const useChainGraph = (chainId?: string) => {
           setNodes((nodes) => nodes.concat(newNode));
         }
       } catch (error) {
-        notification.error({
-          message: "Request failed",
-          description: "Failed to create element",
-        });
+        notificationService.requestFailed("Failed to create element", error);
       }
     },
     [screenToFlowPosition],

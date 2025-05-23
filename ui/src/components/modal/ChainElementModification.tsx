@@ -5,7 +5,6 @@ import {
   Form,
   Input,
   Modal,
-  notification,
   Radio,
   RadioChangeEvent,
 } from "antd";
@@ -22,6 +21,7 @@ import { useElement } from "../../hooks/useElement.tsx";
 import { useLibraryElement } from "../../hooks/useLibraryElement.tsx";
 import YAML from "yaml";
 import { InfoCircleOutlined } from "@ant-design/icons";
+import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 
 type ElementModificationProps = {
   node: Node;
@@ -60,6 +60,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     maxRows: 10
   }
   const [paramsRadioValue, setParamsRadioValue] = useState(PropertyType.COMMON);
+  const notificationService = useNotificationService();
 
   useEffect(() => {
     setTitle(constructTitle(`${node.data.label}`, libraryElement?.title));
@@ -89,10 +90,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         onSubmit?.(changedElement, node);
       }
     } catch (error) {
-      notification.error({
-        message: "Save element failed",
-        description: "Failed to save element",
-      });
+      notificationService.errorWithDetails("Save element failed", "Failed to save element", error);
     } finally {
       setIsLoading(false);
       handleClose();
@@ -113,11 +111,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
          ...form.getFieldValue(PropertyType.UNKNOWN) ? YAML.parse(form.getFieldValue(PropertyType.UNKNOWN)) : {},
        }
     } catch (error) {
-      console.error(error)
-      notification.error({
-        message: "Parse element failed",
-        description: "Failed to construct element properties",
-      });
+      console.error(error);
+      notificationService.errorWithDetails("Parse element failed", "Failed to construct element properties", error);
     }
   };
 

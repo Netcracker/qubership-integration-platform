@@ -5,7 +5,6 @@ import {
   FloatButton,
   message,
   Modal,
-  notification,
   Table,
 } from "antd";
 import { useNavigate, useParams } from "react-router";
@@ -55,6 +54,7 @@ import {
   TextFilter,
   TextFilterCondition,
 } from "../components/table/TextColumnFilterDropdown.tsx";
+import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 type SessionTableItem = Session & {
   children?: SessionTableItem[];
@@ -138,6 +138,7 @@ export const Sessions: React.FC = () => {
     new Map(),
   );
   const [messageApi, contextHolder] = message.useMessage();
+  const notificationService = useNotificationService();
 
   useEffect(() => {
     fetchSessions(true);
@@ -285,10 +286,7 @@ export const Sessions: React.FC = () => {
       );
       setCheckpointMap(m);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to fetch sessions",
-      });
+      notificationService.requestFailed("Failed to fetch sessions", error);
     } finally {
       setIsLoading(false);
     }
@@ -304,10 +302,7 @@ export const Sessions: React.FC = () => {
         "Session was retried successfully. Please update table to see session result.",
       );
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to retry session",
-      });
+      notificationService.requestFailed("Failed to retry session", error);
     }
   };
 
@@ -461,10 +456,7 @@ export const Sessions: React.FC = () => {
         );
       }
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to delete sessions",
-      });
+      notificationService.requestFailed("Failed to delete sessions", error);
     }
   };
 
@@ -478,11 +470,8 @@ export const Sessions: React.FC = () => {
       const ids = selectedRowKeys.map((key) => key.toString());
       const file = await api.exportSessions(ids);
       downloadFile(file);
-    } catch {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to export sessions",
-      });
+    } catch (error) {
+      notificationService.requestFailed("Failed to export sessions", error);
     }
   };
 
@@ -506,15 +495,9 @@ export const Sessions: React.FC = () => {
       .map(async (session) => {
         try {
           await api.retryFromLastCheckpoint(session.chainId, session.id);
-          notification.info({
-            message: "Session retried",
-            description: `Session ${session.id} was retried successfully`,
-          });
-        } catch {
-          notification.error({
-            message: "Request failed",
-            description: `Failed to retry session ${session.id}`,
-          });
+          notificationService.info("Session retried", `Session ${session.id} was retried successfully`);
+        } catch (error) {
+          notificationService.requestFailed(`Failed to retry session ${session.id}`, error);
         }
       });
     await Promise.all(promises);

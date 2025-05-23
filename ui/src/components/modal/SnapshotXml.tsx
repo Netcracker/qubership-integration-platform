@@ -1,9 +1,10 @@
-import { Modal, notification } from "antd";
+import { Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import React, { useEffect, useState } from "react";
 import { Snapshot } from "../../api/apiTypes.ts";
 import { api } from "../../api/api.ts";
 import { Editor } from "@monaco-editor/react";
+import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 
 type SnapshotXmlViewProps = {
   snapshotId: string;
@@ -15,6 +16,7 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
   const { closeContainingModal } = useModalContext();
   const [isLoading, setIsLoading] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot>();
+  const notificationService = useNotificationService();
 
   useEffect(() => {
     getSnapshot(snapshotId);
@@ -25,10 +27,7 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
     try {
       setSnapshot(await api.getSnapshot(snapshotId));
     } catch (err) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to get snapshot",
-      });
+      notificationService.requestFailed("Failed to get snapshot", err);
     } finally {
       setIsLoading(false);
     }
