@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button, Flex, Form, Input, Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import TextArea from "antd/lib/input/TextArea";
@@ -27,6 +27,12 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
   const { closeContainingModal } = useModalContext();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [isOpenChecked, setIsOpenChecked] = useState<boolean>(true);
+  const nameInput = useRef(null);
+
+  useEffect(() => {
+    // @ts-ignore
+    nameInput.current?.focus();
+  }, [nameInput]);
 
   return (
     <Modal
@@ -82,7 +88,7 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
         }}
       >
         <Form.Item name="name" label="Name" rules={[{ required: true, message: "Name is required" }]}>
-          <Input />
+          <Input ref={nameInput} />
         </Form.Item>
         <Form.Item name="Description" label="description">
           <TextArea style={{ height: 120, resize: "none" }} />

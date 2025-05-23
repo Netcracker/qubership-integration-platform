@@ -1,5 +1,5 @@
 import { Button, Flex, Form, Input, Modal, Select, Tabs } from "antd";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { ChainCreationRequest } from "../../api/apiTypes.ts";
 import TextArea from "antd/lib/input/TextArea";
@@ -23,6 +23,12 @@ export const ChainCreate: React.FC<ChainCreateProps> = ({ onSubmit }) => {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [isOpenChecked, setIsOpenChecked] = useState<boolean>(true);
   const { closeContainingModal } = useModalContext();
+  const nameInput = useRef(null);
+
+  useEffect(() => {
+    // @ts-ignore
+    nameInput.current?.focus();
+  }, [nameInput]);
 
   return (
     <Modal
@@ -89,7 +95,7 @@ export const ChainCreate: React.FC<ChainCreateProps> = ({ onSubmit }) => {
                     name="name"
                     rules={[{ required: true, message: "Name is required" }]}
                   >
-                    <Input />
+                    <Input ref={nameInput} />
                   </Form.Item>
                   <Form.Item label="Labels" name="labels">
                     <Select
@@ -127,7 +133,7 @@ export const ChainCreate: React.FC<ChainCreateProps> = ({ onSubmit }) => {
             },
           ]}
         ></Tabs>
-        <Flex vertical={false}>
+        <Flex vertical={false} style={{ marginLeft: 150 }}>
           <Form.Item name="openChain" valuePropName="checked" label={null}>
             <Checkbox>Open chain</Checkbox>
           </Form.Item>
