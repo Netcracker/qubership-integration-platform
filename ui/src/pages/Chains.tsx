@@ -115,6 +115,13 @@ export function buildPathItems(
   ];
 }
 
+type OperationType = "move" | "copy";
+
+type Operation = {
+  item: ChainTableItem;
+  operation: OperationType;
+};
+
 const Chains = () => {
   const navigate = useNavigate();
   const { showModal } = useModalsContext();
@@ -134,6 +141,7 @@ const Chains = () => {
     "modifiedBy",
     "modifiedWhen",
   ]);
+  const [operation, setOperation] = useState<Operation | undefined>(undefined);
 
   useEffect(() => {
     const folderId = getFolderId();
@@ -346,6 +354,82 @@ const Chains = () => {
     }
   };
 
+  const copyChain = async (chainId: string, destinationFolderId?: string) => {
+    setIsLoading(true);
+    try {
+      const chain = await api.copyChain(chainId, destinationFolderId);
+      setFolderItems([
+        ...folderItems,
+        // @ts-ignore
+        { itemType: FolderItemType.CHAIN, ...chain } as FolderItem,
+      ]);
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to copy chain",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const moveChain = async (chainId: string, destinationFolderId?: string) => {
+    setIsLoading(true);
+    try {
+      const chain = await api.moveChain(chainId, destinationFolderId);
+      setFolderItems(
+        folderItems.map((i) =>
+          i.id === chainId
+            // @ts-ignore
+            ? ({ itemType: FolderItemType.CHAIN, ...chain } as FolderItem)
+            : i,
+        ),
+      );
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to move chain",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const moveFolder = async (folderId: string, destinationFolderId?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await api.moveFolder(folderId, destinationFolderId);
+      setFolderItems(
+        folderItems.map((item) =>
+          item.id === folderId ? { ...item, ...response } : item,
+        ),
+      );
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to move folder",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const pasteItem = async (destinationFolderId?: string) => {
+    if (!operation) {
+      return;
+    }
+    switch (operation.operation) {
+      case "copy":
+        return operation.item.itemType === FolderItemType.CHAIN
+          ? copyChain(operation.item.id, destinationFolderId)
+          : null;
+      case "move":
+        return operation.item.itemType === FolderItemType.CHAIN
+          ? moveChain(operation.item.id, destinationFolderId)
+          : moveFolder(operation.item.id, destinationFolderId);
+    }
+  };
+
   const showEditFolderModal = (
     mode: FolderEditMode,
     name?: string,
@@ -429,6 +513,12 @@ const Chains = () => {
         });
       case "duplicateChain":
         return duplicateChain(item.id);
+      case "cut":
+        return setOperation({ item, operation: "move" });
+      case "copy":
+        return setOperation({ item, operation: "copy" });
+      case "paste":
+        return pasteItem(item.id);
       default:
         return Modal.error({ title: "Not implemented yet" });
     }
@@ -447,17 +537,17 @@ const Chains = () => {
     { type: "divider" },
     { label: "Copy Link", key: "copyFolderLink" },
     { label: "Edit", key: "editFolder" },
-    { label: "Export", key: "export" },
+    { label: "Export", key: "exportFolder" },
     { type: "divider" },
     { label: "Cut", key: "cut" },
-    { label: "Paste", key: "paste" },
+    { label: "Paste", key: "paste", disabled: operation === undefined },
     { label: "Delete", key: "deleteFolder" },
   ];
 
   const chainMenuItems: MenuProps["items"] = [
     { label: "Copy Link", key: "copyChainLink" },
     { label: "Edit", key: "editChain" },
-    { label: "Export", key: "export" },
+    { label: "Export", key: "exportChain" },
     { label: "Generate DDS", key: "generateDDS" },
     { type: "divider" },
     { label: "Cut", key: "cut" },
@@ -703,7 +793,7 @@ const Chains = () => {
           <FloatButton
             tooltip="Paste"
             icon={<CarryOutOutlined />}
-            // onClick={onPasteBtnClick}
+            onClick={() => pasteItem(getFolderId())}
           />
           <FloatButton
             tooltip="Compare selected chains"

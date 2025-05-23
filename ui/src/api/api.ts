@@ -39,6 +39,10 @@ export interface Api {
 
   duplicateChain(chainId: string): Promise<Chain>;
 
+  copyChain(chainId: string, folderId?: string): Promise<Chain>;
+
+  moveChain(chainId: string, folderId?: string): Promise<Chain>;
+
   getLibrary(): Promise<LibraryData>;
 
   getElements(chainId: string): Promise<Element[]>;
@@ -158,6 +162,8 @@ export interface Api {
   ): Promise<FolderResponse>;
 
   deleteFolder(folderId: string): Promise<void>;
+
+  moveFolder(folderId: string, targetFolderId?: string): Promise<FolderResponse>;
 }
 
 export const api: Api = new RestApi();

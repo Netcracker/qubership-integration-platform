@@ -89,7 +89,39 @@ export class RestApi implements Api {
 
   duplicateChain = async (chainId: string): Promise<Chain> => {
     try {
-      const response = await this.instance.post<Chain>(`/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/duplicate`);
+      const response = await this.instance.post<Chain>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/duplicate`,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  copyChain = async (chainId: string, folderId?: string): Promise<Chain> => {
+    try {
+      const response = await this.instance.post<Chain>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/copy`,
+        null,
+        {
+          params: { targetFolderId: folderId },
+        },
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  moveChain = async (chainId: string, folderId?: string): Promise<Chain> => {
+    try {
+      const response = await this.instance.post<Chain>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/move`,
+        null,
+        {
+          params: { targetFolderId: folderId },
+        },
+      );
       return response.data;
     } catch (err) {
       throw err;
@@ -665,6 +697,20 @@ export class RestApi implements Api {
     } catch (err) {
       throw err;
     }
+  };
 
+  moveFolder= async (folderId: string, targetFolderId?: string): Promise<FolderResponse> => {
+    try {
+      const response = await this.instance.post<FolderResponse>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}/move`,
+        null,
+        {
+          params: { targetFolderId },
+        },
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
   }
 }
