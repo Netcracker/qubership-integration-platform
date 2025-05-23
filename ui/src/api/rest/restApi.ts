@@ -22,6 +22,7 @@ import {
   SessionSearchResponse,
   Session,
   CheckpointSession,
+  PatchElementRequest,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -123,12 +124,14 @@ export class RestApi implements Api {
   };
 
   updateElement = async (
+    elementRequest: PatchElementRequest,
     chainId: string,
     elementId: string,
   ): Promise<ActionDifference> => {
     try {
-      const response = await this.instance.put(
+      const response = await this.instance.patch(
         `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/${elementId}`,
+        elementRequest
       );
       return response.data;
     } catch (err) {

@@ -9,7 +9,7 @@ const DraggableElement: React.FC<{ element: Element }> = ({ element }) => {
 
   return (
     <div draggable onDragStart={onDragStart}>
-      {element.name}
+      {element.title}
     </div>
   );
 };
