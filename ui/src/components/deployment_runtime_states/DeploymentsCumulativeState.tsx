@@ -54,15 +54,21 @@ export const DeploymentsCumulativeState: React.FC<
   const [badgeStatus, setBadgeStatus] = useState<BadgeProps["status"]>("default");
 
   useEffect(() => {
-    getDeployments().then((d) => {
-      setDeployments(d);
-      const cumulativeStatus = getDeploymentsStatus(deployments);
-      setStatus(cumulativeStatus);
-      setBadgeStatus(getDeploymentBadgeStatus(cumulativeStatus));
-    });
+    getDeployments().then((d) => setDeployments(d ?? []));
   }, [chainId]);
 
-    const getDeployments = async () => {
+  useEffect(() => {
+    setStatus(getDeploymentsStatus(deployments));
+  }, [deployments]);
+
+  useEffect(() => {
+    setBadgeStatus(getDeploymentBadgeStatus(status));
+  }, [status]);
+
+  const getDeployments = async () => {
+    if (!chainId) {
+      return;
+    }
     setIsLoading(true);
     try {
       return api.getDeployments(chainId);
