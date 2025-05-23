@@ -283,11 +283,11 @@ public abstract class ComplexMappingAtlasModule extends DelegatingAtlasModule {
             for (Field f : group.getField()) {
                 writeField(session, writer, f);
             }
-        } else {
+        } else if (nonNull(field.getValue())) {
             // If field is not found but has a value then we are updating the status
             // in order to get field processed by writer properly.
             // This is case of setting the default value.
-            if (nonNull(field.getValue()) && FieldStatus.NOT_FOUND.equals(field.getStatus())) {
+            if (FieldStatus.NOT_FOUND.equals(field.getStatus())) {
                field.setStatus(FieldStatus.SUPPORTED);
             }
             session.head().setTargetField(field);

@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import io.atlasmap.api.AtlasConversionException;
 import io.atlasmap.api.AtlasException;
 import io.atlasmap.core.AtlasPath;
@@ -183,7 +184,7 @@ public class QipAtlasJsonFieldReader implements AtlasFieldReader {
         for (Field child : fieldGroup.getField()) {
             AtlasPath childPath = new AtlasPath(child.getPath());
             JsonNode childNode = node.get(childPath.getLastSegment().getName());
-            if (childNode == null) {
+            if (childNode == null || childNode instanceof NullNode) {
                 continue;
             }
             if (childPath.getLastSegment().getCollectionType() != CollectionType.NONE) {
