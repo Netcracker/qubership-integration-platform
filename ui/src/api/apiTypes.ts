@@ -74,6 +74,14 @@ export type ElementRequest = {
   type: string;
 };
 
+export type PatchElementRequest = {
+  name: string;
+  description: string;
+  type: string;
+  parentElementId?: string;
+  properties: {};
+};
+
 export type ConnectionRequest = {
   from: string;
   to: string;
@@ -113,6 +121,7 @@ export type Element = {
   id: string;
   name: string;
   title: string;
+  description: string;
   folder: string;
   type: string;
   inputEnabled: boolean;
@@ -144,6 +153,13 @@ export type Element = {
   queryProperties: any[];
   referenceProperties: any[];
 };
+
+export enum PropertyType {
+  COMMON = "common",
+  ADVANCED = "advanced",
+  HIDDEN = "hidden",
+  UNKNOWN = "unknown",
+}
 
 export type Property = {
   name: string;

@@ -34,6 +34,7 @@ const App = () => (
             <Route path="/chains/:chainId" element={<ChainPage />}>
               <Route index element={ <ChainGraph />} />
               <Route index path="graph" element={ <ChainGraph />} />
+                <Route path="graph/:elementId" element={<ChainGraph />}/>
               <Route path="snapshots" element={<Snapshots />} />
               <Route path="deployments" element={<Deployments />} />
               <Route path="sessions" element={<Sessions />} />

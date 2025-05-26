@@ -11,7 +11,7 @@ import {
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/api.ts";
 import { Connection, Element } from "../../api/apiTypes.ts";
 import { notification } from "antd";
@@ -22,6 +22,7 @@ export const useChainGraph = (chainId?: string) => {
 
   const [nodes, setNodes] = useNodesState<Node>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const { autoLayout, elkDirectionControl } = useAutoLayout(
     nodes,
@@ -32,6 +33,7 @@ export const useChainGraph = (chainId?: string) => {
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true);
       try {
         if (!chainId) return;
 
@@ -41,7 +43,9 @@ export const useChainGraph = (chainId?: string) => {
           id: element.id,
           type: element.type,
           position: { x: 0, y: 0 },
-          data: { label: element.name },
+          data: {
+            ...getDataFromElement(element)
+          },
         }));
 
         setNodes(newNodes);
@@ -62,6 +66,8 @@ export const useChainGraph = (chainId?: string) => {
           message: "Request failed",
           description: "Failed to load elements or connections",
         });
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchData();
@@ -123,7 +129,7 @@ export const useChainGraph = (chainId?: string) => {
             type: createdElement.type,
             position,
             data: {
-              label: createdElement.name,
+              ...getDataFromElement(createdElement),
               direction: elkDirectionControl.elkDirection,
             },
             targetPosition: isHorizontal ? Position.Left : Position.Top,
@@ -161,6 +167,33 @@ export const useChainGraph = (chainId?: string) => {
     });
   }, []);
 
+  const updateNodeData = (element: Element, node: Node) => {
+    node.data = {
+      ...node.data,
+      ...getDataFromElement(element),
+    }
+    setNodes((nds) =>
+      nds.map((nd) => {
+        if (nd.id === node.id) {
+          return {
+            ...node,
+            data: {
+              ...node.data
+            }
+          };
+        }
+        return nd;
+      }));
+  }
+
+  const getDataFromElement = (element: Element): Record<string, unknown> => {
+    return {
+      label: element.name,
+      description: element.description,
+      properties: element.properties,
+    }
+  }
+
   return {
     nodes,
     edges,
@@ -169,5 +202,7 @@ export const useChainGraph = (chainId?: string) => {
     onEdgesChange,
     onNodesChange,
     elkDirectionControl,
+    updateNodeData,
+    isLoading
   };
 };

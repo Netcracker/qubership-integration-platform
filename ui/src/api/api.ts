@@ -23,6 +23,7 @@ import {
   FolderItem,
   FolderResponse,
   FolderUpdateRequest,
+  PatchElementRequest
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -54,7 +55,7 @@ export interface Api {
     chainId: string,
   ): Promise<ActionDifference>;
 
-  updateElement(chainId: string, elementId: string): Promise<ActionDifference>;
+  updateElement(elementRequest: PatchElementRequest, chainId: string, elementId: string): Promise<ActionDifference>;
 
   deleteElement(elementId: string, chainId: string): Promise<ActionDifference>;
 
