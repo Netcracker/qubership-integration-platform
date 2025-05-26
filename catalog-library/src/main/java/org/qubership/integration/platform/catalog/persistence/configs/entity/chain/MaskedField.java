@@ -53,7 +53,11 @@ public class MaskedField extends AbstractEntity {
     }
 
     public void merge(MaskedField other) {
-        name = other.name;
+        if (other == null) {
+            log.warn("Attempt to merge null MaskedField into {}", this);
+            return;
+        }
+        super.merge(other);
     }
 
     public MaskedField copy() {

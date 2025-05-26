@@ -89,8 +89,8 @@ public abstract class AbstractEntity implements Serializable, Comparable<Abstrac
     }
 
     public void merge(AbstractEntity entity) {
-        this.name = entity.name;
-        this.description = entity.description;
+        this.setName(entity.name);
+        this.setDescription(entity.description);
     }
 
     @PreUpdate
