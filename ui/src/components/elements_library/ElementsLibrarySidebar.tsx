@@ -28,10 +28,11 @@ export const ElementsLibrarySidebar = () => {
 
         response.groups.forEach((group) => {
           group.elements.forEach((element: Element) => {
+            if (element.deprecated || element.unsupported) return;
             if (!folderMap.has(element.folder)) {
               folderMap.set(element.folder, {
                 key: element.folder,
-                label: element.folder,
+                label: prettifyName(element.folder),
                 children: [],
               });
             }
@@ -44,6 +45,7 @@ export const ElementsLibrarySidebar = () => {
 
         setItems(Array.from(folderMap.values()));
       } catch (error) {
+        console.error(error);
         notification.error({
           message: "Request failed",
           description: "Failed to load library elements",
@@ -54,6 +56,11 @@ export const ElementsLibrarySidebar = () => {
     };
     loadLibrary();
   }, []);
+
+  const prettifyName = (name: string): string => {
+    let result = name.replace(/-/g, " ");
+    return result.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  }
 
   return (
     <Sider width={200} theme="light" className={styles.sideMenu}>
