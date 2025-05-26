@@ -48,6 +48,11 @@ import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
 import { ChainCreate } from "../components/modal/ChainCreate.tsx";
 import { copyToClipboard } from "../misc/clipboard-util.ts";
 import { traverseElementsDepthFirst } from "../misc/tree-utils.ts";
+import {
+  ExportChainOptions,
+  ExportChains,
+} from "../components/modal/ExportChains.tsx";
+import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
 
 type ChainTableItem = FolderItem & {
   children?: ChainTableItem[];
@@ -380,8 +385,8 @@ const Chains = () => {
       setFolderItems(
         folderItems.map((i) =>
           i.id === chainId
-            // @ts-ignore
-            ? ({ itemType: FolderItemType.CHAIN, ...chain } as FolderItem)
+            ? // @ts-ignore
+              ({ itemType: FolderItemType.CHAIN, ...chain } as FolderItem)
             : i,
         ),
       );
@@ -421,12 +426,61 @@ const Chains = () => {
     switch (operation.operation) {
       case "copy":
         return operation.item.itemType === FolderItemType.CHAIN
-          ? copyChain(operation.item.id, destinationFolderId)
+          ? copyChain(operation.item.id, destinationFolderId).then(() =>
+              setOperation(undefined),
+            )
           : null;
       case "move":
         return operation.item.itemType === FolderItemType.CHAIN
-          ? moveChain(operation.item.id, destinationFolderId)
-          : moveFolder(operation.item.id, destinationFolderId);
+          ? moveChain(operation.item.id, destinationFolderId).then(() =>
+              setOperation(undefined),
+            )
+          : moveFolder(operation.item.id, destinationFolderId).then(() =>
+              setOperation(undefined),
+            );
+    }
+  };
+
+  const exportChains = async (
+    folderIds: string[],
+    chainIds: string[],
+    options: ExportChainOptions,
+  ) => {
+    try {
+      const ids = new Set(chainIds);
+      const chainsInFolders = await Promise.all(
+        folderIds.map((folderId) => api.getNestedChains(folderId)),
+      );
+      chainsInFolders
+        .flatMap((chains) => chains)
+        .forEach((chain) => ids.add(chain.id));
+      if (ids.size === 0) {
+        return;
+      }
+      const chainsFile = await api.exportChains(
+        Array.from(ids.values()),
+        options.exportSubchains,
+      );
+      const data = [chainsFile];
+
+      if (options.exportSubchains) {
+        // TODO
+      }
+
+      if (options.exportVariables) {
+        // TODO
+      }
+
+      const archiveData = await mergeZipArchives(data);
+      const file = new File([archiveData], chainsFile.name, {
+        type: "application/zip",
+      });
+      downloadFile(file);
+    } catch (error) {
+      notification.error({
+        message: "Request failed",
+        description: "Failed to export chains",
+      });
     }
   };
 
@@ -466,6 +520,34 @@ const Chains = () => {
         <ChainCreate
           onSubmit={(request, openChain, newTab) => {
             return createChain({ ...request, parentId }, openChain, newTab);
+          }}
+        />
+      ),
+    });
+  };
+
+  const onExportBtnClick = async () => {
+    return exportChainsWithOptions(selectedRowKeys.map((k) => k.toString()));
+  };
+
+  const exportChainsWithOptions = async (ids: string[]) => {
+    const multiple =
+      ids.length !== 1 ||
+      folderItems.find((i) => i.id === ids[0])?.itemType ===
+        FolderItemType.FOLDER;
+    showModal({
+      component: (
+        <ExportChains
+          multiple={multiple}
+          onSubmit={(options) => {
+            const items = folderItems.filter((i) => ids.includes(i.id));
+            const folderIds = items
+              .filter((i) => i.itemType === FolderItemType.FOLDER)
+              .map((i) => i.id);
+            const chainIds = items
+              .filter((i) => i.itemType === FolderItemType.CHAIN)
+              .map((i) => i.id);
+            return exportChains(folderIds, chainIds, options);
           }}
         />
       ),
@@ -519,6 +601,8 @@ const Chains = () => {
         return setOperation({ item, operation: "copy" });
       case "paste":
         return pasteItem(item.id);
+      case "export":
+        return exportChainsWithOptions([item.id]);
       default:
         return Modal.error({ title: "Not implemented yet" });
     }
@@ -537,7 +621,7 @@ const Chains = () => {
     { type: "divider" },
     { label: "Copy Link", key: "copyFolderLink" },
     { label: "Edit", key: "editFolder" },
-    { label: "Export", key: "exportFolder" },
+    { label: "Export", key: "export" },
     { type: "divider" },
     { label: "Cut", key: "cut" },
     { label: "Paste", key: "paste", disabled: operation === undefined },
@@ -547,7 +631,7 @@ const Chains = () => {
   const chainMenuItems: MenuProps["items"] = [
     { label: "Copy Link", key: "copyChainLink" },
     { label: "Edit", key: "editChain" },
-    { label: "Export", key: "exportChain" },
+    { label: "Export", key: "export" },
     { label: "Generate DDS", key: "generateDDS" },
     { type: "divider" },
     { label: "Cut", key: "cut" },
@@ -808,7 +892,7 @@ const Chains = () => {
           <FloatButton
             tooltip="Export selected chains"
             icon={<ExportOutlined />}
-            // onClick={onExportBtnClick}
+            onClick={onExportBtnClick}
           />
           <FloatButton
             tooltip="Delete selected chains and folders"

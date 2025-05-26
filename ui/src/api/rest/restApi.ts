@@ -126,7 +126,32 @@ export class RestApi implements Api {
     } catch (err) {
       throw err;
     }
-  }
+  };
+
+  exportChains = async (
+    chainIds: string[],
+    exportSubchains: boolean,
+  ): Promise<File> => {
+    try {
+      const response = await this.instance.get<Blob>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export`,
+        {
+          params: { chainIds, exportWithSubChains: exportSubchains },
+          paramsSerializer: {
+            indexes: null,
+          },
+          responseType: "blob",
+        },
+      );
+      const contentDisposition = response.headers?.["content-disposition"];
+      const fileName = contentDisposition?.replace("attachment; filename=", "");
+      return new File([response.data], fileName, {
+        type: response.data.type.toString(),
+      });
+    } catch (err) {
+      throw err;
+    }
+  };
 
   getLibrary = async (): Promise<LibraryData> => {
     try {
@@ -699,7 +724,10 @@ export class RestApi implements Api {
     }
   };
 
-  moveFolder= async (folderId: string, targetFolderId?: string): Promise<FolderResponse> => {
+  moveFolder = async (
+    folderId: string,
+    targetFolderId?: string,
+  ): Promise<FolderResponse> => {
     try {
       const response = await this.instance.post<FolderResponse>(
         `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}/move`,
@@ -712,5 +740,16 @@ export class RestApi implements Api {
     } catch (err) {
       throw err;
     }
-  }
+  };
+
+  getNestedChains = async (folderId: string): Promise<Chain[]> => {
+    try {
+      const response = await this.instance.get<Chain[]>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}/chains`,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
 }

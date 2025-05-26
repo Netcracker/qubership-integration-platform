@@ -43,6 +43,8 @@ export interface Api {
 
   moveChain(chainId: string, folderId?: string): Promise<Chain>;
 
+  exportChains(chainIds: string[], exportSubchains: boolean): Promise<File>;
+
   getLibrary(): Promise<LibraryData>;
 
   getElements(chainId: string): Promise<Element[]>;
@@ -164,6 +166,8 @@ export interface Api {
   deleteFolder(folderId: string): Promise<void>;
 
   moveFolder(folderId: string, targetFolderId?: string): Promise<FolderResponse>;
+
+  getNestedChains(folderId: string): Promise<Chain[]>;
 }
 
 export const api: Api = new RestApi();
