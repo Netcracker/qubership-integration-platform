@@ -7,32 +7,32 @@ export const useChain = (chainId?: string) => {
   const [chain, setChain] = useState<Chain>();
 
   useEffect(() => {
-    if (!chainId) return;
-    getChain(chainId);
+    getChain().then(setChain);
   }, []);
 
-  const updateChain = async (chainId: string, chain: Partial<Chain>) => {
+  const updateChain = async (chain: Partial<Chain>) => {
+    if (!chainId) return;
     try {
-      await api.updateChain(chainId, chain);
+      return api.updateChain(chainId, chain);
     } catch (error) {
       notification.error({
         message: "Request failed",
-        description: "Failed to create snapshot",
+        description: "Failed to update chain",
       });
     }
   };
 
-  const getChain = async (chainId: string) => {
+  const getChain = async () => {
+    if (!chainId) return;
     try {
-      const data = await api.getChain(chainId);
-      setChain(data);
+      return api.getChain(chainId);
     } catch (error) {
       notification.error({
         message: "Request failed",
-        description: "Failed to load snapshots",
+        description: "Failed to get chain",
       });
     }
   };
 
-  return { chain, updateChain };
+  return { chain, setChain, updateChain };
 };

@@ -22,6 +22,9 @@ import {
   SessionSearchResponse,
   Session,
   CheckpointSession,
+  FolderItem,
+  FolderResponse,
+  FolderUpdateRequest,
   PatchElementRequest,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
@@ -85,12 +88,77 @@ export class RestApi implements Api {
     );
   };
 
+  duplicateChain = async (chainId: string): Promise<Chain> => {
+    try {
+      const response = await this.instance.post<Chain>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/duplicate`,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  copyChain = async (chainId: string, folderId?: string): Promise<Chain> => {
+    try {
+      const response = await this.instance.post<Chain>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/copy`,
+        null,
+        {
+          params: { targetFolderId: folderId },
+        },
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  moveChain = async (chainId: string, folderId?: string): Promise<Chain> => {
+    try {
+      const response = await this.instance.post<Chain>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/move`,
+        null,
+        {
+          params: { targetFolderId: folderId },
+        },
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  exportChains = async (
+    chainIds: string[],
+    exportSubchains: boolean,
+  ): Promise<File> => {
+    try {
+      const response = await this.instance.get<Blob>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export`,
+        {
+          params: { chainIds, exportWithSubChains: exportSubchains },
+          paramsSerializer: {
+            indexes: null,
+          },
+          responseType: "blob",
+        },
+      );
+      const contentDisposition = response.headers?.["content-disposition"];
+      const fileName = contentDisposition?.replace("attachment; filename=", "");
+      return new File([response.data], fileName, {
+        type: response.data.type.toString(),
+      });
+    } catch (err) {
+      throw err;
+    }
+  };
+
   getLibrary = async (): Promise<LibraryData> => {
     try {
       const response = await this.instance.get<LibraryData>(
         `/api/v1/${import.meta.env.VITE_API_APP}/catalog/library`,
       );
-      console.log(response);
       return response.data;
     } catch (err) {
       throw err;
@@ -584,14 +652,107 @@ export class RestApi implements Api {
     }
   };
 
-  retrySessionFromLastCheckpoint = async (chainId: string, sessionId: string): Promise<void> => {
+  retrySessionFromLastCheckpoint = async (
+    chainId: string,
+    sessionId: string,
+  ): Promise<void> => {
     try {
       return this.instance.post(
         `/api/v1/${import.meta.env.VITE_API_APP}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
-        null
+        null,
       );
     } catch (err) {
       throw err;
     }
-  }
+  };
+
+  getRootFolder = async (): Promise<FolderItem[]> => {
+    try {
+      const response = await this.instance.get(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders`,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  getFolder = async (folderId: string): Promise<FolderResponse> => {
+    try {
+      const response = await this.instance.get(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  createFolder = async (
+    request: FolderUpdateRequest,
+  ): Promise<FolderResponse> => {
+    try {
+      const response = await this.instance.post<FolderResponse>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders`,
+        request,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  updateFolder = async (
+    folderId: string,
+    changes: FolderUpdateRequest,
+  ): Promise<FolderResponse> => {
+    try {
+      const response = await this.instance.put<FolderResponse>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
+        changes,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  deleteFolder = async (folderId: string): Promise<void> => {
+    try {
+      await this.instance.delete<Chain>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
+      );
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  moveFolder = async (
+    folderId: string,
+    targetFolderId?: string,
+  ): Promise<FolderResponse> => {
+    try {
+      const response = await this.instance.post<FolderResponse>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}/move`,
+        null,
+        {
+          params: { targetFolderId },
+        },
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  getNestedChains = async (folderId: string): Promise<Chain[]> => {
+    try {
+      const response = await this.instance.get<Chain[]>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}/chains`,
+      );
+      return response.data;
+    } catch (err) {
+      throw err;
+    }
+  };
 }

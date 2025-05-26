@@ -1,9 +1,74 @@
-export type Chain = {
+export type BaseEntity = {
   id: string;
   name: string;
-  createdAt: string;
-  updatedAt: string;
+  description: string;
+  createdWhen: number;
+  createdBy: User;
+  modifiedWhen: number;
+  modifiedBy: User;
 };
+
+export type FolderItem = BaseEntity & {
+  parentId: string;
+  itemType: FolderItemType;
+  labels: EntityLabel[];
+  deployments: Deployment[];
+  chainRuntimeProperties: ChainLoggingSettings;
+  businessDescription: string;
+  assumptions: string;
+  outOfScope: string;
+  overriddenByChainId: string;
+  overriddenByChainName: string;
+  overridesChainId: string;
+  overridesChainName: string;
+};
+
+export enum FolderItemType {
+  FOLDER = "FOLDER",
+  CHAIN = "CHAIN",
+}
+
+export type FolderUpdateRequest = {
+  name: string;
+  description: string;
+  parentId?: string;
+}
+
+export type FolderResponse = BaseEntity & {
+  navigationPath: Map<string, string>; // Need to be a Map to preserve key order
+  parentId: string;
+  items: FolderItem[];
+  labels: EntityLabel[];
+};
+
+export type Chain = & BaseEntity & {
+  navigationPath: Map<string, string>; // Need to be a Map to preserve key order
+  elements: Element[];
+  dependencies: Dependency[];
+  deployments: Deployment[];
+  labels: EntityLabel[];
+  defaultSwimlaneId: string;
+  reuseSwimlaneId: string;
+  parentId: string;
+  currentSnapshot: BaseEntity;
+  unsavedChanges: boolean;
+  businessDescription: string;
+  assumptions: string;
+  outOfScope: string;
+  containsDeprecatedContainers: boolean;
+  containsDeprecatedElements: boolean;
+  containsUnsupportedElements: boolean;
+  overriddenByChainId: string;
+  overriddenByChainName: string;
+  overridesChainId: string;
+  overridesChainName: string;
+};
+
+export type Dependency = {
+  id: string;
+  from: string;
+  to: string;
+}
 
 export type ElementRequest = {
   type: string;
@@ -30,7 +95,12 @@ export type Connection = {
 
 export type ChainCreationRequest = {
   name: string;
-  labels: string[];
+  labels?: EntityLabel[];
+  description?: string;
+  businessDescription?: string;
+  assumptions?: string;
+  outOfScope?: string;
+  parentId?: string;
 };
 
 export type LibraryData = {
@@ -120,14 +190,7 @@ export type ChildElement = {
   primaryOperation: Operation;
 };
 
-export type Snapshot = {
-  id: string;
-  name: string;
-  description: string;
-  createdWhen: number;
-  createdBy: User;
-  modifiedWhen: number;
-  modifiedBy: User;
+export type Snapshot = BaseEntity & {
   xmlDefinition: string;
   labels: EntityLabel[];
 };

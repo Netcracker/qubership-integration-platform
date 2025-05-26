@@ -20,6 +20,9 @@ import {
   SessionSearchResponse,
   Session,
   CheckpointSession,
+  FolderItem,
+  FolderResponse,
+  FolderUpdateRequest,
   PatchElementRequest
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
@@ -34,6 +37,14 @@ export interface Api {
   createChain(chain: ChainCreationRequest): Promise<Chain>;
 
   deleteChain(chainId: string): Promise<void>;
+
+  duplicateChain(chainId: string): Promise<Chain>;
+
+  copyChain(chainId: string, folderId?: string): Promise<Chain>;
+
+  moveChain(chainId: string, folderId?: string): Promise<Chain>;
+
+  exportChains(chainIds: string[], exportSubchains: boolean): Promise<File>;
 
   getLibrary(): Promise<LibraryData>;
 
@@ -141,6 +152,23 @@ export interface Api {
     chainId: string,
     sessionId: string,
   ): Promise<void>;
+
+  getRootFolder(): Promise<FolderItem[]>;
+
+  getFolder(folderId: string): Promise<FolderResponse>;
+
+  createFolder(request: FolderUpdateRequest): Promise<FolderResponse>;
+
+  updateFolder(
+    folderId: string,
+    changes: FolderUpdateRequest,
+  ): Promise<FolderResponse>;
+
+  deleteFolder(folderId: string): Promise<void>;
+
+  moveFolder(folderId: string, targetFolderId?: string): Promise<FolderResponse>;
+
+  getNestedChains(folderId: string): Promise<Chain[]>;
 }
 
 export const api: Api = new RestApi();

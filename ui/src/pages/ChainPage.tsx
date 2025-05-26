@@ -3,16 +3,43 @@ import { Breadcrumb, Col, Flex, Radio, RadioChangeEvent, Row } from "antd";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
+import { createContext, useEffect, useState } from "react";
+import { Chain } from "../api/apiTypes.ts";
+import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
+import { buildPathItems } from "./Chains.tsx";
 
-const Chain = () => {
+export type ChainContextData = {
+  chain: Chain | undefined;
+  update: (changes: Partial<Chain>) => Promise<void>;
+};
+
+export const ChainContext = createContext<ChainContextData | undefined>(
+  undefined,
+);
+
+const ChainPage = () => {
   const { chainId, sessionId } = useParams();
+  const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
 
   const location = useLocation();
   const { pathname } = location;
   const navigate = useNavigate();
   const activeKey = getActiveTabKey(pathname);
 
-  const { chain } = useChain(chainId);
+  const { chain, setChain, updateChain } = useChain(chainId);
+
+  useEffect(() => {
+    const items: BreadcrumbProps["items"] = [
+      ...(buildPathItems(chain?.navigationPath ?? new Map()) ?? []),
+      ...(sessionId
+        ? [
+          { title: "Sessions", href: `/chains/${chainId}/sessions` },
+          { title: sessionId },
+        ]
+        : []),
+    ];
+    setPathItems(items);
+  }, [chain, sessionId])
 
   const handlePageChange = (event: RadioChangeEvent) => {
     navigate(`${event.target.value}`); // Update the URL with the selected tab key
@@ -22,18 +49,7 @@ const Chain = () => {
     <Flex className={styles.stretched} gap={"middle"} vertical>
       <Row justify="space-between" align="middle">
         <Col>
-          <Breadcrumb
-            items={[
-              { href: "/chains", title: "Chains" },
-              { title: chain?.name },
-              ...(sessionId
-                ? [
-                    { title: "Sessions", href: `/chains/${chainId}/sessions` },
-                    { title: sessionId },
-                  ]
-                : []),
-            ]}
-          />
+          <Breadcrumb items={pathItems} />
         </Col>
         <Col>
           <Radio.Group
@@ -50,12 +66,21 @@ const Chain = () => {
             <Radio.Button value="logging-settings">
               Logging Settings
             </Radio.Button>
+            <Radio.Button value="properties">Properties</Radio.Button>
           </Radio.Group>
         </Col>
       </Row>
       <Row className={styles.stretched}>
         <Col span={24}>
-          <Outlet />
+          <ChainContext.Provider
+            value={{
+              chain,
+              update: async (changes) =>
+                updateChain(changes).then(setChain),
+            }}
+          >
+            <Outlet />
+          </ChainContext.Provider>
         </Col>
       </Row>
     </Flex>
@@ -67,4 +92,4 @@ function getActiveTabKey(path: string) {
   return segment ?? "graph";
 }
 
-export default Chain;
+export default ChainPage;

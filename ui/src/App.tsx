@@ -2,7 +2,7 @@ import Navigation from "./components/Navigation.tsx";
 import { BrowserRouter, Route, Routes } from "react-router";
 import Chains from "./pages/Chains";
 import Admin from "./pages/Admin";
-import Chain from "./pages/Chain";
+import ChainPage from "./pages/ChainPage.tsx";
 import { Layout } from "antd";
 
 import styles from "./App.module.css";
@@ -15,6 +15,7 @@ import { Content } from "antd/es/layout/layout";
 import { LoggingSettings } from "./pages/LoggingSettings.tsx";
 import { Sessions } from "./pages/Sessions.tsx";
 import { SessionPage } from "./pages/SessionPage.tsx";
+import { ChainProperties } from "./pages/ChainProperties.tsx";
 
 const { Header } = Layout;
 
@@ -30,7 +31,7 @@ const App = () => (
             <Route path="/admin" element={<Admin />} />
             <Route index path="/" element={<Chains />} />
             <Route index path="/chains" element={<Chains />} />
-            <Route path="/chains/:chainId" element={<Chain />}>
+            <Route path="/chains/:chainId" element={<ChainPage />}>
               <Route index element={ <ChainGraph />} />
               <Route index path="graph" element={ <ChainGraph />} />
                 <Route path="graph/:elementId" element={<ChainGraph />}/>
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="sessions" element={<Sessions />} />
               <Route path="sessions/:sessionId" element={<SessionPage />} />
               <Route path="logging-settings" element={ <LoggingSettings />} />
+              <Route path="properties" element={ <ChainProperties /> } />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
