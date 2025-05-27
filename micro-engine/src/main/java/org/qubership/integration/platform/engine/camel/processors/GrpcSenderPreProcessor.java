@@ -16,13 +16,11 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.http.HttpStatus;
 import org.qubership.integration.platform.engine.util.GrpcProcessorUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -46,16 +44,7 @@ public class GrpcSenderPreProcessor implements Processor {
         Message.Builder builder = (Message.Builder) requestC.getMethod("newBuilder")
             .invoke(requestC);
         if (StringUtils.isNotEmpty(body)) {
-            try {
-                grpcParser.merge(body, builder);
-            } catch (InvalidProtocolBufferException e) {
-                exchange.setRouteStop(true);
-                exchange.getExchangeExtension().setInterrupted(true);
-                message.setBody(e.getMessage());
-                message.removeHeaders("*");
-                message.setHeader(Exchange.HTTP_RESPONSE_CODE, HttpStatus.SC_BAD_REQUEST);
-                return;
-            }
+            grpcParser.merge(body, builder);
         }
 
         message.setBody(builder.build(), requestC);

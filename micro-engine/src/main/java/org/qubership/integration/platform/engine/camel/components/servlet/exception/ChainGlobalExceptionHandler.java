@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.camel.components.servlet.exception;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.camel.CamelAuthorizationException;
 import org.apache.camel.Exchange;
 import org.apache.camel.component.http.HttpConstants;
@@ -121,6 +122,11 @@ public class ChainGlobalExceptionHandler {
 
     @ChainExceptionHandler(value = SocketTimeoutException.class, errorCode = ErrorCode.SOCKET_TIMEOUT)
     public void handleTimeoutException(Exception exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
+        makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
+    }
+
+    @ChainExceptionHandler(value = InvalidProtocolBufferException.class, errorCode = ErrorCode.REQUEST_VALIDATION_ERROR)
+    public void handleInvalidProtocolBufferException(InvalidProtocolBufferException exception, Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
         makeExceptionResponseInExchange(exchange, errorCode, extraParameters);
     }
 
