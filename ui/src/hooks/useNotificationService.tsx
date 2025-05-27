@@ -1,3 +1,4 @@
+import { ArgsProps } from "antd/es/notification";
 import { ErrorDetails } from "../components/modal/ErrorDetails";
 import { useModalsContext } from "../Modals";
 import { notification } from "antd";
@@ -38,18 +39,19 @@ export const useNotificationService = (): NotificationService => {
     });
   }
 
-  return {
-    requestFailed: (description: string, error: any) => {
-      notification.error({
-        message: "Request failed",
-        description: <NotificationDescriptionWithDetails description={description} showDetails={() => showDetailsClick(error)} />
-      });
-    },
-    errorWithDetails: (message: string, description: string, error: any) => {
-      notification.error({
+  function buildErrorNotification(message: string, description: string, error: any): ArgsProps {
+    return {
         message: message,
         description: <NotificationDescriptionWithDetails description={description} showDetails={() => showDetailsClick(error)} />
-      });
+      };
+  }
+
+  return {
+    requestFailed: (description: string, error: any) => {
+      notification.error(buildErrorNotification("Request failed", description, error));
+    },
+    errorWithDetails: (message: string, description: string, error: any) => {
+      notification.error(buildErrorNotification(message, description, error));
     },
     info: (message: string, description: string) => {
       notification.info({
