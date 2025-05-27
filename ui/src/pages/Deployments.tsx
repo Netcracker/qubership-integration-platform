@@ -1,5 +1,5 @@
 import React from "react";
-import { FloatButton, notification, Table, Tooltip } from "antd";
+import { FloatButton, Table, Tooltip } from "antd";
 import { useDeployments } from "../hooks/useDeployments.tsx";
 import { useParams } from "react-router";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
@@ -12,12 +12,14 @@ import { useModalsContext } from "../Modals.tsx";
 import { DeploymentCreate } from "../components/modal/DeploymentCreate.tsx";
 import { api } from "../api/api.ts";
 import { LongActionButton } from "../components/LongActionButton.tsx";
+import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 export const Deployments: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
   const { isLoading, deployments, setDeployments } = useDeployments(chainId);
   const { snapshots } = useSnapshots(chainId);
   const { showModal } = useModalsContext();
+  const notificationService = useNotificationService();
 
   const columns: TableProps<Deployment>["columns"] = [
     {
@@ -83,10 +85,7 @@ export const Deployments: React.FC = () => {
       await api.deleteDeployment(deployment.id);
       setDeployments(deployments?.filter((d) => d.id !== deployment.id) ?? []);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to delete deployment",
-      });
+      notificationService.requestFailed("Failed to delete deployment", error);
     }
   };
 
@@ -96,10 +95,7 @@ export const Deployments: React.FC = () => {
       const deployment = await api.createDeployment(chainId, request);
       await onDeploymentCreated(deployment);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to create deployment",
-      });
+      notificationService.requestFailed("Failed to create deployment", error);
     }
   };
 

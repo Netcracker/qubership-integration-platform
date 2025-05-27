@@ -1,9 +1,10 @@
 import { Element, PatchElementRequest } from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
-import { notification } from "antd";
+import { useNotificationService } from "./useNotificationService.tsx";
 
 export const useElement = () => {
-
+  const notificationService = useNotificationService();
+  
   const updateElement = async (chainId: string, elementId: string, request: PatchElementRequest): Promise<Element | undefined> => {
     try {
       const elementChange = await api.updateElement(
@@ -13,10 +14,7 @@ export const useElement = () => {
       );
       return elementChange.updatedElements?.[0]!;
     } catch (error) {
-      notification.error({
-        message: "Save element failed",
-        description: "Failed to save element",
-      });
+      notificationService.errorWithDetails("Save element failed", "Failed to save element", error);
     }
     return undefined;
   };

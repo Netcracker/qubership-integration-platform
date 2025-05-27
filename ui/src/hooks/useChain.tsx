@@ -1,10 +1,11 @@
 import { api } from "../api/api.ts";
 import { Chain } from "../api/apiTypes.ts";
 import { useEffect, useState } from "react";
-import { notification } from "antd";
+import { useNotificationService } from "./useNotificationService.tsx";
 
 export const useChain = (chainId?: string) => {
   const [chain, setChain] = useState<Chain>();
+  const notificationService = useNotificationService();
 
   useEffect(() => {
     getChain().then(setChain);
@@ -15,10 +16,7 @@ export const useChain = (chainId?: string) => {
     try {
       return api.updateChain(chainId, chain);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to update chain",
-      });
+      notificationService.requestFailed("Failed to update chain", error);
     }
   };
 
@@ -27,10 +25,7 @@ export const useChain = (chainId?: string) => {
     try {
       return api.getChain(chainId);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to get chain",
-      });
+      notificationService.requestFailed("Failed to load snapshots", error);
     }
   };
 

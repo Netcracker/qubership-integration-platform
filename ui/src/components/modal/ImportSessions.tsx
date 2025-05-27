@@ -1,4 +1,4 @@
-import { Button, Modal, notification, UploadFile } from "antd";
+import { Button, Modal, UploadFile } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import React, { useState } from "react";
 import { ExclamationCircleOutlined, InboxOutlined } from "@ant-design/icons";
@@ -6,6 +6,7 @@ import Dragger from "antd/es/upload/Dragger";
 import styles from "./ImportSessions.module.css";
 import { api } from "../../api/api.ts";
 import { Session } from "../../api/apiTypes.ts";
+import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 
 type ImportSessionsProps = {
   onSuccess?: (sessions: Session[]) => void;
@@ -15,6 +16,7 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({ onSuccess }) => 
   const { closeContainingModal } = useModalContext();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const notificationService = useNotificationService();
 
   const importSessions = async () => {
     setUploading(true);
@@ -23,10 +25,7 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({ onSuccess }) => 
       const sessions = await api.importSessions(files);
       onSuccess?.(sessions);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to import sessions",
-      });
+      notificationService.requestFailed("Failed to import sessions", error);
     } finally {
       setUploading(false);
     }

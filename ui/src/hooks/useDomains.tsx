@@ -1,11 +1,12 @@
 import { api } from "../api/api.ts";
 import { EngineDomain } from "../api/apiTypes.ts";
 import { useEffect, useState } from "react";
-import { notification } from "antd";
+import { useNotificationService } from "./useNotificationService.tsx";
 
 export const useDomains = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [domains, setDomains] = useState<EngineDomain[]>();
+  const notificationService = useNotificationService();
 
   useEffect(() => {
     getDomains();
@@ -17,10 +18,7 @@ export const useDomains = () => {
       const data = await api.getDomains();
       setDomains(data);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to load domains",
-      });
+      notificationService.requestFailed("Failed to load domains", error);
     } finally {
       setIsLoading(false);
     }

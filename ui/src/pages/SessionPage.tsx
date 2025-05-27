@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router";
-import { Flex, FloatButton, notification, Table } from "antd";
+import { Flex, FloatButton, Table } from "antd";
 import { TableProps } from "antd/lib/table";
 import { Session, SessionElement } from "../api/apiTypes.ts";
 import {
@@ -15,6 +15,7 @@ import { ExportOutlined, LinkOutlined } from "@ant-design/icons";
 import { useModalsContext } from "../Modals.tsx";
 import { SessionElementDetails } from "../components/modal/SessionElementDetails.tsx";
 import { downloadFile } from "../misc/download-utils.ts";
+import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 function cleanUpChildren(element: SessionElement) {
   if (element.children?.length === 0) {
@@ -29,6 +30,7 @@ export const SessionPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [session, setSession] = useState<Session>();
   const { showModal } = useModalsContext();
+  const notificationService = useNotificationService();
 
   useEffect(() => {
     getSession();
@@ -46,10 +48,7 @@ export const SessionPage: React.FC = () => {
       );
       setSession(loadedSession);
     } catch (error) {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to get session",
-      });
+      notificationService.requestFailed("Failed to get session", error);
     } finally {
       setIsLoading(false);
     }
@@ -76,11 +75,8 @@ export const SessionPage: React.FC = () => {
     try {
       const file = await api.exportSessions([sessionId]);
       downloadFile(file);
-    } catch {
-      notification.error({
-        message: "Request failed",
-        description: "Failed to export session",
-      });
+    } catch (error) {
+      notificationService.requestFailed("Failed to export session", error);
     }
   }
 
