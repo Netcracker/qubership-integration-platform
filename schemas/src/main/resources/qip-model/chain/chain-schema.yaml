@@ -1,0 +1,187 @@
+---
+"$id": http://qubership.org/schemas/product/qip/chain
+"$schema": https://json-schema.org/draft-07/schema
+type: object
+title: "Chain"
+group: Integrations
+required:
+  - id
+  - $schema
+  - name
+  - content
+properties:
+  id:
+    type: string
+  $schema:
+    type: string
+  name:
+    type: string
+  content:
+    type: object
+    required:
+#      - id
+#      - name
+      - elements
+      - migrations
+    properties:
+#      id:
+#        type: string
+#      name:
+#        type: string
+      description:
+        type: string
+      businessDescription:
+        type: string
+      assumptions:
+        type: string
+      outOfScope:
+        type: string
+      modifiedWhen:
+        type: integer
+      elements:
+        type: array
+        items:
+          "$ref": "#/definitions/chainElement"
+      dependencies:
+        type: array
+        items:
+          "$ref": "#/definitions/chainDependency"
+      deployments:
+        type: array
+        items:
+          "$ref": "#/definitions/chainDeployment"
+      deployAction:
+        type: string
+      folder:
+        "$ref": "#/definitions/chainFolder"
+      migrations:
+        type: string
+    additionalProperties: false
+
+definitions:
+  chainDeployment:
+    type: object
+    properties:
+      domain:
+        type: string
+  chainDependency:
+    type: object
+    properties:
+      from:
+        type: string
+      to:
+        type: string
+    required:
+      - from
+      - to
+  chainFolder:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+
+  chainElement:
+    type: object
+    required:
+      - id
+      - name
+      - elementType
+      - properties
+    oneOf:
+      - "$ref": "#/definitions/chainElementHttpTrigger"
+      - "$ref": "#/definitions/chainElementHttpSender"
+      - "$ref": "#/definitions/chainElementScript"
+#    discriminator:
+#      propertyName: elementType
+#      mapping:
+#        "http-trigger": "#/definitions/chainElementHttpTrigger"
+#        "http-sender": "#/definitions/chainElementHttpSender"
+
+  chainElementCommonFields:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+
+  chainElementHttpTrigger:
+    allOf:
+      - $ref: "#/definitions/chainElementCommonFields"
+    properties:
+      elementType:
+        type: string
+        const: "http-trigger"
+      properties:
+        $ref: "#/definitions/chainElementHttpTriggerProperties"
+#    unevaluatedProperties: false
+
+  chainElementHttpTriggerProperties:
+    type: object
+    required:
+      - contextPath
+      - accessControlType
+      - externalRoute
+    properties:
+      contextPath:
+        type: string
+      httpMethodRestrict:
+        type: string
+      accessControlType:
+        type: string
+      externalRoute:
+        type: boolean
+
+  chainElementHttpSender:
+    allOf:
+      - $ref: "#/definitions/chainElementCommonFields"
+    properties:
+      elementType:
+        type: string
+        const: "http-sender"
+      properties:
+        $ref: "#/definitions/chainElementHttpSenderProperties"
+#    unevaluatedProperties: false
+
+  chainElementHttpSenderProperties:
+    type: object
+    required:
+      - httpMethod
+      - uri
+      - isExternalCall
+      - connectTimeout
+    properties:
+      httpMethod:
+        type: string
+      uri:
+        type: string
+      isExternalCall:
+        type: boolean
+      connectTimeout:
+        type: integer
+
+  chainElementScript:
+    allOf:
+      - $ref: "#/definitions/chainElementCommonFields"
+    required:
+      - propertiesFilename
+    properties:
+      elementType:
+        type: string
+        const: "script"
+      propertiesFilename:
+        type: string
+      properties:
+        $ref: "#/definitions/chainElementScriptProperties"
+  #    unevaluatedProperties: false
+
+  chainElementScriptProperties:
+    type: object
+    required: []
+    properties:
+      exportFileExtension:
+        type: string
+      propertiesToExportInSeparateFile:
+        type: string
