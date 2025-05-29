@@ -46,16 +46,18 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
       onCancel={async () => closeContainingModal()}
       footer={[
         <Button
-          icon={<DownloadOutlined />}
-          type="text"
-          onClick={downloadErrorDetails}
+            key="download"
+            icon={<DownloadOutlined/>}
+            type="text"
+            onClick={downloadErrorDetails}
         >
           Download
         </Button>,
         <Button
-          icon={<CopyOutlined />}
-          type="text"
-          onClick={async () => copyToClipboard(getErrorDetailsText()) }
+            key="copy"
+            icon={<CopyOutlined/>}
+            type="text"
+            onClick={async () => copyToClipboard(getErrorDetailsText())}
         >
           Copy
         </Button>,

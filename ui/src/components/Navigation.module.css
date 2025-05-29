@@ -1,5 +1,11 @@
 .navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-right: 4px;
 }
 
 .menu {
+    flex: 1;
+    overflow: hidden;
 }

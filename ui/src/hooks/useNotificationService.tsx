@@ -2,6 +2,8 @@ import { ArgsProps } from "antd/es/notification";
 import { ErrorDetails } from "../components/modal/ErrorDetails";
 import { useModalsContext } from "../Modals";
 import { notification } from "antd";
+import { useNotificationLog } from "../components/notifications/contexts/NotificationLogContext.tsx";
+import { useEffect, useRef } from "react";
 
 type DescriptionWithDetailsProps = {
   description: string;
@@ -23,9 +25,15 @@ interface NotificationService {
 
 export const useNotificationService = (): NotificationService => {
   const { showModal } = useModalsContext();
+  const { addToHistory } = useNotificationLog();
+  const addToHistoryRef  = useRef(addToHistory)
+
+  useEffect(() => {
+        addToHistoryRef.current = addToHistory;
+    });
 
   const showDetailsClick = (error: any) => {
-    const data = error?.response?.data;
+    const data = error?.responseBody;
 
     showModal({
       component: (
@@ -33,17 +41,30 @@ export const useNotificationService = (): NotificationService => {
           service={data?.serviceName}
           timestamp={data?.errorDate}
           message={data?.errorMessage}
-          stacktrace={data?.stacktrace}
+          stacktrace={data?.stackTrace}
         />
       ),
     });
   }
 
+  function buildInfoNotification(message: string, description: string): ArgsProps {
+    const notificationConfiguration : ArgsProps = {
+      type: "info",
+      message: message,
+      description: description
+    };
+    addToHistory(notificationConfiguration);
+    return notificationConfiguration;
+  }
+
   function buildErrorNotification(message: string, description: string, error: any): ArgsProps {
-    return {
+    const notificationConfiguration : ArgsProps = {
+        type: "error",
         message: message,
         description: <NotificationDescriptionWithDetails description={description} showDetails={() => showDetailsClick(error)} />
       };
+    addToHistory(notificationConfiguration);
+    return notificationConfiguration
   }
 
   return {
@@ -54,10 +75,7 @@ export const useNotificationService = (): NotificationService => {
       notification.error(buildErrorNotification(message, description, error));
     },
     info: (message: string, description: string) => {
-      notification.info({
-        message: message,
-        description: description
-      });
+      notification.info(buildInfoNotification(message, description));
     }
   }
 }

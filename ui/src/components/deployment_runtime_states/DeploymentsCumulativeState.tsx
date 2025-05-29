@@ -3,6 +3,7 @@ import { Deployment } from "../../api/apiTypes.ts";
 import { Badge, BadgeProps, Spin } from "antd";
 import { api } from "../../api/api.ts";
 import { capitalize } from "../../misc/format-utils.ts";
+import { useDeployments } from "../../hooks/useDeployments.tsx";
 
 type DeploymentsCumulativeStateProps = {
   chainId: string;
@@ -48,17 +49,16 @@ function getDeploymentBadgeStatus(status: string): BadgeProps["status"] {
 export const DeploymentsCumulativeState: React.FC<
   DeploymentsCumulativeStateProps
 > = ({ chainId }) => {
-  const [deployments, setDeployments] = useState<Deployment[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<string>("DRAFT");
   const [badgeStatus, setBadgeStatus] = useState<BadgeProps["status"]>("default");
+  const { isLoading, deployments, setDeployments , setIsLoading} = useDeployments(chainId);
 
   useEffect(() => {
     getDeployments().then((d) => setDeployments(d ?? []));
   }, [chainId]);
 
   useEffect(() => {
-    setStatus(getDeploymentsStatus(deployments));
+    setStatus(getDeploymentsStatus(deployments ?? []));
   }, [deployments]);
 
   useEffect(() => {

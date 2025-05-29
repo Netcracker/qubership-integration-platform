@@ -2,6 +2,7 @@ import { Menu } from "antd";
 import styles from "./Navigation.module.css";
 import type { MenuProps } from "antd";
 import { DesktopOutlined, UnorderedListOutlined } from "@ant-design/icons";
+import {NotificationBar} from "./notifications/NotificationBar.tsx";
 
 type MenuItem = Required<MenuProps>["items"][number];
 
@@ -26,6 +27,7 @@ const Navigation = () => (
       mode="horizontal"
       className={styles.menu}
     ></Menu>
+      <NotificationBar />
   </nav>
 );
 

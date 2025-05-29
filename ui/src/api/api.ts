@@ -23,7 +23,8 @@ import {
   FolderItem,
   FolderResponse,
   FolderUpdateRequest,
-  PatchElementRequest
+  PatchElementRequest,
+  EventsUpdate
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -169,6 +170,8 @@ export interface Api {
   moveFolder(folderId: string, targetFolderId?: string): Promise<FolderResponse>;
 
   getNestedChains(folderId: string): Promise<Chain[]>;
+
+  getEvents(lastEventId: string): Promise<EventsUpdate>;
 }
 
 export const api: Api = new RestApi();
