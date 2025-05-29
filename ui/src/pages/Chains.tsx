@@ -52,6 +52,7 @@ import {
   ExportChains,
 } from "../components/modal/ExportChains.tsx";
 import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
+import { ImportChains } from "../components/modal/ImportChains.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 type ChainTableItem = FolderItem & {
@@ -150,26 +151,30 @@ const Chains = () => {
   const notificationService = useNotificationService();
 
   useEffect(() => {
-    const folderId = getFolderId();
-    const itemsPromise = folderId
-      ? getFolder(folderId).then((response) => {
-          setPathItems(buildPathItems(response?.navigationPath ?? new Map()));
-          return response?.items || [];
-        })
-      : getRootFolderItems().then((items) => {
-          setPathItems([]);
-          return items;
-        });
-    itemsPromise.then((items) => {
-      setIsLoading(true);
-      setFolderItems(items);
-      setIsLoading(false);
-    });
+    updateFolderItems();
   }, [searchParams]);
 
   useEffect(() => {
     setTableItems(buildTableItems(folderItems));
   }, [folderItems]);
+
+  const updateFolderItems = async () => {
+    const folderId = getFolderId();
+    const itemsPromise = folderId
+      ? getFolder(folderId).then((response) => {
+        setPathItems(buildPathItems(response?.navigationPath ?? new Map()));
+        return response?.items || [];
+      })
+      : getRootFolderItems().then((items) => {
+        setPathItems([]);
+        return items;
+      });
+    return itemsPromise.then((items) => {
+      setIsLoading(true);
+      setFolderItems(items);
+      setIsLoading(false);
+    });
+  }
 
   const getFolderId = (): string | undefined => {
     return searchParams.get("folder") ?? undefined;
@@ -425,14 +430,23 @@ const Chains = () => {
       if (ids.size === 0) {
         return;
       }
-      const chainsFile = await api.exportChains(
-        Array.from(ids.values()),
-        options.exportSubchains,
-      );
+      const chainsFile =
+        ids.size === 0
+          ? await api.exportAllChains()
+          : await api.exportChains(
+              Array.from(ids.values()),
+              options.exportSubchains,
+            );
       const data = [chainsFile];
 
-      if (options.exportSubchains) {
-        // TODO
+      if (options.exportServices) {
+        const usedServices = await api.getServicesUsedByChains(Array.from(ids.values()));
+        if (usedServices.length > 0) {
+          const serviceIds = usedServices.map(i => i.systemId);
+          const modelIds = usedServices.flatMap(i => i.usedSystemModelIds ?? []);
+          const servicesData = await api.exportServices(serviceIds, modelIds);
+          data.push(servicesData);
+        }
       }
 
       if (options.exportVariables) {
@@ -494,6 +508,12 @@ const Chains = () => {
   const onExportBtnClick = async () => {
     return exportChainsWithOptions(selectedRowKeys.map((k) => k.toString()));
   };
+
+  const onImportBtnClick = async () => {
+    showModal({
+      component: <ImportChains onSuccess={updateFolderItems}/>
+    })
+  }
 
   const exportChainsWithOptions = async (ids: string[]) => {
     const multiple =
@@ -852,7 +872,7 @@ const Chains = () => {
           <FloatButton
             tooltip="Import chains"
             icon={<ImportOutlined />}
-            // onClick={onImportBtnClick}
+            onClick={onImportBtnClick}
           />
           <FloatButton
             tooltip="Export selected chains"

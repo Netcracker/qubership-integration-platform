@@ -181,3 +181,9 @@ button:focus-visible {
   border-radius: 8px;
   overflow: hidden;
 }
+
+.flex-dragger {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}

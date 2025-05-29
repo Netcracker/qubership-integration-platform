@@ -24,6 +24,11 @@ import {
   FolderResponse,
   FolderUpdateRequest,
   PatchElementRequest,
+  UsedService,
+  ImportPreview,
+  ImportRequest,
+  ImportCommitResponse,
+  ImportStatusResponse,
   EventsUpdate
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
@@ -45,6 +50,8 @@ export interface Api {
 
   moveChain(chainId: string, folderId?: string): Promise<Chain>;
 
+  exportAllChains(): Promise<File>;
+
   exportChains(chainIds: string[], exportSubchains: boolean): Promise<File>;
 
   getLibrary(): Promise<LibraryData>;
@@ -56,7 +63,11 @@ export interface Api {
     chainId: string,
   ): Promise<ActionDifference>;
 
-  updateElement(elementRequest: PatchElementRequest, chainId: string, elementId: string): Promise<ActionDifference>;
+  updateElement(
+    elementRequest: PatchElementRequest,
+    chainId: string,
+    elementId: string,
+  ): Promise<ActionDifference>;
 
   deleteElement(elementId: string, chainId: string): Promise<ActionDifference>;
 
@@ -167,9 +178,26 @@ export interface Api {
 
   deleteFolder(folderId: string): Promise<void>;
 
-  moveFolder(folderId: string, targetFolderId?: string): Promise<FolderResponse>;
+  moveFolder(
+    folderId: string,
+    targetFolderId?: string,
+  ): Promise<FolderResponse>;
 
   getNestedChains(folderId: string): Promise<Chain[]>;
+
+  getServicesUsedByChains(chainIds: string[]): Promise<UsedService[]>;
+
+  exportServices(serviceIds: string[], modelIds: string[]): Promise<File>;
+
+  getImportPreview(file: File): Promise<ImportPreview>;
+
+  commitImport(
+    file: File,
+    request?: ImportRequest,
+    validateByHash?: boolean,
+  ): Promise<ImportCommitResponse>;
+
+  getImportStatus(importId: string): Promise<ImportStatusResponse>;
 
   getEvents(lastEventId: string): Promise<EventsUpdate>;
 }

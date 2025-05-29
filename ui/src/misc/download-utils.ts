@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { AxiosResponse } from "axios";
 
 export function downloadFile(file: File) {
   const link = document.createElement("a");
@@ -19,4 +20,14 @@ export async function mergeZipArchives(blobs: Blob[]) {
   }
 
   return zip.generateAsync({ type: "blob" });
+}
+
+export function getFileFromResponse(response: AxiosResponse<Blob>): File {
+  const contentDisposition = response.headers?.["content-disposition"];
+  const fileName = contentDisposition
+    ?.replace("attachment; filename=", "")
+    .replace(/^"|"$/g, "");
+  return new File([response.data], fileName, {
+    type: response.data.type.toString(),
+  });
 }

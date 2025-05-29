@@ -32,7 +32,7 @@ export type FolderUpdateRequest = {
   name: string;
   description: string;
   parentId?: string;
-}
+};
 
 export type FolderResponse = BaseEntity & {
   navigationPath: Map<string, string>; // Need to be a Map to preserve key order
@@ -41,7 +41,7 @@ export type FolderResponse = BaseEntity & {
   labels: EntityLabel[];
 };
 
-export type Chain = & BaseEntity & {
+export type Chain = BaseEntity & {
   navigationPath: Map<string, string>; // Need to be a Map to preserve key order
   elements: Element[];
   dependencies: Dependency[];
@@ -68,7 +68,7 @@ export type Dependency = {
   id: string;
   from: string;
   to: string;
-}
+};
 
 export type ElementRequest = {
   type: string;
@@ -198,7 +198,7 @@ export type Snapshot = BaseEntity & {
 export type EntityLabel = {
   name: string;
   technical: boolean;
-}
+};
 
 export type ActionDifference = {
   createdElements?: Element[];
@@ -208,23 +208,23 @@ export type ActionDifference = {
   createdReuseSwimlaneId?: string;
   createdDependencies?: Connection[];
   removedDependencies?: Connection[];
-}
+};
 
 export type RuntimeState = {
   status: string;
   error: string;
   stacktrace: string;
   suspended: boolean;
-}
+};
 
 export type RuntimeStates = {
   states: { [key: string]: RuntimeState };
-}
+};
 
 export type User = {
   id: string;
   username: string;
-}
+};
 
 export type Deployment = {
   id: string;
@@ -232,17 +232,17 @@ export type Deployment = {
   snapshotId: string;
   name: string;
   domain: string;
-  createdWhen : number;
+  createdWhen: number;
   createdBy: User;
   runtime?: RuntimeStates;
   serviceName: string;
-}
+};
 
 export type CreateDeploymentRequest = {
   domain: string;
   snapshotId: string;
   suspended: boolean;
-}
+};
 
 export type EngineDomain = {
   id: string;
@@ -250,13 +250,13 @@ export type EngineDomain = {
   replicas: number;
   namespace: string;
   version?: string;
-}
+};
 
 export type ChainLoggingSettings = {
   fallbackDefault: ChainLoggingProperties;
   consulDefault?: ChainLoggingProperties;
   custom?: ChainLoggingProperties;
-}
+};
 
 export type ChainLoggingProperties = {
   sessionsLoggingLevel: SessionsLoggingLevel;
@@ -265,30 +265,30 @@ export type ChainLoggingProperties = {
   logPayload: LogPayload[];
   dptEventsEnabled: boolean;
   maskingEnabled: boolean;
-}
+};
 
 export enum SessionsLoggingLevel {
-  OFF = 'OFF',
-  ERROR = 'ERROR',
-  INFO = 'INFO',
-  DEBUG = 'DEBUG',
+  OFF = "OFF",
+  ERROR = "ERROR",
+  INFO = "INFO",
+  DEBUG = "DEBUG",
 }
 
 export enum LogLoggingLevel {
-  ERROR = 'ERROR',
-  WARN = 'WARN',
-  INFO = 'INFO',
+  ERROR = "ERROR",
+  WARN = "WARN",
+  INFO = "INFO",
 }
 
 export enum LogPayload {
-  BODY = 'Body',
-  HEADERS = 'Headers',
-  PROPERTIES = 'Properties',
+  BODY = "Body",
+  HEADERS = "Headers",
+  PROPERTIES = "Properties",
 }
 
 export type MaskedFields = {
   fields: MaskedField[];
-}
+};
 
 export type MaskedField = {
   id: string;
@@ -297,48 +297,48 @@ export type MaskedField = {
   createdBy: User;
   modifiedWhen: number;
   modifiedBy: User;
-}
+};
 
 export type SessionFilterAndSearchRequest = {
   filterRequestList: SessionFilterRequest[];
   searchString: string;
-}
+};
 
 export type SessionFilterRequest = {
   feature: SessionFilterFeature;
   condition: SessionFilterCondition;
   value: string;
-}
+};
 
 export enum SessionFilterFeature {
-  CHAIN_NAME = 'CHAIN_NAME',
-  STATUS = 'STATUS',
-  START_TIME = 'START_TIME',
-  FINISH_TIME = 'FINISH_TIME',
-  ENGINE = 'ENGINE',
+  CHAIN_NAME = "CHAIN_NAME",
+  STATUS = "STATUS",
+  START_TIME = "START_TIME",
+  FINISH_TIME = "FINISH_TIME",
+  ENGINE = "ENGINE",
 }
 
 export enum SessionFilterCondition {
-  IN = 'IN',
-  NOT_IN = 'NOT_IN',
-  IS_AFTER = 'IS_AFTER',
-  IS_BEFORE = 'IS_BEFORE',
-  IS_WITHIN = 'IS_WITHIN',
-  CONTAINS = 'CONTAINS',
-  DOES_NOT_CONTAIN = 'DOES_NOT_CONTAIN',
-  STARTS_WITH = 'STARTS_WITH',
-  ENDS_WITH = 'ENDS_WITH',
+  IN = "IN",
+  NOT_IN = "NOT_IN",
+  IS_AFTER = "IS_AFTER",
+  IS_BEFORE = "IS_BEFORE",
+  IS_WITHIN = "IS_WITHIN",
+  CONTAINS = "CONTAINS",
+  DOES_NOT_CONTAIN = "DOES_NOT_CONTAIN",
+  STARTS_WITH = "STARTS_WITH",
+  ENDS_WITH = "ENDS_WITH",
 }
 
 export type PaginationOptions = {
   offset?: number;
   count?: number;
-}
+};
 
 export type SessionSearchResponse = {
   offset: number;
   sessions: Session[];
-}
+};
 
 export type AbstractRunnableElement = {
   started: string;
@@ -346,7 +346,7 @@ export type AbstractRunnableElement = {
   duration: number;
   syncDuration: number;
   executionStatus: ExecutionStatus;
-}
+};
 
 export type Session = AbstractRunnableElement & {
   id: string;
@@ -361,14 +361,14 @@ export type Session = AbstractRunnableElement & {
   correlationId: string;
   parentSessionId: string;
   sessionElements?: SessionElement[];
-}
+};
 
 export enum ExecutionStatus {
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED_NORMALLY = 'COMPLETED_NORMALLY',
-  COMPLETED_WITH_WARNINGS = 'COMPLETED_WITH_WARNINGS',
-  COMPLETED_WITH_ERRORS = 'COMPLETED_WITH_ERRORS',
-  CANCELLED_OR_UNKNOWN = 'CANCELLED_OR_UNKNOWN',
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED_NORMALLY = "COMPLETED_NORMALLY",
+  COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS",
+  COMPLETED_WITH_ERRORS = "COMPLETED_WITH_ERRORS",
+  CANCELLED_OR_UNKNOWN = "CANCELLED_OR_UNKNOWN",
 }
 
 export type SessionElement = AbstractRunnableElement & {
@@ -390,37 +390,255 @@ export type SessionElement = AbstractRunnableElement & {
   contextAfter: Record<string, string>;
   children?: SessionElement[];
   exceptionInfo: ExceptionInfoElastic;
-}
+};
 
 export type SessionElementProperty = {
   type: string;
   value: string;
-}
+};
 
 export type ExceptionInfoElastic = {
   message: string;
   stackTrace: string;
-}
+};
 
 export type CheckpointSession = {
-    id: string;
-    started: string;
-    finished: string;
-    duration: number;
-    executionStatus: ExecutionStatus;
-    chainId: string;
-    chainName: string;
-    engineAddress: string;
-    loggingLevel: SessionsLoggingLevel;
-    snapshotName: string;
-    correlationId: string;
-    checkpoints: Checkpoint[];
-}
+  id: string;
+  started: string;
+  finished: string;
+  duration: number;
+  executionStatus: ExecutionStatus;
+  chainId: string;
+  chainName: string;
+  engineAddress: string;
+  loggingLevel: SessionsLoggingLevel;
+  snapshotName: string;
+  correlationId: string;
+  checkpoints: Checkpoint[];
+};
 
 export type Checkpoint = {
   id: string;
   checkpointElementId: string;
   timestamp: string;
+};
+
+export type UsedService = {
+  systemId: string;
+  usedSystemModelIds: string[];
+};
+
+export type ImportPreview = {
+  errorMessage: string;
+  chains: ChainImportPreview[];
+  systems: SystemImportPreview[];
+  variables: VariableImportPreview[];
+  instructions: GeneralImportInstructions;
+};
+
+export type ChainImportPreview = {
+  id: string;
+  name: string;
+  usedSystems: string[];
+  deployAction: ChainCommitRequestAction;
+  deployments: DeploymentExternalEntity[];
+  instructionAction: ImportInstructionAction;
+  errorMessage: string;
+  exists: boolean;
+};
+
+export type SystemImportPreview = {
+  id: string;
+  name: string;
+  archiveName: string;
+  modified: number;
+  status: SystemImportStatus;
+  requiredAction: SystemImportAction;
+  instructionAction: ImportInstructionAction;
+  message: string;
+};
+
+export type VariableImportPreview = {
+  name: string;
+  value: string;
+  currentValue: string;
+};
+
+export type GeneralImportInstructions = {
+  chains: ChainImportInstructions;
+  services: ImportInstructions;
+  specificationGroups: ImportInstructions;
+  specifications: ImportInstructions;
+  commonVariables: ImportInstructions;
+};
+
+export type ChainImportInstructions = ImportInstructions & {
+  override: ImportInstruction[];
+};
+
+export type ImportInstructions = {
+  delete: ImportInstruction[];
+  ignore: ImportInstruction[];
+};
+
+export type ImportInstruction = {
+  id: string;
+  name: string;
+  overriddenById: string;
+  overriddenByName: string;
+  labels: string[];
+  modifiedWhen: number;
+  preview: boolean;
+};
+
+export enum SystemImportStatus {
+  CREATED = "CREATED",
+  UPDATED = "UPDATED",
+  ERROR = "ERROR",
+  NO_ACTION = "NO_ACTION",
+  IGNORED = "IGNORED",
+}
+
+export enum SystemImportAction {
+  CREATE = "CREATE",
+  UPDATE = "UPDATE",
+  ERROR = "ERROR",
+}
+
+export enum ChainCommitRequestAction {
+  NONE = "NONE",
+  SNAPSHOT = "SNAPSHOT",
+  DEPLOY = "DEPLOY",
+}
+
+export enum ImportInstructionAction {
+  DELETE = "DELETE",
+  IGNORE = "IGNORE",
+  OVERRIDE = "OVERRIDE",
+}
+
+export type DeploymentExternalEntity = {
+  domain: string;
+};
+
+export type ImportRequest = {
+  chainCommitRequests: ChainCommitRequest[];
+  systemsCommitRequest: SystemsCommitRequest;
+  variablesCommitRequest: VariablesCommitRequest;
+};
+
+export type ChainCommitRequest = {
+  id: string;
+  archiveName: string;
+  deployAction: ChainCommitRequestAction;
+  domains: ImportDomain[];
+};
+
+export type ImportDomain = {
+  id: string;
+  name: string;
+  errorMessage?: string;
+};
+
+export type SystemsCommitRequest = {
+  importMode: ImportMode;
+  systemIds: string[];
+  deployLabel?: string;
+};
+
+export enum ImportMode {
+  FULL = "FULL",
+  PARTIAL = "PARTIAL",
+  NONE = "NONE",
+}
+
+export type VariablesCommitRequest = {
+  importMode: ImportMode;
+  variablesNames: string[];
+};
+
+export type ImportCommitResponse = {
+  importId: string;
+};
+
+export type ImportStatusResponse = {
+  result?: ImportResult;
+  completion: number;
+  done: boolean;
+  error?: string;
+};
+
+export type ImportResult = {
+  chains: ImportChainResult[];
+  systems: ImportSystemResult[];
+  variables: ImportVariableResult[];
+  instructionsResult: ImportInstructionResult[];
+};
+
+export type ImportChainResult = {
+  id: string;
+  name: string;
+  status: ImportEntityStatus;
+  errorMessage: string;
+  deployAction: ChainCommitRequestAction;
+  deployments: DeploymentExternalEntity[];
+};
+
+export type ImportSystemResult = {
+  id: string;
+  name: string;
+  archiveName: string;
+  modified: number;
+  status: SystemImportStatus;
+  requiredAction: SystemCompareAction;
+  instructionAction: ImportInstructionAction;
+  message: string;
+};
+
+export type ImportVariableResult = {
+  name: string;
+  value: string;
+  status: ImportEntityStatus;
+  error: string;
+};
+
+export type ImportInstructionResult = {
+  id: string;
+  name: string;
+  entityType: ImportEntityType;
+  status: ImportInstructionStatus;
+  errorMessage: string;
+};
+
+export enum ImportEntityStatus {
+  CREATED = "CREATED",
+  ERROR = "ERROR",
+  UPDATED = "UPDATED",
+  IGNORED = "IGNORED",
+  SKIPPED = "SKIPPED",
+}
+
+export enum SystemCompareAction {
+  CREATE = "CREATE",
+  UPDATE = "UPDATE",
+  ERROR = "ERROR",
+}
+
+export enum ImportEntityType {
+  CHAIN = "CHAIN",
+  SERVICE = "SERVICE",
+  SPECIFICATION_GROUP = "SPECIFICATION_GROUP",
+  SPECIFICATION = "SPECIFICATION",
+  COMMON_VARIABLE = "COMMON_VARIABLE",
+}
+
+export enum ImportInstructionStatus {
+  DELETED = "DELETED",
+  IGNORED = "IGNORED",
+  OVERRIDDEN = "OVERRIDDEN",
+  ERROR_ON_DELETE = "ERROR_ON_DELETE",
+  ERROR_ON_OVERRIDE = "ERROR_ON_OVERRIDE",
+  NO_ACTION = "NO_ACTION",
 }
 
 

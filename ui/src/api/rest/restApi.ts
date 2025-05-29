@@ -26,11 +26,17 @@ import {
   FolderResponse,
   FolderUpdateRequest,
   PatchElementRequest,
+  UsedService,
+  ImportPreview,
+  ImportRequest,
+  ImportCommitResponse,
+  ImportStatusResponse,
   EventsUpdate,
   ErrorResponse,
   RestApiError,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
+import { getFileFromResponse } from "../../misc/download-utils.ts";
 
 export class RestApi implements Api {
   instance: AxiosInstance;
@@ -119,13 +125,27 @@ export class RestApi implements Api {
       return response.data;
   };
 
+  exportAllChains = async (): Promise<File> => {
+    try {
+      const response = await this.instance.get<Blob>(
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export`,
+        {
+          responseType: "blob",
+        },
+      );
+      return getFileFromResponse(response);
+    } catch (err) {
+      throw err;
+    }
+  };
+
   exportChains = async (
     chainIds: string[],
     exportSubchains: boolean,
   ): Promise<File> => {
     try {
       const response = await this.instance.get<Blob>(
-        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export`,
+        `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export/chains`,
         {
           params: { chainIds, exportWithSubChains: exportSubchains },
           paramsSerializer: {
@@ -134,11 +154,7 @@ export class RestApi implements Api {
           responseType: "blob",
         },
       );
-      const contentDisposition = response.headers?.["content-disposition"];
-      const fileName = contentDisposition?.replace("attachment; filename=", "");
-      return new File([response.data], fileName, {
-        type: response.data.type.toString(),
-      });
+      return getFileFromResponse(response);
     } catch (err) {
       throw err;
     }
@@ -176,7 +192,7 @@ export class RestApi implements Api {
   ): Promise<ActionDifference> => {
       const response = await this.instance.patch(
         `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/${elementId}`,
-        elementRequest
+        elementRequest,
       );
       return response.data;
   };
@@ -444,11 +460,7 @@ export class RestApi implements Api {
         sessionIds,
         { responseType: "blob" },
       );
-      const contentDisposition = response.headers?.["content-disposition"];
-      const fileName = contentDisposition?.replace("attachment; filename=", "");
-      return new File([response.data], fileName, {
-        type: response.data.type.toString(),
-      });
+      return getFileFromResponse(response);
   };
 
   importSessions = async (files: File[]): Promise<Session[]> => {
@@ -458,7 +470,7 @@ export class RestApi implements Api {
     headers.set("Content-Type", "multipart/form-data");
     headers.set("accept", "*/*");
       const response = await this.instance.post(
-        `/api/v1/cip/sessions-management/sessions/import`,
+        `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions/import`,
         formData,
         { headers },
       );
@@ -568,6 +580,95 @@ export class RestApi implements Api {
         `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}/chains`,
       );
       return response.data;
+  };
+
+  getServicesUsedByChains = async (
+    chainIds: string[],
+  ): Promise<UsedService[]> => {
+    const response = await this.instance.get<UsedService[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/used-systems`,
+      {
+        params: { chainIds },
+        paramsSerializer: {
+          indexes: null,
+        },
+      },
+    );
+    return response.data;
+  };
+
+  exportServices = async (
+    serviceIds: string[],
+    modelIds: string[],
+  ): Promise<File> => {
+    const formData: FormData = new FormData();
+    if (serviceIds?.length) {
+      formData.append("systemIds", serviceIds.join(","));
+    }
+    if (modelIds?.length) {
+      formData.append("usedSystemModelIds", modelIds.join(","));
+    }
+    const response = await this.instance.post<Blob>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/export/system`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          accept: "*/*",
+        },
+        responseType: "blob",
+      },
+    );
+    return getFileFromResponse(response);
+  };
+
+  getImportPreview = async (file: File): Promise<ImportPreview> => {
+    const formData: FormData = new FormData();
+    formData.append("file", file, file.name);
+    const response = await this.instance.post(
+      `/api/${import.meta.env.VITE_API_APP}/v3/import/preview`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          accept: "*/*",
+        },
+      },
+    );
+    return response.data;
+  };
+
+  commitImport = async (
+    file: File,
+    request?: ImportRequest,
+    validateByHash?: boolean,
+  ): Promise<ImportCommitResponse> => {
+    const formData: FormData = new FormData();
+    formData.append("file", file, file.name);
+    if (request) {
+      formData.append('importRequest', JSON.stringify(request));
+    }
+    if (validateByHash !== undefined) {
+      formData.append('validateByHash', validateByHash.toString())
+    }    
+    const response = await this.instance.post(
+      `/api/${import.meta.env.VITE_API_APP}/v3/import`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          accept: "*/*",
+        },
+      },
+    );
+    return response.data;
+  };
+
+  getImportStatus = async (importId: string): Promise<ImportStatusResponse> => {
+    const response = await this.instance.get<ImportStatusResponse>(
+      `/api/${import.meta.env.VITE_API_APP}/v3/import/${importId}`,
+    );
+    return response.data;
   };
 
   getEvents = async (lastEventId: string): Promise<EventsUpdate> => {
