@@ -19,169 +19,521 @@ properties:
   content:
     type: object
     required:
-#      - id
-#      - name
-      - elements
+      - id
+      - name
       - migrations
     properties:
-#      id:
-#        type: string
-#      name:
-#        type: string
+      id:
+        type: string
+        format: uuid
+      name:
+        type: string
       description:
         type: string
+      modifiedW hen:
+        type: integer
       businessDescription:
         type: string
       assumptions:
         type: string
       outOfScope:
         type: string
-      modifiedWhen:
-        type: integer
+      labels:
+        type: array
+        items:
+          type: string
+      maskedFields:
+        type: array
+        items:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
       elements:
         type: array
         items:
-          "$ref": "#/definitions/chainElement"
+          type: object
+          required:
+            - id
+            - name
+            - element-type
+            - properties
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            description:
+              type: string
+            element-type:
+              type: string
+            properties-filename:
+              type: string
+            properties:
+              oneOf:
+                - $ref: '#/$defs/httpSender'
+                - $ref: '#/$defs/kafkaSender2'
+                - $ref: '#/$defs/kafkaTrigger2'
+                - $ref: '#/$defs/script'
+                - $ref: '#/$defs/httpTrigger'
       dependencies:
         type: array
         items:
-          "$ref": "#/definitions/chainDependency"
+          type: object
+          required:
+            - from
+            - to
+          properties:
+            from:
+              type: string
+              format: uuid
+            to:
+              type: string
+              format: uuid
       deployments:
         type: array
         items:
-          "$ref": "#/definitions/chainDeployment"
+          type: object
+          required:
+            - domain
+          properties:
+            domain:
+              type: string
       deployAction:
         type: string
-      folder:
-        "$ref": "#/definitions/chainFolder"
+        enum:
+          - DEPLOY
+          - SNAPSHOT
+          - NONE
       migrations:
-        type: string
-    additionalProperties: false
-
-definitions:
-  chainDeployment:
-    type: object
-    properties:
-      domain:
-        type: string
-  chainDependency:
-    type: object
-    properties:
-      from:
-        type: string
-      to:
-        type: string
-    required:
-      - from
-      - to
-  chainFolder:
-    type: object
-    properties:
-      id:
-        type: string
-      name:
-        type: string
-
-  chainElement:
-    type: object
-    required:
-      - id
-      - name
-      - elementType
-      - properties
-    oneOf:
-      - "$ref": "#/definitions/chainElementHttpTrigger"
-      - "$ref": "#/definitions/chainElementHttpSender"
-      - "$ref": "#/definitions/chainElementScript"
-#    discriminator:
-#      propertyName: elementType
-#      mapping:
-#        "http-trigger": "#/definitions/chainElementHttpTrigger"
-#        "http-sender": "#/definitions/chainElementHttpSender"
-
-  chainElementCommonFields:
-      type: object
-      properties:
-        id:
+        type: array
+        items:
           type: string
-        name:
-          type: string
-
-  chainElementHttpTrigger:
-    allOf:
-      - $ref: "#/definitions/chainElementCommonFields"
-    properties:
-      elementType:
-        type: string
-        const: "http-trigger"
-      properties:
-        $ref: "#/definitions/chainElementHttpTriggerProperties"
-#    unevaluatedProperties: false
-
-  chainElementHttpTriggerProperties:
-    type: object
-    required:
-      - contextPath
-      - accessControlType
-      - externalRoute
-    properties:
-      contextPath:
-        type: string
-      httpMethodRestrict:
-        type: string
-      accessControlType:
-        type: string
-      externalRoute:
-        type: boolean
-
-  chainElementHttpSender:
-    allOf:
-      - $ref: "#/definitions/chainElementCommonFields"
-    properties:
-      elementType:
-        type: string
-        const: "http-sender"
-      properties:
-        $ref: "#/definitions/chainElementHttpSenderProperties"
-#    unevaluatedProperties: false
-
-  chainElementHttpSenderProperties:
-    type: object
-    required:
-      - httpMethod
-      - uri
-      - isExternalCall
-      - connectTimeout
-    properties:
-      httpMethod:
-        type: string
-      uri:
-        type: string
-      isExternalCall:
-        type: boolean
-      connectTimeout:
-        type: integer
-
-  chainElementScript:
-    allOf:
-      - $ref: "#/definitions/chainElementCommonFields"
-    required:
-      - propertiesFilename
-    properties:
-      elementType:
-        type: string
-        const: "script"
-      propertiesFilename:
-        type: string
-      properties:
-        $ref: "#/definitions/chainElementScriptProperties"
-  #    unevaluatedProperties: false
-
-  chainElementScriptProperties:
-    type: object
-    required: []
-    properties:
-      exportFileExtension:
-        type: string
-      propertiesToExportInSeparateFile:
-        type: string
+    $defs:
+      httpSender:
+        type: object
+        properties:
+          connectTimeout:
+            type: integer
+          correlationIdName:
+            type: string
+          correlationIdPosition:
+            type: string
+            enum:
+              - Header
+              - Body
+          httpMethod:
+            type: string
+            enum:
+              - POST
+              - GET
+              - PUT
+              - DELETE
+              - PATCH
+              - HEAD
+              - OPTIONS
+          isExternalCall:
+            type: boolean
+          m2m:
+            type: boolean
+          overrideContextParams:
+            type: object
+            additionalProperties:
+              type: string
+          propagateContext:
+            type: boolean
+          reuseEstablishedConnection:
+            type: boolean
+          uri:
+            type: string
+        required:
+          - httpMethod
+          - uri
+      kafkaSender2:
+        type: object
+        properties:
+          brokers:
+            type: string
+          connectionSourceType:
+            type: string
+            enum:
+              - manual
+              - maas
+          key:
+            type: string
+          keySerializer:
+            type: string
+            enum:
+              - org.apache.kafka.common.serialization.ByteArraySerializer
+              - org.apache.kafka.common.serialization.ByteBufferSerializer
+              - org.apache.kafka.common.serialization.BytesSerializer
+              - org.apache.kafka.common.serialization.DoubleSerializer
+              - org.apache.kafka.common.serialization.FloatSerializer
+              - org.apache.kafka.common.serialization.IntegerSerializer
+              - org.apache.kafka.common.serialization.LongSerializer
+              - org.apache.kafka.common.serialization.ShortSerializer
+              - org.apache.kafka.common.serialization.StringSerializer
+              - org.apache.kafka.common.serialization.UUIDSerializer
+              - org.apache.kafka.common.serialization.VoidSerializer
+          overrideContextParams:
+            type: object
+            additionalProperties:
+              type: string
+          propagateContext:
+            type: boolean
+          saslJaasConfig:
+            type: string
+          saslMechanism:
+            type: string
+            enum:
+              - 9798-M-DSA-SHA1
+              - 9798-M-ECDSA-SHA1
+              - 9798-M-RSA-SHA1-ENC
+              - 9798-U-DSA-SHA1
+              - 9798-U-ECDSA-SHA1
+              - 9798-U-RSA-SHA1-ENC
+              - ANONYMOUS
+              - CRAM-MD5
+              - DIGEST-MD5
+              - EAP-AES128
+              - EAP-AES128-PLUS
+              - ECDH-X25519-CHALLENGE
+              - ECDSA-NIST256P-CHALLENGE
+              - EXTERNAL
+              - GS2-KRB5
+              - GS2-KRB5-PLUS
+              - GSS-SPNEGO
+              - GSSAPI
+              - KERBEROS_V4
+              - KERBEROS_V5
+              - LOGIN
+              - NMAS_AUTHEN
+              - NMAS_LOGIN
+              - NMAS-SAMBA-AUTH
+              - NTLM
+              - OAUTH10A
+              - OAUTHBEARER
+              - OPENID20
+              - OTP
+              - PLAIN
+              - SAML20
+              - SCRAM-SHA-1
+              - SCRAM-SHA-1-PLUS
+              - SCRAM-SHA-256
+              - SCRAM-SHA-256-PLUS
+              - SCRAM-SHA-512
+              - SECURID
+              - SKEY
+              - SPNEGO
+              - SPNEGO-PLUS
+              - XOAUTH
+              - XOAUTH2
+          securityProtocol:
+            type: string
+            enum:
+              - PLAINTEXT
+              - SASL_PLAINTEXT
+              - SASL_SSL
+              - SSL
+          sslEndpointAlgorithm:
+            type: string
+          sslProtocol:
+            type: string
+            enum:
+              - TLS
+              - TLSv1.1
+              - TLSv1.2
+              - TLSv1.3
+          topics:
+            type: string
+          topicsClassifierName:
+            type: string
+          valueSerializer:
+            type: string
+            enum:
+              - org.apache.kafka.common.serialization.ByteArraySerializer
+              - org.apache.kafka.common.serialization.ByteBufferSerializer
+              - org.apache.kafka.common.serialization.BytesSerializer
+              - org.apache.kafka.common.serialization.DoubleSerializer
+              - org.apache.kafka.common.serialization.FloatSerializer
+              - org.apache.kafka.common.serialization.IntegerSerializer
+              - org.apache.kafka.common.serialization.LongSerializer
+              - org.apache.kafka.common.serialization.ShortSerializer
+              - org.apache.kafka.common.serialization.StringSerializer
+              - org.apache.kafka.common.serialization.UUIDSerializer
+              - org.apache.kafka.common.serialization.VoidSerializer
+        required:
+          - connectionSourceType
+          - sslProtocol
+          - valueSerializer
+        if:
+          properties:
+            connectionSourceType:
+              const: maas
+        then:
+          required:
+            - topicsClassifierName
+        else:
+          required:
+            - brokers
+            - securityProtocol
+            - saslMechanism
+            - topics
+      kafkaTrigger2:
+        type: object
+        properties:
+          actionOnDuplicate:
+            type: string
+            enum:
+              - ignore
+              - throw-exception
+              - execute-subchain
+          autoOffsetReset:
+            type: string
+            enum:
+              - none
+              - earliest
+              - latest
+          brokers:
+            type: string
+          chainCallTimeout:
+            type: integer
+          chainTriggerElementId:
+            type: string
+            format: uuid
+          connectionSourceType:
+            type: string
+            enum:
+              - manual
+              - maas
+          consumersCount:
+            type: integer
+          enableIdempotency:
+            type: boolean
+          groupId:
+            type: string
+          idempotencyKeyExpiry:
+            type: integer
+          idempotencyKeyExpression:
+            type: string
+          keyDeserializer:
+            type: string
+            enum:
+              - org.apache.kafka.common.serialization.ByteArraySerializer
+              - org.apache.kafka.common.serialization.ByteBufferSerializer
+              - org.apache.kafka.common.serialization.BytesSerializer
+              - org.apache.kafka.common.serialization.DoubleSerializer
+              - org.apache.kafka.common.serialization.FloatSerializer
+              - org.apache.kafka.common.serialization.IntegerSerializer
+              - org.apache.kafka.common.serialization.LongSerializer
+              - org.apache.kafka.common.serialization.ShortSerializer
+              - org.apache.kafka.common.serialization.StringSerializer
+              - org.apache.kafka.common.serialization.UUIDSerializer
+              - org.apache.kafka.common.serialization.VoidSerializer
+          maasClassifierTenantEnabled:
+            type: boolean
+          maxPollIntervalMs:
+            type: integer
+          maxPollRecords:
+            type: integer
+          reconnectBackoffMaxMs:
+            type: integer
+          saslJaasConfig:
+            type: string
+          saslMechanism:
+            type: string
+            enum:
+              - 9798-M-DSA-SHA1
+              - 9798-M-ECDSA-SHA1
+              - 9798-M-RSA-SHA1-ENC
+              - 9798-U-DSA-SHA1
+              - 9798-U-ECDSA-SHA1
+              - 9798-U-RSA-SHA1-ENC
+              - ANONYMOUS
+              - CRAM-MD5
+              - DIGEST-MD5
+              - EAP-AES128
+              - EAP-AES128-PLUS
+              - ECDH-X25519-CHALLENGE
+              - ECDSA-NIST256P-CHALLENGE
+              - EXTERNAL
+              - GS2-KRB5
+              - GS2-KRB5-PLUS
+              - GSS-SPNEGO
+              - GSSAPI
+              - KERBEROS_V4
+              - KERBEROS_V5
+              - LOGIN
+              - NMAS_AUTHEN
+              - NMAS_LOGIN
+              - NMAS-SAMBA-AUTH
+              - NTLM
+              - OAUTH10A
+              - OAUTHBEARER
+              - OPENID20
+              - OTP
+              - PLAIN
+              - SAML20
+              - SCRAM-SHA-1
+              - SCRAM-SHA-1-PLUS
+              - SCRAM-SHA-256
+              - SCRAM-SHA-256-PLUS
+              - SCRAM-SHA-512
+              - SECURID
+              - SKEY
+              - SPNEGO
+              - SPNEGO-PLUS
+              - XOAUTH
+              - XOAUTH2
+          securityProtocol:
+            type: string
+            enum:
+              - PLAINTEXT
+              - SASL_PLAINTEXT
+              - SASL_SSL
+              - SSL
+          sslEndpointAlgorithm:
+            type: string
+          sslProtocol:
+            type: string
+            enum:
+              - TLS
+              - TLSv1.1
+              - TLSv1.2
+              - TLSv1.3
+          topics:
+            type: string
+          topicsClassifierName:
+            type: string
+          valueDeserializer:
+            type: string
+            enum:
+              - org.apache.kafka.common.serialization.ByteArraySerializer
+              - org.apache.kafka.common.serialization.ByteBufferSerializer
+              - org.apache.kafka.common.serialization.BytesSerializer
+              - org.apache.kafka.common.serialization.DoubleSerializer
+              - org.apache.kafka.common.serialization.FloatSerializer
+              - org.apache.kafka.common.serialization.IntegerSerializer
+              - org.apache.kafka.common.serialization.LongSerializer
+              - org.apache.kafka.common.serialization.ShortSerializer
+              - org.apache.kafka.common.serialization.StringSerializer
+              - org.apache.kafka.common.serialization.UUIDSerializer
+              - org.apache.kafka.common.serialization.VoidSerializer
+        required:
+          - connectionSourceType
+          - autoOffsetReset
+          - groupId
+          - keyDeserializer
+          - sslProtocol
+          - valueSerializer
+        if:
+          properties:
+            connectionSourceType:
+              const: maas
+        then:
+          required:
+            - topicsClassifierName
+        else:
+          required:
+            - brokers
+            - securityProtocol
+            - saslMechanism
+            - topics
+      script:
+        type: object
+        properties:
+          exportFileExtension:
+            type: string
+          propertiesToExportInSeparateFile:
+            type: string
+        required:
+          - exportFileExtension
+      httpTrigger:
+        type: object
+        properties:
+          abacResource:
+            type: string
+          accessControlType:
+            type: string
+            enum:
+              - RBAC
+              - ABAC
+          actionOnDuplicate:
+            type: string
+            enum:
+              - ignore
+              - throw-exception
+              - execute-subchain
+          allowedContentTypes:
+            type: array
+            items:
+              type: string
+          chainCallTimeout:
+            type: integer
+          chainTriggerElementId:
+            type: string
+          chunked:
+            type: boolean
+          connectTimeout:
+            type: integer
+          contextPath:
+            type: string
+          correlationIdName:
+            type: string
+          correlationIdPosition:
+            type: string
+            enum:
+              - Header
+              - Body
+          enableIdempotency:
+            type: boolean
+          externalRoute:
+            type: boolean
+          handleChainFailureAction:
+            type: string
+            enum:
+              - default
+              - script
+              - mapper-2
+              - chain-call
+          handleValidationAction:
+            type: string
+            enum:
+              - default
+              - script
+              - mapper-2
+          handlerContainer:
+            type: object
+            properties:
+              script:
+                type: string
+          httpBinding:
+            type: string
+          httpMethodRestrict:
+            type: string
+          idempotencyKeyExpiry:
+            type: integer
+          idempotencyKeyExpression:
+            type: string
+          invalidURI:
+            type: boolean
+          killSessionOnTimeout:
+            type: boolean
+          privateRoute:
+            type: boolean
+          rejectRequestIfNonNullBodyGetDelete:
+            type: boolean
+          responseFilter:
+            type: boolean
+          roles:
+            type: array
+            items:
+              type: string
+          validationSchema:
+            type: string
+        required:
+          - contextPath
+          - httpBinding
