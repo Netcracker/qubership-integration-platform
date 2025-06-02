@@ -1,4 +1,4 @@
-"$id": http://qubership.org/schemas/product/qip/chain
+$id: http://qubership.org/schemas/product/qip/chain
 $schema: https://json-schema.org/draft/2020-12/schema
 title: Chain Schema
 type: object
