@@ -1,5 +1,5 @@
 $id: http://qubership.org/schemas/product/qip/chain
-$schema: https://json-schema.org/draft/2020-12/schema
+$schema: https://json-schema.org/draft-07/schema
 title: Chain Schema
 type: object
 required:
