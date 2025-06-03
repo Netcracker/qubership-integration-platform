@@ -1,8 +1,8 @@
 ---
-"$id": http://qubership.org/schemas/product/qip/chain
-"$schema": https://json-schema.org/draft-07/schema
+$id: http://qubership.org/schemas/product/qip/chain
+$schema: https://json-schema.org/draft-07/schema
 type: object
-title: "Chain"
+title: Chain
 group: Integrations
 required:
   - id
@@ -19,169 +19,99 @@ properties:
   content:
     type: object
     required:
-#      - id
-#      - name
-      - elements
+      - id
+      - name
       - migrations
     properties:
-#      id:
-#        type: string
-#      name:
-#        type: string
+      id:
+        type: string
+        format: uuid
+      name:
+        type: string
       description:
         type: string
+      modifiedWhen:
+        type: integer
       businessDescription:
         type: string
       assumptions:
         type: string
       outOfScope:
         type: string
-      modifiedWhen:
-        type: integer
+      labels:
+        type: array
+        items:
+          type: string
+      maskedFields:
+        type: array
+        items:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
       elements:
         type: array
         items:
-          "$ref": "#/definitions/chainElement"
+          $ref: '#/definitions/chainElement'
       dependencies:
         type: array
         items:
-          "$ref": "#/definitions/chainDependency"
+          type: object
+          required:
+            - from
+            - to
+          properties:
+            from:
+              type: string
+              format: uuid
+            to:
+              type: string
+              format: uuid
       deployments:
         type: array
         items:
-          "$ref": "#/definitions/chainDeployment"
+          type: object
+          required:
+            - domain
+          properties:
+            domain:
+              type: string
       deployAction:
         type: string
-      folder:
-        "$ref": "#/definitions/chainFolder"
+        enum:
+          - DEPLOY
+          - SNAPSHOT
+          - NONE
       migrations:
-        type: string
-    additionalProperties: false
-
+        type: array
+        items:
+          type: string
 definitions:
-  chainDeployment:
-    type: object
-    properties:
-      domain:
-        type: string
-  chainDependency:
-    type: object
-    properties:
-      from:
-        type: string
-      to:
-        type: string
-    required:
-      - from
-      - to
-  chainFolder:
-    type: object
-    properties:
-      id:
-        type: string
-      name:
-        type: string
-
   chainElement:
     type: object
     required:
       - id
       - name
-      - elementType
+      - element-type
       - properties
-    oneOf:
-      - "$ref": "#/definitions/chainElementHttpTrigger"
-      - "$ref": "#/definitions/chainElementHttpSender"
-      - "$ref": "#/definitions/chainElementScript"
-#    discriminator:
-#      propertyName: elementType
-#      mapping:
-#        "http-trigger": "#/definitions/chainElementHttpTrigger"
-#        "http-sender": "#/definitions/chainElementHttpSender"
-
-  chainElementCommonFields:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-
-  chainElementHttpTrigger:
-    allOf:
-      - $ref: "#/definitions/chainElementCommonFields"
     properties:
-      elementType:
+      id:
         type: string
-        const: "http-trigger"
-      properties:
-        $ref: "#/definitions/chainElementHttpTriggerProperties"
-#    unevaluatedProperties: false
-
-  chainElementHttpTriggerProperties:
-    type: object
-    required:
-      - contextPath
-      - accessControlType
-      - externalRoute
-    properties:
-      contextPath:
+        format: uuid
+      name:
         type: string
-      httpMethodRestrict:
+      description:
         type: string
-      accessControlType:
+      element-type:
         type: string
-      externalRoute:
-        type: boolean
-
-  chainElementHttpSender:
-    allOf:
-      - $ref: "#/definitions/chainElementCommonFields"
-    properties:
-      elementType:
-        type: string
-        const: "http-sender"
-      properties:
-        $ref: "#/definitions/chainElementHttpSenderProperties"
-#    unevaluatedProperties: false
-
-  chainElementHttpSenderProperties:
-    type: object
-    required:
-      - httpMethod
-      - uri
-      - isExternalCall
-      - connectTimeout
-    properties:
-      httpMethod:
-        type: string
-      uri:
-        type: string
-      isExternalCall:
-        type: boolean
-      connectTimeout:
-        type: integer
-
-  chainElementScript:
-    allOf:
-      - $ref: "#/definitions/chainElementCommonFields"
-    required:
-      - propertiesFilename
-    properties:
-      elementType:
-        type: string
-        const: "script"
-      propertiesFilename:
+      properties-filename:
         type: string
       properties:
-        $ref: "#/definitions/chainElementScriptProperties"
-  #    unevaluatedProperties: false
-
-  chainElementScriptProperties:
-    type: object
-    required: []
-    properties:
-      exportFileExtension:
-        type: string
-      propertiesToExportInSeparateFile:
-        type: string
+        oneOf:
+          - $ref: './elements/httpSender.yaml'
+          - $ref: './elements/kafkaSender2.yaml'
+          - $ref: './elements/kafkaTrigger2.yaml'
+          - $ref: './elements/script.yaml'
+          - $ref: './elements/httpTrigger.yaml'
