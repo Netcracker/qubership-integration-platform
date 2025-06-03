@@ -8,39 +8,6 @@ export type BaseEntity = {
   modifiedBy: User;
 };
 
-export type FolderItem = BaseEntity & {
-  parentId: string;
-  itemType: FolderItemType;
-  labels: EntityLabel[];
-  deployments: Deployment[];
-  chainRuntimeProperties: ChainLoggingSettings;
-  businessDescription: string;
-  assumptions: string;
-  outOfScope: string;
-  overriddenByChainId: string;
-  overriddenByChainName: string;
-  overridesChainId: string;
-  overridesChainName: string;
-};
-
-export enum FolderItemType {
-  FOLDER = "FOLDER",
-  CHAIN = "CHAIN",
-}
-
-export type FolderUpdateRequest = {
-  name: string;
-  description: string;
-  parentId?: string;
-};
-
-export type FolderResponse = BaseEntity & {
-  navigationPath: Map<string, string>; // Need to be a Map to preserve key order
-  parentId: string;
-  items: FolderItem[];
-  labels: EntityLabel[];
-};
-
 export type Chain = BaseEntity & {
   navigationPath: Map<string, string>; // Need to be a Map to preserve key order
   elements: Element[];
@@ -680,4 +647,50 @@ export class RestApiError extends Error {
       this.responseBody = responseBody;
       this.rawError = raw;
     }
+}
+
+export type CreateFolderRequest = {
+  id?: string;
+  parentId?: string;
+  name?: string;
+  description?: string;
+}
+
+export type UpdateFolderRequest = {
+  parentId?: string;
+  name?: string;
+  description?: string;
+}
+
+export type MoveFolderRequest = {
+  id: string;
+  targetId?: string;
+}
+
+export type ListFolderRequest = {
+  folderId?: string;
+  filters?: FolderFilter[];
+  searchString?: string;
+};
+
+export type FolderFilter = {
+  feature: string;
+  condition: string;
+  value: string;
+};
+
+export type CatalogItem = BaseEntity & {
+  parentId?: string;
+  itemType: CatalogItemType;
+}
+
+export enum CatalogItemType {
+  FOLDER = "FOLDER",
+  CHAIN = "CHAIN",
+}
+
+export type FolderItem = CatalogItem & {};
+
+export type ChainItem = CatalogItem & {
+  labels: EntityLabel[];
 }

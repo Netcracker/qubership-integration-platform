@@ -6,7 +6,7 @@ import styles from "./Chain.module.css";
 import { createContext, useEffect, useState } from "react";
 import { Chain } from "../api/apiTypes.ts";
 import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
-import { buildPathItems } from "./Chains.tsx";
+import { HomeOutlined } from "@ant-design/icons";
 
 export type ChainContextData = {
   chain: Chain | undefined;
@@ -16,6 +16,23 @@ export type ChainContextData = {
 export const ChainContext = createContext<ChainContextData | undefined>(
   undefined,
 );
+
+function buildPathItems(
+  path: Map<string, string>,
+): BreadcrumbProps["items"] {
+  const entries = Object.entries(path).reverse();
+  const items = entries.map(([key, value], index) => ({
+    title: value,
+    href: index < entries.length - 1 ? `/chains?folder=${key}` : undefined,
+  }));
+  return [
+    {
+      href: "/chains",
+      title: <HomeOutlined />,
+    },
+    ...items,
+  ];
+}
 
 const ChainPage = () => {
   const { chainId, sessionId } = useParams();

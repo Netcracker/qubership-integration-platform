@@ -127,10 +127,11 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
   useEffect(() => {
     if (importPreview) {
       setPreviewImportChainTableItems(
-        importPreview.chains?.map((i) => ({
+        importPreview.chains?.map((i, index) => ({
           ...i,
+          id: i.id ?? index,
           domains: domains?.filter((domain) =>
-            i.deployments.some((d) => d.domain === domain.id),
+            i.deployments?.some((d) => d.domain === domain.id),
           ),
         })) ?? [],
       );

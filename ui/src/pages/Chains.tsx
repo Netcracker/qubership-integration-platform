@@ -26,10 +26,12 @@ import {
 } from "@ant-design/icons";
 import { useModalsContext } from "../Modals.tsx";
 import {
+  CatalogItemType,
   ChainCreationRequest,
+  ChainItem,
   FolderItem,
-  FolderItemType,
-  FolderUpdateRequest,
+  ListFolderRequest,
+  UpdateFolderRequest,
 } from "../api/apiTypes.ts";
 import React, { useEffect, useState } from "react";
 import { api } from "../api/api.ts";
@@ -55,15 +57,17 @@ import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
 import { ImportChains } from "../components/modal/ImportChains.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
-type ChainTableItem = FolderItem & {
+type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
 };
 
-function buildTableItems(folderItems: FolderItem[]): ChainTableItem[] {
+function buildTableItems(
+  folderItems: (FolderItem | ChainItem)[],
+): ChainTableItem[] {
   const itemMap = new Map<string, ChainTableItem>(
     folderItems.map((item) => [
       item.id,
-      item.itemType === FolderItemType.FOLDER
+      item.itemType === CatalogItemType.FOLDER
         ? {
             ...item,
             children: [],
@@ -97,20 +101,17 @@ function compareChainTableItemsByTypeAndName(
   b: ChainTableItem,
 ): number {
   if (a.itemType !== b.itemType) {
-    const values = Object.values(FolderItemType);
+    const values = Object.values(CatalogItemType);
     return values.indexOf(a.itemType) - values.indexOf(b.itemType);
   } else {
     return a.name.localeCompare(b.name);
   }
 }
 
-export function buildPathItems(
-  path: Map<string, string>,
-): BreadcrumbProps["items"] {
-  const entries = Object.entries(path).reverse();
-  const items = entries.map(([key, value], index) => ({
-    title: value,
-    href: index < entries.length - 1 ? `/chains?folder=${key}` : undefined,
+function buildPathItems(path: FolderItem[]): BreadcrumbProps["items"] {
+  const items = path.map((folder, index) => ({
+    title: folder.name,
+    href: index < path.length - 1 ? `/chains?folder=${folder.id}` : undefined,
   }));
   return [
     {
@@ -147,12 +148,14 @@ const Chains = () => {
     "modifiedBy",
     "modifiedWhen",
   ]);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
+  const [searchString, setSearchString] = useState<string>("");
   const notificationService = useNotificationService();
 
   useEffect(() => {
     updateFolderItems();
-  }, [searchParams]);
+  }, [searchParams, searchString]);
 
   useEffect(() => {
     setTableItems(buildTableItems(folderItems));
@@ -160,58 +163,64 @@ const Chains = () => {
 
   const updateFolderItems = async () => {
     const folderId = getFolderId();
-    const itemsPromise = folderId
-      ? getFolder(folderId).then((response) => {
-        setPathItems(buildPathItems(response?.navigationPath ?? new Map()));
-        return response?.items || [];
-      })
-      : getRootFolderItems().then((items) => {
-        setPathItems([]);
-        return items;
-      });
-    return itemsPromise.then((items) => {
+    listFolder(folderId).then((items) => {
       setIsLoading(true);
+      setExpandedRowKeys([]);
+      setLoadedFolders(new Set());
       setFolderItems(items);
       setIsLoading(false);
     });
-  }
+
+    getPathToFolder(folderId).then((path) =>
+      setPathItems(buildPathItems(path)),
+    );
+  };
 
   const getFolderId = (): string | undefined => {
     return searchParams.get("folder") ?? undefined;
   };
 
-  const getRootFolderItems = async (): Promise<FolderItem[]> => {
+  const getPathToFolder = async (folderId: string | undefined) => {
+    if (!folderId) {
+      return [];
+    }
     setIsLoading(true);
     try {
-      return await api.getRootFolder();
+      return await api.getPathToFolder(folderId);
     } catch (error) {
-      notificationService.requestFailed("Failed to get root folder content", error);
+      notificationService.requestFailed("Failed to get path to folder", error);
       return [];
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getFolder = async (folderId: string) => {
+  const listFolder = async (folderId: string | undefined) => {
+    const request: ListFolderRequest = {
+      folderId,
+      filters: [], // TODO
+      searchString,
+    };
     setIsLoading(true);
     try {
-      return api.getFolder(folderId);
+      return await api.listFolder(request);
     } catch (error) {
       notificationService.requestFailed("Failed to get folder content", error);
+      return [];
     } finally {
       setIsLoading(false);
     }
   };
 
   const openFolder = async (folderId: string) => {
-    return getFolder(folderId).then((response) => {
+    return listFolder(folderId).then((response) => {
       if (!response) {
         return;
       }
       setFolderItems([
-        ...response.items,
+        ...response,
         ...folderItems.filter(
-          (item) => !response.items.some((i) => i.id === item.id),
+          (item) => !response.some((i) => i.id === item.id),
         ),
       ]);
       const s = new Set(loadedFolders);
@@ -221,18 +230,14 @@ const Chains = () => {
   };
 
   const createFolder = async (
-    request: FolderUpdateRequest,
+    request: UpdateFolderRequest,
     openFolder: boolean,
     newTab: boolean,
   ) => {
     setIsLoading(true);
     try {
       const response = await api.createFolder(request);
-      setFolderItems([
-        ...folderItems,
-        // @ts-ignore
-        { ...(response as FolderItem), itemType: FolderItemType.FOLDER },
-      ]);
+      setFolderItems([...folderItems, response]);
       if (openFolder) {
         const path = `/chains?folder=${response.id}`;
         if (newTab) {
@@ -250,7 +255,7 @@ const Chains = () => {
 
   const updateFolder = async (
     folderId: string,
-    changes: FolderUpdateRequest,
+    changes: UpdateFolderRequest,
   ) => {
     setIsLoading(true);
     try {
@@ -285,6 +290,27 @@ const Chains = () => {
     }
   };
 
+  const deleteFolders = async (folderIds: string[]) => {
+    if (folderIds.length === 0) {
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await api.deleteFolders(folderIds);
+      const ids = new Set<string>(folderIds);
+      traverseElementsDepthFirst(tableItems, (element, path) => {
+        if (path.some((i) => folderIds.includes(i.id))) {
+          ids.add(element.id);
+        }
+      });
+      setFolderItems(folderItems.filter((i) => !ids.has(i.id)));
+    } catch (error) {
+      notificationService.requestFailed("Failed to delete folders", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   const createChain = async (
     request: ChainCreationRequest,
     openChain: boolean,
@@ -295,8 +321,7 @@ const Chains = () => {
       const chain = await api.createChain(request);
       setFolderItems([
         ...folderItems,
-        // @ts-ignore
-        { itemType: FolderItemType.CHAIN, ...chain } as FolderItem,
+        { itemType: CatalogItemType.CHAIN, ...chain },
       ]);
       if (openChain) {
         const path = `/chains/${chain.id}`;
@@ -325,17 +350,31 @@ const Chains = () => {
     }
   };
 
+  const deleteChains = async (chainIds: string[]) => {
+    if (chainIds.length === 0) {
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await api.deleteChains(chainIds);
+      setFolderItems(folderItems.filter(item => !chainIds.includes(item.id)));
+    } catch (error) {
+      notificationService.requestFailed("Failed to delete chains", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   const duplicateChain = async (chainId: string) => {
     setIsLoading(true);
     try {
       const chain = await api.duplicateChain(chainId);
       setFolderItems([
         ...folderItems,
-        // @ts-ignore
-        { itemType: FolderItemType.CHAIN, ...chain } as FolderItem,
+        { itemType: CatalogItemType.CHAIN, ...chain },
       ]);
     } catch (error) {
-      notificationService.requestFailed("Failed to delete chain", error);
+      notificationService.requestFailed("Failed to duplicate chain", error);
     } finally {
       setIsLoading(false);
     }
@@ -347,8 +386,7 @@ const Chains = () => {
       const chain = await api.copyChain(chainId, destinationFolderId);
       setFolderItems([
         ...folderItems,
-        // @ts-ignore
-        { itemType: FolderItemType.CHAIN, ...chain } as FolderItem,
+        { itemType: CatalogItemType.CHAIN, ...chain },
       ]);
     } catch (error) {
       notificationService.requestFailed("Failed to copy chain", error);
@@ -363,10 +401,7 @@ const Chains = () => {
       const chain = await api.moveChain(chainId, destinationFolderId);
       setFolderItems(
         folderItems.map((i) =>
-          i.id === chainId
-            ? // @ts-ignore
-              ({ itemType: FolderItemType.CHAIN, ...chain } as FolderItem)
-            : i,
+          i.id === chainId ? { itemType: CatalogItemType.CHAIN, ...chain } : i,
         ),
       );
     } catch (error) {
@@ -398,13 +433,13 @@ const Chains = () => {
     }
     switch (operation.operation) {
       case "copy":
-        return operation.item.itemType === FolderItemType.CHAIN
+        return operation.item.itemType === CatalogItemType.CHAIN
           ? copyChain(operation.item.id, destinationFolderId).then(() =>
               setOperation(undefined),
             )
           : null;
       case "move":
-        return operation.item.itemType === FolderItemType.CHAIN
+        return operation.item.itemType === CatalogItemType.CHAIN
           ? moveChain(operation.item.id, destinationFolderId).then(() =>
               setOperation(undefined),
             )
@@ -440,10 +475,14 @@ const Chains = () => {
       const data = [chainsFile];
 
       if (options.exportServices) {
-        const usedServices = await api.getServicesUsedByChains(Array.from(ids.values()));
+        const usedServices = await api.getServicesUsedByChains(
+          Array.from(ids.values()),
+        );
         if (usedServices.length > 0) {
-          const serviceIds = usedServices.map(i => i.systemId);
-          const modelIds = usedServices.flatMap(i => i.usedSystemModelIds ?? []);
+          const serviceIds = usedServices.map((i) => i.systemId);
+          const modelIds = usedServices.flatMap(
+            (i) => i.usedSystemModelIds ?? [],
+          );
           const servicesData = await api.exportServices(serviceIds, modelIds);
           data.push(servicesData);
         }
@@ -509,17 +548,27 @@ const Chains = () => {
     return exportChainsWithOptions(selectedRowKeys.map((k) => k.toString()));
   };
 
+  const onDeleteBtnClick = async () => {
+    if (selectedRowKeys.length > 0) {
+      Modal.confirm({
+        title: "Delete selected",
+        content: `Are you sure you want to delete selected folders and chains?`,
+        onOk: async () => deleteSelectedFoldersAndChains(),
+      });
+    }
+  };
+
   const onImportBtnClick = async () => {
     showModal({
-      component: <ImportChains onSuccess={updateFolderItems}/>
-    })
-  }
+      component: <ImportChains onSuccess={updateFolderItems} />,
+    });
+  };
 
   const exportChainsWithOptions = async (ids: string[]) => {
     const multiple =
       ids.length !== 1 ||
       folderItems.find((i) => i.id === ids[0])?.itemType ===
-        FolderItemType.FOLDER;
+        CatalogItemType.FOLDER;
     showModal({
       component: (
         <ExportChains
@@ -527,16 +576,33 @@ const Chains = () => {
           onSubmit={(options) => {
             const items = folderItems.filter((i) => ids.includes(i.id));
             const folderIds = items
-              .filter((i) => i.itemType === FolderItemType.FOLDER)
+              .filter((i) => i.itemType === CatalogItemType.FOLDER)
               .map((i) => i.id);
             const chainIds = items
-              .filter((i) => i.itemType === FolderItemType.CHAIN)
+              .filter((i) => i.itemType === CatalogItemType.CHAIN)
               .map((i) => i.id);
             return exportChains(folderIds, chainIds, options);
           }}
         />
       ),
     });
+  };
+
+  const deleteSelectedFoldersAndChains = async () => {
+    const folderIds = folderItems
+      .filter(
+        (i) =>
+          selectedRowKeys.includes(i.id) && i.itemType === CatalogItemType.FOLDER,
+      )
+      .map((i) => i.id);
+    await deleteFolders(folderIds);
+    const chainIds = folderItems
+      .filter(
+        (i) =>
+          selectedRowKeys.includes(i.id) && i.itemType === CatalogItemType.CHAIN,
+      )
+      .map((i) => i.id);
+    await deleteChains(chainIds);
   };
 
   const onContextMenuItemClick = async (item: FolderItem, key: React.Key) => {
@@ -628,9 +694,6 @@ const Chains = () => {
   const columnVisibilityMenuItems: MenuProps["items"] = [
     { label: "ID", key: "id" },
     { label: "Description", key: "description" },
-    { label: "Business Description", key: "businessDescription" },
-    { label: "Assumptions", key: "assumptions" },
-    { label: "Out of Scope", key: "outOfScope" },
     { label: "Status", key: "status" },
     { label: "Labels", key: "labels" },
     { label: "Created At", key: "createdWhen" },
@@ -648,7 +711,7 @@ const Chains = () => {
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       render: (_, item) => (
         <Flex vertical={false} gap={4}>
-          {item.itemType === FolderItemType.FOLDER ? (
+          {item.itemType === CatalogItemType.FOLDER ? (
             <FolderOutlined />
           ) : (
             <FileOutlined />
@@ -657,7 +720,7 @@ const Chains = () => {
             onClick={(event) => {
               event.stopPropagation();
               navigate(
-                item.itemType === FolderItemType.FOLDER
+                item.itemType === CatalogItemType.FOLDER
                   ? `/chains?folder=${item.id}`
                   : `/chains/${item.id}`,
               );
@@ -684,37 +747,12 @@ const Chains = () => {
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
     },
     {
-      title: "Business Description",
-      key: "businessDescription",
-      dataIndex: "businessDescription",
-      hidden: !selectedKeys.includes("businessDescription"),
-      sorter: (a, b) =>
-        a.businessDescription.localeCompare(b.businessDescription),
-      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
-    },
-    {
-      title: "Assumptions",
-      key: "assumptions",
-      dataIndex: "assumptions",
-      hidden: !selectedKeys.includes("assumptions"),
-      sorter: (a, b) => a.assumptions.localeCompare(b.assumptions),
-      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
-    },
-    {
-      title: "Out of Scope",
-      key: "outOfScope",
-      dataIndex: "outOfScope",
-      hidden: !selectedKeys.includes("outOfScope"),
-      sorter: (a, b) => a.outOfScope.localeCompare(b.outOfScope),
-      filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
-    },
-    {
       title: "Status",
       key: "status",
       hidden: !selectedKeys.includes("status"),
       render: (_, item) => (
         <>
-          {item.itemType === FolderItemType.FOLDER ? null : (
+          {item.itemType === CatalogItemType.FOLDER ? null : (
             <DeploymentsCumulativeState chainId={item.id} />
           )}
         </>
@@ -728,7 +766,10 @@ const Chains = () => {
       filterDropdown: (props) => (
         <TextColumnFilterDropdown {...props} enableExact />
       ),
-      render: (_, item) => <EntityLabels labels={item.labels} />,
+      render: (_, item) =>
+        item.itemType === CatalogItemType.CHAIN ? (
+          <EntityLabels labels={(item as ChainItem).labels} />
+        ) : null,
     },
     {
       title: "Created By",
@@ -786,7 +827,7 @@ const Chains = () => {
           <Dropdown
             menu={{
               items:
-                item.itemType === FolderItemType.FOLDER
+                item.itemType === CatalogItemType.FOLDER
                   ? folderMenuItems
                   : chainMenuItems,
               onClick: ({ key }) => onContextMenuItemClick(item, key),
@@ -819,7 +860,7 @@ const Chains = () => {
           <Search
             placeholder="Full text search"
             allowClear
-            // onSearch={(value) => setFilters({ ...filters, searchString: value })}
+            onSearch={(value) => setSearchString(value)}
           />
           <Dropdown
             menu={{
@@ -846,6 +887,10 @@ const Chains = () => {
           rowClassName="clickable-row"
           loading={isLoading}
           expandable={{
+            expandedRowKeys,
+            onExpandedRowsChange: async (rowKeys) => {
+              setExpandedRowKeys([...rowKeys]);
+            },
             onExpand: async (expanded, item) => {
               if (expanded && !loadedFolders.has(item.id)) {
                 return openFolder(item.id);
@@ -882,7 +927,7 @@ const Chains = () => {
           <FloatButton
             tooltip="Delete selected chains and folders"
             icon={<DeleteOutlined />}
-            // onClick={onDeleteBtnClick}
+            onClick={onDeleteBtnClick}
           />
           <FloatButton
             tooltip="Create folder"
