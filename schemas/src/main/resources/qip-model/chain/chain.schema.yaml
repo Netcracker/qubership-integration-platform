@@ -85,9 +85,7 @@ properties:
           - SNAPSHOT
           - NONE
       migrations:
-        type: array
-        items:
-          type: string
+        type: string
 definitions:
   chainElement:
     type: object
