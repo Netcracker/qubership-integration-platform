@@ -1,11 +1,26 @@
-$id: http://qubership.org/schemas/product/qip/httpTrigger
+$id: http://qubership.org/schemas/product/qip/script
 $schema: https://json-schema.org/draft-07/schema
-title: HttpTrigger
+title: Script
 type: object
-required:
-  - exportFileExtension
 properties:
-  exportFileExtension:
+  id:
     type: string
-  propertiesToExportInSeparateFile:
+    format: uuid
+  name:
     type: string
+  description:
+    type: string
+  elementType:
+    type: string
+    const: script
+  propertiesFilename:
+    type: string
+  properties:
+    type: object
+    required:
+      - exportFileExtension
+    properties:
+      exportFileExtension:
+        type: string
+      propertiesToExportInSeparateFile:
+        type: string

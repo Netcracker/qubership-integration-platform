@@ -1,88 +1,101 @@
-$id: http://qubership.org/schemas/product/qip/script
+$id: http://qubership.org/schemas/product/qip/httpTrigger
 $schema: https://json-schema.org/draft-07/schema
-title: Script
+title: HttpTrigger
 type: object
-required:
-  - contextPath
-  - httpBinding
 properties:
-  abacResource:
+  id:
     type: string
-  accessControlType:
+    format: uuid
+  name:
     type: string
-    enum:
-      - RBAC
-      - ABAC
-  actionOnDuplicate:
+  description:
     type: string
-    enum:
-      - ignore
-      - throw-exception
-      - execute-subchain
-  allowedContentTypes:
-    type: array
-    items:
-      type: string
-  chainCallTimeout:
-    type: integer
-  chainTriggerElementId:
+  elementType:
     type: string
-  chunked:
-    type: boolean
-  connectTimeout:
-    type: integer
-  contextPath:
-    type: string
-  correlationIdName:
-    type: string
-  correlationIdPosition:
-    type: string
-    enum:
-      - Header
-      - Body
-  enableIdempotency:
-    type: boolean
-  externalRoute:
-    type: boolean
-  handleChainFailureAction:
-    type: string
-    enum:
-      - default
-      - script
-      - mapper-2
-      - chain-call
-  handleValidationAction:
-    type: string
-    enum:
-      - default
-      - script
-      - mapper-2
-  handlerContainer:
+    const: httpTrigger
+  properties:
     type: object
+    required:
+      - contextPath
+      - httpBinding
     properties:
-      script:
+      abacResource:
         type: string
-  httpBinding:
-    type: string
-  httpMethodRestrict:
-    type: string
-  idempotencyKeyExpiry:
-    type: integer
-  idempotencyKeyExpression:
-    type: string
-  invalidURI:
-    type: boolean
-  killSessionOnTimeout:
-    type: boolean
-  privateRoute:
-    type: boolean
-  rejectRequestIfNonNullBodyGetDelete:
-    type: boolean
-  responseFilter:
-    type: boolean
-  roles:
-    type: array
-    items:
-      type: string
-  validationSchema:
-    type: string
+      accessControlType:
+        type: string
+        enum:
+          - RBAC
+          - ABAC
+      actionOnDuplicate:
+        type: string
+        enum:
+          - ignore
+          - throw-exception
+          - execute-subchain
+      allowedContentTypes:
+        type: array
+        items:
+          type: string
+      chainCallTimeout:
+        type: integer
+      chainTriggerElementId:
+        type: string
+      chunked:
+        type: boolean
+      connectTimeout:
+        type: integer
+      contextPath:
+        type: string
+      correlationIdName:
+        type: string
+      correlationIdPosition:
+        type: string
+        enum:
+          - Header
+          - Body
+      enableIdempotency:
+        type: boolean
+      externalRoute:
+        type: boolean
+      handleChainFailureAction:
+        type: string
+        enum:
+          - default
+          - script
+          - mapper-2
+          - chain-call
+      handleValidationAction:
+        type: string
+        enum:
+          - default
+          - script
+          - mapper-2
+      handlerContainer:
+        type: object
+        properties:
+          script:
+            type: string
+      httpBinding:
+        type: string
+      httpMethodRestrict:
+        type: string
+      idempotencyKeyExpiry:
+        type: integer
+      idempotencyKeyExpression:
+        type: string
+      invalidURI:
+        type: boolean
+      killSessionOnTimeout:
+        type: boolean
+      privateRoute:
+        type: boolean
+      rejectRequestIfNonNullBodyGetDelete:
+        type: boolean
+      responseFilter:
+        type: boolean
+      roles:
+        type: array
+        items:
+          type: string
+      validationSchema:
+        type: string

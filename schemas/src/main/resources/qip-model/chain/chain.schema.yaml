@@ -96,22 +96,9 @@ definitions:
       - name
       - element-type
       - properties
-    properties:
-      id:
-        type: string
-        format: uuid
-      name:
-        type: string
-      description:
-        type: string
-      element-type:
-        type: string
-      properties-filename:
-        type: string
-      properties:
-        oneOf:
-          - $ref: './elements/httpSender.yaml'
-          - $ref: './elements/kafkaSender2.yaml'
-          - $ref: './elements/kafkaTrigger2.yaml'
-          - $ref: './elements/script.yaml'
-          - $ref: './elements/httpTrigger.yaml'
+    oneOf:
+      - $ref: './elements/httpSender.yaml'
+      - $ref: './elements/kafkaSender2.yaml'
+      - $ref: './elements/kafkaTrigger2.yaml'
+      - $ref: './elements/script.yaml'
+      - $ref: './elements/httpTrigger.yaml'
