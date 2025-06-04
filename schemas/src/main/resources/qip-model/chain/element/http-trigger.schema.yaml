@@ -1,6 +1,6 @@
-$id: http://qubership.org/schemas/product/qip/httpTrigger
+$id: http://qubership.org/schemas/product/qip/element/http-trigger
 $schema: https://json-schema.org/draft-07/schema
-title: HttpTrigger
+title: Http Trigger
 type: object
 properties:
   id:
@@ -12,7 +12,10 @@ properties:
     type: string
   elementType:
     type: string
-    const: httpTrigger
+    const: http-trigger
+  folder:
+    type: string
+    const: triggers
   properties:
     type: object
     required:

@@ -13,6 +13,9 @@ properties:
   elementType:
     type: string
     const: script
+  folder:
+    type: string
+    const: transformation
   propertiesFilename:
     type: string
   properties:

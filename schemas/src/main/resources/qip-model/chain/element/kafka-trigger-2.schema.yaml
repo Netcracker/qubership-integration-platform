@@ -1,6 +1,6 @@
-$id: http://qubership.org/schemas/product/qip/kafkaSender2
+$id: http://qubership.org/schemas/product/qip/element/kafka-trigger-2
 $schema: https://json-schema.org/draft-07/schema
-title: KafkaSender2
+title: Kafka Trigger
 type: object
 properties:
   id:
@@ -12,11 +12,17 @@ properties:
     type: string
   elementType:
     type: string
-    const: kafkaSender2
+    const: kafka-trigger-2
+  folder:
+    type: string
+    const: triggers
   properties:
     type: object
     required:
       - connectionSourceType
+      - autoOffsetReset
+      - groupId
+      - keyDeserializer
       - sslProtocol
       - valueSerializer
     if:
@@ -33,16 +39,41 @@ properties:
         - saslMechanism
         - topics
     properties:
+      actionOnDuplicate:
+        type: string
+        enum:
+          - ignore
+          - throw-exception
+          - execute-subchain
+      autoOffsetReset:
+        type: string
+        enum:
+          - none
+          - earliest
+          - latest
       brokers:
         type: string
+      chainCallTimeout:
+        type: integer
+      chainTriggerElementId:
+        type: string
+        format: uuid
       connectionSourceType:
         type: string
         enum:
           - manual
           - maas
-      key:
+      consumersCount:
+        type: integer
+      enableIdempotency:
+        type: boolean
+      groupId:
         type: string
-      keySerializer:
+      idempotencyKeyExpiry:
+        type: integer
+      idempotencyKeyExpression:
+        type: string
+      keyDeserializer:
         type: string
         enum:
           - org.apache.kafka.common.serialization.ByteArraySerializer
@@ -56,12 +87,14 @@ properties:
           - org.apache.kafka.common.serialization.StringSerializer
           - org.apache.kafka.common.serialization.UUIDSerializer
           - org.apache.kafka.common.serialization.VoidSerializer
-      overrideContextParams:
-        type: object
-        additionalProperties:
-          type: string
-      propagateContext:
+      maasClassifierTenantEnabled:
         type: boolean
+      maxPollIntervalMs:
+        type: integer
+      maxPollRecords:
+        type: integer
+      reconnectBackoffMaxMs:
+        type: integer
       saslJaasConfig:
         type: string
       saslMechanism:
@@ -129,7 +162,7 @@ properties:
         type: string
       topicsClassifierName:
         type: string
-      valueSerializer:
+      valueDeserializer:
         type: string
         enum:
           - org.apache.kafka.common.serialization.ByteArraySerializer
