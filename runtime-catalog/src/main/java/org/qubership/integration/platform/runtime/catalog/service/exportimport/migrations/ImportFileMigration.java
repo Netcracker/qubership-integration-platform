@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public interface ImportFileMigration {
     String IMPORT_VERSION_FIELD_OLD = "fileVersion";
     String IMPORT_MIGRATIONS_FIELD = "migrations";
+    String IMPORT_CONTENT_FIELD = "content";
 
     int getVersion();
 

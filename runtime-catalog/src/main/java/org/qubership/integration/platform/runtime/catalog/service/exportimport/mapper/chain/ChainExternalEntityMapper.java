@@ -24,6 +24,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.cha
 import org.qubership.integration.platform.catalog.util.DistinctByKey;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainFileMigrationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
@@ -36,10 +37,15 @@ import java.util.stream.Stream;
 public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, ChainExternalMapperEntity> {
 
     private final ChainElementsExternalEntityMapper chainElementsMapper;
+    private final ChainFileMigrationService chainFileMigrationService;
 
     @Autowired
-    public ChainExternalEntityMapper(ChainElementsExternalEntityMapper chainElementsMapper) {
+    public ChainExternalEntityMapper(
+            ChainElementsExternalEntityMapper chainElementsMapper,
+            ChainFileMigrationService chainFileMigrationService
+    ) {
         this.chainElementsMapper = chainElementsMapper;
+        this.chainFileMigrationService = chainFileMigrationService;
     }
 
     @Override
@@ -52,22 +58,22 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
 
         resultChain.setId(externalChain.getId());
         resultChain.setName(externalChain.getName());
-        resultChain.setLastImportHash(externalChain.getLastImportHash());
-        resultChain.setDescription(externalChain.getDescription());
-        resultChain.setOverridesChainId(externalChain.getOverridesChainId());
-        resultChain.setOverriddenByChainId(externalChain.getOverriddenByChainId());
-        if (!externalChain.isOverridden()) {
+        resultChain.setLastImportHash(externalChain.getContent().getLastImportHash());
+        resultChain.setDescription(externalChain.getContent().getDescription());
+        resultChain.setOverridesChainId(externalChain.getContent().getOverridesChainId());
+        resultChain.setOverriddenByChainId(externalChain.getContent().getOverriddenByChainId());
+        if (!externalChain.getContent().isOverridden()) {
             resultChain.setOverriddenByChainId(null);
         }
 
-        resultChain.setBusinessDescription(externalChain.getBusinessDescription());
-        resultChain.setAssumptions(externalChain.getAssumptions());
-        resultChain.setOutOfScope(externalChain.getOutOfScope());
+        resultChain.setBusinessDescription(externalChain.getContent().getBusinessDescription());
+        resultChain.setAssumptions(externalChain.getContent().getAssumptions());
+        resultChain.setOutOfScope(externalChain.getContent().getOutOfScope());
 
-        resultChain.addLabels(createMissingChainLabels(externalChain.getLabels(), resultChain));
+        resultChain.addLabels(createMissingChainLabels(externalChain.getContent().getLabels(), resultChain));
 
         Set<MaskedField> resultMaskedFields = resultChain.getMaskedFields();
-        Set<MaskedField> externalMaskedFields = createMaskedFieldInternalEntities(externalChain.getMaskedFields(), resultChain);
+        Set<MaskedField> externalMaskedFields = createMaskedFieldInternalEntities(externalChain.getContent().getMaskedFields(), resultChain);
         Set<MaskedField> mergedResultMaskedFields = resultMaskedFields
                 .stream()
                 .filter(resultMaskedField -> externalMaskedFields
@@ -87,15 +93,15 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
         resultChain.addMaskedFields(mergedResultMaskedFields);
         resultChain.addMaskedFields(mergedExternalMaskedFields);
 
-        if (externalChain.getFolder() != null) {
-            Folder newFolder = createFolderInternalEntity(externalChain.getFolder(), externalMapperEntity.getExistingFolder());
+        if (externalChain.getContent().getFolder() != null) {
+            Folder newFolder = createFolderInternalEntity(externalChain.getContent().getFolder(), externalMapperEntity.getExistingFolder());
             resultChain.setParentFolder(newFolder);
         } else {
             resultChain.setParentFolder(null);
         }
 
         ChainElementsExternalMapperEntity elementsMapperEntity = ChainElementsExternalMapperEntity.builder()
-                .chainElementExternalEntities(externalChain.getElements())
+                .chainElementExternalEntities(externalChain.getContent().getElements())
                 .chainFilesDirectory(externalMapperEntity.getChainFilesDirectory())
                 .build();
         resultChain.getElements().clear();
@@ -106,7 +112,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
             resultChain = externalMapperEntity.getActionBeforeDependencyMapping().apply(resultChain);
         }
 
-        enrichInternalChainWithDependencies(resultChain, currentDependencies, externalChain.getDependencies());
+        enrichInternalChainWithDependencies(resultChain, currentDependencies, externalChain.getContent().getDependencies());
         return resultChain;
     }
 
@@ -116,16 +122,22 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
         ChainExternalEntity chainExternalEntity = ChainExternalEntity.builder()
                 .id(chain.getId())
                 .name(chain.getName())
-                .description(chain.getDescription())
-                .businessDescription(chain.getBusinessDescription())
-                .assumptions(chain.getAssumptions())
-                .outOfScope(chain.getOutOfScope())
-                .labels(chain.getLabels().stream().map(ChainLabel::getName).collect(Collectors.toList()))
-                .folder(createFolderExternalEntity(chain))
-                .modifiedWhen(chain.getModifiedWhen())
-                .maskedFields(createMaskedFieldExternalEntities(chain.getMaskedFields()))
-                .elements(elementsExternalMapperEntity.getChainElementExternalEntities())
-                .dependencies(extractExternalDependencies(chain))
+                .content(ChainExternalContentEntity.builder()
+                        .description(chain.getDescription())
+                        .businessDescription(chain.getBusinessDescription())
+                        .assumptions(chain.getAssumptions())
+                        .outOfScope(chain.getOutOfScope())
+                        .labels(chain.getLabels().stream().map(ChainLabel::getName).collect(Collectors.toList()))
+                        .folder(createFolderExternalEntity(chain))
+                        .modifiedWhen(chain.getModifiedWhen())
+                        .maskedFields(createMaskedFieldExternalEntities(chain.getMaskedFields()))
+                        .elements(elementsExternalMapperEntity.getChainElementExternalEntities())
+                        .dependencies(extractExternalDependencies(chain))
+                        .migrations(chainFileMigrationService.getActualMigrationVersions().stream()
+                                .sorted()
+                                .toList()
+                                .toString())
+                        .build())
                 .build();
 
         return ChainExternalMapperEntity.builder()
@@ -138,26 +150,26 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
         resultChain.setDefaultSwimlane(null);
         resultChain.setReuseSwimlane(null);
 
-        if (externalChain.getDefaultSwimlaneId() != null) {
+        if (externalChain.getContent().getDefaultSwimlaneId() != null) {
             SwimlaneChainElement defaultSwimlane = resultChain.getElements().stream()
-                    .filter(element -> externalChain.getDefaultSwimlaneId().equals(element.getId()))
+                    .filter(element -> externalChain.getContent().getDefaultSwimlaneId().equals(element.getId()))
                     .filter(element -> element instanceof SwimlaneChainElement)
                     .findFirst()
                     .map(element -> (SwimlaneChainElement) element)
                     .orElseThrow(() ->
-                            new IllegalArgumentException("Default swimlane " + externalChain.getDefaultSwimlaneId() + " not found"));
+                            new IllegalArgumentException("Default swimlane " + externalChain.getContent().getDefaultSwimlaneId() + " not found"));
             resultChain.setDefaultSwimlane(defaultSwimlane);
             defaultSwimlane.setDefaultSwimlane(true);
         }
 
-        if (externalChain.getReuseSwimlaneId() != null) {
+        if (externalChain.getContent().getReuseSwimlaneId() != null) {
             SwimlaneChainElement reuseSwimlane = resultChain.getElements().stream()
-                    .filter(element -> externalChain.getReuseSwimlaneId().equals(element.getId()))
+                    .filter(element -> externalChain.getContent().getReuseSwimlaneId().equals(element.getId()))
                     .filter(element -> element instanceof SwimlaneChainElement)
                     .findFirst()
                     .map(element -> (SwimlaneChainElement) element)
                     .orElseThrow(() ->
-                            new IllegalArgumentException("Reuse swimlane " + externalChain.getReuseSwimlaneId() + " not found"));
+                            new IllegalArgumentException("Reuse swimlane " + externalChain.getContent().getReuseSwimlaneId() + " not found"));
             resultChain.setReuseSwimlane(reuseSwimlane);
             reuseSwimlane.setReuseSwimlane(true);
         }

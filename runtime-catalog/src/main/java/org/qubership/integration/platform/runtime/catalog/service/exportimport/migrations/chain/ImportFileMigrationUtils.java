@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,33 +25,17 @@ import java.util.List;
 
 @Component
 public class ImportFileMigrationUtils {
-
-    private static List<Integer> actualChainFileMigrationVersions;
     private static List<Integer> actualServiceFileMigrationVersions;
 
     @Autowired
     public ImportFileMigrationUtils(
-            List<ChainImportFileMigration> chainImportFileMigrations,
             List<ServiceImportFileMigration> serviceImportFileMigrations
     ) {
-        actualChainFileMigrationVersions = calculateActualFileMigrationVersions(chainImportFileMigrations);
         actualServiceFileMigrationVersions = calculateActualFileMigrationVersions(serviceImportFileMigrations);
-    }
-
-    public static List<Integer> getActualChainFileMigrationVersions() {
-        return actualChainFileMigrationVersions;
     }
 
     public static List<Integer> getActualServiceFileMigrationVersions() {
         return actualServiceFileMigrationVersions;
-    }
-
-    public static void renameProperty(ObjectNode properties, String propertyNameFrom, String propertyNameTo) {
-        JsonNode property = properties.get(propertyNameFrom);
-        if (property != null) {
-            properties.set(propertyNameTo, property);
-            properties.remove(propertyNameFrom);
-        }
     }
 
     private List<Integer> calculateActualFileMigrationVersions(List<? extends ImportFileMigration> importFileMigrations) {

@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -49,8 +47,7 @@ import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeployPrepare;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ImportFileMigrationUtils;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainFileMigrationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
@@ -60,15 +57,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.SYSTEM_ID;
 import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_VERSION_FIELD_OLD;
 
 @Slf4j
 @Service
@@ -78,7 +71,6 @@ public class ChainImportService {
 
     private final YAMLMapper yamlMapper;
     private final TransactionTemplate transactionTemplate;
-    private final Map<Integer, ChainImportFileMigration> chainImportFileMigrations;
     private final ChainService chainService;
     private final FolderService folderService;
     private final SnapshotService snapshotService;
@@ -92,6 +84,7 @@ public class ChainImportService {
     private final MaskedFieldsService maskedFieldsService;
     private final ChainDifferenceService chainDifferenceService;
     private final ImportInstructionsService importInstructionsService;
+    private final ChainFileMigrationService chainFileMigrationService;
 
     @Value("${qip.build.artifact-descriptor-version}")
     private String artifactDescriptorVersion;
@@ -100,7 +93,6 @@ public class ChainImportService {
     public ChainImportService(
             YAMLMapper yamlMapper,
             TransactionTemplate transactionTemplate,
-            List<ChainImportFileMigration> chainImportFileMigrations,
             ChainService chainService,
             FolderService folderService,
             SnapshotService snapshotService,
@@ -113,12 +105,11 @@ public class ChainImportService {
             ElementService elementService,
             MaskedFieldsService maskedFieldsService,
             ChainDifferenceService chainDifferenceService,
-            ImportInstructionsService importInstructionsService
+            ImportInstructionsService importInstructionsService,
+            ChainFileMigrationService chainFileMigrationService
     ) {
         this.yamlMapper = yamlMapper;
         this.transactionTemplate = transactionTemplate;
-        this.chainImportFileMigrations = chainImportFileMigrations.stream()
-                .collect(Collectors.toMap(ChainImportFileMigration::getVersion, Function.identity()));
         this.chainService = chainService;
         this.folderService = folderService;
         this.snapshotService = snapshotService;
@@ -132,6 +123,7 @@ public class ChainImportService {
         this.maskedFieldsService = maskedFieldsService;
         this.chainDifferenceService = chainDifferenceService;
         this.importInstructionsService = importInstructionsService;
+        this.chainFileMigrationService = chainFileMigrationService;
     }
 
     public List<ImportChainPreviewDTO> getChainsImportPreview(File importDirectory, ChainImportInstructionsConfig instructionsConfig) {
@@ -215,7 +207,7 @@ public class ChainImportService {
             String chainYaml = migrateToActualFileVersion(Files.readString(chainYAMLFile.toPath()));
             ChainExternalEntity chainExternalEntity = yamlMapper.readValue(chainYaml, ChainExternalEntity.class);
             Set<String> usedSystemIds = new HashSet<>();
-            collectUsedSystemIds(chainExternalEntity.getElements(), usedSystemIds);
+            collectUsedSystemIds(chainExternalEntity.getContent().getElements(), usedSystemIds);
             Boolean chainExists = chainService.exists(chainExternalEntity.getId());
             ImportInstructionAction instructionAction = null;
             if (importInstructionsConfig.getIgnore().contains(chainExternalEntity.getId())) {
@@ -228,8 +220,8 @@ public class ChainImportService {
                     .id(chainExternalEntity.getId())
                     .name(chainExternalEntity.getName())
                     .usedSystems(usedSystemIds)
-                    .deployments(chainExternalEntity.getDeployments())
-                    .deployAction(chainExternalEntity.getDeployAction())
+                    .deployments(chainExternalEntity.getContent().getDeployments())
+                    .deployAction(chainExternalEntity.getContent().getDeployAction())
                     .instructionAction(instructionAction)
                     .exists(chainExists)
                     .build();
@@ -357,16 +349,16 @@ public class ChainImportService {
                 if (overridesPair != null) {
                     technicalLabels = technicalLabels != null ? new HashSet<>(technicalLabels) : new HashSet<>();
                     if (chainId.equals(overridesPair.getKey())) {
-                        chainExternalEntity.setOverridesChainId(overridesPair.getValue());
+                        chainExternalEntity.getContent().setOverridesChainId(overridesPair.getValue());
                         technicalLabels.add(OVERRIDES_LABEL_NAME);
                     }
                     if (chainId.equals(overridesPair.getValue())) {
-                        chainExternalEntity.setOverridden(true);
-                        chainExternalEntity.setOverriddenByChainId(overridesPair.getKey());
+                        chainExternalEntity.getContent().setOverridden(true);
+                        chainExternalEntity.getContent().setOverriddenByChainId(overridesPair.getKey());
                         technicalLabels.add(OVERRIDDEN_LABEL_NAME);
                     }
                 }
-                chainExternalEntity.setLastImportHash(externalHash);
+                chainExternalEntity.getContent().setLastImportHash(externalHash);
                 importChainResult = saveChainInTransaction(chainExternalEntity, chainFilesDir, technicalLabels);
             }
         } catch (ChainImportException e) {
@@ -407,8 +399,8 @@ public class ChainImportService {
         ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
 
         Folder existingFolder = null;
-        if (chainExternalEntity.getFolder() != null) {
-            existingFolder = folderService.findFirstByName(chainExternalEntity.getFolder().getName(), null);
+        if (chainExternalEntity.getContent().getFolder() != null) {
+            existingFolder = folderService.findFirstByName(chainExternalEntity.getContent().getFolder().getName(), null);
         }
 
         Chain newChainState = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
@@ -431,8 +423,8 @@ public class ChainImportService {
         return ImportChainResult.builder()
                 .id(newChainState.getId())
                 .name(newChainState.getName())
-                .deployAction(chainExternalEntity.getDeployAction())
-                .deployments(chainExternalEntity.getDeployments())
+                .deployAction(chainExternalEntity.getContent().getDeployAction())
+                .deployments(chainExternalEntity.getContent().getDeployments())
                 .status(importStatus)
                 .build();
     }
@@ -452,75 +444,7 @@ public class ChainImportService {
     }
 
     protected String migrateToActualFileVersion(String fileContent) throws Exception {
-        ObjectNode fileNode = (ObjectNode) yamlMapper.readTree(fileContent);
-        String chainId = Optional.ofNullable(fileNode.get("id")).map(JsonNode::asText).orElse(null);
-
-        if ((!fileNode.has(IMPORT_VERSION_FIELD_OLD) && !fileNode.has(IMPORT_MIGRATIONS_FIELD))
-            ||
-            (fileNode.has(IMPORT_VERSION_FIELD_OLD) && fileNode.get(IMPORT_VERSION_FIELD_OLD) != null
-             &&
-             fileNode.has(IMPORT_MIGRATIONS_FIELD) && fileNode.get(IMPORT_MIGRATIONS_FIELD) != null)
-        ) {
-            log.error(
-                    "Incorrect combination of \"{}\" and \"{}\" fields for a chain migration data for chain id : {}",
-                    IMPORT_VERSION_FIELD_OLD,
-                    IMPORT_MIGRATIONS_FIELD,
-                    chainId);
-            throw new Exception("Incorrect combination of fields for a chain migration data for chain id : " + chainId);
-        }
-
-        List<Integer> importVersions;
-        if (fileNode.has(IMPORT_VERSION_FIELD_OLD)) {
-            importVersions =
-                    IntStream.rangeClosed(1, fileNode.get(IMPORT_VERSION_FIELD_OLD).asInt())
-                            .boxed()
-                            .toList();
-        } else {
-            importVersions =
-                    fileNode.get(IMPORT_MIGRATIONS_FIELD) != null
-                            ? Arrays.stream(
-                                    fileNode.get(IMPORT_MIGRATIONS_FIELD)
-                                            .asText()
-                                            .replaceAll("[\\[\\]]", "")
-                                            .split(","))
-                                .map(String::trim)
-                                .filter(StringUtils::isNotEmpty)
-                                .map(Integer::parseInt)
-                                .toList()
-                            : new ArrayList<>();
-        }
-        log.trace("importVersions = {}", importVersions);
-
-        List<Integer> actualVersions = ImportFileMigrationUtils.getActualChainFileMigrationVersions();
-        log.trace("actualVersions = {}", actualVersions);
-
-        List<Integer> nonexistentVersions = new ArrayList<>(importVersions);
-        nonexistentVersions.removeAll(actualVersions);
-        if (!nonexistentVersions.isEmpty()) {
-            String chainName = Optional.ofNullable(fileNode.get("name")).map(JsonNode::asText).orElse(null);
-
-            log.error(
-                    "Unable to import a chain {} ({}) exported from newer version: nonexistent migrations {} are present",
-                    chainName,
-                    chainId,
-                    nonexistentVersions);
-
-            throw new ChainImportException(
-                    chainId,
-                    chainName,
-                    "Unable to import a chain exported from newer version");
-        }
-
-        List<Integer> versionsToMigrate = new ArrayList<>(actualVersions);
-        versionsToMigrate.removeAll(importVersions);
-        versionsToMigrate.sort(null);
-        log.trace("versionsToMigrate = {}", versionsToMigrate);
-
-        for (int version : versionsToMigrate) {
-            fileNode = chainImportFileMigrations.get(version).makeMigration(fileNode);
-        }
-
-        return yamlMapper.writeValueAsString(fileNode);
+        return chainFileMigrationService.migrateToActualVersion(fileContent);
     }
 
     private File getChainYAMLFile(File chainDir) {

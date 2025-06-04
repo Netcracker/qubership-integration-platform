@@ -23,18 +23,6 @@ import com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter;
 import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.MaskedField;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ChainDeserializer;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ChainElementDeserializer;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeserializationResult;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ElementDeserializationResult;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ChainElementSerializer;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ChainSerializer;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.DependencySerializer;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.MaskedFieldSerializer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.yaml.snakeyaml.LoaderOptions;
@@ -44,21 +32,12 @@ public class MapperAutoConfiguration {
     private static final int CODE_POINT_LIMIT_MB = 256;
 
     @Bean("yamlMapper")
-    public YAMLMapper yamlMapper(ChainDeserializer chainDeserializer,
-                                 ChainElementDeserializer chainElementDeserializer) {
+    public YAMLMapper yamlMapper() {
         YAMLMapper yamlMapper = new YAMLMapper(createCustomYamlFactory());
         SimpleModule serializeModule = new SimpleModule();
         yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        serializeModule.addSerializer(Chain.class, new ChainSerializer());
-        serializeModule.addSerializer(ChainElement.class, new ChainElementSerializer());
-        serializeModule.addSerializer(Dependency.class, new DependencySerializer());
-        serializeModule.addSerializer(MaskedField.class, new MaskedFieldSerializer());
-
-        serializeModule.addDeserializer(ChainDeserializationResult.class, chainDeserializer);
-        serializeModule.addDeserializer(ElementDeserializationResult.class, chainElementDeserializer);
         yamlMapper.registerModule(serializeModule);
         yamlMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
-
         return yamlMapper;
     }
 

@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.exportimport.chain;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -39,19 +40,29 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ChainElementExternalEntity extends BaseExternalEntity {
-
-    @JsonProperty("element-type")
+    @JsonProperty
+    @JsonAlias({ "element-type" })
     private String type;
-    @JsonProperty("swimlane-id")
+
+    @JsonProperty
+    @JsonAlias({ "swimlane-id" })
     private String swimlaneId;
+
     @Builder.Default
     private List<ChainElementExternalEntity> children = new ArrayList<>();
+
     @Builder.Default
     private Map<String, Object> properties = new HashMap<>();
-    @JsonProperty("original-id")
+
+    @JsonProperty
+    @JsonAlias({ "original-id" })
     private String originalId;
-    @JsonProperty("service-environment")
+
+    @JsonProperty
+    @JsonAlias({ "service-environment" })
     private ServiceEnvironment serviceEnvironment;
-    @JsonProperty("properties-filename")
+
+    @JsonProperty
+    @JsonAlias({ "properties-filename" })
     private String propertiesFilename;
 }
