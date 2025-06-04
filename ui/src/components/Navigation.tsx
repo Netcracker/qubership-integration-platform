@@ -13,8 +13,8 @@ const items: MenuItem[] = [
     icon: <UnorderedListOutlined />,
   },
   {
-    label: <a href="/admin">Admin</a>,
-    key: "admin",
+    label: <a href="/admin-tools">Admin Tools</a>,
+    key: "admin-tools",
     icon: <DesktopOutlined />,
   },
 ];

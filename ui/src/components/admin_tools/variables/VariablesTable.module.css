@@ -1,0 +1,108 @@
+.secret-sub-table {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.sub-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.sub-table-wrapper .ant-spin-nested-loading {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.sub-table-wrapper .ant-spin-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.sub-table-wrapper .ant-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+}
+
+.sub-table-wrapper .ant-table {
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.sub-table-wrapper .ant-table-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.sub-table-wrapper .ant-table-content {
+    width: 100%;
+    max-width: 100%;
+}
+
+.sub-table-wrapper .ant-table-body {
+    width: 100%;
+    max-width: 100%;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.secret-row:hover {
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+}
+
+.editable-cell-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    max-height: 5em;
+    overflow: hidden;
+}
+
+.inline-icon {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.multiline-icon {
+    color: #1890ff; /* Цвет для иконки многострочности, можно выбрать другой */
+}
+
+.editable-cell-wrapper:hover .inline-icon {
+    opacity: 1;
+}
+
+.delete-button {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.secret-row:hover .delete-button {
+    opacity: 1;
+}
+
+.value-text {
+    flex: 1;
+    white-space: pre-wrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
