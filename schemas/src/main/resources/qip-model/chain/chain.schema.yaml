@@ -20,8 +20,6 @@ properties:
   content:
     type: object
     required:
-      - id
-      - name
       - migrations
     properties:
       description:
