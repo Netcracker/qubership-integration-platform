@@ -12,6 +12,7 @@ required:
 properties:
   id:
     type: string
+    format: uuid
   $schema:
     type: string
   name:
@@ -23,11 +24,6 @@ properties:
       - name
       - migrations
     properties:
-      id:
-        type: string
-        format: uuid
-      name:
-        type: string
       description:
         type: string
       modifiedWhen:
