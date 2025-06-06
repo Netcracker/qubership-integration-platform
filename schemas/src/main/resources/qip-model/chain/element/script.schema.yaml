@@ -1,0 +1,29 @@
+$id: http://qubership.org/schemas/product/qip/element/script
+$schema: https://json-schema.org/draft-07/schema
+title: Script
+type: object
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  elementType:
+    type: string
+    const: script
+  folder:
+    type: string
+    const: transformation
+  propertiesFilename:
+    type: string
+  properties:
+    type: object
+    required:
+      - exportFileExtension
+    properties:
+      exportFileExtension:
+        type: string
+      propertiesToExportInSeparateFile:
+        type: string

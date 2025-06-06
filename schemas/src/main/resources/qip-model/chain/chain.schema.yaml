@@ -12,6 +12,7 @@ required:
 properties:
   id:
     type: string
+    format: uuid
   $schema:
     type: string
   name:
@@ -19,15 +20,8 @@ properties:
   content:
     type: object
     required:
-      - id
-      - name
       - migrations
     properties:
-      id:
-        type: string
-        format: uuid
-      name:
-        type: string
       description:
         type: string
       modifiedWhen:
@@ -85,9 +79,7 @@ properties:
           - SNAPSHOT
           - NONE
       migrations:
-        type: array
-        items:
-          type: string
+        type: string
 definitions:
   chainElement:
     type: object
@@ -96,22 +88,9 @@ definitions:
       - name
       - element-type
       - properties
-    properties:
-      id:
-        type: string
-        format: uuid
-      name:
-        type: string
-      description:
-        type: string
-      element-type:
-        type: string
-      properties-filename:
-        type: string
-      properties:
-        oneOf:
-          - $ref: './elements/httpSender.yaml'
-          - $ref: './elements/kafkaSender2.yaml'
-          - $ref: './elements/kafkaTrigger2.yaml'
-          - $ref: './elements/script.yaml'
-          - $ref: './elements/httpTrigger.yaml'
+    oneOf:
+      - $ref: './element/http-sender.schema.yaml'
+      - $ref: './element/kafka-sender-2.schema.yaml'
+      - $ref: './element/kafka-trigger-2.schema.yaml'
+      - $ref: './element/script.schema.yaml'
+      - $ref: './element/http-trigger.schema.yaml'
