@@ -10,7 +10,7 @@ properties:
     type: string
   description:
     type: string
-  elementType:
+  type:
     type: string
     const: script
   folder:
@@ -20,10 +20,10 @@ properties:
     type: string
   properties:
     type: object
-    required:
-      - exportFileExtension
     properties:
       exportFileExtension:
         type: string
       propertiesToExportInSeparateFile:
         type: string
+    required:
+      - exportFileExtension
