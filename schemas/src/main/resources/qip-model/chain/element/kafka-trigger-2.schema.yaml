@@ -18,26 +18,6 @@ properties:
     const: triggers
   properties:
     type: object
-    required:
-      - connectionSourceType
-      - autoOffsetReset
-      - groupId
-      - keyDeserializer
-      - sslProtocol
-      - valueSerializer
-    if:
-      properties:
-        connectionSourceType:
-          const: maas
-    then:
-      required:
-        - topicsClassifierName
-    else:
-      required:
-        - brokers
-        - securityProtocol
-        - saslMechanism
-        - topics
     properties:
       actionOnDuplicate:
         type: string
@@ -176,3 +156,23 @@ properties:
           - org.apache.kafka.common.serialization.StringSerializer
           - org.apache.kafka.common.serialization.UUIDSerializer
           - org.apache.kafka.common.serialization.VoidSerializer
+    required:
+      - connectionSourceType
+      - autoOffsetReset
+      - groupId
+      - keyDeserializer
+      - sslProtocol
+      - valueSerializer
+    if:
+      properties:
+        connectionSourceType:
+          const: maas
+    then:
+      required:
+        - topicsClassifierName
+    else:
+      required:
+        - brokers
+        - securityProtocol
+        - saslMechanism
+        - topics

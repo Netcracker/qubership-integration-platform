@@ -4,11 +4,6 @@ $schema: https://json-schema.org/draft-07/schema
 type: object
 title: Chain
 group: Integrations
-required:
-  - id
-  - $schema
-  - name
-  - content
 properties:
   id:
     type: string
@@ -19,8 +14,6 @@ properties:
     type: string
   content:
     type: object
-    required:
-      - migrations
     properties:
       description:
         type: string
@@ -40,11 +33,11 @@ properties:
         type: array
         items:
           type: object
-          required:
-            - name
           properties:
             name:
               type: string
+          required:
+            - name
       elements:
         type: array
         items:
@@ -53,9 +46,6 @@ properties:
         type: array
         items:
           type: object
-          required:
-            - from
-            - to
           properties:
             from:
               type: string
@@ -63,15 +53,18 @@ properties:
             to:
               type: string
               format: uuid
+          required:
+            - from
+            - to
       deployments:
         type: array
         items:
           type: object
-          required:
-            - domain
           properties:
             domain:
               type: string
+          required:
+            - domain
       deployAction:
         type: string
         enum:
@@ -80,6 +73,13 @@ properties:
           - NONE
       migrations:
         type: string
+    required:
+      - migrations
+required:
+  - id
+  - $schema
+  - name
+  - content
 definitions:
   chainElement:
     type: object

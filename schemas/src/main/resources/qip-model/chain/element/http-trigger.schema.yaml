@@ -18,9 +18,6 @@ properties:
     const: triggers
   properties:
     type: object
-    required:
-      - contextPath
-      - httpBinding
     properties:
       abacResource:
         type: string
@@ -102,3 +99,6 @@ properties:
           type: string
       validationSchema:
         type: string
+    required:
+      - contextPath
+      - httpBinding

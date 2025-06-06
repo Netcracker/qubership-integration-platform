@@ -20,10 +20,10 @@ properties:
     type: string
   properties:
     type: object
-    required:
-      - exportFileExtension
     properties:
       exportFileExtension:
         type: string
       propertiesToExportInSeparateFile:
         type: string
+    required:
+      - exportFileExtension

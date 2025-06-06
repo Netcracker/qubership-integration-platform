@@ -18,9 +18,6 @@ properties:
     const: senders
   properties:
     type: object
-    required:
-      - httpMethod
-      - uri
     properties:
       connectTimeout:
         type: integer
@@ -55,3 +52,6 @@ properties:
         type: boolean
       uri:
         type: string
+    required:
+      - httpMethod
+      - uri
