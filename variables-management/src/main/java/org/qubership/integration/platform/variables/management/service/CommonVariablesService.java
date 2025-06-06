@@ -174,7 +174,6 @@ public class CommonVariablesService {
         variablesForExport.forEach((k, v) -> logCommonVariableAction(k, LogOperation.EXPORT));
 
         byte[] contentBytes = stringMapAsByteArr(variablesForExport);
-        String filename = exportVariablesGenerateFilename();
         if (asArchive) {
             try (ByteArrayOutputStream fos = new ByteArrayOutputStream()) {
                 try (ZipOutputStream zipOut = new ZipOutputStream(fos)) {
@@ -183,16 +182,16 @@ public class CommonVariablesService {
                     zipOut.putNextEntry(new ZipEntry(path));
                     zipOut.closeEntry();
 
-                    zipOut.putNextEntry(new ZipEntry(path + filename));
+                    zipOut.putNextEntry(new ZipEntry(path + exportVariablesGenerateFilename(false)));
                     zipOut.write(contentBytes, 0, contentBytes.length);
                     zipOut.closeEntry();
                 }
-                return new VariablesFileResponse(fos.toByteArray(), filename);
+                return new VariablesFileResponse(fos.toByteArray(), exportVariablesGenerateFilename(true));
             } catch (IOException e) {
                 throw new RuntimeException("Unknown exception while archive creation: " + e.getMessage());
             }
         } else {
-            return new VariablesFileResponse(contentBytes, filename);
+            return new VariablesFileResponse(contentBytes, exportVariablesGenerateFilename(false));
         }
     }
 
@@ -334,8 +333,8 @@ public class CommonVariablesService {
         });
     }
 
-    private String exportVariablesGenerateFilename() {
-        return VARIABLES_PREFIX + "." + YAML_EXTENSION;
+    private String exportVariablesGenerateFilename(boolean isArchive) {
+        return VARIABLES_PREFIX + "." + (isArchive ? ZIP_EXTENSION : YAML_EXTENSION);
     }
 
     private byte[] stringMapAsByteArr(Map<String, String> variablesForExport) {
