@@ -56,17 +56,17 @@ properties:
       keyDeserializer:
         type: string
         enum:
-          - org.apache.kafka.common.serialization.ByteArraySerializer
-          - org.apache.kafka.common.serialization.ByteBufferSerializer
-          - org.apache.kafka.common.serialization.BytesSerializer
-          - org.apache.kafka.common.serialization.DoubleSerializer
-          - org.apache.kafka.common.serialization.FloatSerializer
-          - org.apache.kafka.common.serialization.IntegerSerializer
-          - org.apache.kafka.common.serialization.LongSerializer
-          - org.apache.kafka.common.serialization.ShortSerializer
-          - org.apache.kafka.common.serialization.StringSerializer
-          - org.apache.kafka.common.serialization.UUIDSerializer
-          - org.apache.kafka.common.serialization.VoidSerializer
+          - org.apache.kafka.common.serialization.ByteArrayDeserializer
+          - org.apache.kafka.common.serialization.ByteBufferDeserializer
+          - org.apache.kafka.common.serialization.BytesDeserializer
+          - org.apache.kafka.common.serialization.DoubleDeserializer
+          - org.apache.kafka.common.serialization.FloatDeserializer
+          - org.apache.kafka.common.serialization.IntegerDeserializer
+          - org.apache.kafka.common.serialization.LongDeserializer
+          - org.apache.kafka.common.serialization.ShortDeserializer
+          - org.apache.kafka.common.serialization.StringDeserializer
+          - org.apache.kafka.common.serialization.UUIDDeserializer
+          - org.apache.kafka.common.serialization.VoidDeserializer
       maasClassifierTenantEnabled:
         type: boolean
       maxPollIntervalMs:
@@ -145,24 +145,24 @@ properties:
       valueDeserializer:
         type: string
         enum:
-          - org.apache.kafka.common.serialization.ByteArraySerializer
-          - org.apache.kafka.common.serialization.ByteBufferSerializer
-          - org.apache.kafka.common.serialization.BytesSerializer
-          - org.apache.kafka.common.serialization.DoubleSerializer
-          - org.apache.kafka.common.serialization.FloatSerializer
-          - org.apache.kafka.common.serialization.IntegerSerializer
-          - org.apache.kafka.common.serialization.LongSerializer
-          - org.apache.kafka.common.serialization.ShortSerializer
-          - org.apache.kafka.common.serialization.StringSerializer
-          - org.apache.kafka.common.serialization.UUIDSerializer
-          - org.apache.kafka.common.serialization.VoidSerializer
+          - org.apache.kafka.common.serialization.ByteArrayDeserializer
+          - org.apache.kafka.common.serialization.ByteBufferDeserializer
+          - org.apache.kafka.common.serialization.BytesDeserializer
+          - org.apache.kafka.common.serialization.DoubleDeserializer
+          - org.apache.kafka.common.serialization.FloatDeserializer
+          - org.apache.kafka.common.serialization.IntegerDeserializer
+          - org.apache.kafka.common.serialization.LongDeserializer
+          - org.apache.kafka.common.serialization.ShortDeserializer
+          - org.apache.kafka.common.serialization.StringDeserializer
+          - org.apache.kafka.common.serialization.UUIDDeserializer
+          - org.apache.kafka.common.serialization.VoidDeserializer
     required:
       - connectionSourceType
       - autoOffsetReset
       - groupId
       - keyDeserializer
       - sslProtocol
-      - valueSerializer
+      - valueDeserializer
     if:
       properties:
         connectionSourceType:

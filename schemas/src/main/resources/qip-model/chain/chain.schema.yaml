@@ -89,8 +89,8 @@ definitions:
       - type
       - properties
     oneOf:
+      - $ref: './element/http-trigger.schema.yaml'
+      - $ref: './element/kafka-trigger-2.schema.yaml'
       - $ref: './element/http-sender.schema.yaml'
       - $ref: './element/kafka-sender-2.schema.yaml'
-      - $ref: './element/kafka-trigger-2.schema.yaml'
       - $ref: './element/script.schema.yaml'
-      - $ref: './element/http-trigger.schema.yaml'
