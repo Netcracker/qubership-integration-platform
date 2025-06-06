@@ -56,6 +56,7 @@ import {
 import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
 import { ImportChains } from "../components/modal/ImportChains.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
+import { commonVariablesApi } from "../api/admin-tools/variables/commonVariablesApi.ts";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -489,7 +490,8 @@ const Chains = () => {
       }
 
       if (options.exportVariables) {
-        // TODO
+        const variablesData = await commonVariablesApi.exportVariables([], true);
+        data.push(variablesData);
       }
 
       const archiveData = await mergeZipArchives(data);

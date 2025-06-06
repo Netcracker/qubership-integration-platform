@@ -1,5 +1,6 @@
 import { BaseApi } from "./baseApi.ts";
 import { Variable, ApiResponse } from "./types.ts";
+import { getFileFromResponse } from "../../../misc/download-utils.ts";
 
 export class CommonVariablesApi extends BaseApi {
   private serviceName = "Common Variables API";
@@ -62,28 +63,17 @@ export class CommonVariablesApi extends BaseApi {
     }, "Failed to delete variables");
   }
 
-  async exportVariables(keys: string[], asArchive = true): Promise<boolean> {
-    return this.wrapBoolean(async () => {
+  async exportVariables(keys: string[], asArchive = true): Promise<File> {
       const params = new URLSearchParams();
       keys.forEach((key) => params.append("variablesNames", key));
       params.append("asArchive", String(asArchive));
 
-      const response = await this.instance.get(
+      const response = await this.instance.get<Blob>(
         `/api/v1/${import.meta.env.VITE_API_APP}/common-variables/export?${params}`,
         { responseType: "blob" }
       );
 
-      const blob = new Blob([response.data], {
-        type: asArchive ? "application/zip" : "application/x-yaml",
-      });
-
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = asArchive ? "common-variables.zip" : "common-variables.yaml";
-      document.body.appendChild(link);
-      link.click();
-    }, "Failed to export variables");
+      return getFileFromResponse(response);
   }
 
   async importVariables(formData: FormData, isPreview: boolean): Promise<any> {

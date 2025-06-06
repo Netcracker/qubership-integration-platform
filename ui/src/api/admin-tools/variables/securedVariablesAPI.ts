@@ -1,6 +1,7 @@
 
 import { BaseApi } from "./baseApi.ts";
 import { Variable, SecretWithVariables, ApiResponse } from "./types.ts";
+import { getFileFromResponse } from "../../../misc/download-utils.ts";
 
 export class SecuredVariablesApi extends BaseApi {
   private serviceName = "Secured Variables API";
@@ -88,25 +89,12 @@ export class SecuredVariablesApi extends BaseApi {
     }, "Failed to create secret", this.serviceName);
   }
 
-  async downloadHelmChart(secretName: string): Promise<void> {
-    try {
-      const response = await this.instance.get(
-        `/api/v2/${import.meta.env.VITE_API_APP}/secret/template/${secretName}`,
-        { responseType: "blob" }
-      );
-
-      const blob = new Blob([response.data], { type: "application/x-yaml" });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${secretName}.yaml`;
-      document.body.appendChild(link);
-      link.click();
-      URL.revokeObjectURL(url);
-      link.remove();
-    } catch (error) {
-      console.error("Failed to download Helm chart:", error);
-    }
+  async downloadHelmChart(secretName: string): Promise<File> {
+    const response = await this.instance.get<Blob>(
+      `/api/v2/${import.meta.env.VITE_API_APP}/secret/template/${secretName}`,
+      { responseType: "blob" }
+    );
+    return getFileFromResponse(response);
   }
 }
 

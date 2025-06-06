@@ -13,6 +13,8 @@ import { useModalsContext } from "../../../Modals.tsx";
 import VariablesTable from "./VariablesTable.tsx";
 import { useVariablesState } from "./useVariablesState";
 import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
+import { downloadFile } from "../../../misc/download-utils.ts";
+import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 
 const { Title } = Typography;
 
@@ -23,6 +25,7 @@ export const CommonVariables = () => {
     key: 300,
     value: 600,
   });
+  const notificationService = useNotificationService();
 
   const handleResize = (dataIndex: string) => (_: any, { size }: any) => {
     requestAnimationFrame(() => {
@@ -52,7 +55,15 @@ export const CommonVariables = () => {
     createVariable: variablesApi.createCommonVariable,
     updateVariable: variablesApi.updateCommonVariable,
     deleteVariables: variablesApi.deleteCommonVariables,
-    exportVariables: (keys) => variablesApi.exportVariables(keys, true),
+    exportVariables: async (keys) => {
+      try {
+        downloadFile(await variablesApi.exportVariables(keys, true));
+        return true;
+      } catch (error) {
+        notificationService.requestFailed("Failed to export variables", error);
+        return false;
+      }
+    },
   });
 
   const onDeleteSelected = async () => {

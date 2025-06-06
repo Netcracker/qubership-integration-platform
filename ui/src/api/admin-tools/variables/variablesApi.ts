@@ -26,7 +26,7 @@ export class VariablesApi implements IVariablesApi {
   async exportVariables(
     keys: string[],
     asArchive: boolean = true
-  ): Promise<boolean> {
+  ): Promise<File> {
     return commonVariablesApi.exportVariables(keys, asArchive);
   }
 
@@ -73,9 +73,9 @@ export class VariablesApi implements IVariablesApi {
 
   async downloadHelmChart(
     secretName: string
-  ): Promise<void> {
+  ): Promise<File> {
     return securedVariablesApi.downloadHelmChart(secretName);
   }
 }
 
-export const variablesApi = new VariablesApi(); 
+export const variablesApi = new VariablesApi();

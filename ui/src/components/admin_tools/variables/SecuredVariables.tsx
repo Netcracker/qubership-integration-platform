@@ -22,6 +22,8 @@ import VariablesTable from "./VariablesTable";
 import { TableScroll } from "../../table/TableScroll.tsx";
 import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
 import { SecretWithVariables, Variable } from "../../../api/admin-tools/variables/types.ts";
+import { downloadFile } from "../../../misc/download-utils.ts";
+import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 
 const { Title } = Typography;
 
@@ -41,6 +43,7 @@ const SecuredVariables: React.FC = () => {
       value: 600,
     }
   );
+  const notificationService = useNotificationService();
 
   const handleResize = useCallback((dataIndex: string) => (_: any, { size }: any) => {
     setColumnsWidth((prev) => ({
@@ -296,7 +299,13 @@ const SecuredVariables: React.FC = () => {
                     <Button
                       size="small"
                       icon={<DownloadOutlined />}
-                      onClick={() => variablesApi.downloadHelmChart(secret)}>
+                      onClick={async () => {
+                        try {
+                          downloadFile(await variablesApi.downloadHelmChart(secret))
+                        } catch (error) {
+                          notificationService.requestFailed("Failed to get helm chart", error);
+                        }
+                      }}>
                       HELM Chart
                     </Button>
                     <Button
