@@ -10,7 +10,7 @@ properties:
     type: string
   description:
     type: string
-  elementType:
+  type:
     type: string
     const: http-sender
   folder:

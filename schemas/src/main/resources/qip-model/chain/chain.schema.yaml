@@ -86,7 +86,7 @@ definitions:
     required:
       - id
       - name
-      - element-type
+      - type
       - properties
     oneOf:
       - $ref: './element/http-sender.schema.yaml'
