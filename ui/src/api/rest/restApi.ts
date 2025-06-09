@@ -1,4 +1,5 @@
 import axios, { AxiosHeaders, AxiosInstance } from "axios";
+import rateLimit from "axios-rate-limit";
 import {
   Chain,
   ChainCreationRequest,
@@ -45,11 +46,13 @@ export class RestApi implements Api {
   instance: AxiosInstance;
 
   constructor() {
-    this.instance = axios.create({
-      baseURL: import.meta.env.VITE_GATEWAY,
-      timeout: 1000,
-      headers: { "content-type": "application/json" },
-    });
+      this.instance = rateLimit( axios.create({
+          baseURL: import.meta.env.VITE_GATEWAY,
+          timeout: 1000,
+          headers: { "content-type": "application/json" },
+      }), {
+          maxRequests: 50, perMilliseconds: 1000
+      });
 
     this.instance.interceptors.response.use(
       (response) => response,

@@ -3,107 +3,124 @@ import { Deployment, Event, ObjectType } from "../api/apiTypes.ts";
 import { useEffect, useState } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 import { useEventContext } from "../components/notifications/contexts/EventContext.tsx";
-import { getDeploymentFromEvent, mergeDeployment } from "../misc/deployment-utils.ts";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-export enum DeploymentStatus  {
-    DEPLOYED = "DEPLOYED",
-    PROCESSING = "PROCESSING",
-    FAILED = "FAILED",
-    REMOVED = "REMOVED"
+export enum DeploymentStatus {
+  DEPLOYED = "DEPLOYED",
+  PROCESSING = "PROCESSING",
+  FAILED = "FAILED",
+  REMOVED = "REMOVED",
 }
 
 export type StatusNotificationData = {
-    type: "info" | "error",
-    message: string;
-}
+  type: "info" | "error";
+  message: string;
+};
 
 export const StatusNotificationMap: Record<DeploymentStatus, StatusNotificationData> = {
-    DEPLOYED: {
-        type: "info",
-        message: "Has been deployed successfully",
-    },
-    PROCESSING: {
-        type: "info",
-        message: "Is progressing",
-    },
-    FAILED: {
-        type: "error",
-        message: "Has been failed",
-    },
-    REMOVED: {
-        type: "info",
-        message: "Has been removed successfully",
-    }
-}
+  DEPLOYED: {
+    type: "info",
+    message: "Has been deployed successfully",
+  },
+  PROCESSING: {
+    type: "info",
+    message: "Is progressing",
+  },
+  FAILED: {
+    type: "error",
+    message: "Has been failed",
+  },
+  REMOVED: {
+    type: "info",
+    message: "Has been removed successfully",
+  },
+};
 
 export const useDeployments = (chainId?: string) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [deployments, setDeployments] = useState<Deployment[]>();
-  const notificationService = useNotificationService();
   const { subscribe } = useEventContext();
+  const [manualLoading, setManualLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const notificationService = useNotificationService();
 
+  const query = useQuery({
+    queryKey: ["deployments", chainId],
+    queryFn: async () => {
+      if (!chainId) return [];
+      return await api.getDeployments(chainId);
+    },
+    enabled: !!chainId,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  //Rest error handling
   useEffect(() => {
-    updateDeployments();
-  }, [chainId]);
+    if (query.error) {
+      const error = query.error;
+      notificationService.requestFailed("Failed to load deployments", error);
+    }
+  });
 
-
+  //Event handling
   useEffect(() => {
-      return subscribe(ObjectType.DEPLOYMENT, (event: Event) => {
-          if (event.data.chainId !== chainId){
-              return;
-          }
-          const eventDeployment = getDeploymentFromEvent(event);
-          const eventDeploymentStatus = event.data.state.status;
-          showEventNotification(event);
-          setDeployments((deploymentsState) => {
-              const currentDeployments = deploymentsState ? deploymentsState : [];
-              if (currentDeployments.length === 0) {
-                  updateDeployments().then((deployments) => {
-                      if (deployments) setDeployments(deployments);
-                  });
-                  return currentDeployments;
-              }
-              if (eventDeploymentStatus === DeploymentStatus.REMOVED) {
-                  return currentDeployments.filter((currentDeployment) => currentDeployment.id !== eventDeployment.id);
-              }
-              const matchedDeployment = currentDeployments.find((d) => d.id === eventDeployment.id);
-              if (matchedDeployment) {
-                  return currentDeployments.map((currentDeployment) => currentDeployment.id === eventDeployment.id ? mergeDeployment(currentDeployment, eventDeployment) : currentDeployment);
-              }
-              return currentDeployments;
-            });
-        });
-      }, [subscribe, chainId]);
+    return subscribe(ObjectType.DEPLOYMENT, (event: Event) => {
+      if (event.data.chainId !== chainId || !event.data.chainId) return;
+      showEventNotification(event);
+
+      return queryClient.invalidateQueries({
+        queryKey: ["deployments", event.data.chainId],
+        exact: true,
+      });
+    });
+  }, [subscribe, chainId, query, queryClient]);
 
   function showEventNotification(event: Event) {
-      const chainName = event.data.chainName;
-      const status: DeploymentStatus = event.data.state.status;
-      const notificationData = StatusNotificationMap[status];
-      if (status === DeploymentStatus.FAILED) {
-          const errorDetails = event.data.errorDetails;
-          notificationService.errorWithDetails(chainName, notificationData.message, errorDetails);
-          return;
-      }
-      notificationService.info(chainName, notificationData.message);
+    const chainName = event.data.chainName;
+    const status: DeploymentStatus = event.data.state.status;
+    const notificationData = StatusNotificationMap[status];
+    if (status === DeploymentStatus.FAILED) {
+      const errorDetails = event.data.errorDetails;
+      notificationService.errorWithDetails(
+        chainName,
+        notificationData.message,
+        errorDetails,
+      );
+      return;
     }
-
-  const getDeployments = async () => {
-    if (!chainId) return;
-    try {
-      setIsLoading(true);
-      return await api.getDeployments(chainId);
-    } catch (error) {
-      notificationService.requestFailed("Failed to load deployments", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateDeployments = async () => {
-    const data = await getDeployments();
-    setDeployments(data);
-    return data;
+    notificationService.info(chainName, notificationData.message);
   }
 
-  return { isLoading, deployments, setDeployments, setIsLoading };
+  const setDeployments = (items: Deployment[]) => {
+    if (!items) return;
+    const chainId = items[0]?.chainId ?? undefined;
+    return queryClient.invalidateQueries({
+      queryKey: ["deployments", chainId],
+      exact: true,
+    });
+  };
+
+  const removeDeployment = (deployment: Deployment) => {
+    if (!chainId) return;
+    queryClient.setQueryData<Deployment[]>(
+      ["deployments", chainId],
+      (current) => {
+        return Array.isArray(current)
+          ? current.filter((d) => d.id !== deployment.id)
+          : [];
+      },
+    );
+  };
+
+  const setIsLoading = (value: boolean) => {
+    setManualLoading(value);
+  };
+
+  return {
+    deployments: query.data ?? [],
+    isLoading: query.isLoading ?? manualLoading,
+    setDeployments,
+    removeDeployment,
+    setIsLoading,
+  };
 };

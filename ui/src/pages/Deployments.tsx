@@ -16,7 +16,7 @@ import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 export const Deployments: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
-  const { isLoading, deployments, setDeployments } = useDeployments(chainId);
+  const { isLoading, deployments, setDeployments, removeDeployment } = useDeployments(chainId);
   const { snapshots } = useSnapshots(chainId);
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
@@ -83,7 +83,7 @@ export const Deployments: React.FC = () => {
   const deleteDeployment = async (deployment: Deployment) => {
     try {
       await api.deleteDeployment(deployment.id);
-      setDeployments(deployments?.filter((d) => d.id !== deployment.id) ?? []);
+      removeDeployment(deployment);
     } catch (error) {
       notificationService.requestFailed("Failed to delete deployment", error);
     }
