@@ -1,5 +1,5 @@
 $id: http://qubership.org/schemas/product/qip/element/kafka-sender-2
-$schema: https://json-schema.org/draft-07/schema
+$schema: http://json-schema.org/draft-07/schema
 title: Kafka Sender
 type: object
 properties:

@@ -1,5 +1,5 @@
 $id: http://qubership.org/schemas/product/qip/element/kafka-trigger-2
-$schema: https://json-schema.org/draft-07/schema
+$schema: http://json-schema.org/draft-07/schema
 title: Kafka Trigger
 type: object
 properties:

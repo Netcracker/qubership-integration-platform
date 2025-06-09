@@ -1,5 +1,5 @@
 $id: http://qubership.org/schemas/product/qip/element/script
-$schema: https://json-schema.org/draft-07/schema
+$schema: http://json-schema.org/draft-07/schema
 title: Script
 type: object
 properties:
