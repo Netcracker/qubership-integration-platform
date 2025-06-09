@@ -312,17 +312,17 @@ export const Snapshots: React.FC = () => {
       />
       <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
         <FloatButton
-          tooltip="Compare selected snapshots"
+          tooltip={{ title: "Compare selected snapshots", placement: "left" }}
           icon={<>⇄</>}
           onClick={onCompareBtnClick}
         />
         <FloatButton
-          tooltip="Delete selected snapshots"
+          tooltip={{ title: "Delete selected snapshots", placement: "left" }}
           icon={<DeleteOutlined />}
           onClick={onDeleteBtnClick}
         />
         <FloatButton
-          tooltip="Create snapshot"
+          tooltip={{ title: "Create snapshot", placement: "left" }}
           icon={<PlusOutlined />}
           onClick={onCreateBtnClick}
         />

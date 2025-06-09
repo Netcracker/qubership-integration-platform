@@ -112,6 +112,7 @@ export const Deployments: React.FC = () => {
       />
       <FloatButton
         icon={<PlusOutlined />}
+        tooltip={{ title: "Create deployment", placement: "left" }}
         onClick={() =>
           showModal({
             component: (

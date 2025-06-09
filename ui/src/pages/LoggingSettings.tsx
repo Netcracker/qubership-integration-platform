@@ -7,7 +7,7 @@ import {
   Select,
   SelectProps,
   Spin,
-  Table
+  Table,
 } from "antd";
 import { useParams } from "react-router";
 import { useForm } from "antd/lib/form/Form";
@@ -78,7 +78,10 @@ export const LoggingSettings: React.FC = () => {
     try {
       return api.getLoggingSettings(chainId);
     } catch (error) {
-      notificationService.requestFailed("Failed to get logging settings", error);
+      notificationService.requestFailed(
+        "Failed to get logging settings",
+        error,
+      );
       return null;
     } finally {
       setIsLoggingSettingsLoading(false);
@@ -146,7 +149,10 @@ export const LoggingSettings: React.FC = () => {
           [],
       );
     } catch (error) {
-      notificationService.requestFailed("Failed to delete masked fields", error);
+      notificationService.requestFailed(
+        "Failed to delete masked fields",
+        error,
+      );
     } finally {
       setIsMaskedFieldsLoading(false);
     }
@@ -162,7 +168,10 @@ export const LoggingSettings: React.FC = () => {
       delete loggingSettings?.custom;
       setLoggingSettings(loggingSettings);
     } catch (error) {
-      notificationService.requestFailed("Failed to delete logging settings", error);
+      notificationService.requestFailed(
+        "Failed to delete logging settings",
+        error,
+      );
       return null;
     } finally {
       setIsLoggingSettingsLoading(false);
@@ -184,7 +193,10 @@ export const LoggingSettings: React.FC = () => {
         custom: properties,
       });
     } catch (error) {
-      notificationService.requestFailed("Failed to update logging settings", error);
+      notificationService.requestFailed(
+        "Failed to update logging settings",
+        error,
+      );
     } finally {
       setIsLoggingSettingsLoading(false);
     }
@@ -383,7 +395,11 @@ export const LoggingSettings: React.FC = () => {
             </Form.Item>
           </Form>
         </Flex>
-        <Flex vertical gap={8} style={{ flexShrink: 1, flexGrow: 1, overflow: 'auto' }}>
+        <Flex
+          vertical
+          gap={8}
+          style={{ flexShrink: 1, flexGrow: 1, overflow: "auto" }}
+        >
           <h3>Masked fields</h3>
           <Table
             size="small"
@@ -400,12 +416,15 @@ export const LoggingSettings: React.FC = () => {
       </Flex>
       <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
         <FloatButton
-          tooltip="Delete selected masked fields"
+          tooltip={{
+            title: "Delete selected masked fields",
+            placement: "left",
+          }}
           icon={<DeleteOutlined />}
           onClick={onDeleteBtnClick}
         />
         <FloatButton
-          tooltip="Add new masked field"
+          tooltip={{ title: "Add new masked field", placement: "left" }}
           icon={<PlusOutlined />}
           onClick={onCreateBtnClick}
         />

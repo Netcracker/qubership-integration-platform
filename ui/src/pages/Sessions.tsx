@@ -1,12 +1,5 @@
 import React, { UIEvent, useEffect, useState } from "react";
-import {
-  Button,
-  Flex,
-  FloatButton,
-  message,
-  Modal,
-  Table,
-} from "antd";
+import { Button, Flex, FloatButton, message, Modal, Table } from "antd";
 import { useNavigate, useParams } from "react-router";
 import {
   DeleteOutlined,
@@ -495,9 +488,15 @@ export const Sessions: React.FC = () => {
       .map(async (session) => {
         try {
           await api.retryFromLastCheckpoint(session.chainId, session.id);
-          notificationService.info("Session retried", `Session ${session.id} was retried successfully`);
+          notificationService.info(
+            "Session retried",
+            `Session ${session.id} was retried successfully`,
+          );
         } catch (error) {
-          notificationService.requestFailed(`Failed to retry session ${session.id}`, error);
+          notificationService.requestFailed(
+            `Failed to retry session ${session.id}`,
+            error,
+          );
         }
       });
     await Promise.all(promises);
@@ -535,24 +534,24 @@ export const Sessions: React.FC = () => {
         />
         <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
           <FloatButton
-            tooltip="Retry selected sessions"
+            tooltip={{ title: "Retry selected sessions", placement: "left" }}
             icon={<RedoOutlined />}
             onClick={onRetryBtnClick}
           />
           {chainId ? null : (
             <FloatButton
-              tooltip="Import sessions"
+              tooltip={{ title: "Import sessions", placement: "left" }}
               icon={<ImportOutlined />}
               onClick={onImportBtnClick}
             />
           )}
           <FloatButton
-            tooltip="Export selected sessions"
+            tooltip={{ title: "Export selected sessions", placement: "left" }}
             icon={<ExportOutlined />}
             onClick={onExportBtnClick}
           />
           <FloatButton
-            tooltip="Delete selected sessions"
+            tooltip={{ title: "Delete selected sessions", placement: "left" }}
             icon={<DeleteOutlined />}
             onClick={onDeleteBtnClick}
           />

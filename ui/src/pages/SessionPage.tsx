@@ -168,7 +168,7 @@ export const SessionPage: React.FC = () => {
         scroll={{ y: "" }}
       />
       <FloatButton
-        tooltip="Export session"
+        tooltip={{ title: "Export session", placement: "left" }}
         icon={<ExportOutlined />}
         onClick={onExportBtnClick}
       />
