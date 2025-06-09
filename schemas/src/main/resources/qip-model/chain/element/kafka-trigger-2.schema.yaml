@@ -2,6 +2,7 @@ $id: http://qubership.org/schemas/product/qip/element/kafka-trigger-2
 $schema: http://json-schema.org/draft-07/schema
 title: Kafka Trigger
 type: object
+additionalProperties: false
 properties:
   id:
     type: string
@@ -18,6 +19,7 @@ properties:
     const: triggers
   properties:
     type: object
+    additionalProperties: false
     properties:
       actionOnDuplicate:
         type: string

@@ -4,6 +4,7 @@ $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Chain
 group: Integrations
+additionalProperties: false
 properties:
   id:
     type: string
@@ -14,6 +15,7 @@ properties:
     type: string
   content:
     type: object
+    additionalProperties: false
     properties:
       description:
         type: string
@@ -33,6 +35,7 @@ properties:
         type: array
         items:
           type: object
+          additionalProperties: false
           properties:
             name:
               type: string
@@ -46,6 +49,7 @@ properties:
         type: array
         items:
           type: object
+          additionalProperties: false
           properties:
             from:
               type: string
@@ -60,6 +64,7 @@ properties:
         type: array
         items:
           type: object
+          additionalProperties: false
           properties:
             domain:
               type: string

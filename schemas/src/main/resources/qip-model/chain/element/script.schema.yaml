@@ -2,6 +2,7 @@ $id: http://qubership.org/schemas/product/qip/element/script
 $schema: http://json-schema.org/draft-07/schema
 title: Script
 type: object
+additionalProperties: false
 properties:
   id:
     type: string
@@ -20,6 +21,7 @@ properties:
     type: string
   properties:
     type: object
+    additionalProperties: false
     properties:
       exportFileExtension:
         type: string

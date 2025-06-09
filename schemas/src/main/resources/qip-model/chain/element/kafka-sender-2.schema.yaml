@@ -2,6 +2,7 @@ $id: http://qubership.org/schemas/product/qip/element/kafka-sender-2
 $schema: http://json-schema.org/draft-07/schema
 title: Kafka Sender
 type: object
+additionalProperties: false
 properties:
   id:
     type: string
@@ -18,6 +19,7 @@ properties:
     const: senders
   properties:
     type: object
+    additionalProperties: false
     properties:
       brokers:
         type: string
