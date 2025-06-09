@@ -44,6 +44,8 @@ properties:
           - org.apache.kafka.common.serialization.StringSerializer
           - org.apache.kafka.common.serialization.UUIDSerializer
           - org.apache.kafka.common.serialization.VoidSerializer
+      maasClassifierTenantEnabled:
+        type: boolean
       overrideContextParams:
         type: object
         additionalProperties:

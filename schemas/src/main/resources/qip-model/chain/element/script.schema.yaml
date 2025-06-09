@@ -17,8 +17,6 @@ properties:
   folder:
     type: string
     const: transformation
-  propertiesFilename:
-    type: string
   properties:
     type: object
     additionalProperties: false
@@ -27,5 +25,8 @@ properties:
         type: string
       propertiesToExportInSeparateFile:
         type: string
+      propertiesFilename:
+        type: string
     required:
       - exportFileExtension
+      - propertiesFilename

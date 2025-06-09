@@ -45,6 +45,11 @@ properties:
         enum:
           - manual
           - maas
+      consumerConsistencyMode:
+        type: string
+        enum:
+          - EVENTUAL
+          - GUARANTEE_CONSUMPTION
       consumersCount:
         type: integer
       enableIdempotency:
