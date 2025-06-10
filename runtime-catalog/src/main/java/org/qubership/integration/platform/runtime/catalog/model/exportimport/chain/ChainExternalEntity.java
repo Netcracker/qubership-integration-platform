@@ -22,6 +22,8 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 
+import java.net.URI;
+
 @Getter
 @Setter
 @SuperBuilder
@@ -29,6 +31,8 @@ import lombok.extern.jackson.Jacksonized;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ChainExternalEntity {
+    @JsonProperty(value = "$schema", index = 0)
+    private URI schema;
     private String id;
     private String name;
     ChainExternalContentEntity content;

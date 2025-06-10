@@ -26,9 +26,11 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.cha
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainFileMigrationService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,14 +40,17 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
 
     private final ChainElementsExternalEntityMapper chainElementsMapper;
     private final ChainFileMigrationService chainFileMigrationService;
+    private final URI chainSchemaUri;
 
     @Autowired
     public ChainExternalEntityMapper(
             ChainElementsExternalEntityMapper chainElementsMapper,
-            ChainFileMigrationService chainFileMigrationService
+            ChainFileMigrationService chainFileMigrationService,
+            @Value("${qip.json.schemas.chain:http://qubership.org/schemas/product/qip/chain}") URI chainSchemaUri
     ) {
         this.chainElementsMapper = chainElementsMapper;
         this.chainFileMigrationService = chainFileMigrationService;
+        this.chainSchemaUri = chainSchemaUri;
     }
 
     @Override
@@ -120,6 +125,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
     public ChainExternalMapperEntity toExternalEntity(@NonNull Chain chain) {
         ChainElementsExternalMapperEntity elementsExternalMapperEntity = chainElementsMapper.toExternalEntity(chain.getElements());
         ChainExternalEntity chainExternalEntity = ChainExternalEntity.builder()
+                .schema(chainSchemaUri)
                 .id(chain.getId())
                 .name(chain.getName())
                 .content(ChainExternalContentEntity.builder()

@@ -151,3 +151,6 @@ qip:
       egress-gateway: ${QIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
   build:
     artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
+  json:
+    schemas:
+      chain: ${CHAIN_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/chain}
