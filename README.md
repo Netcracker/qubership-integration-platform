@@ -10,7 +10,7 @@ It also provides next capabilities and features:
 - Large scope of automated functions and operations.
 - Flexible orchestration of Inbound and Outbound transactions: loop, split, iterations, parallel execution, etc.
 
-This repository contains Docker compose files designed to run Qubership Integration Platform locally in development mode. 
+This repository contains Docker compose files designed to run Qubership Integration Platform locally in development mode.
 
 ## Contribution
 
