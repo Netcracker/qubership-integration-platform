@@ -25,9 +25,9 @@ public class MigrationFieldInContentStrategy implements ChainFileVersionsGetterS
 
     @Override
     public Optional<List<Integer>> getVersions(ObjectNode document) {
-        return document.has(IMPORT_CONTENT_FIELD) &&
-                nonNull(document.get(IMPORT_CONTENT_FIELD)) &&
-                document.get(IMPORT_CONTENT_FIELD).isObject()
+        return document.has(IMPORT_CONTENT_FIELD)
+                && nonNull(document.get(IMPORT_CONTENT_FIELD))
+                && document.get(IMPORT_CONTENT_FIELD).isObject()
                         ? migrationFieldStrategy.getVersions((ObjectNode) document.get(IMPORT_CONTENT_FIELD))
                         : Optional.empty();
     }
