@@ -1,7 +1,10 @@
 export interface ApiError {
-  serviceName: string;
-  errorMessage: string;
-  errorDate: string;
+  responseBody: {
+    serviceName: string;
+    errorMessage: string;
+    errorDate: string;
+    stacktrace?: string;
+  }
 }
 
 export interface ApiResponse<T> {

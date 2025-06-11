@@ -2,13 +2,15 @@ import { BaseApi } from "./baseApi.ts";
 import { Variable, ApiResponse } from "./types.ts";
 import { getFileFromResponse } from "../../../misc/download-utils.ts";
 
+const urlPrefixV1 = `/api/v1/${import.meta.env.VITE_API_APP}/variables-management`;
+
 export class CommonVariablesApi extends BaseApi {
   private serviceName = "Common Variables API";
 
   async getAll(): Promise<ApiResponse<Variable[]>> {
     return this.wrap(async () => {
       const response = await this.instance.get(
-        `/api/v1/${import.meta.env.VITE_API_APP}/common-variables`
+        `${urlPrefixV1}/common-variables`
       );
 
       const rawData = response.data;
@@ -31,7 +33,7 @@ export class CommonVariablesApi extends BaseApi {
   async createMany(variables: Record<string, string>): Promise<ApiResponse<string[]>> {
     return this.wrap(async () => {
       const response = await this.instance.post(
-        `/api/v1/${import.meta.env.VITE_API_APP}/common-variables`,
+        `${urlPrefixV1}/common-variables`,
         variables
       );
       return response.data;
@@ -41,7 +43,7 @@ export class CommonVariablesApi extends BaseApi {
   async update(variable: Variable): Promise<ApiResponse<Variable>> {
     return this.wrap(async () => {
       const response = await this.instance.patch(
-        `/api/v1/${import.meta.env.VITE_API_APP}/common-variables/${variable.key}`,
+        `${urlPrefixV1}/common-variables/${variable.key}`,
         variable.value,
         {
           headers: {
@@ -58,7 +60,7 @@ export class CommonVariablesApi extends BaseApi {
       const params = new URLSearchParams();
       keys.forEach((key) => params.append("variablesNames", key));
       await this.instance.delete(
-        `/api/v1/${import.meta.env.VITE_API_APP}/common-variables?${params}`
+        `${urlPrefixV1}/common-variables?${params}`
       );
     }, "Failed to delete variables");
   }
@@ -69,23 +71,34 @@ export class CommonVariablesApi extends BaseApi {
       params.append("asArchive", String(asArchive));
 
       const response = await this.instance.get<Blob>(
-        `/api/v1/${import.meta.env.VITE_API_APP}/common-variables/export?${params}`,
+        `${urlPrefixV1}/common-variables/export?${params}`,
         { responseType: "blob" }
       );
 
       return getFileFromResponse(response);
   }
 
-  async importVariables(formData: FormData, isPreview: boolean): Promise<any> {
-    if (!formData) return;
+  async importVariables(formData: FormData, isPreview: boolean): Promise<ApiResponse<any>> {
+    if (!formData) {
+      return {
+        success: false,
+        error: {
+          responseBody: {
+            serviceName: this.serviceName,
+            errorMessage: "No file selected or form data is empty.",
+            errorDate: new Date().toISOString(),
+          }
+        }
+      };
+    }
 
-    const path = `/api/${isPreview ? "v1" : "v2"}/${import.meta.env.VITE_API_APP}/common-variables/${isPreview ? "preview" : "import"}`;
-    return this.wrapRaw(async () => {
+    const path = `/api/${isPreview ? "v1" : "v2"}/${import.meta.env.VITE_API_APP}/variables-management/common-variables/${isPreview ? "preview" : "import"}`;
+    return this.wrap(async () => {
       const response = await this.instance.post(path, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       return response.data;
-    }, `Failed to ${isPreview ? "preview" : "import"}`);
+    }, `Failed to ${isPreview ? "preview" : "import"}`, this.serviceName);
   }
 }
 

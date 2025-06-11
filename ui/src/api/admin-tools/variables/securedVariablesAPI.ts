@@ -3,13 +3,15 @@ import { BaseApi } from "./baseApi.ts";
 import { Variable, SecretWithVariables, ApiResponse } from "./types.ts";
 import { getFileFromResponse } from "../../../misc/download-utils.ts";
 
+const urlPrefixV2 = `/api/v2/${import.meta.env.VITE_API_APP}/variables-management`;
+
 export class SecuredVariablesApi extends BaseApi {
   private serviceName = "Secured Variables API";
 
   async getAll(): Promise<ApiResponse<SecretWithVariables[]>> {
     return this.wrap(async () => {
       const response = await this.instance.get(
-        `/api/v2/${import.meta.env.VITE_API_APP}/secured-variables`
+        `${urlPrefixV2}/secured-variables`
       );
 
       return response.data.map(({ secretName, variablesNames, defaultSecret }: any) => ({
@@ -26,7 +28,7 @@ export class SecuredVariablesApi extends BaseApi {
   async getForSecret(secretName: string): Promise<ApiResponse<Variable[]>> {
     return this.wrap(async () => {
       const response = await this.instance.get(
-        `/api/v2/${import.meta.env.VITE_API_APP}/secured-variables/${secretName}`
+        `${urlPrefixV2}/secured-variables/${secretName}`
       );
 
       return response.data.map((key: string) => ({
@@ -46,7 +48,7 @@ export class SecuredVariablesApi extends BaseApi {
 
     return this.wrap(async () => {
       await this.instance.post(
-        `/api/v2/${import.meta.env.VITE_API_APP}/secured-variables`,
+        `${urlPrefixV2}/secured-variables`,
         {
           secretName,
           variables: Object.fromEntries(variables.map(v => [v.key, v.value])),
@@ -59,7 +61,7 @@ export class SecuredVariablesApi extends BaseApi {
   async update(secretName: string, variables: Variable[]): Promise<ApiResponse<Variable[]>> {
     return this.wrap(async () => {
       await this.instance.patch(
-        `/api/v2/${import.meta.env.VITE_API_APP}/secured-variables`,
+        `${urlPrefixV2}/secured-variables`,
         {
           secretName,
           variables: Object.fromEntries(variables.map(v => [v.key, v.value])),
@@ -74,7 +76,7 @@ export class SecuredVariablesApi extends BaseApi {
       const params = new URLSearchParams();
       keys.forEach((key) => params.append("variablesNames", key));
       await this.instance.delete(
-        `/api/v2/${import.meta.env.VITE_API_APP}/secured-variables/${secretName}?${params}`
+        `${urlPrefixV2}/secured-variables/${secretName}?${params}`
       );
       return true;
     }, "Failed to delete secured variables", this.serviceName);
@@ -83,7 +85,7 @@ export class SecuredVariablesApi extends BaseApi {
   async createSecret(secretName: string): Promise<ApiResponse<boolean>> {
     return this.wrap(async () => {
       await this.instance.post(
-        `/api/v2/${import.meta.env.VITE_API_APP}/secret/${secretName}`
+        `${urlPrefixV2}/secret/${secretName}`
       );
       return true;
     }, "Failed to create secret", this.serviceName);
@@ -91,7 +93,7 @@ export class SecuredVariablesApi extends BaseApi {
 
   async downloadHelmChart(secretName: string): Promise<File> {
     const response = await this.instance.get<Blob>(
-      `/api/v2/${import.meta.env.VITE_API_APP}/secret/template/${secretName}`,
+      `${urlPrefixV2}/secret/template/${secretName}`,
       { responseType: "blob" }
     );
     return getFileFromResponse(response);

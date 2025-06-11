@@ -59,7 +59,7 @@ const SecuredVariables: React.FC = () => {
       return true;
     } else {
       console.error(`Failed to refresh variables for secret ${secret}:`, response.error);
-      message.error(response.error?.errorMessage || "Failed to refresh list.");
+      notificationService.requestFailed(response.error?.errorMessage || "Failed to refresh list.", null);
       return false;
     }
   }, [variablesApi.getSecuredVariablesForSecret, setVariables, message]);
@@ -90,7 +90,7 @@ const SecuredVariables: React.FC = () => {
       setDefaultSecret(defaultName);
     } else {
       console.error("Failed to load secrets:", response.error);
-      message.error(response.error?.errorMessage || "Failed to load secrets.");
+      notificationService.requestFailed(response.error?.errorMessage || "Failed to load secrets.", null);
     }
   }, [variablesApi.getSecuredVariables, setSecrets, setVariables, setDefaultSecret, message]);
 
@@ -109,7 +109,7 @@ const SecuredVariables: React.FC = () => {
       loadSecrets();
     } else {
       console.error("Failed to create secret:", response.error);
-      message.error(response.error?.errorMessage || "Failed to create secret.");
+      notificationService.requestFailed(response.error?.errorMessage || "Failed to create secret.", null);
     }
   }, [variablesApi.createSecret, message, setCreateModalVisible, createForm, loadSecrets]);
 
@@ -123,7 +123,7 @@ const SecuredVariables: React.FC = () => {
          message.success("Variable added");
        }
     } else {
-       message.error(response.error?.errorMessage || "Failed to add variable.");
+      notificationService.requestFailed(response.error?.errorMessage || "Failed to add variable.", null);
     }
   }, [variablesApi.createSecuredVariables, message, refreshSecretVariables, setNewVariableKeys]);
 
@@ -137,7 +137,7 @@ const SecuredVariables: React.FC = () => {
          message.success("Value updated");
        }
     } else {
-       message.error(response.error?.errorMessage || "Failed to update variable.");
+      notificationService.requestFailed(response.error?.errorMessage || "Failed to update variable.", null);
     }
   }, [variablesApi.updateSecuredVariables, message, refreshSecretVariables, setEditing, setEditingValue]);
 
@@ -150,7 +150,7 @@ const SecuredVariables: React.FC = () => {
        }
      } else {
         console.error("Failed to delete variable:", response.error);
-        message.error(response.error?.errorMessage || "Failed to delete variable.");
+       notificationService.requestFailed(response.error?.errorMessage || "Failed to delete variable.", null);
      }
   }, [variablesApi.deleteSecuredVariables, message, refreshSecretVariables]);
 
@@ -178,11 +178,11 @@ const SecuredVariables: React.FC = () => {
       if (allSuccessful) {
          loadSecrets();
       } else {
-        message.error("Some selected variables failed to delete. Check console for details.");
+        notificationService.requestFailed("Some selected variables failed to delete. Check console for details.", null);
       }
     } catch (error) {
       console.error("An unexpected error occurred during batch deletion:", error);
-      message.error("An unexpected error occurred during batch deletion.");
+      notificationService.requestFailed("An unexpected error occurred during batch deletion:", error);
     }
   }, [selectedKeys, variablesApi.deleteSecuredVariables, variablesApi.getSecuredVariables, setVariables, setSelectedKeys, message, loadSecrets]);
 

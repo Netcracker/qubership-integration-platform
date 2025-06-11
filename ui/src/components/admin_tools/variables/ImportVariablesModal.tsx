@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
+import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 
 interface Props {
   onSuccess?: () => void;
@@ -17,6 +18,8 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
   const [loading, setLoading] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [selectedNames, setSelectedNames] = useState<React.Key[]>([]);
+  const notificationService = useNotificationService();
+
 
   const handleCancel = () => {
     closeContainingModal();
@@ -35,8 +38,8 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
       setLoading(true);
       const data = await variablesApi.importVariables(formData, true);
       setPreviewData(data);
-    } catch {
-      message.error("Failed to preview");
+    } catch(error) {
+      notificationService.requestFailed("Failed to preview", error);
     } finally {
       setLoading(false);
     }
@@ -57,12 +60,14 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
 
     try {
       setLoading(true);
-      await variablesApi.importVariables(formData, false);
-      message.success("Imported successfully");
-      closeContainingModal();
-      onSuccess?.();
-    } catch {
-      message.error("Import failed");
+      const response = await variablesApi.importVariables(formData, false);
+      if (response.success) {
+        message.success("Imported successfully");
+        closeContainingModal();
+        onSuccess?.();
+      } else {
+        notificationService.errorWithDetails("Import failed", response.error.errorMessage, response.error);
+      }
     } finally {
       setLoading(false);
     }

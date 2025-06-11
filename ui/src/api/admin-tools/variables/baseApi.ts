@@ -12,13 +12,16 @@ export abstract class BaseApi {
     });
   }
 
-  protected fail(serviceName: string, message: string): ApiResponse<any> {
+  protected fail(serviceName: string, message: string, stacktrace?: string): ApiResponse<any> {
     return {
       success: false,
       error: {
-        serviceName,
-        errorMessage: message,
-        errorDate: new Date().toISOString(),
+        responseBody: {
+          serviceName,
+          errorMessage: message,
+          errorDate: new Date().toISOString(),
+          stacktrace,
+        },
       },
     };
   }
@@ -27,9 +30,9 @@ export abstract class BaseApi {
     return fn().then((data) => ({ success: true, data })).catch((error) => {
       console.error(fallbackMessage, error);
       if (axios.isAxiosError(error) && error.response?.data) {
-        const backendError = error.response.data as ApiError;
+        const backendError = error.response.data;
         if (backendError?.serviceName && backendError?.errorMessage) {
-          return { success: false, error: backendError };
+          return { success: false, error: { responseBody: backendError as ApiError['responseBody'] } };
         }
         if (typeof error.response.data === "string") {
           return this.fail(serviceName, error.response.data);
