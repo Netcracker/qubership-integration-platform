@@ -295,11 +295,12 @@ public class CommonVariablesService {
                 String entryName = entry.getName();
                 Path entryPath = Paths.get(entryName);
 
-                if (entryName.contains("..") || entryPath.isAbsolute()) {
-                    throw new SecurityException("Invalid ZIP entry: " + entryName);
-                }
-
                 if (entryPath.startsWith(VAR_PARENT_DIR) && resolvedPath.startsWith(path)) {
+
+                    if (entryName.contains("..") || entryPath.isAbsolute()) {
+                        throw new SecurityException("Invalid ZIP entry: " + entryName);
+                    }
+
                     if (!entry.isDirectory()) {
                         Files.createDirectories(resolvedPath.getParent());
                         Files.copy(inputStream, resolvedPath);
