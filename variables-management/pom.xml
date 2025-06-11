@@ -5,6 +5,7 @@
     <groupId>org.qubership</groupId>
     <artifactId>qip-variables-management</artifactId>
     <version>${revision}</version>
+    <name>QIP Variables Management</name>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
