@@ -33,6 +33,8 @@ public class V101ChainImportFileMigration implements ChainImportFileMigration {
 
         // Rename properties-filename property to propertiesFilename
         renameField(contentNode, "properties-filename", "propertiesFilename");
+        // Make new default value from "" to "org.apache.kafka.common.serialization.StringSerializer" for keySerializer
+        setNewValueToEmptyField(contentNode, "keySerializer", "org.apache.kafka.common.serialization.StringSerializer");
 
         result.set("content", contentNode);
         return result;
@@ -50,5 +52,19 @@ public class V101ChainImportFileMigration implements ChainImportFileMigration {
             }
         }
         node.forEach(child -> renameField(child, from, to));
+    }
+
+    private void setNewValueToEmptyField(JsonNode node, String fieldName, String newValue) {
+        if (node.isObject()) {
+            JsonNode field = node.get(fieldName);
+            if (field != null && (field.isNull() || field.asText().isBlank())) {
+                ((ObjectNode) node).put(fieldName, newValue);
+            }
+            node.fields().forEachRemaining(entry -> setNewValueToEmptyField(entry.getValue(), fieldName, newValue));
+        } else if (node.isArray()) {
+            for (JsonNode item : node) {
+                setNewValueToEmptyField(item, fieldName, newValue);
+            }
+        }
     }
 }

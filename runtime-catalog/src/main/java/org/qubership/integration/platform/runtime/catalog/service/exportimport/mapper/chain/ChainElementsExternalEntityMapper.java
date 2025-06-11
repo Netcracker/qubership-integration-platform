@@ -174,16 +174,15 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
                 .swimlaneId(Optional.ofNullable(element.getSwimlane()).map(ChainElement::getId).orElse(null))
                 .originalId(element.getOriginalId())
                 .serviceEnvironment(element.getEnvironment())
-                .properties(preSortProperties(element.getProperties()))
+                .properties(new TreeMap<>(preSortProperties(element.getProperties())))
                 .build();
     }
 
     public static Map<String, Object> preSortProperties(Map<String, Object> properties) {
-        Map<String, Object> result = new LinkedHashMap<>(properties);
         // Only roles list should be sorted by now
-        if (result.containsKey("roles") && result.get("roles") instanceof List<?>) {
-            result.put("roles", ((List<String>) result.get("roles")).stream().sorted().toList());
+        if (properties.containsKey("roles") && properties.get("roles") instanceof List<?>) {
+            properties.put("roles", ((List<String>) properties.get("roles")).stream().sorted().toList());
         }
-        return result;
+        return properties;
     }
 }
