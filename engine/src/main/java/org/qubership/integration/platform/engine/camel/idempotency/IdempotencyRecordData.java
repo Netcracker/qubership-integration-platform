@@ -21,13 +21,10 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.sql.Timestamp;
-
 @Data
 @Getter
 @Setter
 @Builder(toBuilder = true)
-public class IdempotencyRecord {
+public class IdempotencyRecordData {
     private IdempotencyRecordStatus status;
-    private Timestamp createdAt;
 }

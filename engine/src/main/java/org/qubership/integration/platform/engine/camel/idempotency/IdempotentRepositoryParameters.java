@@ -27,5 +27,4 @@ import lombok.Setter;
 @Setter
 public class IdempotentRepositoryParameters {
     private int ttl;
-    private IdempotentRepositoryKeyStrategy keyStrategy;
 }

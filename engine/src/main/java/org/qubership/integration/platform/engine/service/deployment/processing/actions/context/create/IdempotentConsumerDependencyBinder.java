@@ -19,7 +19,6 @@ package org.qubership.integration.platform.engine.service.deployment.processing.
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spi.IdempotentRepository;
 import org.apache.camel.spring.SpringCamelContext;
-import org.qubership.integration.platform.engine.camel.idempotency.IdempotentRepositoryKeyStrategy;
 import org.qubership.integration.platform.engine.camel.idempotency.IdempotentRepositoryParameters;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -28,7 +27,6 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.function.Function;
@@ -36,7 +34,6 @@ import java.util.function.Function;
 @Slf4j
 @Component
 @OnAfterDeploymentContextCreated
-@ConditionalOnProperty(value = "qip.idempotency.enabled", havingValue = "true", matchIfMissing = true)
 public class IdempotentConsumerDependencyBinder extends ElementProcessingAction {
     private final Function<IdempotentRepositoryParameters, IdempotentRepository> idempotentRepositoryFactory;
 
@@ -63,19 +60,14 @@ public class IdempotentConsumerDependencyBinder extends ElementProcessingAction 
     @Override
     public void apply(SpringCamelContext context, ElementProperties properties, DeploymentInfo deploymentInfo) {
         String elementId = properties.getElementId();
+        int ttl = Integer.parseInt(properties.getProperties().get(ChainProperties.EXPIRY));
+        if (ttl <= 0) {
+            throw new IllegalArgumentException("TTL must be greater than 0");
+        }
         IdempotentRepositoryParameters keyParameters = IdempotentRepositoryParameters.builder()
-            .ttl(Integer.valueOf(properties.getProperties().get(ChainProperties.EXPIRY)))
-            .keyStrategy(getKeyStrategy(properties, deploymentInfo))
+            .ttl(ttl)
             .build();
         IdempotentRepository idempotentRepository = idempotentRepositoryFactory.apply(keyParameters);
         context.getRegistry().bind(elementId, idempotentRepository);
     }
-
-    private IdempotentRepositoryKeyStrategy getKeyStrategy(
-        ElementProperties properties,
-        DeploymentInfo deploymentInfo
-    ) {
-        return key -> key;
-    }
-
 }
