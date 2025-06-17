@@ -4,7 +4,7 @@
 
     <groupId>org.qubership</groupId>
     <artifactId>qip-schemas</artifactId>
-    <version>${revision}</version>
+    <version>0.0.3</version>
     <packaging>pom</packaging>
 
     <name>${project.groupId}:${project.artifactId}</name>
@@ -188,7 +188,7 @@
         <!-- GitHub packages repository for both release and SNAPSHOT versions -->
         <repository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/netcracker/*</url>
+            <url>https://maven.pkg.github.com/andy-roode/qubership-integration-schemas</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
