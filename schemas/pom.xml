@@ -25,9 +25,9 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:https//github.com/Netcracker/${repo-name}.git</connection>
-        <developerConnection>scm:git:https://github.com/Netcracker/${repo-name}.git</developerConnection>
-        <url>scm:git:https://github.com/Netcracker/${repo-name}.git</url>
+        <connection>scm:git:https://github.com/andy-roode/qubership-integration-schemas.git</connection>
+        <developerConnection>scm:git:https://github.com/andy-roode/qubership-integration-schemas.git</developerConnection>
+        <url>scm:git:https://github.com/andy-roode/qubership-integration-schemas.git</url>
     </scm>
 
     <properties>
@@ -80,7 +80,7 @@
                 <repository>
                     <id>github</id>
                     <name>GitHub Packages</name>
-                    <url>https://maven.pkg.github.com/Netcracker/${repo-name}</url>
+                    <url>https://maven.pkg.github.com/andy-roode/qubership-integration-schemas</url>
                 </repository>
             </distributionManagement>
         </profile>
