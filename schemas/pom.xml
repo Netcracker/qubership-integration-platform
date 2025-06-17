@@ -159,4 +159,42 @@
             </plugin>
         </plugins>
     </build>
+
+    <repositories>
+        <!-- Maven Central repository for release versions -->
+        <repository>
+            <id>oss.sonatype.org</id>
+            <url>https://central.sonatype.com</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+
+        <!-- Maven Central repository for SNAPSHOT versions-->
+        <repository>
+           <id>oss.sonatype.org-snapshot</id>
+           <url>https://central.sonatype.com/repository/maven-snapshots</url>
+           <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+
+        <!-- GitHub packages repository for both release and SNAPSHOT versions -->
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/netcracker/*</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 </project>
