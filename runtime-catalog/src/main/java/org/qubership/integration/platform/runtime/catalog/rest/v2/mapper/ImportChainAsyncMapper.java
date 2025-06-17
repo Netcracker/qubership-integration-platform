@@ -18,10 +18,10 @@ package org.qubership.integration.platform.runtime.catalog.rest.v2.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.qubership.integration.platform.catalog.mapping.UserMapper;
-import org.qubership.integration.platform.catalog.util.MapperUtils;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.UserMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
 import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.exportimport.chain.ImportAsyncStatus;
+import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 
 @Mapper(componentModel = "spring",
         uses = {

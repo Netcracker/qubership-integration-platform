@@ -1,0 +1,111 @@
+---
+id: "19772a57-726b-4cca-aee9-0ef00c87d3ce"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707725759547
+elements:
+  - id: "349072b4-7a0a-4ca5-a44d-c23ce6ad2b6b"
+    name: "Try-Catch-Finally"
+    description: "Try-Catch-Finally description"
+    element-type: "try-catch-finally"
+    children:
+      - id: "314064ac-3dd2-4676-9131-f9a796d912a3"
+        name: "Try"
+        description: "Try description"
+        element-type: "try"
+      - id: "af862b2b-71e6-40ea-a895-2ab95c01d5c9"
+        name: "Catch"
+        description: "Catch description"
+        element-type: "catch"
+        properties:
+          exception: "java.lang.Exception"
+          priorityNumber: 0
+  - id: "432c1c5e-c4fb-43dc-b937-1a10d6e988d2"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    properties:
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "v1/test"
+      externalRoute: true
+      httpMethodRestrict: "GET"
+  - id: "5ebc6491-f9ab-4767-adf5-350cf4cef03b"
+    name: "Start Script"
+    description: "Start Script description"
+    element-type: "script"
+    properties-filename: "script-5ebc6491-f9ab-4767-adf5-350cf4cef03b.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "81b6e9b0-a9b5-48d2-a198-a24af0928861"
+    name: "Loop"
+    description: "Loop description"
+    element-type: "loop"
+    children:
+      - id: "ba2cc122-0a1a-446a-80df-a912b4ae381a"
+        name: "Loop Expression"
+        element-type: "loop-expression"
+        properties:
+          expression: "123"
+  - id: "84155b17-36af-4b48-b350-e965dedc5eec"
+    name: "Loop Mapper"
+    description: "Loop Mapper description"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "97a47d16-eb13-4fed-8201-14401782fa4a"
+    name: "Loop Expression HTTP Sender"
+    description: "Loop Expression HTTP Sender description"
+    element-type: "http-sender"
+    properties:
+      connectTimeout: 120000
+      httpMethod: "GET"
+      isExternalCall: true
+      m2m: false
+      reuseEstablishedConnection: true
+      uri: "http://localhost:8080"
+  - id: "9baf97f4-b965-4bcd-a363-087f91714b9f"
+    name: "Catch Mapper"
+    description: "Catch Mapper description"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "a0a33b00-712a-4903-9677-b1143854ea2d"
+    name: "Try Script"
+    description: "Try Script description"
+    element-type: "script"
+    properties-filename: "script-a0a33b00-712a-4903-9677-b1143854ea2d.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "c77a37ae-aede-4535-9f04-4e39aed8d167"
+    name: "Try-Catch-Finally Script"
+    description: "Try-Catch-Finally Script description"
+    element-type: "script"
+    properties-filename: "script-c77a37ae-aede-4535-9f04-4e39aed8d167.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "314064ac-3dd2-4676-9131-f9a796d912a3"
+    to: "a0a33b00-712a-4903-9677-b1143854ea2d"
+  - from: "5ebc6491-f9ab-4767-adf5-350cf4cef03b"
+    to: "349072b4-7a0a-4ca5-a44d-c23ce6ad2b6b"
+  - from: "349072b4-7a0a-4ca5-a44d-c23ce6ad2b6b"
+    to: "c77a37ae-aede-4535-9f04-4e39aed8d167"
+  - from: "432c1c5e-c4fb-43dc-b937-1a10d6e988d2"
+    to: "5ebc6491-f9ab-4767-adf5-350cf4cef03b"
+  - from: "9baf97f4-b965-4bcd-a363-087f91714b9f"
+    to: "5ebc6491-f9ab-4767-adf5-350cf4cef03b"
+  - from: "5ebc6491-f9ab-4767-adf5-350cf4cef03b"
+    to: "81b6e9b0-a9b5-48d2-a198-a24af0928861"
+  - from: "81b6e9b0-a9b5-48d2-a198-a24af0928861"
+    to: "84155b17-36af-4b48-b350-e965dedc5eec"
+  - from: "ba2cc122-0a1a-446a-80df-a912b4ae381a"
+    to: "97a47d16-eb13-4fed-8201-14401782fa4a"
+  - from: "af862b2b-71e6-40ea-a895-2ab95c01d5c9"
+    to: "9baf97f4-b965-4bcd-a363-087f91714b9f"

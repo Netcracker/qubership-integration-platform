@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.builder.templates;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -26,20 +26,18 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.catalog.configuration.MapperBaseConfiguration;
-import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.catalog.service.library.LibraryResourceLoader;
+import org.qubership.integration.platform.runtime.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.runtime.catalog.mapper.MappingDescriptionValidator;
 import org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.AtlasMapInterpreter;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
+import org.qubership.integration.platform.runtime.catalog.service.library.LibraryResourceLoader;
 import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainImportDTO;
 import org.qubership.integration.platform.runtime.catalog.testutils.mapper.ChainElementsMapper;
 import org.qubership.integration.platform.runtime.catalog.testutils.mapper.ChainMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -57,7 +55,7 @@ import static org.mockito.Mockito.mockStatic;
 @ContextConfiguration(
         classes = {
                 TestConfig.class,
-                MapperBaseConfiguration.class,
+                YAMLMapper.class,
                 DescriptorPropertiesConfiguration.class,
                 AtlasMapInterpreter.class,
                 LibraryElementsService.class,
@@ -78,17 +76,14 @@ public class TemplateServiceTest {
 
     private static MockedStatic<UUID> mockedUUID;
 
-    private final ObjectMapper objectMapper;
     private final TemplateService templateService;
     private final ChainMapper chainMapper;
 
     @Autowired
     public TemplateServiceTest(
-            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
             TemplateService templateService,
             ChainMapper chainMapper
     ) {
-        this.objectMapper = objectMapper;
         this.templateService = templateService;
         this.chainMapper = chainMapper;
     }

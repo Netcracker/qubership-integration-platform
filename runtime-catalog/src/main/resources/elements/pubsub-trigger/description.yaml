@@ -1,0 +1,107 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: pubsub-trigger
+title: PubSub Trigger
+description: Read message from PubSub topic.
+type: trigger
+folder: triggers
+inputEnabled: false
+colorType: trigger
+outputEnabled: true
+container: false
+customTabs:
+  - name: Idempotency
+    uiComponent: idempotency-parameters
+designParameters:
+  externalParticipantId: 'Google Cloud PubSub Project Id ##{projectId}'
+  externalParticipantName: 'Google Cloud PubSub Project Id ##{projectId}'
+  requestLineTitle: 'Read message from ##{destinationName}: ##{destinationName}'
+  directionToChain: true
+  hasResponse: false
+properties:
+  common:
+    - name: projectId
+      title: Project id
+      description: The Google Cloud PubSub Project Id
+      type: string
+      mandatory: true
+    - name: destinationName
+      title: Destination name
+      description: Subscription name
+      type: string
+      mandatory: true
+    - name: serviceAccountKey
+      title: Service account key
+      description: The Service account key that can be used as credentials for the PubSub publisher/subscriber. Must be specified as a base64 encoded ServiceAccount json file
+      type: string
+      mandatory: true
+  advanced:
+    - name: maxMessagesPerPoll
+      title: Max messages per poll
+      description: The max number of messages to receive from the server in a single API call
+      type: number
+      default: 1
+      query: true
+    - name: synchronousPullRetryableCodes
+      title: Retryable error codes
+      description: Comma-separated list of additional retryable error codes for synchronous pull.
+      type: string
+      query: true
+      multiple: true
+      allowedValues:
+        - ABORTED
+        - CANCELLED
+        - DEADLINE_EXCEEDED
+        - INTERNAL
+        - RESOURCE_EXHAUSTED
+        - UNKNOWN
+        - UNAVAILABLE
+    - name: ackMode
+      title: Ack mode
+      description: AUTO = exchange gets ack/nack on completion. NONE = downstream process has to ack/nack explicitly
+      type: string
+      default: AUTO
+      query: true
+      allowedValues:
+        - AUTO
+        - NONE
+  hidden:
+    - name: idempotencyKeyExpression
+      title: Key expression
+      type: string
+    - name: enableIdempotency
+      title: Enable idempotency
+      type: boolean
+      default: false
+    - name: idempotencyKeyExpiry
+      title: Key expiration time (seconds)
+      type: number
+      default: 600
+    - name: actionOnDuplicate
+      title: Action on duplicate message
+      type: string
+      allowedValues:
+          - ignore
+          - throw-exception
+          - execute-subchain
+      default: ignore
+    - name: chainTriggerElementId
+      title: Reference to chain trigger
+      type: string
+      reference: true
+    - name: chainCallTimeout
+      title: Timeout (ms)
+      type: number
+      default: 30000

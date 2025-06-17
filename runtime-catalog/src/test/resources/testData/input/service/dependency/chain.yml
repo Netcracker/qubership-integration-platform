@@ -1,0 +1,221 @@
+---
+id: "0e68b995-a169-42f4-a4ab-e73d58f74bf5"
+name: "New Chain"
+description: ""
+modifiedWhen: 1683113761033
+maskingEnabled: false
+elements:
+  - id: "00edd74c-95a5-454e-9e67-01e20772e679"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    properties:
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "test/"
+      externalRoute: true
+      httpMethodRestrict: "POST,GET"
+  - id: "0a135ae2-3742-425a-a626-5af7e3b03c00"
+    name: "XSLT"
+    element-type: "xslt"
+    properties:
+      templateName: "test_template"
+  - id: "16cbcda3-100f-4860-b6d5-049ec1494f35"
+    name: "Try-Catch-Finally (deprecated)"
+    element-type: "try-catch-finally"
+    children:
+      - id: "2e525eee-fb35-46e6-901c-3eb8320ddbac"
+        name: "Catch"
+        element-type: "catch"
+        properties:
+          exception: "java.lang.Exception"
+          priorityNumber: 0
+      - id: "934113d8-5dad-4568-8e68-8e856f4b63dd"
+        name: "Try"
+        element-type: "try"
+  - id: "1d2ea84f-76f4-47f2-a935-10fb1ca491fb"
+    name: "Loop Script"
+    element-type: "script"
+    properties-filename: "script-1d2ea84f-76f4-47f2-a935-10fb1ca491fb.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "23ba5a24-9b92-437b-9891-16aa3bbe2232"
+    name: "Sync Split Element Script"
+    element-type: "script"
+    properties-filename: "script-23ba5a24-9b92-437b-9891-16aa3bbe2232.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "3931b902-c59c-402c-b6b9-1ab7eb4bd660"
+    name: "Script #2 -> Mapper"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "3c8f5cbc-89d9-4a47-92da-83254731bfec"
+    name: "Try Mapper"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "63b3a8e8-ae38-4092-ba91-db5c22c8590b"
+    name: "HTTP Trigger Script"
+    element-type: "script"
+    properties-filename: "script-63b3a8e8-ae38-4092-ba91-db5c22c8590b.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "80d0dfc5-5c12-4b5e-acfe-4ba39350e4ee"
+    name: "Script #2"
+    element-type: "script"
+    properties-filename: "script-80d0dfc5-5c12-4b5e-acfe-4ba39350e4ee.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "93eceee1-8497-4e7d-a657-900f685eef09"
+    name: "Async Split Element Script"
+    element-type: "script"
+    properties-filename: "script-93eceee1-8497-4e7d-a657-900f685eef09.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "99bd6756-ad98-4cf6-917e-382c49aa902e"
+    name: "Script #1"
+    element-type: "script"
+    properties-filename: "script-99bd6756-ad98-4cf6-917e-382c49aa902e.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "99eecadf-cc71-43f2-8b19-34f9a780978b"
+    name: "Script #2 -> Mapper -> Script"
+    element-type: "script"
+    properties-filename: "script-99eecadf-cc71-43f2-8b19-34f9a780978b.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "a17da5ad-391f-426e-b9c4-a3dc89a5dba1"
+    name: "Sync Split Element Mapper"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "af5cbe4b-188f-4911-95c4-5a57e78f155d"
+    name: "Script #1 -> Mapper #1"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "c1d44337-f550-4ff1-81c1-55650ec86424"
+    name: "Try-Catch-Finally"
+    element-type: "try-catch-finally-2"
+    children:
+      - id: "3404f854-06e3-4bc4-98aa-5b5f97277c71"
+        name: "Try"
+        element-type: "try-2"
+        children:
+          - id: "4daba6c9-7e54-455f-9bb5-cc81b3811cff"
+            name: "Script #1 -> Try Inside Mapper"
+            element-type: "mapper-2"
+            properties:
+              exportFileExtension: "json"
+              propertiesToExportInSeparateFile: "mappingDescription"
+              throwException: false
+          - id: "5eac05f3-2073-40e3-973a-62761ae934d5"
+            name: "Script #1 -> Try Inside Script"
+            element-type: "script"
+            properties-filename: "script-5eac05f3-2073-40e3-973a-62761ae934d5.groovy"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "a08c215b-d4c0-4d80-b4f0-434f330bdd0b"
+        name: "Catch"
+        element-type: "catch-2"
+        properties:
+          exception: "java.lang.Exception"
+          priority: 0
+  - id: "d2a06b2a-33d3-46d7-8df9-250d9d3ab19b"
+    name: "If Script"
+    element-type: "script"
+    properties-filename: "script-d2a06b2a-33d3-46d7-8df9-250d9d3ab19b.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "d9fed307-0497-4a0b-9323-ffd80b408be0"
+    name: "Condition"
+    element-type: "condition"
+    children:
+      - id: "2c70fd43-147f-442e-9525-38d7141f9ccb"
+        name: "If"
+        element-type: "if"
+        properties:
+          condition: "#{exchangeProperty.condition} == 'true'"
+          priority: 0
+        children:
+          - id: "cbf89841-b96f-4351-bfd5-fa8f8a18ec2b"
+            name: "Loop"
+            element-type: "loop-2"
+            properties:
+              copy: true
+              doWhile: true
+              expression: "${exchangeProperty.index} > 0"
+            children:
+              - id: "b5eae22b-ace2-422b-9682-4d48850b40ea"
+                name: "Loop Inside Mapper"
+                element-type: "mapper-2"
+                properties:
+                  exportFileExtension: "json"
+                  propertiesToExportInSeparateFile: "mappingDescription"
+                  throwException: true
+  - id: "e2d697ea-061f-4809-a3b3-d4a798c37763"
+    name: "Container"
+    element-type: "container"
+    children:
+      - id: "a530d1fe-4bc6-44af-8720-12034ab7892d"
+        name: "Container Script"
+        element-type: "script"
+        properties-filename: "script-a530d1fe-4bc6-44af-8720-12034ab7892d.groovy"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"
+      - id: "c542ab7d-a749-4f3d-bdff-10a4dd932b3f"
+        name: "Container Mapper"
+        element-type: "mapper-2"
+        properties:
+          exportFileExtension: "json"
+          propertiesToExportInSeparateFile: "mappingDescription"
+          throwException: false
+  - id: "f977e104-6ecc-4792-9adc-994024c0a684"
+    name: "Split Async (deprecated)"
+    element-type: "split-async"
+    children:
+      - id: "43869c1d-0cab-4afa-b8f1-67919962c3a1"
+        name: "Sync Split Element"
+        element-type: "sync-split-element"
+      - id: "a448f385-373e-4a1c-b814-c3a0475d09af"
+        name: "Async Split Element"
+        element-type: "async-split-element"
+dependencies:
+  - from: "0a135ae2-3742-425a-a626-5af7e3b03c00"
+    to: "99eecadf-cc71-43f2-8b19-34f9a780978b"
+  - from: "a17da5ad-391f-426e-b9c4-a3dc89a5dba1"
+    to: "23ba5a24-9b92-437b-9891-16aa3bbe2232"
+  - from: "80d0dfc5-5c12-4b5e-acfe-4ba39350e4ee"
+    to: "3931b902-c59c-402c-b6b9-1ab7eb4bd660"
+  - from: "3931b902-c59c-402c-b6b9-1ab7eb4bd660"
+    to: "99eecadf-cc71-43f2-8b19-34f9a780978b"
+  - from: "43869c1d-0cab-4afa-b8f1-67919962c3a1"
+    to: "a17da5ad-391f-426e-b9c4-a3dc89a5dba1"
+  - from: "4daba6c9-7e54-455f-9bb5-cc81b3811cff"
+    to: "5eac05f3-2073-40e3-973a-62761ae934d5"
+  - from: "a448f385-373e-4a1c-b814-c3a0475d09af"
+    to: "93eceee1-8497-4e7d-a657-900f685eef09"
+  - from: "99bd6756-ad98-4cf6-917e-382c49aa902e"
+    to: "af5cbe4b-188f-4911-95c4-5a57e78f155d"
+  - from: "99bd6756-ad98-4cf6-917e-382c49aa902e"
+    to: "c1d44337-f550-4ff1-81c1-55650ec86424"
+  - from: "a530d1fe-4bc6-44af-8720-12034ab7892d"
+    to: "c542ab7d-a749-4f3d-bdff-10a4dd932b3f"

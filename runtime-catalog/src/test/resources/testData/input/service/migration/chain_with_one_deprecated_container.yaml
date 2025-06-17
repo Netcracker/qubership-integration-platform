@@ -1,0 +1,34 @@
+---
+id: "af44d2de-7b9e-406e-a277-3784191864d5"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707392541669
+elements:
+  - id: "25ff7713-0cb9-417f-b3a6-b00413c280fa"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    properties:
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "v1/test"
+      externalRoute: true
+      httpMethodRestrict: "POST"
+  - id: "372f5e64-1007-4cfd-8500-127780e4ed6a"
+    name: "Try-Catch-Finally (deprecated)"
+    element-type: "try-catch-finally"
+    children:
+      - id: "198424a3-4556-42a0-be5f-03f42d04770e"
+        name: "Catch"
+        element-type: "catch"
+        properties:
+          exception: "java.lang.Exception"
+          priorityNumber: 0
+      - id: "6c557c56-b2c3-436e-8051-e55af6c07c5f"
+        name: "Try"
+        element-type: "try"
+      - id: "89871695-5815-4b95-b360-6a6391c09a8d"
+        name: "Finally"
+        element-type: "finally"
+dependencies:
+  - from: "25ff7713-0cb9-417f-b3a6-b00413c280fa"
+    to: "372f5e64-1007-4cfd-8500-127780e4ed6a"

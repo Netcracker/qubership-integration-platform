@@ -23,7 +23,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportEntityType;
 
 @Getter
 @Setter

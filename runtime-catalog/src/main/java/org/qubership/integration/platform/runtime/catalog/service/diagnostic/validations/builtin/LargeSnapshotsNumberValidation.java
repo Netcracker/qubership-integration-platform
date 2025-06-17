@@ -18,10 +18,10 @@ package org.qubership.integration.platform.runtime.catalog.service.diagnostic.va
 
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic.ChainValidationRepository;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationImplementationType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.diagnostic.ChainValidationRepository;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationEntityType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationSeverity;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.DiagnosticValidationUnexpectedException;

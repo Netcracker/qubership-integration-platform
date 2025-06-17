@@ -23,29 +23,31 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.catalog.exception.ImportInstructionsExternalException;
-import org.qubership.integration.platform.catalog.exception.ImportInstructionsInternalException;
-import org.qubership.integration.platform.catalog.mapping.exportimport.instructions.CommonVariablesInstructionsMapper;
-import org.qubership.integration.platform.catalog.mapping.exportimport.instructions.GeneralInstructionsMapper;
-import org.qubership.integration.platform.catalog.mapping.exportimport.instructions.ServiceInstructionsMapper;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.*;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.instructions.ImportInstructionsRepository;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
-import org.qubership.integration.platform.catalog.validation.EntityValidator;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainsIgnoreOverrideResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionStatus;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsExternalException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsInternalException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsValidationException;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.*;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.exportimport.instructions.CommonVariablesInstructionsMapper;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.exportimport.instructions.GeneralInstructionsMapper;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.exportimport.instructions.ServiceInstructionsMapper;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.instructions.ImportInstruction;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.instructions.ImportInstructionsRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.DeleteInstructionsRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
 import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.CommonVariablesImportService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.runtime.catalog.service.filter.ImportInstructionFilterSpecificationBuilder;
+import org.qubership.integration.platform.runtime.catalog.validation.EntityValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,13 +58,14 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
 public class ImportInstructionsService {
 
     public static final String UNIQUE_OVERRIDE_DB_CONSTRAINT_NAME = "import_instructions_unique_override_idx";
-
+    public static final String OVERRIDE_ACTION_DB_CONSTRAINT_NAME = "overridden_by_id_only_for_override";
     private static final String FAILED_TO_READ_CONFIG_FILE_MESSAGE = "Failed to read import instructions config file: ";
 
     @Getter
@@ -80,6 +83,7 @@ public class ImportInstructionsService {
     private final CommonVariablesInstructionsMapper commonVariablesInstructionsMapper;
     private final EntityValidator entityValidator;
     private final ActionsLogService actionsLogService;
+    private final ImportInstructionFilterSpecificationBuilder importInstructionFilterSpecificationBuilder;
 
     @Autowired
     public ImportInstructionsService(
@@ -95,7 +99,8 @@ public class ImportInstructionsService {
             CommonVariablesImportService commonVariablesImportService,
             CommonVariablesInstructionsMapper commonVariablesInstructionsMapper,
             EntityValidator entityValidator,
-            ActionsLogService actionsLogService
+            ActionsLogService actionsLogService,
+            ImportInstructionFilterSpecificationBuilder importInstructionFilterSpecificationBuilder
     ) {
         this.instructionsFileName = instructionsFileName + ".yaml";
         this.yamlMapper = new YAMLMapper().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
@@ -111,14 +116,11 @@ public class ImportInstructionsService {
         this.commonVariablesInstructionsMapper = commonVariablesInstructionsMapper;
         this.entityValidator = entityValidator;
         this.actionsLogService = actionsLogService;
-    }
-
-    public List<ImportInstruction> getCatalogImportInstructions() {
-        return importInstructionsRepository.findAll();
+        this.importInstructionFilterSpecificationBuilder = importInstructionFilterSpecificationBuilder;
     }
 
     public List<ImportInstruction> getAllImportInstructions() {
-        List<ImportInstruction> importInstructions = new ArrayList<>(getCatalogImportInstructions());
+        List<ImportInstruction> importInstructions = new ArrayList<>(getImportInstructions());
 
         ImportInstructionsDTO variablesInstructionsDTO = commonVariablesImportService.getCommonVariablesImportInstructions();
         if (variablesInstructionsDTO != null) {
@@ -137,6 +139,16 @@ public class ImportInstructionsService {
 
     public ImportInstructionsConfig getServiceImportInstructionsConfig(Collection<ImportInstructionAction> actions) {
         return serviceInstructionsMapper.asConfig(getServiceImportInstructions(actions));
+    }
+
+    public List<ImportInstruction> getImportInstructions() {
+        return importInstructionsRepository.findAll();
+    }
+
+    public List<ImportInstruction> getImportInstructions(Collection<FilterRequestDTO> filterRequestDTOS) {
+        Specification<ImportInstruction> specification = importInstructionFilterSpecificationBuilder
+                .buildFilter(filterRequestDTOS);
+        return importInstructionsRepository.findAll(specification);
     }
 
     public List<ImportInstruction> getImportInstructionsForPreview(File importInstructionsConfigFile) {
@@ -354,6 +366,75 @@ public class ImportInstructionsService {
             }
         }
         return new IgnoreResult(serviceIdsToImport, importInstructionResults);
+    }
+
+    public List<ImportInstruction> searchImportInstructions(String searchCondition) {
+        List<FilterRequestDTO> filters = Stream.of(FilterFeature.ID, FilterFeature.OVERRIDDEN_BY)
+                .map(feature -> FilterRequestDTO.builder()
+                        .feature(feature)
+                        .condition(FilterCondition.CONTAINS)
+                        .value(searchCondition)
+                        .build())
+                .collect(Collectors.toList());
+        return importInstructionsRepository.findAll(importInstructionFilterSpecificationBuilder.buildSearch(filters));
+    }
+
+    @Transactional
+    public ImportInstruction addImportInstruction(ImportInstruction importInstruction) {
+        validateImportInstruction(importInstruction);
+
+        if (importInstructionsRepository.existsById(importInstruction.getId())) {
+            log.error("Instruction for {} already exist", importInstruction.getId());
+            throw new ImportInstructionsExternalException("Instruction for " + importInstruction.getId() + " already exist");
+        }
+
+        importInstruction = importInstructionsRepository.persistAndReturn(importInstruction);
+
+        logAction(importInstruction.getId(), importInstruction.getEntityType(), EntityType.IMPORT_INSTRUCTION, LogOperation.CREATE);
+
+        return importInstruction;
+    }
+
+    @Transactional
+    public ImportInstruction updateImportInstruction(ImportInstruction importInstruction) {
+        validateImportInstruction(importInstruction);
+
+        ImportInstruction existingImportInstruction = importInstructionsRepository.findById(importInstruction.getId())
+                .orElseThrow(() -> {
+                    log.error("Instruction with id {} does not exist", importInstruction.getId());
+                    return new ImportInstructionsExternalException(
+                            "Instruction with id " + importInstruction.getId() + " does not exist"
+                    );
+                });
+
+        if (importInstruction.getEntityType() != existingImportInstruction.getEntityType()) {
+            log.error("Import instruction entity type cannot be updated");
+            throw new ImportInstructionsValidationException("Import instruction entity type cannot be updated");
+        }
+
+        ImportInstruction resultImportInstruction = importInstructionsRepository
+                .mergeAndReturn(existingImportInstruction.patch(importInstruction));
+
+        logAction(resultImportInstruction.getId(), resultImportInstruction.getEntityType(), EntityType.IMPORT_INSTRUCTION, LogOperation.UPDATE);
+
+        return resultImportInstruction;
+    }
+
+    @Transactional
+    public void deleteImportInstructionsById(DeleteInstructionsRequest deleteInstructionsRequest) {
+        Set<String> instructionsToDelete = Stream.of(
+                        deleteInstructionsRequest.getChains().stream(),
+                        deleteInstructionsRequest.getServices().stream()
+                )
+                .flatMap(Function.identity())
+                .collect(Collectors.toSet());
+
+        List<ImportInstruction> importInstructions = importInstructionsRepository.findAllById(instructionsToDelete);
+        importInstructionsRepository.deleteAll(importInstructions);
+
+        importInstructions.forEach(importInstruction ->
+                logAction(importInstruction.getId(), importInstruction.getEntityType(), EntityType.IMPORT_INSTRUCTIONS, LogOperation.DELETE)
+        );
     }
 
     private GeneralImportInstructionsConfig getAllImportInstructionsConfig() {
@@ -585,5 +666,37 @@ public class ImportInstructionsService {
                 .status(ImportInstructionStatus.ERROR_ON_OVERRIDE)
                 .errorMessage(e.getMessage())
                 .build();
+    }
+
+    private void validateImportInstruction(ImportInstruction importInstruction) {
+        ImportEntityType entityType = importInstruction.getEntityType();
+        ImportInstructionAction action = importInstruction.getAction();
+
+        boolean failed = false;
+        String errorMessage = null;
+        switch (entityType) {
+            case CHAIN -> {
+                failed = action == ImportInstructionAction.OVERRIDE && importInstruction.getOverriddenBy() == null;
+                errorMessage = "Overridden By must not be null for instruction with the OVERRIDE action";
+            }
+            case SERVICE -> {
+                failed = action == ImportInstructionAction.OVERRIDE;
+                errorMessage = "Service instruction does not support the OVERRIDE action";
+
+            }
+            case SPECIFICATION_GROUP -> {
+                failed = action == ImportInstructionAction.IGNORE || action == ImportInstructionAction.OVERRIDE;
+                errorMessage = "Specification Group instruction does not support action IGNORE and OVERRIDE";
+            }
+            case SPECIFICATION -> {
+                failed = action == ImportInstructionAction.IGNORE || action == ImportInstructionAction.OVERRIDE;
+                errorMessage = "Specification instruction does not support action IGNORE and OVERRIDE";
+            }
+        }
+
+        if (failed) {
+            log.error(errorMessage);
+            throw new ImportInstructionsValidationException(errorMessage);
+        }
     }
 }

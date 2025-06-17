@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.testutils.mapper;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainElementImportDTO;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.DependencyImportDTO;
 
@@ -27,7 +28,10 @@ public class ElementsDTO {
     private final List<ChainElementImportDTO> elementImportDTOS;
     private final List<DependencyImportDTO> dependencyImportDTOS;
 
-    public ElementsDTO(List<ChainElementImportDTO> elementImportDTOS, List<DependencyImportDTO> dependencyImportDTOS) {
+    public ElementsDTO(
+            @JsonProperty("elements") List<ChainElementImportDTO> elementImportDTOS,
+            @JsonProperty("dependencies") List<DependencyImportDTO> dependencyImportDTOS
+    ) {
         this.elementImportDTOS = elementImportDTOS != null ? elementImportDTOS : Collections.emptyList();
         this.dependencyImportDTOS = dependencyImportDTOS != null ? dependencyImportDTOS : Collections.emptyList();
     }

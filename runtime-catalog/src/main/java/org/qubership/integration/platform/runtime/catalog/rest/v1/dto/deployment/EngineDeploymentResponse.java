@@ -18,7 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deploymen
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
-import org.qubership.integration.platform.catalog.model.dto.deployment.RuntimeDeploymentState;
+import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.RuntimeDeploymentState;
 
 @Getter
 @Setter

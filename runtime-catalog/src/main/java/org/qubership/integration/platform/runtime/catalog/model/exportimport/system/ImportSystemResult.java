@@ -23,7 +23,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionAction;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.remote.SystemCompareAction;
 

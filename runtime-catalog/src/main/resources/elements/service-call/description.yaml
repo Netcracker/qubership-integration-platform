@@ -1,0 +1,123 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: service-call
+title: Service Call
+description: Make a call to a service registered in API Repository
+type: system
+folder: senders
+inputEnabled: true
+outputEnabled: true
+colorType: sender
+container: false
+customTabs:
+  - name: Operation
+    uiComponent: system
+    validation:
+      anyOf: ['integrationGqlQuery', 'integrationOperationId']
+  - name: Prepare Request
+    uiComponent: system-request
+  - name: Authorization
+    uiComponent: system-authorization
+  - name: Validations
+    uiComponent: system-response-validation
+  - name: Handle Validation Failure
+    uiComponent: http-request-validation-failure-handler
+  - name: Handle Response
+    uiComponent: system-response
+properties:
+  common:
+    - name: retryCount
+      title: Retry count
+      description: Specifies number of retries for the call before it considers as failed
+      type: number
+      mandatory: true
+      default: 0
+      autofocus: true
+    - name: retryDelay
+      title: Retry delay (ms)
+      description: Specifies delay between retries in millis
+      type: number
+      mandatory: true
+      default: 5000
+  advanced:
+    - name: correlationIdReceiver
+      title: Receive correlation Id
+      type: custom
+      uiComponent: correlation-id
+    - name: propagateContext
+      title: Propagate context
+      description: Propagate context to headers before sending message
+      type: boolean
+      default: true
+      query: false
+    - name: overrideContextComponent
+      title: Override Context Component
+      type: custom
+      uiComponent: context-override
+  hidden:
+    - name: overrideContextParams
+      title: Override context parameters
+      description: Propagate props to headers before sending message
+      type: string # map<string, string>
+      query: false
+    - name: integrationGqlOperationName
+      title: Operation Name
+      description: The query or mutation name. Optional if query contains single operation
+      type: string
+      mandatory: false
+      query: true
+    - name: integrationGqlQuery
+      title: Query
+      description: The query text
+      type: string
+      query: false
+    - name: integrationGqlVariablesJSON
+      title: Variables JSON
+      description: Operation variables in JSON format
+      type: string
+      mandatory: false
+      query: false
+    - name: integrationGqlQueryHeader
+      title: Query header
+      type: string
+      query: false
+      default: CamelGraphQLQuery
+    - name: integrationGqlVariablesHeader
+      title: Variables header
+      type: string
+      query: false
+      default: CamelGraphQLVariables
+    - name: integrationOperationProtocolType
+      title: Integration Operation Protocol Type
+      description: Specifies which type Protocol use the operation
+      type: string
+      default: http
+    - name: correlationIdName
+      title: Correlation id name
+      type: string
+    - name: correlationIdPosition
+      title: Correlation id position
+      type: string
+      allowedValues:
+        - Header
+        - Body
+    - name: handleValidationAction
+      title: Action
+      type: string
+      allowedValues:
+        - default
+        - script
+        - mapper-2
+      default: default

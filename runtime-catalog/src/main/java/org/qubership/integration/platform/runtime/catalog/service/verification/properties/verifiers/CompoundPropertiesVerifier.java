@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
 

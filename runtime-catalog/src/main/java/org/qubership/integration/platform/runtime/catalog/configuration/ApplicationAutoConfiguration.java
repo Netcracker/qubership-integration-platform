@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.configuration;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.service.ddsgenerator.elements.converter.RoutePrefixProvider;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ImportV2RedirectPathResolver;
 import org.springframework.beans.factory.BeanInitializationException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +51,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
         "org.qubership.integration.platform.runtime.catalog.*"
 })
 public class ApplicationAutoConfiguration {
+    @Value("${spring.application.cloud_service_name}")
     private final String cloudServiceName;
 
     private final ApplicationContext context;
@@ -86,6 +88,12 @@ public class ApplicationAutoConfiguration {
     @ConditionalOnMissingBean(ImportV2RedirectPathResolver.class)
     public ImportV2RedirectPathResolver importV2RedirectPathResolver() {
         return (headers, internalPath) -> URI.create(internalPath);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(RoutePrefixProvider.class)
+    public RoutePrefixProvider routePrefixProvider() {
+        return external -> RoutePrefixProvider.INTERNAL_ROUTE_PREFIX;
     }
 
 

@@ -19,7 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.configuration.aspect;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.annotation.After;
 import org.aspectj.lang.annotation.Aspect;
-import org.qubership.integration.platform.catalog.consul.ConsulService;
+import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 

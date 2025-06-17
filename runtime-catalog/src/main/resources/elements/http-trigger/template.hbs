@@ -1,0 +1,147 @@
+<onCompletion>
+    <process ref="httpTriggerFinishProcessor"/>
+</onCompletion>
+<onCompletion mode="BeforeConsumer">
+    <removeHeader name="Authorization"/>
+</onCompletion>
+<onCompletion mode="BeforeConsumer" onFailureOnly="true">
+    <setProperty name="internalProperty_httpThreadFailed">
+        <constant>true</constant>
+    </setProperty>
+    <setProperty name="internalProperty_sessionFailed">
+        <constant>true</constant>
+    </setProperty>
+
+    <process ref="chainExceptionResponseHandlerProcessor" />
+
+    {{#if-property 'handleChainFailureAction' presented=''}}
+        {{#if-property 'handleChainFailureAction' not-equals='default'}}
+            <!-- Don't forget to update ConfigurationPropertiesConstants.HTTP_TRIGGER_CHAIN_CALL_STEP_NAME and UI part -->
+            <step id="Failure response mapping--{{identifier}}">
+                {{#if-property 'chainFailureHandlerContainer' presented=''}}
+                    {{#if-property 'handleChainFailureAction' equals='script'}}
+                        {{#with-property 'chainFailureHandlerContainer'}}
+                            {{> script}}
+                        {{/with-property}}
+                    {{/if-property}}
+                    {{#if-property 'handleChainFailureAction' equals='mapper-2'}}
+                        {{#with-property 'chainFailureHandlerContainer'}}
+                            {{> mapper-2}}
+                        {{/with-property}}
+                    {{/if-property}}
+                    {{#if-property 'handleChainFailureAction' equals='chain-call'}}
+                        {{#with-property 'chainFailureHandlerContainer'}}
+                            {{> chain-call-2}}
+                        {{/with-property}}
+                    {{/if-property}}
+                {{/if-property}}
+            </step>
+        {{/if-property}}
+    {{/if-property}}
+</onCompletion>
+
+{{#if-property 'correlationIdPosition' presented=''}}
+    <setProperty name="correlationIdPosition">
+        <constant>{{property 'correlationIdPosition'}}</constant>
+    </setProperty>
+{{/if-property}}
+{{#if-property 'correlationIdName' presented=''}}
+    <setProperty name="correlationIdName">
+        <constant>{{property 'correlationIdName'}}</constant>
+    </setProperty>
+{{/if-property}}
+{{#if-property 'responseFilter' presented=''}}
+    <setProperty name="internalProperty_responseFilter">
+        <constant>{{property 'responseFilter'}}</constant>
+    </setProperty>
+{{/if-property}}
+
+{{#if-property 'integrationOperationPath' presented=''}}
+    <from uri="servlet-custom:{{integrationAddress}}{{property 'integrationOperationPath'}}{{escape (query)}}&amp;tagsProvider=#{{identifier}}"/>
+{{/if-property}}
+{{#if-property 'integrationOperationPath' not-presented=''}}
+    <from uri="servlet-custom:{{property 'contextPath'}}{{escape (query)}}&amp;tagsProvider=#{{identifier}}"/>
+{{/if-property}}
+
+<step id="{{identifier}}">
+    {{#if-property 'validationSchema' presented=''}}
+        <setProperty name="internalProperty_validationSchema">
+            <constant>{{escape (property 'validationSchema')}}</constant>
+        </setProperty>
+    {{/if-property}}
+    {{#if-property 'rejectRequestIfNonNullBodyGetDelete' presented=''}}
+        <setProperty name="internalProperty_rejectRequestIfNonNullBodyGetDelete">
+            <constant>{{property 'rejectRequestIfNonNullBodyGetDelete'}}</constant>
+        </setProperty>
+    {{/if-property}}
+    {{#if-property 'allowedContentTypes' presented=''}}
+        <setProperty name="internalProperty_allowedContentTypes">
+            <simple resultType="java.lang.String[]">{{escape (property-json 'allowedContentTypes')}}</simple>
+        </setProperty>
+    {{/if-property}}
+    {{#if-property 'killSessionOnTimeout' equals='true'}}
+        <setProperty name="internalProperty_chainSessionTimeoutAfter">
+            <simple resultType="java.lang.Long">{{escape (property 'connectTimeout')}}</simple>
+        </setProperty>
+    {{/if-property}}
+
+    <doTry>
+        {{#if-property 'accessControlType' equals='RBAC'}}
+            {{#if-property 'roles' presented=''}}
+                <setProperty name="internalProperty_rbac_access_policy">
+                    <constant resultType="org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy">{{escape (property-json 'roles')}}</constant>
+                </setProperty>
+            {{/if-property}}
+            <policy ref="rbacPolicy">
+                <step id="Validate Request--{{identifier}}">
+                    <process ref="httpTriggerProcessor" />
+                </step>
+            </policy>
+        {{/if-property}}
+
+        {{#if-property 'accessControlType' equals='ABAC'}}
+            {{#if-property 'abacResource' presented=''}}
+                <setProperty name="internalProperty_abacResource">
+                    <constant>{{escape (property 'abacResource')}}</constant>
+                </setProperty>
+            {{/if-property}}
+            <policy ref="abacPolicy">
+                <step id="Validate Request--{{identifier}}">
+                    <process ref="httpTriggerProcessor" />
+                </step>
+            </policy>
+        {{/if-property}}
+        <doCatch>
+            <exception>org.qubership.integration.platform.engine.errorhandling.ValidationException</exception>
+            <setProperty name="internalProperty_sessionFailed">
+                <constant>true</constant>
+            </setProperty>
+            <process ref="chainExceptionResponseHandlerProcessor" />
+
+            {{#if-property 'handleValidationAction' presented=''}}
+                {{#if-property 'handleValidationAction' not-equals='default'}}
+                    <step id="Handle Validation Failure--{{identifier}}">
+                        {{#if-property 'handlerContainer' presented=''}}
+                            {{#if-property 'handleValidationAction' equals='script'}}
+                                {{#with-property 'handlerContainer'}}
+                                    {{> script}}
+                                {{/with-property}}
+                            {{/if-property}}
+                            {{#if-property 'handleValidationAction' equals='mapper-2'}}
+                                {{#with-property 'handlerContainer'}}
+                                    {{> mapper-2}}
+                                {{/with-property}}
+                            {{/if-property}}
+                        {{/if-property}}
+                    </step>
+                {{/if-property}}
+            {{/if-property}}
+
+            <setProperty name="internalProperty_elementFailed">
+                <constant>true</constant>
+            </setProperty>
+            <process ref="interruptExchangeProcessor" />
+        </doCatch>
+    </doTry>
+    {{> idempotency}}
+</step>

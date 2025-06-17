@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.repository;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.SnapshotBaseRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.SnapshotBaseRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
@@ -33,13 +33,13 @@ import java.util.Optional;
 public interface SnapshotRepository extends SnapshotBaseRepository {
     @Query(nativeQuery = true,
             value = """
-                    DELETE FROM {h-schema}snapshots where ctid in 
-                    (SELECT s.ctid 
-                    FROM {h-schema}snapshots s 
-                    LEFT JOIN {h-schema}deployments d ON d.snapshot_id = s.id 
-                    LEFT JOIN {h-schema}chains c ON c.current_snapshot_id = s.id 
-                    WHERE s.created_when < :createdWhen AND 
-                    d.id IS NULL AND c.id IS NULL 
+                    DELETE FROM {h-schema}snapshots where ctid in
+                    (SELECT s.ctid
+                    FROM {h-schema}snapshots s
+                    LEFT JOIN {h-schema}deployments d ON d.snapshot_id = s.id
+                    LEFT JOIN {h-schema}chains c ON c.current_snapshot_id = s.id
+                    WHERE s.created_when < :createdWhen AND
+                    d.id IS NULL AND c.id IS NULL
                     LIMIT :chunk) RETURNING id, name, chain_id as chain"""
     )
     List<Map<String, String>> pruneByCreatedWhen(@NonNull Timestamp createdWhen, int chunk);

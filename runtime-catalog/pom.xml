@@ -27,7 +27,7 @@
         <!-- 3rd party dependencies -->
 
         <spring-cloud.version>2024.0.0</spring-cloud.version>
-        <springdoc.version>2.6.0</springdoc.version>
+        <springdoc.version>2.8.0</springdoc.version>
         <lombok.version>1.18.30</lombok.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <postgres-driver.version>42.7.2</postgres-driver.version>
@@ -42,9 +42,29 @@
         <antlr4.version>4.13.1</antlr4.version>
         <google-guava.version>32.1.3-jre</google-guava.version>
         <mockito-inline.version>5.2.0</mockito-inline.version>
-        <wire.version>4.9.3</wire.version>
+        <wire.version>4.9.7</wire.version>
         <okio.version>3.6.0</okio.version>
         <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
+        <freemarker.version>2.3.33</freemarker.version>
+        <flexmark.version>0.64.8</flexmark.version>
+        <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
+        <graphql-java.version>21.5</graphql-java.version>
+        <swagger-parser.version>2.1.21</swagger-parser.version>
+        <swagger-core.version>2.2.21</swagger-core.version>
+        <woden-core.version>1.0M10</woden-core.version>
+        <soa-model-core.version>1.6.4</soa-model-core.version>
+        <commons-validator.version>1.7</commons-validator.version>
+
+        <jakarta.validation-api.version>3.1.0-M1</jakarta.validation-api.version>
+        <jakarta.annotation-api.version>3.0.0-M1</jakarta.annotation-api.version>
+        <jakarta.mail-api.version>2.1.2</jakarta.mail-api.version>
+
+        <grpc.version>1.53.0</grpc.version>
+        <protobuf-java.version>3.25.5</protobuf-java.version>
+
+        <!-- Newest versions requires commons-io 2.15! -->
+        <!-- TODO update io.kubernetes.client-java before update this library -->
+        <poi.version>5.2.3</poi.version>
 
         <!-- Plugins -->
 
@@ -52,6 +72,8 @@
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
         <qip-checkstyle-revision>0.0.2</qip-checkstyle-revision>
+        <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
+        <hibernate-enhance-maven-plugin.version>6.5.2.Final</hibernate-enhance-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -80,14 +102,6 @@
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc.version}</version>
-            </dependency>
-
-            <!-- QIP -->
-
-            <dependency>
-                <groupId>org.qubership</groupId>
-                <artifactId>qip-catalog-library</artifactId>
-                <version>${catalog-library.revision}</version>
             </dependency>
 
             <!-- PG-->
@@ -223,6 +237,132 @@
                 <artifactId>fastexcel</artifactId>
                 <version>${dhatim.fastexcel.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.freemarker</groupId>
+                <artifactId>freemarker</artifactId>
+                <version>${freemarker.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vladsch.flexmark</groupId>
+                <artifactId>flexmark</artifactId>
+                <version>${flexmark.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vladsch.flexmark</groupId>
+                <artifactId>flexmark-ext-tables</artifactId>
+                <version>${flexmark.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.hypersistence</groupId>
+                <artifactId>hypersistence-utils-hibernate-63</artifactId>
+                <version>${hypersistence-utils-hibernate.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.squareup.wire</groupId>
+                <artifactId>wire-schema-jvm</artifactId>
+                <version>${wire.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.predic8</groupId>
+                <artifactId>soa-model-core</artifactId>
+                <version>${soa-model-core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-validator</groupId>
+                <artifactId>commons-validator</artifactId>
+                <version>${commons-validator.version}</version>
+            </dependency>
+
+            <!-- Apache POI dependencies -->
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi</artifactId>
+                <version>${poi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi-ooxml</artifactId>
+                <version>${poi.version}</version>
+            </dependency>
+
+            <!-- GraphQL -->
+            <dependency>
+                <groupId>com.graphql-java</groupId>
+                <artifactId>graphql-java</artifactId>
+                <version>${graphql-java.version}</version>
+            </dependency>
+
+            <!-- OpenAPI and Swagger -->
+            <dependency>
+                <groupId>io.swagger.parser.v3</groupId>
+                <artifactId>swagger-parser</artifactId>
+                <version>${swagger-parser.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>io.swagger.core.v3</groupId>
+                        <artifactId>swagger-core</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>io.swagger.core.v3</groupId>
+                <artifactId>swagger-core-jakarta</artifactId>
+                <version>${swagger-core.version}</version>
+            </dependency>
+
+            <!-- Mapper dependencies -->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+
+            <!-- WSDL Support -->
+            <dependency>
+                <groupId>org.apache.woden</groupId>
+                <artifactId>woden-core</artifactId>
+                <version>${woden-core.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>jakarta.annotation</groupId>
+                <artifactId>jakarta.annotation-api</artifactId>
+                <version>${jakarta.annotation-api.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.validation</groupId>
+                <artifactId>jakarta.validation-api</artifactId>
+                <version>${jakarta.validation-api.version}</version>
+            </dependency>
+
+            <!-- GRPC -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-protobuf</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-stub</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${protobuf-java.version}</version>
+            </dependency>
+
+            <!-- Use maven plugin code in runtime -->
+            <dependency>
+                <groupId>com.graphql-java-generator</groupId>
+                <artifactId>graphql-maven-plugin-logic</artifactId>
+                <version>${graphql-maven-plugin.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -235,13 +375,21 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.qubership</groupId>
-            <artifactId>qip-catalog-library</artifactId>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
+            <groupId>org.freemarker</groupId>
+            <artifactId>freemarker</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark-ext-tables</artifactId>
         </dependency>
 
         <!-- Spring dependencies -->
@@ -260,6 +408,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -379,6 +531,18 @@
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-xml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>com.squareup.okio</groupId>
@@ -411,6 +575,104 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.hypersistence</groupId>
+            <artifactId>hypersistence-utils-hibernate-63</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.wire</groupId>
+            <artifactId>wire-schema-jvm</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.predic8</groupId>
+            <artifactId>soa-model-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-validator</groupId>
+            <artifactId>commons-validator</artifactId>
+        </dependency>
+
+        <!-- Apache POI dependencies -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+        </dependency>
+
+        <!-- GraphQL -->
+        <dependency>
+            <groupId>com.graphql-java</groupId>
+            <artifactId>graphql-java</artifactId>
+        </dependency>
+
+        <!-- OpenAPI and Swagger -->
+        <dependency>
+            <groupId>io.swagger.parser.v3</groupId>
+            <artifactId>swagger-parser</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.swagger.core.v3</groupId>
+                    <artifactId>swagger-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-core-jakarta</artifactId>
+        </dependency>
+
+        <!-- Mapper dependencies -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+        </dependency>
+
+        <!-- WSDL Support -->
+        <dependency>
+            <groupId>org.apache.woden</groupId>
+            <artifactId>woden-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+
+        <!-- GRPC -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+
+        <!-- Use maven plugin code in runtime -->
+        <dependency>
+            <groupId>com.graphql-java-generator</groupId>
+            <artifactId>graphql-maven-plugin-logic</artifactId>
         </dependency>
     </dependencies>
 
@@ -505,6 +767,22 @@
                         <configuration>
                             <classifier>exec</classifier>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.hibernate.orm.tooling</groupId>
+                <artifactId>hibernate-enhance-maven-plugin</artifactId>
+                <version>${hibernate-enhance-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <configuration>
+                            <enableLazyInitialization>true</enableLazyInitialization>
+                        </configuration>
+                        <goals>
+                            <goal>enhance</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>

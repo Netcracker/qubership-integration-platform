@@ -18,7 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
-import org.qubership.integration.platform.catalog.model.deployment.engine.DeploymentStatus;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.DeploymentStatus;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;

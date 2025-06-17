@@ -1,1 +1,66 @@
-{"strings":["!","@","#","$","%"],"topProperties":{"many_to_one":["root_name","root_title"],"name":"topProperties_name","title":"topProperties_name","type":"topProperties_name","description":"topProperties_type"},"groups":[{"element":{"canReceive":true,"containerTemplate":false,"options":[{"name":"groups_element_options_name_1","type":"groups_element_options_type_1"},{"name":"groups_element_options_name_2","type":"groups_element_options_type_2"}],"parentRestriction":[":)",":(",":**",":~)"]}},{"element":{"canReceive":true,"containerTemplate":true,"options":[{"name":"groups_element_options_name_3","type":"groups_element_options_type_3"},{"name":"groups_element_options_name_4","type":"groups_element_options_type_4"}],"parentRestriction":["!","@","#","$","%"]}}]}
+{
+  "strings": [
+    "!",
+    "@",
+    "#",
+    "$",
+    "%"
+  ],
+  "topProperties": {
+    "many_to_one": [
+      "root_name",
+      "root_title"
+    ],
+    "name": "topProperties_name",
+    "title": "topProperties_name",
+    "type": "topProperties_name",
+    "description": "topProperties_type"
+  },
+  "groups": [
+    {
+      "element": {
+        "canReceive": true,
+        "containerTemplate": false,
+        "options": [
+          {
+            "name": "groups_element_options_name_1",
+            "type": "groups_element_options_type_1"
+          },
+          {
+            "name": "groups_element_options_name_2",
+            "type": "groups_element_options_type_2"
+          }
+        ],
+        "parentRestriction": [
+          ":)",
+          ":(",
+          ":**",
+          ":~)"
+        ]
+      }
+    },
+    {
+      "element": {
+        "canReceive": true,
+        "containerTemplate": true,
+        "options": [
+          {
+            "name": "groups_element_options_name_3",
+            "type": "groups_element_options_type_3"
+          },
+          {
+            "name": "groups_element_options_name_4",
+            "type": "groups_element_options_type_4"
+          }
+        ],
+        "parentRestriction": [
+          "!",
+          "@",
+          "#",
+          "$",
+          "%"
+        ]
+      }
+    }
+  ]
+}

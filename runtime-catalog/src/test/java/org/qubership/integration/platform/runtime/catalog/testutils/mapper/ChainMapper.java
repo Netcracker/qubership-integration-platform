@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.testutils.mapper;
 
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.FoldableEntity;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Folder;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.MaskedField;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.FoldableEntity;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Folder;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.MaskedField;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainImportDTO;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.FolderImportDTO;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.MaskedFieldImportDTO;

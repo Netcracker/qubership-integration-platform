@@ -22,19 +22,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
-import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.ConfigParameter;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationState;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationStatus;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic.ValidationChainAlertRepository;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.diagnostic.ValidationStatusRepository;
-import org.qubership.integration.platform.catalog.service.ConfigParameterService;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationAlertsSet;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
+import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ConfigParameter;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic.ValidationState;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic.ValidationStatus;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.diagnostic.ValidationChainAlertRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.diagnostic.ValidationStatusRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic.DiagnosticValidationFilterDTO;
+import org.qubership.integration.platform.runtime.catalog.service.ConfigParameterService;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.AbstractValidation;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.DiagnosticValidationUnexpectedException;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.ValidationAlreadyInProgressUnexpectedException;
@@ -188,20 +188,18 @@ public class DiagnosticService {
             boolean filterApplied = false;
             Set<String> filteredValidations = new HashSet<>();
             for (FilterRequestDTO filter : filters) {
-                switch (filter.getFeature()) {
-                    case VALIDATION_SEVERITY -> {
-                        filterApplied = true;
-                        for (Map.Entry<String, Pair<AbstractValidation, ValidationAlertsSet>> entry : result.entrySet()) {
-                            String k = entry.getKey();
-                            Pair<AbstractValidation, ValidationAlertsSet> pair = entry.getValue();
-                            String value = filter.getValue();
-                            Set<ValidationSeverity> values = Arrays.stream(value.split(","))
-                                    .map(ValidationSeverity::valueOf).collect(Collectors.toSet());
-                            if ((filter.getCondition() == FilterCondition.IN && values.contains(pair.getLeft().getSeverity()))
-                                    || (filter.getCondition() == FilterCondition.NOT_IN && !values.contains(pair.getLeft().getSeverity()))
-                            ) {
-                                filteredValidations.add(k);
-                            }
+                if (Objects.requireNonNull(filter.getFeature()) == FilterFeature.VALIDATION_SEVERITY) {
+                    filterApplied = true;
+                    for (Map.Entry<String, Pair<AbstractValidation, ValidationAlertsSet>> entry : result.entrySet()) {
+                        String k = entry.getKey();
+                        Pair<AbstractValidation, ValidationAlertsSet> pair = entry.getValue();
+                        String value = filter.getValue();
+                        Set<ValidationSeverity> values = Arrays.stream(value.split(","))
+                                .map(ValidationSeverity::valueOf).collect(Collectors.toSet());
+                        if ((filter.getCondition() == FilterCondition.IN && values.contains(pair.getLeft().getSeverity()))
+                            || (filter.getCondition() == FilterCondition.NOT_IN && !values.contains(pair.getLeft().getSeverity()))
+                        ) {
+                            filteredValidations.add(k);
                         }
                     }
                 }

@@ -41,18 +41,18 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.model.ElementRoute;
-import org.qubership.integration.platform.catalog.model.apispec.ApiSpecificationFormat;
-import org.qubership.integration.platform.catalog.model.apispec.ApiSpecificationType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ElementRepository;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.operations.OperationRepository;
-import org.qubership.integration.platform.catalog.util.TriggerUtils;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ApiSpecificationExportException;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.HttpTriggerMethodsNotSpecified;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.WrongChainElementTypeException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ApiSpecificationExportException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.HttpTriggerMethodsNotSpecified;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.WrongChainElementTypeException;
+import org.qubership.integration.platform.runtime.catalog.model.ElementRoute;
+import org.qubership.integration.platform.runtime.catalog.model.apispec.ApiSpecificationFormat;
+import org.qubership.integration.platform.runtime.catalog.model.apispec.ApiSpecificationType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
+import org.qubership.integration.platform.runtime.catalog.util.TriggerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
@@ -72,8 +72,8 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
-import static org.qubership.integration.platform.catalog.util.TriggerUtils.*;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.runtime.catalog.util.TriggerUtils.*;
 
 @Slf4j
 @Transactional
@@ -698,7 +698,7 @@ public class ApiSpecificationExportService {
         }
     }
 
-    private org.qubership.integration.platform.catalog.persistence.configs.entity.system.Operation findOperation(String operationId) {
+    private org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation findOperation(String operationId) {
         return operationRepository.findById(operationId)
                 .orElseThrow(() -> new EntityNotFoundException(OPERATION_WITH_ID_NOT_FOUND_MESSAGE + operationId));
     }

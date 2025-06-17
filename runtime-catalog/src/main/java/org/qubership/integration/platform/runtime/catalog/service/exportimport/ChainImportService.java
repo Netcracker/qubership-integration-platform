@@ -22,32 +22,32 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.catalog.exception.ChainDifferenceClientException;
-import org.qubership.integration.platform.catalog.exception.ChainDifferenceException;
-import org.qubership.integration.platform.catalog.exception.ComparisonEntityNotFoundException;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionAction;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.*;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.difference.ChainDifferenceRequest;
-import org.qubership.integration.platform.catalog.service.difference.ChainDifferenceService;
-import org.qubership.integration.platform.catalog.service.difference.EntityDifferenceResult;
-import org.qubership.integration.platform.catalog.util.ChainUtils;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceClientException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainImportException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ComparisonEntityNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainsIgnoreOverrideResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionAction;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ChainImportException;
 import org.qubership.integration.platform.runtime.catalog.service.*;
+import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceRequest;
+import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceService;
+import org.qubership.integration.platform.runtime.catalog.service.difference.EntityDifferenceResult;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeployPrepare;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainFileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
@@ -60,8 +60,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.SYSTEM_ID;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
 @Slf4j
 @Service
@@ -72,6 +72,7 @@ public class ChainImportService {
     private final YAMLMapper yamlMapper;
     private final TransactionTemplate transactionTemplate;
     private final ChainService chainService;
+    private final ChainFinderService chainFinderService;
     private final FolderService folderService;
     private final SnapshotService snapshotService;
     private final DeploymentService deploymentService;
@@ -94,6 +95,7 @@ public class ChainImportService {
             YAMLMapper yamlMapper,
             TransactionTemplate transactionTemplate,
             ChainService chainService,
+            ChainFinderService chainFinderService,
             FolderService folderService,
             SnapshotService snapshotService,
             DeploymentService deploymentService,
@@ -111,6 +113,7 @@ public class ChainImportService {
         this.yamlMapper = yamlMapper;
         this.transactionTemplate = transactionTemplate;
         this.chainService = chainService;
+        this.chainFinderService = chainFinderService;
         this.folderService = folderService;
         this.snapshotService = snapshotService;
         this.deploymentService = deploymentService;
@@ -172,7 +175,7 @@ public class ChainImportService {
 
         if (diffRequest.getLeftSnapshotId() == null) {
             return chainDifferenceService.findChainsDifferences(
-                    chainService.tryFindById(diffRequest.getLeftChainId())
+                    chainFinderService.tryFindById(diffRequest.getLeftChainId())
                             .orElseThrow(() -> new ComparisonEntityNotFoundException("Can't find chain with id: " + diffRequest.getLeftChainId())),
                     rightChain
             );
@@ -395,7 +398,7 @@ public class ChainImportService {
     }
 
     public ImportChainResult saveImportedChain(ChainExternalEntity chainExternalEntity, File chainFilesDir, Set<String> technicalLabels) {
-        Chain currentChainState = chainService.tryFindById(chainExternalEntity.getId()).orElse(null);
+        Chain currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
         ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
 
         Folder existingFolder = null;
@@ -607,7 +610,7 @@ public class ChainImportService {
      */
     @Deprecated(since = "2023.4")
     public void saveImportedChainBackward(Chain importedChain) {
-        Chain currentChainState = chainService.tryFindById(importedChain.getId()).orElse(null);
+        Chain currentChainState = chainFinderService.tryFindById(importedChain.getId()).orElse(null);
         Folder existingFolder = null;
         if (importedChain.getParentFolder() != null) {
             existingFolder = folderService.findEntityByIdOrNull(importedChain.getParentFolder().getId());

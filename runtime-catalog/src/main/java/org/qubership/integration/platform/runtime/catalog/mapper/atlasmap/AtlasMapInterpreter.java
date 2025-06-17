@@ -31,9 +31,9 @@ import org.apache.commons.collections4.ListUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.message.BasicNameValuePair;
-import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
 import org.qubership.integration.platform.mapper.ComplexField;
 import org.qubership.integration.platform.mapper.GeneratedField;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
 import org.qubership.integration.platform.runtime.catalog.mapper.*;
 import org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.xml.XmlTemplateBuilder;
 import org.qubership.integration.platform.runtime.catalog.mapper.expressions.FieldKind;
@@ -234,9 +234,7 @@ public class AtlasMapInterpreter implements MappingInterpreter {
             dataFormat = MetadataUtils.getDataFormat(body.getMetadata());
         }
         switch (dataFormat) {
-            case UNSPECIFIED, JSON -> {
-                dataSource = new JsonDataSource();
-            }
+            case UNSPECIFIED, JSON -> dataSource = new JsonDataSource();
             case XML -> {
                 XmlDataSource xmlDataSource = new XmlDataSource();
                 XmlTemplateBuilder xmlTemplateBuilder = new XmlTemplateBuilder();
@@ -249,9 +247,7 @@ public class AtlasMapInterpreter implements MappingInterpreter {
                 dataSource = xmlDataSource;
 
             }
-            default -> {
-                throw new SnapshotCreationException(INCORRECT_DATA_SOURCE_FORMAT_ERROR_MESSAGE.concat(dataSourceType.value()));
-            }
+            default -> throw new SnapshotCreationException(INCORRECT_DATA_SOURCE_FORMAT_ERROR_MESSAGE.concat(dataSourceType.value()));
         }
 
         dataSource.setId(dataSourceName);
@@ -576,8 +572,7 @@ public class AtlasMapInterpreter implements MappingInterpreter {
                 bodyTypeResolveResult.definitionMap()).orElse(bodyTypeResolveResult.type())
                 : bodyTypeResolveResult.type();
         boolean rootIsArray = rootType.getKind().equals(TypeKind.ARRAY);
-        Field field = buildAttributeField(attributeReference, dataFormat, documentId, elementMap, rootIsArray);
-        return field;
+        return buildAttributeField(attributeReference, dataFormat, documentId, elementMap, rootIsArray);
     }
 
     private Field buildAttributeField(

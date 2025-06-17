@@ -1,1 +1,60 @@
-{"groups":[{"element":{"name":"2","description":"ET4","options":[{"type":"CMS","name":"A","title":"Cisco","description":"CLGRAB51CA3"},{"type":"CMS","name":"A","title":"Siemens","description":"CLGRAB51CA5"},{"type":"CMS","name":"A","title":"Siemens","description":"CLGRAB51CA1"},{"type":"CMS","name":"A","title":"Cisco","description":"CLGRABAYCAA"},{"type":"CMS","name":"A","title":"Cisco","description":"CLGRABEKCAB"},{"type":"CMS","name":"A","title":"Cisco","description":"CLGRABEKCAA"},{"type":"CMS","name":"A","title":"Cisco","description":"CLGRAB51CA8"}]}}],"topProperties":{"name":"Shaw.Engineering.PlantSystems.WebServices.ServiceAvailability.ServiceableAddress.Topology","title":"http://www.w3.org/2001/XMLSchema","type":"http://www.w3.org/2001/XMLSchema-instance","description":"CGRU"}}
+{
+  "groups": [
+    {
+      "element": {
+        "name": "2",
+        "description": "ET4",
+        "options": [
+          {
+            "type": "CMS",
+            "name": "A",
+            "title": "Cisco",
+            "description": "CLGRAB51CA3"
+          },
+          {
+            "type": "CMS",
+            "name": "A",
+            "title": "Siemens",
+            "description": "CLGRAB51CA5"
+          },
+          {
+            "type": "CMS",
+            "name": "A",
+            "title": "Siemens",
+            "description": "CLGRAB51CA1"
+          },
+          {
+            "type": "CMS",
+            "name": "A",
+            "title": "Cisco",
+            "description": "CLGRABAYCAA"
+          },
+          {
+            "type": "CMS",
+            "name": "A",
+            "title": "Cisco",
+            "description": "CLGRABEKCAB"
+          },
+          {
+            "type": "CMS",
+            "name": "A",
+            "title": "Cisco",
+            "description": "CLGRABEKCAA"
+          },
+          {
+            "type": "CMS",
+            "name": "A",
+            "title": "Cisco",
+            "description": "CLGRAB51CA8"
+          }
+        ]
+      }
+    }
+  ],
+  "topProperties": {
+    "name": "Shaw.Engineering.PlantSystems.WebServices.ServiceAvailability.ServiceableAddress.Topology",
+    "title": "http://www.w3.org/2001/XMLSchema",
+    "type": "http://www.w3.org/2001/XMLSchema-instance",
+    "description": "CGRU"
+  }
+}

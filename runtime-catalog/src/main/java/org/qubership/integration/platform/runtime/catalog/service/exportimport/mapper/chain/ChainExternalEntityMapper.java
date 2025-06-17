@@ -17,14 +17,14 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.*;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
-import org.qubership.integration.platform.catalog.util.DistinctByKey;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainFileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.util.DistinctByKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;

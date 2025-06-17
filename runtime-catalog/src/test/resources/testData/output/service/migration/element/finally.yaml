@@ -1,0 +1,49 @@
+id: "f0c20909-e7ff-4d25-a336-69ee25daef93"
+name: "New Chain"
+description: "Chain for testing"
+modifiedWhen: 1682496062845
+maskingEnabled: false
+elements:
+  - id: "1ab6f6ff-75a2-400a-be8b-474113a0efb7"
+    name: "Finally"
+    description: "Finally description"
+    element-type: "finally-2"
+    children:
+      - id: "1c1f2770-2abe-4d37-9e82-b9cebe06c9a9"
+        name: "Script #1"
+        description: "Test script #1 description"
+        element-type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"
+      - id: "1ab6f6ff-75a2-400a-be8b-474113a0efb7"
+        name: "Reuse Reference"
+        element-type: "reuse-reference"
+        properties:
+          reuseElementId: "1ab6f6ff-75a2-400a-be8b-474113a0efb7"
+  - id: "1ab6f6ff-75a2-400a-be8b-474113a0efb7"
+    name: "Script #2"
+    element-type: "reuse"
+    children:
+      - id: "15518db5-b615-4b6e-9e8f-5a38a3a9a9f2"
+        name: "Script #2"
+        description: "Test script #2 description"
+        element-type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"
+  - id: "0304da0e-4426-454f-9bea-79eadae1ae8a"
+    name: "Script #3"
+    description: "Test script #3 description"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "1ab6f6ff-75a2-400a-be8b-474113a0efb7"
+    name: "Reuse Reference"
+    element-type: "reuse-reference"
+    properties:
+      reuseElementId: "1ab6f6ff-75a2-400a-be8b-474113a0efb7"
+dependencies:
+  - from: "0304da0e-4426-454f-9bea-79eadae1ae8a"
+    to: "1ab6f6ff-75a2-400a-be8b-474113a0efb7"

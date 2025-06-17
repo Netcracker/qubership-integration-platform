@@ -19,14 +19,13 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 import io.micrometer.core.instrument.util.StringUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationGroup;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
+import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.SpecificationGroupService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,8 +37,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.zip.ZipOutputStream;
 
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.FILE_CREATION_ERROR_MESSAGE;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.NO_SPECIFICATION_SOURCE_ERROR_MESSAGE;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.FILE_CREATION_ERROR_MESSAGE;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.NO_SPECIFICATION_SOURCE_ERROR_MESSAGE;
+
 
 @Service
 @Slf4j

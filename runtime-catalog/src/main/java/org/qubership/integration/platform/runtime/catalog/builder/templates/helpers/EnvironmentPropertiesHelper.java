@@ -20,11 +20,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
-import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.util.ElementUtils;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
+import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 
 import java.util.*;
@@ -35,8 +35,8 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
-import static org.qubership.integration.platform.catalog.model.constant.CamelNames.*;
-import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.*;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
 
 @TemplatesHelper
 public class EnvironmentPropertiesHelper {
@@ -55,12 +55,10 @@ public class EnvironmentPropertiesHelper {
         }
         Map<String, Object> environmentProperties = environment.getProperties();
         if (environmentProperties != null) {
-            Map<String, Object> mergedProperties =
-                    ElementUtils.mergeProperties(
-                                    ElementUtils.extractServiceCallProperties(element.getProperties()), environmentProperties)
-                            .entrySet().stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            return mergedProperties;
+            return ElementUtils.mergeProperties(
+                            ElementUtils.extractServiceCallProperties(element.getProperties()), environmentProperties)
+                    .entrySet().stream()
+                    .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
         }
         return null;
     }
@@ -93,13 +91,11 @@ public class EnvironmentPropertiesHelper {
                 putMassParams(element, environment);
             }
             Map<String, Object> filteredEnvProperties = environment.getProperties();
-            Map<String, Object> mergedProperties =
-                ElementUtils.mergeProperties(
-                    ElementUtils.extractOperationAsyncProperties(element.getProperties()), filteredEnvProperties)
-                .entrySet().stream()
-                .filter(filterAsyncProperties())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            return mergedProperties;
+            return ElementUtils.mergeProperties(
+                ElementUtils.extractOperationAsyncProperties(element.getProperties()), filteredEnvProperties)
+            .entrySet().stream()
+            .filter(filterAsyncProperties())
+            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
         }
         return null;
     }
@@ -146,20 +142,19 @@ public class EnvironmentPropertiesHelper {
             throw new SnapshotCreationException("Couldn't find service or active service environment.", element);
         }
 
-        Map<String, Object> properties = Stream.of(
-                Optional.ofNullable(environment.getProperties())
-                .orElse(Collections.emptyMap()),
-                ElementUtils.extractGrpcProperties(element.getProperties())
-        )
+        return Stream.of(
+                        Optional.ofNullable(environment.getProperties())
+                                .orElse(Collections.emptyMap()),
+                        ElementUtils.extractGrpcProperties(element.getProperties())
+                )
                 .map(Map::entrySet)
                 .flatMap(Collection::stream)
                 .filter(grpcProperties())
                 .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue,
+                        Entry::getKey,
+                        Entry::getValue,
                         (oldValue, newValue) -> newValue
                 ));
-        return properties;
     }
 
     private static Predicate<Entry<String, Object>> grpcProperties() {

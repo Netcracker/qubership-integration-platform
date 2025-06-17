@@ -18,14 +18,14 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationStatus;
-import org.qubership.integration.platform.catalog.util.MapperUtils;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationAlertsSet;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic.ValidationStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic.DiagnosticValidationDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic.ValidationChainEntityDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.diagnostic.ValidationStatusDTO;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.AbstractValidation;
+import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 
 import java.util.List;
 

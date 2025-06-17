@@ -18,8 +18,8 @@ package org.qubership.integration.platform.runtime.catalog.rest.handler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.IOUtils;
+import org.qubership.integration.platform.runtime.catalog.exception.ExceptionDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.handler.exception.MicroserviceErrorResponseException;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.ExceptionDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;

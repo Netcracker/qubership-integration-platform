@@ -24,18 +24,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ChainExportException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainExportException;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.util.Pair;
@@ -53,7 +53,8 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+
 
 @Slf4j
 @Transactional(readOnly = true)
@@ -62,6 +63,7 @@ public class ExportService {
     private final YAMLMapper yamlMapper;
     private final ObjectMapper objectMapper;
     private final ChainService chainService;
+    private final ChainFinderService chainFinderService;
     private final ActionsLogService actionLogger;
     private final ChainExternalEntityMapper chainExternalEntityMapper;
 
@@ -71,17 +73,19 @@ public class ExportService {
             @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
             ChainService chainService,
             ActionsLogService actionLogger,
+            ChainFinderService chainFinderService,
             ChainExternalEntityMapper chainExternalEntityMapper
     ) {
         this.yamlMapper = yamlMapper;
         this.objectMapper = objectMapper;
         this.chainService = chainService;
+        this.chainFinderService = chainFinderService;
         this.actionLogger = actionLogger;
         this.chainExternalEntityMapper = chainExternalEntityMapper;
     }
 
     public Pair<String, byte[]> exportAllChains() {
-        List<Chain> allChains = chainService.findAll();
+        List<Chain> allChains = chainFinderService.findAll();
         return exportChain(allChains);
     }
 
@@ -89,12 +93,12 @@ public class ExportService {
         if (exportWithSubChains) {
             chainIds = chainService.getSubChainsIds(chainIds, new ArrayList<String>());
         }
-        List<Chain> chains = chainService.findAllById(chainIds);
+        List<Chain> chains = chainFinderService.findAllById(chainIds);
         return exportChain(chains);
     }
 
     public Pair<String, byte[]> exportSingleChain(String chainId) {
-        Chain chain = chainService.findById(chainId);
+        Chain chain = chainFinderService.findById(chainId);
         return exportChain(List.of(chain));
     }
 
@@ -217,7 +221,7 @@ public class ExportService {
             }
 
             if (SERVICE_CALL.equals(element.getType())) {
-                String propString = null;
+                String propString;
                 List<Map<String, Object>> afterPropertyList = (List<Map<String, Object>>) element.getProperties().get(AFTER);
                 if (!CollectionUtils.isEmpty(afterPropertyList)) {
                     for (Map<String, Object> afterProperty : afterPropertyList) {

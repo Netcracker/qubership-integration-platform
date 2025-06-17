@@ -26,14 +26,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.qubership.integration.platform.catalog.configuration.MapperBaseConfiguration;
-import org.qubership.integration.platform.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.catalog.service.library.LibraryResourceLoader;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplateService;
+import org.qubership.integration.platform.runtime.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.runtime.catalog.mapper.MappingDescriptionValidator;
 import org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.AtlasMapInterpreter;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
+import org.qubership.integration.platform.runtime.catalog.service.library.LibraryResourceLoader;
 import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +47,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 @ContextConfiguration(classes = {
         AtlasMapInterpreter.class,
-        MapperBaseConfiguration.class,
         TestConfig.class,
         DescriptorPropertiesConfiguration.class,
         YAMLMapper.class,

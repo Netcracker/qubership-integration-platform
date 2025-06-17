@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.mapper;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.DataType;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.ReferenceType;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.MappingDescription;

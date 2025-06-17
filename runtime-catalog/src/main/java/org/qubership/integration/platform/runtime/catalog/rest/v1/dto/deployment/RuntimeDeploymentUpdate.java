@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment;
 
 import lombok.Data;
-import org.qubership.integration.platform.catalog.model.dto.deployment.RuntimeDeploymentState;
+import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.RuntimeDeploymentState;
 
 @Data
 public class RuntimeDeploymentUpdate {

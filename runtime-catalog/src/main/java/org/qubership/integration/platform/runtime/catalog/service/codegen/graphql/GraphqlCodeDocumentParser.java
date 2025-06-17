@@ -1,0 +1,981 @@
+/*
+ * Copyright 2024-2025 NetCracker Technology Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.qubership.integration.platform.runtime.catalog.service.codegen.graphql;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.graphql_java_generator.annotation.*;
+import com.graphql_java_generator.plugin.ResourceSchemaStringProvider;
+import com.graphql_java_generator.plugin.conf.*;
+import com.graphql_java_generator.plugin.generate_code.CustomDeserializer;
+import com.graphql_java_generator.plugin.generate_code.CustomSerializer;
+import com.graphql_java_generator.plugin.generate_code.GenerateCodePluginExecutor;
+import com.graphql_java_generator.plugin.language.*;
+import com.graphql_java_generator.plugin.language.Type.GraphQlType;
+import com.graphql_java_generator.plugin.language.impl.*;
+import graphql.parser.Parser;
+import graphql.parser.ParserEnvironment;
+import graphql.parser.ParserOptions;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.Transient;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+/**
+ * This class parses the GraphQL shema file(s), and loads it in a structure that'll make it easy to send to Velocity
+ * templates. There is no validity check: we trust the information in the Document, as it is read by the GraphQL
+ * {@link Parser}. <BR/>
+ * The graphQL-java library maps both FieldDefinition and InputValueDefinition in very similar structures, which are
+ * actually trees. These structures are too hard too read in a Velocity template, and we need to parse down to a
+ * properly structures way for that.<BR/>
+ * This class should not be used directly. Please use the {@link GenerateCodePluginExecutor} instead.
+ *
+ * @author etienne-sf
+ */
+
+@Getter
+@Slf4j
+public class GraphqlCodeDocumentParser extends CustomDocumentParser {
+    @SuppressWarnings("checkstyle:ConstantName")
+    private static final Logger logger = LoggerFactory.getLogger(GraphqlCodeDocumentParser.class);
+
+    /**
+     * The name of the package for utility classes, when the <I>separateUtilClasses</I> plugin parameter is set to true.
+     * This is the name of subpackage within the package defined by the <I>packageName</I> plugin parameter. <BR/>
+     * This constant is useless when the <I>separateUtilClasses</I> plugin parameter is set to false, which is its
+     * default value.
+     */
+    public static final String UTIL_PACKAGE_NAME = "util";
+
+    private static final String INTROSPECTION_QUERY = "__IntrospectionQuery";
+
+    /////////////////////////////////////////////////////////////////////////////////////////////
+    // Internal attributes for this class
+
+    private final Parser parser;
+
+    private final ParserOptions parserOptions;
+
+    /** All {@link Relation}s that have been found in the GraphQL schema(s) */
+    List<Relation> relations = new ArrayList<>();
+
+    /**
+     * All {@link DataFetcher}s that need to be implemented for this/these schema/schemas
+     */
+    List<DataFetcher> dataFetchers = new ArrayList<>();
+
+    /**
+     * All {@link DataFetchersDelegate}s that need to be implemented for this/these schema/schemas
+     */
+    List<DataFetchersDelegate> dataFetchersDelegates = new ArrayList<>();
+
+    /**
+     * All {@link BatchLoader}s that need to be implemented for this/these schema/schemas
+     */
+    List<BatchLoader> batchLoaders = new ArrayList<>();
+
+    /** The list of {@link CustomDeserializer} that contains the custom deserializers that must be generated. */
+    private List<CustomDeserializer> customDeserializers = new ArrayList<>();
+
+    /** The list of {@link CustomSerializer} that contains the custom serializers that must be generated. */
+    private List<CustomSerializer> customSerializers = new ArrayList<>();
+
+    /** The configuration for the code generation must implement the {@link GenerateCodeCommonConfiguration} */
+    GenerateCodeCommonConfiguration configuration;
+
+    public GraphqlCodeDocumentParser(Parser parser, ParserOptions parserOptions, CommonConfiguration configuration) {
+        super(configuration);
+        this.parser = parser;
+        this.parserOptions = parserOptions;
+        initConfiguration();
+    }
+
+    private void initConfiguration() {
+        if (!(super.configuration instanceof GenerateCodeCommonConfiguration)) {
+            throw new RuntimeException(
+                    "[Internal error] The plugin configuration must implement the GenerateCodeCommonConfiguration interface, but is '"
+                            + super.configuration.getClass().getName() + "'");
+        }
+        configuration = (GenerateCodeCommonConfiguration) super.configuration;
+
+    }
+
+    public void parseSchema(String schema) throws IOException {
+        ParserEnvironment parserEnvironment = ParserEnvironment.newParserEnvironment().document(schema).parserOptions(parserOptions).build();
+        super.documents = List.of(parser.parseDocument(parserEnvironment));
+        super.parseDocuments();
+    }
+
+    /**
+     * This method initializes the {@link #scalarTypes} list. This list depends on the use case
+     *
+     */
+    @Override
+    protected void initScalarTypes(Class<?> notUsed) {
+
+        initConfiguration();
+
+        // Let's load the standard Scalar types
+        if (configuration.getMode().equals(PluginMode.server)) {
+            try {
+                super.initScalarTypes(
+                        Class.forName(((GenerateServerCodeConfiguration) configuration).getJavaTypeForIDType()));
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e.getMessage(), e);
+            }
+        } else {
+            // In client mode, ID type is managed as a String
+            super.initScalarTypes(String.class);
+        }
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // Add of all GraphQL custom scalar implementations must be provided by the plugin configuration
+        logger.debug("Storing custom scalar's implementations [START]");
+        if (configuration.getCustomScalars() != null) {
+            for (CustomScalarDefinition customScalarDef : configuration.getCustomScalars()) {
+                CustomScalarType type = new CustomScalarType(customScalarDef.getGraphQLTypeName(), customScalarDef, configuration, this);
+                getCustomScalars().add(type);
+                getTypes().put(type.getName(), type);
+            }
+        }
+        logger.debug("Storing custom scalar's implementations [END]");
+    }
+
+    /**
+     * The main method of the class: it graphqlUtils.executes the generation of the given documents
+     *
+     * @return count
+     * @throws IOException
+     *             When an error occurs, during the parsing of the GraphQL schemas
+     */
+    @Override
+    public int parseDocuments() throws IOException {
+        /////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Let's start by some controls on the configuration parameters
+        if (configuration.getMode().equals(PluginMode.server)) {
+            if (configuration.isAddRelayConnections()  // Let's have a test that works for windows (\) and unix (/)
+                    && configuration.getSchemaFilePattern()
+                            .endsWith(GenerateGraphQLSchemaConfiguration.DEFAULT_TARGET_SCHEMA_FILE_NAME)) {
+                // In server mode, the graphql-java needs to have access to the GraphQL schema.
+                throw new IllegalArgumentException(
+                        "When the addRelayConnections is set to true, the GraphQL schema must be provided have another name than '"
+                                + GenerateGraphQLSchemaConfiguration.DEFAULT_TARGET_SCHEMA_FILE_NAME
+                                + "'. Please check the https://graphql-maven-plugin-project.graphql-java-generator.com/server_add_relay_connection.html page for more information");
+            }
+        }
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Then we read the GraphQL documents
+        super.parseDocuments();
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////
+        // And to finish, we calculate and store the capabilities for code generation
+
+        // Add introspection capabilities (the introspection schema has already been read, as it is added by
+        // ResourceSchemaStringProvider in the documents list
+        logger.debug("Adding introspection capabilities");
+        addIntrospectionCapabilities();
+        // Let's identify every relation between objects, interface or union in the model
+        logger.debug("Init relations");
+        initRelations();
+        // Some annotations are needed for Jackson or JPA
+        logger.debug("Add annotations");
+        addAnnotations();
+        // List of all Custom Deserializers
+        initCustomDeserializers();
+        // List of all Custom Serializers
+        initCustomSerializers();
+        // List all data fetchers
+        logger.debug("Init data fetchers");
+        initDataFetchers();
+        // List all Batch Loaders
+        logger.debug("Init batch loaders");
+        initBatchLoaders();
+        // Fill in the import list
+        addImports();
+
+        // Apply the user's schema personalization
+        logger.debug("Apply schema personalization");
+        // jsonSchemaPersonalization.applySchemaPersonalization(); // TODO uncomment if need
+
+        // We're done
+        int nbClasses = getObjectTypes().size() + getEnumTypes().size() + getInterfaceTypes().size();
+        logger.debug(getDocuments().size() + " document(s) parsed (" + nbClasses + ")");
+        return nbClasses;
+    }
+
+    /**
+     * Returns the {@link DataFetchersDelegate} that manages the given type.
+     *
+     * @param type
+     *            The type, for which the DataFetchersDelegate is searched. It may not be null.
+     * @param createIfNotExists
+     *            if true: a new DataFetchersDelegate is created when there is no {@link DataFetchersDelegate} for this
+     *            type yet. If false: no DataFetchersDelegate creation.
+     * @return The relevant DataFetchersDelegate, or null of there is no DataFetchersDelegate for this type and
+     *         createIfNotExists is false
+     * @throws NullPointerException
+     *             If type is null
+     */
+    public DataFetchersDelegate getDataFetchersDelegate(Type type, boolean createIfNotExists) {
+        if (type == null) {
+            throw new NullPointerException("type may not be null");
+        }
+
+        for (DataFetchersDelegate dfd : dataFetchersDelegates) {
+            if (dfd.getType().equals(type)) {
+                return dfd;
+            }
+        }
+
+        // No DataFetchersDelegate for this type exists yet
+        if (createIfNotExists) {
+            DataFetchersDelegate dfd = new DataFetchersDelegateImpl(type);
+            dataFetchersDelegates.add(dfd);
+            return dfd;
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Reads all the GraphQl objects, interfaces, union... that have been read from the GraphQL schema, and list all the
+     * relations between Server objects (that is: all objects out of the Query/Mutation/Subscription types and the input
+     * types). The found relations are stored, to be reused during the code generation.<BR/>
+     * These relations are important for the server mode of the plugin, to generate the proper JPA annotations.
+     */
+    void initRelations() {
+        for (ObjectType type : getObjectTypes()) {
+            // We initiate the relations only for regular objects (not query/mutation/subscription)
+            if (type.getRequestType() == null) {
+                if (!type.isInputType()) {
+                    for (Field field : type.getFields()) {
+                        if (field.getType() instanceof ObjectType) {
+                            RelationType relType = field.getFieldTypeAST().getListDepth() > 0 ? RelationType.OneToMany
+                                    : RelationType.ManyToOne;
+                            RelationImpl relation = new RelationImpl(type, field, relType);
+                            //
+                            ((FieldImpl) field).setRelation(relation);
+                            relations.add(relation);
+                        } // if (instanceof ObjectType)
+                    } // if (!type.isInputType())
+                } // for (field)
+            } // if (type.getRequestType()== null)
+        } // for (type)
+    }
+
+    /**
+     * Defines the annotation for each field of the read objects and interfaces. For the client mode, this is
+     * essentially the Jackson annotations, to allow deserialization of the server response, into the generated classes.
+     * For the server mode, this is essentially the JPA annotations, to define the interaction with the database,
+     * through Spring Data
+     */
+    void addAnnotations() {
+        // No annotation for types.
+        // We go through each field of each type we generate, to define the relevant
+        // annotation
+        switch (configuration.getMode()) {
+            case client:
+                // Type annotations
+                graphqlUtils.concatStreams(Type.class, true, null, null, null, interfaceTypes, getObjectTypes(), unionTypes)
+                        .forEach(this::addTypeAnnotationForClientMode);
+
+                // Field annotations
+                graphqlUtils.concatStreams(Type.class, true, null, null, null, getObjectTypes(), interfaceTypes)
+                        .flatMap(o -> o.getFields().stream()).forEach(f -> addFieldAnnotationForClientMode((FieldImpl) f));
+
+                break;
+            case server:
+                graphqlUtils.concatStreams(ObjectType.class, true, null, null, null, getObjectTypes(), interfaceTypes)
+                        .forEach(this::addTypeAnnotationForServerMode);
+                graphqlUtils.concatStreams(ObjectType.class, true, null, null, null, getObjectTypes(), interfaceTypes)
+                        .flatMap(o -> o.getFields().stream()).forEach(this::addFieldAnnotationForServerMode);
+                break;
+        }
+
+    }
+
+    /**
+     * This method add the needed annotation(s) to the given type, when in client mode
+     *
+     * @param type
+     */
+    void addTypeAnnotationForClientMode(Type type) {
+        // No specific annotation for objects and interfaces when in client mode.
+
+        if (type instanceof InterfaceType || type instanceof UnionType) {
+            if (configuration.isGenerateJacksonAnnotations()) {
+                type.addImport(configuration.getPackageName(), JsonTypeInfo.class.getName());
+                type.addImport(configuration.getPackageName(), JsonTypeInfo.Id.class.getName());
+                type.addAnnotation(
+                        "@JsonTypeInfo(use = Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = \"__typename\", visible = true)");
+
+                // jsonSubTypes annotation looks like this:
+                // @JsonSubTypes({ @Type(value = Droid.class, name = "Droid"), @Type(value = Human.class, name =
+                // "Human") })
+                StringBuffer jsonSubTypes = new StringBuffer();
+                type.addImport(configuration.getPackageName(), JsonSubTypes.class.getName());
+                type.addImport(configuration.getPackageName(), JsonSubTypes.Type.class.getName());
+                jsonSubTypes.append("@JsonSubTypes({");
+
+                boolean addSeparator = false;
+                List<ObjectType> types;
+                if (type instanceof InterfaceType) {
+                    types = ((InterfaceType) type).getImplementingTypes();
+                } else {
+                    types = ((UnionType) type).getMemberTypes();
+                }
+
+                for (ObjectType t : types) {
+                    // No separator for the first iteration
+                    if (addSeparator) {
+                        jsonSubTypes.append(",");
+                    } else {
+                        addSeparator = true;
+                    }
+                    jsonSubTypes.append(" @Type(value = ").append(t.getName()).append(".class, name = \"")
+                            .append(t.getName()).append("\")");
+                }
+                jsonSubTypes.append(" })");
+
+                type.addAnnotation(jsonSubTypes.toString());
+            }
+        }
+
+        // Add the GraphQLQuery annotation fpr query/mutation/subscription and for objects that are a
+        // query/mutation/subscription
+        if (type instanceof ObjectType && type.getRequestType() != null) {
+            type.addImport(configuration.getPackageName(), GraphQLQuery.class.getName());
+            type.addImport(configuration.getPackageName(), RequestType.class.getName());
+            type.addAnnotation("@GraphQLQuery(name = \"" + type.getName() + "\", type = RequestType."
+                               + type.getRequestType() + ")");
+
+        }
+
+        // Let's add the annotations, that are common to both the client and the server mode
+        addTypeAnnotationForBothClientAndServerMode(type);
+    }
+
+    /**
+     * This method add the needed annotation(s) to the given type when in server mode. This typically add the
+     * JPA @{@link Entity} annotation.
+     *
+     * @param o
+     */
+    void addTypeAnnotationForServerMode(Type o) {
+
+        // We generates the @Entity annotation when:
+        // 1) It's asked in the plugin configuration
+        // 2) The object is a regular object (not an input type)
+        // 3) It's not an object that is a query/mutation/subscription
+        if (configuration instanceof GenerateServerCodeConfiguration
+                && ((GenerateServerCodeConfiguration) configuration).isGenerateJPAAnnotation()
+                && o instanceof ObjectType && !(o instanceof InterfaceType) && !(o instanceof UnionType)
+                && !((ObjectType) o).isInputType() && ((ObjectType) o).getRequestType() == null) {
+            o.addImport(configuration.getPackageName(), Entity.class.getName());
+            ((AbstractType) o).addAnnotation("@Entity");
+        }
+
+        // Let's add the annotations, that are common to both the client and the server mode
+        addTypeAnnotationForBothClientAndServerMode(o);
+    }
+
+    /**
+     * This method add the needed annotation(s) to the given type when in server mode. This typically add
+     * the @{@link GraphQLInputType} annotation.
+     *
+     * @param o
+     */
+    private void addTypeAnnotationForBothClientAndServerMode(Type o) {
+        if (o instanceof InterfaceType) {
+            o.addImport(configuration.getPackageName(), GraphQLInterfaceType.class.getName());
+            o.addAnnotation("@GraphQLInterfaceType(\"" + o.getName() + "\")");
+        } else if (o instanceof UnionType) {
+            o.addImport(configuration.getPackageName(), GraphQLUnionType.class.getName());
+            o.addAnnotation("@GraphQLUnionType(\"" + o.getName() + "\")");
+        } else if (o instanceof ObjectType) {
+            if (((ObjectType) o).isInputType()) {
+                // input type
+                o.addImport(configuration.getPackageName(), GraphQLInputType.class.getName());
+                o.addAnnotation("@GraphQLInputType(\"" + o.getName() + "\")");
+            } else {
+                // Standard object type
+                o.addImport(configuration.getPackageName(), GraphQLObjectType.class.getName());
+                o.addAnnotation("@GraphQLObjectType(\"" + o.getName() + "\")");
+            }
+        }
+    }
+
+    /**
+     * This method add the needed annotation(s) to the given field. It should be called when the maven plugin is in
+     * client mode. This typically add the Jackson annotation, to allow the desialization of the GraphQL server
+     * response.
+     *
+     * @param field
+     */
+    void addFieldAnnotationForClientMode(FieldImpl field) {
+
+        if (configuration.isGenerateJacksonAnnotations()) {
+            field.getOwningType().addImport(configuration.getPackageName(), JsonProperty.class.getName());
+            field.addAnnotation("@JsonProperty(\"" + field.getName() + "\")");
+        }
+
+        if (configuration.isGenerateJacksonAnnotations()) {
+            // No json deserialization for input type
+            if (!field.getOwningType().isInputType()
+                    && (field.getFieldTypeAST().getListDepth() > 0 || field.getType().isCustomScalar())) {
+                // Custom Deserializer (for all lists and custom scalars)
+                String classSimpleName = "CustomJacksonDeserializers."//
+                        + CustomDeserializer.getCustomDeserializerClassSimpleName(
+                        field.getFieldTypeAST().getListDepth(),
+                        graphqlUtils.getJavaName(field.getType().getName()));
+                field.getOwningType().addImport(configuration.getPackageName(),
+                        getUtilPackageName() + ".CustomJacksonDeserializers");
+                field.getOwningType().addImport(configuration.getPackageName(), JsonDeserialize.class.getName());
+
+                field.addAnnotation(buildJsonDeserializeAnnotation(null, classSimpleName + ".class"));
+            }
+
+            // json serialization is only for input types
+            if (field.getOwningType().isInputType() && field.getType().isCustomScalar()) {
+                // Custom Serializer (only for custom scalars)
+                String classSimpleName = "CustomJacksonSerializers."//
+                        + CustomSerializer.getCustomSerializerClassSimpleName(field.getFieldTypeAST().getListDepth(),
+                        graphqlUtils.getJavaName(field.getType().getName()));
+                field.getOwningType().addImport(configuration.getPackageName(),
+                        getUtilPackageName() + ".CustomJacksonSerializers");
+                field.getOwningType().addImport(configuration.getPackageName(), JsonSerialize.class.getName());
+                field.getOwningType().addImport(configuration.getPackageName(), field.getType().getClassFullName());
+
+                field.addAnnotation(buildJsonSerializeAnnotation(classSimpleName + ".class"));
+            }
+        }
+
+        if (field.getInputParameters().size() > 0) {
+            // Let's add the @GraphQLInputParameters annotation
+            field.getOwningType().addImport(configuration.getPackageName(), GraphQLInputParameters.class.getName());
+            StringBuilder names = new StringBuilder();
+            StringBuilder types = new StringBuilder();
+            StringBuilder mandatories = new StringBuilder();
+            StringBuilder listDepths = new StringBuilder();
+            StringBuilder itemsMandatory = new StringBuilder();
+            String separator = "";
+            for (Field param : field.getInputParameters()) {
+                names.append(separator).append('"').append(param.getName()).append('"');
+                types.append(separator).append('"').append(param.getGraphQLTypeSimpleName()).append('"');
+                mandatories.append(separator).append(param.getFieldTypeAST().isMandatory());
+                listDepths.append(separator).append(param.getFieldTypeAST().getListDepth());
+                itemsMandatory.append(separator).append(param.getFieldTypeAST().isItemMandatory());
+                separator = ", ";
+            }
+            field.addAnnotation("@GraphQLInputParameters(names = {" + names + "}, types = {" + types
+                    + "}, mandatories = {" + mandatories + "}, listDepths = {" + listDepths + "}, itemsMandatory = {"
+                    + itemsMandatory + "})");
+        }
+
+        addFieldAnnotationForBothClientAndServerMode(field);
+    }
+
+    /**
+     * This method add the needed annotation(s) to the given field. It should be called when the maven plugin is in
+     * server mode. This typically add the JPA @Id, @GeneratedValue, @Transient annotations.
+     *
+     * @param field
+     */
+    void addFieldAnnotationForServerMode(Field field) {
+        if (configuration instanceof GenerateServerCodeConfiguration
+                && ((GenerateServerCodeConfiguration) configuration).isGenerateJPAAnnotation()
+                && !field.getOwningType().isInputType()) {
+            if (field.isId()) {
+                // We have found the identifier
+                field.getOwningType().addImport(configuration.getPackageName(), Id.class.getName());
+                ((FieldImpl) field).addAnnotation("@Id");
+                field.getOwningType().addImport(configuration.getPackageName(), GeneratedValue.class.getName());
+                ((FieldImpl) field).addAnnotation("@GeneratedValue");
+            } else if (field.getRelation() != null || field.getFieldTypeAST().getListDepth() > 0) {
+                // We prevent JPA to manage the relations: we want the GraphQL Data Fetchers to do it, instead.
+                field.getOwningType().addImport(configuration.getPackageName(), Transient.class.getName());
+                ((FieldImpl) field).addAnnotation("@Transient");
+            }
+        }
+
+        addFieldAnnotationForBothClientAndServerMode(field);
+    }
+
+    /**
+     * This method add the annotation(s) that are common to the server and the client mode, to the given field. It
+     * typically adds the {@link GraphQLScalar} and {@link GraphQLNonScalar} annotations, to allow runtime management of
+     * the generated code.
+     *
+     * @param field
+     */
+    void addFieldAnnotationForBothClientAndServerMode(Field field) {
+        if (field.getFieldTypeAST().getListDepth() > 0) {
+            field.getOwningType().addImport(configuration.getPackageName(), List.class.getName());
+        }
+
+        if (field.getType() instanceof ScalarType || field.getType() instanceof EnumType) {
+            field.getOwningType().addImport(configuration.getPackageName(), GraphQLScalar.class.getName());
+            ((FieldImpl) field).addAnnotation("@GraphQLScalar(fieldName = \"" + field.getName()
+                    + "\", graphQLTypeSimpleName = \"" + field.getGraphQLTypeSimpleName() + "\", javaClass = "
+                    + field.getType().getClassFullName() + ".class)");
+        } else {
+            field.getOwningType().addImport(configuration.getPackageName(), GraphQLNonScalar.class.getName());
+            ((FieldImpl) field).addAnnotation("@GraphQLNonScalar(fieldName = \"" + field.getName()
+                    + "\", graphQLTypeSimpleName = \"" + field.getGraphQLTypeSimpleName() + "\", javaClass = "
+                    + field.getType().getClassFullName() + ".class)");
+        }
+    }
+
+    /**
+     * Identified all the GraphQL Data Fetchers needed from this/these schema/schemas
+     */
+    void initDataFetchers() {
+        if (configuration.getMode().equals(PluginMode.server)) {
+            getObjectTypes().stream().forEach(this::initDataFetcherForOneObject);
+            interfaceTypes.stream().forEach(this::initDataFetcherForOneObject);
+            unionTypes.stream().forEach(this::initDataFetcherForOneObject);
+        }
+    }
+
+    /**
+     * Identified all the GraphQL Data Fetchers needed for this type
+     *
+     * @param type
+     */
+    void initDataFetcherForOneObject(ObjectType type) {
+
+        // No DataFetcher for input types
+        if ((type instanceof ObjectType || type instanceof InterfaceType) && !type.isInputType()) {
+
+            // Creation of the DataFetchersDelegate. It will be added to the list only if it contains at least one
+            // DataFetcher.
+            DataFetchersDelegate dataFetcherDelegate = new DataFetchersDelegateImpl(type);
+
+            for (Field field : type.getFields()) {
+
+                if (type.getRequestType() != null) {
+                    // For query/mutation/subscription, we take the argument read in the schema as is: all the needed
+                    // informations is already parsed.
+                    // There is no source for requests, as they are the root of the hierarchy
+                    dataFetchers.add(new DataFetcherImpl(field, dataFetcherDelegate, true, false, null));
+                } else if (field.getFieldTypeAST().getListDepth() > 0 || field.getType() instanceof ObjectType
+                        || field.getType() instanceof InterfaceType) {
+                    // For Objects and Interfaces, we need to add a specific data fetcher. The objective there is to
+                    // manage the relations with GraphQL. The aim is to use the GraphQL data loader :
+                    // very important to limit the number of subqueries, when subobjects are queried. In these case, we
+                    // need to create a new field that add the object ID as a parameter of the Data Fetcher
+
+                    // What's the need to duplicate the field instance ???
+                    FieldImpl newField = (FieldImpl) field;
+                    // FieldImpl newField = FieldImpl.builder().documentParser(this).name(field.getName())
+                    // .fieldTypeAST(FieldTypeAST.builder().list(field.getFieldTypeAST().getListDepth() > 0)
+                    // .graphQLTypeSimpleName(field.getgraphQLTypeSimpleName()).build())
+                    // .owningType(field.getOwningType()).build();
+                    //
+                    // // Let's add the id for the owning type of the field, then all its input parameters
+                    // for (Field inputParameter : field.getInputParameters()) {
+                    // List<Field> list = newField.getInputParameters();
+                    // list.add(inputParameter);
+                    // }
+
+                    // We'll add a data fetcher with a data loader, to use a Batch Loader, if:
+                    // 1) It's a Data Fetcher from an object to another one (we're already in this case)
+                    // 2) That target object has an id (it can be either a list or a single object)
+                    // 3) The Relation toward the target object is OneToOne or ManyToOne. That is this field is not a
+                    // list
+                    // graphql-java will then determines at runtime if a dataloader is needed in the running case, or
+                    // not
+                    boolean withDataLoader = field.getType().getIdentifier() != null;
+                    if (field.getFieldTypeAST().getListDepth() > 0) {
+                        // In versions before 1.18.3, there was be no CompletableFuture for field that are lists
+                        // This behavior is controlled by the generateDataLoaderForLists plugin parameter and the
+                        // generateDataLoaderForLists directive (that can associated directly to the GraphQL field)
+                        withDataLoader = ((GenerateServerCodeConfiguration) configuration)
+                                .isGenerateDataLoaderForLists()
+                                || null != field.getAppliedDirectives().stream()//
+                                .filter(directive -> directive.getDirective().getName()
+                                        .equals("generateDataLoaderForLists"))
+                                .findAny()//
+                                .orElse(null);
+                    }
+
+                    dataFetchers.add(new DataFetcherImpl(newField, dataFetcherDelegate, true, withDataLoader, type));
+                }
+            } // for
+
+            // If at least one DataFetcher has been created, we register this DataFetchersDelegate
+            if (!dataFetcherDelegate.getDataFetchers().isEmpty()) {
+                dataFetchersDelegates.add(dataFetcherDelegate);
+            }
+        }
+    }
+
+    /**
+     * Identify each BatchLoader to generate, and attach its {@link DataFetcher} to its {@link DataFetchersDelegate}.
+     * The whole stuff is stored into {@link #batchLoaders}
+     */
+    private void initBatchLoaders() {
+        if (configuration.getMode().equals(PluginMode.server)) {
+            // objectTypes contains both the objects defined in the schema, and the concrete objects created to map the
+            // interfaces, along with Enums...
+
+            // We fetch only the objects, here. The interfaces are managed just after
+            logger.debug("Init batch loader for objects");
+            getObjectTypes().stream().filter(o -> (o.getGraphQlType() == GraphQlType.OBJECT && !o.isInputType()))
+                    .forEach(this::initOneBatchLoader);
+
+            // Let's go through all interfaces.
+            logger.debug("Init batch loader for objects");
+            interfaceTypes.stream().forEach(this::initOneBatchLoader);
+        }
+    }
+
+    /**
+     * Analyzes one object, and decides if there should be a {@link BatchLoader} for it. No action if this type is a
+     * type that represents a query/mutation/subscription. There are {@link BatchLoader}s only for regular objects.
+     *
+     * @param type
+     *            the Type that may need a BatchLoader
+     */
+    private void initOneBatchLoader(ObjectType type) {
+        // There is no Batch Loader for query/mutation/subscription
+        if (type.getRequestType() == null) {
+
+            logger.debug("Init batch loader for " + type.getName());
+
+            Field id = type.getIdentifier();
+            if (id != null) {
+                batchLoaders.add(new BatchLoaderImpl(type, getDataFetchersDelegate(type, true)));
+            }
+
+        } // if
+    }
+
+    /**
+     * Build an @{@link JsonDeserialize} annotation with one or more attributes
+     *
+     * @param contentAs
+     *            contentAs class name
+     * @param using
+     *            using class name
+     * @return annotation string
+     */
+    private String buildJsonDeserializeAnnotation(String contentAs, String using) {
+        StringBuffer annotationBuf = new StringBuffer();
+        annotationBuf.append("@JsonDeserialize(");
+        boolean addComma = false;
+        if (contentAs != null) {
+            annotationBuf.append("contentAs = ").append(contentAs);
+            addComma = true;
+        }
+
+        if (using != null) {
+            if (addComma) {
+                annotationBuf.append(", ");
+            }
+            annotationBuf.append("using = ").append(using);
+        }
+        annotationBuf.append(")");
+        return annotationBuf.toString();
+    }
+
+    /**
+     * Build an @{@link JsonSerialize} annotation with one or more attributes
+     *
+     *
+     * @param using
+     *            using class name
+     * @return annotation string
+     */
+    private String buildJsonSerializeAnnotation(String using) {
+        StringBuffer annotationBuf = new StringBuffer();
+        annotationBuf.append("@JsonSerialize(");
+        boolean addComma = false;
+
+        if (using != null) {
+            if (addComma) {
+                annotationBuf.append(", ");
+            }
+            annotationBuf.append("using = ").append(using);
+        }
+        annotationBuf.append(")");
+        return annotationBuf.toString();
+    }
+
+    /**
+     * Add introspection capabilities: the __schema and __type query into a dedicated __IntrospectionQuery, and the
+     * __typename into each GraphQL object.<BR/>
+     * Note: the introspection schema has already been parsed, as it is added by {@link ResourceSchemaStringProvider} in
+     * the documents list
+     */
+    void addIntrospectionCapabilities() {
+        // No action in server mode: everything is handled by graphql-java
+        if (configuration.getMode().equals(PluginMode.client)) {
+
+            logger.debug("Adding introspection capability");
+
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // First step : add the introspection queries into the existing query. If no query exists, one is created.s
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            if (queryType == null) {
+                logger.debug("The source schema contains no query: creating an empty query type");
+
+                // There was no query. We need to create one. It will contain only the Introspection Query
+                queryType = new ObjectType(DEFAULT_QUERY_NAME, configuration, this);
+                queryType.setName(INTROSPECTION_QUERY);
+                queryType.setRequestType("query");
+
+                // Let's first add the regular object that'll receive the server response (in the default package)
+                getObjectTypes().add(queryType);
+                types.put(queryType.getName(), queryType);
+            }
+
+            // We also need to add the relevant fields into the regular object that matches the query.
+            Type objectQuery = getType(queryType.getName());
+            objectQuery.getFields().add(get__SchemaField(objectQuery));
+            objectQuery.getFields().add(get__TypeField(objectQuery));
+
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            // Second step: add the __datatype field into every GraphQL type (out of input types)
+            // That is : in all regular object types and interfaces.
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            logger.debug("Adding __typename to each object");
+            for (ObjectType type : getObjectTypes()) {
+                if (!type.isInputType()) {
+                    type.getFields().add(FieldImpl.builder().documentParser(this).name("__typename")
+                            .fieldTypeAST(
+                                    FieldTypeAST.builder().graphQLTypeSimpleName("String").mandatory(false).build())
+                            .owningType(type).build());
+                }
+            }
+            logger.debug("Adding __typename to each interface");
+            for (InterfaceType type : interfaceTypes) {
+                type.getFields().add(FieldImpl.builder().documentParser(this).name("__typename")
+                        .fieldTypeAST(FieldTypeAST.builder().graphQLTypeSimpleName("String").mandatory(false).build())
+                        .owningType(type).build());
+            }
+        }
+    }
+
+    /**
+     * @param o
+     * @return
+     */
+    @SuppressWarnings("checkstyle:MethodName")
+    private FieldImpl get__TypeField(Type o) {
+        FieldImpl type = FieldImpl.builder().documentParser(this).name("__type")
+                .fieldTypeAST(FieldTypeAST.builder().graphQLTypeSimpleName("__Type").mandatory(true).build())//
+                .owningType(o).build();
+        type.getInputParameters()
+                .add(FieldImpl.builder().documentParser(this).name("name")
+                        .fieldTypeAST(FieldTypeAST.builder().graphQLTypeSimpleName("String").mandatory(true).build())//
+                        .owningType(o).build());
+        return type;
+    }
+
+    /**
+     * @param o
+     * @return
+     */
+    @SuppressWarnings("checkstyle:MethodName")
+    private FieldImpl get__SchemaField(Type o) {
+        FieldImpl schema = FieldImpl.builder().documentParser(this).name("__schema")
+                .fieldTypeAST(FieldTypeAST.builder().graphQLTypeSimpleName("__Schema").mandatory(true).build())//
+                .owningType(o).build();
+        return schema;
+    }
+
+    /**
+     * Adds the necessary java import, so that the generated classes compile. <BR/>
+     * The import for the annotation have already been added.
+     */
+    private void addImports() {
+        types.values().parallelStream().forEach(type -> addImportsForOneType(type));
+    }
+
+    /**
+     * Add all imports that are needed for this type
+     *
+     * @param type
+     */
+    private void addImportsForOneType(Type type) {
+        if (type != null) {
+
+            // Let's loop through all the fields
+            for (Field f : type.getFields()) {
+                if (f.getFieldTypeAST().getListDepth() > 0) {
+                    type.addImportForUtilityClasses(getUtilPackageName(), List.class.getName());
+                }
+
+                for (Field param : f.getInputParameters()) {
+                    if (param.getFieldTypeAST().getListDepth() > 0) {
+                        type.addImportForUtilityClasses(getUtilPackageName(), List.class.getName());
+                    }
+                } // for(inputParameters)
+            } // for(Fields)
+
+            // Let's add some common imports
+            type.addImportForUtilityClasses(getUtilPackageName(), GraphQLInputParameters.class.getName());
+
+            // Some imports that are only for utility classes
+            type.addImportForUtilityClasses(getUtilPackageName(), RequestType.class.getName());
+
+            switch (configuration.getMode()) {
+                case client:
+                    if (configuration.isGenerateJacksonAnnotations()) {
+                        type.addImportForUtilityClasses(getUtilPackageName(), JsonDeserialize.class.getName());
+                        type.addImportForUtilityClasses(getUtilPackageName(), JsonProperty.class.getName());
+                    }
+                    break;
+                case server:
+                    break;
+                default:
+                    throw new RuntimeException("unexpected plugin mode: " + configuration.getMode().name());
+            }
+        }
+    }
+
+    /**
+     * This method reads all the object and interface types, to identify all the {@link CustomDeserializer} that must be
+     * defined.
+     */
+    private void initCustomDeserializers() {
+        Map<Type, Integer> maxListLevelPerType = new HashMap<>();
+        Stream.concat(getObjectTypes().stream(), interfaceTypes.stream())
+                // We deserialize data from the response. So there is no custom deserializer for fields that belong to
+                // input types. Let's exclude the input types
+                .filter((o) -> !o.isInputType())
+                // Let's read all their fields
+                .flatMap((o) -> o.getFields().stream())
+                // Let's store, for each type, the maximum level of list we've found
+                .forEach((f) -> {
+                    // listLevel: 0 for non array GraphQL types, 1 for arrays like [Int], 2 for nested arrays like
+                    // [[Int]]...
+                    int listLevel = f.getFieldTypeAST().getListDepth();
+
+                    Integer alreadyDefinedListLevel = maxListLevelPerType.get(f.getType());
+                    if (alreadyDefinedListLevel == null || alreadyDefinedListLevel < listLevel) {
+                        // The current type is a deeper nested array
+                        maxListLevelPerType.put(f.getType(), listLevel);
+                    }
+                });
+
+        // We now know the maximum listLevel for each type. We can now define all the necessary custom deserializers
+        customDeserializers = new ArrayList<>();
+        for (Type t : maxListLevelPerType.keySet()) {
+            // First step: if this type is a custom scalar, we define its custom deserializer
+            CustomDeserializer customScalarDeserializer = null;
+            if (t.isCustomScalar()) {
+                customScalarDeserializer = new CustomDeserializer(t, t.getName(), t.getClassFullName(),
+                        ((CustomScalar) t).getCustomScalarDefinition(), 0, null);
+                customDeserializers.add(customScalarDeserializer);
+            }
+
+            // Then: we manage all the list levels for the embedded arrays of this type, as found in the GraphQL schema.
+            // So we loop from 1 (standard array) to the deepest level of embedded array found this type, as found in
+            // the GraphQL schema.
+            // found in this model for fields of this type
+            CustomDeserializer lowerListLevelCustomDeserializer = customScalarDeserializer;
+            for (int i = 1; i <= maxListLevelPerType.get(t); i += 1) {
+                CustomDeserializer currentListLevelCustomDeserializer = new CustomDeserializer(t, t.getName(),
+                        t.getClassFullName(), null, i, lowerListLevelCustomDeserializer);
+                customDeserializers.add(currentListLevelCustomDeserializer);
+                lowerListLevelCustomDeserializer = currentListLevelCustomDeserializer;
+            }
+        }
+    }
+
+    /** This method reads all the input types, to identify all the {@link CustomSerializer} that must be defined. */
+    private void initCustomSerializers() {
+        Map<Type, Integer> maxListLevelPerType = new HashMap<>();
+        getObjectTypes().stream()
+                // We serialize data for the request. So only input types are concerned
+                .filter((o) -> o.isInputType())
+                // Let's read all their fields
+                .flatMap((o) -> o.getFields().stream())
+                // Only custom scalar fields need a custom serialize
+                .filter((f) -> f.getType() instanceof CustomScalarType)
+                // Let's store, for each type, the maximum level of list we've found
+                .forEach((f) -> {
+                    // listLevel: 0 for non array GraphQL types, 1 for arrays like [Int], 2 for nested arrays like
+                    // [[Int]]...
+                    int listLevel = f.getFieldTypeAST().getListDepth();
+
+                    Integer alreadyDefinedListLevel = maxListLevelPerType.get(f.getType());
+                    if (alreadyDefinedListLevel == null || alreadyDefinedListLevel < listLevel) {
+                        // The current type is a deeper nested array
+                        maxListLevelPerType.put(f.getType(), listLevel);
+                    }
+                });
+
+        // We now know the maximum listLevel for each type. We can now define all the necessary custom serializers
+        customSerializers = new ArrayList<>();
+        for (Type t : maxListLevelPerType.keySet()) {
+            // We manage all the list levels for the embedded arrays of this type, as found in the GraphQL schema.
+            for (int i = 0; i <= maxListLevelPerType.get(t); i += 1) {
+                customSerializers.add(new CustomSerializer(t.getName(), t.getClassFullName(),
+                        ((CustomScalar) t).getCustomScalarDefinition(), i));
+            }
+        }
+    }
+
+    /**
+     * Returns the name of the package for utility classes, when the <I>separateUtilClasses</I> plugin parameter is set
+     * to true. This is the name of subpackage within the package defined by the <I>packageName</I> plugin parameter.
+     * <BR/>
+     * This constant is useless when the <I>separateUtilClasses</I> plugin parameter is set to false, which is its
+     * default value.
+     *
+     * @return
+     */
+    @Override
+    protected String getUtilPackageName() {
+        if (configuration.isSeparateUtilityClasses()) {
+            return configuration.getPackageName() + "." + UTIL_PACKAGE_NAME;
+        } else {
+            return configuration.getPackageName();
+        }
+    }
+
+    @Override
+    protected CustomScalarType getCustomScalarType(String name) {
+        for (CustomScalarType customScalarType : customScalars) {
+            if (customScalarType.getName().equals(name)) {
+                return customScalarType;
+            }
+        }
+        // No custom scalar definition have been found from the provided plugin configuration
+        // The configuration must provide an implementation for custom scalar
+        throw new RuntimeException("Custom scalars not supported! Custom scalar '" + name + "'.");
+    }
+
+}

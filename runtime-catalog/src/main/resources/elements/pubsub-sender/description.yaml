@@ -1,0 +1,78 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: pubsub-sender
+title: PubSub Sender
+description: Produce message to PubSub topic.
+folder: senders
+inputEnabled: true
+colorType: sender
+outputEnabled: true
+container: false
+designParameters:
+  externalParticipantId: 'Google Cloud PubSub Project Id ##{projectId}'
+  externalParticipantName: 'Google Cloud PubSub Project Id ##{projectId}'
+  requestLineTitle: 'Put message to ##{destinationName}: ##{destinationName}'
+  directionToChain: false
+  hasResponse: false
+properties:
+  common:
+    - name: projectId
+      title: Project id
+      description: The Google Cloud PubSub Project Id
+      type: string
+      mandatory: true
+    - name: destinationName
+      title: Destination name
+      description: Subscription name
+      type: string
+      mandatory: true
+    - name: serviceAccountKey
+      title: Service account key
+      description: The Service account key that can be used as credentials for the PubSub publisher/subscriber. Must be specified as a base64 encoded ServiceAccount json file
+      type: string
+      mandatory: true
+  advanced:
+    - name: lazyStartProducer
+      title: Lazy start producer
+      description: Whether the producer should be started lazy (on the first message)
+      type: boolean
+      default: false
+      query: true
+    - name: messageOrderingEnabled
+      title: Message ordering enabled
+      description: Should message ordering be enabled.
+      type: boolean
+      default: false
+      query: true
+    - name: orderingKey
+      title: Message ordering key
+      description: Identifies related messages for which publish order should be respected.
+      type: string
+    - name: propagateContext
+      title: Propagate context
+      description: Propagate context to headers before sending message
+      type: boolean
+      default: true
+      query: false
+    - name: overrideContextComponent
+      title: Override Context Component
+      type: custom
+      uiComponent: context-override
+  hidden:
+    - name: overrideContextParams
+      title: Override context parameters
+      description: Propagate props to headers before sending message
+      type: string # map<string, string>
+      query: false

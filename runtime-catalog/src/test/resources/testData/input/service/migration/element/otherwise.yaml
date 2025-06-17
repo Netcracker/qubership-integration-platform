@@ -1,0 +1,42 @@
+---
+id: "e96e7c5a-753a-4931-91fc-73bf9abc32a3"
+name: "New Chain"
+description: ""
+modifiedWhen: 1682600035741
+maskingEnabled: false
+elements:
+  - id: "9f09e656-553b-49dc-8f52-75e7bcc9af07"
+    name: "Otherwise"
+    description: "Otherwise description"
+    element-type: "otherwise"
+  - id: "c7923025-2b93-4653-83c5-437afa1eb8f4"
+    name: "Script #2"
+    description: "Test script #2 description"
+    element-type: "script"
+    properties-filename: "script-c7923025-2b93-4653-83c5-437afa1eb8f4.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+    name: "Script #1"
+    description: "Test script #1 description"
+    element-type: "script"
+    properties-filename: "script-e7b5c614-97ee-453d-a995-e2d8f7c10226.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "c647a397-1d43-4e61-b26d-93b9d797d58d"
+    name: "Script #3"
+    description: "Test script #3 description"
+    element-type: "script"
+    properties-filename: "script-c647a397-1d43-4e61-b26d-93b9d797d58d.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "9f09e656-553b-49dc-8f52-75e7bcc9af07"
+    to: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+  - from: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+    to: "c647a397-1d43-4e61-b26d-93b9d797d58d"
+  - from: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+    to: "c7923025-2b93-4653-83c5-437afa1eb8f4"

@@ -1,0 +1,80 @@
+{{#if-property 'm2m' equals='true'}}
+    <process ref="securityProcessor"/>
+{{/if-property}}
+
+<step id="{{identifier}}">
+    {{#if-property 'correlationIdPosition' presented=''}}
+        <setProperty name="correlationIdPosition">
+            <constant>{{property 'correlationIdPosition'}}</constant>
+        </setProperty>
+    {{/if-property}}
+    {{#if-property 'correlationIdName' presented=''}}
+        <setProperty name="correlationIdName">
+            <constant>{{property 'correlationIdName'}}</constant>
+        </setProperty>
+
+        <process ref="correlationIdPropagationProcessor" />
+    {{/if-property}}
+
+    <setHeader name="CamelGraphQLQuery">
+        <simple>{{escape (property 'query')}}</simple>
+    </setHeader>
+
+    {{#if-property 'variablesJSON' presented=''}}
+        <setProperty name="internalProperty_graphQLVariablesJSON">
+            <simple>{{escape (property 'variablesJSON')}}</simple>
+        </setProperty>
+        <process ref="graphQLVariablesProcessor" />
+    {{/if-property}}
+
+    <doTry>
+        {{#if-property 'propagateContext' equals='true'}}
+            {{#if-property 'overrideContextParams' presented=''}}
+                <setProperty name="internalProperty_overrideContextParams">
+                    <simple>{{escape (property-json 'overrideContextParams')}}</simple>
+                </setProperty>
+            {{/if-property}}
+
+            <process ref="contextPropagationProcessor"/>
+        {{/if-property}}
+
+        {{#if-property 'isExternalCall' not-equals='false'}}
+            <toD uri="graphql-custom:{{gatewayProtocol}}://{{gatewayUrl}}{{routeVariable}}{{escape (extractPathAndQuery (property 'uri'))}}{{escape (query)}}&amp;httpClientConfigurer=#{{identifier}}"/>
+        {{/if-property}}
+
+        {{#if-property 'isExternalCall' equals='false'}}
+            <toD uri="graphql-custom:{{property 'uri'}}{{escape (query)}}&amp;httpClientConfigurer=#{{identifier}}"/>
+        {{/if-property}}
+
+        <doCatch>
+            <exception>java.lang.Exception</exception>
+
+            <choice>
+                <when>
+                    <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+
+                    <setHeader name="CamelHttpResponseCode">
+                        <simple>${exchangeProperty.CamelExceptionCaught.statusCode}</simple>
+                    </setHeader>
+                    <process ref="setCaughtHttpExceptionContextProcessor"/>
+                </when>
+            </choice>
+
+            <process ref="throwCaughtExceptionProcessor" />
+        </doCatch>
+        <doFinally>
+            <removeProperty name="internalProperty_overrideContextParams"/>
+            <process ref="contextRestoreProcessor"/>
+            {{#if-property 'm2m' equals='true'}}
+                <process ref="securityRestoreProcessor"/>
+            {{/if-property}}
+        </doFinally>
+    </doTry>
+
+    <removeHeader name="CamelGraphQLQuery"/>
+    <removeHeader name="CamelGraphQLVariables"/>
+
+    {{#if-property 'correlationIdName' presented=''}}
+        <process ref="correlationIdReceiverProcessor" />
+    {{/if-property}}
+</step>

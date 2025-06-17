@@ -1,0 +1,45 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: chain-call
+title: Chain Call (deprecated)
+folder: deprecated
+inputEnabled: true
+outputEnabled: true
+container: false
+deprecated: true # TODO deprecated since 22.2
+designParameters:
+  externalParticipantId: '##{elementName}'
+  externalParticipantName: 'QIP chain: ##{chainName}'
+  requestLineTitle: 'QIP chain call'
+  directionToChain: false
+  hasResponse: true
+properties:
+  common:
+    - name: elementName
+      title: Chain name
+      type: custom
+      mandatory: false
+      uiComponent: chain-call
+      validation:
+        allOf: ['elementName']
+  advanced:
+    - name: timeout
+      title: Timeout (ms)
+      type: number
+      query: true
+  hidden:
+    - name: chainName
+      type: string
+      mandatory: true

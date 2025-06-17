@@ -28,6 +28,7 @@ import org.springframework.boot.autoconfigure.orm.jpa.JpaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -40,7 +41,8 @@ import java.util.Properties;
 import javax.sql.DataSource;
 
 @AutoConfiguration
-@EnableConfigurationProperties(HikariConfigProperties.class)
+@EnableJpaAuditing
+@EnableConfigurationProperties({JpaProperties.class, HikariConfigProperties.class})
 @EnableJpaRepositories(
         basePackages = {
                 "org.qubership.integration.platform.catalog.persistence.configs.repository",

@@ -18,9 +18,9 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.queue.CircularFifoQueue;
-import org.qubership.integration.platform.catalog.model.deployment.engine.EngineDeployment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.events.EngineStateUpdateEvent;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.event.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentMapper;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.EngineMapper;

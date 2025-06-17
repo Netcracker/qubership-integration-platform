@@ -18,11 +18,11 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedIntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecification;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationSource;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

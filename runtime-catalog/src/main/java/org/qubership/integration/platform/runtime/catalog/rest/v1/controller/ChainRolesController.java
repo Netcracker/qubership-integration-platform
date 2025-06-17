@@ -20,7 +20,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElementSearchCriteria;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElementSearchCriteria;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRolesResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.UpdateRolesRequest;
 import org.qubership.integration.platform.runtime.catalog.service.ChainRolesService;

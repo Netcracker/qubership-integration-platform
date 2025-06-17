@@ -18,10 +18,12 @@ package org.qubership.integration.platform.runtime.catalog.scheduler;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.catalog.consul.ConsulService;
-import org.qubership.integration.platform.catalog.consul.exception.KVNotFoundException;
-import org.qubership.integration.platform.catalog.model.deployment.engine.EngineState;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
+import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
+import org.qubership.integration.platform.runtime.catalog.consul.exception.KVNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineState;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.properties.DeploymentRuntimeProperties;
+import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
+import org.qubership.integration.platform.runtime.catalog.service.ChainRuntimePropertiesService;
 import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +34,9 @@ import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.net.SocketTimeoutException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -41,6 +45,7 @@ public class TasksScheduler {
     private final ConsulService consulService;
     private final RuntimeDeploymentService runtimeDeploymentService;
     private final ActionsLogService actionsLogService;
+    private final ChainRuntimePropertiesService chainRuntimePropertiesService;
 
     @Value("${qip.actions-log.cleanup.interval}")
     private String actionLogInterval;
@@ -48,10 +53,12 @@ public class TasksScheduler {
     @Autowired
     public TasksScheduler(ConsulService consulService,
                           RuntimeDeploymentService runtimeDeploymentService,
-                          ActionsLogService actionsLogService) {
+                          ActionsLogService actionsLogService,
+                          ChainRuntimePropertiesService chainRuntimePropertiesService) {
         this.consulService = consulService;
         this.runtimeDeploymentService = runtimeDeploymentService;
         this.actionsLogService = actionsLogService;
+        this.chainRuntimePropertiesService = chainRuntimePropertiesService;
     }
 
     @Scheduled(cron = "${qip.actions-log.cleanup.cron}")
@@ -98,6 +105,22 @@ public class TasksScheduler {
             }
         } catch (KVNotFoundException kvnfe) {
             log.debug("Deployments update KV is empty. {}", kvnfe.getMessage());
+        }
+    }
+
+    @Scheduled(fixedDelay = 1000)
+    public void checkRuntimeDeploymentProperties() {
+        try {
+            Pair<Boolean, Map<String, DeploymentRuntimeProperties>> response = consulService.waitForChainRuntimeConfig();
+            if (response.getLeft()) { // changes detected
+                chainRuntimePropertiesService.updateCache(response.getRight());
+            }
+        } catch (KVNotFoundException kvnfe) {
+            log.debug("Runtime deployments properties KV is empty. {}", kvnfe.getMessage());
+            chainRuntimePropertiesService.updateCache(Collections.emptyMap());
+        } catch (Exception e) {
+            log.error("Failed to get runtime deployments properties from consul", e);
+            consulService.rollbackChainsRuntimeConfigLastIndex();
         }
     }
 }

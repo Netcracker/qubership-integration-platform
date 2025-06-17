@@ -19,11 +19,11 @@ package org.qubership.integration.platform.runtime.catalog.builder.templates.hel
 import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.catalog.model.library.ElementProperty;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
+import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
+import org.qubership.integration.platform.runtime.catalog.model.library.ElementProperty;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -79,7 +79,7 @@ public class QueryParamsHelper extends BaseHelper implements Helper<ChainElement
     }
 
     private void setPropertyValue(StringBuilder str, ElementProperty property, String value) {
-        if (str.length() == 0) {
+        if (str.isEmpty()) {
             str.append("?");
         } else {
             str.append("&");

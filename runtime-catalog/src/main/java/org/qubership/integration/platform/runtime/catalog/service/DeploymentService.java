@@ -23,44 +23,39 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.catalog.model.ElementRoute;
-import org.qubership.integration.platform.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.catalog.model.deployment.RouteType;
-import org.qubership.integration.platform.catalog.model.deployment.engine.EngineDeploymentsDTO;
-import org.qubership.integration.platform.catalog.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.catalog.model.system.IntegrationSystemType;
-import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.DeploymentRoute;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Environment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ElementRepository;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.catalog.util.ElementUtils;
-import org.qubership.integration.platform.catalog.util.HashUtils;
-import org.qubership.integration.platform.catalog.util.SimpleHttpUriUtils;
-import org.qubership.integration.platform.catalog.util.TriggerUtils;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.DeploymentModification;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
+import org.qubership.integration.platform.runtime.catalog.model.ElementRoute;
 import org.qubership.integration.platform.runtime.catalog.model.MultiConsumer;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentsUpdate;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.DeploymentRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.event.GenericMessageType;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.DeploymentBuilderService;
-import org.qubership.integration.platform.runtime.catalog.util.SQLUtils;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.qubership.integration.platform.runtime.catalog.util.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
@@ -78,8 +73,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.catalog.model.constant.CamelNames.*;
-import static org.qubership.integration.platform.catalog.util.TriggerUtils.*;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
+import static org.qubership.integration.platform.runtime.catalog.util.TriggerUtils.*;
 
 @Slf4j
 @Service
@@ -90,10 +85,9 @@ public class DeploymentService {
     private final DeploymentRepository deploymentRepository;
     private final ElementRepository elementRepository;
 
-    private final ChainService chainService;
+    private final ChainFinderService chainFinderService;
     private final SystemService systemService;
     private final SnapshotService snapshotService;
-    private final LibraryElementsService libraryElementsService;
     private final ActionsLogService actionLogger;
     private final DeploymentBuilderService deploymentBuilderService;
     private final TransactionHandler transactionHandler;
@@ -137,19 +131,17 @@ public class DeploymentService {
     @Autowired
     public DeploymentService(DeploymentRepository deploymentRepository,
                              ElementRepository elementRepository,
-                             ChainService chainService,
+                             ChainFinderService chainFinderService,
                              SystemService systemService,
                              SnapshotService snapshotService,
-                             LibraryElementsService libraryElementsService,
                              ActionsLogService actionLogger,
                              DeploymentBuilderService deploymentBuilderService,
                              TransactionHandler transactionHandler) {
         this.deploymentRepository = deploymentRepository;
         this.elementRepository = elementRepository;
-        this.chainService = chainService;
+        this.chainFinderService = chainFinderService;
         this.systemService = systemService;
         this.snapshotService = snapshotService;
-        this.libraryElementsService = libraryElementsService;
         this.actionLogger = actionLogger;
         this.deploymentBuilderService = deploymentBuilderService;
         this.transactionHandler = transactionHandler;
@@ -205,12 +197,12 @@ public class DeploymentService {
 
     @DeploymentModification
     public Deployment create(Deployment deployment, String chainId, Snapshot snapshot) {
-        return create(deployment, chainService.findById(chainId), snapshot, null);
+        return create(deployment, chainFinderService.findById(chainId), snapshot, null);
     }
 
     @DeploymentModification
     public Deployment create(Deployment deployment, String chainId, String snapshotId) {
-        return create(deployment, chainService.findById(chainId), snapshotService.findById(snapshotId), null);
+        return create(deployment, chainFinderService.findById(chainId), snapshotService.findById(snapshotId), null);
     }
 
     @DeploymentModification
@@ -238,8 +230,8 @@ public class DeploymentService {
         List<BulkDeploymentResponse> statuses = new ArrayList<>();
 
         final Map<String, Chain> chains = (CollectionUtils.isEmpty(request.getChainIds())
-                ? chainService.findAll()
-                : chainService.findAllById(request.getChainIds())).stream()
+                ? chainFinderService.findAll()
+                : chainFinderService.findAllById(request.getChainIds())).stream()
                     .filter(chain -> {
                         if (chain.getOverriddenByChainId() != null) {
                             statuses.add(BulkDeploymentResponse.builder()

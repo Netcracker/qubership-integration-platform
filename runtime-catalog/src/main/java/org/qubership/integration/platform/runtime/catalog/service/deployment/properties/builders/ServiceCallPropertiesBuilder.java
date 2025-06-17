@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
-import org.qubership.integration.platform.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
 import org.springframework.stereotype.Component;
 
@@ -25,8 +25,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.catalog.consul.ConfigurationPropertiesConstants.SERVICE_CALL_RETRY_COUNT;
-import static org.qubership.integration.platform.catalog.consul.ConfigurationPropertiesConstants.SERVICE_CALL_RETRY_DELAY;
+import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.SERVICE_CALL_RETRY_COUNT;
+import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.SERVICE_CALL_RETRY_DELAY;
 
 @Component
 public class ServiceCallPropertiesBuilder implements ElementPropertiesBuilder {

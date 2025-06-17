@@ -19,27 +19,28 @@ package org.qubership.integration.platform.runtime.catalog.service.deployment;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
-import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.catalog.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.catalog.model.library.ElementType;
-import org.qubership.integration.platform.catalog.model.system.IntegrationSystemType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.MaskedField;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.Environment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.catalog.util.ElementUtils;
 import org.qubership.integration.platform.runtime.catalog.builder.BuilderConstants;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentConfiguration;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.ElementProperties;
+import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
+import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.MaskedField;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentRouteMapper;
 import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilderFactory;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
+import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -50,9 +51,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.catalog.consul.ConfigurationPropertiesConstants.*;
-import static org.qubership.integration.platform.catalog.model.constant.CamelNames.CHECKPOINT;
-import static org.qubership.integration.platform.catalog.model.constant.CamelNames.SCHEDULER;
+import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CHECKPOINT;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.SCHEDULER;
 
 @Slf4j
 @Component
@@ -63,7 +64,7 @@ public class DeploymentBuilderService {
     private static final Pattern DEPLOYMENT_ID_PLACEHOLDER_PATTERN = Pattern.compile("%%\\{deployment-id-placeholder}");
     private static final String DOMAIN_PLACEHOLDER = "%%{domain-placeholder}";
 
-    private final ChainService chainService;
+    private final ChainFinderService chainFinderService;
     private final SnapshotService snapshotService;
     private final ElementUtils elementUtils;
     private final ElementPropertiesBuilderFactory elementPropertiesBuilderFactory;
@@ -74,7 +75,7 @@ public class DeploymentBuilderService {
 
     @Autowired
     public DeploymentBuilderService(
-            @Lazy ChainService chainService,
+            ChainFinderService chainFinderService,
             @Lazy SnapshotService snapshotService,
             ElementUtils elementUtils,
             ElementPropertiesBuilderFactory elementPropertiesBuilderFactory,
@@ -82,7 +83,7 @@ public class DeploymentBuilderService {
             DeploymentRouteMapper deploymentRouteMapper,
             SystemService systemService,
             EnvironmentService environmentService) {
-        this.chainService = chainService;
+        this.chainFinderService = chainFinderService;
         this.snapshotService = snapshotService;
         this.elementUtils = elementUtils;
         this.elementPropertiesBuilderFactory = elementPropertiesBuilderFactory;
@@ -95,7 +96,7 @@ public class DeploymentBuilderService {
     public List<DeploymentUpdate> buildDeploymentsUpdate(List<Deployment> deployments) {
         List<DeploymentUpdate> result = new ArrayList<>();
         for (Deployment deployment : deployments) {
-            Chain chain = chainService.findById(deployment.getChain().getId());
+            Chain chain = chainFinderService.findById(deployment.getChain().getId());
             Snapshot snapshot = snapshotService.findById(deployment.getSnapshot().getId());
 
             DeploymentConfiguration config = createUpdateDeploymentConfiguration(deployment);
@@ -145,8 +146,8 @@ public class DeploymentBuilderService {
                         && Optional.ofNullable(libraryService.getElementDescriptor(item.getType()))
                                 .map(ElementDescriptor::getType)
                                 .map(type -> ElementType.REUSE != type
-                                        && ElementType.REUSE_REFERENCE != type
-                                        && ElementType.SWIMLANE != type)
+                                             && ElementType.REUSE_REFERENCE != type
+                                             && ElementType.SWIMLANE != type)
                                 .orElse(true))
                 .collect(Collectors.toList());
         filteredElements = elementUtils.splitCompositeTriggers(filteredElements);

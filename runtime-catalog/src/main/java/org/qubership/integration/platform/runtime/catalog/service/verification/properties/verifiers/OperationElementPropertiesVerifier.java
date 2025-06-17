@@ -17,20 +17,21 @@
 package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
 
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.catalog.model.constant.CamelNames.MAAS_CLASSIFIER_NAME_PROP;
-import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.DEFAULT_VHOST_CLASSIFIER_NAME;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.MAAS_CLASSIFIER_NAME_PROP;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.DEFAULT_VHOST_CLASSIFIER_NAME;
+
 
 @Component
 public class OperationElementPropertiesVerifier implements ElementPropertiesVerifier {
@@ -38,7 +39,7 @@ public class OperationElementPropertiesVerifier implements ElementPropertiesVeri
     public boolean applicableTo(ChainElement element) {
         String type = element.getType();
         return CamelNames.ASYNC_API_TRIGGER_COMPONENT.equals(type)
-                || CamelNames.SERVICE_CALL_COMPONENT.equals(type);
+               || CamelNames.SERVICE_CALL_COMPONENT.equals(type);
     }
 
     @Override

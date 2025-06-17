@@ -25,8 +25,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
-import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.BaseExternalEntity;
+import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
 
 import java.util.ArrayList;
 import java.util.HashMap;

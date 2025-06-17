@@ -1,0 +1,23 @@
+---
+id: "af44d2de-7b9e-406e-a277-3784191864d5"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707378039059
+elements:
+  - id: "41cb70d0-d3c3-4256-ad10-22ad17b40efd"
+    name: "Choice (deprecated)"
+    element-type: "reuse"
+    children:
+      - id: "25ad1533-a293-4e12-b7b9-e08fcd73ce96"
+        name: "Choice (deprecated)"
+        element-type: "condition"
+        children:
+          - id: "41cb70d0-d3c3-4256-ad10-22ad17b40efd"
+            name: "When"
+            element-type: "if"
+            properties:
+              condition: "${exchangeProperty.valid} == 'true'"
+              priority: 0
+          - id: "41cb70d0-d3c3-4256-ad10-22ad17b40efd"
+            name: "Otherwise"
+            element-type: "else"

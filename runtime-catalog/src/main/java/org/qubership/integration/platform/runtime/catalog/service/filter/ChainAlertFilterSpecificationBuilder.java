@@ -17,8 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.filter;
 
 import jakarta.persistence.criteria.*;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
-import org.qubership.integration.platform.catalog.service.filter.FilterConditionPredicateBuilderFactory;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;

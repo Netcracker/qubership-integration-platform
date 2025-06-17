@@ -17,13 +17,16 @@
 package org.qubership.integration.platform.runtime.catalog;
 
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class RuntimeCatalogApplicationRunner {
 
     public static void main(String[] args) {
-        SpringApplication.run(RuntimeCatalogApplicationRunner.class, args);
+        SpringApplication app = new SpringApplication(RuntimeCatalogApplicationRunner.class);
+        app.setWebApplicationType(WebApplicationType.SERVLET);
+        app.run(args);
     }
 
 }

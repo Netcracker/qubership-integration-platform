@@ -19,7 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.validatio
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
-import org.qubership.integration.platform.catalog.model.dto.deployment.DeploymentResponse;
+import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
 
 @Data
 @Builder

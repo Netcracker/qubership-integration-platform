@@ -1,0 +1,49 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: checkpoint
+title: Checkpoint
+type: composite-trigger
+folder: composite-triggers
+colorType: composite-trigger
+inputEnabled: true
+inputQuantity: one
+outputEnabled: true
+container: false
+properties:
+  common:
+    - name: checkpointEndpoint
+      title: Checkpoint Endpoint
+      type: custom
+      uiComponent: checkpoint-endpoint
+  hidden:
+    - name: contextPath
+      title: URI template
+      type: string
+      default: '/chains/%%{chain-id-placeholder}/sessions/{checkpointSessionId}/checkpoint-elements/%%{created-element-id-placeholder}/retry'
+      resetValueOnCopy: true
+    - name: httpMethodRestrict
+      type: string
+      query: true
+      default: POST
+    - name: externalRoute
+      title: External route
+      description: If checked - HTTP trigger will be 'external' (public), otherwise 'internal'. In internal mode trigger will be available only inside k8s network
+      type: boolean
+      default: false
+    - name: checkpointElementId
+      title: Element Id
+      type: string
+      resetValueOnCopy: true
+      default: '%%{created-element-id-placeholder}'

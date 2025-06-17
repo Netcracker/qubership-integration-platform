@@ -35,6 +35,7 @@ public class ChainImportDTO extends ImportEntityDTO {
     private String assumptions;
     private String outOfScope;
 
+    private final boolean maskingEnabled;
     private final Set<MaskedFieldImportDTO> maskedFields;
     @JsonProperty("default-swimlane-id")
     private final String defaultSwimlaneId;
@@ -43,6 +44,10 @@ public class ChainImportDTO extends ImportEntityDTO {
     private final List<ChainElementImportDTO> elements;
     private final List<DependencyImportDTO> dependencies;
     private final FolderImportDTO folder;
+
+    public boolean isMaskingEnabled() {
+        return maskingEnabled;
+    }
 
     public Set<MaskedFieldImportDTO> getMaskedFields() {
         return maskedFields != null ? maskedFields : new HashSet<>();

@@ -1,0 +1,78 @@
+---
+id: "fda9842a-f505-4c39-954f-8bf96b259b0e"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707134693046
+elements:
+  - id: "74742b9b-8acf-4dbf-a067-296cafab0ebc"
+    name: "Choice"
+    description: "Choice description"
+    element-type: "condition"
+    children:
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "When#2"
+        description: "When#2 description"
+        element-type: "if"
+        properties:
+          condition: "${exchangeProperty.size} > 0"
+          priority: 2
+        children:
+          - id: "cb22d1de-c31b-480c-940b-53311547d1d1"
+            name: "When#2 Script"
+            description: "When#2 Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "When#0"
+        description: "When#0 description"
+        element-type: "if"
+        properties:
+          condition: "${exchangeProperty.hasItem} == 'true'"
+          priority: 0
+        children:
+          - id: "551b4915-be2d-48ee-a45e-e2914c6de1be"
+            name: "When#0 Script"
+            description: "When#0 Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Otherwise"
+        description: "Otherwise description"
+        element-type: "else"
+        children:
+          - id: "6a99cbf9-5d70-484d-abcd-a70b3fec22a5"
+            name: "Otherwise Script"
+            description: "Otherwise Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "When#1"
+        description: "When#1 description"
+        element-type: "if"
+        properties:
+          condition: "${exchangeProperty.valid} == 'true'"
+          priority: 1
+        children:
+          - id: "d9736de9-784d-4948-a74a-5685c5ecd6a9"
+            name: "When#1 Script"
+            description: "When#1 Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+  - id: "ceb608c4-3129-408a-a330-ff7cd8aff4f3"
+    name: "Choice Script"
+    description: "Choice Script description"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "74742b9b-8acf-4dbf-a067-296cafab0ebc"
+    to: "ceb608c4-3129-408a-a330-ff7cd8aff4f3"

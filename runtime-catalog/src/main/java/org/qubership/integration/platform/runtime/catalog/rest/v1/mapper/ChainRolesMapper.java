@@ -19,12 +19,12 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.NullValuePropertyMappingStrategy;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.util.MapperUtils;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRolesDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.DeploymentRequest;
+import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 
 import java.util.List;
 

@@ -20,7 +20,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
-import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
+import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,6 +42,8 @@ public class ChainElementImportDTO extends ImportEntityDTO {
     private final String originalId;
     @JsonProperty("service-environment")
     private final ServiceEnvironment serviceEnvironment;
+    @JsonProperty("just-created")
+    private final boolean justCreated;
     @JsonProperty("properties-filename")
     private final String propertiesFilename;
 
@@ -67,6 +69,10 @@ public class ChainElementImportDTO extends ImportEntityDTO {
 
     public ServiceEnvironment getServiceEnvironment() {
         return serviceEnvironment;
+    }
+
+    public boolean isJustCreated() {
+        return justCreated;
     }
 
     public String getPropertiesFilename() {

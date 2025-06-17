@@ -19,8 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.DeploymentExternalEntity;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
 

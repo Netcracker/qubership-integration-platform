@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.configuration.aspect;
 
-import org.qubership.integration.platform.catalog.persistence.TransactionHandler;
+import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

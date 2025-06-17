@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.builder.templates.helpers;
 
-import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
-import org.qubership.integration.platform.catalog.util.SimpleHttpUriUtils;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
+import org.qubership.integration.platform.runtime.catalog.util.SimpleHttpUriUtils;
 
 @TemplatesHelper
 public class UriHelper extends BaseHelper {

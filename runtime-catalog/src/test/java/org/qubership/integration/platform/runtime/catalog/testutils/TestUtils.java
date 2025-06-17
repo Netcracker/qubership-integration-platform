@@ -19,6 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.testutils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.apache.commons.io.IOUtils;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 
 import java.io.File;
 import java.io.IOException;
@@ -48,5 +50,12 @@ public class TestUtils {
         return new File(
                 Objects.requireNonNull(TestUtils.class.getResource(filePath), "The following file must not be null: " + filePath).toURI()
         );
+    }
+
+    public static ChainElement findElementInChain(Chain chain, String elementType) {
+        return chain.getElements().stream()
+                .filter(element -> elementType.equals(element.getType()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Element " + elementType + " mot found in test data"));
     }
 }

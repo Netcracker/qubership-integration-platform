@@ -21,24 +21,24 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
-import org.qubership.integration.platform.catalog.mapping.UserMapper;
-import org.qubership.integration.platform.catalog.model.deployment.engine.ChainRuntimeDeployment;
-import org.qubership.integration.platform.catalog.model.deployment.engine.EngineDeployment;
-import org.qubership.integration.platform.catalog.model.deployment.engine.EngineInfo;
-import org.qubership.integration.platform.catalog.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.catalog.model.dto.deployment.DeploymentResponse;
-import org.qubership.integration.platform.catalog.model.dto.deployment.RuntimeDeploymentState;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractEntity;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
-import org.qubership.integration.platform.catalog.util.MapperUtils;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.ChainRuntimeDeployment;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeployment;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineInfo;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
+import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.RuntimeDeploymentState;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.UserMapper;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.DeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.EngineDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.RuntimeDeploymentUpdate;
-import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Collection;
@@ -58,7 +58,7 @@ public abstract class DeploymentMapper {
     @Autowired
     private SnapshotService snapshotService;
     @Autowired
-    private ChainService chainService;
+    private ChainFinderService chainFinderService;
 
     @Mapping(source = "snapshot.id", target = "snapshotId")
     @Mapping(source = "chain.id", target = "chainId")
@@ -87,7 +87,6 @@ public abstract class DeploymentMapper {
     @Mapping(source = "errorMessage", target = "error")
     public abstract RuntimeDeploymentState toDTO(EngineDeployment state);
 
-
     @Mapping(source = "deployment.deploymentInfo.deploymentId", target = "id")
     @Mapping(source = "deployment.deploymentInfo.chainId", target = "chainId")
     @Mapping(source = "deployment.deploymentInfo.chainName", target = "chainName")
@@ -112,7 +111,7 @@ public abstract class DeploymentMapper {
 
     public EngineDeploymentResponse asEngineDeployment(EngineDeployment deployment) {
         DeploymentInfo deploymentInfo = deployment.getDeploymentInfo();
-        String chainName = chainService.tryFindById(deploymentInfo.getChainId())
+        String chainName = chainFinderService.tryFindById(deploymentInfo.getChainId())
                 .map(AbstractEntity::getName).orElse(null);
         String snapshotName = snapshotService.tryFindById(deploymentInfo.getSnapshotId())
                 .map(AbstractEntity::getName).orElse(null);

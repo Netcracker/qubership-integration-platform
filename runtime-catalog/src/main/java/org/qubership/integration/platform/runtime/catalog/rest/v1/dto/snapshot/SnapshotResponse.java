@@ -21,7 +21,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import org.qubership.integration.platform.catalog.model.dto.BaseResponse;
+import org.qubership.integration.platform.runtime.catalog.model.dto.BaseResponse;
 
 import java.util.List;
 

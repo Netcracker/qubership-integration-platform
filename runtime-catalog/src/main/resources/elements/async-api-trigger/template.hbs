@@ -1,0 +1,48 @@
+{{#if-property (requestFilterHeaderAllowlistName) presented=''}}
+    <setProperty name="internalProperty_{{requestFilterHeaderAllowlistName}}">
+        <constant>{{escape (property-json (requestFilterHeaderAllowlistName))}}</constant>
+    </setProperty>
+{{/if-property}}
+{{#if-property 'integrationOperationProtocolType' equals='amqp'}}
+    <from uri="rabbitmq-custom:{{escape (property 'integrationOperationPath')}}{{escape
+            (manualQuery
+                    addresses=(integrationEndpoint)
+                    jsonQueryParameters=(asyncPropertiesJson)
+                    exchangePattern='InOnly'
+                    autoDeclare='false'
+                    maximumRetryAttempts='1'
+                    metricsCollector=(identifier prefix='#'))}}"/>
+    {{#if-property (requestFilterHeaderAllowlistName) presented=''}}
+        <process ref="requestFilterProcessor"/>
+    {{/if-property}}
+    <setProperty name="internalProperty_asyncValidationSchema">
+        <constant>{{property 'asyncValidationSchema'}}</constant>
+    </setProperty>
+    <setProperty name="internalProperty_acknowledgeMode">
+        <constant>{{subProperty 'integrationOperationAsyncProperties' 'acknowledgeMode'}}</constant>
+    </setProperty>
+    <step id="{{identifier}}">
+        <process ref="rabbitMqTriggerProcessor"/>
+        {{> idempotency}}
+    </step>
+{{/if-property}}
+
+{{#if-property 'integrationOperationProtocolType' equals='kafka'}}
+    <from uri="kafka-custom:{{escape (property 'integrationOperationPath')}}{{escape
+            (manualQuery
+                    brokers=(integrationEndpoint)
+                    jsonQueryParameters=(asyncPropertiesJson)
+                    headerDeserializer='#kafkaHeaderStringDeserializer'
+                    reconnectBackoffMaxMs=(property 'reconnectDelay')
+                    kafkaClientFactory=(identifier prefix='#' suffix='-v2'))}}"/>
+    {{#if-property (requestFilterHeaderAllowlistName) presented=''}}
+        <process ref="requestFilterProcessor"/>
+    {{/if-property}}
+    <setProperty name="internalProperty_asyncValidationSchema">
+        <constant>{{property 'asyncValidationSchema'}}</constant>
+    </setProperty>
+    <step id="{{identifier}}">
+        <process ref="kafkaTriggerProcessor"/>
+        {{> idempotency}}
+    </step>
+{{/if-property}}

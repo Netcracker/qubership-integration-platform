@@ -1,0 +1,9 @@
+{{#if (identifier)}}<step id="{{identifier}}">{{/if}}
+    <setProperty name='internalProperty_mappingConfig'>
+        <constant>
+            {{cdata (property-json 'mapping')}}
+        </constant>
+    </setProperty>
+    <process ref='mapperProcessor'/>
+    <removeProperty name='internalProperty_mappingConfig'/>
+{{#if (identifier)}}</step>{{/if}}

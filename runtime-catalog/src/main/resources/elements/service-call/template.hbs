@@ -1,0 +1,576 @@
+{{#if-property 'correlationIdPosition' presented=''}}
+    <setProperty name="correlationIdPosition">
+        <constant>{{property 'correlationIdPosition'}}</constant>
+    </setProperty>
+{{/if-property}}
+{{#if-property 'correlationIdName' presented=''}}
+    <setProperty name="correlationIdName">
+        <constant>{{property 'correlationIdName'}}</constant>
+    </setProperty>
+
+    <process ref="correlationIdPropagationProcessor" />
+{{/if-property}}
+
+<step id="{{identifier}}">
+    {{#if-property 'integrationOperationProtocolType' equals='http'}}
+        <setProperty name="serviceCallAddress">
+            <simple>{{integrationAddress}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallUrl">
+            <simple>{{integrationAddress}}{{escape (integeratePathAndQueryParams)}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallPath">
+            <simple>{{property "integrationOperationPath"}}</simple>
+        </setProperty>
+
+        {{#each (property 'integrationOperationQueryParameters' raw='')}}
+            <setProperty name="serviceCallQueryParameter_{{@key}}">
+                <simple>{{this}}</simple>
+            </setProperty>
+        {{/each}}
+
+        {{#each (property 'integrationOperationPathParameters' raw='')}}
+            <setProperty name="serviceCallPathParameter_{{@key}}">
+                <simple>{{this}}</simple>
+            </setProperty>
+        {{/each}}
+
+        {{#each (environmentProperties)}}
+            <setProperty name="serviceCallParameter_{{@key}}">
+                <simple>{{this}}</simple>
+            </setProperty>
+        {{/each}}
+    {{/if-property}}
+
+    {{#if-property 'integrationOperationProtocolType' equals='kafka'}}
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallTopic">
+            <simple>{{property 'integrationOperationPath'}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallBrokers">
+            <simple>{{integrationEndpoint}}</simple>
+        </setProperty>
+
+        {{#each (asyncProperties)}}
+            <setProperty name="serviceCallParameter_{{@key}}">
+                <simple>{{this}}</simple>
+            </setProperty>
+        {{/each}}
+    {{/if-property}}
+
+    {{#if-property 'integrationOperationProtocolType' equals='amqp'}}
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallExchange">
+            <simple>{{property 'integrationOperationPath'}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallAddress">
+            <simple>{{integrationAddress}}</simple>
+        </setProperty>
+
+        {{#each (asyncProperties)}}
+            <setProperty name="serviceCallParameter_{{@key}}">
+                <simple>{{this}}</simple>
+            </setProperty>
+        {{/each}}
+    {{/if-property}}
+
+    {{#if-property 'integrationOperationProtocolType' equals='grpc'}}
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallService">
+            <simple>{{property 'integrationOperationPath'}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallAddress">
+            <simple>{{integrationEndpoint}}</simple>
+        </setProperty>
+
+        {{#each (grpcProperties)}}
+            <setProperty name="serviceCallParameter_{{@key}}">
+                <simple>{{this}}</simple>
+            </setProperty>
+        {{/each}}
+    {{/if-property}}
+
+    {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
+        <setProperty name="serviceCallAddress">
+            <simple>{{integrationAddress}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallMethod">
+            <simple>{{property "integrationOperationMethod"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallPath">
+            <simple>{{property "integrationOperationPath"}}</simple>
+        </setProperty>
+        <setProperty name="serviceCallVariablesHeader">
+            <simple>{{property 'integrationGqlVariablesHeader'}}</simple>
+        </setProperty>
+
+        {{#each (property 'integrationOperationQueryParameters' raw='')}}
+            <setProperty name="serviceCallQueryParameter_{{@key}}">
+                <simple>{{this}}</simple>
+            </setProperty>
+        {{/each}}
+
+        {{#each (environmentProperties)}}
+            <setProperty name="serviceCallParameter_{{@key}}">
+                <simple>{{this}}</simple>
+            </setProperty>
+        {{/each}}
+    {{/if-property}}
+
+    <removeHeader name="CamelHttpQuery"/>
+    {{#if-property 'before' presented=''}}
+        <step id="Prepare request--{{identifier}}">
+            {{#with-property 'before'}}
+                {{#if-property 'type' equals='script'}}
+                    {{> script}}
+                {{/if-property}}
+                {{#if-property 'type' equals='mapper'}}
+                    {{> mapper}}
+                {{/if-property}}
+                {{#if-property 'type' equals='mapper-2'}}
+                    {{> mapper-2}}
+                {{/if-property}}
+            {{/with-property}}
+        </step>
+    {{/if-property}}
+
+    {{#if-property 'bodyMimeType' presented=''}}
+        <step id="Building body--{{identifier}}">
+        {{#if-property 'bodyMimeType' equals='None'}}
+            <setBody>
+                <simple>${null}</simple>
+            </setBody>
+        {{/if-property}}
+        {{#if-property 'bodyMimeType' not-equals='None'}}
+            <setProperty name="internalProperty_bodyMimeType">
+                <constant>{{property 'bodyMimeType'}}</constant>
+            </setProperty>
+            <setProperty name="internalProperty_bodyFormData">
+                <constant resultType="org.qubership.integration.platform.engine.forms.FormData">{{escape (property-json 'bodyFormData')}}</constant>
+            </setProperty>
+            <process ref="formBuilderProcessor"/>
+        {{/if-property}}
+        </step>
+    {{/if-property}}
+
+    {{#if-property 'authorizationConfiguration' presented=''}}
+        <step id="Authorization--{{identifier}}">
+        {{#with-property 'authorizationConfiguration'}}
+            {{#if-property 'type' equals='none'}}
+                <removeHeader name="Authorization"/>
+            {{/if-property}}
+            {{#if-property 'type' equals='basic'}}
+                {{#with-property 'data'}}
+                    <setProperty name="internalProperty_basicAuthString">
+                        <simple>{{property 'username'}}:{{property 'password'}}</simple>
+                    </setProperty>
+                    <setHeader name="Authorization">
+                        <groovy>'Basic ' + exchange.getProperty('internalProperty_basicAuthString', String.class).bytes.encodeBase64().toString()</groovy>
+                    </setHeader>
+                    <removeProperty name="internalProperty_basicAuthString"/>
+                {{/with-property}}
+            {{/if-property}}
+            {{#if-property 'type' equals='bearer'}}
+                {{#with-property 'data'}}
+                    <setHeader name="Authorization">
+                        <simple>Bearer {{property 'token'}}</simple>
+                    </setHeader>
+                {{/with-property}}
+            {{/if-property}}
+            {{#if-property 'type' equals='m2m'}}
+                <process ref="securityProcessor"/>
+            {{/if-property}}
+        {{/with-property}}
+        </step>
+    {{/if-property}}
+
+    {{#if-property 'integrationOperationProtocolType' in='http,graphql'}}
+        <setHeader name="CamelHttpUri">
+        {{#if-property 'systemType' equals='EXTERNAL'}}
+            <simple> {{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{escape (integeratePathAndQueryParams)}} </simple>
+        {{/if-property}}
+        {{#if-property 'systemType' not-equals='EXTERNAL'}}
+            <simple> {{integrationAddress}}{{escape (integeratePathAndQueryParams)}} </simple>
+        {{/if-property}}
+        </setHeader>
+    {{/if-property}}
+
+    <removeHeader name="CamelHttpResponseCode"/>
+    <setHeader name="CamelHttpMethod">
+        <constant> {{property 'integrationOperationMethod'}} </constant>
+    </setHeader>
+
+    {{#if-property 'propagateContext' equals='true'}}
+        {{#if-property 'overrideContextParams' presented=''}}
+            <step id="Context Override--{{identifier}}">
+                <setProperty name="internalProperty_overrideContextParams">
+                    <simple>{{escape (property-json 'overrideContextParams')}}</simple>
+                </setProperty>
+
+                <process ref="contextPropagationProcessor"/>
+            </step>
+        {{/if-property}}
+
+        {{#if-property 'overrideContextParams' not-presented=''}}
+            <process ref="contextPropagationProcessor"/>
+        {{/if-property}}
+    {{/if-property}}
+
+    <setProperty name="internalProperty_serviceCall_{{identifier}}_Retry"><constant>true</constant></setProperty>
+    <setProperty name="internalProperty_serviceCall_{{identifier}}_Iterator"><constant>0</constant></setProperty>
+    <loop doWhile="true">
+        <simple>${exchangeProperty[internalProperty_serviceCall_{{identifier}}_Retry]}</simple>
+
+        <step id="Request attempt--{{identifier}}">
+            <choice>
+                <when>
+                    <simple>${exchangeProperty[internalProperty_retryAwait]}</simple>
+
+                    <delay>
+                        <simple>{{property 'retryDelay'}}</simple>
+                    </delay>
+                </when>
+            </choice>
+
+            <setProperty name="internalProperty_serviceCall_{{identifier}}_Retry"><constant>false</constant></setProperty>
+            <doTry id="Request--{{identifier}}">
+
+                {{#if-property 'integrationOperationProtocolType' equals='http'}}
+                    <process ref="httpSenderProcessor"/>
+                    <process ref="httpProducerCharsetProcessor"/>
+                    <toD uri="http:stub{{escape (manualQuery
+                                                        jsonQueryParameters=(environmentPropertiesJson)
+                                                        httpClientConfigurer=(identifier prefix='#'))}}&amp;followRedirects=true" allowOptimisedComponents="false"/>
+                {{/if-property}}
+
+                {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
+                    <setHeader name="CamelGraphQLQuery">
+                        <simple>{{escape (property 'integrationGqlQuery')}}</simple>
+                    </setHeader>
+
+                    {{#if-property 'integrationGqlVariablesJSON' presented=''}}
+                        <setProperty name="internalProperty_graphQLVariablesJSON">
+                            <simple>{{escape (property 'integrationGqlVariablesJSON')}}</simple>
+                        </setProperty>
+                        <process ref="graphQLVariablesProcessor"/>
+                    {{/if-property}}
+
+                    <toD uri="graphql-custom:{{integrationAddress}}{{escape
+                            (manualQuery
+                                    operationName=(property 'integrationGqlOperationName')
+                                    queryHeader=(property 'integrationGqlQueryHeader')
+                                    variablesHeader=(property 'integrationGqlVariablesHeader')
+                                    httpClientConfigurer=(identifier prefix='#'))}}"/>
+                {{/if-property}}
+
+                {{#if-property 'integrationOperationProtocolType' equals='amqp'}}
+                    <process ref="messagingXHeadersPropagationProcessor"/>
+                    <process ref="rabbitMqSenderProcessor" />
+                    <toD uri="rabbitmq-custom:{{escape (property 'integrationOperationPath')}}{{escape
+                            (manualQuery
+                                    addresses=(integrationEndpoint)
+                                    jsonQueryParameters=(asyncPropertiesJson)
+                                    exchangePattern='InOnly'
+                                    metricsCollector=(identifier prefix='#'))}}"/>
+                    <process ref="messagingXHeadersPropagationRestoreProcessor"/>
+                    <setProperty name="internalProperty_enableAuthRestore">
+                        <constant>true</constant>
+                    </setProperty>
+                {{/if-property}}
+
+                {{#if-property 'integrationOperationProtocolType' equals='kafka'}}
+                    <process ref="messagingXHeadersPropagationProcessor"/>
+                    <process ref="kafkaSenderProcessor" />
+                    <toD uri="kafka-custom:{{escape (property 'integrationOperationPath')}}{{escape
+                            (manualQuery
+                                    brokers=(integrationEndpoint)
+                                    jsonQueryParameters=(asyncPropertiesJson)
+                                    shutdownTimeout=(property 'connectTimeout')
+                                    consumerRequestTimeoutMs=(property 'connectTimeout')
+                                    maxBlockMs=(property 'connectTimeout')
+                                    kafkaClientFactory=(identifier prefix='#' suffix='-v2'))}}"/>
+                    <process ref="messagingXHeadersPropagationRestoreProcessor"/>
+                    <setProperty name="internalProperty_enableAuthRestore">
+                        <constant>true</constant>
+                    </setProperty>
+                {{/if-property}}
+
+                <removeProperty name ="internalProperty_enableAuthRestore"/>
+
+                {{#if-property 'integrationOperationProtocolType' equals='grpc'}}
+                    <setProperty name="internalProperty_grpcServiceName">
+                        <constant>{{property 'integrationOperationPath'}}</constant>
+                    </setProperty>
+                    <setProperty name="internalProperty_grpcMethodName">
+                        <constant>{{property 'integrationOperationMethod'}}</constant>
+                    </setProperty>
+                    <process ref="grpcSenderPreProcessor"/>
+                    <doTry>
+                        <to uri="grpc:{{integrationEndpoint}}/{{property 'integrationOperationPath'}}{{escape
+                                (manualQuery
+                                        method=(property 'integrationOperationMethod')
+                                        synchronous=(property 'synchronousGrpcCall')
+                                        jsonQueryParameters=(grpcPropertiesJson)
+                                )}}"/>
+                        <doFinally>
+                            <process ref="grpcSenderPostProcessor"/>
+                        </doFinally>
+                    </doTry>
+                {{/if-property}}
+
+                {{#if-property 'correlationIdName' presented=''}}
+                    <process ref="correlationIdReceiverProcessor" />
+                {{/if-property}}
+
+                <doCatch>
+                    <exception>java.lang.Exception</exception>
+                    <setProperty name="internalProperty_elementFailed"><constant>true</constant></setProperty>
+                    <choice>
+                        <when>
+                            <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+                            <setHeader name="CamelHttpResponseCode">
+                                <simple>${exchangeProperty.CamelExceptionCaught.statusCode}</simple>
+                            </setHeader>
+                            <choice>
+                                <when>
+                                    <simple>${exchangeProperty[internalProperty_serviceCall_{{identifier}}_Iterator]} == {{property 'retryCount'}}</simple>
+                                    <process ref="setCaughtHttpExceptionContextProcessor" />
+                                </when>
+                            </choice>
+                        </when>
+                    </choice>
+                    <choice>
+                        <when>
+                            <simple>${exception} !is 'org.apache.camel.http.base.HttpOperationFailedException' || ${exchangeProperty.CamelExceptionCaught.statusCode} !range '400..499'</simple>
+                            <choice>
+                                <when>
+                                    <simple>${exchangeProperty[internalProperty_serviceCall_{{identifier}}_Iterator]} &lt; {{property 'retryCount'}}</simple>
+                                    <setProperty name="internalProperty_serviceCall_{{identifier}}_Retry"><constant>true</constant></setProperty>
+                                    <setProperty name="internalProperty_serviceCall_{{identifier}}_Iterator">
+                                        <simple resultType="java.lang.Integer">${exchangeProperty[internalProperty_serviceCall_{{identifier}}_Iterator]}++</simple>
+                                    </setProperty>
+                                    {{#if-property 'retryDelay' not-empty=''}}
+                                        <setProperty name="internalProperty_retryAwait"><constant>true</constant></setProperty>
+                                    {{/if-property}}
+                                </when>
+                                <when>
+                                    <simple>${exception} !is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+                                    <setProperty name="internalProperty_elementFailed"><constant>false</constant></setProperty>
+                                    <process ref="throwCaughtExceptionProcessor" />
+                                </when>
+                                <otherwise>
+                                    <setProperty name="internalProperty_retryAwait"><constant>false</constant></setProperty>
+                                </otherwise>
+                            </choice>
+                        </when>
+                        <otherwise>
+                            <process ref="setCaughtHttpExceptionContextProcessor" />
+                        </otherwise>
+                    </choice>
+                </doCatch>
+
+                <doFinally>
+                    <removeProperty name="external-service-name"/>
+                    <removeProperty name="external-service-environment-name"/>
+
+                    <choice>
+                        <when>
+                            <simple>${exchangeProperty[internalProperty_serviceCall_{{identifier}}_Retry]} != true</simple>
+
+                            <removeProperty name="internalProperty_overrideContextParams"/>
+                            <removeProperty name="internalProperty_retryAwait"/>
+                            <process ref="contextRestoreProcessor"/>
+                            {{#if-property 'authorizationConfiguration' presented=''}}
+                                {{#with-property 'authorizationConfiguration'}}
+                                    {{#if-property 'type' equals='m2m'}}
+                                        <process ref="securityRestoreProcessor"/>
+                                    {{/if-property}}
+                                {{/with-property}}
+                            {{/if-property}}
+                        </when>
+                    </choice>
+                </doFinally>
+            </doTry>
+        </step>
+        <removeProperty name="internalProperty_elementFailed"></removeProperty>
+    </loop>
+
+    {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
+      <removeHeader name="CamelGraphQLQuery"/>
+      <removeHeader name="CamelGraphQLVariables"/>
+    {{/if-property}}
+
+    {{#if-property 'afterValidation' not-empty=''}}
+        <doTry>
+            {{#with-property 'afterValidation'}}
+                <setProperty name="internalProperty_expectedContentType">
+                    <constant>{{property 'contentType'}}</constant>
+                </setProperty>
+                <process ref="contentTypeMatcherProcessor"/>
+                    <choice>
+                        <when>
+                            <simple>
+                                ${headers.CamelHttpResponseCode} == '{{property 'code'}}' &amp;&amp; ${exchangeProperty.internalProperty_contentTypeMatched} == true
+                            </simple>
+                            <step id="Validations--{{identifier}}">
+                                <setProperty name="internalProperty_validationSchema">
+                                    <constant>{{cdata (property 'scheme')}}</constant>
+                                </setProperty>
+                                <process ref="responseValidationProcessor"/>
+                                <removeProperty name="internalProperty_validationSchema"/>
+                                <removeProperty name="internalProperty_expectedContentType"/>
+                            </step>
+                        </when>
+                    </choice>
+            {{/with-property}}
+            <doCatch>
+                <exception>org.qubership.integration.platform.engine.errorhandling.ResponseValidationException</exception>
+                <setProperty name="internalProperty_sessionFailed">
+                    <constant>true</constant>
+                </setProperty>
+                <process ref="chainExceptionResponseHandlerProcessor" />
+
+                {{#if-property 'handleValidationAction' presented=''}}
+                    {{#if-property 'handleValidationAction' not-equals='default'}}
+                        <step id="Handle Validation Failure--{{identifier}}">
+                            {{#if-property 'handlerContainer' presented=''}}
+                                {{#if-property 'handleValidationAction' equals='script'}}
+                                    {{#with-property 'handlerContainer'}}
+                                        {{> script}}
+                                    {{/with-property}}
+                                {{/if-property}}
+                                {{#if-property 'handleValidationAction' equals='mapper-2'}}
+                                    {{#with-property 'handlerContainer'}}
+                                        {{> mapper-2}}
+                                    {{/with-property}}
+                                {{/if-property}}
+                            {{/if-property}}
+                        </step>
+                    {{/if-property}}
+                {{/if-property}}
+
+                <setProperty name="internalProperty_elementFailed">
+                    <constant>true</constant>
+                </setProperty>
+            </doCatch>
+        </doTry>
+    {{/if-property}}
+
+    {{#if-property 'after' presented=''}}
+        <choice>
+            {{#with-property 'after'}}
+                {{#if-property 'code' not-equals='default'}}
+                    {{#if-property 'wildcard' equals='false'}}
+                        <when>
+                            <simple>
+                                ${headers.CamelHttpResponseCode} == '{{property 'code'}}'
+                            </simple>
+                            <step id="Handle response--{{identifier}}">
+                                {{#if-property 'type' equals='script'}}
+                                    {{> script}}
+                                {{/if-property}}
+                                {{#if-property 'type' equals='mapper'}}
+                                    {{> mapper}}
+                                {{/if-property}}
+                                {{#if-property 'type' equals='mapper-2'}}
+                                    {{> mapper-2}}
+                                {{/if-property}}
+                                <choice>
+                                    <when>
+                                        <simple>
+                                            ${headers.CamelHttpResponseCode} range '400..599'
+                                        </simple>
+                                        <process ref="sessionWarningStatusProcessor"/>
+                                    </when>
+                                </choice>
+                            </step>
+                        </when>
+                    {{/if-property}}
+                {{/if-property}}
+                {{#if-property 'code' equals='default'}}
+                    <otherwise>
+                        <step id="Handle response--{{identifier}}">
+                            {{#if-property 'type' equals='script'}}
+                                {{> script}}
+                            {{/if-property}}
+                            {{#if-property 'type' equals='mapper'}}
+                                {{> mapper}}
+                            {{/if-property}}
+                            {{#if-property 'type' equals='mapper-2'}}
+                                {{> mapper-2}}
+                            {{/if-property}}
+                            <choice>
+                                <when>
+                                    <simple>
+                                        ${headers.CamelHttpResponseCode} range '400..599'
+                                    </simple>
+                                    <process ref="sessionWarningStatusProcessor"/>
+                                </when>
+                            </choice>
+                        </step>
+                    </otherwise>
+                {{/if-property}}
+            {{/with-property}}
+            {{#with-property 'after'}}
+                {{#if-property 'wildcard' equals='true'}}
+                    <when>
+                        <simple>
+                            ${headers.CamelHttpResponseCode} range '{{property 'code'}}'
+                        </simple>
+                        <step id="Handle response--{{identifier}}">
+                            {{#if-property 'type' equals='script'}}
+                                {{> script}}
+                            {{/if-property}}
+                            {{#if-property 'type' equals='mapper'}}
+                                {{> mapper}}
+                            {{/if-property}}
+                            {{#if-property 'type' equals='mapper-2'}}
+                                {{> mapper-2}}
+                            {{/if-property}}
+                            <choice>
+                                <when>
+                                    <simple>
+                                        ${headers.CamelHttpResponseCode} range '400..599'
+                                    </simple>
+                                    <process ref="sessionWarningStatusProcessor"/>
+                                </when>
+                            </choice>
+                        </step>
+                    </when>
+                {{/if-property}}
+            {{/with-property}}
+            {{#if-property 'errorThrowing' equals='true'}}
+                <when>
+                    <simple>
+                        ${headers.CamelHttpResponseCode} range '400..599'
+                    </simple>
+                    <process ref="throwCaughtExceptionProcessor" />
+                </when>
+            {{/if-property}}
+        </choice>
+    {{/if-property}}
+</step>
+
+<removeHeader name="CamelHttpUri"/>
+
+<removeProperty name="serviceCallAddress"/>
+<removeProperty name="serviceCallUrl"/>
+<removeProperty name="serviceCallMethod"/>
+<removeProperty name="serviceCallPath"/>
+<removeProperties pattern="serviceCallQueryParameter_*"/>
+<removeProperties pattern="serviceCallPathParameter_*"/>
+<removeProperties pattern="serviceCallParameter_*"/>
+<removeProperty name="serviceCallTopic"/>
+<removeProperty name="serviceCallBrokers"/>
+<removeProperty name="serviceCallExchange"/>
+<removeProperty name="serviceCallService"/>
+<removeProperty name="serviceCallVariablesHeader"/>

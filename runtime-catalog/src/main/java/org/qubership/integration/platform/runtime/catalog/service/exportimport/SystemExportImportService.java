@@ -24,28 +24,27 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionAction;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionsConfig;
-import org.qubership.integration.platform.catalog.model.system.EnvironmentLabel;
-import org.qubership.integration.platform.catalog.model.system.IntegrationSystemType;
-import org.qubership.integration.platform.catalog.model.system.SystemModelSource;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractLabel;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.*;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionAction;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
+import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSystemObject;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractLabel;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.SystemDeserializationResult;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.remote.SystemCompareAction;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportMode;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system.SystemsCommitRequest;
+import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
@@ -74,8 +73,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils.*;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.*;
 import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
 
 @Service
@@ -286,7 +285,7 @@ public class SystemExportImportService {
     }
 
     private void setCompareSystemResult(IntegrationSystem system, ImportSystemResult resultSystemCompareDTO) {
-        IntegrationSystem oldSystem = systemService.getByIdOrNull(system.getId());;
+        IntegrationSystem oldSystem = systemService.getByIdOrNull(system.getId());
         if (oldSystem == null) {
             resultSystemCompareDTO.setName(system.getName());
             resultSystemCompareDTO.setRequiredAction(SystemCompareAction.CREATE);
@@ -560,7 +559,7 @@ public class SystemExportImportService {
             newSystem.setLabels(oldSystem.getLabels());
             return;
         }
-        Set<String> existingLabelNames = oldSystem.getLabels().stream().filter(l -> !l.isTechnical()).map(l -> l.getName()).collect(Collectors.toSet());
+        Set<String> existingLabelNames = oldSystem.getLabels().stream().filter(l -> !l.isTechnical()).map(AbstractLabel::getName).collect(Collectors.toSet());
         newSystem.getLabels().removeIf(l -> !l.isTechnical() && existingLabelNames.contains(l.getName()));
         newSystem.addLabels(oldSystem.getLabels().stream().filter(l -> !l.isTechnical()).collect(Collectors.toSet()));
     }
@@ -693,7 +692,7 @@ public class SystemExportImportService {
         if (CollectionUtils.isEmpty(specification.getLabels())) {
             specification.setLabels(new HashSet<>());
         }
-        Set<String> existingLabelNames = specification.getLabels().stream().filter(l -> !l.isTechnical()).map(l -> l.getName()).collect(Collectors.toSet());
+        Set<String> existingLabelNames = specification.getLabels().stream().filter(l -> !l.isTechnical()).map(AbstractLabel::getName).collect(Collectors.toSet());
         newLabels = new HashSet<>(newLabels);
         newLabels.removeIf(l -> l.isTechnical() || existingLabelNames.contains(l.getName()));
         specification.addLabels(newLabels);
@@ -706,7 +705,7 @@ public class SystemExportImportService {
         if (CollectionUtils.isEmpty(specGroup.getLabels())) {
             specGroup.setLabels(new HashSet<>());
         }
-        Set<String> existingLabelNames = specGroup.getLabels().stream().filter(l -> !l.isTechnical()).map(l -> l.getName()).collect(Collectors.toSet());
+        Set<String> existingLabelNames = specGroup.getLabels().stream().filter(l -> !l.isTechnical()).map(AbstractLabel::getName).collect(Collectors.toSet());
         newLabels = new HashSet<>(newLabels);
         newLabels.removeIf(l -> l.isTechnical() || existingLabelNames.contains(l.getName()));
         specGroup.addLabels(newLabels);

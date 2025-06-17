@@ -1,0 +1,47 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: chain-call-2
+title: Chain Call
+folder: routing
+colorType: chain-call
+inputEnabled: true
+outputEnabled: true
+container: false
+properties:
+  common:
+    - name: chainTriggerReference
+      title: Chain trigger reference
+      type: custom
+      mandatory: false
+      uiComponent: chain-call-2
+  advanced:
+    - name: timeout
+      title: Timeout (ms)
+      type: number
+      default: 30000
+  hidden:
+    - name: elementId
+      title: Reference to chain trigger
+      type: string
+      mandatory: true
+      reference: true
+    - name: block
+      title: Block
+      type: boolean
+      default: true
+    - name: failIfNoConsumers
+      title: Fail if no consumers
+      type: boolean
+      default: false

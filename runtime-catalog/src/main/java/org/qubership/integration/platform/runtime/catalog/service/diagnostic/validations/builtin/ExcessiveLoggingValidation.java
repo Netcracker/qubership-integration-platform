@@ -18,17 +18,17 @@ package org.qubership.integration.platform.runtime.catalog.service.diagnostic.va
 
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
-import org.qubership.integration.platform.catalog.consul.ConsulService;
-import org.qubership.integration.platform.catalog.consul.exception.KVNotFoundException;
-import org.qubership.integration.platform.catalog.model.chain.SessionsLoggingLevel;
-import org.qubership.integration.platform.catalog.model.deployment.properties.DeploymentRuntimeProperties;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
+import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
+import org.qubership.integration.platform.runtime.catalog.consul.exception.KVNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.model.chain.SessionsLoggingLevel;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.properties.DeploymentRuntimeProperties;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationImplementationType;
-import org.qubership.integration.platform.runtime.catalog.service.ChainService;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationEntityType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationSeverity;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.DiagnosticValidationUnexpectedException;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -40,11 +40,11 @@ import java.util.*;
 public class ExcessiveLoggingValidation extends BuiltinValidation {
     public static final String CHAIN_SESSIONS_LOGGING_LEVEL_KEY = "chainSessionsLoggingLevel";
 
-    private final ChainService chainService;
+    private final ChainFinderService chainFinderService;
     private final ConsulService consulService;
 
     @Autowired
-    public ExcessiveLoggingValidation(ChainService chainService, ConsulService consulService) {
+    public ExcessiveLoggingValidation(ChainFinderService chainFinderService, ConsulService consulService) {
         super(
                 "excessive-logging_I8P3SG4G",
                 "Deployment has excessive logging settings",
@@ -56,7 +56,7 @@ public class ExcessiveLoggingValidation extends BuiltinValidation {
                 ValidationImplementationType.BUILT_IN,
                 ValidationSeverity.WARNING
         );
-        this.chainService = chainService;
+        this.chainFinderService = chainFinderService;
         this.consulService = consulService;
 
         putProperty(CHAIN_SESSIONS_LOGGING_LEVEL_KEY, (Serializable) Set.of(SessionsLoggingLevel.DEBUG.name()));
@@ -80,7 +80,7 @@ public class ExcessiveLoggingValidation extends BuiltinValidation {
         for (Map.Entry<String, DeploymentRuntimeProperties> entry : runtimeConfigs.entrySet()) {
             DeploymentRuntimeProperties props = entry.getValue();
             if (((Set<String>) getProperty(CHAIN_SESSIONS_LOGGING_LEVEL_KEY)).contains(props.getSessionsLoggingLevel().name())) {
-                Chain chain = chainService.tryFindById(entry.getKey()).orElse(null);
+                Chain chain = chainFinderService.tryFindById(entry.getKey()).orElse(null);
 
                 // if a chain is present only in consul - skip alert
                 if (chain != null) {

@@ -22,7 +22,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.qubership.integration.platform.catalog.model.filter.FilterCondition;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
 
 @Data

@@ -1,0 +1,266 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: kafka-trigger-2
+title: Kafka Trigger
+description: Trigger, that start chain after receiving kafka message
+type: trigger
+folder: triggers
+inputEnabled: false
+colorType: trigger
+outputEnabled: true
+container: false
+customTabs:
+- name: Idempotency
+  uiComponent: idempotency-parameters
+designParameters:
+  externalParticipantId: 'Kafka ##{brokers}'
+  externalParticipantName: 'Kafka ##{brokers}'
+  requestLineTitle: 'Pull message from topic(s): ##{topics}'
+  directionToChain: true
+  hasResponse: false
+properties:
+  common:
+    - name: kafkaConnection
+      title: Connection parameters
+      type: custom
+      uiComponent: kafka-connection-2
+      validation:
+        conditions:
+          - property: connectionSourceType
+            equalTo: 'maas'
+            mandatoryProperties: [ 'topicsClassifierName' ]
+          - property: connectionSourceType
+            equalTo: 'manual'
+            mandatoryProperties: [
+              'brokers',
+              'securityProtocol',
+              'saslMechanism',
+              'topics'
+            ]
+    - name: groupId
+      title: Group ID
+      description: The ID of the group the Producer is assigned to
+      type: string
+      mandatory: true
+      query: true
+    - name: reconnectBackoffMaxMs
+      title: Reconnect delay (ms)
+      description: Specifies delay between reconnection in millis
+      type: number
+      mandatory: false
+      query: true
+      default: 30000
+  advanced:
+    - name: sslProtocol
+      title: SSL Protocol
+      description: The SSL protocol used to generate the SSLContext. Default setting is TLS, which is fine for most cases
+      type: string
+      allowedValues:
+        - TLS
+        - TLSv1.1
+        - TLSv1.2
+        - TLSv1.3
+      mandatory: true
+      query: true
+      default: TLS
+    - name: sslEndpointAlgorithm
+      title: SSL endpoint algorithm
+      description: The endpoint identification algorithm to validate server hostname using server certificate.
+      type: string
+      mandatory: false
+      query: true
+    - name: autoOffsetReset
+      title: Auto Offset Reset
+      description: The schema to adjust the message outset
+      type: string
+      allowedValues:
+        - none
+        - earliest
+        - latest
+      mandatory: true
+      query: true
+      default: latest
+    - name: consumersCount
+      title: Consumers Count
+      description: The number of consumers that connect to kafka server
+      type: number
+      mandatory: false
+      query: true
+      default: "1"
+    - name: keyDeserializer
+      title: Key Deserializer
+      description: Key deserializer class
+      type: string
+      allowedValues:
+        - org.apache.kafka.common.serialization.ByteArrayDeserializer
+        - org.apache.kafka.common.serialization.ByteBufferDeserializer
+        - org.apache.kafka.common.serialization.BytesDeserializer
+        - org.apache.kafka.common.serialization.DoubleDeserializer
+        - org.apache.kafka.common.serialization.FloatDeserializer
+        - org.apache.kafka.common.serialization.IntegerDeserializer
+        - org.apache.kafka.common.serialization.LongDeserializer
+        - org.apache.kafka.common.serialization.ShortDeserializer
+        - org.apache.kafka.common.serialization.StringDeserializer
+        - org.apache.kafka.common.serialization.UUIDDeserializer
+        - org.apache.kafka.common.serialization.VoidDeserializer
+      mandatory: true
+      query: true
+      default: org.apache.kafka.common.serialization.StringDeserializer
+    - name: valueDeserializer
+      title: Value Deserializer
+      description: Value deserializer class
+      type: string
+      allowedValues:
+        - org.apache.kafka.common.serialization.ByteArrayDeserializer
+        - org.apache.kafka.common.serialization.ByteBufferDeserializer
+        - org.apache.kafka.common.serialization.BytesDeserializer
+        - org.apache.kafka.common.serialization.DoubleDeserializer
+        - org.apache.kafka.common.serialization.FloatDeserializer
+        - org.apache.kafka.common.serialization.IntegerDeserializer
+        - org.apache.kafka.common.serialization.LongDeserializer
+        - org.apache.kafka.common.serialization.ShortDeserializer
+        - org.apache.kafka.common.serialization.StringDeserializer
+        - org.apache.kafka.common.serialization.UUIDDeserializer
+        - org.apache.kafka.common.serialization.VoidDeserializer
+      mandatory: true
+      query: true
+      default: org.apache.kafka.common.serialization.StringDeserializer
+    - name: maxPollRecords
+      title: Max Poll Records
+      description: The number of records that will be fetched from the broker as a single batch.
+      type: number
+      mandatory: false
+      query: true
+      default: "500"
+    - name: maxPollIntervalMs
+      title: Max Poll Interval
+      description: The maximum delay between batch polls of records from the broker, in milliseconds. If poll is not performed within given time frame, then the consumer is considered to be failed. In case of failure detection, related consumer group will re-balance to reassign the partitions to another consumer in the group. This "new" consumer will process the whole batch all over again.
+      type: number
+      mandatory: false
+      query: true
+      default: "300000"
+  hidden:
+    # Parameters below managed by custom UI tab component
+    - name: brokers
+      title: Brokers
+      type: string
+      query: true
+    # Manual
+    - name: topics
+      title: Topics
+      description: Topics name. Must be present in kafka, auto-creation disabled
+      type: string
+    - name: connectionSourceType
+      title: Connection source type
+      type: string
+      allowedValues:
+        - maas
+        - manual
+      mandatory: true
+      default: manual
+    - name: securityProtocol
+      title: Security Protocol
+      description: Protocol used to communicate with brokers
+      type: string
+      allowedValues:
+        - PLAINTEXT
+        - SASL_PLAINTEXT
+        - SASL_SSL
+        - SSL
+      query: true
+      default: PLAINTEXT
+    - name: saslMechanism
+      title: SASL Mechanism
+      description: The Simple Authentication and Security Layer (SASL) Mechanism used
+      type: string
+      allowedValues:
+        - 9798-M-DSA-SHA1
+        - 9798-M-ECDSA-SHA1
+        - 9798-M-RSA-SHA1-ENC
+        - 9798-U-DSA-SHA1
+        - 9798-U-ECDSA-SHA1
+        - 9798-U-RSA-SHA1-ENC
+        - ANONYMOUS
+        - CRAM-MD5
+        - DIGEST-MD5
+        - EAP-AES128
+        - EAP-AES128-PLUS
+        - ECDH-X25519-CHALLENGE[1]
+        - ECDSA-NIST256P-CHALLENGE[1]
+        - EXTERNAL
+        - GS2-KRB5
+        - GS2-KRB5-PLUS
+        - GSS-SPNEGO
+        - GSSAPI
+        - KERBEROS_V4
+        - KERBEROS_V5
+        - LOGIN
+        - NMAS_AUTHEN
+        - NMAS_LOGIN
+        - NMAS-SAMBA-AUTH
+        - NTLM
+        - OAUTH10A
+        - OAUTHBEARER
+        - OPENID20
+        - OTP
+        - PLAIN
+        - SAML20
+        - SCRAM-SHA-1
+        - SCRAM-SHA-1-PLUS
+        - SCRAM-SHA-256
+        - SCRAM-SHA-256-PLUS
+        - SCRAM-SHA-512
+        - SECURID
+        - SKEY
+        - SPNEGO
+        - SPNEGO-PLUS
+        - XOAUTH
+        - XOAUTH2
+      query: true
+      default: GSSAPI
+    - name: saslJaasConfig
+      title: SASL JAAS Config
+      description: "Expose the kafka sasl.jaas.config parameter Example: org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example;"
+      type: string
+      mandatory: false
+      query: true
+    - name: idempotencyKeyExpression
+      title: Key expression
+      type: string
+    - name: enableIdempotency
+      title: Enable idempotency
+      type: boolean
+      default: false
+    - name: idempotencyKeyExpiry
+      title: Key expiration time (seconds)
+      type: number
+      default: 600
+    - name: actionOnDuplicate
+      title: Action on duplicate message
+      type: string
+      allowedValues:
+          - ignore
+          - throw-exception
+          - execute-subchain
+      default: ignore
+    - name: chainTriggerElementId
+      title: Reference to chain trigger
+      type: string
+      reference: true
+    - name: chainCallTimeout
+      title: Timeout (ms)
+      type: number
+      default: 30000
+

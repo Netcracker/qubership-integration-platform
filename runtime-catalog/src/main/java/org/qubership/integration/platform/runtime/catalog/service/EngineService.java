@@ -17,13 +17,13 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.catalog.util.DevModeUtil;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.model.MultiConsumer;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.EventActionType;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
+import org.qubership.integration.platform.runtime.catalog.util.DevModeUtil;
 import org.qubership.integration.platform.runtime.catalog.util.EngineDomainUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

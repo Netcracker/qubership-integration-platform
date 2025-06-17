@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.mapper;
 
-import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
 
 public class MapperException extends SnapshotCreationException {
     public MapperException(String message) {

@@ -16,25 +16,25 @@
 
 package org.qubership.integration.platform.runtime.catalog.util;
 
-import org.qubership.integration.platform.catalog.exception.SnapshotCreationException;
-import org.qubership.integration.platform.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.catalog.model.system.EnvironmentSourceType;
-import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
+import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
+import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.qubership.integration.platform.catalog.model.constant.CamelNames.*;
-import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.*;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
 
 public class MaasUtils {
-    private static String[] KAFKA_MAAS_PARAM_ARRAY = {BROKERS, TOPICS, SECURITY_PROTOCOL, SASL_MECHANISM, SASL_JAAS_CONFIG};
+    private static final String[] KAFKA_MAAS_PARAM_ARRAY = {BROKERS, TOPICS, SECURITY_PROTOCOL, SASL_MECHANISM, SASL_JAAS_CONFIG};
 
     public static ArrayList<String> KAFKA_MAAS_PARAM_LIST = new ArrayList<>(Arrays.asList(KAFKA_MAAS_PARAM_ARRAY));
-    private static String[] AMQP_MAAS_PARAM_ARRAY = {ADDRESSES, VHOST, USERNAME, PASSWORD, SSL};
+    private static final String[] AMQP_MAAS_PARAM_ARRAY = {ADDRESSES, VHOST, USERNAME, PASSWORD, SSL};
     public static ArrayList<String> AMQP_MAAS_PARAM_LIST = new ArrayList<>(Arrays.asList(AMQP_MAAS_PARAM_ARRAY));
 
     public static String getMaasParamPlaceholder(String elementId, String paramName) {

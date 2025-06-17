@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.model;
 
 import lombok.Data;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 
 import java.util.LinkedList;
 import java.util.List;

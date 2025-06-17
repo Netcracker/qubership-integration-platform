@@ -18,7 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
-import org.qubership.integration.platform.catalog.model.chain.SessionsLoggingLevel;
+import org.qubership.integration.platform.runtime.catalog.model.chain.SessionsLoggingLevel;
 
 @Data
 @Schema(description = "Information about Live exchange")

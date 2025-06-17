@@ -1,8 +1,11 @@
 org.qubership.integration.platform.runtime.catalog.configuration.ApplicationAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.AsyncAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.datasource.FlywayInitializer
 org.qubership.integration.platform.runtime.catalog.configuration.datasource.PersistenceAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.FreemakerAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.KubeOperatorAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.MarkdownParserAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.MicroserviceRestTemplateAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.SwaggerAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.TaskSchedulerAutoConfiguration

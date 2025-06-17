@@ -17,16 +17,16 @@
 package org.qubership.integration.platform.runtime.catalog.testutils.mapper;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.catalog.model.library.ElementType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Dependency;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
-import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.catalog.util.DistinctByKey;
+import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
+import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
+import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainElementImportDTO;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.DependencyImportDTO;
+import org.qubership.integration.platform.runtime.catalog.util.DistinctByKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestComponent;
 
@@ -129,6 +129,10 @@ public class ChainElementsMapper implements ImportDTOMapper<List<ChainElement>, 
         element.setCreatedWhen(new Timestamp(System.currentTimeMillis()));
         if (elements.get(elementDTO.getSwimlaneId()) instanceof SwimlaneChainElement swimlane) {
             swimlane.addElement(element);
+        }
+        if (elementDTO.isJustCreated()) {
+            element.setCreatedWhen(null);
+            element.setModifiedWhen(null);
         }
         elements.put(element.getId(), element);
         return element;

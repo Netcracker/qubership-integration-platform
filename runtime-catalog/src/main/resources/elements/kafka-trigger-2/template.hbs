@@ -1,0 +1,5 @@
+<from uri="kafka-custom:{{property 'topics'}}{{escape (query)}}&amp;headerDeserializer=#kafkaHeaderStringDeserializer&amp;kafkaClientFactory=#{{identifier}}-v2"/>
+<step id="{{identifier}}">
+    <process ref="kafkaTriggerProcessor"/>
+    {{> idempotency}}
+</step>

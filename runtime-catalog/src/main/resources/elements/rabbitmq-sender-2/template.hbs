@@ -1,0 +1,26 @@
+<doTry>
+    {{#if-property 'propagateContext' equals='true'}}
+        {{#if-property 'overrideContextParams' presented=''}}
+            <setProperty name="internalProperty_overrideContextParams">
+                <simple>{{escape (property-json 'overrideContextParams')}}</simple>
+            </setProperty>
+        {{/if-property}}
+
+        <process ref="contextPropagationProcessor"/>
+    {{/if-property}}
+    <process ref="messagingXHeadersPropagationProcessor"/>
+
+    <process ref="rabbitMqSenderProcessor" />
+    <toD id="{{identifier}}" uri="rabbitmq-custom:{{property 'exchange'}}{{escape (query)}}&amp;metricsCollector=#{{identifier}}"/>
+
+    <process ref="messagingXHeadersPropagationRestoreProcessor"/>
+    <setProperty name="internalProperty_enableAuthRestore">
+        <constant>true</constant>
+    </setProperty>
+    <removeProperty name ="internalProperty_enableAuthRestore"/>
+
+    <doFinally>
+        <removeProperty name="internalProperty_overrideContextParams"/>
+        <process ref="contextRestoreProcessor"/>
+    </doFinally>
+</doTry>

@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.testutils.configuration;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -25,8 +26,13 @@ import org.springframework.context.annotation.ComponentScan;
 @ComponentScan(basePackages = "org.qubership.integration.platform.runtime.catalog.builder.templates.helpers")
 public class TestConfig {
 
-    @Bean
+    @Bean("defaultYamlMapper")
     public YAMLMapper defaultYamlMapper() {
         return new YAMLMapper();
+    }
+
+    @Bean("primaryObjectMapper")
+    public ObjectMapper primaryObjectMapper() {
+        return new ObjectMapper();
     }
 }

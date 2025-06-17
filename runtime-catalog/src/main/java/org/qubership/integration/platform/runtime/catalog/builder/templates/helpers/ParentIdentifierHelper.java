@@ -19,8 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.builder.templates.hel
 import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 
 import java.util.Optional;
 

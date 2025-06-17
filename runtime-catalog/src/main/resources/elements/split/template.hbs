@@ -1,0 +1,56 @@
+<step id="{{identifier}}">
+    <multicast parallelProcessing="true"
+               aggregationStrategy="{{property 'aggregationStrategy'}}"
+               timeout="{{property 'timeout'}}"
+               stopOnAggregateException="{{property 'stopOnException'}}"
+               stopOnException="{{property 'stopOnException'}}">
+        {{#children 'main-split-element'}}
+            <pipeline>
+                <setProperty name="internalProperty_splitId">
+                    <constant>{{property 'splitName'}}</constant>
+                </setProperty>
+                <setProperty name="internalProperty_splitBranchType">
+                    <constant>main</constant>
+                </setProperty>
+                <step id="{{identifier}}">
+                    <to uri='direct:{{identifier}}'></to>
+                </step>
+            </pipeline>
+        {{/children}}
+        {{#children 'split-element'}}
+            <pipeline>
+                <setProperty name="internalProperty_splitId">
+                    <constant>{{property 'splitName'}}</constant>
+                </setProperty>
+                <setProperty name="internalProperty_splitBranchType">
+                    <constant>secondary</constant>
+                </setProperty>
+                {{#if-property 'propagateHeaders' presented=''}}
+                    <setProperty name="internalProperty_propagateHeaders">
+                        <constant>{{property 'propagateHeaders'}}</constant>
+                    </setProperty>
+                {{/if-property}}
+                {{#if-property 'propagateProperties' presented=''}}
+                    <setProperty name="internalProperty_propagateProperties">
+                        <constant>{{property 'propagateProperties'}}</constant>
+                    </setProperty>
+                {{/if-property}}
+                <step id="{{identifier}}">
+                    <to uri='direct:{{identifier}}'></to>
+                </step>
+            </pipeline>
+        {{/children}}
+    </multicast>
+    <transform>
+        <simple>${in.body}</simple>
+    </transform>
+    <choice>
+        <when>
+            <simple>${exchangeProperty[internalProperty_splitProcessed]} != true</simple>
+                <setBody><constant></constant></setBody>
+        </when>
+    </choice>
+    {{#children 'split-result'}}
+        <toD uri='direct:{{identifier}}'/>
+    {{/children}}
+</step>

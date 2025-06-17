@@ -1,1 +1,27 @@
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:CIALib="http://cableapi.cablelabs.com/schemas/v2" xmlns:cus="http://www.shaw.ca/ns/schema/content/catalogchannellineup/v1" soap="http://www.w3.org/2003/05/soap-envelope"><soap:Body><cus:FindChannelLineupResponse><cus:availableContents><cus:availableContent><CIALib:channelMap CIALib="http://www.shaw.ca/ns/schema/content/catalogchannellineup/v1"><CIALib:channelMapId>Cable</CIALib:channelMapId><CIALib:channelSummaries><CIALib:channelSummary><CIALib:contentId>VAN</CIALib:contentId><CIALib:contentName>Branch</CIALib:contentName></CIALib:channelSummary><CIALib:channelSummary><CIALib:contentId>2</CIALib:contentId><CIALib:contentName>Report Code</CIALib:contentName></CIALib:channelSummary></CIALib:channelSummaries></CIALib:channelMap></cus:availableContent></cus:availableContents></cus:FindChannelLineupResponse></soap:Body><soap:Header>9164073320013595587</soap:Header></soap:Envelope>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:CIALib="http://cableapi.cablelabs.com/schemas/v2"
+               xmlns:cus="http://www.shaw.ca/ns/schema/content/catalogchannellineup/v1"
+               soap="http://www.w3.org/2003/05/soap-envelope">
+    <soap:Body>
+        <cus:FindChannelLineupResponse>
+            <cus:availableContents>
+                <cus:availableContent>
+                    <CIALib:channelMap CIALib="http://www.shaw.ca/ns/schema/content/catalogchannellineup/v1">
+                        <CIALib:channelMapId>Cable</CIALib:channelMapId>
+                        <CIALib:channelSummaries>
+                            <CIALib:channelSummary>
+                                <CIALib:contentId>VAN</CIALib:contentId>
+                                <CIALib:contentName>Branch</CIALib:contentName>
+                            </CIALib:channelSummary>
+                            <CIALib:channelSummary>
+                                <CIALib:contentId>2</CIALib:contentId>
+                                <CIALib:contentName>Report Code</CIALib:contentName>
+                            </CIALib:channelSummary>
+                        </CIALib:channelSummaries>
+                    </CIALib:channelMap>
+                </cus:availableContent>
+            </cus:availableContents>
+        </cus:FindChannelLineupResponse>
+    </soap:Body>
+    <soap:Header>9164073320013595587</soap:Header>
+</soap:Envelope>

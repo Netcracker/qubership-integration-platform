@@ -1,10 +1,10 @@
 package org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.builtin;
 
-import org.qubership.integration.platform.catalog.model.diagnostic.ValidationAlert;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
-import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ElementRepository;
+import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationAlert;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationImplementationType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.diagnostic.ValidationChainAlert;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationEntityType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationSeverity;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.DiagnosticValidationUnexpectedException;

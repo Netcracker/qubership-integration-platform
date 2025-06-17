@@ -20,16 +20,16 @@ import com.github.jknack.handlebars.Context;
 import com.github.jknack.handlebars.Options;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.OPERATION_PATH;
-import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.TOPICS;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.OPERATION_PATH;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.TOPICS;
 
 /**
  * Handlebars helper, which provides methods of creating handlebars context
@@ -46,15 +46,13 @@ public class BaseHelper {
     public Object getPropertyValue(String propertyName, Options options) {
         var context = options.context.model();
 
-        if (context instanceof ChainElement) {
-            var element = (ChainElement) context;
+        if (context instanceof ChainElement element) {
             String elementType = element.getType();
             if (isMaasParamProperty(propertyName, elementType, element)) {
                 return MaasUtils.getMaasParamPlaceholder(element.getOriginalId(), propertyName);
             }
             return element.getProperty(propertyName);
-        } else if (context instanceof Map) {
-            var map = (Map) context;
+        } else if (context instanceof Map map) {
             return map.get(propertyName);
         } else {
             throw new IllegalArgumentException("Can't extract property "

@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations;
 
 import lombok.Getter;
-import org.qubership.integration.platform.catalog.model.diagnostic.ValidationAlert;
+import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationAlert;
 import org.qubership.integration.platform.runtime.catalog.model.diagnostic.ValidationImplementationType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationEntityType;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.ValidationSeverity;

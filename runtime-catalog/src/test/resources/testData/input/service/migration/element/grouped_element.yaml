@@ -1,0 +1,25 @@
+---
+id: "895f0c9f-a444-4d8d-8ab1-6b863622e2be"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707290153319
+elements:
+  - id: "a351bb4f-8a78-453d-baa7-9910f28c97e9"
+    name: "Container"
+    element-type: "container"
+    children:
+      - id: "31c6154a-cb97-482d-88ea-f8e0d0fa24ae"
+        name: "Container"
+        element-type: "container"
+        children:
+          - id: "ab96cb30-5f99-40c2-8042-64630f684062"
+            name: "Container"
+            element-type: "container"
+            children:
+              - id: "c531c1b7-e7b6-4574-b056-df52c81726ce"
+                name: "Script"
+                element-type: "script"
+                properties-filename: "script-c531c1b7-e7b6-4574-b056-df52c81726ce.groovy"
+                properties:
+                  exportFileExtension: "groovy"
+                  propertiesToExportInSeparateFile: "script"

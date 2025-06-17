@@ -22,10 +22,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.*;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ServiceImportException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
+import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ImportFileMigrationUtils;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
@@ -43,9 +43,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils.getFileContent;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils.getNodeAsText;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.getFileContent;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.getNodeAsText;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_VERSION_FIELD_OLD;
 
@@ -100,7 +100,6 @@ public class ServiceDeserializer {
             ArrayList<JsonNode> specificationGroupNodes = new ArrayList<>();
             Map<String, List<JsonNode>> specificationNodesMap = new HashMap<>();
             Map<String, List<File>> sourceFiles = new HashMap<>();
-            File ddlScriptFile = null;
             for (File file : listOfFile) {
                 String fileName = file.getName();
                 String parentDirName = Optional.ofNullable(file.getParentFile())

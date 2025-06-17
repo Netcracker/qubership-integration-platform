@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ChainImportException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainImportException;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.versions.ChainFileVersionsGetterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

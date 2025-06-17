@@ -17,11 +17,11 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.catalog.model.system.ServiceEnvironment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.DeploymentProcessingException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -31,8 +31,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.catalog.model.constant.CamelNames.OPERATION_PATH_TOPIC;
-import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.SASL_MECHANISM;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.OPERATION_PATH_TOPIC;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SASL_MECHANISM;
 
 @Component
 public class OperationElementPropertiesBuilder implements ElementPropertiesBuilder {
@@ -50,7 +50,7 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
     public boolean applicableTo(ChainElement element) {
         String type = element.getType();
         return CamelNames.ASYNC_API_TRIGGER_COMPONENT.equals(type)
-                || CamelNames.SERVICE_CALL_COMPONENT.equals(type);
+               || CamelNames.SERVICE_CALL_COMPONENT.equals(type);
     }
 
     @Override

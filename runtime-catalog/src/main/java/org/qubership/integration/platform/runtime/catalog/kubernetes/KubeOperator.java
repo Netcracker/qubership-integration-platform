@@ -23,6 +23,8 @@ import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1DeploymentList;
 import io.kubernetes.client.openapi.models.V1PodList;
+import io.kubernetes.client.openapi.models.V1ServiceList;
+import io.kubernetes.client.openapi.models.V1ServicePort;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
@@ -36,6 +38,7 @@ import java.util.stream.Collectors;
 public class KubeOperator {
     private static final String BUILD_VERSION_LABEL = "app.kubernetes.io/version";
     private static final String DEFAULT_ERR_MESSAGE = "Invalid k8s cluster parameters or API error. ";
+    private static final String REGEX_FOR_SEARCH_BLUEGREEN_SERVICE_NAME = ".*-v\\d+$";
     private final CoreV1Api coreApi;
     private final AppsV1Api appsApi;
     private final CustomObjectsApi customObjectsApi;
@@ -134,6 +137,43 @@ public class KubeOperator {
                     })
                     .collect(Collectors.toList());
 
+        } catch (ApiException e) {
+            log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+        } catch (Exception e) {
+            log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
+        }
+    }
+
+    public List<KubeService> getServices() {
+        try {
+            V1ServiceList list = coreApi.listNamespacedService(
+                    namespace,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            );
+
+            return list.getItems().stream()
+                    .filter(item -> !(Objects.requireNonNull(Objects.requireNonNull(item.getMetadata()).getName()).matches(REGEX_FOR_SEARCH_BLUEGREEN_SERVICE_NAME)))
+                    .map(item -> KubeService.builder()
+                            .id(Objects.requireNonNull(Objects.requireNonNull(item.getMetadata()).getUid()))
+                            .name(Objects.requireNonNull(item.getMetadata().getName()))
+                            .namespace(namespace)
+                            .ports(
+                                    Objects.requireNonNull(Objects.requireNonNull(item.getSpec()).getPorts()).stream()
+                                            .map(V1ServicePort::getPort).collect(Collectors.toList()
+                                            )).build())
+                    .collect(Collectors.toList());
         } catch (ApiException e) {
             log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);

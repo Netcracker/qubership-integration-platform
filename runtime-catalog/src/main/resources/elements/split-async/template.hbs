@@ -1,0 +1,13 @@
+<step id="{{identifier}}">
+    {{#children 'async-split-element'}}
+        <step id="{{identifier}}">
+            <process ref="activeThreadCounterIncrementer"/>
+            <wireTap uri='direct:{{identifier}}-on-completion'/>
+        </step>
+    {{/children}}
+    {{#children 'sync-split-element'}}
+        <step id="{{identifier}}">
+            <to uri='direct:{{identifier}}'/>
+        </step>
+    {{/children}}
+</step>

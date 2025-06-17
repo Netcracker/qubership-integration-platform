@@ -1,0 +1,2 @@
+<from uri="kafka:{{property 'topics'}}{{escape (query)}}&amp;headerDeserializer=#kafkaHeaderStringDeserializer&amp;kafkaClientFactory=#{{identifier}}"/>
+<process id="{{identifier}}" ref="kafkaTriggerProcessor"/>

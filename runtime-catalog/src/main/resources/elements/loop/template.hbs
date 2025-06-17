@@ -1,0 +1,19 @@
+<loop id="{{identifier}}"
+    {{#children 'loop-expression'}}
+        {{#if-property 'doWhile' presented=''}}
+      doWhile="{{property 'doWhile'}}"
+        {{/if-property}}
+        {{#if-property 'copy' presented=''}}
+      copy="{{property 'copy'}}"
+        {{/if-property}}
+    {{/children}}
+>
+    {{#children 'loop-expression'}}
+        <simple>
+            {{escape (property 'expression')}}
+        </simple>
+        <step id="{{identifier}}">
+            <toD uri='direct:{{identifier}}'/>
+        </step>
+    {{/children}}
+</loop>

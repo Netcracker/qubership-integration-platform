@@ -1,0 +1,186 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: rabbitmq-trigger-2
+title: RabbitMQ Trigger
+description: RabbitMQ Trigger
+type: trigger
+folder: triggers
+inputEnabled: false
+colorType: trigger
+outputEnabled: true
+container: false
+customTabs:
+- name: Idempotency
+  uiComponent: idempotency-parameters
+designParameters:
+  externalParticipantId: 'RabbitMQ ##{addresses}'
+  externalParticipantName: 'RabbitMQ ##{addresses}'
+  requestLineTitle: 'Pull message from exchange: ##{exchange}, queues: ##{queues}'
+  directionToChain: true
+  hasResponse: false
+properties:
+  common:
+    - name: rabbitConnection
+      title: Connection parameters
+      type: custom
+      uiComponent: rabbit-connection-2
+      validation:
+        conditions:
+          - property: connectionSourceType
+            equalTo: 'maas'
+            mandatoryProperties: ['vhostClassifierName']
+          - property: connectionSourceType
+            equalTo: 'manual'
+            mandatoryProperties: ['addresses']
+    - name: exchange
+      title: Exchange Name
+      type: string
+      mandatory: true
+      default: 'default' # instead of empty string
+    - name: queues
+      title: Queue(s) Name
+      description: The queue(s) to use for consuming messages (separated by comma)
+      type: string
+      query: true
+      mandatory: true
+    - name: routingKey
+      title: Routing Key
+      type: string
+      query: true
+  advanced:
+    - name: acknowledgeMode
+      title: Acknowledge Mode
+      description: >
+         <p>
+            <b>NONE</b> - no acknowledgment will be sent.
+         </p>
+         <p>
+            <b>MANUAL</b> - immediately send an acknowledgment (normal or negative) when message is taken.
+         </p>
+         <p>
+            <b>AUTO</b> - send an acknowledgment (normal or negative) after the end of the chain.
+         </p>
+      allowCustomValue: false
+      type: string
+      allowedValues:
+        - NONE
+        - MANUAL
+        - AUTO
+      query: true
+      default: AUTO
+    - name: exchangeType
+      title: Exchange Type
+      allowCustomValue: false
+      type: string
+      allowedValues:
+        - direct
+        - fanout
+        - headers
+        - topic
+      mandatory: false
+      query: true
+      default: direct
+    - name: deadLetterExchange
+      title: Dead Letter Exchange
+      type: string
+      query: true
+    - name: deadLetterExchangeType
+      title: Dead Letter Exchange Type
+      allowCustomValue: false
+      type: string
+      allowedValues:
+        - direct
+        - fanout
+        - headers
+        - topic
+      query: true
+      mandatory: false
+      default: direct
+    - name: deadLetterQueue
+      title: Dead Letter Queue
+      type: string
+      query: true
+    - name: deadLetterRoutingKey
+      title: Dead Letter Routing Key
+      type: string
+      query: true
+  hidden:
+  # Parameters below managed by custom UI tab component
+    - name: connectionSourceType
+      title: Connection source type
+      type: string
+      allowedValues:
+      - maas
+      - manual
+      mandatory: true
+      default: manual
+    - name: vhost
+      title: Vhost
+      type: string
+      query: true
+    # MaaS
+    - name: vhostClassifierName
+      title: Vhost Classifier Name
+      type: string
+      default: public
+    - name: maasClassifierNamespace
+      title: Topic Classifier Namespace
+      description: MaaS topic classifier namespace. By default used current namespace
+      type: string
+    # Manual
+    - name: addresses
+      title: Address
+      type: string
+      query: true
+    - name: username
+      title: Username
+      type: string
+      query: true
+    - name: password
+      title: Password
+      description: For security purposes, use reference to secured variables when entering passwords
+      type: string
+      query: true
+    - name: sslProtocol
+      title: SSL
+      type: string
+      query: true
+    - name: idempotencyKeyExpression
+      title: Key expression
+      type: string
+    - name: enableIdempotency
+      title: Enable idempotency
+      type: boolean
+      default: false
+    - name: idempotencyKeyExpiry
+      title: Key expiration time (seconds)
+      type: number
+      default: 600
+    - name: actionOnDuplicate
+      title: Action on duplicate message
+      type: string
+      allowedValues:
+          - ignore
+          - throw-exception
+          - execute-subchain
+      default: ignore
+    - name: chainTriggerElementId
+      title: Reference to chain trigger
+      type: string
+      reference: true
+    - name: chainCallTimeout
+      title: Timeout (ms)
+      type: number
+      default: 30000
