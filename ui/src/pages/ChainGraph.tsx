@@ -4,26 +4,29 @@ import {
   MiniMap,
   Node,
   ReactFlow,
-  ReactFlowProvider
+  ReactFlowProvider,
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
 import { MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
-import { Flex, FloatButton } from "antd";
-import { SettingOutlined } from "@ant-design/icons";
+import { Flex, FloatButton, notification } from "antd";
+import { MoreOutlined, SendOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router";
 import { useParams } from "react-router-dom";
 import { CustomControls } from "../components/graph/CustomControls.tsx";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { useModalsContext } from "../Modals.tsx";
-import { ChainSettings } from "../components/modal/ChainSettings.tsx";
 import { ChainElementModification } from "../components/modal/ChainElementModification.tsx";
 import styles from "./ChainGraph.module.css";
 
 import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
 import { ElkDirectionContextProvider } from "./ElkDirectionContext.tsx";
+import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
+import { CreateDeploymentRequest } from "../api/apiTypes.ts";
+import { api } from "../api/api.ts";
+import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 const ChainGraph = () => {
   const { chainId } = useParams<string>();
@@ -32,6 +35,7 @@ const ChainGraph = () => {
   const reactFlowWrapper = useRef(null);
   const [isPageLoaded, setIsPageLoaded] = useState(false);
   const navigate = useNavigate();
+  const notificationService = useNotificationService();
 
   const onDragOver = useCallback((event: any) => {
     event.preventDefault();
@@ -47,7 +51,7 @@ const ChainGraph = () => {
     onNodesChange,
     elkDirectionControl,
     updateNodeData,
-    isLoading
+    isLoading,
   } = useChainGraph(chainId);
 
   useEffect(() => {
@@ -89,6 +93,33 @@ const ChainGraph = () => {
     elementId = undefined;
   };
 
+  const saveAndDeploy = async (domain: string) => {
+    if (!chainId) return;
+    try {
+      await api.createSnapshot(chainId).then(async (snapshot) => {
+        notification.success({ message: `Created snapshot ${snapshot.name}` });
+        const request: CreateDeploymentRequest = {
+          domain,
+          snapshotId: snapshot.id,
+          suspended: false,
+        };
+        await api.createDeployment(chainId, request);
+        notification.success({ message: `Deployed snapshot ${snapshot.name}` });
+      });
+    } catch (error) {
+      notificationService.requestFailed(
+        "Failed to create snapshot and deploy it",
+        error,
+      );
+    }
+  };
+
+  const openSaveAndDeployDialog = async () => {
+    showModal({
+      component: <SaveAndDeploy chainId={chainId} onSubmit={saveAndDeploy} />,
+    });
+  };
+
   return (
     <Flex className={styles["graph-wrapper"]}>
       <ElementsLibrarySidebar />
@@ -103,7 +134,7 @@ const ChainGraph = () => {
             onDrop={onDrop}
             onDragOver={onDragOver}
             onNodeDoubleClick={onNodeDoubleClick}
-            deleteKeyCode={['Backspace', 'Delete']}
+            deleteKeyCode={["Backspace", "Delete"]}
             fitView
           >
             <Background variant={BackgroundVariant.Dots} />
@@ -112,10 +143,14 @@ const ChainGraph = () => {
           </ReactFlow>
         </ElkDirectionContextProvider>
       </div>
-      <FloatButtonGroup trigger="hover" icon={<SettingOutlined />}>
+      <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
         <FloatButton
-          onClick={() => showModal({ component: <ChainSettings /> })}
-          icon={<SettingOutlined />}
+          icon={<SendOutlined />}
+          tooltip={{
+            title: "Save and deploy",
+            placement: "left",
+          }}
+          onClick={async () => openSaveAndDeployDialog()}
         />
       </FloatButtonGroup>
     </Flex>
