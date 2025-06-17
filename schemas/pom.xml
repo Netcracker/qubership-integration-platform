@@ -31,8 +31,6 @@
     </scm>
 
     <profiles>
-        <!-- Maven Central -->
-        <!-- mvn deploy -P central -->
         <profile>
             <id>central</id>
             <activation>
@@ -51,20 +49,57 @@
                             <waitUntil>published</waitUntil>
                         </configuration>
                     </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.7</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.0</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.6.3</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
                 </plugins>
             </build>
             <distributionManagement>
                 <repository>
                     <id>central</id>
                     <name>Central Maven Repository</name>
-                    <snapshots>
-                        <enabled>true</enabled>
-                    </snapshots>
                 </repository>
             </distributionManagement>
         </profile>
-        <!-- GitHub packages -->
-        <!-- mvn deploy -P github -->
+
+
         <profile>
             <id>github</id>
             <activation>
@@ -75,12 +110,6 @@
                     <id>github</id>
                     <name>GitHub Packages</name>
                     <url>https://maven.pkg.github.com/andyroode/qubership-integration-schemas</url>
-                    <releases>
-                        <enabled>true</enabled>
-                    </releases>
-                    <snapshots>
-                        <enabled>true</enabled>
-                    </snapshots>
                 </repository>
             </distributionManagement>
         </profile>
