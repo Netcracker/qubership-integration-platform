@@ -30,12 +30,6 @@
         <url>scm:git:https://github.com/andy-roode/qubership-integration-schemas.git</url>
     </scm>
 
-    <properties>
-        <revision>0.0.2</revision>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <repo-name>qubership-integration-schemas</repo-name>
-    </properties>
-
     <profiles>
         <!-- Maven Central -->
         <!-- mvn deploy -P central -->
