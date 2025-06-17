@@ -87,12 +87,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # This step is needed if there is a GitHub App used for authentication to bypass the protected branch rule
-      - name: "Prepare app token"
-        uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ vars.GH_BUMP_VERSION_APP_ID }}
-          private-key: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+      #- name: "Prepare app token"
+      #  uses: actions/create-github-app-token@v1
+      #  id: app-token
+      #  with:
+      #    app-id: ${{ vars.GH_BUMP_VERSION_APP_ID }}
+      #    private-key: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
       - name: "Build and Publish"
         id: build-and-publish
 
@@ -104,7 +105,7 @@ jobs:
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           server-id: ${{ inputs.profile }}
-          token: ${{ steps.app-token.outputs.token }} # It can be ${{ secrets.GITHUB_TOKEN }} if default branch isn't protected
+          #token: ${{ steps.app-token.outputs.token }} # It can be ${{ secrets.GITHUB_TOKEN }} if default branch isn't protected
           maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
           maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
