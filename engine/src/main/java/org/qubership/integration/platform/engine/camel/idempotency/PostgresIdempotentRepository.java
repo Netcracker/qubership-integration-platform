@@ -34,7 +34,7 @@ public class PostgresIdempotentRepository extends ServiceSupport implements Idem
     @ManagedOperation(description = "Adds the key to the store")
     public boolean add(Exchange exchange, String key) {
         int ttl = exchange.getProperty(EXPIRY_PROPERTY, DEFAULT_KEY_EXPIRY, Integer.class);
-        if (ttl < 0) {
+        if (ttl <= 0) {
             throw new IllegalArgumentException("TTL must be greater than 0");
         }
         return addKeyToStore(key, ttl);
