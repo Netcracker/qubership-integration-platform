@@ -24,6 +24,30 @@ public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRe
     @Query(
             nativeQuery = true,
             value = """
+                insert into
+                    engine.idempotency_records as r
+                        (key, data, created_at, expires_at)
+                values (
+                    :key,
+                    :data ::json,
+                    now(),
+                    date_add(now(), make_interval(secs => :ttl))
+                )
+                on conflict (key) do update
+                    set
+                        data = :data ::json,
+                        created_at = now(),
+                        expires_at = date_add(now(), make_interval(secs => :ttl))
+                    where
+                        r.expires_at < now()
+            """
+    )
+    int insertIfNotExistsOrUpdateIfExpired(String key, String data, int ttl);
+
+    @Modifying
+    @Query(
+            nativeQuery = true,
+            value = """
                 delete from engine.idempotency_records r where r.expires_at < now()
             """
     )
@@ -33,15 +57,12 @@ public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRe
     @Query(
             nativeQuery = true,
             value = """
-                with deleted as (
-                    delete from
-                        engine.idempotency_records r
-                    where
-                        r.key = :key
-                        and r.expires_at >= now()
-                    returning r.key
-                ) select count(*) from deleted
+                delete from
+                    engine.idempotency_records r
+                where
+                    r.key = :key
+                    and r.expires_at >= now()
             """
     )
-    long deleteByKeyAndNotExpired(String key);
+    int deleteByKeyAndNotExpired(String key);
 }

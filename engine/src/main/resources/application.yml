@@ -264,7 +264,7 @@ qip:
   restclient:
     timeout: 300000
   idempotency:
-    expired-records-deletion-rate: ${IDEMPOTENCY_EXPIRED_RECORDS_DELETION_RATE:300}
+    expired-records-cleanup-cron: ${IDEMPOTENCY_RECORDS_CLEANUP_CRON:0 */5 * ? * *}
 
 kubernetes:
   devmode: ${KUBE_DEV_MODE:false}

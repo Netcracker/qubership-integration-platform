@@ -1,30 +1,47 @@
 package org.qubership.integration.platform.engine.camel.idempotency;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.Exchange;
 import org.apache.camel.api.management.ManagedOperation;
 import org.apache.camel.spi.IdempotentRepository;
 import org.apache.camel.support.service.ServiceSupport;
 import org.qubership.integration.platform.engine.service.IdempotencyRecordService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
+import static org.qubership.integration.platform.engine.model.constants.CamelConstants.SYSTEM_PROPERTY_PREFIX;
+
+@Slf4j
+@Component("idempotentRepository")
 public class PostgresIdempotentRepository extends ServiceSupport implements IdempotentRepository {
-    private final IdempotencyRecordService idempotencyRecordService;
-    private final IdempotentRepositoryParameters parameters;
+    private static final Integer DEFAULT_KEY_EXPIRY = 600;
+    private static final String EXPIRY_PROPERTY = SYSTEM_PROPERTY_PREFIX + "keyExpiry";
 
-    public PostgresIdempotentRepository(
-            IdempotencyRecordService idempotencyRecordService,
-            IdempotentRepositoryParameters parameters
-    ) {
+    private final IdempotencyRecordService idempotencyRecordService;
+
+    @Autowired
+    public PostgresIdempotentRepository(IdempotencyRecordService idempotencyRecordService) {
         this.idempotencyRecordService = idempotencyRecordService;
-        this.parameters = parameters;
     }
 
     @Override
     @ManagedOperation(description = "Adds the key to the store")
     public boolean add(String key) {
-        try {
-            return idempotencyRecordService.insertIfNotExists(key, parameters.getTtl());
-        } catch (Exception exception) {
-            return false;
+        return addKeyToStore(key, DEFAULT_KEY_EXPIRY);
+    }
+
+    @Override
+    @ManagedOperation(description = "Adds the key to the store")
+    public boolean add(Exchange exchange, String key) {
+        int ttl = exchange.getProperty(EXPIRY_PROPERTY, DEFAULT_KEY_EXPIRY, Integer.class);
+        if (ttl < 0) {
+            throw new IllegalArgumentException("TTL must be greater than 0");
         }
+        return addKeyToStore(key, ttl);
+    }
+
+    private boolean addKeyToStore(String key, int ttl) {
+        return idempotencyRecordService.insertIfNotExists(key, ttl);
     }
 
     @Override
