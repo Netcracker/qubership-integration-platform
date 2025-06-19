@@ -10,4 +10,4 @@ export function assembly() {
         .pipe(dest("assets"));
 }
 
-// exports.default = series(clean, assembly);
+export default series(clean, assembly);
