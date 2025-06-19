@@ -1,0 +1,17 @@
+{
+  "name": "@netcracker/qip-schemas",
+  "version": "0.0.2",
+  "license": "Apache-2.0",
+  "description": "Schemas definition for QIP",
+  "scripts": {
+    "prepublishOnly": "gulp clean assembly",
+    "postpublish": "gulp clean"
+  },
+  "files": [
+    "assets"
+  ],
+  "devDependencies": {
+    "gulp": "^5.0.1",
+    "gulp-clean": "^0.4.0"
+  }
+}
