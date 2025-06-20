@@ -2,13 +2,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import type { TableProps } from 'antd';
 
 interface TableScrollProps {
-  children: React.ReactElement<TableProps<any>>;
+  children: React.ReactElement<TableProps<unknown>>;
   enableScroll?: boolean;
   className?: string;
 }
 
-export const TableScroll: React.FC<TableScrollProps> = ({ 
-  children, 
+export const TableScroll: React.FC<TableScrollProps> = ({
+  children,
   enableScroll = true,
   className = ''
 }) => {
@@ -45,4 +45,4 @@ export const TableScroll: React.FC<TableScrollProps> = ({
       })}
     </div>
   );
-}; 
+};

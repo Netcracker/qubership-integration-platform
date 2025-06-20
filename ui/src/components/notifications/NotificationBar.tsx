@@ -2,8 +2,7 @@ import {Badge, Button, Drawer, List} from "antd";
 import { BellOutlined,} from "@ant-design/icons";
 import styles from "../Navigation.module.css";
 import React, {useState} from "react";
-import {useNotificationLog} from "./contexts/NotificationLogContext.tsx";
-import {ArgsProps} from "antd/es/notification";
+import { NotificationItem, useNotificationLog } from "./contexts/NotificationLogContext.tsx";
 import {NotificationBarElement} from "./NotificationBarElement.tsx";
 
 
@@ -25,8 +24,8 @@ export const NotificationBar: React.FC = () => {
         clearHistory();
     }
 
-    const removeNotification = (notificationConfig: ArgsProps) => {
-        removeFromHistory(notificationConfig);
+    const removeNotification = (notification: NotificationItem) => {
+        removeFromHistory(notification);
     }
 
 
@@ -53,7 +52,7 @@ export const NotificationBar: React.FC = () => {
                 dataSource={notificationLogData.history}
                 renderItem={(item) => (
                     <NotificationBarElement
-                        props={item}
+                        value={item}
                         onRemove={removeNotification}
                     />
                 )}

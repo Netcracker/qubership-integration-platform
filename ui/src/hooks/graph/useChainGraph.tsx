@@ -7,6 +7,7 @@ import {
   Node,
   NodeChange,
   Position,
+  Connection as ReactFlowConnection,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -16,11 +17,19 @@ import { api } from "../../api/api.ts";
 import { Connection, Element } from "../../api/apiTypes.ts";
 import { useAutoLayout } from "./useAutoLayout.tsx";
 import { useNotificationService } from "../useNotificationService.tsx";
+import { ElkDirection } from "./useElkDirection.tsx";
+
+export type ChainGraphNodeData = {
+  label: string;
+  description: string;
+  properties: Element["properties"];
+  direction?: ElkDirection;
+}
 
 export const useChainGraph = (chainId?: string) => {
   const { screenToFlowPosition } = useReactFlow();
 
-  const [nodes, setNodes] = useNodesState<Node>([]);
+  const [nodes, setNodes] = useNodesState<Node<ChainGraphNodeData>>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
   const [isLoading, setIsLoading] = useState(true);
   const notificationService = useNotificationService();
@@ -40,7 +49,7 @@ export const useChainGraph = (chainId?: string) => {
 
         const elements = await api.getElements(chainId);
 
-        const newNodes: Node[] = elements.map((element: Element) => ({
+        const newNodes: Node<ChainGraphNodeData>[] = elements.map((element: Element) => ({
           id: element.id,
           type: element.type,
           position: { x: 0, y: 0 },
@@ -72,22 +81,21 @@ export const useChainGraph = (chainId?: string) => {
   }, []);
 
   const onConnect = useCallback(
-    async (params: any) => {
+    async (connection: ReactFlowConnection) => {
       if (!chainId) return;
       try {
-        let response = await api.createConnection(
+        const response = await api.createConnection(
           {
-            from: params.source,
-            to: params.target,
+            from: connection.source,
+            to: connection.target,
           },
           chainId,
         );
 
         console.log(response.createdDependencies?.[0]?.id);
-        params.id = response.createdDependencies?.[0]?.id;
-
-        console.log(params);
-        setEdges((eds) => addEdge(params, eds));
+        const edge: Edge = { ...connection, id: response.createdDependencies?.[0]?.id ?? ""};
+        console.log(edge);
+        setEdges((eds) => addEdge(edge, eds));
       } catch (error) {
         notificationService.requestFailed("Failed to create connection", error);
       }
@@ -119,7 +127,7 @@ export const useChainGraph = (chainId?: string) => {
 
         const createdElement = response.createdElements?.[0];
         if (createdElement) {
-          const newNode: Node = {
+          const newNode: Node<ChainGraphNodeData> = {
             id: createdElement.id,
             type: createdElement.type,
             position,
@@ -149,7 +157,7 @@ export const useChainGraph = (chainId?: string) => {
     });
   }, []);
 
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
+  const onNodesChange = useCallback((changes: NodeChange<Node<ChainGraphNodeData>>[]) => {
     changes.forEach(async (change) => {
       if (!chainId) return;
       if (change.type === "remove") {
@@ -159,7 +167,7 @@ export const useChainGraph = (chainId?: string) => {
     });
   }, []);
 
-  const updateNodeData = (element: Element, node: Node) => {
+  const updateNodeData = (element: Element, node: Node<ChainGraphNodeData>) => {
     node.data = {
       ...node.data,
       ...getDataFromElement(element),
@@ -178,7 +186,7 @@ export const useChainGraph = (chainId?: string) => {
       }));
   }
 
-  const getDataFromElement = (element: Element): Record<string, unknown> => {
+  const getDataFromElement = (element: Element): ChainGraphNodeData => {
     return {
       label: element.name,
       description: element.description,

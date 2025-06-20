@@ -4,7 +4,7 @@ import { useNotificationService } from "./useNotificationService.tsx";
 
 export const useElement = () => {
   const notificationService = useNotificationService();
-  
+
   const updateElement = async (chainId: string, elementId: string, request: PatchElementRequest): Promise<Element | undefined> => {
     try {
       const elementChange = await api.updateElement(
@@ -12,7 +12,7 @@ export const useElement = () => {
         chainId,
         elementId,
       );
-      return elementChange.updatedElements?.[0]!;
+      return elementChange.updatedElements?.[0];
     } catch (error) {
       notificationService.errorWithDetails("Save element failed", "Failed to save element", error);
     }

@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, Result } from "antd";
 
-const NotFound: React.FC = () => {
+export const NotFound: React.FC = () => {
   return (
     <Result
       status="404"
@@ -11,5 +11,3 @@ const NotFound: React.FC = () => {
     />
   );
 };
-
-export default NotFound;

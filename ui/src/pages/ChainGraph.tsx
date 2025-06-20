@@ -8,7 +8,7 @@ import {
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
-import { MouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import React, { DragEvent, MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
 import { Flex, FloatButton, notification } from "antd";
@@ -21,14 +21,14 @@ import { useModalsContext } from "../Modals.tsx";
 import { ChainElementModification } from "../components/modal/ChainElementModification.tsx";
 import styles from "./ChainGraph.module.css";
 
-import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
+import { ChainGraphNodeData, useChainGraph } from "../hooks/graph/useChainGraph.tsx";
 import { ElkDirectionContextProvider } from "./ElkDirectionContext.tsx";
 import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
 import { CreateDeploymentRequest } from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
-const ChainGraph = () => {
+const ChainGraphInner: React.FC = () => {
   const { chainId } = useParams<string>();
   let { elementId } = useParams<string>();
   const { showModal } = useModalsContext();
@@ -37,7 +37,7 @@ const ChainGraph = () => {
   const navigate = useNavigate();
   const notificationService = useNotificationService();
 
-  const onDragOver = useCallback((event: any) => {
+  const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   }, []);
@@ -63,11 +63,11 @@ const ChainGraph = () => {
     }
   }, [nodes]);
 
-  const onNodeDoubleClick = (_event: MouseEvent, node: Node) => {
+  const onNodeDoubleClick = (_event: MouseEvent, node: Node<ChainGraphNodeData>) => {
     openElementModal(node);
   };
 
-  const openElementModal = (node?: Node) => {
+  const openElementModal = (node?: Node<ChainGraphNodeData>) => {
     if (!node?.type) return;
     setElementPath(node.id);
     showModal({
@@ -157,10 +157,10 @@ const ChainGraph = () => {
   );
 };
 
-export default () => (
+export const ChainGraph: React.FC = () => (
   <ReactFlowProvider>
     <DnDProvider>
-      <ChainGraph />
+      <ChainGraphInner />
     </DnDProvider>
   </ReactFlowProvider>
 );

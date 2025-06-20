@@ -186,10 +186,7 @@ export interface Api {
 
   deleteFolders(folderIds: string[]): Promise<void>;
 
-  moveFolder(
-    folderId: string,
-    targetFolderId?: string,
-  ): Promise<FolderItem>;
+  moveFolder(folderId: string, targetFolderId?: string): Promise<FolderItem>;
 
   getNestedChains(folderId: string): Promise<Chain[]>;
 

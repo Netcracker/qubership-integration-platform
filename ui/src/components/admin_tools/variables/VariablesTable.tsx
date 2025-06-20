@@ -3,7 +3,7 @@ import {
   Table,
   Input,
   Button,
-  Popconfirm,
+  Popconfirm, TableProps
 } from "antd";
 import type { InputRef } from "antd";
 import {
@@ -13,7 +13,7 @@ import {
   CloseOutlined,
   FileTextOutlined,
 } from "@ant-design/icons";
-import { Resizable } from "react-resizable";
+import { Resizable, ResizableProps } from "react-resizable";
 import "react-resizable/css/styles.css";
 import "./Resizable.css";
 import { NEW_VARIABLE_KEY } from "./useVariablesState";
@@ -38,7 +38,7 @@ interface VariablesTableProps {
   onChangeEditingValue: (value: string) => void;
   onConfirmEdit: (key: string, newValue: string) => void;
   columnsWidth: { [key: string]: number };
-  onResize: (dataIndex: string) => (_: any, { size }: any) => void;
+  onResize: (dataIndex: string) => ResizableProps["onResize"];
   enableKeySort?: boolean;
   enableValueSort?: boolean;
   enableKeyFilter?: boolean;
@@ -47,7 +47,12 @@ interface VariablesTableProps {
   enableScroll?: boolean;
 }
 
-const ResizableTitle = (props: any) => {
+type ResizableTitleProps = React.HTMLAttributes<HTMLElement> & {
+  onResize: ResizableProps["onResize"],
+  width: number | undefined,
+}
+
+const ResizableTitle = (props: ResizableTitleProps) => {
   const { onResize, width, ...restProps } = props;
 
   if (!width) {
@@ -120,7 +125,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
 
   const totalColumnsWidth = Object.values(columnsWidth).reduce((acc, width) => acc + width, 0);
 
-  const columns = [
+  const columns: TableProps<Variable>["columns"] = [
     {
       title: "Key",
       dataIndex: "key",
@@ -265,7 +270,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
       width: 50,
       fixed: "right" as const,
       align: "right" as const,
-      render: (_: any, record: Variable) =>
+      render: (_: unknown, record: Variable) =>
         record.key !== NEW_VARIABLE_KEY && (
           <Popconfirm title="Delete variable?" onConfirm={() => onDelete(record.key)}>
             <Button
@@ -286,10 +291,10 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
 
   return (
     <TableScroll enableScroll={enableScroll} className={styles["sub-table-wrapper"]}>
-      <Table
+      <Table<Variable>
         className={styles["secret-sub-table"]}
         dataSource={dataWithNewRow}
-        columns={columns as any}
+        columns={columns}
         components={{
           header: {
             cell: ResizableTitle,

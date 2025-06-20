@@ -59,7 +59,7 @@ export const LoggingSettings: React.FC = () => {
   }, [chainId]);
 
   useEffect(() => {
-    if (!!loggingSettings) {
+    if (loggingSettings) {
       const properties: ChainLoggingProperties =
         loggingSettings?.custom ??
         loggingSettings?.consulDefault ??

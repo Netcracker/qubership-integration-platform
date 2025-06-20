@@ -7,7 +7,7 @@ export type InlineEditContextProps = {
   toggle: () => void;
 };
 
-export type InlineEditProps<Values = any> = {
+export type InlineEditProps<Values> = {
   values: Values;
   editor: ReactNode;
   viewer: ReactNode;
@@ -20,7 +20,7 @@ export const InlineEditContext = createContext<InlineEditContextProps | null>(
   null,
 );
 
-export function InlineEdit<Values = any>({
+export function InlineEdit<Values>({
   values,
   editor,
   viewer,

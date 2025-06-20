@@ -5,7 +5,7 @@ import {
   DownloadOutlined,
   PlusOutlined,
   DeleteOutlined,
-  TableOutlined
+  TableOutlined,
 } from "@ant-design/icons";
 import styles from "./CommonVariables.module.css";
 import ImportVariablesModal from "./ImportVariablesModal.tsx";
@@ -15,6 +15,7 @@ import { useVariablesState } from "./useVariablesState";
 import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
+import { ResizeCallbackData } from "react-resizable";
 
 const { Title } = Typography;
 
@@ -27,14 +28,16 @@ export const CommonVariables = () => {
   });
   const notificationService = useNotificationService();
 
-  const handleResize = (dataIndex: string) => (_: any, { size }: any) => {
-    requestAnimationFrame(() => {
-      setColumnsWidth((prev) => ({
-        ...prev,
-        [dataIndex]: size.width,
-      }));
-    });
-  };
+  const handleResize =
+    (dataIndex: string) =>
+    (_: unknown, { size }: ResizeCallbackData) => {
+      requestAnimationFrame(() => {
+        setColumnsWidth((prev) => ({
+          ...prev,
+          [dataIndex]: size.width,
+        }));
+      });
+    };
 
   const {
     variables,
@@ -74,7 +77,7 @@ export const CommonVariables = () => {
         setSelectedRowKeys([]);
         fetchVariables();
       } else {
-         message.error("Failed to delete selected variables");
+        message.error("Failed to delete selected variables");
       }
     } catch (error) {
       console.error("Error deleting selected variables:", error);

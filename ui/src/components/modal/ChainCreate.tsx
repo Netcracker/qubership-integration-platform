@@ -1,4 +1,4 @@
-import { Button, Flex, Form, Input, Modal, Select, Tabs } from "antd";
+import { Button, Flex, Form, Input, InputRef, Modal, Select, Tabs } from "antd";
 import React, { useEffect, useRef, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { ChainCreationRequest } from "../../api/apiTypes.ts";
@@ -23,10 +23,9 @@ export const ChainCreate: React.FC<ChainCreateProps> = ({ onSubmit }) => {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [isOpenChecked, setIsOpenChecked] = useState<boolean>(true);
   const { closeContainingModal } = useModalContext();
-  const nameInput = useRef(null);
+  const nameInput = useRef<InputRef>(null);
 
   useEffect(() => {
-    // @ts-ignore
     nameInput.current?.focus();
   }, [nameInput]);
 

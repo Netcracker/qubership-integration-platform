@@ -12,7 +12,11 @@ export abstract class BaseApi {
     });
   }
 
-  protected fail(serviceName: string, message: string, stacktrace?: string): ApiResponse<any> {
+  protected fail(
+    serviceName: string,
+    message: string,
+    stacktrace?: string,
+  ): ApiResponse<never> {
     return {
       success: false,
       error: {
@@ -26,33 +30,42 @@ export abstract class BaseApi {
     };
   }
 
-  protected wrap<T>(fn: () => Promise<T>, fallbackMessage: string, serviceName: string): Promise<ApiResponse<T>> {
-    return fn().then((data) => ({ success: true, data })).catch((error) => {
+  protected async wrap<T>(
+    fn: () => Promise<T>,
+    fallbackMessage: string,
+    serviceName: string,
+  ): Promise<ApiResponse<T>> {
+    try {
+      const data = await fn();
+      return { success: true, data };
+    } catch (error) {
       console.error(fallbackMessage, error);
       if (axios.isAxiosError(error) && error.response?.data) {
         const backendError = error.response.data;
         if (backendError?.serviceName && backendError?.errorMessage) {
-          return { success: false, error: { responseBody: backendError as ApiError['responseBody'] } };
+          return {
+            success: false,
+            error: { responseBody: backendError as ApiError["responseBody"] },
+          };
         }
         if (typeof error.response.data === "string") {
           return this.fail(serviceName, error.response.data);
         }
       }
       return this.fail(serviceName, fallbackMessage);
-    });
+    }
   }
 
-  protected wrapBoolean(fn: () => Promise<void>, fallbackMessage: string): Promise<boolean> {
-    return fn().then(() => true).catch((error) => {
+  protected async wrapBoolean(
+    fn: () => Promise<void>,
+    fallbackMessage: string,
+  ): Promise<boolean> {
+    try {
+      await fn();
+      return true;
+    } catch (error) {
       console.error(fallbackMessage, error);
       return false;
-    });
-  }
-
-  protected wrapRaw<T>(fn: () => Promise<T>, fallbackMessage: string): Promise<T | undefined> {
-    return fn().catch((error) => {
-      console.error(fallbackMessage, error);
-      return undefined;
-    });
+    }
   }
 }

@@ -1,16 +1,21 @@
 import { Edge, Node, Position, useReactFlow } from "@xyflow/react";
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import ELK from "elkjs/lib/elk.bundled";
 import { useElkDirection } from "./useElkDirection.tsx";
 
-type SetNodesFunction = React.Dispatch<React.SetStateAction<Node[]>>;
-type SetEdgesFunction = React.Dispatch<React.SetStateAction<Edge[]>>;
+type SetNodesFunction<NodeData extends Record<string, unknown>> =
+  React.Dispatch<React.SetStateAction<Node<NodeData>[]>>;
+type SetEdgesFunction<EdgeData extends Record<string, unknown>> =
+  React.Dispatch<React.SetStateAction<Edge<EdgeData>[]>>;
 
-export const useAutoLayout = (
-  nodes: Node[],
-  edges: Edge[],
-  setNodes: SetNodesFunction,
-  setEdges: SetEdgesFunction,
+export const useAutoLayout = <
+  NodeData extends Record<string, unknown> = Record<string, unknown>,
+  EdgeData extends Record<string, unknown> = Record<string, unknown>,
+>(
+  nodes: Node<NodeData>[],
+  edges: Edge<EdgeData>[],
+  setNodes: SetNodesFunction<NodeData>,
+  setEdges: SetEdgesFunction<EdgeData>,
 ) => {
   const { fitView } = useReactFlow();
   const elkDirectionControl = useElkDirection();
@@ -21,7 +26,7 @@ export const useAutoLayout = (
     autoLayout(nodes, edges);
   }, [elkDirectionControl.elkDirection]);
 
-  const autoLayout = (nodes: Node[], edges: Edge[]) => {
+  const autoLayout = (nodes: Node<NodeData>[], edges: Edge<EdgeData>[]) => {
     const isHorizontal = elkDirectionControl.elkDirection === "RIGHT";
     const elkGraph = {
       id: "root",

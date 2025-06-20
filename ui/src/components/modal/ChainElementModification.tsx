@@ -22,12 +22,13 @@ import { useLibraryElement } from "../../hooks/useLibraryElement.tsx";
 import YAML from "yaml";
 import { InfoCircleOutlined } from "@ant-design/icons";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import { ChainGraphNodeData } from "../../hooks/graph/useChainGraph.tsx";
 
 type ElementModificationProps = {
-  node: Node;
+  node: Node<ChainGraphNodeData>;
   chainId: string;
   elementId: string;
-  onSubmit: (changedElement: Element, node: Node) => void;
+  onSubmit: (changedElement: Element, node: Node<ChainGraphNodeData>) => void;
   onClose?: () => void;
 };
 
@@ -40,7 +41,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 }) => {
   const { libraryElement } = useLibraryElement(node.type);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDescriptioModalOpen, setIsDescriptioModalOpen] = useState(false);
+  const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
   const { updateElement } = useElement();
   const { closeContainingModal } = useModalContext();
   const [form] = Form.useForm();
@@ -102,7 +103,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     onClose?.();
   };
 
-  const constructProperties: any = () => {
+  const constructProperties = (): Record<string, unknown> | undefined => {
     try {
        return {
          ...form.getFieldValue(PropertyType.COMMON) ? YAML.parse(form.getFieldValue(PropertyType.COMMON)) : {},
@@ -116,7 +117,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     }
   };
 
-  const categorizeProperties = (properties: any) => {
+  const categorizeProperties = (properties: Record<string, unknown>) => {
     if (!properties || !libraryElement) {
       return;
     }
@@ -126,22 +127,22 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     setUnknownProperties(properties);
   };
 
-  function setPropertiesByCategory(properties: any, type: PropertyType) {
+  function setPropertiesByCategory(properties: Record<string, unknown>, type: PropertyType) {
     const result = Object.keys(properties)
       .filter((key) => {
-        // @ts-ignore suppressed as it will be replaced with proper elements code
+        // @ts-expect-error suppressed as it will be replaced with proper elements code
         return libraryElement!.properties[type].find(
           (val: Property) => val.name === key,
         );
       })
-      .reduce((obj: any, key) => {
+      .reduce((obj: Record<string, unknown>, key) => {
         obj[key] = properties[key];
         return obj;
       }, {});
     setPropertiesFormValue(result, type);
   }
 
-  function setUnknownProperties(properties: any) {
+  function setUnknownProperties(properties: Record<string, unknown>) {
     const result = Object.keys(properties)
       .filter(
         (key) =>
@@ -157,14 +158,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             )
           ),
       )
-      .reduce((obj: any, key) => {
+      .reduce((obj: Record<string, unknown>, key) => {
         obj[key] = properties[key];
         return obj;
       }, {});
     setPropertiesFormValue(result, PropertyType.UNKNOWN);
   }
 
-  function setPropertiesFormValue(value: any, type: PropertyType) {
+  function setPropertiesFormValue(value: Record<string, unknown>, type: PropertyType) {
     form.setFieldValue(
       type,
       value && Object.keys(value).length
@@ -184,11 +185,11 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   };
 
   const openDescriptionModal = () => {
-    setIsDescriptioModalOpen(true);
+    setIsDescriptionModalOpen(true);
   }
 
   const closeDescriptionModal = () => {
-    setIsDescriptioModalOpen(false);
+    setIsDescriptionModalOpen(false);
   }
 
 
@@ -281,7 +282,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         </Form.Item>
       </Form>
       <Modal
-        open={isDescriptioModalOpen}
+        open={isDescriptionModalOpen}
         title={`${libraryElement?.title} ${paramsRadioValue} parameters description`}
         onCancel={closeDescriptionModal}
         footer={null}
@@ -295,7 +296,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             maxRows: 20
           }}
           value={YAML.stringify(
-            // @ts-ignore Waiting for proper implementation of elements page
+            // @ts-expect-error Waiting for proper implementation of element page
             libraryElement?.properties[paramsRadioValue],
             null,
             2,

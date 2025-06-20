@@ -158,8 +158,7 @@ export const Sessions: React.FC = () => {
     Array.from(rowMap.values()).forEach((item) => {
       if (item.parentSessionId && rowMap.has(item.parentSessionId)) {
         const parentItem = rowMap.get(item.parentSessionId);
-        // @ts-ignore
-        parentItem.children = parentItem?.children
+        parentItem!.children = parentItem?.children
           ? [...parentItem.children, item]
           : [item];
       } else if (item.correlationId) {
@@ -339,7 +338,7 @@ export const Sessions: React.FC = () => {
             filterDropdown: (props: FilterDropdownProps) => (
               <TextColumnFilterDropdown {...props} enableExact={false} />
             ),
-            render: (_: any, item: SessionTableItem) => (
+            render: (_: unknown, item: SessionTableItem) => (
               <a onClick={async () => navigate(`/chains/${item.chainId}`)}>
                 {item.chainName}
               </a>

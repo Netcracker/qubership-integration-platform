@@ -1,6 +1,7 @@
-import { Handle, Position } from "@xyflow/react";
+import { Handle, Node, Position } from "@xyflow/react";
+import { ChainGraphNodeData } from "../../../hooks/graph/useChainGraph.tsx";
 
-export const DefaultNode = ({ data }: any) => {
+export const DefaultNode = ({ data }: Node<ChainGraphNodeData>) => {
   const isHorizontal = data.direction === "RIGHT";
 
   return (

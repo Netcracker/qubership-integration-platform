@@ -1,24 +1,30 @@
 import React, {createContext, useContext, useState, ReactNode} from "react";
 import {ArgsProps} from "antd/es/notification";
 
-type NotificationLogContextType = {
-    history: ArgsProps[];
-    addToHistory: (notificationConfig: ArgsProps) => void;
-    removeFromHistory: (notificationConfig: ArgsProps) => void;
+export type NotificationType = "info" | "warning" | "error";
+
+export type NotificationItem = ArgsProps & {
+  type?: NotificationType;
+}
+
+export type NotificationLogContextType = {
+    history: NotificationItem[];
+    addToHistory: (item: NotificationItem) => void;
+    removeFromHistory: (item: NotificationItem) => void;
     clearHistory: () => void;
 };
 
 const NotificationLogContext = createContext<NotificationLogContextType | undefined>(undefined);
 
 export const NotificationLogProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [history, setHistory] = useState<ArgsProps[]>([]);
+    const [history, setHistory] = useState<NotificationItem[]>([]);
 
-    const addToHistory = (notificationConfig: ArgsProps) => {
-        setHistory((current) => [...current, notificationConfig]);
+    const addToHistory = (item: NotificationItem) => {
+        setHistory((items) => [...items, item]);
     };
 
-    const removeFromHistory = (notificationConfig: ArgsProps) => {
-        setHistory((current) => current.filter((currentNotificationConfig) => currentNotificationConfig !== notificationConfig));
+    const removeFromHistory = (item: NotificationItem) => {
+        setHistory((current) => current.filter((i) => i !== item));
     }
 
     const clearHistory = () => {

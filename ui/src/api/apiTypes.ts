@@ -46,7 +46,7 @@ export type PatchElementRequest = {
   description: string;
   type: string;
   parentElementId?: string;
-  properties: {};
+  properties: Record<string, unknown>;
 };
 
 export type ConnectionRequest = {
@@ -108,7 +108,7 @@ export type Element = {
     hidden: Property[];
     async: Property[];
   };
-  customTabs: any[];
+  customTabs: unknown[];
   deprecated: boolean;
   unsupported: boolean;
   oldStyleContainer: boolean;
@@ -117,8 +117,8 @@ export type Element = {
     endOperations: Operation[];
     children: ChildElement[];
   };
-  queryProperties: any[];
-  referenceProperties: any[];
+  queryProperties: unknown[];
+  referenceProperties: unknown[];
 };
 
 export enum PropertyType {
@@ -139,11 +139,11 @@ export type Property = {
   mandatory: boolean;
   autofocus: boolean;
   query: boolean;
-  allowedValues: any[];
+  allowedValues: unknown[];
   allowCustomValue: boolean;
   multiple: boolean;
   reference: boolean;
-  default?: any;
+  default?: unknown;
   mask?: string;
 };
 
@@ -178,11 +178,18 @@ export type ActionDifference = {
 };
 
 export type RuntimeState = {
-  status: string;
+  status: DeploymentStatus;
   error: string;
   stacktrace: string;
   suspended: boolean;
 };
+
+export enum DeploymentStatus {
+  DEPLOYED = "DEPLOYED",
+  PROCESSING = "PROCESSING",
+  FAILED = "FAILED",
+  REMOVED = "REMOVED",
+}
 
 export type RuntimeStates = {
   states: { [key: string]: RuntimeState };
@@ -577,6 +584,11 @@ export type ImportInstructionResult = {
   errorMessage: string;
 };
 
+export type ImportVariablesResult = {
+  variables: ImportVariableResult[];
+  instructions: ImportInstructionResult[];
+};
+
 export enum ImportEntityStatus {
   CREATED = "CREATED",
   ERROR = "ERROR",
@@ -608,24 +620,50 @@ export enum ImportInstructionStatus {
   NO_ACTION = "NO_ACTION",
 }
 
-
 export type EventsUpdate = {
-    lastEventId: string;
-    events: Event[];
-}
+  lastEventId: string;
+  events: Event[];
+};
 
 export type Event = {
-    id: string;
-    time?: number;
-    userId?: string;
-    objectType: ObjectType;
-    data?: any;
-}
+  id: string;
+  time?: number;
+  userId?: string;
+  objectType: ObjectType;
+  data?: EventData;
+};
 
 export enum ObjectType {
-    DEPLOYMENT = 'DEPLOYMENT',
-    ENGINE = 'ENGINE',
-    GENERIC_MESSAGE = 'GENERIC_MESSAGE',
+  DEPLOYMENT = "DEPLOYMENT",
+  ENGINE = "ENGINE",
+  GENERIC_MESSAGE = "GENERIC_MESSAGE",
+}
+
+export type EventData = GenericMessage | EngineUpdate | DeploymentUpdate;
+
+export type GenericMessage = {
+  message: string;
+  type: GenericMessageType;
+  optionalFields: Record<string, string>;
+};
+
+export enum GenericMessageType {
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
+}
+
+export type EngineUpdate = {
+  domainId: string;
+  domainName: string;
+  actionType: EventActionType;
+};
+
+export enum EventActionType {
+  ADDED = "ADDED",
+  DELETED = "DELETED",
+  MODIFIED = "MODIFIED",
+  UNKNOWN = "UNKNOWN",
 }
 
 export type ErrorResponse = {
@@ -633,20 +671,38 @@ export type ErrorResponse = {
   errorMessage: string;
   stackTrace: string;
   errorDate: string;
-}
+};
+
+export type DeploymentUpdate = {
+  id: string;
+  engineHost: string;
+  state: RuntimeState;
+  snapshotId: string;
+  chainId: string;
+  chainName: string;
+  domain: string;
+  createdWhen: number;
+  serviceName: string;
+  chainStatusCode: string;
+};
 
 export class RestApiError extends Error {
-    responseCode: number;
-    responseBody?: ErrorResponse;
-    rawError?: unknown;
+  responseCode: number;
+  responseBody?: ErrorResponse;
+  rawError?: unknown;
 
-    constructor(message: string, responseCode: number, responseBody?: ErrorResponse, raw?: unknown) {
-      super(message);
-      this.name = "RestApiError";
-      this.responseCode = responseCode;
-      this.responseBody = responseBody;
-      this.rawError = raw;
-    }
+  constructor(
+    message: string,
+    responseCode: number,
+    responseBody?: ErrorResponse,
+    raw?: unknown,
+  ) {
+    super(message);
+    this.name = "RestApiError";
+    this.responseCode = responseCode;
+    this.responseBody = responseBody;
+    this.rawError = raw;
+  }
 }
 
 export type CreateFolderRequest = {
@@ -654,18 +710,18 @@ export type CreateFolderRequest = {
   parentId?: string;
   name?: string;
   description?: string;
-}
+};
 
 export type UpdateFolderRequest = {
   parentId?: string;
   name?: string;
   description?: string;
-}
+};
 
 export type MoveFolderRequest = {
   id: string;
   targetId?: string;
-}
+};
 
 export type ListFolderRequest = {
   folderId?: string;
@@ -682,7 +738,7 @@ export type FolderFilter = {
 export type CatalogItem = BaseEntity & {
   parentId?: string;
   itemType: CatalogItemType;
-}
+};
 
 export enum CatalogItemType {
   FOLDER = "FOLDER",
@@ -693,4 +749,4 @@ export type FolderItem = CatalogItem & {};
 
 export type ChainItem = CatalogItem & {
   labels: EntityLabel[];
-}
+};

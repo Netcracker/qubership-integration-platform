@@ -1,23 +1,25 @@
 import { api } from "../api/api.ts";
-import { Deployment, Event, ObjectType } from "../api/apiTypes.ts";
+import {
+  Deployment,
+  DeploymentStatus,
+  DeploymentUpdate,
+  Event,
+  ObjectType,
+} from "../api/apiTypes.ts";
 import { useEffect, useState } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 import { useEventContext } from "../components/notifications/contexts/EventContext.tsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-
-export enum DeploymentStatus {
-  DEPLOYED = "DEPLOYED",
-  PROCESSING = "PROCESSING",
-  FAILED = "FAILED",
-  REMOVED = "REMOVED",
-}
 
 export type StatusNotificationData = {
   type: "info" | "error";
   message: string;
 };
 
-export const StatusNotificationMap: Record<DeploymentStatus, StatusNotificationData> = {
+export const StatusNotificationMap: Record<
+  DeploymentStatus,
+  StatusNotificationData
+> = {
   DEPLOYED: {
     type: "info",
     message: "Has been deployed successfully",
@@ -54,7 +56,7 @@ export const useDeployments = (chainId?: string) => {
     retry: 1,
   });
 
-  //Rest error handling
+  // Rest error handling
   useEffect(() => {
     if (query.error) {
       const error = query.error;
@@ -62,25 +64,26 @@ export const useDeployments = (chainId?: string) => {
     }
   });
 
-  //Event handling
+  // Event handling
   useEffect(() => {
     return subscribe(ObjectType.DEPLOYMENT, (event: Event) => {
-      if (event.data.chainId !== chainId || !event.data.chainId) return;
-      showEventNotification(event);
+      const data: DeploymentUpdate = event.data as DeploymentUpdate;
+      if (data.chainId !== chainId || !data.chainId) return;
+      showEventNotification(data);
 
       return queryClient.invalidateQueries({
-        queryKey: ["deployments", event.data.chainId],
+        queryKey: ["deployments", data.chainId],
         exact: true,
       });
     });
   }, [subscribe, chainId, query, queryClient]);
 
-  function showEventNotification(event: Event) {
-    const chainName = event.data.chainName;
-    const status: DeploymentStatus = event.data.state.status;
+  function showEventNotification(data: DeploymentUpdate) {
+    const chainName = data.chainName;
+    const status: DeploymentStatus = data.state.status;
     const notificationData = StatusNotificationMap[status];
     if (status === DeploymentStatus.FAILED) {
-      const errorDetails = event.data.errorDetails;
+      const errorDetails = data.state.error;
       notificationService.errorWithDetails(
         chainName,
         notificationData.message,

@@ -2,8 +2,7 @@ export const PLACEHOLDER = "—";
 
 export function formatOptional<T>(
   value: T,
-  // @ts-ignore
-  formatter: (v: T) => string = (v) => v.toString(),
+  formatter: (v: T) => string = (v) => String(v),
   placeholder: string = PLACEHOLDER,
 ): string {
   return value ? formatter(value) : placeholder;
@@ -22,7 +21,6 @@ export function formatTimestamp(
       hour: "2-digit",
       minute: "2-digit",
       second: millis ? "2-digit" : undefined,
-      // @ts-ignore
       fractionalSecondDigits: millis ? 3 : undefined,
       hour12: false,
     });
@@ -32,12 +30,12 @@ export function formatTimestamp(
 }
 
 export function formatUTCSessionDate(date: string, millis?: boolean): string {
-  return formatTimestamp(date?.concat('Z'), millis);
+  return formatTimestamp(date?.concat("Z"), millis);
 }
 
 export function formatDuration(value?: number): string {
   if (value === undefined || value === null || value === 0) {
-    return '';
+    return "";
   }
 
   if (value < 1000) {
@@ -45,7 +43,10 @@ export function formatDuration(value?: number): string {
   }
 
   let seconds = value / 1000;
-  if (seconds < 59.995 /* because toFixed rounds value (59.996.toFixed(2) returns 60.00) */) {
+  if (
+    seconds <
+    59.995 /* because toFixed rounds value (59.996.toFixed(2) returns 60.00) */
+  ) {
     return `${seconds.toFixed(2)}s`;
   }
 

@@ -8,7 +8,7 @@ import { Element } from "../api/apiTypes.ts";
 
 const DnDContext = createContext<
   [Element | null, React.Dispatch<React.SetStateAction<Element | null>>]
->([null, (_) => {}]);
+>([null, () => {}]);
 
 export const DnDProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const [type, setType] = useState<Element | null>(null);

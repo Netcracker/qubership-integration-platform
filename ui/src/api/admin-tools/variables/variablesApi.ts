@@ -1,6 +1,15 @@
 import { commonVariablesApi } from "./commonVariablesApi";
 import { securedVariablesApi } from "./securedVariablesAPI.ts";
-import { Variable, SecretWithVariables, ApiResponse, IVariablesApi } from "./types.ts";
+import {
+  Variable,
+  SecretWithVariables,
+  ApiResponse,
+  IVariablesApi,
+} from "./types.ts";
+import {
+  ImportVariablesResult,
+  VariableImportPreview,
+} from "../../apiTypes.ts";
 
 export class VariablesApi implements IVariablesApi {
   async getCommonVariables(): Promise<ApiResponse<Variable[]>> {
@@ -8,13 +17,13 @@ export class VariablesApi implements IVariablesApi {
   }
 
   async createCommonVariable(
-    variable: Variable
+    variable: Variable,
   ): Promise<ApiResponse<string[]>> {
     return commonVariablesApi.create(variable);
   }
 
   async updateCommonVariable(
-    variable: Variable
+    variable: Variable,
   ): Promise<ApiResponse<Variable>> {
     return commonVariablesApi.update(variable);
   }
@@ -25,44 +34,50 @@ export class VariablesApi implements IVariablesApi {
 
   async exportVariables(
     keys: string[],
-    asArchive: boolean = true
+    asArchive: boolean = true,
   ): Promise<File> {
     return commonVariablesApi.exportVariables(keys, asArchive);
   }
 
-  async importVariables(formData: FormData, isPreview: boolean): Promise<any> {
-    return commonVariablesApi.importVariables(formData, isPreview);
+  async importVariablesPreview(
+    formData: FormData,
+  ): Promise<ApiResponse<VariableImportPreview[]>> {
+    return commonVariablesApi.importVariablesPreview(formData);
   }
 
-  async getSecuredVariables(): Promise<
-    ApiResponse<SecretWithVariables[]>
-  > {
+  async importVariables(
+    formData: FormData,
+  ): Promise<ApiResponse<ImportVariablesResult>> {
+    return commonVariablesApi.importVariables(formData);
+  }
+
+  async getSecuredVariables(): Promise<ApiResponse<SecretWithVariables[]>> {
     return securedVariablesApi.getAll();
   }
 
   async getSecuredVariablesForSecret(
-    secretName: string
+    secretName: string,
   ): Promise<ApiResponse<Variable[]>> {
     return securedVariablesApi.getForSecret(secretName);
   }
 
   async createSecuredVariables(
     secretName: string,
-    variables: Variable[]
+    variables: Variable[],
   ): Promise<ApiResponse<Variable[]>> {
     return securedVariablesApi.create(secretName, variables);
   }
 
   async updateSecuredVariables(
     secretName: string,
-    variables: Variable[]
+    variables: Variable[],
   ): Promise<ApiResponse<Variable[]>> {
     return securedVariablesApi.update(secretName, variables);
   }
 
   async deleteSecuredVariables(
     secretName: string,
-    keys: string[]
+    keys: string[],
   ): Promise<ApiResponse<boolean>> {
     return securedVariablesApi.delete(secretName, keys);
   }
@@ -71,9 +86,7 @@ export class VariablesApi implements IVariablesApi {
     return securedVariablesApi.createSecret(secretName);
   }
 
-  async downloadHelmChart(
-    secretName: string
-  ): Promise<File> {
+  async downloadHelmChart(secretName: string): Promise<File> {
     return securedVariablesApi.downloadHelmChart(secretName);
   }
 }

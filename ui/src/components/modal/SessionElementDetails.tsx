@@ -85,7 +85,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
     setTabItems(buildTabItems());
   }, [element]);
 
-  const copyItemFieldToClipboard = async <ValueType = any,>(
+  const copyItemFieldToClipboard = async <ValueType = unknown>(
     item: KVChangesTableItem<ValueType>,
     column: ColumnName,
     typeTextGetter?: (v: ValueType | undefined) => string | undefined,

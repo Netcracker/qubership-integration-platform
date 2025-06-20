@@ -9,7 +9,7 @@ import styles from "./ElementsLibrarySidebar.module.css";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 
 export const ElementsLibrarySidebar = () => {
-  const [_elementsList, setElementsList] = useState<LibraryData | null>(null);
+  const [, setElementsList] = useState<LibraryData | null>(null);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const notificationService = useNotificationService();
@@ -57,8 +57,8 @@ export const ElementsLibrarySidebar = () => {
   }, []);
 
   const prettifyName = (name: string): string => {
-    let result = name.replace(/-/g, " ");
-    return result.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+    const result = name.replace(/-/g, " ");
+    return result.toLowerCase().split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
   }
 
   return (

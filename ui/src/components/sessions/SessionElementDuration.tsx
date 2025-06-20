@@ -31,7 +31,7 @@ export const SessionElementDuration: React.FC<SessionElementDurationProps> = ({
   sessionDuration,
   status,
 }) => {
-  const [_, token] = useToken();
+  const [, token] = useToken();
 
   const percent = 10 + (duration * 90) / sessionDuration;
   return (

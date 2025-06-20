@@ -8,9 +8,11 @@ type SnapshotCompareProps = {
   otherId: string;
 };
 
-// @ts-ignore
+// @ts-expect-error Not implemented yet, so properties are not used.
 export const SnapshotsCompare: React.FC<SnapshotCompareProps> = ({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   oneId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   otherId,
 }) => {
   const { closeContainingModal } = useModalContext();

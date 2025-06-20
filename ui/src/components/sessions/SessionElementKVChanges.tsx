@@ -3,16 +3,16 @@ import { Flex, Switch, Table } from "antd";
 import { TableProps } from "antd/lib/table";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
 
-type ValueRenderer<ValueType = any> = (value: ValueType) => ReactNode;
+type ValueRenderer<ValueType = unknown> = (value: ValueType) => ReactNode;
 
-type Comparator<ValueType = any> = (
+type Comparator<ValueType = unknown> = (
   v1: ValueType | undefined,
   v2: ValueType | undefined,
 ) => number;
 
 export type ColumnName = "name" | "typeBefore" | "typeAfter" | "valueBefore" | "valueAfter";
 
-type SessionElementKVChangesProps<ValueType = any> = {
+type SessionElementKVChangesProps<ValueType = unknown> = {
   before?: Record<string, ValueType>;
   after?: Record<string, ValueType>;
   addTypeColumns?: boolean;
@@ -22,18 +22,18 @@ type SessionElementKVChangesProps<ValueType = any> = {
   onColumnClick?: (item: KVChangesTableItem<ValueType>, column: ColumnName) => void;
 };
 
-export type KVChangesTableItem<ValueType = any> = {
+export type KVChangesTableItem<ValueType = unknown> = {
   name: string;
   before: ValueType | undefined;
   after: ValueType | undefined;
 };
 
-function buildItems<ValueType = any>(
+function buildItems<ValueType = unknown>(
   before: Record<string, ValueType> | undefined,
   after: Record<string, ValueType> | undefined,
   onlyModified: boolean,
   comparator?: Comparator<ValueType>,
-): KVChangesTableItem[] {
+): KVChangesTableItem<ValueType>[] {
   const keys = new Set([
     ...Object.keys(before ?? {}),
     ...Object.keys(after ?? {}),
@@ -52,7 +52,7 @@ function buildItems<ValueType = any>(
     );
 }
 
-function getCellContent<ValueType = any>(
+function getCellContent<ValueType = unknown>(
   value: ValueType | undefined,
   renderer: ValueRenderer<ValueType> | undefined,
 ): ReactNode {
@@ -63,7 +63,7 @@ function getCellContent<ValueType = any>(
     : PLACEHOLDER;
 }
 
-export const SessionElementKVChanges = <ValueType = any,>({
+export const SessionElementKVChanges = <ValueType = unknown>({
   before,
   after,
   addTypeColumns,
@@ -74,7 +74,7 @@ export const SessionElementKVChanges = <ValueType = any,>({
   ...rest
 }: SessionElementKVChangesProps<ValueType> &
   React.HTMLAttributes<HTMLElement>): ReactNode => {
-  const [items, setItems] = useState<KVChangesTableItem[]>([]);
+  const [items, setItems] = useState<KVChangesTableItem<ValueType>[]>([]);
   const [onlyModified, setOnlyModified] = useState(false);
 
   useEffect(() => {
@@ -96,10 +96,10 @@ export const SessionElementKVChanges = <ValueType = any,>({
             title: "Type Before",
             key: "typeBefore",
             ellipsis: true,
-            onCell: (item: KVChangesTableItem) => ({
+            onCell: (item: KVChangesTableItem<ValueType>) => ({
               onClick: () => onColumnClick?.(item,  "typeBefore"),
             }),
-            render: (_: any, item: KVChangesTableItem<ValueType>) =>
+            render: (_: unknown, item: KVChangesTableItem<ValueType>) =>
               getCellContent(item.before, typeRenderer),
           },
         ]
@@ -120,10 +120,10 @@ export const SessionElementKVChanges = <ValueType = any,>({
             title: "Type After",
             key: "typeAfter",
             ellipsis: true,
-            onCell: (item: KVChangesTableItem) => ({
+            onCell: (item: KVChangesTableItem<ValueType>) => ({
               onClick: () => onColumnClick?.(item,  "typeAfter"),
             }),
-            render: (_: any, item: KVChangesTableItem<ValueType>) =>
+            render: (_: unknown, item: KVChangesTableItem<ValueType>) =>
               getCellContent(item.after, typeRenderer),
           },
         ]

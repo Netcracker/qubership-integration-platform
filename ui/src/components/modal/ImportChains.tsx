@@ -608,6 +608,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
         {
           [
             <Dragger
+              key={1}
               rootClassName="flex-dragger"
               multiple={false}
               fileList={fileList}
@@ -622,6 +623,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
               </p>
             </Dragger>,
             <Tabs
+              key={2}
               className="flex-tabs"
               style={{ flexGrow: 1 }}
               items={[
@@ -716,6 +718,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
               ]}
             ></Tabs>,
             <Flex
+              key={3}
               vertical
               justify={"center"}
               align={"center"}
@@ -724,6 +727,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
               <Progress type="circle" percent={progress} />
             </Flex>,
             <Tabs
+              key={4}
               className="flex-tabs"
               style={{ flexGrow: 1 }}
               items={[

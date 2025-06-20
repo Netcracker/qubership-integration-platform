@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint -c .github/linters/eslint.config.js .",
     "preview": "vite preview"
   },
   "dependencies": {

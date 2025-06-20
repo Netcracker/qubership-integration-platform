@@ -80,8 +80,7 @@ function buildTableItems(
   Array.from(itemMap.values()).forEach((item) => {
     if (item.parentId && itemMap.has(item.parentId)) {
       const parentItem = itemMap.get(item.parentId);
-      // @ts-ignore
-      parentItem.children = parentItem?.children
+      parentItem!.children = parentItem?.children
         ? [...parentItem.children, item]
         : [item];
     } else {

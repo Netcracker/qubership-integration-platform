@@ -5,14 +5,14 @@ import {
     CloseCircleOutlined,
 } from "@ant-design/icons";
 import {List} from "antd";
-import {ArgsProps} from "antd/es/notification";
+import { NotificationItem } from "./contexts/NotificationLogContext.tsx";
 
 type NotificationBarElementProps = {
-    props: ArgsProps,
-    onRemove: (props: ArgsProps) => void
+    value: NotificationItem,
+    onRemove: (value: NotificationItem) => void
 }
 
-export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({props, onRemove}) => {
+export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({ value, onRemove }) => {
 
     const getIconByType = (type?: string) => {
         const style = {fontSize: "18", marginTop: 4};
@@ -31,14 +31,14 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({p
                 <CloseOutlined
                     key="close"
                     style={{cursor: "pointer"}}
-                    onClick={() => onRemove(props)}
+                    onClick={() => onRemove(value)}
                 />
             ]}
         >
             <List.Item.Meta
-                avatar={getIconByType(props.type)}
-                title={props.message}
-                description={props.description}
+                avatar={getIconByType(value.type)}
+                title={value.message}
+                description={value.description}
             />
         </List.Item>);
 }

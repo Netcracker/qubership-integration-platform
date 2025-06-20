@@ -9,7 +9,8 @@ type SnapshotSequenceDiagramProps = {
 
 export const SnapshotSequenceDiagram: React.FC<
   SnapshotSequenceDiagramProps
-  // @ts-ignore
+  // @ts-expect-error Not implemented yet, so properties are not used.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
 > = ({ snapshotId }) => {
   const { closeContainingModal } = useModalContext();
 
