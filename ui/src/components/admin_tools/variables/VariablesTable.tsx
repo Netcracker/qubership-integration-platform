@@ -1,10 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import {
-  Table,
-  Input,
-  Button,
-  Popconfirm, TableProps
-} from "antd";
+import { Table, Input, Button, Popconfirm, TableProps } from "antd";
 import type { InputRef } from "antd";
 import {
   EditOutlined,
@@ -18,10 +13,12 @@ import "react-resizable/css/styles.css";
 import "./Resizable.css";
 import { NEW_VARIABLE_KEY } from "./useVariablesState";
 import styles from "./VariablesTable.module.css";
-import { TextColumnFilterDropdown, getTextColumnFilterFn } from "../../table/TextColumnFilterDropdown";
+import {
+  TextColumnFilterDropdown,
+  getTextColumnFilterFn,
+} from "../../table/TextColumnFilterDropdown";
 import type { FilterDropdownProps } from "antd/lib/table/interface";
 import { Variable } from "../../../api/admin-tools/variables/types";
-import { TableScroll } from '../../table/TableScroll';
 
 interface VariablesTableProps {
   variables: Variable[];
@@ -44,13 +41,13 @@ interface VariablesTableProps {
   enableKeyFilter?: boolean;
   enableValueFilter?: boolean;
   calculateScrollHeight?: () => number;
-  enableScroll?: boolean;
+  flex?: boolean;
 }
 
 type ResizableTitleProps = React.HTMLAttributes<HTMLElement> & {
-  onResize: ResizableProps["onResize"],
-  width: number | undefined,
-}
+  onResize: ResizableProps["onResize"];
+  width: number | undefined;
+};
 
 const ResizableTitle = (props: ResizableTitleProps) => {
   const { onResize, width, ...restProps } = props;
@@ -78,31 +75,34 @@ const ResizableTitle = (props: ResizableTitleProps) => {
 };
 
 const VariablesTable: React.FC<VariablesTableProps> = ({
-                                                         variables,
-                                                         selectedKeys,
-                                                         onSelectedChange,
-                                                         isValueHidden,
-                                                         isAddingNew,
-                                                         onAdd,
-                                                         onDelete,
-                                                         onStartEditing,
-                                                         onCancelEditing,
-                                                         editingKey,
-                                                         editingValue,
-                                                         onChangeEditingValue,
-                                                         onConfirmEdit,
-                                                         columnsWidth,
-                                                         onResize,
-                                                         enableKeySort,
-                                                         enableValueSort,
-                                                         enableKeyFilter,
-                                                         enableValueFilter,
-                                                         enableScroll = true,
-                                                       }) => {
+  variables,
+  selectedKeys,
+  onSelectedChange,
+  isValueHidden,
+  isAddingNew,
+  onAdd,
+  onDelete,
+  onStartEditing,
+  onCancelEditing,
+  editingKey,
+  editingValue,
+  onChangeEditingValue,
+  onConfirmEdit,
+  columnsWidth,
+  onResize,
+  enableKeySort,
+  enableValueSort,
+  enableKeyFilter,
+  enableValueFilter,
+  flex,
+}) => {
   const newKeyInputRef = useRef<InputRef>(null);
   const newValueInputRef = useRef<HTMLTextAreaElement>(null);
 
-  const newRecord = useRef<{ key: string; value: string }>({ key: "", value: "" });
+  const newRecord = useRef<{ key: string; value: string }>({
+    key: "",
+    value: "",
+  });
 
   useEffect(() => {
     if (isAddingNew && newKeyInputRef.current) {
@@ -117,13 +117,20 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (newRecord.current.key && newRecord.current.value && newRecord.current.key !== NEW_VARIABLE_KEY) {
+      if (
+        newRecord.current.key &&
+        newRecord.current.value &&
+        newRecord.current.key !== NEW_VARIABLE_KEY
+      ) {
         onAdd(newRecord.current.key, newRecord.current.value);
       }
     }
   };
 
-  const totalColumnsWidth = Object.values(columnsWidth).reduce((acc, width) => acc + width, 0);
+  const totalColumnsWidth = Object.values(columnsWidth).reduce(
+    (acc, width) => acc + width,
+    0,
+  );
 
   const columns: TableProps<Variable>["columns"] = [
     {
@@ -135,9 +142,17 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
         width: columnsWidth.key,
         onResize: onResize("key"),
       }),
-      sorter: enableKeySort ? (a: Variable, b: Variable) => a.key.localeCompare(b.key) : undefined,
-      filterDropdown: enableKeyFilter ? (props: FilterDropdownProps) => <TextColumnFilterDropdown {...props} /> : undefined,
-      onFilter: enableKeyFilter ? getTextColumnFilterFn((record) => record.key) : undefined,
+      sorter: enableKeySort
+        ? (a: Variable, b: Variable) => a.key.localeCompare(b.key)
+        : undefined,
+      filterDropdown: enableKeyFilter
+        ? (props: FilterDropdownProps) => (
+            <TextColumnFilterDropdown {...props} />
+          )
+        : undefined,
+      onFilter: enableKeyFilter
+        ? getTextColumnFilterFn((record) => record.key)
+        : undefined,
       render: (_: string, record: Variable) =>
         record.key === NEW_VARIABLE_KEY ? (
           <Input
@@ -160,9 +175,17 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
         width: columnsWidth.value,
         onResize: onResize("value"),
       }),
-      sorter: enableValueSort ? (a: Variable, b: Variable) => a.value.localeCompare(b.value) : undefined,
-      filterDropdown: enableValueFilter ? (props: FilterDropdownProps) => <TextColumnFilterDropdown {...props} /> : undefined,
-      onFilter: enableValueFilter ? getTextColumnFilterFn((record) => record.value) : undefined,
+      sorter: enableValueSort
+        ? (a: Variable, b: Variable) => a.value.localeCompare(b.value)
+        : undefined,
+      filterDropdown: enableValueFilter
+        ? (props: FilterDropdownProps) => (
+            <TextColumnFilterDropdown {...props} />
+          )
+        : undefined,
+      onFilter: enableValueFilter
+        ? getTextColumnFilterFn((record) => record.value)
+        : undefined,
       render: (_: string, record: Variable) => {
         const isEditing = editingKey === record.key;
 
@@ -206,7 +229,11 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
           const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (newRecord.current.key && newRecord.current.value && newRecord.current.key !== NEW_VARIABLE_KEY) {
+              if (
+                newRecord.current.key &&
+                newRecord.current.value &&
+                newRecord.current.key !== NEW_VARIABLE_KEY
+              ) {
                 onAdd(newRecord.current.key, newRecord.current.value);
               }
             } else if (e.key === "Escape") {
@@ -231,7 +258,11 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
                   icon={<CheckOutlined />}
                   type="text"
                   onClick={() => {
-                    if (newRecord.current.key && newRecord.current.value && newRecord.current.key !== NEW_VARIABLE_KEY) {
+                    if (
+                      newRecord.current.key &&
+                      newRecord.current.value &&
+                      newRecord.current.key !== NEW_VARIABLE_KEY
+                    ) {
                       onAdd(newRecord.current.key, newRecord.current.value);
                     }
                   }}
@@ -254,12 +285,16 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
             <div className={styles["value-text"]}>
               {isValueHidden
                 ? "*****"
-                : `${record.value.split('\n')[0]}${record.value.includes('\n') || record.value.length > 40 ? '...' : ''}`}
+                : `${record.value.split("\n")[0]}${record.value.includes("\n") || record.value.length > 40 ? "..." : ""}`}
             </div>
-            {record.value.includes('\n') && (
-              <FileTextOutlined className={`${styles["inline-icon"]} ${styles["multiline-icon"]}`} />
+            {record.value.includes("\n") && (
+              <FileTextOutlined
+                className={`${styles["inline-icon"]} ${styles["multiline-icon"]}`}
+              />
             )}
-            <EditOutlined className={`${styles["inline-icon"]} ${styles["edit-icon"]}`} />
+            <EditOutlined
+              className={`${styles["inline-icon"]} ${styles["edit-icon"]}`}
+            />
           </div>
         );
       },
@@ -272,7 +307,10 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
       align: "right" as const,
       render: (_: unknown, record: Variable) =>
         record.key !== NEW_VARIABLE_KEY && (
-          <Popconfirm title="Delete variable?" onConfirm={() => onDelete(record.key)}>
+          <Popconfirm
+            title="Delete variable?"
+            onConfirm={() => onDelete(record.key)}
+          >
             <Button
               icon={<DeleteOutlined />}
               size="small"
@@ -290,28 +328,26 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   ];
 
   return (
-    <TableScroll enableScroll={enableScroll} className={styles["sub-table-wrapper"]}>
-      <Table<Variable>
-        className={styles["secret-sub-table"]}
-        dataSource={dataWithNewRow}
-        columns={columns}
-        components={{
-          header: {
-            cell: ResizableTitle,
-          },
-        }}
-        rowKey="key"
-        pagination={false}
-        size="small"
-        rowClassName={() => styles["secret-row"]}
-        scroll={{ x: totalColumnsWidth }}
-        rowSelection={{
-          selectedRowKeys: selectedKeys,
-          onChange: (newSelectedKeys) =>
-            onSelectedChange(newSelectedKeys as string[]),
-        }}
-      />
-    </TableScroll>
+    <Table<Variable>
+      className={flex ? "flex-table" : undefined}
+      dataSource={dataWithNewRow}
+      columns={columns}
+      components={{
+        header: {
+          cell: ResizableTitle,
+        },
+      }}
+      rowKey="key"
+      pagination={false}
+      size="small"
+      rowClassName={() => styles["secret-row"]}
+      scroll={{ x: totalColumnsWidth, y: flex ? "" : undefined }}
+      rowSelection={{
+        selectedRowKeys: selectedKeys,
+        onChange: (newSelectedKeys) =>
+          onSelectedChange(newSelectedKeys as string[]),
+      }}
+    />
   );
 };
 

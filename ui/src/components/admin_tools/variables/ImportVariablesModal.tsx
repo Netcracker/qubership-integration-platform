@@ -1,4 +1,4 @@
-import { Modal, Upload, Table, Button, message } from "antd";
+import { Modal, Upload, Table, Button, message, Flex } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import type { RcFile } from "antd/es/upload";
 import { useState } from "react";
@@ -21,7 +21,6 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
   const [selectedNames, setSelectedNames] = useState<React.Key[]>([]);
   const notificationService = useNotificationService();
 
-
   const handleCancel = () => {
     closeContainingModal();
   };
@@ -39,7 +38,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
       setLoading(true);
       const response = await variablesApi.importVariablesPreview(formData);
       setPreviewData(response.data ?? []);
-    } catch(error) {
+    } catch (error) {
       notificationService.requestFailed("Failed to preview", error);
     } finally {
       setLoading(false);
@@ -67,7 +66,11 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
         closeContainingModal();
         onSuccess?.();
       } else {
-        notificationService.errorWithDetails("Import failed", response.error!.responseBody.errorMessage, response.error);
+        notificationService.errorWithDetails(
+          "Import failed",
+          response.error!.responseBody.errorMessage,
+          response.error,
+        );
       }
     } finally {
       setLoading(false);
@@ -94,38 +97,44 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
       ]}
       width={700}
     >
-      <Upload.Dragger
-        name="file"
-        accept=".yaml,.yml"
-        beforeUpload={(file) => {
-          setFile(file);
-          return false;
-        }}
-        showUploadList={file ? { showRemoveIcon: true } : false}
-      >
-        <p className="ant-upload-drag-icon">
-          <InboxOutlined />
-        </p>
-        <p className="ant-upload-text">Drag a YAML file or click to choose</p>
-      </Upload.Dragger>
-
-      {previewData.length > 0 && (
-        <Table
-          rowKey="name"
-          style={{ marginTop: 16 }}
-          columns={[
-            { title: "Name", dataIndex: "name", key: "name" },
-            { title: "Value", dataIndex: "value", key: "value" },
-          ]}
-          dataSource={previewData}
-          rowSelection={{
-            selectedRowKeys: selectedNames,
-            onChange: setSelectedNames,
+      <Flex vertical gap={16} style={{ height: "70vh" }}>
+        <Upload.Dragger
+          rootClassName="flex-dragger"
+          name="file"
+          accept=".yaml,.yml"
+          beforeUpload={(file) => {
+            setFile(file);
+            return false;
           }}
-          pagination={false}
-          size="small"
-        />
-      )}
+          showUploadList={file ? { showRemoveIcon: true } : false}
+        >
+          <p className="ant-upload-drag-icon">
+            <InboxOutlined />
+          </p>
+          <p className="ant-upload-text">Drag a YAML file or click to choose</p>
+        </Upload.Dragger>
+
+        {previewData.length > 0 && (
+          <Table
+            rowKey="name"
+            className="flex-table"
+            style={{ height: "100%" }}
+            columns={[
+              { title: "Name", dataIndex: "name", key: "name" },
+              { title: "Value", dataIndex: "value", key: "value" },
+            ]}
+            dataSource={previewData}
+            rowSelection={{
+              selectedRowKeys: selectedNames,
+              onChange: setSelectedNames,
+            }}
+            pagination={false}
+            size="small"
+            sticky
+            scroll={{ y: "" }}
+          />
+        )}
+      </Flex>
     </Modal>
   );
 };

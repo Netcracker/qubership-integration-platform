@@ -9,6 +9,7 @@ import {
   Popconfirm,
   Table,
   Tag,
+  Flex,
 } from "antd";
 import {
   PlusOutlined,
@@ -19,7 +20,6 @@ import {
 
 import styles from "./SecuredVariables.module.css";
 import VariablesTable from "./VariablesTable";
-import { TableScroll } from "../../table/TableScroll.tsx";
 import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
 import {
   SecretWithVariables,
@@ -80,7 +80,8 @@ const SecuredVariables: React.FC = () => {
           response.error,
         );
         notificationService.requestFailed(
-          response.error?.responseBody.errorMessage || "Failed to refresh list.",
+          response.error?.responseBody.errorMessage ||
+            "Failed to refresh list.",
           null,
         );
         return false;
@@ -147,7 +148,8 @@ const SecuredVariables: React.FC = () => {
       } else {
         console.error("Failed to create secret:", response.error);
         notificationService.requestFailed(
-          response.error?.responseBody.errorMessage || "Failed to create secret.",
+          response.error?.responseBody.errorMessage ||
+            "Failed to create secret.",
           null,
         );
       }
@@ -175,7 +177,8 @@ const SecuredVariables: React.FC = () => {
         }
       } else {
         notificationService.requestFailed(
-          response.error?.responseBody.errorMessage || "Failed to add variable.",
+          response.error?.responseBody.errorMessage ||
+            "Failed to add variable.",
           null,
         );
       }
@@ -202,7 +205,8 @@ const SecuredVariables: React.FC = () => {
         }
       } else {
         notificationService.requestFailed(
-          response.error?.responseBody.errorMessage || "Failed to update variable.",
+          response.error?.responseBody.errorMessage ||
+            "Failed to update variable.",
           null,
         );
       }
@@ -227,7 +231,8 @@ const SecuredVariables: React.FC = () => {
       } else {
         console.error("Failed to delete variable:", response.error);
         notificationService.requestFailed(
-          response.error?.responseBody.errorMessage || "Failed to delete variable.",
+          response.error?.responseBody.errorMessage ||
+            "Failed to delete variable.",
           null,
         );
       }
@@ -301,43 +306,36 @@ const SecuredVariables: React.FC = () => {
 
   const expandedRowRender = useCallback(
     (secret: string) => (
-      <div className={styles["expanded-content-wrapper"]}>
-        <div style={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
-          <VariablesTable
-            variables={variables[secret] || []}
-            selectedKeys={selectedKeys[secret] || []}
-            isAddingNew={newVariableKeys[secret]}
-            editingKey={editing?.secret === secret ? editing.key : null}
-            editingValue={editing?.secret === secret ? editingValue : ""}
-            onStartEditing={(key) => {
-              setEditing({ secret, key });
-              setEditingValue("");
-            }}
-            onChangeEditingValue={setEditingValue}
-            onCancelEditing={() => {
-              setEditing(null);
-              setEditingValue("");
-            }}
-            onConfirmEdit={(key, value) =>
-              handleUpdateVariable(secret, key, value)
-            }
-            onDelete={(key) => handleDeleteVariable(secret, key)}
-            onAdd={(key, value) => handleAddVariable(secret, key, value)}
-            onSelectedChange={(keys) =>
-              setSelectedKeys((prev) => ({ ...prev, [secret]: keys }))
-            }
-            isValueHidden
-            enableKeySort
-            enableValueSort={false}
-            enableKeyFilter
-            enableValueFilter={false}
-            columnsWidth={columnsWidth}
-            onResize={handleResize}
-            calculateScrollHeight={calculateSecuredScrollHeight}
-            enableScroll={false}
-          />
-        </div>
-      </div>
+      <VariablesTable
+        variables={variables[secret] || []}
+        selectedKeys={selectedKeys[secret] || []}
+        isAddingNew={newVariableKeys[secret]}
+        editingKey={editing?.secret === secret ? editing.key : null}
+        editingValue={editing?.secret === secret ? editingValue : ""}
+        onStartEditing={(key) => {
+          setEditing({ secret, key });
+          setEditingValue("");
+        }}
+        onChangeEditingValue={setEditingValue}
+        onCancelEditing={() => {
+          setEditing(null);
+          setEditingValue("");
+        }}
+        onConfirmEdit={(key, value) => handleUpdateVariable(secret, key, value)}
+        onDelete={(key) => handleDeleteVariable(secret, key)}
+        onAdd={(key, value) => handleAddVariable(secret, key, value)}
+        onSelectedChange={(keys) =>
+          setSelectedKeys((prev) => ({ ...prev, [secret]: keys }))
+        }
+        isValueHidden
+        enableKeySort
+        enableValueSort={false}
+        enableKeyFilter
+        enableValueFilter={false}
+        columnsWidth={columnsWidth}
+        onResize={handleResize}
+        calculateScrollHeight={calculateSecuredScrollHeight}
+      />
     ),
     [
       variables,
@@ -356,7 +354,7 @@ const SecuredVariables: React.FC = () => {
   );
 
   return (
-    <div className={styles["secured-variables-container"]}>
+    <Flex vertical style={{ height: "100%" }}>
       <div className={styles["secured-variables-header"]}>
         <Title level={4} className={styles["secured-variables-title"]}>
           <LockOutlined />
@@ -402,78 +400,76 @@ const SecuredVariables: React.FC = () => {
         </Form>
       </Modal>
 
-      <TableScroll
-        enableScroll={true}
-        className={styles["secured-table-container"]}
-      >
-        <Table
-          dataSource={secrets.map((s) => ({ key: s, secret: s }))}
-          columns={[
-            {
-              title: "Secret",
-              dataIndex: "secret",
-              key: "secret",
-              render: (secret) => (
-                <div className={styles["secret-content"]}>
-                  <div className="secret-label">
-                    <span>{secret}</span>
-                    {secret === defaultSecret && (
-                      <Tag
-                        color="green"
-                        style={{
-                          borderRadius: 12,
-                          padding: "0 8px",
-                          marginLeft: "8px",
-                        }}
-                      >
-                        default
-                      </Tag>
-                    )}
-                  </div>
-                  <div className={styles["secret-actions"]}>
-                    <Button
-                      size="small"
-                      icon={<DownloadOutlined />}
-                      onClick={async () => {
-                        try {
-                          downloadFile(
-                            await variablesApi.downloadHelmChart(secret),
-                          );
-                        } catch (error) {
-                          notificationService.requestFailed(
-                            "Failed to get helm chart",
-                            error,
-                          );
-                        }
+      <Table
+        className="flex-table"
+        dataSource={secrets.map((s) => ({ key: s, secret: s }))}
+        columns={[
+          {
+            title: "Secret",
+            dataIndex: "secret",
+            key: "secret",
+            render: (secret) => (
+              <div className={styles["secret-content"]}>
+                <div className="secret-label">
+                  <span>{secret}</span>
+                  {secret === defaultSecret && (
+                    <Tag
+                      color="green"
+                      style={{
+                        borderRadius: 12,
+                        padding: "0 8px",
+                        marginLeft: "8px",
                       }}
                     >
-                      HELM Chart
-                    </Button>
-                    <Button
-                      icon={<PlusOutlined />}
-                      size="small"
-                      onClick={() =>
-                        setNewVariableKeys((prev) => ({
-                          ...prev,
-                          [secret]: true,
-                        }))
-                      }
-                    />
-                  </div>
+                      default
+                    </Tag>
+                  )}
                 </div>
-              ),
-            },
-          ]}
-          expandable={{
-            expandedRowRender: (record) => expandedRowRender(record.secret),
-            rowExpandable: () => true,
-          }}
-          pagination={false}
-          size="small"
-          bordered={false}
-        />
-      </TableScroll>
-    </div>
+                <div className={styles["secret-actions"]}>
+                  <Button
+                    size="small"
+                    icon={<DownloadOutlined />}
+                    onClick={async () => {
+                      try {
+                        downloadFile(
+                          await variablesApi.downloadHelmChart(secret),
+                        );
+                      } catch (error) {
+                        notificationService.requestFailed(
+                          "Failed to get helm chart",
+                          error,
+                        );
+                      }
+                    }}
+                  >
+                    HELM Chart
+                  </Button>
+                  <Button
+                    icon={<PlusOutlined />}
+                    size="small"
+                    onClick={() =>
+                      setNewVariableKeys((prev) => ({
+                        ...prev,
+                        [secret]: true,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            ),
+          },
+        ]}
+        expandable={{
+          expandedRowRender: (record) => expandedRowRender(record.secret),
+          rowExpandable: () => true,
+        }}
+        pagination={false}
+        size="small"
+        bordered={false}
+        sticky
+        scroll={{ y: "" }}
+      />
+    </Flex>
   );
 };
 

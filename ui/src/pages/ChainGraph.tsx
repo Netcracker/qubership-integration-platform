@@ -11,7 +11,7 @@ import "@xyflow/react/dist/style.css";
 import React, { DragEvent, MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
-import { Flex, FloatButton, notification } from "antd";
+import { Flex, FloatButton } from "antd";
 import { MoreOutlined, SendOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router";
 import { useParams } from "react-router-dom";
@@ -97,14 +97,20 @@ const ChainGraphInner: React.FC = () => {
     if (!chainId) return;
     try {
       await api.createSnapshot(chainId).then(async (snapshot) => {
-        notification.success({ message: `Created snapshot ${snapshot.name}` });
+        notificationService.info(
+          "Created snapshot",
+          `Created snapshot ${snapshot.name}`,
+        );
         const request: CreateDeploymentRequest = {
           domain,
           snapshotId: snapshot.id,
           suspended: false,
         };
         await api.createDeployment(chainId, request);
-        notification.success({ message: `Deployed snapshot ${snapshot.name}` });
+        notificationService.info(
+          "Deployed snapshot",
+          `Deployed snapshot ${snapshot.name}`,
+        );
       });
     } catch (error) {
       notificationService.requestFailed(
@@ -138,7 +144,7 @@ const ChainGraphInner: React.FC = () => {
             fitView
           >
             <Background variant={BackgroundVariant.Dots} />
-            <MiniMap zoomable pannable />
+            <MiniMap zoomable pannable position="top-right"/>
             <CustomControls />
           </ReactFlow>
         </ElkDirectionContextProvider>

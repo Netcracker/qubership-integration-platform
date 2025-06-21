@@ -77,6 +77,7 @@ export const AdminToolsSidebar = ({ collapsed }: { collapsed: boolean }) => {
 
   return (
     <Menu
+      style={{ border: "none" }}
       mode="inline"
       selectedKeys={selectedKeys}
       defaultOpenKeys={collapsed ? [] : openKeys}

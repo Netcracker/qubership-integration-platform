@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, message, Popconfirm, Typography } from "antd";
+import { Button, Flex, message, Popconfirm, Typography } from "antd";
 import {
   UploadOutlined,
   DownloadOutlined,
@@ -86,7 +86,7 @@ export const CommonVariables = () => {
   };
 
   return (
-    <div className={styles["common-variables-container"]}>
+    <Flex vertical style={{ height: "100%" }}>
       <div className={styles["common-variables-header"]}>
         <Title level={4} className={styles["common-variables-title"]}>
           <TableOutlined className={styles["common-variables-icon"]} />
@@ -136,29 +136,28 @@ export const CommonVariables = () => {
           </Popconfirm>
         </div>
       </div>
-      <div className={styles["common-variables-table-wrapper"]}>
-        <VariablesTable
-          variables={variables}
-          isAddingNew={isAddingNew}
-          selectedKeys={selectedRowKeys}
-          onSelectedChange={setSelectedRowKeys}
-          editingKey={editingKey}
-          editingValue={editingValue}
-          onStartEditing={onStartEditing}
-          onChangeEditingValue={onChangeEditingValue}
-          onCancelEditing={onCancelEditing}
-          onConfirmEdit={onConfirmEdit}
-          onDelete={onDelete}
-          onAdd={onAdd}
-          enableKeySort
-          enableValueSort
-          enableKeyFilter
-          enableValueFilter
-          isValueHidden={false}
-          columnsWidth={columnsWidth}
-          onResize={handleResize}
-        />
-      </div>
-    </div>
+      <VariablesTable
+        flex
+        variables={variables}
+        isAddingNew={isAddingNew}
+        selectedKeys={selectedRowKeys}
+        onSelectedChange={setSelectedRowKeys}
+        editingKey={editingKey}
+        editingValue={editingValue}
+        onStartEditing={onStartEditing}
+        onChangeEditingValue={onChangeEditingValue}
+        onCancelEditing={onCancelEditing}
+        onConfirmEdit={onConfirmEdit}
+        onDelete={onDelete}
+        onAdd={onAdd}
+        enableKeySort
+        enableValueSort
+        enableKeyFilter
+        enableValueFilter
+        isValueHidden={false}
+        columnsWidth={columnsWidth}
+        onResize={handleResize}
+      />
+    </Flex>
   );
 };

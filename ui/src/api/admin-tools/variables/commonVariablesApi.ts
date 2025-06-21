@@ -57,7 +57,7 @@ export class CommonVariablesApi extends BaseApi {
   async update(variable: Variable): Promise<ApiResponse<Variable>> {
     return this.wrap(
       async () => {
-        const response = await this.instance.patch(
+        const response = await this.instance.patch<Variable>(
           `${urlPrefixV1}/common-variables/${variable.key}`,
           variable.value,
           {

@@ -11,13 +11,8 @@
 }
 
 .variables-container {
-    background: #fff;
-    border-radius: 8px;
     padding: 4px;
     margin: 4px;
-    height: calc(100vh - 16px);
-    display: flex;
-    flex-direction: column;
 }
 
 .variables-header {
