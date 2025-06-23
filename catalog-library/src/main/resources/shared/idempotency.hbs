@@ -12,15 +12,18 @@
             {{escape (property 'contextExpression')}}
         </simple>
     </setProperty>
+    <setProperty name="systemProperty_keyExpiry">
+        <constant>{{property 'keyExpiry'}}</constant>
+    </setProperty>
     <idempotentConsumer
-        idempotentRepository="{{identifier}}"
+        idempotentRepository="idempotentRepository"
         eager="true"
         completionEager="false"
         skipDuplicate="true"
         removeOnFailure="false"
     >
         <simple>
-            dupcheck:{{escape (property 'contextExpression')}}:{{escape (property 'keyExpression')}}
+            {{escape (property 'contextExpression')}}:{{escape (property 'keyExpression')}}
         </simple>
         <process ref="noopProcessor"/>
     </idempotentConsumer>
@@ -53,4 +56,3 @@
 {{/if-property}}
 {{/with-property}}
 {{/if-property}}
-
