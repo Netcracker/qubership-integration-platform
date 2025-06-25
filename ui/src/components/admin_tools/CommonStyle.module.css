@@ -1,104 +1,131 @@
-@import './variables.module.css';
-
 :root {
     --primary-color: #1890ff;
-    --danger-color: #ff4d4f;
     --hover-color: #40a9ff;
+    --danger-color: #ff4d4f;
     --danger-hover-color: #ff7875;
     --text-color: rgba(0, 0, 0, 0.85);
     --border-color: #d9d9d9;
     --background-color: #f5f5f5;
     --transition-duration: 0.3s;
-    --transition-easing: ease-in-out;
+    --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.common-variables-container {
-    composes: variables-container;
+.container {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
 }
 
-.common-variables-header {
-    composes: variables-header;
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 20px;
 }
 
-.common-variables-title {
-    composes: variables-title;
+.title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px 0;
+    font-size: 20px;
+    color: var(--text-color);
+    transition: color var(--transition-duration) var(--transition-easing);
 }
 
-.common-variables-actions {
-    composes: variables-actions;
+.title:hover {
+    color: var(--primary-color);
 }
 
-.common-variables-icon {
+.icon {
     margin-right: 12px;
     transition: transform 0.2s var(--transition-easing), color var(--transition-duration) var(--transition-easing);
 }
 
-.common-variables-icon:hover {
+.icon:hover {
     transform: scale(1.1);
     color: var(--primary-color);
 }
 
-.common-variables-actions .ant-btn {
+.actions {
+    display: flex;
+    gap: 12px;
+}
+
+.actions .ant-btn {
     transition: all var(--transition-duration) var(--transition-easing);
 }
 
-.common-variables-actions .ant-btn-primary {
+.actions .ant-btn-primary {
     background-color: var(--primary-color);
     border-color: var(--primary-color);
 }
 
-.common-variables-actions .ant-btn-primary:hover {
+.actions .ant-btn-primary:hover {
     background-color: var(--hover-color);
     border-color: var(--hover-color);
     transform: translateY(-1px);
 }
 
-.common-variables-actions .ant-btn-dangerous {
+.actions .ant-btn-dangerous {
     background-color: var(--danger-color);
     border-color: var(--danger-color);
 }
 
-.common-variables-actions .ant-btn-dangerous:hover {
+.actions .ant-btn-dangerous:hover {
     background-color: var(--danger-hover-color);
     border-color: var(--danger-hover-color);
     transform: translateY(-1px);
 }
 
-.common-variables-table-wrapper {
-    composes: variables-table-wrapper;
-    border-radius: 8px;
-    overflow-y: auto;
-    transition: all var(--transition-duration) var(--transition-easing);
+.table-wrapper {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+
+.edit-button,
+.delete-button {
+    border: none !important;
+    background: none !important;
+    box-shadow: none !important;
 }
 
 @media (max-width: 768px) {
-    .common-variables-header {
+    .header {
         flex-direction: column;
         align-items: stretch;
         gap: 12px;
     }
 
-    .common-variables-actions {
+    .actions {
         width: 100%;
         flex-direction: column;
     }
 
-    .common-variables-actions button {
+    .actions button {
         width: 100%;
         margin-bottom: 8px;
     }
 
-    .common-variables-title {
+    .title {
         font-size: 18px;
     }
 }
 
 @media (max-width: 480px) {
-    .common-variables-container {
+    .container {
         padding: 16px;
     }
 
-    .common-variables-title {
+    .title {
         font-size: 16px;
     }
 }

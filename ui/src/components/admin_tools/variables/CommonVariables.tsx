@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Button, Flex, message, Popconfirm, Typography } from "antd";
+import { useState } from 'react';
+import { Button, message, Popconfirm, Typography } from "antd";
 import {
   UploadOutlined,
   DownloadOutlined,
@@ -7,7 +7,6 @@ import {
   DeleteOutlined,
   TableOutlined,
 } from "@ant-design/icons";
-import styles from "./CommonVariables.module.css";
 import ImportVariablesModal from "./ImportVariablesModal.tsx";
 import { useModalsContext } from "../../../Modals.tsx";
 import VariablesTable from "./VariablesTable.tsx";
@@ -15,29 +14,23 @@ import { useVariablesState } from "./useVariablesState";
 import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
-import { ResizeCallbackData } from "react-resizable";
+import commonStyles from '../CommonStyle.module.css';
 
 const { Title } = Typography;
 
 export const CommonVariables = () => {
   const { showModal } = useModalsContext();
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
-  const [columnsWidth, setColumnsWidth] = useState<{ [key: string]: number }>({
-    key: 300,
-    value: 600,
-  });
   const notificationService = useNotificationService();
 
-  const handleResize =
-    (dataIndex: string) =>
-    (_: unknown, { size }: ResizeCallbackData) => {
-      requestAnimationFrame(() => {
-        setColumnsWidth((prev) => ({
-          ...prev,
-          [dataIndex]: size.width,
-        }));
-      });
-    };
+  const handleResize = (dataIndex: string) => (_: any, { size }: any) => {
+    requestAnimationFrame(() => {
+      setColumnsWidth((prev) => ({
+        ...prev,
+        [dataIndex]: size.width,
+      }));
+    });
+  };
 
   const {
     variables,
@@ -86,14 +79,14 @@ export const CommonVariables = () => {
   };
 
   return (
-    <Flex vertical style={{ height: "100%" }}>
-      <div className={styles["common-variables-header"]}>
-        <Title level={4} className={styles["common-variables-title"]}>
-          <TableOutlined className={styles["common-variables-icon"]} />
+    <div className={commonStyles["container"]}>
+      <div className={commonStyles["header"]}>
+        <Title level={4} className={commonStyles["title"]}>
+          <TableOutlined className={commonStyles["icon"]} />
           Common Variables
         </Title>
 
-        <div className={styles["common-variables-actions"]}>
+        <div className={commonStyles["actions"]}>
           <Button
             icon={<UploadOutlined />}
             onClick={() =>
@@ -136,28 +129,27 @@ export const CommonVariables = () => {
           </Popconfirm>
         </div>
       </div>
-      <VariablesTable
-        flex
-        variables={variables}
-        isAddingNew={isAddingNew}
-        selectedKeys={selectedRowKeys}
-        onSelectedChange={setSelectedRowKeys}
-        editingKey={editingKey}
-        editingValue={editingValue}
-        onStartEditing={onStartEditing}
-        onChangeEditingValue={onChangeEditingValue}
-        onCancelEditing={onCancelEditing}
-        onConfirmEdit={onConfirmEdit}
-        onDelete={onDelete}
-        onAdd={onAdd}
-        enableKeySort
-        enableValueSort
-        enableKeyFilter
-        enableValueFilter
-        isValueHidden={false}
-        columnsWidth={columnsWidth}
-        onResize={handleResize}
-      />
-    </Flex>
+      <div className={commonStyles["table-wrapper"]}>
+        <VariablesTable
+          variables={variables}
+          isAddingNew={isAddingNew}
+          selectedKeys={selectedRowKeys}
+          onSelectedChange={setSelectedRowKeys}
+          editingKey={editingKey}
+          editingValue={editingValue}
+          onStartEditing={onStartEditing}
+          onChangeEditingValue={onChangeEditingValue}
+          onCancelEditing={onCancelEditing}
+          onConfirmEdit={onConfirmEdit}
+          onDelete={onDelete}
+          onAdd={onAdd}
+          enableKeySort
+          enableValueSort
+          enableKeyFilter
+          enableValueFilter
+          isValueHidden={false}
+        />
+      </div>
+    </div>
   );
 };

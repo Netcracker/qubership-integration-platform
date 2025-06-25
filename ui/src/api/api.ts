@@ -32,6 +32,8 @@ import {
   ChainItem,
   CreateFolderRequest,
   UpdateFolderRequest,
+  Engine,
+  ChainDeployment,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -205,6 +207,10 @@ export interface Api {
   getImportStatus(importId: string): Promise<ImportStatusResponse>;
 
   getEvents(lastEventId: string): Promise<EventsUpdate>;
+
+  getDeploymentsByEngine(domain: string, engineHost: string): Promise<ChainDeployment[]>;
+
+  getEnginesByDomain(domain: string): Promise<Engine[]>;
 }
 
 export const api: Api = new RestApi();

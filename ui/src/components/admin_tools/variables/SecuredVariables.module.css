@@ -1,17 +1,3 @@
-@import './variables.module.css';
-
-.secured-variables-container {
-    composes: variables-container;
-}
-
-.secured-variables-header {
-    composes: variables-header;
-}
-
-.secured-variables-title {
-    composes: variables-title;
-}
-
 .secret-content {
     display: flex;
     justify-content: space-between;
@@ -41,22 +27,6 @@
     overflow: hidden;
 }
 
-.expanded-content-wrapper .table-container {
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
-}
-
-.expanded-content-wrapper .ant-table-wrapper,
-.expanded-content-wrapper .ant-table,
-.expanded-content-wrapper .ant-table-content,
-.expanded-content-wrapper .ant-table-body {
-    width: 100%;
-    max-width: 100%;
-}
-
 @keyframes slideDown {
     0% {
         transform: translateY(-10px);
@@ -66,14 +36,6 @@
         transform: translateY(0);
         opacity: 1;
     }
-}
-
-.editable-cell-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-right: 8px;
-    position: relative;
 }
 
 .editable-cell-wrapper .edit-icon {
@@ -92,27 +54,4 @@
     overflow-x: auto;
     max-width: 100vw;
     flex: 1;
-}
-
-.secured-table-container .ant-table-wrapper,
-.secured-table-container .ant-table,
-.secured-table-container .ant-table-content,
-.secured-table-container .ant-table-body {
-    width: 100%;
-    max-width: 100%;
-}
-
-.secured-table-container .ant-table-content,
-.secured-table-container .ant-table-body {
-    overflow-x: auto;
-}
-
-.sub-table-wrapper {
-    width: 100%;
-    max-width: 100%;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
 }

@@ -750,3 +750,48 @@ export type FolderItem = CatalogItem & {};
 export type ChainItem = CatalogItem & {
   labels: EntityLabel[];
 };
+
+export type Engine = {
+  id: string;
+    name: string;
+    host: string;
+    runningStatus: RunningStatus;
+    ready: boolean;
+    connected: boolean;
+    namespace: string;
+    domainId?: string;
+    domainName?: string;
+};
+
+export enum RunningStatus {
+  RUNNING = 'RUNNING',
+  PENDING = 'PENDING',
+  FAILED = 'FAILED',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export type EngineUpdateResponse = {
+    domainId: string;
+    domainName: string;
+    actionType: EventActionType;
+    host?: string;
+    name?: string;
+}
+
+export enum EventActionType {
+    ADDED = "ADDED",
+    DELETED = "DELETED",
+    MODIFIED = "MODIFIED",
+    UNKNOWN = "UNKNOWN",
+}
+
+export type ChainDeployment = {
+  id: string;
+  chainId: string;
+  chainName: string;
+  snapshotName: string;
+  state: {
+    status: string;
+    suspended: boolean;
+  };
+};
