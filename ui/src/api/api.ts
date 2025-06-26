@@ -1,3 +1,4 @@
+import { EntityFilterModel } from "../components/table/filter/filter.ts";
 import {
   Chain,
   ChainCreationRequest,
@@ -34,6 +35,7 @@ import {
   UpdateFolderRequest,
   Engine,
   ChainDeployment,
+  ElementFilter,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -63,6 +65,8 @@ export interface Api {
   getLibrary(): Promise<LibraryData>;
 
   getElements(chainId: string): Promise<Element[]>;
+
+  getElementTypes(): Promise<ElementFilter[]>;
 
   createElement(
     elementRequest: ElementRequest,
@@ -189,6 +193,8 @@ export interface Api {
   deleteFolders(folderIds: string[]): Promise<void>;
 
   moveFolder(folderId: string, targetFolderId?: string): Promise<FolderItem>;
+
+  filterChains(filters: EntityFilterModel[]): Promise<(FolderItem | ChainItem)[]>;
 
   getNestedChains(folderId: string): Promise<Chain[]>;
 

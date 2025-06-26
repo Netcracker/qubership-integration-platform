@@ -121,6 +121,11 @@ export type Element = {
   referenceProperties: unknown[];
 };
 
+export interface ElementFilter {
+    elementTitle: string
+    elementType: string;
+}
+
 export enum PropertyType {
   COMMON = "common",
   ADVANCED = "advanced",

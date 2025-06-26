@@ -40,9 +40,11 @@ import {
   ChainItem,
   Engine,
   ChainDeployment,
+  ElementFilter,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
+import { EntityFilterModel } from "../../components/table/filter/filter.ts";
 
 export class RestApi implements Api {
   instance: AxiosInstance;
@@ -187,6 +189,13 @@ export class RestApi implements Api {
     );
     return response.data;
   };
+
+  getElementTypes = async (): Promise<ElementFilter[]> => {
+    const response = await this.instance.get<ElementFilter[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/library/elements/types`,
+    );
+    return response.data;
+  }
 
   createElement = async (
     elementRequest: ElementRequest,
@@ -594,6 +603,15 @@ export class RestApi implements Api {
     );
     return response.data;
   };
+
+  filterChains = async (request: EntityFilterModel[]): Promise<(FolderItem | ChainItem)[]> => {
+    const response = await this.instance.post<(FolderItem | ChainItem)[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/filter`,
+      request,
+    );
+
+    return response.data;
+  }
 
   getNestedChains = async (folderId: string): Promise<Chain[]> => {
     const response = await this.instance.get<Chain[]>(
