@@ -2,9 +2,9 @@ import React, { UIEvent, useEffect, useState } from "react";
 import { Button, Flex, FloatButton, message, Modal, Table } from "antd";
 import { useNavigate, useParams } from "react-router";
 import {
+  CloudDownloadOutlined,
+  CloudUploadOutlined,
   DeleteOutlined,
-  ExportOutlined,
-  ImportOutlined,
   MoreOutlined,
   RedoOutlined,
 } from "@ant-design/icons";
@@ -540,13 +540,13 @@ export const Sessions: React.FC = () => {
           {chainId ? null : (
             <FloatButton
               tooltip={{ title: "Import sessions", placement: "left" }}
-              icon={<ImportOutlined />}
+              icon={<CloudUploadOutlined />}
               onClick={onImportBtnClick}
             />
           )}
           <FloatButton
             tooltip={{ title: "Export selected sessions", placement: "left" }}
-            icon={<ExportOutlined />}
+            icon={<CloudDownloadOutlined />}
             onClick={onExportBtnClick}
           />
           <FloatButton

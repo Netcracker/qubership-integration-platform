@@ -752,7 +752,7 @@ export type ChainItem = CatalogItem & {
 };
 
 export type Engine = {
-  id: string;
+    id: string;
     name: string;
     host: string;
     runningStatus: RunningStatus;
@@ -776,13 +776,6 @@ export type EngineUpdateResponse = {
     actionType: EventActionType;
     host?: string;
     name?: string;
-}
-
-export enum EventActionType {
-    ADDED = "ADDED",
-    DELETED = "DELETED",
-    MODIFIED = "MODIFIED",
-    UNKNOWN = "UNKNOWN",
 }
 
 export type ChainDeployment = {

@@ -12,14 +12,14 @@ import {
 import { useNavigate, useSearchParams } from "react-router";
 import {
   CarryOutOutlined,
+  CloudDownloadOutlined,
+  CloudUploadOutlined,
   DeleteOutlined,
-  ExportOutlined,
   FileAddOutlined,
   FileOutlined,
   FolderAddOutlined,
   FolderOutlined,
   HomeOutlined,
-  ImportOutlined,
   MoreOutlined,
   SendOutlined,
   SettingOutlined,
@@ -922,12 +922,12 @@ const Chains = () => {
           />
           <FloatButton
             tooltip={{ title: "Import chains", placement: "left" }}
-            icon={<ImportOutlined />}
+            icon={<CloudUploadOutlined />}
             onClick={onImportBtnClick}
           />
           <FloatButton
             tooltip={{ title: "Export selected chains", placement: "left" }}
-            icon={<ExportOutlined />}
+            icon={<CloudDownloadOutlined />}
             onClick={onExportBtnClick}
           />
           <FloatButton

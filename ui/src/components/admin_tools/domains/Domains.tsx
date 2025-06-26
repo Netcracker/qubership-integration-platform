@@ -6,7 +6,7 @@ import commonStyles from '../CommonStyle.module.css';
 import { AppstoreOutlined } from "@ant-design/icons";
 import React from "react";
 
-const Domains: React.FC = () => {
+export const Domains: React.FC = () => {
     const { domains, isLoading } = useDomains();
 
     return (
@@ -25,5 +25,3 @@ const Domains: React.FC = () => {
       </div>
     );
   };
-
-  export default Domains;

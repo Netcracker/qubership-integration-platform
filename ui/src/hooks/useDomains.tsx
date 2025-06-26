@@ -16,21 +16,7 @@ export const useDomains = () => {
     try {
       setIsLoading(true);
       const data = await api.getDomains();
-      const seenIds = new Set();
-      const domains: EngineDomain[] = data
-        .filter(domain => domain && domain.id.length > 0)
-        .map((domain, index) => {
-          const uniqueId = seenIds.has(domain.id) ? `${domain.id}-${index}` : domain.id;
-          seenIds.add(domain.id);
-          return ({
-            id: uniqueId,
-            name: domain.name,
-            namespace: domain.namespace,
-            replicas: domain.replicas,
-            version: domain.version,
-          });
-        });
-      setDomains(domains);
+      setDomains(data);
     } catch (error) {
       notificationService.requestFailed("Failed to load domains", error);
     } finally {

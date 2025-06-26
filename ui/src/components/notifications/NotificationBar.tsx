@@ -1,63 +1,68 @@
-import {Badge, Button, Drawer, List} from "antd";
-import { BellOutlined,} from "@ant-design/icons";
+import { Badge, Button, Drawer, List } from "antd";
+import { BellOutlined } from "@ant-design/icons";
 import styles from "../Navigation.module.css";
-import React, {useState} from "react";
-import { NotificationItem, useNotificationLog } from "./contexts/NotificationLogContext.tsx";
-import {NotificationBarElement} from "./NotificationBarElement.tsx";
-
+import React, { useState } from "react";
+import {
+  NotificationItem,
+  useNotificationLog,
+} from "./contexts/NotificationLogContext.tsx";
+import { NotificationBarElement } from "./NotificationBarElement.tsx";
 
 export const NotificationBar: React.FC = () => {
-    const [open, setOpen] = useState(false);
-    const notificationLogData = useNotificationLog();
-    const {clearHistory, removeFromHistory} = useNotificationLog();
+  const [open, setOpen] = useState(false);
+  const notificationLogData = useNotificationLog();
+  const { clearHistory, removeFromHistory } = useNotificationLog();
 
+  const showDrawer = () => {
+    setOpen(true);
+  };
 
-    const showDrawer = () => {
-        setOpen(true);
-    };
+  const onClose = () => {
+    setOpen(false);
+  };
 
-    const onClose = () => {
-        setOpen(false);
-    };
+  const clearAll = () => {
+    clearHistory();
+  };
 
-    const clearAll = () => {
-        clearHistory();
-    }
+  const removeNotification = (notification: NotificationItem) => {
+    removeFromHistory(notification);
+  };
 
-    const removeNotification = (notification: NotificationItem) => {
-        removeFromHistory(notification);
-    }
-
-
-    return <Badge count={notificationLogData.history.length}>
-        <Button
-            type="default"
-            icon={<BellOutlined />}
-            onClick={showDrawer}
-            className={styles.button}
-        />
-        <Drawer
-            title="Notifications"
-            placement="right"
-            open={open}
-            closable={false}
-            onClose={onClose}
-            extra={
-                <Button type="default" onClick={clearAll}>
-                    Clear All
-                </Button>
-            }
-        >
-            <List
-                dataSource={notificationLogData.history}
-                renderItem={(item) => (
-                    <NotificationBarElement
-                        value={item}
-                        onRemove={removeNotification}
-                    />
-                )}
-            >
-            </List>
-        </Drawer>
+  return (
+    <Badge
+      offset={[-8, 8]}
+      count={notificationLogData.history.length}
+    >
+      <Button
+        type="text"
+        style={{ fontSize: "18px"}}
+        icon={<BellOutlined />}
+        onClick={showDrawer}
+        className={styles.button}
+      />
+      <Drawer
+        title="Notifications"
+        placement="right"
+        open={open}
+        closable={false}
+        onClose={onClose}
+        extra={
+          <Button type="default" onClick={clearAll}>
+            Clear All
+          </Button>
+        }
+      >
+        <List
+          dataSource={notificationLogData.history}
+          renderItem={(item) => (
+            <NotificationBarElement
+              value={item}
+              onRemove={removeNotification}
+            />
+          )}
+        ></List>
+      </Drawer>
     </Badge>
-}
+  );
+};

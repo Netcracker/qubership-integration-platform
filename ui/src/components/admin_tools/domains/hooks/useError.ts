@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 export interface ErrorState {
   message: string;
@@ -22,4 +22,4 @@ export const useError = () => {
     setError: setErrorState,
     clearError,
   };
-}; 
+};

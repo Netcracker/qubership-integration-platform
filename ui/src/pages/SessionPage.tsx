@@ -11,7 +11,7 @@ import {
 import { SessionStatus } from "../components/sessions/SessionStatus.tsx";
 import { api } from "../api/api.ts";
 import { SessionElementDuration } from "../components/sessions/SessionElementDuration.tsx";
-import { ExportOutlined, LinkOutlined } from "@ant-design/icons";
+import { CloudDownloadOutlined, LinkOutlined } from "@ant-design/icons";
 import { useModalsContext } from "../Modals.tsx";
 import { SessionElementDetails } from "../components/modal/SessionElementDetails.tsx";
 import { downloadFile } from "../misc/download-utils.ts";
@@ -169,7 +169,7 @@ export const SessionPage: React.FC = () => {
       />
       <FloatButton
         tooltip={{ title: "Export session", placement: "left" }}
-        icon={<ExportOutlined />}
+        icon={<CloudDownloadOutlined />}
         onClick={onExportBtnClick}
       />
     </Flex>

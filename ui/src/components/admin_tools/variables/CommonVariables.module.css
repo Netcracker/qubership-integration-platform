@@ -1,0 +1,96 @@
+@import './variables.module.css';
+
+:root {
+    --primary-color: #1890ff;
+    --danger-color: #ff4d4f;
+    --hover-color: #40a9ff;
+    --danger-hover-color: #ff7875;
+    --text-color: rgba(0, 0, 0, 0.85);
+    --border-color: #d9d9d9;
+    --background-color: #f5f5f5;
+    --transition-duration: 0.3s;
+    --transition-easing: ease-in-out;
+}
+
+.common-variables-container {
+    composes: variables-container;
+}
+
+.common-variables-title {
+    composes: variables-title;
+}
+
+.common-variables-icon {
+    margin-right: 12px;
+    transition: transform 0.2s var(--transition-easing), color var(--transition-duration) var(--transition-easing);
+}
+
+.common-variables-icon:hover {
+    transform: scale(1.1);
+    color: var(--primary-color);
+}
+
+.common-variables-actions .ant-btn {
+    transition: all var(--transition-duration) var(--transition-easing);
+}
+
+.common-variables-actions .ant-btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.common-variables-actions .ant-btn-primary:hover {
+    background-color: var(--hover-color);
+    border-color: var(--hover-color);
+    transform: translateY(-1px);
+}
+
+.common-variables-actions .ant-btn-dangerous {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+.common-variables-actions .ant-btn-dangerous:hover {
+    background-color: var(--danger-hover-color);
+    border-color: var(--danger-hover-color);
+    transform: translateY(-1px);
+}
+
+.common-variables-table-wrapper {
+    composes: variables-table-wrapper;
+    border-radius: 8px;
+    overflow-y: auto;
+    transition: all var(--transition-duration) var(--transition-easing);
+}
+
+@media (max-width: 768px) {
+    .common-variables-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .common-variables-actions {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .common-variables-actions button {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+
+    .common-variables-title {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 480px) {
+    .common-variables-container {
+        padding: 16px;
+    }
+
+    .common-variables-title {
+        font-size: 16px;
+    }
+}

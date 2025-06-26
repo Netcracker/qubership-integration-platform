@@ -14,7 +14,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 const menuItems = [
   {
-    key: "/admin-tools/domains",
+    key: "/admintools/domains",
     icon: <AppstoreOutlined />,
     label: "Domains",
   },
@@ -24,39 +24,39 @@ const menuItems = [
     label: "Variables",
     children: [
       {
-        key: "/admin-tools/variables/common",
+        key: "/admintools/variables/common",
         icon: <TableOutlined />,
         label: "Common",
       },
       {
-        key: "/admin-tools/variables/secured",
+        key: "/admintools/variables/secured",
         icon: <LockOutlined />,
         label: "Secured",
       },
     ],
   },
   {
-    key: "/admin-tools/audit",
+    key: "/admintools/audit",
     icon: <AuditOutlined />,
     label: "Audit",
   },
   {
-    key: "/admin-tools/import-instructions",
+    key: "/admintools/import-instructions",
     icon: <CloudUploadOutlined />,
     label: "Import Instructions",
   },
   {
-    key: "/admin-tools/sessions",
+    key: "/admintools/sessions",
     icon: <UserOutlined />,
     label: "Sessions",
   },
   {
-    key: "/admin-tools/roles",
+    key: "/admintools/roles",
     icon: <SettingOutlined />,
     label: "Roles",
   },
   {
-    key: "/admin-tools/design-templates",
+    key: "/admintools/design-templates",
     icon: <FileTextOutlined />,
     label: "Design Templates",
   },
@@ -70,7 +70,7 @@ export const AdminToolsSidebar = ({ collapsed }: { collapsed: boolean }) => {
   const openKeys = location.pathname.includes("variables") ? ["variables"] : [];
 
   const handleClick = ({ key }: { key: string }) => {
-    if (key.startsWith("/admin-tools")) {
+    if (key.startsWith("/admintools")) {
       navigate(key);
     }
   };

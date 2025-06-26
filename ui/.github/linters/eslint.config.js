@@ -5,6 +5,7 @@ import pluginReact from "eslint-plugin-react";
 
 /** @type {import("eslint").Linter.Config[]} */
 export default [
+  { ignores: ["**/node_modules/**", "dist/"] },
   pluginJs.configs.recommended,
   ...tseslint.configs.recommended,
   pluginReact.configs.flat.recommended,
@@ -17,6 +18,11 @@ export default [
     },
     rules: {
       "react/react-in-jsx-scope": "off",
+    },
+    settings: {
+      react: {
+        version: "detect"
+      }
     },
   },
 ];

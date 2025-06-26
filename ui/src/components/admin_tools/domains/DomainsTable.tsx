@@ -1,9 +1,9 @@
-import React from 'react';
-import { Table, Button, Typography } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import EngineTable from './EngineTable';
-import { useEngines } from './hooks/useEngines';
-import tableStyles from './Tables.module.css';
+import React from "react";
+import { Table, Button, Typography } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import EngineTable from "./EngineTable";
+import { useEngines } from "./hooks/useEngines";
+import tableStyles from "./Tables.module.css";
 import { EngineDomain } from "../../../api/apiTypes.ts";
 
 interface Props {
@@ -15,38 +15,49 @@ const EnginesForDomain: React.FC<{ domain: EngineDomain }> = ({ domain }) => {
   const { engines, isLoading, error, retry } = useEngines(domain.name);
 
   if (error) {
-    return <Typography.Text type="danger">Error while loading list of engines<Button onClick={retry}>Retry</Button></Typography.Text>;
+    return (
+      <Typography.Text type="danger">
+        Error while loading list of engines
+        <Button onClick={retry}>Retry</Button>
+      </Typography.Text>
+    );
   }
 
-  return <EngineTable engines={engines} isLoading={isLoading} domainName={domain.name}/>;
+  return (
+    <EngineTable
+      engines={engines}
+      isLoading={isLoading}
+      domainName={domain.name}
+    />
+  );
 };
 
 const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
   const columns: ColumnsType<EngineDomain> = [
     {
       title: <span className={tableStyles.columnHeader}>Domain</span>,
-      dataIndex: 'name',
-      key: 'name',
+      dataIndex: "name",
+      key: "name",
     },
     {
       title: <span className={tableStyles.columnHeader}>Version</span>,
-      dataIndex: 'version',
-      key:  'version',
-      align: 'right',
+      dataIndex: "version",
+      key: "version",
+      align: "right",
     },
     {
       title: <span className={tableStyles.columnHeader}>Desired engines</span>,
-      dataIndex: 'replicas',
-      key: 'replicas',
-      align: 'right',
-      width: '12%',
+      dataIndex: "replicas",
+      key: "replicas",
+      align: "right",
+      width: "12%",
     },
     {
       title: <span className={tableStyles.columnHeader}>Namespace</span>,
-      dataIndex: 'namespace',
-      key: 'namespace',
-      align: 'right',
-      width: '25%',
+      dataIndex: "namespace",
+      key: "namespace",
+      align: "right",
+      width: "25%",
     },
   ];
 
@@ -54,7 +65,7 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
 
   React.useEffect(() => {
     if (domains.length > 0) {
-      setExpandedRowKeys(domains.map(domain => domain.id));
+      setExpandedRowKeys(domains.map((domain) => domain.id));
     }
   }, [domains]);
 
@@ -68,7 +79,8 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
       expandable={{
         expandedRowRender: (record) => <EnginesForDomain domain={record} />,
         expandedRowKeys: expandedRowKeys,
-        onExpandedRowsChange: (expandedKeys) => setExpandedRowKeys(expandedKeys as React.Key[]),
+        onExpandedRowsChange: (expandedKeys) =>
+          setExpandedRowKeys(expandedKeys as React.Key[]),
         rowExpandable: () => true,
       }}
       rowKey="id"

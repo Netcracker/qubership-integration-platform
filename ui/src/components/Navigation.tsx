@@ -13,8 +13,8 @@ const items: MenuItem[] = [
     icon: <UnorderedListOutlined />,
   },
   {
-    label: <a href="/admin-tools">Admin Tools</a>,
-    key: "admin-tools",
+    label: <a href="/admintools">Admin Tools</a>,
+    key: "admintools",
     icon: <DesktopOutlined />,
   },
 ];
@@ -22,6 +22,7 @@ const items: MenuItem[] = [
 const Navigation = () => (
   <nav className={styles.navigation}>
     <Menu
+      style={{ border: "none" }}
       items={items}
       key="menu"
       mode="horizontal"

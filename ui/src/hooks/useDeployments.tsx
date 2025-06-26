@@ -56,6 +56,7 @@ export const useDeployments = (chainId?: string) => {
     retry: 1,
   });
 
+  // Rest error handling
   useEffect(() => {
     if (query.error) {
       const error = query.error;
@@ -63,10 +64,12 @@ export const useDeployments = (chainId?: string) => {
     }
   });
 
+  // Event handling
   useEffect(() => {
     return subscribe(ObjectType.DEPLOYMENT, (event: Event) => {
-      if (event.data.chainId !== chainId || !event.data.chainId) return;
-      showEventNotification(event);
+      const data: DeploymentUpdate = event.data as DeploymentUpdate;
+      if (data.chainId !== chainId || !data.chainId) return;
+      showEventNotification(data);
 
       return queryClient.invalidateQueries({
         queryKey: ["deployments", data.chainId],
