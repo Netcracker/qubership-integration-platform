@@ -81,6 +81,8 @@ public class ChainElementFilePropertiesSubstitutor {
 
     private void restoreProperties(ChainElement element, File chainFilesDir, String propertiesFilename) throws IOException {
         if (!SERVICE_CALL.equals(element.getType())) {
+            propertiesFilename = Optional.ofNullable(propertiesFilename)
+                    .orElse(element.getPropertyAsString(FILE_NAME_PROPERTY));
             if (propertiesFilename == null) {
                 return;
             }

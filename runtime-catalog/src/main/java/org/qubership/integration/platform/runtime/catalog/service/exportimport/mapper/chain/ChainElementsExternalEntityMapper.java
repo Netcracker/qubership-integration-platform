@@ -93,9 +93,7 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
         Map<String, byte[]> propertyFiles = new HashMap<>();
         List<ChainElementExternalEntity> elementsExternalEntities = chainElements.stream()
                 .filter(element -> element.getParent() == null)
-                .map(this::createExternalFromInternal)
-                .peek(externalElement -> propertyFiles.putAll(
-                        chainElementFilePropertiesSubstitutor.getElementPropertiesAsSeparateFiles(externalElement)))
+                .map(element -> createExternalFromInternal(element, propertyFiles))
                 .collect(Collectors.toList());
         return ChainElementsExternalMapperEntity.builder()
                 .chainElementExternalEntities(elementsExternalEntities)
@@ -158,15 +156,15 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
         return element;
     }
 
-    private ChainElementExternalEntity createExternalFromInternal(ChainElement element) {
+    private ChainElementExternalEntity createExternalFromInternal(ChainElement element, final Map<String, byte[]> propertyFiles) {
         List<ChainElementExternalEntity> childrenExternalEntities = new ArrayList<>();
         if (element instanceof ContainerChainElement containerElement) {
             for (ChainElement child : containerElement.getElements()) {
-                childrenExternalEntities.add(createExternalFromInternal(child));
+                childrenExternalEntities.add(createExternalFromInternal(child, propertyFiles));
             }
         }
 
-        return ChainElementExternalEntity.builder()
+        ChainElementExternalEntity externalElement = ChainElementExternalEntity.builder()
                 .id(element.getId())
                 .type(element.getType())
                 .name(element.getName())
@@ -177,6 +175,10 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
                 .serviceEnvironment(element.getEnvironment())
                 .properties(new TreeMap<>(preSortProperties(element.getProperties())))
                 .build();
+
+        propertyFiles.putAll(chainElementFilePropertiesSubstitutor.getElementPropertiesAsSeparateFiles(externalElement));
+
+        return externalElement;
     }
 
     public static Map<String, Object> preSortProperties(Map<String, Object> properties) {
