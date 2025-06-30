@@ -128,6 +128,8 @@ services:
         - "8094:8080"
         - "5009:5005"
         env_file: "qip-dev.env"
+        environment:
+          - KUBERNETES_LOCALDEV=true
         command: [
             "/opt/java/openjdk/bin/java",
             "-Xmx256m",
