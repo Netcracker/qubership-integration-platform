@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Button,
   Flex,
@@ -53,42 +53,26 @@ export const LoggingSettings: React.FC = () => {
   const [form] = useForm();
   const notificationService = useNotificationService();
 
-  useEffect(() => {
-    getLoggingSettings().then(setLoggingSettings);
-    getMaskedFields().then(setMaskedFields);
-  }, [chainId]);
+  const getLoggingSettings =
+    useCallback(async (): Promise<ChainLoggingSettings | null> => {
+      if (!chainId) {
+        return null;
+      }
+      setIsLoggingSettingsLoading(true);
+      try {
+        return api.getLoggingSettings(chainId);
+      } catch (error) {
+        notificationService.requestFailed(
+          "Failed to get logging settings",
+          error,
+        );
+        return null;
+      } finally {
+        setIsLoggingSettingsLoading(false);
+      }
+    }, [chainId, notificationService]);
 
-  useEffect(() => {
-    if (loggingSettings) {
-      const properties: ChainLoggingProperties =
-        loggingSettings?.custom ??
-        loggingSettings?.consulDefault ??
-        loggingSettings?.fallbackDefault;
-      const custom = !!loggingSettings?.custom;
-      setIsCustom(custom);
-      form.setFieldsValue({ custom, ...properties });
-    }
-  }, [loggingSettings]);
-
-  const getLoggingSettings = async (): Promise<ChainLoggingSettings | null> => {
-    if (!chainId) {
-      return null;
-    }
-    setIsLoggingSettingsLoading(true);
-    try {
-      return api.getLoggingSettings(chainId);
-    } catch (error) {
-      notificationService.requestFailed(
-        "Failed to get logging settings",
-        error,
-      );
-      return null;
-    } finally {
-      setIsLoggingSettingsLoading(false);
-    }
-  };
-
-  const getMaskedFields = async (): Promise<MaskedField[]> => {
+  const getMaskedFields = useCallback(async (): Promise<MaskedField[]> => {
     setIsMaskedFieldsLoading(true);
     if (!chainId) {
       return [];
@@ -101,7 +85,24 @@ export const LoggingSettings: React.FC = () => {
     } finally {
       setIsMaskedFieldsLoading(false);
     }
-  };
+  }, [chainId, notificationService]);
+
+  useEffect(() => {
+    void getLoggingSettings().then(setLoggingSettings);
+    void getMaskedFields().then(setMaskedFields);
+  }, [chainId, getLoggingSettings, getMaskedFields]);
+
+  useEffect(() => {
+    if (loggingSettings) {
+      const properties: ChainLoggingProperties =
+        loggingSettings?.custom ??
+        loggingSettings?.consulDefault ??
+        loggingSettings?.fallbackDefault;
+      const custom = !!loggingSettings?.custom;
+      setIsCustom(custom);
+      form.setFieldsValue({ custom, ...properties });
+    }
+  }, [form, loggingSettings]);
 
   const updateMaskedField = async (
     fieldId: string,
@@ -343,12 +344,12 @@ export const LoggingSettings: React.FC = () => {
             labelWrap
             form={form}
             {...formItemLayout}
-            onValuesChange={(formState) => {
-              if (formState.custom !== undefined) {
-                setIsCustom(formState.custom);
+            onValuesChange={(changedValues: Partial<LogSettingsFormState>) => {
+              if (changedValues.custom !== undefined) {
+                setIsCustom(changedValues.custom);
               }
             }}
-            onFinish={async (formState) => setLoggingProperties(formState)}
+            onFinish={(formState) => void setLoggingProperties(formState)}
           >
             <Form.Item label={null} name="custom" valuePropName="checked">
               <Checkbox>Override default properties</Checkbox>
@@ -421,12 +422,12 @@ export const LoggingSettings: React.FC = () => {
             placement: "left",
           }}
           icon={<DeleteOutlined />}
-          onClick={onDeleteBtnClick}
+          onClick={() => void onDeleteBtnClick()}
         />
         <FloatButton
           tooltip={{ title: "Add new masked field", placement: "left" }}
           icon={<PlusOutlined />}
-          onClick={onCreateBtnClick}
+          onClick={() => void onCreateBtnClick()}
         />
       </FloatButtonGroup>
     </>

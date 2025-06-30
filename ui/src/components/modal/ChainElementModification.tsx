@@ -1,4 +1,4 @@
-import React, { ChangeEvent, useEffect, useState } from "react";
+import React, { ChangeEvent, useCallback, useEffect, useState } from "react";
 import {
   Button,
   CheckboxOptionType,
@@ -12,8 +12,9 @@ import { useModalContext } from "../../ModalContextProvider.tsx";
 import styles from "./ChainElementModification.module.css";
 import {
   Element,
-  PatchElementRequest, Property,
-  PropertyType
+  PatchElementRequest,
+  Property,
+  PropertyType,
 } from "../../api/apiTypes.ts";
 import { Node } from "@xyflow/react";
 import TextArea from "antd/lib/input/TextArea";
@@ -32,6 +33,19 @@ type ElementModificationProps = {
   onClose?: () => void;
 };
 
+function constructTitle(name: string, type?: string): string {
+  return type ? `${name} (${type})` : `${name}`;
+}
+
+type ChainElementPropertiesFormData = {
+  name: string;
+  description: string;
+  [PropertyType.COMMON]: string;
+  [PropertyType.ADVANCED]: string;
+  [PropertyType.HIDDEN]: string;
+  [PropertyType.UNKNOWN]: string;
+};
+
 export const ChainElementModification: React.FC<ElementModificationProps> = ({
   node,
   chainId,
@@ -39,15 +53,13 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   onSubmit,
   onClose,
 }) => {
-  const { libraryElement } = useLibraryElement(node.type);
+  const { isLoading: libraryElementIsLoading, libraryElement } =
+    useLibraryElement(node.type);
   const [isLoading, setIsLoading] = useState(false);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
   const { updateElement } = useElement();
   const { closeContainingModal } = useModalContext();
   const [form] = Form.useForm();
-  const constructTitle = (name: string, type?: string) => {
-    return type ? `${name} (${type})` : `${name}`;
-  };
   const [title, setTitle] = useState(constructTitle(`${node.data.label}`));
 
   const paramsOptions: CheckboxOptionType<string>[] = [
@@ -58,27 +70,22 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   ];
   const textAreaOptions = {
     minRows: 3,
-    maxRows: 10
-  }
+    maxRows: 10,
+  };
   const [paramsRadioValue, setParamsRadioValue] = useState(PropertyType.COMMON);
   const notificationService = useNotificationService();
 
-  useEffect(() => {
-    setTitle(constructTitle(`${node.data.label}`, libraryElement?.title));
-    categorizeProperties(node.data.properties);
-  }, [libraryElement]);
-
-  const handleOk = async () => {
+  const handleOk = async (data: ChainElementPropertiesFormData) => {
     setIsLoading(true);
     try {
-      const properties = constructProperties();
+      const properties = constructProperties(data);
       if (properties === undefined) {
         return;
       }
 
       const request: PatchElementRequest = {
-        name: form.getFieldValue("name"),
-        description: form.getFieldValue("description"),
+        name: data.name,
+        description: data.description,
         type: node.type!,
         properties: properties,
       };
@@ -91,7 +98,11 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         onSubmit?.(changedElement, node);
       }
     } catch (error) {
-      notificationService.errorWithDetails("Save element failed", "Failed to save element", error);
+      notificationService.errorWithDetails(
+        "Save element failed",
+        "Failed to save element",
+        error,
+      );
     } finally {
       setIsLoading(false);
       handleClose();
@@ -103,76 +114,101 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     onClose?.();
   };
 
-  const constructProperties = (): Record<string, unknown> | undefined => {
+  const constructProperties = (
+    data: ChainElementPropertiesFormData,
+  ): Record<string, unknown> | undefined => {
     try {
-       return {
-         ...form.getFieldValue(PropertyType.COMMON) ? YAML.parse(form.getFieldValue(PropertyType.COMMON)) : {},
-         ...form.getFieldValue(PropertyType.ADVANCED) ? YAML.parse(form.getFieldValue(PropertyType.ADVANCED)) : {},
-         ...form.getFieldValue(PropertyType.HIDDEN) ? YAML.parse(form.getFieldValue(PropertyType.HIDDEN)) : {},
-         ...form.getFieldValue(PropertyType.UNKNOWN) ? YAML.parse(form.getFieldValue(PropertyType.UNKNOWN)) : {},
-       }
+      return {
+        ...(data[PropertyType.COMMON]
+          ? YAML.parse(data[PropertyType.COMMON]) as object
+          : {}),
+        ...(data[PropertyType.ADVANCED]
+          ? YAML.parse(data[PropertyType.ADVANCED]) as object
+          : {}),
+        ...(data[PropertyType.HIDDEN]
+          ? YAML.parse(data[PropertyType.HIDDEN]) as object
+          : {}),
+        ...(data[PropertyType.UNKNOWN]
+          ? YAML.parse(data[PropertyType.UNKNOWN]) as object
+          : {}),
+      };
     } catch (error) {
       console.error(error);
-      notificationService.errorWithDetails("Parse element failed", "Failed to construct element properties", error);
+      notificationService.errorWithDetails(
+        "Parse element failed",
+        "Failed to construct element properties",
+        error,
+      );
     }
   };
 
-  const categorizeProperties = (properties: Record<string, unknown>) => {
-    if (!properties || !libraryElement) {
-      return;
-    }
-    setPropertiesByCategory(properties, PropertyType.COMMON);
-    setPropertiesByCategory(properties, PropertyType.ADVANCED);
-    setPropertiesByCategory(properties, PropertyType.HIDDEN);
-    setUnknownProperties(properties);
-  };
+  const setPropertiesFormValue = useCallback(
+    (value: Record<string, unknown>, type: PropertyType) => {
+      form.setFieldValue(
+        type,
+        value && Object.keys(value).length
+          ? YAML.stringify(value, null, 2).trim()
+          : undefined,
+      );
+    },
+    [form],
+  );
 
-  function setPropertiesByCategory(properties: Record<string, unknown>, type: PropertyType) {
-    const result = Object.keys(properties)
-      .filter((key) => {
-        // @ts-expect-error suppressed as it will be replaced with proper elements code
-        return libraryElement!.properties[type].find(
-          (val: Property) => val.name === key,
-        );
-      })
-      .reduce((obj: Record<string, unknown>, key) => {
-        obj[key] = properties[key];
-        return obj;
-      }, {});
-    setPropertiesFormValue(result, type);
-  }
+  const setUnknownProperties = useCallback(
+    (properties: Record<string, unknown>) => {
+      const result = Object.keys(properties)
+        .filter(
+          (key) =>
+            !(
+              libraryElement!.properties[PropertyType.COMMON].find(
+                (val) => val.name === key,
+              ) ||
+              libraryElement!.properties[PropertyType.ADVANCED].find(
+                (val) => val.name === key,
+              ) ||
+              libraryElement!.properties[PropertyType.HIDDEN].find(
+                (val) => val.name === key,
+              )
+            ),
+        )
+        .reduce((obj: Record<string, unknown>, key) => {
+          obj[key] = properties[key];
+          return obj;
+        }, {});
+      setPropertiesFormValue(result, PropertyType.UNKNOWN);
+    },
+    [libraryElement, setPropertiesFormValue],
+  );
 
-  function setUnknownProperties(properties: Record<string, unknown>) {
-    const result = Object.keys(properties)
-      .filter(
-        (key) =>
-          !(
-            libraryElement!.properties[PropertyType.COMMON].find(
-              (val) => val.name === key,
-            ) ||
-            libraryElement!.properties[PropertyType.ADVANCED].find(
-              (val) => val.name === key,
-            ) ||
-            libraryElement!.properties[PropertyType.HIDDEN].find(
-              (val) => val.name === key,
-            )
-          ),
-      )
-      .reduce((obj: Record<string, unknown>, key) => {
-        obj[key] = properties[key];
-        return obj;
-      }, {});
-    setPropertiesFormValue(result, PropertyType.UNKNOWN);
-  }
+  const setPropertiesByCategory = useCallback(
+    (properties: Record<string, unknown>, type: PropertyType) => {
+      const result = Object.keys(properties)
+        .filter((key) => {
+          return libraryElement!.properties[type].find(
+            (val: Property) => val.name === key,
+          );
+        })
+        .reduce((obj: Record<string, unknown>, key) => {
+          obj[key] = properties[key];
+          return obj;
+        }, {});
+      setPropertiesFormValue(result, type);
+    },
+    [libraryElement, setPropertiesFormValue],
+  );
 
-  function setPropertiesFormValue(value: Record<string, unknown>, type: PropertyType) {
-    form.setFieldValue(
-      type,
-      value && Object.keys(value).length
-        ? (YAML.stringify(value, null, 2)).trim()
-        : undefined,
-    );
-  }
+  const categorizeProperties = useCallback(
+    (properties: Record<string, unknown>) => {
+      if (!properties || !libraryElement) {
+        return;
+      }
+      setPropertiesByCategory(properties, PropertyType.COMMON);
+      setPropertiesByCategory(properties, PropertyType.ADVANCED);
+      setPropertiesByCategory(properties, PropertyType.HIDDEN);
+      setUnknownProperties(properties);
+    },
+    [libraryElement, setPropertiesByCategory, setUnknownProperties],
+  );
 
   const onNameChange = ({
     target: { value },
@@ -181,17 +217,21 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   };
 
   const onParamsRadioChange = ({ target: { value } }: RadioChangeEvent) => {
-    setParamsRadioValue(value);
+    setParamsRadioValue(value as PropertyType);
   };
 
   const openDescriptionModal = () => {
     setIsDescriptionModalOpen(true);
-  }
+  };
 
   const closeDescriptionModal = () => {
     setIsDescriptionModalOpen(false);
-  }
+  };
 
+  useEffect(() => {
+    setTitle(constructTitle(`${node.data.label}`, libraryElement?.title));
+    categorizeProperties(node.data.properties);
+  }, [categorizeProperties, libraryElement, node]);
 
   return (
     <Modal
@@ -199,6 +239,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       title={title}
       onCancel={handleClose}
       maskClosable={false}
+      loading={libraryElementIsLoading}
       footer={[
         <Button key="cancel" onClick={handleClose}>
           Cancel
@@ -217,10 +258,11 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         content: styles["modal"],
       }}
     >
-      <Form
+      <Form<ChainElementPropertiesFormData>
         id="elementModificationForm"
+        disabled={isLoading}
         form={form}
-        onFinish={handleOk}
+        onFinish={(values) => void handleOk(values)}
         layout="horizontal"
         labelCol={{ span: 4 }}
         style={{ width: "100%" }}
@@ -293,10 +335,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         <TextArea
           autoSize={{
             minRows: 10,
-            maxRows: 20
+            maxRows: 20,
           }}
           value={YAML.stringify(
-            // @ts-expect-error Waiting for proper implementation of element page
             libraryElement?.properties[paramsRadioValue],
             null,
             2,

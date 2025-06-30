@@ -1,6 +1,6 @@
 import { Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Snapshot } from "../../api/apiTypes.ts";
 import { api } from "../../api/api.ts";
 import { Editor } from "@monaco-editor/react";
@@ -18,27 +18,30 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const notificationService = useNotificationService();
 
-  useEffect(() => {
-    getSnapshot(snapshotId);
-  }, [snapshotId]);
+  const getSnapshot = useCallback(
+    async (snapshotId: string) => {
+      setIsLoading(true);
+      try {
+        setSnapshot(await api.getSnapshot(snapshotId));
+      } catch (err) {
+        notificationService.requestFailed("Failed to get snapshot", err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [notificationService],
+  );
 
-  const getSnapshot = async (snapshotId: string) => {
-    setIsLoading(true);
-    try {
-      setSnapshot(await api.getSnapshot(snapshotId));
-    } catch (err) {
-      notificationService.requestFailed("Failed to get snapshot", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useEffect(() => {
+    void getSnapshot(snapshotId);
+  }, [getSnapshot, snapshotId]);
 
   return (
     <Modal
       title="XML Definition"
       centered
       open={true}
-      onCancel={async () => closeContainingModal()}
+      onCancel={closeContainingModal}
       footer={null}
       width={"90%"}
       loading={isLoading}

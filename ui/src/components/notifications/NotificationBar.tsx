@@ -1,6 +1,5 @@
 import { Badge, Button, Drawer, List } from "antd";
 import { BellOutlined } from "@ant-design/icons";
-import styles from "../Navigation.module.css";
 import React, { useState } from "react";
 import {
   NotificationItem,
@@ -30,16 +29,12 @@ export const NotificationBar: React.FC = () => {
   };
 
   return (
-    <Badge
-      offset={[-8, 8]}
-      count={notificationLogData.history.length}
-    >
+    <Badge offset={[-8, 8]} count={notificationLogData.history.length}>
       <Button
         type="text"
-        style={{ fontSize: "18px"}}
+        style={{ fontSize: "18px" }}
         icon={<BellOutlined />}
         onClick={showDrawer}
-        className={styles.button}
       />
       <Drawer
         title="Notifications"

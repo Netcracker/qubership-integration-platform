@@ -1,8 +1,11 @@
 import { ErrorDetails } from "../components/modal/ErrorDetails";
 import { useModalsContext } from "../Modals";
 import { notification } from "antd";
-import { NotificationItem, useNotificationLog } from "../components/notifications/contexts/NotificationLogContext.tsx";
-import { useEffect, useRef } from "react";
+import {
+  NotificationItem,
+  useNotificationLog,
+} from "../components/notifications/contexts/NotificationLogContext.tsx";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ApiError } from "../api/admin-tools/variables/types.ts";
 
 type DescriptionWithDetailsProps = {
@@ -26,7 +29,11 @@ const NotificationDescriptionWithDetails = (
 interface NotificationService {
   requestFailed(description: string, exception: unknown): void;
 
-  errorWithDetails(message: string, description: string, exception: unknown): void;
+  errorWithDetails(
+    message: string,
+    description: string,
+    exception: unknown,
+  ): void;
 
   info(message: string, description: string): void;
 }
@@ -38,42 +45,41 @@ export const useNotificationService = (): NotificationService => {
 
   useEffect(() => {
     addToHistoryRef.current = addToHistory;
-  });
+  }, [addToHistory]);
 
-  const showDetailsClick = (error: unknown) => {
-    const data = (error as ApiError)?.responseBody;
+  const showDetailsClick = useCallback(
+    (error: unknown) => {
+      const data = (error as ApiError)?.responseBody;
 
-    showModal({
-      component: (
-        <ErrorDetails
-          service={data?.serviceName ?? ""}
-          timestamp={data?.errorDate ?? ""}
-          message={data?.errorMessage ?? ""}
-          stacktrace={data?.stacktrace ?? ""}
-        />
-      ),
-    });
-  };
+      showModal({
+        component: (
+          <ErrorDetails
+            service={data?.serviceName ?? ""}
+            timestamp={data?.errorDate ?? ""}
+            message={data?.errorMessage ?? ""}
+            stacktrace={data?.stacktrace ?? ""}
+          />
+        ),
+      });
+    },
+    [showModal],
+  );
 
-  function buildInfoNotification(
-    message: string,
-    description: string,
-  ): NotificationItem {
-    const notification: NotificationItem = {
+  const buildInfoNotification = useCallback(
+    (message: string, description: string): NotificationItem => ({
       type: "info",
       message: message,
       description: description,
-    };
-    addToHistory(notification);
-    return notification;
-  }
+    }),
+    [],
+  );
 
-  function buildErrorNotification(
-    message: string,
-    description: string,
-    error: unknown,
-  ): NotificationItem {
-    const notification: NotificationItem = {
+  const buildErrorNotification = useCallback(
+    (
+      message: string,
+      description: string,
+      error: unknown,
+    ): NotificationItem => ({
       type: "error",
       message: message,
       description: (
@@ -82,22 +88,36 @@ export const useNotificationService = (): NotificationService => {
           showDetails={() => showDetailsClick(error)}
         />
       ),
-    };
-    addToHistory(notification);
-    return notification;
-  }
+    }),
+    [showDetailsClick],
+  );
 
-  return {
-    requestFailed: (description: string, error: unknown) => {
-      notification.error(
-        buildErrorNotification("Request failed", description, error),
-      );
-    },
-    errorWithDetails: (message: string, description: string, error: unknown) => {
-      notification.error(buildErrorNotification(message, description, error));
-    },
-    info: (message: string, description: string) => {
-      notification.info(buildInfoNotification(message, description));
-    },
-  };
+  return useMemo(
+    () => ({
+      requestFailed: (description: string, error: unknown) => {
+        const item = buildErrorNotification(
+          "Request failed",
+          description,
+          error,
+        );
+        addToHistory(item);
+        notification.error(item);
+      },
+      errorWithDetails: (
+        message: string,
+        description: string,
+        error: unknown,
+      ) => {
+        const item = buildErrorNotification(message, description, error);
+        addToHistory(item);
+        notification.error(item);
+      },
+      info: (message: string, description: string) => {
+        const item = buildInfoNotification(message, description);
+        addToHistory(item);
+        notification.info(item);
+      },
+    }),
+    [addToHistory, buildErrorNotification, buildInfoNotification],
+  );
 };

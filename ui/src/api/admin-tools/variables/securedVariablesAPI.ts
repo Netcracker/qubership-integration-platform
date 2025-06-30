@@ -38,7 +38,7 @@ export class SecuredVariablesApi extends BaseApi {
   async getForSecret(secretName: string): Promise<ApiResponse<Variable[]>> {
     return this.wrap(
       async () => {
-        const response = await this.instance.get(
+        const response = await this.instance.get<string[]>(
           `${urlPrefixV2}/secured-variables/${secretName}`,
         );
 

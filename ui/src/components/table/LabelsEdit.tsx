@@ -28,7 +28,7 @@ export const LabelsEdit: React.FC<LabelsEditorProps> = ({ name }) => {
         tokenSeparators={[" "]}
         options={options}
         onBlur={() => inlineEditContext?.toggle()}
-        popupClassName="not-displayed"
+        classNames={{ popup: { root: "not-displayed" } }}
         suffixIcon={<></>}
       />
     </Form.Item>

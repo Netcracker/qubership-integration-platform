@@ -39,7 +39,7 @@ export const useEngines = (domainName: string | null) => {
       return;
     }
 
-    fetchEngines(domainName);
+    void fetchEngines(domainName);
 
     const unsubscribe = subscribe(ObjectType.ENGINE, (event: Event) => {
       const engineEventData = event.data as EngineUpdateResponse;
@@ -49,7 +49,7 @@ export const useEngines = (domainName: string | null) => {
           case EventActionType.ADDED:
           case EventActionType.MODIFIED:
           case EventActionType.DELETED:
-            fetchEngines(domainName);
+            void fetchEngines(domainName);
             break;
           default:
             break;
@@ -62,9 +62,9 @@ export const useEngines = (domainName: string | null) => {
     };
   }, [domainName, fetchEngines, clearError, subscribe]);
 
-  const retry = useCallback(() => {
+  const retry = useCallback(async () => {
     if (domainName) {
-      fetchEngines(domainName);
+      await fetchEngines(domainName);
     }
   }, [domainName, fetchEngines]);
 

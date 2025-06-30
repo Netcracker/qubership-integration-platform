@@ -22,7 +22,7 @@ export const SnapshotsCompare: React.FC<SnapshotCompareProps> = ({
       title="Chain Difference"
       centered
       open={true}
-      onCancel={async () => closeContainingModal()}
+      onCancel={closeContainingModal}
       footer={null}
       width={"90%"}
     >

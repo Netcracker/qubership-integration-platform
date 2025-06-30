@@ -1,7 +1,7 @@
 import React from "react";
 import { Table, Button, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import EngineTable from "./EngineTable";
+import { EngineTable } from "./EngineTable";
 import { useEngines } from "./hooks/useEngines";
 import tableStyles from "./Tables.module.css";
 import { EngineDomain } from "../../../api/apiTypes.ts";
@@ -18,7 +18,7 @@ const EnginesForDomain: React.FC<{ domain: EngineDomain }> = ({ domain }) => {
     return (
       <Typography.Text type="danger">
         Error while loading list of engines
-        <Button onClick={retry}>Retry</Button>
+        <Button onClick={() => void retry()}>Retry</Button>
       </Typography.Text>
     );
   }

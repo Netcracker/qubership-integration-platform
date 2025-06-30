@@ -293,7 +293,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
               />
             )}
             <EditOutlined
-              className={`${styles["inline-icon"]} ${styles["edit-icon"]}`}
+              className={styles["inline-icon"]}
             />
           </div>
         );

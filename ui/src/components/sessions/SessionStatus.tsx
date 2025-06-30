@@ -9,6 +9,23 @@ type SessionStatusProps = {
   suffix?: string;
 };
 
+function getStatusColor(status: ExecutionStatus): PresetStatusColorType {
+  switch (status) {
+    case ExecutionStatus.IN_PROGRESS:
+      return "processing";
+    case ExecutionStatus.COMPLETED_NORMALLY:
+      return "success";
+    case ExecutionStatus.COMPLETED_WITH_ERRORS:
+      return "error";
+    case ExecutionStatus.COMPLETED_WITH_WARNINGS:
+      return "warning";
+    case ExecutionStatus.CANCELLED_OR_UNKNOWN:
+      return "default";
+    default:
+      return "default";
+  }
+}
+
 export const SessionStatus: React.FC<SessionStatusProps> = ({
   status,
   suffix,
@@ -18,25 +35,8 @@ export const SessionStatus: React.FC<SessionStatusProps> = ({
   );
 
   useEffect(() => {
-    setColor(getStatusColor());
+    setColor(getStatusColor(status));
   }, [status]);
-
-  const getStatusColor = (): PresetStatusColorType => {
-    switch (status) {
-      case ExecutionStatus.IN_PROGRESS:
-        return "processing";
-      case ExecutionStatus.COMPLETED_NORMALLY:
-        return "success";
-      case ExecutionStatus.COMPLETED_WITH_ERRORS:
-        return "error";
-      case ExecutionStatus.COMPLETED_WITH_WARNINGS:
-        return "warning";
-      case ExecutionStatus.CANCELLED_OR_UNKNOWN:
-        return "default";
-      default:
-        return "default";
-    }
-  };
 
   return (
     <Badge

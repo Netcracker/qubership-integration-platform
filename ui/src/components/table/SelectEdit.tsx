@@ -8,7 +8,11 @@ export type SelectEditProps<ValueType = unknown> = {
   multiple?: boolean;
 };
 
-export function SelectEdit<ValueType = unknown>({ name, options, multiple }: SelectEditProps<ValueType>): React.ReactNode {
+export function SelectEdit<ValueType = unknown>({
+  name,
+  options,
+  multiple,
+}: SelectEditProps<ValueType>): React.ReactNode {
   const inlineEditContext = useContext(InlineEditContext);
   const form = Form.useFormInstance();
 

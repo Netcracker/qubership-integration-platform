@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Session, SessionElement } from "../../api/apiTypes.ts";
 import { Button, Flex, message, Modal, Tabs, TabsProps, Tag } from "antd";
 import { LeftOutlined, LinkOutlined, RightOutlined } from "@ant-design/icons";
@@ -52,13 +52,15 @@ function getTextToCopy<ValueType>(
     case "name":
       return item.name;
     case "typeBefore":
-      return typeTextGetter ? typeTextGetter(item.before) : `${item.before}`;
+      return typeTextGetter ? typeTextGetter(item.before) : String(item.before);
     case "typeAfter":
-      return typeTextGetter ? typeTextGetter(item.after) : `${item.after}`;
+      return typeTextGetter ? typeTextGetter(item.after) : String(item.after);
     case "valueBefore":
-      return valueTextGetter ? valueTextGetter(item.before) : `${item.before}`;
+      return valueTextGetter
+        ? valueTextGetter(item.before)
+        : String(item.before);
     case "valueAfter":
-      return valueTextGetter ? valueTextGetter(item.after) : `${item.after}`;
+      return valueTextGetter ? valueTextGetter(item.after) : String(item.after);
   }
 }
 
@@ -81,121 +83,127 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
     setElement(elementOrderMap.get(elementId)?.current);
   }, [elementId, elementOrderMap]);
 
+  const copyItemFieldToClipboard = useCallback(
+    async <ValueType = unknown,>(
+      item: KVChangesTableItem<ValueType>,
+      column: ColumnName,
+      typeTextGetter?: (v: ValueType | undefined) => string | undefined,
+      valueTextGetter?: (v: ValueType | undefined) => string | undefined,
+    ): Promise<void> => {
+      const text = getTextToCopy(item, column, typeTextGetter, valueTextGetter);
+      if (text) {
+        return copyToClipboard(text).then(() => {
+          messageApi.info("Copied to clipboard");
+          return;
+        });
+      }
+    },
+    [messageApi],
+  );
+
+  const buildTabItems = useCallback(
+    (): TabsProps["items"] => [
+      {
+        key: "body",
+        label: "Body",
+        children: (
+          <SessionElementBodyChangesView
+            style={{ height: "100%" }}
+            headersBefore={element?.headersBefore}
+            headersAfter={element?.headersAfter}
+            bodyBefore={element?.bodyBefore}
+            bodyAfter={element?.bodyAfter}
+          />
+        ),
+      },
+      {
+        key: "headers",
+        label: "Headers",
+        children: (
+          <SessionElementKVChanges
+            before={element?.headersBefore}
+            after={element?.headersAfter}
+            onColumnClick={(item, column) =>
+              void copyItemFieldToClipboard(item, column)
+            }
+            style={{ height: "100%" }}
+          />
+        ),
+      },
+      {
+        key: "properties",
+        label: "Exchange properties",
+        children: (
+          <SessionElementKVChanges
+            addTypeColumns
+            before={element?.propertiesBefore}
+            after={element?.propertiesAfter}
+            comparator={(p1, p2) =>
+              (p1?.type.localeCompare(p2?.type ?? "") ||
+                p1?.value.localeCompare(p2?.value ?? "")) ??
+              0
+            }
+            typeRenderer={(property) => property.type}
+            valueRenderer={(property) => property.value}
+            onColumnClick={(item, column) =>
+              void copyItemFieldToClipboard(
+                item,
+                column,
+                (v) => v?.type,
+                (v) => v?.value,
+              )
+            }
+            style={{ height: "100%" }}
+          />
+        ),
+      },
+      {
+        key: "context",
+        label: "Technical context",
+        children: (
+          <SessionElementKVChanges
+            before={element?.contextBefore}
+            after={element?.contextAfter}
+            onColumnClick={(item, column) =>
+              void copyItemFieldToClipboard(item, column)
+            }
+            style={{ height: "100%" }}
+          />
+        ),
+      },
+      ...(element?.exceptionInfo
+        ? [
+            {
+              key: "error",
+              label: "Errors",
+              children: (
+                <Flex vertical style={{ height: "100%" }}>
+                  <h5>Message</h5>
+                  <div>{element.exceptionInfo.message}</div>
+                  <h5>Stacktrace</h5>
+                  <div
+                    style={{
+                      flexGrow: 1,
+                      flexShrink: 1,
+                      minHeight: 0,
+                      overflow: "auto",
+                      height: 0,
+                    }}
+                  >
+                    {element.exceptionInfo.stackTrace}
+                  </div>
+                </Flex>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [copyItemFieldToClipboard, element],
+  );
+
   useEffect(() => {
     setTabItems(buildTabItems());
-  }, [element]);
-
-  const copyItemFieldToClipboard = async <ValueType = unknown>(
-    item: KVChangesTableItem<ValueType>,
-    column: ColumnName,
-    typeTextGetter?: (v: ValueType | undefined) => string | undefined,
-    valueTextGetter?: (v: ValueType | undefined) => string | undefined,
-  ): Promise<void> => {
-    const text = getTextToCopy(item, column, typeTextGetter, valueTextGetter);
-    if (text) {
-      return copyToClipboard(text).then(() => {
-        messageApi.info("Copied to clipboard");
-        return;
-      });
-    }
-  };
-
-  const buildTabItems = (): TabsProps["items"] => [
-    {
-      key: "body",
-      label: "Body",
-      children: (
-        <SessionElementBodyChangesView
-          style={{ height:"100%" }}
-          headersBefore={element?.headersBefore}
-          headersAfter={element?.headersAfter}
-          bodyBefore={element?.bodyBefore}
-          bodyAfter={element?.bodyAfter}
-        />
-      ),
-    },
-    {
-      key: "headers",
-      label: "Headers",
-      children: (
-        <SessionElementKVChanges
-          before={element?.headersBefore}
-          after={element?.headersAfter}
-          onColumnClick={(item, column) =>
-            copyItemFieldToClipboard(item, column)
-          }
-          style={{ height: "100%" }}
-        />
-      ),
-    },
-    {
-      key: "properties",
-      label: "Exchange properties",
-      children: (
-        <SessionElementKVChanges
-          addTypeColumns
-          before={element?.propertiesBefore}
-          after={element?.propertiesAfter}
-          comparator={(p1, p2) =>
-            (p1?.type.localeCompare(p2?.type ?? "") ||
-              p1?.value.localeCompare(p2?.value ?? "")) ??
-            0
-          }
-          typeRenderer={(property) => property.type}
-          valueRenderer={(property) => property.value}
-          onColumnClick={(item, column) =>
-            copyItemFieldToClipboard(
-              item,
-              column,
-              (v) => v?.type,
-              (v) => v?.value,
-            )
-          }
-          style={{ height: "100%" }}
-        />
-      ),
-    },
-    {
-      key: "context",
-      label: "Technical context",
-      children: (
-        <SessionElementKVChanges
-          before={element?.contextBefore}
-          after={element?.contextAfter}
-          onColumnClick={(item, column) =>
-            copyItemFieldToClipboard(item, column)
-          }
-          style={{ height: "100%" }}
-        />
-      ),
-    },
-    ...(element?.exceptionInfo
-      ? [
-          {
-            key: "error",
-            label: "Errors",
-            children: (
-              <Flex vertical style={{ height: "100%" }}>
-                <h5>Message</h5>
-                <div>{element.exceptionInfo.message}</div>
-                <h5>Stacktrace</h5>
-                <div
-                  style={{
-                    flexGrow: 1,
-                    flexShrink: 1,
-                    minHeight: 0,
-                    overflow: "auto",
-                    height: 0,
-                  }}
-                >
-                  {element.exceptionInfo.stackTrace}
-                </div>
-              </Flex>
-            ),
-          },
-        ]
-      : []),
-  ];
+  }, [buildTabItems, element]);
 
   return (
     <Modal
@@ -214,7 +222,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
       }
       centered
       open={true}
-      onCancel={async () => closeContainingModal()}
+      onCancel={closeContainingModal}
       width={"90%"}
       footer={null}
     >

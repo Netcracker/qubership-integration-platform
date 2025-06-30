@@ -71,7 +71,7 @@ export const AdminToolsSidebar = ({ collapsed }: { collapsed: boolean }) => {
 
   const handleClick = ({ key }: { key: string }) => {
     if (key.startsWith("/admintools")) {
-      navigate(key);
+      void navigate(key);
     }
   };
 

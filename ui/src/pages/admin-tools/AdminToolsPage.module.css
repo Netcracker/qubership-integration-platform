@@ -1,65 +1,62 @@
 .container {
-    display: flex;
-    height: 100%;
-    border-radius: 8px;
-    overflow: hidden;
-    min-height: 0;
-    flex: 1;
-    background: #fff;
+  display: flex;
+  height: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 0;
+  flex: 1;
+  background: #fff;
 }
 
 .sidebar {
-    background: #fff;
+  background: #fff;
 }
 
 .sidebarInner {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .sidebarMenu {
-    flex-grow: 1;
-    overflow-y: auto;
+  flex-grow: 1;
+  overflow-y: auto;
 }
 
 .sidebarToggleBar {
-    height: 40px;
-    line-height: 40px;
-    text-align: center;
-    cursor: pointer;
-    /*font-size: 16px;*/
-    font-weight: bold;
-    user-select: none;
-    transition: background 0.2s;
+  height: 40px;
+  line-height: 40px;
+  text-align: center;
+  cursor: pointer;
+  /*font-size: 16px;*/
+  font-weight: bold;
+  user-select: none;
+  transition: background 0.2s;
 }
 
 .sidebarToggleBar:hover {
-    background-color: #f0f0f0;
+  background-color: #f0f0f0;
 }
 
 .mainContentWrapper {
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-    height: 100%;
-    flex: 1;
-    min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .contentArea {
-    flex-grow: 1;
-    overflow: auto;
-    padding: 12px;
-    /*background: #f9f9f9;*/
-    /*flex: 1;*/
-    min-height: 0;
-    height: 100%;
+  flex-grow: 1;
+  overflow: auto;
+  padding: 24px;
+  min-height: 0;
+  height: 100%;
 }
 
 .moduleContainer {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }

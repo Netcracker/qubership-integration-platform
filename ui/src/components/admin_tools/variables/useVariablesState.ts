@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { message } from "antd";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import {
@@ -30,11 +30,7 @@ export const useVariablesState = ({
 
   const notificationService = useNotificationService();
 
-  useEffect(() => {
-    fetchVariables();
-  }, []);
-
-  const fetchVariables = async () => {
+  const fetchVariables = useCallback(async () => {
     try {
       const response = await getVariables();
       if (response.success) {
@@ -48,89 +44,106 @@ export const useVariablesState = ({
     } catch (error) {
       notificationService.requestFailed("Failed to load variables", error);
     }
-  };
+  }, [getVariables, notificationService]);
 
-  const startEditing = (key: string, value: string) => {
+  useEffect(() => {
+    void fetchVariables();
+  }, [fetchVariables]);
+
+  const startEditing = useCallback((key: string, value: string) => {
     setEditingKey(key);
     setEditingValue(value);
-  };
+  }, []);
 
-  const cancelEditing = () => {
+  const cancelEditing = useCallback(() => {
     if (editingKey === null) {
       setIsAddingNew(false);
     }
     setEditingKey(null);
     setEditingValue("");
-  };
+  }, [editingKey]);
 
-  const confirmEdit = async (key: string, newValue: string) => {
-    try {
-      const variableToUpdate = { key, value: newValue };
-      const response = await updateVariable(variableToUpdate);
-      if (response.success) {
-        message.success("Variable updated");
-        cancelEditing();
-        fetchVariables();
-      } else {
-        const errorMessage =
-          response.error?.responseBody.errorMessage ||
-          "Failed to update variable";
-        notificationService.requestFailed(errorMessage, response.error);
+  const confirmEdit = useCallback(
+    async (key: string, newValue: string) => {
+      try {
+        const variableToUpdate = { key, value: newValue };
+        const response = await updateVariable(variableToUpdate);
+        if (response.success) {
+          message.success("Variable updated");
+          cancelEditing();
+          await fetchVariables();
+        } else {
+          const errorMessage =
+            response.error?.responseBody.errorMessage ||
+            "Failed to update variable";
+          notificationService.requestFailed(errorMessage, response.error);
+        }
+      } catch (error) {
+        notificationService.requestFailed("Failed to update variable", error);
       }
-    } catch (error) {
-      notificationService.requestFailed("Failed to update variable", error);
-    }
-  };
+    },
+    [cancelEditing, fetchVariables, notificationService, updateVariable],
+  );
 
-  const deleteVariable = async (key: string) => {
-    try {
-      const success = await deleteVariables([key]);
-      if (success) {
-        message.success(`Deleted ${key}`);
-        fetchVariables();
-      } else {
-        notificationService.requestFailed(`Failed to delete ${key}`, {
-          message: "Operation failed",
-        });
+  const deleteVariable = useCallback(
+    async (key: string) => {
+      try {
+        const success = await deleteVariables([key]);
+        if (success) {
+          message.success(`Deleted ${key}`);
+          await fetchVariables();
+        } else {
+          notificationService.requestFailed(`Failed to delete ${key}`, {
+            message: "Operation failed",
+          });
+        }
+      } catch (error) {
+        notificationService.requestFailed(`Failed to delete ${key}`, error);
       }
-    } catch (error) {
-      notificationService.requestFailed(`Failed to delete ${key}`, error);
-    }
-  };
+    },
+    [deleteVariables, fetchVariables, notificationService],
+  );
 
-  const addVariable = async (key: string, value: string) => {
-    if (key === NEW_VARIABLE_KEY) {
-      notificationService.info(
-        `Cannot save variable with key '${NEW_VARIABLE_KEY}'`,
-        "This key is reserved.",
-      );
-      return;
-    }
-    try {
-      const response = await createVariable({ key, value: value });
-      if (response.success) {
-        message.success("Variable added");
-        setIsAddingNew(false);
-        fetchVariables();
-      } else {
-        const errorMessage =
-          response.error?.responseBody.errorMessage || "Failed to add variable";
-        notificationService.requestFailed(errorMessage, response.error);
+  const addVariable = useCallback(
+    async (key: string, value: string) => {
+      if (key === NEW_VARIABLE_KEY) {
+        notificationService.info(
+          `Cannot save variable with key '${NEW_VARIABLE_KEY}'`,
+          "This key is reserved.",
+        );
+        return;
       }
-    } catch (error) {
-      notificationService.requestFailed("Failed to add variable", error);
-    }
-  };
+      try {
+        const response = await createVariable({ key, value: value });
+        if (response.success) {
+          message.success("Variable added");
+          setIsAddingNew(false);
+          await fetchVariables();
+        } else {
+          const errorMessage =
+            response.error?.responseBody.errorMessage ||
+            "Failed to add variable";
+          notificationService.requestFailed(errorMessage, response.error);
+        }
+      } catch (error) {
+        notificationService.requestFailed("Failed to add variable", error);
+      }
+    },
+    [createVariable, fetchVariables, notificationService],
+  );
 
-  const handleExport = async (keys: string[]) => {
-    if (!exportVariables) return;
-    try {
-      await exportVariables(keys);
-      message.success("Exported");
-    } catch (error) {
-      notificationService.requestFailed("Failed to export", error);
-    }
-  };
+  const handleExport = useCallback(
+    async (keys: string[]) => {
+      if (!exportVariables) return;
+      try {
+        await exportVariables(keys);
+        message.success("Exported");
+      } catch (error) {
+        notificationService.requestFailed("Failed to export", error);
+      }
+    },
+    [exportVariables, notificationService],
+  );
 
   return {
     variables,

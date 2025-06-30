@@ -3,21 +3,27 @@ import { ButtonProps } from "antd/es/button/button";
 import { Button } from "antd";
 
 type LongActionButtonProps = {
-  onAction: () => void;
+  onSubmit: () => void | Promise<void>;
 };
 export const LongActionButton: React.FC<
   LongActionButtonProps &
     ButtonProps &
     React.RefAttributes<HTMLButtonElement | HTMLAnchorElement>
-> = ({ onAction, ...rest }) => {
+> = ({ onSubmit, ...rest }) => {
   const [isInProcess, setIsInProcess] = useState(false);
-  const onClick = async () => {
+  const onClick = () => {
+    setIsInProcess(true);
     try {
-      setIsInProcess(true);
-      onAction();
-    } finally {
+      const result = onSubmit();
+      if (result instanceof Promise) {
+        void result.finally(() => setIsInProcess(false));
+      } else {
+        setIsInProcess(false);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
       setIsInProcess(false);
     }
-  }
+  };
   return <Button {...rest} loading={isInProcess} onClick={onClick} />;
 };

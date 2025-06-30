@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Deployment } from "../../api/apiTypes.ts";
 import { Badge, BadgeProps, Spin } from "antd";
-import { api } from "../../api/api.ts";
 import { capitalize } from "../../misc/format-utils.ts";
 import { useDeployments } from "../../hooks/useDeployments.tsx";
 
@@ -50,32 +49,21 @@ export const DeploymentsCumulativeState: React.FC<
   DeploymentsCumulativeStateProps
 > = ({ chainId }) => {
   const [status, setStatus] = useState<string>("DRAFT");
-  const [badgeStatus, setBadgeStatus] = useState<BadgeProps["status"]>("default");
-  const { isLoading, deployments, setDeployments , setIsLoading} = useDeployments(chainId);
+  const [badgeStatus, setBadgeStatus] =
+    useState<BadgeProps["status"]>("default");
+  const { isLoading, deployments } = useDeployments(chainId);
 
   useEffect(() => {
-    getDeployments().then((d) => setDeployments(d ?? []));
-  }, [chainId]);
-
-  useEffect(() => {
-    setStatus(getDeploymentsStatus(deployments ?? []));
+    setStatus(getDeploymentsStatus(deployments));
   }, [deployments]);
 
   useEffect(() => {
     setBadgeStatus(getDeploymentBadgeStatus(status));
   }, [status]);
 
-  const getDeployments = async () => {
-    if (!chainId) {
-      return;
-    }
-    setIsLoading(true);
-    try {
-      return api.getDeployments(chainId);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return isLoading ? <Spin /> : <Badge status={badgeStatus} text={capitalize(status)} />;
+  return isLoading ? (
+    <Spin />
+  ) : (
+    <Badge status={badgeStatus} text={capitalize(status)} />
+  );
 };

@@ -11,7 +11,7 @@ export type InlineEditProps<Values> = {
   values: Values;
   editor: ReactNode;
   viewer: ReactNode;
-  onSubmit?: (values: Values) => void;
+  onSubmit?: (values: Values) => void | Promise<void>;
   onCancel?: () => void;
   initialActive?: boolean;
 };
@@ -28,18 +28,21 @@ export function InlineEdit<Values>({
   onCancel,
   initialActive,
 }: InlineEditProps<Values>): ReactNode {
-  const [form] = useForm();
+  const [form] = useForm<Values>();
+  const [processing, setProcessing] = useState<boolean>(false);
   const [active, setActive] = useState<boolean>(initialActive ?? false);
 
   useEffect(() => {
     if (active) {
+      // @ts-expect-error False positive as object of type Values is RecursivePartial<Values>
       form.setFieldsValue(values);
     }
-  }, [values, active]);
+  }, [values, active, form]);
 
   const toggle = () => {
     setActive(!active);
     if (!active) {
+      // @ts-expect-error False positive as object of type Values is RecursivePartial<Values>
       form.setFieldsValue(values);
     } else {
       onCancel?.();
@@ -51,9 +54,27 @@ export function InlineEdit<Values>({
       {active ? (
         <Form<Values>
           form={form}
+          disabled={processing}
           component={false}
-          onFinish={async () => {
-            onSubmit?.(form.getFieldsValue());
+          onFinish={() => {
+            setProcessing(true);
+            try {
+              const result = onSubmit?.(form.getFieldsValue());
+              if (result instanceof Promise) {
+                result
+                  .then(() => {
+                    setProcessing(false);
+                    toggle();
+                  })
+                  .catch(() => setProcessing(false));
+              } else {
+                setProcessing(false);
+                toggle();
+              }
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            } catch (error) {
+              setProcessing(false);
+            }
             toggle();
           }}
           onBlur={toggle}

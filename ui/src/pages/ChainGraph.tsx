@@ -8,7 +8,14 @@ import {
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
-import React, { DragEvent, MouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  DragEvent,
+  MouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
 import { Flex, FloatButton } from "antd";
@@ -21,7 +28,10 @@ import { useModalsContext } from "../Modals.tsx";
 import { ChainElementModification } from "../components/modal/ChainElementModification.tsx";
 import styles from "./ChainGraph.module.css";
 
-import { ChainGraphNodeData, useChainGraph } from "../hooks/graph/useChainGraph.tsx";
+import {
+  ChainGraphNodeData,
+  useChainGraph,
+} from "../hooks/graph/useChainGraph.tsx";
 import { ElkDirectionContextProvider } from "./ElkDirectionContext.tsx";
 import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
 import { CreateDeploymentRequest } from "../api/apiTypes.ts";
@@ -29,8 +39,7 @@ import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 const ChainGraphInner: React.FC = () => {
-  const { chainId } = useParams<string>();
-  let { elementId } = useParams<string>();
+  const { chainId, elementId } = useParams<string>();
   const { showModal } = useModalsContext();
   const reactFlowWrapper = useRef(null);
   const [isPageLoaded, setIsPageLoaded] = useState(false);
@@ -49,49 +58,48 @@ const ChainGraphInner: React.FC = () => {
     onDrop,
     onEdgesChange,
     onNodesChange,
-    elkDirectionControl,
+    direction,
+    toggleDirection,
     updateNodeData,
     isLoading,
   } = useChainGraph(chainId);
 
-  useEffect(() => {
-    if (!isPageLoaded && !isLoading && nodes?.length) {
-      setIsPageLoaded(true);
-      if (elementId) {
-        openElementModal(nodes.find((node) => node.id === elementId));
-      }
-    }
-  }, [nodes]);
-
-  const onNodeDoubleClick = (_event: MouseEvent, node: Node<ChainGraphNodeData>) => {
+  const onNodeDoubleClick = (
+    _event: MouseEvent,
+    node: Node<ChainGraphNodeData>,
+  ) => {
     openElementModal(node);
   };
 
-  const openElementModal = (node?: Node<ChainGraphNodeData>) => {
-    if (!node?.type) return;
-    setElementPath(node.id);
-    showModal({
-      component: (
-        <ChainElementModification
-          node={node}
-          chainId={chainId!}
-          elementId={elementId!}
-          onSubmit={updateNodeData}
-          onClose={clearElementPath}
-        />
-      ),
-    });
-  };
+  const setElementPath = useCallback(
+    (newElementId: string) => {
+      void navigate(`/chains/${chainId}/graph/${newElementId}`);
+    },
+    [chainId, navigate],
+  );
 
-  const setElementPath = (newElementId: string) => {
-    navigate(`/chains/${chainId}/graph/${newElementId}`);
-    elementId = newElementId;
-  };
+  const clearElementPath = useCallback(() => {
+    void navigate(`/chains/${chainId}/graph`);
+  }, [chainId, navigate]);
 
-  const clearElementPath = () => {
-    navigate(`/chains/${chainId}/graph`);
-    elementId = undefined;
-  };
+  const openElementModal = useCallback(
+    (node?: Node<ChainGraphNodeData>) => {
+      if (!node?.type) return;
+      setElementPath(node.id);
+      showModal({
+        component: (
+          <ChainElementModification
+            node={node}
+            chainId={chainId!}
+            elementId={node.id}
+            onSubmit={updateNodeData}
+            onClose={clearElementPath}
+          />
+        ),
+      });
+    },
+    [chainId, clearElementPath, setElementPath, showModal, updateNodeData],
+  );
 
   const saveAndDeploy = async (domain: string) => {
     if (!chainId) return;
@@ -120,31 +128,42 @@ const ChainGraphInner: React.FC = () => {
     }
   };
 
-  const openSaveAndDeployDialog = async () => {
+  const openSaveAndDeployDialog = () => {
     showModal({
       component: <SaveAndDeploy chainId={chainId} onSubmit={saveAndDeploy} />,
     });
   };
 
+  useEffect(() => {
+    if (!isPageLoaded && !isLoading && nodes?.length) {
+      setIsPageLoaded(true);
+      if (elementId) {
+        openElementModal(nodes.find((node) => node.id === elementId));
+      }
+    }
+  }, [elementId, isLoading, isPageLoaded, nodes, openElementModal]);
+
   return (
     <Flex className={styles["graph-wrapper"]}>
       <ElementsLibrarySidebar />
       <div className="react-flow-container" ref={reactFlowWrapper}>
-        <ElkDirectionContextProvider elkDirectionControl={elkDirectionControl}>
+        <ElkDirectionContextProvider
+          elkDirectionControl={{ direction, toggleDirection }}
+        >
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onDrop={onDrop}
+            onNodesChange={(changes) => void onNodesChange(changes)}
+            onEdgesChange={(changes) => void onEdgesChange(changes)}
+            onConnect={(connection) => void onConnect(connection)}
+            onDrop={(event) => void onDrop(event)}
             onDragOver={onDragOver}
             onNodeDoubleClick={onNodeDoubleClick}
             deleteKeyCode={["Backspace", "Delete"]}
             fitView
           >
             <Background variant={BackgroundVariant.Dots} />
-            <MiniMap zoomable pannable position="top-right"/>
+            <MiniMap zoomable pannable position="top-right" />
             <CustomControls />
           </ReactFlow>
         </ElkDirectionContextProvider>
@@ -156,7 +175,7 @@ const ChainGraphInner: React.FC = () => {
             title: "Save and deploy",
             placement: "left",
           }}
-          onClick={async () => openSaveAndDeployDialog()}
+          onClick={openSaveAndDeployDialog}
         />
       </FloatButtonGroup>
     </Flex>

@@ -52,7 +52,7 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
           exportServices: true,
           exportVariables: true,
         }}
-        onFinish={async (values) => {
+        onFinish={(values) => {
           setConfirmLoading(true);
           try {
             onSubmit?.(values);
@@ -62,13 +62,28 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
           }
         }}
       >
-        <Form.Item name="exportSubchains" valuePropName="checked" label={null} style={{ marginBottom: 0 }}>
+        <Form.Item
+          name="exportSubchains"
+          valuePropName="checked"
+          label={null}
+          style={{ marginBottom: 0 }}
+        >
           <Checkbox>Export related sub-chains</Checkbox>
         </Form.Item>
-        <Form.Item name="exportServices" valuePropName="checked" label={null} style={{ marginBottom: 0 }}>
+        <Form.Item
+          name="exportServices"
+          valuePropName="checked"
+          label={null}
+          style={{ marginBottom: 0 }}
+        >
           <Checkbox>Export related services</Checkbox>
         </Form.Item>
-        <Form.Item name="exportVariables" valuePropName="checked" label={null} style={{ marginBottom: 0 }}>
+        <Form.Item
+          name="exportVariables"
+          valuePropName="checked"
+          label={null}
+          style={{ marginBottom: 0 }}
+        >
           <Checkbox>Export related variables</Checkbox>
         </Form.Item>
       </Form>

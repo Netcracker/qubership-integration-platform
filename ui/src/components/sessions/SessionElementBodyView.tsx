@@ -28,11 +28,11 @@ export function getContentType(
   )?.[1];
 }
 
-export function formatDocumentInEditor(
+export async function formatDocumentInEditor(
   editor: editor_.IStandaloneCodeEditor | undefined,
 ) {
   editor?.updateOptions({ readOnly: false });
-  editor
+  await editor
     ?.getAction("editor.action.formatDocument")
     ?.run()
     .then(() => editor?.updateOptions({ readOnly: true }));
@@ -47,12 +47,12 @@ export function setUpDocumentFormatting(editor: editor_.IStandaloneCodeEditor) {
   // on every initialization
   editor.onDidLayoutChange(formatDocument);
 
-  editor.onDidChangeModelContent(() => setTimeout(formatDocument, 1))
+  editor.onDidChangeModelContent(() => setTimeout(formatDocument, 1));
 }
 
 export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
   headers,
-  body
+  body,
 }) => {
   const [language, setLanguage] = useState<string | undefined>(undefined);
 

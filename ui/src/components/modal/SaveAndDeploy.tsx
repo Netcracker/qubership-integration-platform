@@ -5,35 +5,47 @@ import { useDomains } from "../../hooks/useDomains.tsx";
 
 export type SaveAndDeployProps = {
   chainId?: string;
-  onSubmit?: (domain: string) => void;
+  onSubmit?: (domain: string) => void | Promise<void>;
 };
 
 type SaveAndDeployFormData = {
   domain: string;
-}
+};
 
-export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({ chainId, onSubmit }) => {
+export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
+  chainId,
+  onSubmit,
+}) => {
   const [form] = Form.useForm();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const { closeContainingModal } = useModalContext();
-  const domainsState = useDomains();
+  const { isLoading: domainsLoading, domains } = useDomains();
 
-  const domainOptions: SelectProps["options"] = domainsState.domains
+  const domainOptions: SelectProps["options"] = domains
     ?.sort((d1, d2) => d1.name.localeCompare(d2.name))
     .map((domain) => ({
       label: domain.name,
       value: domain.id,
     }));
 
-  const handleSubmit = async (data: SaveAndDeployFormData) => {
+  const handleSubmit = (data: SaveAndDeployFormData) => {
     if (!chainId) {
       return;
     }
     setConfirmLoading(true);
     try {
-      console.log({ data });
-      onSubmit?.(data.domain);
-    } finally {
+      const result = onSubmit?.(data.domain);
+      if (result instanceof Promise) {
+        void result.finally(() => {
+          setConfirmLoading(false);
+          closeContainingModal();
+        });
+      } else {
+        setConfirmLoading(false);
+        closeContainingModal();
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
       setConfirmLoading(false);
       closeContainingModal();
     }
@@ -65,7 +77,7 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({ chainId, onSubmit 
         layout="horizontal"
         labelCol={{ span: 4 }}
         style={{ maxWidth: 600 }}
-        disabled={domainsState.isLoading}
+        disabled={domainsLoading}
         labelWrap
         onFinish={(values) => handleSubmit(values)}
       >
@@ -74,12 +86,9 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({ chainId, onSubmit 
           name="domain"
           rules={[{ required: true, message: "Please specify a domain" }]}
         >
-          <Select
-            options={domainOptions}
-            loading={domainsState.isLoading}
-          />
+          <Select options={domainOptions} loading={domainsLoading} />
         </Form.Item>
       </Form>
     </Modal>
   );
-}
+};

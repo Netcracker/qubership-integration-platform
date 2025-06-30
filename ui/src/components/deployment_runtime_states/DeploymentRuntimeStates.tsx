@@ -9,7 +9,9 @@ type DeploymentRuntimeStatesProps = {
   runtimeStates: RuntimeStates;
 };
 
-export const DeploymentRuntimeStates: React.FC<DeploymentRuntimeStatesProps> = ({ service, timestamp, runtimeStates }) => {
+export const DeploymentRuntimeStates: React.FC<
+  DeploymentRuntimeStatesProps
+> = ({ service, timestamp, runtimeStates }) => {
   return (
     <Flex gap="4px 4px" wrap>
       {Object.entries(runtimeStates.states).map(([name, runtimeState]) => (

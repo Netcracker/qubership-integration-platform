@@ -103,10 +103,10 @@ export type Element = {
   parentRestriction: string[];
   allowedChildren: Record<string, "one" | "many">;
   properties: {
-    common: Property[];
-    advanced: Property[];
-    hidden: Property[];
-    async: Property[];
+    [PropertyType.COMMON]: Property[];
+    [PropertyType.ADVANCED]: Property[];
+    [PropertyType.HIDDEN]: Property[];
+    [PropertyType.UNKNOWN]: Property[];
   };
   customTabs: unknown[];
   deprecated: boolean;
@@ -678,6 +678,20 @@ export type ErrorResponse = {
   errorDate: string;
 };
 
+export function isErrorResponse(obj: unknown): obj is ErrorResponse {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "serviceName" in obj &&
+    "errorMessage" in obj &&
+    "errorDate" in obj &&
+    typeof obj.serviceName === "string" &&
+    typeof obj.errorMessage === "string" &&
+    (!("stackTrace" in obj) || typeof obj.stackTrace === "string") &&
+    typeof obj.errorDate === "string"
+  );
+}
+
 export type DeploymentUpdate = {
   id: string;
   engineHost: string;
@@ -757,39 +771,36 @@ export type ChainItem = CatalogItem & {
 };
 
 export type Engine = {
-    id: string;
-    name: string;
-    host: string;
-    runningStatus: RunningStatus;
-    ready: boolean;
-    connected: boolean;
-    namespace: string;
-    domainId?: string;
-    domainName?: string;
+  id: string;
+  name: string;
+  host: string;
+  runningStatus: RunningStatus;
+  ready: boolean;
+  connected: boolean;
+  namespace: string;
+  domainId?: string;
+  domainName?: string;
 };
 
 export enum RunningStatus {
-  RUNNING = 'RUNNING',
-  PENDING = 'PENDING',
-  FAILED = 'FAILED',
-  UNKNOWN = 'UNKNOWN',
+  RUNNING = "RUNNING",
+  PENDING = "PENDING",
+  FAILED = "FAILED",
+  UNKNOWN = "UNKNOWN",
 }
 
 export type EngineUpdateResponse = {
-    domainId: string;
-    domainName: string;
-    actionType: EventActionType;
-    host?: string;
-    name?: string;
-}
+  domainId: string;
+  domainName: string;
+  actionType: EventActionType;
+  host?: string;
+  name?: string;
+};
 
 export type ChainDeployment = {
   id: string;
   chainId: string;
   chainName: string;
   snapshotName: string;
-  state: {
-    status: string;
-    suspended: boolean;
-  };
+  state: RuntimeState;
 };

@@ -1,14 +1,32 @@
 import { FilterDropdownProps } from "antd/lib/table/interface";
-import React, { ReactNode } from "react";
+import React, { ReactNode, useCallback, useMemo } from "react";
 import { Button, Col, Input, Row, Select, SelectProps } from "antd";
 import type { AnyObject } from "antd/lib/_util/type";
+import { parseJson } from "../../misc/json-helper.ts";
 
-export type TextFilterCondition = "contains" | "not-contains" | "starts-with" | "ends-with" | "is" | "is-not";
+export type TextFilterCondition =
+  | "contains"
+  | "not-contains"
+  | "starts-with"
+  | "ends-with"
+  | "is"
+  | "is-not";
 
 export type TextFilter = {
   condition: TextFilterCondition;
   value: string;
 };
+
+export function isTextFilter(obj: unknown): obj is TextFilter {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "value" in obj &&
+    "condition" in obj &&
+    typeof obj.value === "string" &&
+    typeof obj.condition === "string"
+  );
+}
 
 function getTextFilterFunction(
   condition: TextFilterCondition,
@@ -42,7 +60,7 @@ export function getTextColumnFilterFn<RecordType = AnyObject>(
   keyGetter: (r: RecordType) => string,
 ): (value: React.Key | boolean, record: RecordType) => boolean {
   return (value, record) => {
-    const filter: TextFilter = JSON.parse(value.toString());
+    const filter = parseJson<TextFilter>(value.toString(), isTextFilter);
     const predicate = getTextFilterPredicate(filter);
     const key = keyGetter(record);
     return predicate(key);
@@ -53,10 +71,10 @@ export function getTextListColumnFilterFn<RecordType = AnyObject>(
   keysGetter: (r: RecordType) => string[],
 ): (value: React.Key | boolean, record: RecordType) => boolean {
   return (value, record) => {
-    const filter: TextFilter = JSON.parse(value.toString());
+    const filter = parseJson<TextFilter>(value.toString(), isTextFilter);
     const predicate = getTextFilterPredicate(filter);
     const keys = keysGetter(record);
-    return keys.some(key => predicate(key));
+    return keys.some((key) => predicate(key));
   };
 }
 
@@ -73,7 +91,7 @@ export const TextColumnFilterDropdown: React.FC<
   setSelectedKeys,
   enableExact,
 }): ReactNode => {
-  const options: SelectProps<TextFilterCondition>["options"] = [
+  const options: SelectProps<TextFilterCondition>["options"] = useMemo(() => [
     ...(enableExact
       ? [
           { label: "Is", value: "is" },
@@ -84,19 +102,26 @@ export const TextColumnFilterDropdown: React.FC<
     { label: "Does not contain", value: "not-contains" },
     { label: "Starts with", value: "starts-with" },
     { label: "Ends with", value: "ends-with" },
-  ];
+  ], [enableExact]);
 
-  const getTextFilter = () => {
+  const getTextFilter = useCallback(() => {
     return selectedKeys[0]
-      ? (JSON.parse(selectedKeys[0].toString()) as TextFilter)
+      ? parseJson<TextFilter>(selectedKeys[0].toString(), isTextFilter)
       : undefined;
-  };
+  }, [selectedKeys]);
 
-  const updateTextFilter = (changes: Partial<TextFilter>) => {
-    setSelectedKeys([
-      JSON.stringify({ condition: options[0].value, ...getTextFilter(), ...changes }),
-    ]);
-  };
+  const updateTextFilter = useCallback(
+    (changes: Partial<TextFilter>) => {
+      setSelectedKeys([
+        JSON.stringify({
+          condition: options[0].value,
+          ...getTextFilter(),
+          ...changes,
+        }),
+      ]);
+    },
+    [getTextFilter, options, setSelectedKeys],
+  );
 
   return (
     <div
@@ -114,7 +139,10 @@ export const TextColumnFilterDropdown: React.FC<
             style={{ width: 150 }}
             onChange={(value) => updateTextFilter({ condition: value })}
             options={options}
-            value={getTextFilter()?.condition ?? (options[0].value as TextFilterCondition)}
+            value={
+              getTextFilter()?.condition ??
+              (options[0].value as TextFilterCondition)
+            }
             defaultValue={options[0].value as TextFilterCondition}
           />
         </Col>

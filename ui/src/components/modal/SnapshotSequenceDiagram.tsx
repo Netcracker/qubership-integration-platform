@@ -19,7 +19,7 @@ export const SnapshotSequenceDiagram: React.FC<
       title="Snapshot Sequence Diagram"
       centered
       open={true}
-      onCancel={async () => closeContainingModal()}
+      onCancel={closeContainingModal}
       footer={null}
       width={"90%"}
     >

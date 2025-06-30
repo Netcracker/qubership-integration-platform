@@ -3,6 +3,7 @@ import { Button, Flex, Form, Input, InputRef, Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import TextArea from "antd/lib/input/TextArea";
 import Checkbox from "antd/lib/checkbox";
+import { FieldData } from "rc-field-form/lib/interface";
 
 export type FolderEditMode = "create" | "update";
 
@@ -15,7 +16,14 @@ export type FolderEditProps = {
     description: string,
     openFolder: boolean,
     newTab: boolean,
-  ) => void;
+  ) => void | Promise<void>;
+};
+
+type FolderEditFormData = {
+  name: string;
+  description: string;
+  openFolder: boolean;
+  newTab: boolean;
 };
 
 export const FolderEdit: React.FC<FolderEditProps> = ({
@@ -39,7 +47,7 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
       open={true}
       onCancel={closeContainingModal}
       footer={[
-        <Button key="cancel" onClick={closeContainingModal}>
+        <Button key="cancel" disabled={confirmLoading} onClick={closeContainingModal}>
           Cancel
         </Button>,
         <Button
@@ -53,40 +61,53 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
         </Button>,
       ]}
     >
-      <Form<{
-        name: string;
-        description: string;
-        openFolder: boolean;
-        newTab: boolean;
-      }>
+      <Form<FolderEditFormData>
         id="folderEditForm"
+        disabled={confirmLoading}
         labelCol={{ flex: "150px" }}
         wrapperCol={{ flex: "auto" }}
         initialValues={{ name, description }}
         labelWrap
-        onFieldsChange={(changedFields) => {
+        onFieldsChange={(changedFields: FieldData<FolderEditFormData>[]) => {
           changedFields
             .filter((field) => field.name[0] === "openFolder")
             .forEach((field) => {
-              setIsOpenChecked(field.value);
+              setIsOpenChecked(field.value as boolean);
             });
         }}
-        onFinish={async (values) => {
+        onFinish={(values) => {
           setConfirmLoading(true);
           try {
-            onSubmit?.(
+            const result = onSubmit?.(
               values.name,
               values.description,
               values.openFolder,
               values.newTab,
             );
-            closeContainingModal();
-          } finally {
+            if (result instanceof Promise) {
+              result
+                .then(() => {
+                  closeContainingModal();
+                  setConfirmLoading(false);
+                })
+                .catch(() => {
+                  setConfirmLoading(false);
+                });
+            } else {
+              closeContainingModal();
+              setConfirmLoading(false);
+            }
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          } catch (error) {
             setConfirmLoading(false);
           }
         }}
       >
-        <Form.Item name="name" label="Name" rules={[{ required: true, message: "Name is required" }]}>
+        <Form.Item
+          name="name"
+          label="Name"
+          rules={[{ required: true, message: "Name is required" }]}
+        >
           <Input ref={nameInput} />
         </Form.Item>
         <Form.Item name="Description" label="description">

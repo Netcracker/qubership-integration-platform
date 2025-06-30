@@ -16,7 +16,8 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
   const { closeContainingModal } = useModalContext();
 
   const [file, setFile] = useState<RcFile | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState<boolean>(false);
+  const [importing, setImporting] = useState<boolean>(false);
   const [previewData, setPreviewData] = useState<VariableImportPreview[]>([]);
   const [selectedNames, setSelectedNames] = useState<React.Key[]>([]);
   const notificationService = useNotificationService();
@@ -35,13 +36,13 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
     formData.append("file", file);
 
     try {
-      setLoading(true);
+      setLoadingPreview(true);
       const response = await variablesApi.importVariablesPreview(formData);
       setPreviewData(response.data ?? []);
     } catch (error) {
       notificationService.requestFailed("Failed to preview", error);
     } finally {
-      setLoading(false);
+      setLoadingPreview(false);
     }
   };
 
@@ -59,7 +60,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
     });
 
     try {
-      setLoading(true);
+      setImporting(true);
       const response = await variablesApi.importVariables(formData);
       if (response.success) {
         message.success("Imported successfully");
@@ -73,7 +74,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
         );
       }
     } finally {
-      setLoading(false);
+      setImporting(false);
     }
   };
 
@@ -83,14 +84,20 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
       open={true}
       onCancel={handleCancel}
       footer={[
-        <Button key="preview" onClick={handlePreview} loading={loading}>
+        <Button
+          key="preview"
+          onClick={() => void handlePreview()}
+          loading={loadingPreview}
+          disabled={importing}
+        >
           Preview
         </Button>,
         <Button
           key="import"
           type="primary"
-          onClick={handleImport}
-          loading={loading}
+          onClick={() => void handleImport()}
+          loading={importing}
+          disabled={loadingPreview}
         >
           Import
         </Button>,

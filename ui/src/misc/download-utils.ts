@@ -23,7 +23,7 @@ export async function mergeZipArchives(blobs: Blob[]) {
 }
 
 export function getFileFromResponse(response: AxiosResponse<Blob>): File {
-  const contentDisposition = response.headers?.["content-disposition"];
+  const contentDisposition = response.headers?.["content-disposition"] as string;
   const fileName = contentDisposition
     ?.replace("attachment; filename=", "")
     .replace(/^"|"$/g, "");

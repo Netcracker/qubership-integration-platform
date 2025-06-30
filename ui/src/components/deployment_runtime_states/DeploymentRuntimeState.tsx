@@ -19,7 +19,7 @@ export const DeploymentRuntimeState: React.FC<DeploymentRuntimeStateProps> = ({
 }) => {
   const { showModal } = useModalsContext();
 
-  const onClick = async () => {
+  const onClick = () => {
     if (runtimeState.error || runtimeState.stacktrace) {
       showModal({
         component: (

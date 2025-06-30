@@ -12,7 +12,9 @@ type ImportSessionsProps = {
   onSuccess?: (sessions: Session[]) => void;
 };
 
-export const ImportSessions: React.FC<ImportSessionsProps> = ({ onSuccess }) => {
+export const ImportSessions: React.FC<ImportSessionsProps> = ({
+  onSuccess,
+}) => {
   const { closeContainingModal } = useModalContext();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -21,7 +23,9 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({ onSuccess }) => 
   const importSessions = async () => {
     setUploading(true);
     try {
-      const files = fileList.map(file => file.originFileObj).filter(file => !!file);
+      const files = fileList
+        .map((file) => file.originFileObj)
+        .filter((file) => !!file);
       const sessions = await api.importSessions(files);
       onSuccess?.(sessions);
     } catch (error) {
@@ -29,14 +33,14 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({ onSuccess }) => 
     } finally {
       setUploading(false);
     }
-  }
+  };
 
   return (
     <Modal
       title="Import Sessions"
       centered
       open={true}
-      onCancel={async () => closeContainingModal()}
+      onCancel={closeContainingModal}
       width={"60%"}
       height={"70%"}
       footer={[
@@ -52,7 +56,7 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({ onSuccess }) => 
           type="primary"
           disabled={!fileList || !fileList.length}
           loading={uploading}
-          onClick={() => importSessions()}
+          onClick={() => void importSessions()}
         >
           Import
         </Button>,
@@ -75,8 +79,8 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({ onSuccess }) => 
           <ExclamationCircleOutlined style={{ marginRight: 8 }} />
           You are about to import outbound session details to the table. Please
           note, that imported sessions are supported via read-only mode and
-          references to the chain elements, as well as navigation buttons, won&apos;t
-          be available.
+          references to the chain elements, as well as navigation buttons,
+          won&apos;t be available.
         </p>
       </Dragger>
     </Modal>

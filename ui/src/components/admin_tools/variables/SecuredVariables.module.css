@@ -1,109 +1,103 @@
-@import './variables.module.css';
-
-.secured-variables-container {
-    composes: variables-container;
-}
-
-.secured-variables-title {
-    composes: variables-title;
-}
+@import "./variables.module.css";
 
 .secret-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
+.secret-actions {}
+
 .secret-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .expanded-content-wrapper {
-    transform-origin: top;
-    animation: slideDown 0.3s ease-out forwards;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
+  transform-origin: top;
+  animation: slideDown 0.3s ease-out forwards;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .expanded-content-wrapper .table-container {
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .expanded-content-wrapper .ant-table-wrapper,
 .expanded-content-wrapper .ant-table,
 .expanded-content-wrapper .ant-table-content,
 .expanded-content-wrapper .ant-table-body {
-    width: 100%;
-    max-width: 100%;
+  width: 100%;
+  max-width: 100%;
 }
 
 @keyframes slideDown {
-    0% {
-        transform: translateY(-10px);
-        opacity: 0;
-    }
-    100% {
-        transform: translateY(0);
-        opacity: 1;
-    }
+  0% {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .editable-cell-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-right: 8px;
-    position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 8px;
+  position: relative;
 }
 
 .editable-cell-wrapper .edit-icon {
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    margin-left: 8px;
-    color: #999;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  margin-left: 8px;
+  color: #999;
 }
 
 .secret-row:hover .editable-cell-wrapper .edit-icon {
-    opacity: 1;
+  opacity: 1;
 }
 
 .secured-table-container {
-    width: 100%;
-    overflow-x: auto;
-    max-width: 100vw;
-    flex: 1;
+  width: 100%;
+  overflow-x: auto;
+  max-width: 100vw;
+  flex: 1;
 }
 
 .secured-table-container .ant-table-wrapper,
 .secured-table-container .ant-table,
 .secured-table-container .ant-table-content,
 .secured-table-container .ant-table-body {
-    width: 100%;
-    max-width: 100%;
+  width: 100%;
+  max-width: 100%;
 }
 
 .secured-table-container .ant-table-content,
 .secured-table-container .ant-table-body {
-    overflow-x: auto;
+  overflow-x: auto;
 }
 
 .sub-table-wrapper {
-    width: 100%;
-    max-width: 100%;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }

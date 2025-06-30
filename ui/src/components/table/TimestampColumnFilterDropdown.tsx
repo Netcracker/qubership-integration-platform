@@ -1,8 +1,9 @@
 import { FilterDropdownProps } from "antd/lib/table/interface";
-import React, { ReactNode } from "react";
+import React, { ReactNode, useCallback } from "react";
 import { Button, Col, DatePicker, Row, Select } from "antd";
 import type { AnyObject } from "antd/lib/_util/type";
 import dayjs, { Dayjs } from "dayjs";
+import { parseJson } from "../../misc/json-helper.ts";
 
 export type TimestampFilterCondition = "is-before" | "is-after" | "is-within";
 
@@ -10,6 +11,17 @@ export type TimestampFilter = {
   condition: TimestampFilterCondition;
   value: number[];
 };
+
+export function isTimestampFilter(obj: unknown): obj is TimestampFilter {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "value" in obj &&
+    "condition" in obj &&
+    Array.isArray(obj.value) &&
+    typeof obj.condition === "string"
+  );
+}
 
 function toEpochMillis(v: Dayjs | null): number {
   return (v?.unix() ?? 0) * 1000;
@@ -45,7 +57,10 @@ export function getTimestampColumnFilterFn<RecordType = AnyObject>(
   keyGetter: (r: RecordType) => number,
 ): (value: React.Key | boolean, record: RecordType) => boolean {
   return (value, record) => {
-    const filter: TimestampFilter = JSON.parse(value.toString());
+    const filter: TimestampFilter = parseJson<TimestampFilter>(
+      value.toString(),
+      isTimestampFilter,
+    );
     const predicate = getTimestampFilterPredicate(filter);
     const key = keyGetter(record);
     return predicate(key);
@@ -61,20 +76,23 @@ export const TimestampColumnFilterDropdown: React.FC<FilterDropdownProps> = ({
   const options = [
     { label: "Is before", value: "is-before" },
     { label: "Is after", value: "is-after" },
-    { label: "Is within", value: "is-within" }
+    { label: "Is within", value: "is-within" },
   ];
 
-  const getFilter = () => {
+  const getFilter = useCallback(() => {
     return selectedKeys[0]
-      ? (JSON.parse(selectedKeys[0].toString()) as TimestampFilter)
+      ? parseJson<TimestampFilter>(selectedKeys[0].toString(), isTimestampFilter)
       : undefined;
-  };
+  }, [selectedKeys]);
 
-  const updateFilter = (changes: Partial<TimestampFilter>) => {
-    setSelectedKeys([
-      JSON.stringify({ condition: "is-before", ...getFilter(), ...changes }),
-    ]);
-  };
+  const updateFilter = useCallback(
+    (changes: Partial<TimestampFilter>) => {
+      setSelectedKeys([
+        JSON.stringify({ condition: "is-before", ...getFilter(), ...changes }),
+      ]);
+    },
+    [getFilter, setSelectedKeys],
+  );
 
   return (
     <div
@@ -97,25 +115,30 @@ export const TimestampColumnFilterDropdown: React.FC<FilterDropdownProps> = ({
           />
         </Col>
         <Col>
-          {
-            getFilter()?.condition === 'is-within' ?
-              <DatePicker.RangePicker
-                showTime={{ format: 'HH:mm' }}
-                format="YYYY-MM-DD HH:mm"
-                value={[toDayjs(getFilter()?.value?.[0]), toDayjs(getFilter()?.value?.[1])]}
-                onChange={(value) => {
-                  updateFilter({ value: value?.map(v => toEpochMillis(v)) ?? [] });
-                }}
-              />
-              : <DatePicker
-                showTime={{ format: 'HH:mm' }}
-                format="YYYY-MM-DD HH:mm"
-                value={toDayjs(getFilter()?.value?.[0])}
-                onChange={(value) => {
-                  updateFilter({ value: [toEpochMillis(value)] });
-                }}
-              />
-          }
+          {getFilter()?.condition === "is-within" ? (
+            <DatePicker.RangePicker
+              showTime={{ format: "HH:mm" }}
+              format="YYYY-MM-DD HH:mm"
+              value={[
+                toDayjs(getFilter()?.value?.[0]),
+                toDayjs(getFilter()?.value?.[1]),
+              ]}
+              onChange={(value) => {
+                updateFilter({
+                  value: value?.map((v) => toEpochMillis(v)) ?? [],
+                });
+              }}
+            />
+          ) : (
+            <DatePicker
+              showTime={{ format: "HH:mm" }}
+              format="YYYY-MM-DD HH:mm"
+              value={toDayjs(getFilter()?.value?.[0])}
+              onChange={(value) => {
+                updateFilter({ value: [toEpochMillis(value)] });
+              }}
+            />
+          )}
         </Col>
       </Row>
       <Row gutter={[8, 8]} justify="end">

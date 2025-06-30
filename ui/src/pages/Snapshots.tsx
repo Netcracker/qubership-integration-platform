@@ -42,12 +42,12 @@ export const Snapshots: React.FC = () => {
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
 
-  const onCreateBtnClick = async () => {
+  const onCreateBtnClick = () => {
     if (!chainId) return;
-    await createSnapshot(chainId);
+    void createSnapshot(chainId);
   };
 
-  const onDeleteBtnClick = async () => {
+  const onDeleteBtnClick = () => {
     if (selectedRowKeys.length === 0) return;
     Modal.confirm({
       title: "Delete Snapshots",
@@ -56,7 +56,7 @@ export const Snapshots: React.FC = () => {
     });
   };
 
-  const deleteSnapshotWithConfirmation = async (snapshot: Snapshot) => {
+  const deleteSnapshotWithConfirmation = (snapshot: Snapshot) => {
     Modal.confirm({
       title: "Delete Snapshot",
       content: `Are you sure you want to delete snapshot and related deployments?`,
@@ -109,7 +109,7 @@ export const Snapshots: React.FC = () => {
     }
   };
 
-  const onCompareBtnClick = async () => {
+  const onCompareBtnClick = () => {
     if (selectedRowKeys.length !== 2) return;
     const [oneId, otherId] = selectedRowKeys.map((key) => key.toString());
     showModal({
@@ -117,7 +117,7 @@ export const Snapshots: React.FC = () => {
     });
   };
 
-  const revertToSnapshotWithConfirmation = async (snapshot: Snapshot) => {
+  const revertToSnapshotWithConfirmation = (snapshot: Snapshot) => {
     Modal.confirm({
       title: "Revert to Snapshot",
       content: (
@@ -140,13 +140,13 @@ export const Snapshots: React.FC = () => {
     }
   };
 
-  const showSnapshotDiagram = async (snapshot: Snapshot) => {
+  const showSnapshotDiagram = (snapshot: Snapshot) => {
     showModal({
       component: <SnapshotSequenceDiagram snapshotId={snapshot.id} />,
     });
   };
 
-  const showSnapshotXml = async (snapshot: Snapshot) => {
+  const showSnapshotXml = (snapshot: Snapshot) => {
     showModal({
       component: <SnapshotXmlView snapshotId={snapshot.id} />,
     });
@@ -254,7 +254,7 @@ export const Snapshots: React.FC = () => {
               size="small"
               icon={<DeleteOutlined />}
               type="text"
-              onAction={async () => deleteSnapshotWithConfirmation(snapshot)}
+              onSubmit={() => deleteSnapshotWithConfirmation(snapshot)}
             />
           </Tooltip>
           <Tooltip title="Revert to snapshot" placement="topRight">
@@ -262,7 +262,7 @@ export const Snapshots: React.FC = () => {
               size="small"
               icon={<RollbackOutlined />}
               type="text"
-              onAction={async () => revertToSnapshotWithConfirmation(snapshot)}
+              onSubmit={() => revertToSnapshotWithConfirmation(snapshot)}
             />
           </Tooltip>
           <Tooltip title="Show snapshot XML" placement="topRight">
@@ -270,7 +270,7 @@ export const Snapshots: React.FC = () => {
               size="small"
               type="text"
               icon={<FileTextOutlined />}
-              onClick={async () => showSnapshotXml(snapshot)}
+              onClick={() => showSnapshotXml(snapshot)}
             />
           </Tooltip>
           <Tooltip title="Show snapshot diagram" placement="topRight">
@@ -278,7 +278,7 @@ export const Snapshots: React.FC = () => {
               size="small"
               type="text"
               icon={<>⭾</>}
-              onClick={async () => showSnapshotDiagram(snapshot)}
+              onClick={() => showSnapshotDiagram(snapshot)}
             />
           </Tooltip>
         </>

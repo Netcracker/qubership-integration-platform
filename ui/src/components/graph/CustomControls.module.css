@@ -1,15 +1,15 @@
 .container {
-    position: absolute;
-    left: 10px;
-    bottom: 10px;
-    display: flex;
-    flex-direction: column;
-    background: #fff;                  /* Белый фон */
-    border-radius: 2px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    z-index: 4;
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  background: #fff; /* Белый фон */
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  z-index: 4;
 }
 
 .button {
-    border: none;
+  border: none;
 }

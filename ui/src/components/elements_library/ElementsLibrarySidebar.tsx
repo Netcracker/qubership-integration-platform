@@ -47,31 +47,38 @@ export const ElementsLibrarySidebar = () => {
 
         setItems(Array.from(folderMap.values()));
       } catch (error) {
-          console.error(error);
-          notificationService.requestFailed("Failed to load library elements", error);
+        console.error(error);
+        notificationService.requestFailed(
+          "Failed to load library elements",
+          error,
+        );
       } finally {
         setLoading(false);
       }
     };
-    loadLibrary();
-  }, []);
+    void loadLibrary();
+  }, [notificationService]);
 
   const prettifyName = (name: string): string => {
     const result = name.replace(/-/g, " ");
-    return result.toLowerCase().split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
-  }
+    return result
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
 
   return (
     <Sider width={200} theme="light" className={styles.sideMenu}>
       {loading ? (
         <Spin />
       ) : (
-          <Menu
-            className={styles.libraryElements}
-            mode="inline"
-            theme="light"
-            items={items}
-          />
+        <Menu
+          className={styles.libraryElements}
+          mode="inline"
+          theme="light"
+          items={items}
+        />
       )}
     </Sider>
   );

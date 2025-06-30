@@ -3,7 +3,7 @@ import { FilterValueProps } from "./FilterValue";
 import { useState } from "react";
 
 export const StringFilterValue = (props: FilterValueProps) => {
-  const [value, setValue] = useState(props.value);
+  const [value, setValue] = useState<string | undefined>(props.value);
 
   const onChange = (value: any) => {
     props.handleStringValue(disabled ? undefined : value.target.value);

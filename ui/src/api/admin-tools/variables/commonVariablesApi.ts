@@ -14,7 +14,7 @@ export class CommonVariablesApi extends BaseApi {
   async getAll(): Promise<ApiResponse<Variable[]>> {
     return this.wrap(
       async () => {
-        const response = await this.instance.get(
+        const response = await this.instance.get<Variable[]>(
           `${urlPrefixV1}/common-variables`,
         );
 
@@ -43,7 +43,7 @@ export class CommonVariablesApi extends BaseApi {
   ): Promise<ApiResponse<string[]>> {
     return this.wrap(
       async () => {
-        const response = await this.instance.post(
+        const response = await this.instance.post<string[]>(
           `${urlPrefixV1}/common-variables`,
           variables,
         );

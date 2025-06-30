@@ -32,7 +32,7 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
     ].join("\n");
   };
 
-  const downloadErrorDetails = async () => {
+  const downloadErrorDetails = () => {
     const blob = new Blob([getErrorDetailsText()]);
     const fileName = `Error at ${service} at ${formatTimestamp(timestamp)}.txt`;
     const file = new File([blob], fileName, { type: "text/plain" });
@@ -43,21 +43,21 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
     <Modal
       title="Error Details"
       open={true}
-      onCancel={async () => closeContainingModal()}
+      onCancel={closeContainingModal}
       footer={[
         <Button
-            key="download"
-            icon={<DownloadOutlined/>}
-            type="text"
-            onClick={downloadErrorDetails}
+          key="download"
+          icon={<DownloadOutlined />}
+          type="text"
+          onClick={downloadErrorDetails}
         >
           Download
         </Button>,
         <Button
-            key="copy"
-            icon={<CopyOutlined/>}
-            type="text"
-            onClick={async () => copyToClipboard(getErrorDetailsText())}
+          key="copy"
+          icon={<CopyOutlined />}
+          type="text"
+          onClick={() => void copyToClipboard(getErrorDetailsText())}
         >
           Copy
         </Button>,

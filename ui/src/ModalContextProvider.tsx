@@ -7,7 +7,7 @@ type ModalContextFunctions = {
   closeContainingModal: () => void;
 };
 
-type ModalContextProviderProps = PropsWithChildren<{ modalId: string }>
+type ModalContextProviderProps = PropsWithChildren<{ modalId: string }>;
 
 type ModalContextProviderComponent = React.FC<ModalContextProviderProps>;
 
@@ -21,7 +21,10 @@ export const useModalContext = (): ModalContextFunctions => {
   return context;
 };
 
-export const ModalContextProvider: ModalContextProviderComponent = ({ children, modalId }: ModalContextProviderProps) => {
+export const ModalContextProvider: ModalContextProviderComponent = ({
+  children,
+  modalId,
+}: ModalContextProviderProps) => {
   const { closeModal } = useModalsContext();
 
   const closeContainingModal = () => {

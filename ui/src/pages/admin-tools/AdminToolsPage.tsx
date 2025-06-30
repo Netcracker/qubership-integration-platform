@@ -30,12 +30,19 @@ export const AdminTools = () => {
           <div style={{ padding: "0px 24px" }}>
             <Divider style={{ margin: 0 }} />
           </div>
-          <div className={styles.sidebarToggleBar} onClick={() => setCollapsed(!collapsed)}>
+          <div
+            className={styles.sidebarToggleBar}
+            onClick={() => setCollapsed(!collapsed)}
+          >
             {collapsed ? <DoubleRightOutlined /> : <DoubleLeftOutlined />}
           </div>
         </div>
       </Sider>
-      <Divider type="vertical" size="small" style={{ height: "100%", margin: 0 }} />
+      <Divider
+        type="vertical"
+        size="small"
+        style={{ height: "100%", margin: 0 }}
+      />
       <Content className={styles.contentArea}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div

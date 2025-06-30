@@ -6,10 +6,9 @@ import {
   Event,
   ObjectType,
 } from "../api/apiTypes.ts";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 import { useEventContext } from "../components/notifications/contexts/EventContext.tsx";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type StatusNotificationData = {
   type: "info" | "error";
@@ -40,90 +39,68 @@ export const StatusNotificationMap: Record<
 
 export const useDeployments = (chainId?: string) => {
   const { subscribe } = useEventContext();
-  const [manualLoading, setManualLoading] = useState(false);
-  const queryClient = useQueryClient();
   const notificationService = useNotificationService();
+  const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const query = useQuery({
-    queryKey: ["deployments", chainId],
-    queryFn: async () => {
-      if (!chainId) return [];
-      return await api.getDeployments(chainId);
-    },
-    enabled: !!chainId,
-    staleTime: 60 * 1000,
-    refetchOnWindowFocus: false,
-    retry: 1,
-  });
-
-  // Rest error handling
-  useEffect(() => {
-    if (query.error) {
-      const error = query.error;
-      notificationService.requestFailed("Failed to load deployments", error);
+  const getDeployments = useCallback(async () => {
+    if (!chainId) {
+      return [];
     }
-  });
+    setIsLoading(true);
+    try {
+      return api.getDeployments(chainId);
+    } catch (error) {
+      notificationService.requestFailed("Failed to load deployments", error);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, [chainId, notificationService]);
 
-  // Event handling
+  useEffect(() => {
+    void getDeployments().then(setDeployments);
+  }, [getDeployments]);
+
+  const showEventNotification = useCallback(
+    (data: DeploymentUpdate) => {
+      const chainName = data.chainName;
+      const status: DeploymentStatus = data.state.status;
+      const notificationData = StatusNotificationMap[status];
+      if (status === DeploymentStatus.FAILED) {
+        const errorDetails = data.state.error;
+        notificationService.errorWithDetails(
+          chainName,
+          notificationData.message,
+          errorDetails,
+        );
+        return;
+      }
+      notificationService.info(chainName, notificationData.message);
+    },
+    [notificationService],
+  );
+
   useEffect(() => {
     return subscribe(ObjectType.DEPLOYMENT, (event: Event) => {
       const data: DeploymentUpdate = event.data as DeploymentUpdate;
       if (data.chainId !== chainId || !data.chainId) return;
+      void getDeployments().then(setDeployments);
       showEventNotification(data);
-
-      return queryClient.invalidateQueries({
-        queryKey: ["deployments", data.chainId],
-        exact: true,
-      });
     });
-  }, [subscribe, chainId, query, queryClient]);
+  }, [chainId, getDeployments, showEventNotification, subscribe]);
 
-  function showEventNotification(data: DeploymentUpdate) {
-    const chainName = data.chainName;
-    const status: DeploymentStatus = data.state.status;
-    const notificationData = StatusNotificationMap[status];
-    if (status === DeploymentStatus.FAILED) {
-      const errorDetails = data.state.error;
-      notificationService.errorWithDetails(
-        chainName,
-        notificationData.message,
-        errorDetails,
-      );
-      return;
-    }
-    notificationService.info(chainName, notificationData.message);
-  }
-
-  const setDeployments = (items: Deployment[]) => {
-    if (!items) return;
-    const chainId = items[0]?.chainId ?? undefined;
-    return queryClient.invalidateQueries({
-      queryKey: ["deployments", chainId],
-      exact: true,
-    });
-  };
-
-  const removeDeployment = (deployment: Deployment) => {
-    if (!chainId) return;
-    queryClient.setQueryData<Deployment[]>(
-      ["deployments", chainId],
-      (current) => {
-        return Array.isArray(current)
-          ? current.filter((d) => d.id !== deployment.id)
-          : [];
-      },
-    );
-  };
-
-  const setIsLoading = (value: boolean) => {
-    setManualLoading(value);
-  };
+  const removeDeployment = useCallback(
+    (deployment: Deployment) => {
+      setDeployments(deployments.filter((d) => d.id !== deployment.id));
+    },
+    [deployments],
+  );
 
   return {
-    deployments: query.data ?? [],
-    isLoading: query.isLoading ?? manualLoading,
+    isLoading,
+    deployments,
     setDeployments,
     removeDeployment,
-    setIsLoading,
   };
 };

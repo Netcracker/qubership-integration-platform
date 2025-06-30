@@ -1,5 +1,4 @@
 import {
-  Badge,
   Breadcrumb,
   Button,
   Dropdown,
@@ -9,7 +8,6 @@ import {
   message,
   Modal,
   Table,
-  Tooltip,
 } from "antd";
 import { useNavigate, useSearchParams } from "react-router";
 import {
@@ -19,7 +17,6 @@ import {
   DeleteOutlined,
   FileAddOutlined,
   FileOutlined,
-  FilterOutlined,
   FolderAddOutlined,
   FolderOutlined,
   HomeOutlined,
@@ -36,7 +33,7 @@ import {
   ListFolderRequest,
   UpdateFolderRequest,
 } from "../api/apiTypes.ts";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api/api.ts";
 import { TableProps } from "antd/lib/table";
 import { TextColumnFilterDropdown } from "../components/table/TextColumnFilterDropdown.tsx";
@@ -62,8 +59,6 @@ import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { commonVariablesApi } from "../api/admin-tools/variables/commonVariablesApi.ts";
 import { Filter } from "../components/table/filter/Filter.tsx";
 import { useChainFilters } from "../hooks/useChainFilter.ts";
-import { EntityFilterModel } from "../components/table/filter/filter.ts";
-import { FilterItemState } from "../components/table/filter/FilterItem.tsx";
 import { FilterButton } from "../components/table/filter/FilterButton.tsx";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
@@ -162,17 +157,57 @@ const Chains = () => {
   const notificationService = useNotificationService();
   const {filterColumns, filterItemStates, setFilterItemStates} = useChainFilters();
 
-  useEffect(() => {
-    updateFolderItems();
-  }, [searchParams, searchString]);
+  const getFolderId = useCallback((): string | undefined => {
+    return searchParams.get("folder") ?? undefined;
+  }, [searchParams]);
 
-  useEffect(() => {
-    setTableItems(buildTableItems(folderItems));
-  }, [folderItems]);
+  const getPathToFolder = useCallback(
+    async (folderId: string | undefined) => {
+      if (!folderId) {
+        return [];
+      }
+      setIsLoading(true);
+      try {
+        return await api.getPathToFolder(folderId);
+      } catch (error) {
+        notificationService.requestFailed(
+          "Failed to get path to folder",
+          error,
+        );
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [notificationService],
+  );
 
-  const updateFolderItems = async () => {
+  const listFolder = useCallback(
+    async (folderId: string | undefined) => {
+      const request: ListFolderRequest = {
+        folderId,
+        filters: [], // TODO
+        searchString,
+      };
+      setIsLoading(true);
+      try {
+        return await api.listFolder(request);
+      } catch (error) {
+        notificationService.requestFailed(
+          "Failed to get folder content",
+          error,
+        );
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [notificationService, searchString],
+  );
+
+  const updateFolderItems = useCallback(async () => {
     const folderId = getFolderId();
-    listFolder(folderId).then((items) => {
+    await listFolder(folderId).then((items) => {
       setIsLoading(true);
       setExpandedRowKeys([]);
       setLoadedFolders(new Set());
@@ -180,46 +215,10 @@ const Chains = () => {
       setIsLoading(false);
     });
 
-    getPathToFolder(folderId).then((path) =>
+    await getPathToFolder(folderId).then((path) =>
       setPathItems(buildPathItems(path)),
     );
-  };
-
-  const getFolderId = (): string | undefined => {
-    return searchParams.get("folder") ?? undefined;
-  };
-
-  const getPathToFolder = async (folderId: string | undefined) => {
-    if (!folderId) {
-      return [];
-    }
-    setIsLoading(true);
-    try {
-      return await api.getPathToFolder(folderId);
-    } catch (error) {
-      notificationService.requestFailed("Failed to get path to folder", error);
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const listFolder = async (folderId: string | undefined) => {
-    const request: ListFolderRequest = {
-      folderId,
-      filters: [], // TODO
-      searchString,
-    };
-    setIsLoading(true);
-    try {
-      return await api.listFolder(request);
-    } catch (error) {
-      notificationService.requestFailed("Failed to get folder content", error);
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [getFolderId, getPathToFolder, listFolder]);
 
   const openFolder = async (folderId: string) => {
     return listFolder(folderId).then((response) => {
@@ -252,7 +251,7 @@ const Chains = () => {
         if (newTab) {
           window.open(path, "_blank", "noreferrer");
         } else {
-          navigate(path);
+          await navigate(path);
         }
       }
     } catch (error) {
@@ -320,18 +319,6 @@ const Chains = () => {
     }
   };
 
-  const filterFolders = async (filters: EntityFilterModel[]) => {
-    setIsLoading(true);
-    try {
-      return await api.filterChains(filters);
-    } catch (error) {
-      notificationService.requestFailed("Failed to filter chains", error);
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const createChain = async (
     request: ChainCreationRequest,
     openChain: boolean,
@@ -349,7 +336,7 @@ const Chains = () => {
         if (newTab) {
           window.open(path, "_blank", "noreferrer");
         } else {
-          navigate(path);
+          await navigate(path);
         }
       }
     } catch (error) {
@@ -539,7 +526,7 @@ const Chains = () => {
           mode={mode}
           name={name}
           description={description}
-          onSubmit={(name, description, openFolder, newTab) => {
+          onSubmit={async (name, description, openFolder, newTab) => {
             return mode === "create"
               ? createFolder(
                   { name, description, parentId: parentOrItemId },
@@ -553,15 +540,15 @@ const Chains = () => {
     });
   };
 
-  const onCreateFolderBtnClick = async (parentId?: string) => {
+  const onCreateFolderBtnClick = (parentId?: string) => {
     showEditFolderModal("create", undefined, undefined, parentId);
   };
 
-  const onCreateChainBtnClick = async (parentId?: string) => {
+  const onCreateChainBtnClick = (parentId?: string) => {
     showModal({
       component: (
         <ChainCreate
-          onSubmit={(request, openChain, newTab) => {
+          onSubmit={async (request, openChain, newTab) => {
             return createChain({ ...request, parentId }, openChain, newTab);
           }}
         />
@@ -569,30 +556,11 @@ const Chains = () => {
     });
   };
 
-  const addFilter = () => {
-    showModal({
-      component: (
-        <Filter filterColumns={filterColumns} filterItemStates={filterItemStates} onApplyFilters={applyFilters}/>
-      ),
-    });
-  }
-
-  const applyFilters = (filterItems: FilterItemState[]) => {
-    setFilterItemStates(filterItems);
-    const filters: EntityFilterModel[] = [];
-    for (const item of filterItems) {
-      filters.push({ column: item.columnValue!, condition: item.conditionValue!, value: item.value });
-    }
-    filterFolders(filters).then((items) => {
-      setFolderItems(items);
-    });
-  }
-
-  const onExportBtnClick = async () => {
+  const onExportBtnClick = () => {
     return exportChainsWithOptions(selectedRowKeys.map((k) => k.toString()));
   };
 
-  const onDeleteBtnClick = async () => {
+  const onDeleteBtnClick = () => {
     if (selectedRowKeys.length > 0) {
       Modal.confirm({
         title: "Delete selected",
@@ -602,13 +570,25 @@ const Chains = () => {
     }
   };
 
-  const onImportBtnClick = async () => {
+  const addFilter = () => {
     showModal({
-      component: <ImportChains onSuccess={updateFolderItems} />,
+      component: (
+        <Filter
+          filterColumns={filterColumns}
+          filterItemStates={filterItemStates}
+          onApplyFilters={setFilterItemStates}
+        />
+      ),
     });
   };
 
-  const exportChainsWithOptions = async (ids: string[]) => {
+  const onImportBtnClick = () => {
+    showModal({
+      component: <ImportChains onSuccess={() => void updateFolderItems()} />,
+    });
+  };
+
+  const exportChainsWithOptions = (ids: string[]) => {
     const multiple =
       ids.length !== 1 ||
       folderItems.find((i) => i.id === ids[0])?.itemType ===
@@ -625,7 +605,7 @@ const Chains = () => {
             const chainIds = items
               .filter((i) => i.itemType === CatalogItemType.CHAIN)
               .map((i) => i.id);
-            return exportChains(folderIds, chainIds, options);
+            void exportChains(folderIds, chainIds, options);
           }}
         />
       ),
@@ -765,7 +745,7 @@ const Chains = () => {
           <a
             onClick={(event) => {
               event.stopPropagation();
-              navigate(
+              void navigate(
                 item.itemType === CatalogItemType.FOLDER
                   ? `/chains?folder=${item.id}`
                   : `/chains/${item.id}`,
@@ -876,7 +856,7 @@ const Chains = () => {
                 item.itemType === CatalogItemType.FOLDER
                   ? folderMenuItems
                   : chainMenuItems,
-              onClick: ({ key }) => onContextMenuItemClick(item, key),
+              onClick: ({ key }) => void onContextMenuItemClick(item, key),
             }}
             trigger={["click"]}
             placement="bottomRight"
@@ -894,6 +874,14 @@ const Chains = () => {
     checkStrictly: false,
     onChange: onSelectChange,
   };
+
+  useEffect(() => {
+    void updateFolderItems();
+  }, [updateFolderItems]);
+
+  useEffect(() => {
+    setTableItems(buildTableItems(folderItems));
+  }, [folderItems]);
 
   return (
     <>
@@ -920,7 +908,7 @@ const Chains = () => {
           >
             <Button icon={<SettingOutlined />} />
           </Dropdown>
-          <FilterButton count={filterItemStates.length} onClick={addFilter}/>
+          <FilterButton count={filterItemStates.length} onClick={addFilter} />
         </Flex>
         <Table<ChainTableItem>
           className="flex-table"
@@ -935,12 +923,12 @@ const Chains = () => {
           loading={isLoading}
           expandable={{
             expandedRowKeys,
-            onExpandedRowsChange: async (rowKeys) => {
+            onExpandedRowsChange: (rowKeys) => {
               setExpandedRowKeys([...rowKeys]);
             },
-            onExpand: async (expanded, item) => {
+            onExpand: (expanded, item) => {
               if (expanded && !loadedFolders.has(item.id)) {
-                return openFolder(item.id);
+                void openFolder(item.id);
               }
             },
           }}
@@ -954,7 +942,7 @@ const Chains = () => {
           <FloatButton
             tooltip={{ title: "Paste", placement: "left" }}
             icon={<CarryOutOutlined />}
-            onClick={() => pasteItem(getFolderId())}
+            onClick={() => void pasteItem(getFolderId())}
           />
           <FloatButton
             tooltip={{ title: "Compare selected chains", placement: "left" }}

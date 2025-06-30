@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { Flex, FloatButton, Table } from "antd";
 import { TableProps } from "antd/lib/table";
@@ -32,11 +32,7 @@ export const SessionPage: React.FC = () => {
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
 
-  useEffect(() => {
-    getSession();
-  }, [sessionId]);
-
-  const getSession = async () => {
+  const getSession = useCallback(async () => {
     if (!sessionId) {
       return;
     }
@@ -52,7 +48,11 @@ export const SessionPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [notificationService, sessionId]);
+
+  useEffect(() => {
+    void getSession();
+  }, [getSession, sessionId]);
 
   const showElementDetails = (element: SessionElement) => {
     if (!session) {
@@ -78,7 +78,7 @@ export const SessionPage: React.FC = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to export session", error);
     }
-  }
+  };
 
   const columns: TableProps<SessionElement>["columns"] = [
     {
@@ -149,10 +149,19 @@ export const SessionPage: React.FC = () => {
   ];
   return (
     <Flex vertical gap={16} style={{ height: "100%" }}>
-      <Flex vertical={false} justify="space-between" style={{ paddingLeft: 8, paddingRight: 8 }}>
-        <span>{session ? formatUTCSessionDate(session.started) : PLACEHOLDER}</span>
+      <Flex
+        vertical={false}
+        justify="space-between"
+        style={{ paddingLeft: 8, paddingRight: 8 }}
+      >
+        <span>
+          {session ? formatUTCSessionDate(session.started) : PLACEHOLDER}
+        </span>
         {session?.executionStatus ? (
-          <SessionStatus status={session?.executionStatus} suffix={`in ${formatDuration(session.duration)}`} />
+          <SessionStatus
+            status={session?.executionStatus}
+            suffix={`in ${formatDuration(session.duration)}`}
+          />
         ) : (
           <span>{PLACEHOLDER}</span>
         )}
@@ -170,7 +179,7 @@ export const SessionPage: React.FC = () => {
       <FloatButton
         tooltip={{ title: "Export session", placement: "left" }}
         icon={<CloudDownloadOutlined />}
-        onClick={onExportBtnClick}
+        onClick={() => void onExportBtnClick()}
       />
     </Flex>
   );

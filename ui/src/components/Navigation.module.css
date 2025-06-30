@@ -1,10 +1,10 @@
 .navigation {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-right: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-right: 4px;
 }
 
 .menu {
-    flex: 1;
+  flex: 1;
 }

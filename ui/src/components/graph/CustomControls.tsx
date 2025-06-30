@@ -12,7 +12,7 @@ import { Button } from "antd";
 
 export const CustomControls = () => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
-  const { onChangeDirection } = useElkDirectionContext();
+  const { toggleDirection } = useElkDirectionContext();
 
   return (
     <div className={styles.container}>
@@ -21,7 +21,7 @@ export const CustomControls = () => {
         // TODO disable button if zoomed in on maximum value
         type={"text"}
         title="Zoom In"
-        onClick={() => zoomIn()}
+        onClick={() => void zoomIn()}
         icon={<PlusOutlined />}
       />
       <Button
@@ -29,21 +29,21 @@ export const CustomControls = () => {
         // TODO deactivate button if zoomed out on maximum value
         type={"text"}
         title="Zoom Out"
-        onClick={() => zoomOut()}
+        onClick={() => void zoomOut()}
         icon={<MinusOutlined />}
       />
       <Button
         className={styles.button}
         type={"text"}
         title="Fit View"
-        onClick={() => fitView()}
+        onClick={() => void fitView()}
         icon={<ExpandOutlined />}
       />
       <Button
         className={styles.button}
         type={"text"}
         title="Change Layout Direction"
-        onClick={onChangeDirection}
+        onClick={toggleDirection}
         icon={<RotateRightOutlined />}
       />
     </div>

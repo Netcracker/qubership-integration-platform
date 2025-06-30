@@ -1,10 +1,4 @@
-import {
-  Button,
-  Form,
-  Modal,
-  Select,
-  SelectProps,
-} from "antd";
+import { Button, Form, Modal, Select, SelectProps } from "antd";
 import React, { useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { useDomains } from "../../hooks/useDomains.tsx";
@@ -13,17 +7,17 @@ import { CreateDeploymentRequest } from "../../api/apiTypes.ts";
 
 type Props = {
   chainId?: string;
-  onSubmit?: (request: CreateDeploymentRequest) => void;
+  onSubmit?: (request: CreateDeploymentRequest) => void | Promise<void>;
 };
 
 export const DeploymentCreate: React.FC<Props> = ({ chainId, onSubmit }) => {
   const [form] = Form.useForm();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const { closeContainingModal } = useModalContext();
-  const domainsState = useDomains();
-  const snapshotsState = useSnapshots(chainId);
+  const { isLoading: domainsLoading, domains } = useDomains();
+  const { isLoading: snapshotsLoading, snapshots } = useSnapshots(chainId);
 
-  const domainOptions: SelectProps["options"] = domainsState.domains
+  const domainOptions: SelectProps["options"] = domains
     ?.sort((d1, d2) => d1.name.localeCompare(d2.name))
     .map((domain) => ({
       label: domain.name,
@@ -31,26 +25,36 @@ export const DeploymentCreate: React.FC<Props> = ({ chainId, onSubmit }) => {
     }));
 
   const snapshotOptions: SelectProps["options"] =
-    snapshotsState.snapshots
+    snapshots
       ?.sort((s1, s2) => s2.modifiedWhen - s1.modifiedWhen)
       .map((snapshot) => ({
         label: snapshot.name,
         value: snapshot.id,
       })) ?? [];
 
-  const handleOk = async () => {
+  const handleOk = (domain: string, snapshotId: string) => {
     if (!chainId) {
       return;
     }
     setConfirmLoading(true);
     const request: CreateDeploymentRequest = {
-      domain: form.getFieldValue("domain"),
-      snapshotId: form.getFieldValue("snapshot"),
+      domain,
+      snapshotId,
       suspended: false,
     };
     try {
-      onSubmit?.(request);
-    } finally {
+      const result = onSubmit?.(request);
+      if (result instanceof Promise) {
+        void result.finally(() => {
+          setConfirmLoading(false);
+          closeContainingModal();
+        });
+      } else {
+        setConfirmLoading(false);
+        closeContainingModal();
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
       setConfirmLoading(false);
       closeContainingModal();
     }
@@ -75,40 +79,34 @@ export const DeploymentCreate: React.FC<Props> = ({ chainId, onSubmit }) => {
           form="deploymentCreateForm"
           htmlType={"submit"}
           loading={confirmLoading}
-          disabled={domainsState.isLoading || snapshotsState.isLoading}
+          disabled={domainsLoading || snapshotsLoading}
         >
           Deploy
         </Button>,
       ]}
     >
-      <Form
+      <Form<{ domain: string; snapshot: string }>
         id="deploymentCreateForm"
         form={form}
-        onFinish={handleOk}
+        onFinish={(values) => handleOk(values.domain, values.snapshot)}
         layout="horizontal"
         labelCol={{ span: 4 }}
         style={{ maxWidth: 600 }}
-        disabled={domainsState.isLoading || snapshotsState.isLoading}
+        disabled={domainsLoading || snapshotsLoading}
       >
         <Form.Item
           label="Domain"
           name="domain"
           rules={[{ required: true, message: "Please specify a domain" }]}
         >
-          <Select
-            options={domainOptions}
-            loading={domainsState.isLoading}
-          />
+          <Select options={domainOptions} loading={domainsLoading} />
         </Form.Item>
         <Form.Item
           label="Snapshot"
           name="snapshot"
           rules={[{ required: true, message: "Please specify a snapshot" }]}
         >
-          <Select
-            options={snapshotOptions}
-            loading={snapshotsState.isLoading}
-          />
+          <Select options={snapshotOptions} loading={snapshotsLoading} />
         </Form.Item>
       </Form>
     </Modal>

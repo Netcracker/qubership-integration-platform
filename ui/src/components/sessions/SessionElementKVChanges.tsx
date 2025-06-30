@@ -10,7 +10,12 @@ type Comparator<ValueType = unknown> = (
   v2: ValueType | undefined,
 ) => number;
 
-export type ColumnName = "name" | "typeBefore" | "typeAfter" | "valueBefore" | "valueAfter";
+export type ColumnName =
+  | "name"
+  | "typeBefore"
+  | "typeAfter"
+  | "valueBefore"
+  | "valueAfter";
 
 type SessionElementKVChangesProps<ValueType = unknown> = {
   before?: Record<string, ValueType>;
@@ -19,7 +24,10 @@ type SessionElementKVChangesProps<ValueType = unknown> = {
   comparator?: Comparator<ValueType>;
   typeRenderer?: ValueRenderer<ValueType>;
   valueRenderer?: ValueRenderer<ValueType>;
-  onColumnClick?: (item: KVChangesTableItem<ValueType>, column: ColumnName) => void;
+  onColumnClick?: (
+    item: KVChangesTableItem<ValueType>,
+    column: ColumnName,
+  ) => void;
 };
 
 export type KVChangesTableItem<ValueType = unknown> = {
@@ -59,11 +67,11 @@ function getCellContent<ValueType = unknown>(
   return value !== undefined
     ? renderer
       ? renderer(value)
-      : `${value}`
+      : String(value)
     : PLACEHOLDER;
 }
 
-export const SessionElementKVChanges = <ValueType = unknown>({
+export const SessionElementKVChanges = <ValueType = unknown,>({
   before,
   after,
   addTypeColumns,
@@ -87,7 +95,7 @@ export const SessionElementKVChanges = <ValueType = unknown>({
       dataIndex: "name",
       key: "name",
       onCell: (item) => ({
-        onClick: () => onColumnClick?.(item,  "name"),
+        onClick: () => onColumnClick?.(item, "name"),
       }),
     },
     ...(addTypeColumns
@@ -97,7 +105,7 @@ export const SessionElementKVChanges = <ValueType = unknown>({
             key: "typeBefore",
             ellipsis: true,
             onCell: (item: KVChangesTableItem<ValueType>) => ({
-              onClick: () => onColumnClick?.(item,  "typeBefore"),
+              onClick: () => onColumnClick?.(item, "typeBefore"),
             }),
             render: (_: unknown, item: KVChangesTableItem<ValueType>) =>
               getCellContent(item.before, typeRenderer),
@@ -110,7 +118,7 @@ export const SessionElementKVChanges = <ValueType = unknown>({
       key: "before",
       ellipsis: true,
       onCell: (item) => ({
-        onClick: () => onColumnClick?.(item,  "valueBefore"),
+        onClick: () => onColumnClick?.(item, "valueBefore"),
       }),
       render: (_, item) => getCellContent(item.before, valueRenderer),
     },
@@ -121,7 +129,7 @@ export const SessionElementKVChanges = <ValueType = unknown>({
             key: "typeAfter",
             ellipsis: true,
             onCell: (item: KVChangesTableItem<ValueType>) => ({
-              onClick: () => onColumnClick?.(item,  "typeAfter"),
+              onClick: () => onColumnClick?.(item, "typeAfter"),
             }),
             render: (_: unknown, item: KVChangesTableItem<ValueType>) =>
               getCellContent(item.after, typeRenderer),
@@ -134,7 +142,7 @@ export const SessionElementKVChanges = <ValueType = unknown>({
       key: "after",
       ellipsis: true,
       onCell: (item) => ({
-        onClick: () => onColumnClick?.(item,  "valueAfter"),
+        onClick: () => onColumnClick?.(item, "valueAfter"),
       }),
       render: (_, item) => getCellContent(item.after, valueRenderer),
     },

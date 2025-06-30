@@ -28,8 +28,8 @@ export const useDeploymentsForEngine = (
     clearError();
     try {
       const data = await api.getDeploymentsByEngine(domainName, host);
-      setDeployments(data as ChainDeployment[]);
-      return data as ChainDeployment[];
+      setDeployments(data);
+      return data;
     } catch (err) {
       setError(err as ErrorState);
       setDeployments([]);
@@ -40,7 +40,7 @@ export const useDeploymentsForEngine = (
   }, [domainName, host, clearError, setError]);
 
   useEffect(() => {
-    fetchDeployments();
+    void fetchDeployments();
   }, [fetchDeployments]);
 
   useEffect(() => {
@@ -53,20 +53,19 @@ export const useDeploymentsForEngine = (
     const unsubscribe = subscribe(ObjectType.DEPLOYMENT, (event: Event) => {
       const data: DeploymentUpdate = event.data as DeploymentUpdate;
       if (data && data.engineHost === host && data.domain === domainName) {
-        fetchDeployments().then((newDeployments) => {
+        void fetchDeployments().then((newDeployments) => {
           setDeployments((current) => {
             if (!Array.isArray(newDeployments)) return current;
             const currentById = Object.fromEntries(
               current.map((d) => [d.id, d]),
             );
-            const updated = newDeployments.map((newD) => {
+            return newDeployments.map((newD) => {
               const old = currentById[newD.id];
               if (old) {
                 return { ...old, runtime: newD.state?.status };
               }
               return newD;
             });
-            return updated;
           });
         });
       }
@@ -100,7 +99,7 @@ export const useDeploymentsForEngine = (
             break;
           case EventActionType.MODIFIED:
             console.log("Selected engine was modified.");
-            fetchDeployments();
+            void fetchDeployments();
             break;
           case EventActionType.ADDED:
             console.log("Engine was added");
@@ -126,8 +125,8 @@ export const useDeploymentsForEngine = (
     };
   }, [domainName, host, subscribe, clearError, fetchDeployments]);
 
-  const retry = useCallback(() => {
-    fetchDeployments();
+  const retry = useCallback(async () => {
+    await fetchDeployments();
   }, [fetchDeployments]);
 
   return { deployments, isLoading, error, retry };

@@ -16,7 +16,8 @@ import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 export const Deployments: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
-  const { isLoading, deployments, setDeployments, removeDeployment } = useDeployments(chainId);
+  const { isLoading, deployments, setDeployments, removeDeployment } =
+    useDeployments(chainId);
   const { snapshots } = useSnapshots(chainId);
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
@@ -69,14 +70,14 @@ export const Deployments: React.FC = () => {
             size="small"
             icon={<DeleteOutlined />}
             type="text"
-            onAction={async () => deleteDeployment(deployment)}
+            onSubmit={async () => deleteDeployment(deployment)}
           />
         </Tooltip>
       ),
     },
   ];
 
-  const onDeploymentCreated = async (deployment: Deployment) => {
+  const onDeploymentCreated = (deployment: Deployment) => {
     setDeployments([...(deployments ?? []), deployment]);
   };
 
@@ -93,7 +94,7 @@ export const Deployments: React.FC = () => {
     if (!chainId) return;
     try {
       const deployment = await api.createDeployment(chainId, request);
-      await onDeploymentCreated(deployment);
+      onDeploymentCreated(deployment);
     } catch (error) {
       notificationService.requestFailed("Failed to create deployment", error);
     }
@@ -102,13 +103,15 @@ export const Deployments: React.FC = () => {
   return (
     <>
       <Table
+        className="flex-table"
+        style={{ height: "100%" }}
         size="small"
         columns={columns}
         dataSource={deployments}
         pagination={false}
         loading={isLoading}
-        rowKey="name"
-        scroll={{ y: "calc(100vh - 200px)" }}
+        rowKey="id"
+        scroll={{ y: "" }}
       />
       <FloatButton
         icon={<PlusOutlined />}

@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from "axios";
-import { ApiResponse, ApiError } from "./types.ts";
+import { ApiResponse } from "./types.ts";
+import { isErrorResponse } from "../../apiTypes.ts";
 
 export abstract class BaseApi {
   protected readonly instance: AxiosInstance;
@@ -40,12 +41,16 @@ export abstract class BaseApi {
       return { success: true, data };
     } catch (error) {
       console.error(fallbackMessage, error);
-      if (axios.isAxiosError(error) && error.response?.data) {
+      if (
+        axios.isAxiosError(error) &&
+        error.response?.data &&
+        isErrorResponse(error.response?.data)
+      ) {
         const backendError = error.response.data;
         if (backendError?.serviceName && backendError?.errorMessage) {
           return {
             success: false,
-            error: { responseBody: backendError as ApiError["responseBody"] },
+            error: { responseBody: backendError },
           };
         }
         if (typeof error.response.data === "string") {

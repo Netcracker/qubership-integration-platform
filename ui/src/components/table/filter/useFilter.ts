@@ -1,8 +1,13 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { FilterItemState } from "./FilterItem";
 
-export const useFilter = () => {
-  const [filterItemStates, setFilterItemStates] = useState<FilterItemState[]>([]);
+export const useFilter = (): [
+  FilterItemState[],
+  React.Dispatch<React.SetStateAction<FilterItemState[]>>,
+] => {
+  const [filterItemStates, setFilterItemStates] = useState<FilterItemState[]>(
+    [],
+  );
 
-  return [ filterItemStates, setFilterItemStates ];
-}
+  return [filterItemStates, setFilterItemStates];
+};

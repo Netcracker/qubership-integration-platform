@@ -2,18 +2,28 @@ import globals from "globals";
 import pluginJs from "@eslint/js";
 import tseslint from "typescript-eslint";
 import pluginReact from "eslint-plugin-react";
+import * as reactHooks from "eslint-plugin-react-hooks";
 
 /** @type {import("eslint").Linter.Config[]} */
 export default [
-  { ignores: ["**/node_modules/**", "dist/"] },
+  { ignores: ["dist/*", "node_modules/*"] },
   pluginJs.configs.recommended,
-  ...tseslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
   pluginReact.configs.flat.recommended,
+  reactHooks.configs["recommended-latest"],
   {
     files: ["**/*.{js,jsx,mjs,cjs,ts,tsx}"],
     languageOptions: {
       globals: {
         ...globals.browser,
+      },
+      parserOptions: {
+        projectService: {
+          allowDefaultProject: ["eslint.config.js"],
+          defaultProject: "./tsconfig.json",
+        },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {
@@ -21,8 +31,8 @@ export default [
     },
     settings: {
       react: {
-        version: "detect"
-      }
+        version: "detect",
+      },
     },
   },
 ];
