@@ -38,6 +38,7 @@ const App = () => (
               <Route path="/admintools" element={<AdminTools />}>
                 <Route path="" element={<Navigate to="domains" />} />
                 <Route path="domains" element={<Domains />} />
+                <Route path="engine-list" element={<Navigate to="../domains" relative={"path"} />} />
                 <Route path="variables/common" element={<CommonVariables />} />
                 <Route
                   path="variables/secured"
