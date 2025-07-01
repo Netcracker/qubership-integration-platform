@@ -8,7 +8,7 @@ import {
   CloseOutlined,
   FileTextOutlined,
 } from "@ant-design/icons";
-import { Resizable, ResizableProps } from "react-resizable";
+import { ResizableProps } from "react-resizable";
 import "react-resizable/css/styles.css";
 import "./Resizable.css";
 import { NEW_VARIABLE_KEY } from "./useVariablesState";
@@ -19,6 +19,7 @@ import {
 } from "../../table/TextColumnFilterDropdown";
 import type { FilterDropdownProps } from "antd/lib/table/interface";
 import { Variable } from "../../../api/admin-tools/variables/types";
+import { ResizableTitle } from "../../ResizableTitle.tsx";
 
 interface VariablesTableProps {
   variables: Variable[];
@@ -43,36 +44,6 @@ interface VariablesTableProps {
   calculateScrollHeight?: () => number;
   flex?: boolean;
 }
-
-type ResizableTitleProps = React.HTMLAttributes<HTMLElement> & {
-  onResize: ResizableProps["onResize"];
-  width: number | undefined;
-};
-
-const ResizableTitle = (props: ResizableTitleProps) => {
-  const { onResize, width, ...restProps } = props;
-
-  if (!width) {
-    return <th {...restProps} />;
-  }
-
-  return (
-    <Resizable
-      width={width}
-      height={0}
-      handle={
-        <span
-          className="react-resizable-handle"
-          onClick={(e) => e.stopPropagation()}
-        />
-      }
-      onResize={onResize}
-      draggableOpts={{ enableUserSelectHack: false }}
-    >
-      <th {...restProps} style={{ ...restProps.style, width }} />
-    </Resizable>
-  );
-};
 
 const VariablesTable: React.FC<VariablesTableProps> = ({
   variables,

@@ -122,8 +122,8 @@ export type Element = {
 };
 
 export interface ElementFilter {
-    elementTitle: string
-    elementType: string;
+  elementTitle: string;
+  elementType: string;
 }
 
 export enum PropertyType {
@@ -768,6 +768,87 @@ export type FolderItem = CatalogItem & {};
 
 export type ChainItem = CatalogItem & {
   labels: EntityLabel[];
+};
+
+export type ActionLogResponse = {
+  actionLogs: ActionLog[];
+  recordsAfterRange: number;
+};
+
+export type ActionLog = {
+  id: string;
+  actionTime: number;
+  entityType: EntityType;
+  entityId?: string;
+  entityName?: string;
+  parentType?: EntityType;
+  parentId?: string;
+  parentName?: string;
+  operation: LogOperation;
+  userId?: string;
+  username?: string;
+  requestId?: string;
+};
+
+export type ActionLogSearchRequest = {
+  offsetTime: number;
+  rangeTime: number;
+  filters?: unknown;
+};
+
+export enum EntityType {
+  FOLDER = "FOLDER",
+  CHAIN = "CHAIN",
+  CHAINS = "CHAINS",
+  SNAPSHOT = "SNAPSHOT",
+  SNAPSHOT_CLEANUP = "SNAPSHOT_CLEANUP",
+  DEPLOYMENT = "DEPLOYMENT",
+  ELEMENT = "ELEMENT",
+  MASKED_FIELD = "MASKED_FIELD",
+  CHAIN_RUNTIME_PROPERTIES = "CHAIN_RUNTIME_PROPERTIES",
+
+  // systems catalog specific
+  SERVICE_DISCOVERY = "SERVICE_DISCOVERY",
+  EXTERNAL_SERVICE = "EXTERNAL_SERVICE",
+  INNER_CLOUD_SERVICE = "INNER_CLOUD_SERVICE",
+  IMPLEMENTED_SERVICE = "IMPLEMENTED_SERVICE",
+  ENVIRONMENT = "ENVIRONMENT",
+  SPECIFICATION = "SPECIFICATION",
+  SPECIFICATION_GROUP = "SPECIFICATION_GROUP",
+  SERVICES = "SERVICES",
+  MAAS_KAFKA = "MAAS_KAFKA",
+  MAAS_RABBITMQ = "MAAS_RABBITMQ",
+  DETAILED_DESIGN_TEMPLATE = "DETAILED_DESIGN_TEMPLATE",
+
+  // variables-management specific
+  SECRET = "SECRET",
+  SECURED_VARIABLE = "SECURED_VARIABLE",
+  COMMON_VARIABLE = "COMMON_VARIABLE",
+  IMPORT_INSTRUCTION = "IMPORT_INSTRUCTION",
+  IMPORT_INSTRUCTIONS = "IMPORT_INSTRUCTIONS",
+}
+
+export enum LogOperation {
+  CREATE = "CREATE",
+  UPDATE = "UPDATE",
+  CREATE_OR_UPDATE = "CREATE_OR_UPDATE",
+  DELETE = "DELETE",
+  COPY = "COPY",
+  MOVE = "MOVE",
+  REVERT = "REVERT",
+  GROUP = "GROUP",
+  UNGROUP = "UNGROUP",
+  EXPORT = "EXPORT",
+  IMPORT = "IMPORT",
+  SCALE = "SCALE",
+  EXECUTE = "EXECUTE",
+  ACTIVATE = "ACTIVATE",
+  DEPRECATE = "DEPRECATE",
+}
+
+export type LogExportRequestParams = {
+  actionTimeFrom: number;
+  actionTimeTo: number;
 };
 
 export type Engine = {

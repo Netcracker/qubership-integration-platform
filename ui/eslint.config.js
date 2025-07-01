@@ -22,7 +22,6 @@ export default [
           allowDefaultProject: ["eslint.config.js"],
           defaultProject: "./tsconfig.json",
         },
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         tsconfigRootDir: import.meta.dirname,
       },
     },

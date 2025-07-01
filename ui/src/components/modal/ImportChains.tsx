@@ -290,7 +290,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
       } else {
         setProgress(importStatus.completion);
         setTimeout(
-          () => waitForImportIsDone(importId),
+          () => void waitForImportIsDone(importId),
           IMPORT_STATUS_UPDATE_INTERVAL_MS,
         );
       }

@@ -47,7 +47,7 @@ export function setUpDocumentFormatting(editor: editor_.IStandaloneCodeEditor) {
   // on every initialization
   editor.onDidLayoutChange(formatDocument);
 
-  editor.onDidChangeModelContent(() => setTimeout(formatDocument, 1));
+  editor.onDidChangeModelContent(() => setTimeout(() => void formatDocument(), 1));
 }
 
 export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
