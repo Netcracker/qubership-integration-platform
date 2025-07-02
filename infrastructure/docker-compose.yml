@@ -1,43 +1,6 @@
 services:
 
     ###### QIP
-
-    qip-design-time-catalog:
-        image: ghcr.io/netcracker/qubership-integration-designtime-catalog:latest
-        container_name: qip-design-time-catalog
-        read_only: true
-        ports:
-        - "8090:8080"
-        - "5005:5005"
-        env_file: "qip-dev.env"
-        command: [
-            "/opt/java/openjdk/bin/java",
-            "-Xmx512m",
-            "-XX:MetaspaceSize=192m",
-            "-XX:MaxMetaspaceSize=192m",
-            "-XX:MaxDirectMemorySize=64m",
-            "-XX:+ExitOnOutOfMemoryError",
-            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
-            "-Djava.security.egd=file:/dev/./urandom",
-            "-Dfile.encoding=UTF-8",
-            "-Dspring.profiles.active=development",
-            "-jar",
-            "/app/qip-designtime-catalog.jar"
-        ]
-        healthcheck:
-            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
-            interval: 10s
-            timeout: 15s
-            retries: 15
-            start_period: 30s
-        networks:
-            default:
-                aliases:
-                - designtime-catalog
-        depends_on:
-            postgres:
-                condition: service_healthy
-
     qip-runtime-catalog:
         image: ghcr.io/netcracker/qubership-integration-runtime-catalog:latest
         container_name: qip-runtime-catalog
@@ -204,8 +167,6 @@ services:
         - ./nginx:/etc/nginx/
       depends_on:
         qip-runtime-catalog:
-          condition: service_started
-        qip-design-time-catalog:
           condition: service_started
         qip-sessions-management:
           condition: service_started
