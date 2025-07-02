@@ -1,0 +1,75 @@
+---
+$id: http://qubership.org/schemas/product/qip/service
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Service
+group: Integrations
+allOf:
+  - $ref: "../base.schema.yaml#definitions/CommonEntityProperties"
+properties:
+  content:
+    type: object
+    allOf:
+      - $ref: "../base.schema.yaml#definitions/CommonEntityContent"
+      - $ref: "../base.schema.yaml#definitions/WithLabels"
+      - $ref: "../base.schema.yaml#definitions/WithMigrations"
+    properties:
+      activeEnvironmentId:
+        title: Active environment ID
+        id:
+          type: string
+      integrationSystemType:
+        title: Integration system type
+        $ref: "#/definitions/ServiceType"
+      protocol:
+        title: Protocol
+        $ref: "#/definitions/Protocol"
+      environments:
+        title: Environments
+        type: array
+        items:
+          $ref: "#definition/Environment"
+    additionalProperties: false
+    required:
+      - activeEnvironmentId
+      - integrationSystemType
+      - protocol
+      - environments
+required:
+  - content
+definitions:
+  ServiceType:
+    enum:
+      - INTERNAL
+      - EXTERNAL
+      - IMPLEMENTED
+  Protocol:
+    enum:
+      - HTTP
+      - AMQP
+      - KAFKA
+      - SOAP
+      - GRAPHQL
+      - METAMODEL
+      - GRPC
+  SourceType:
+    enum:
+      - MANUAL
+      - MAAS_BY_CLASSIFIER
+  Environment:
+    allOf:
+      - $ref: "../base.schema.yaml#definitions/CommonEntityProperties"
+      - $ref: "../base.schema.yaml#definitions/CommonEntityContent"
+      - $ref: "../base.schema.yaml#definitions/WithLabels"
+    type: object
+    properties:
+      address:
+        type: string
+      sourceType:
+        $ref: "#/definitions/SourceType"
+      properties:
+        type: object
+      additionalProperties: true
+    required:
+      - address
+      - sourceType

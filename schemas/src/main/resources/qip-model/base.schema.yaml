@@ -1,0 +1,87 @@
+---
+$id: http://qubership.org/schemas/product/qip/base
+$schema: http://json-schema.org/draft-07/schema
+definitions:
+  CommonEntityProperties:
+    title: Common Entity Properties
+    group: Integrations
+    type: object
+    properties:
+      id:
+        title: Identifier
+        type: string
+      name:
+        title: Name
+        type: string
+      $schema:
+        type: string
+    required:
+      - id
+      - name
+      - $schema
+  CommonEntityContent:
+    title: Common Entity Content
+    group: Integrations
+    type: object
+    properties:
+      description:
+        title: Description
+        type: string
+      createdWhen:
+        title: Created at
+        type: integer
+      modifiedWhen:
+        title: Modified at
+        type: integer
+      createdBy:
+        title: Created by
+        $ref: "#/definitions/User"
+      modifiedBy:
+        title: Modified by
+        $ref: "#/definitions/User"
+  WithLabels:
+    title: Entity content with Labels
+    group: Integrations
+    type: object
+    properties:
+      labels:
+        title: Labels
+        type: array
+        items:
+          title: Label
+          type: string
+  WithMigrations:
+    title: Entity content with Migrations
+    group: Integrations
+    type: object
+    properties:
+      migrations:
+        title: Migrations
+        type: string
+    required:
+      - migrations
+  WithParent:
+    title: Entity content with Parent
+    group: Integrations
+    type: object
+    properties:
+      parentId:
+        title: Parent ID
+        type: string
+    required:
+      - parentId
+  User:
+    title: User
+    group: Integrations
+    type: object
+    additionalProperties: false
+    properties:
+      id:
+        title: User ID
+        type: string
+      username:
+        title: User name
+        type: string
+    required:
+      - id
+      - username
