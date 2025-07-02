@@ -21,7 +21,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Pattern;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.variables.management.service.SecretService;
+import org.qubership.integration.platform.variables.management.service.secrets.SecretService;
 import org.qubership.integration.platform.variables.management.util.ExportImportUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -48,7 +48,7 @@ public class SecretControllerV2 {
             @PathVariable @Pattern(regexp = "^[a-z]+[-a-z0-9]*$", message = "does not match \"{regexp}\"") @Parameter(description = "Name of secret") String secretName
     ) {
         log.info("Request to create secret {}", secretName);
-        secretService.createSecuredVariablesSecret(secretName);
+        secretService.createSecret(secretName);
         return ResponseEntity.ok().build();
     }
 

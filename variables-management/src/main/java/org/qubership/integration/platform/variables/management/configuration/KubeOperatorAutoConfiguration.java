@@ -21,10 +21,13 @@ import io.kubernetes.client.util.ClientBuilder;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.TokenFileAuthentication;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.variables.management.kubernetes.DefaultKubeOperator;
 import org.qubership.integration.platform.variables.management.kubernetes.KubeOperator;
+import org.qubership.integration.platform.variables.management.kubernetes.LocalDevKubeOperator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
@@ -74,10 +77,10 @@ public class KubeOperatorAutoConfiguration {
                     .setAuthentication(new TokenFileAuthentication(token))
                     .build();
 
-            return new KubeOperator(client, namespace);
+            return new DefaultKubeOperator(client, namespace);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
-            return new KubeOperator();
+            return new DefaultKubeOperator();
         }
     }
 
@@ -86,7 +89,7 @@ public class KubeOperatorAutoConfiguration {
      * Uses the cluster account token
      */
     @Bean
-    @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "true")
+    @ConditionalOnExpression("${kubernetes.devmode:false} and !${kubernetes.localdev:false}")
     public KubeOperator kubeOperatorDev() {
         try {
             log.info("Creating KubernetesOperator bean in DEV mode");
@@ -97,10 +100,17 @@ public class KubeOperatorAutoConfiguration {
                     .setAuthentication(new AccessTokenAuthentication(token))
                     .build();
 
-            return new KubeOperator(client, namespace);
+            return new DefaultKubeOperator(client, namespace);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
-            return new KubeOperator();
+            return new DefaultKubeOperator();
         }
+    }
+
+    @Bean
+    @ConditionalOnExpression("${kubernetes.devmode:false} and ${kubernetes.localdev:false}")
+    public KubeOperator kubeOperatorLocalDev() {
+        log.info("Creating KubernetesOperator for local development mode");
+        return new LocalDevKubeOperator();
     }
 }

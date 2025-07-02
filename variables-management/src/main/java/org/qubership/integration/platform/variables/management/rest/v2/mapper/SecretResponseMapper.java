@@ -19,7 +19,7 @@ package org.qubership.integration.platform.variables.management.rest.v2.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.qubership.integration.platform.variables.management.rest.v2.dto.variables.SecretResponse;
-import org.qubership.integration.platform.variables.management.service.SecretService;
+import org.qubership.integration.platform.variables.management.service.secrets.SecretService;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 
 @Mapper(componentModel = "spring")
 public abstract class SecretResponseMapper {
-
     @Autowired
     private SecretService secretService;
 

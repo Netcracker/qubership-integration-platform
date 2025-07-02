@@ -17,6 +17,7 @@ datasource:
 
 kubernetes:
   devmode: true
+  localdev: ${KUBERNETES_LOCALDEV:false}
   cluster:
     token: ${KUBE_USER_TOKEN:}
 

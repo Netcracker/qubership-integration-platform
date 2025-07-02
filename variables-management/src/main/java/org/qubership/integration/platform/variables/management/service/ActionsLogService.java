@@ -21,6 +21,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.variables.management.logging.constant.ContextHeaders;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.variables.management.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.variables.management.persistence.configs.entity.user.User;
 import org.qubership.integration.platform.variables.management.persistence.configs.repository.actionlog.ActionLogRepository;
 import org.qubership.integration.platform.variables.management.rest.exception.InvalidEnumConstantException;
@@ -32,10 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -109,18 +107,19 @@ public class ActionsLogService {
 
     private void consoleLogAction(ActionLog action) {
         MDC.put("logType", "audit");
-        String actionOperationName = action.getOperation() != null ? action.getOperation().name() : "-";
-        String entityTypeName = action.getEntityType() != null ? action.getEntityType().name() : "-";
-        String entityNameDescriptionString = action.getEntityName() != null ? " with name ".concat(action.getEntityName()) : "";
-        String entityIdDescriptionString = action.getEntityId() != null ? " with id: ".concat(action.getEntityId()) : "";
-        String parentTypeName = action.getParentType() != null ? " under parent entity ".concat(action.getParentType().name()) : "-";
-        String parentNameDescriptionString = action.getParentName() != null ? " with name ".concat(action.getParentName()) : "";
-        String parentIdDescriptionString = action.getParentId() != null ? " with id: ".concat(action.getParentId()) : "";
-        String userDescriptionString = action.getUser().getUsername() != null ? " performed by user ".concat(action.getUser().getUsername()) : "";
-        userDescriptionString = action.getUser().getId() != null ? userDescriptionString.concat(" with id: ").concat(action.getUser().getId()) : "";
-        log.debug("Action {} for {}{}{}{}{}{}{}", actionOperationName, entityTypeName, entityNameDescriptionString,
-                entityIdDescriptionString, parentTypeName, parentNameDescriptionString, parentIdDescriptionString,
-                userDescriptionString);
+        StringBuilder sb = new StringBuilder();
+        sb.append("Action ");
+        sb.append(Optional.ofNullable(action.getOperation()).map(LogOperation::name).orElse("-"));
+        sb.append(" for ");
+        sb.append(Optional.ofNullable(action.getEntityType()).map(EntityType::name).orElse("-"));
+        Optional.ofNullable(action.getEntityName()).ifPresent(name -> sb.append(" with name ").append(name));
+        Optional.ofNullable(action.getEntityId()).ifPresent(id -> sb.append(" with id: ").append(id));
+        Optional.ofNullable(action.getParentType()).ifPresent(type -> sb.append(" under parent entity ").append(type.name()));
+        Optional.ofNullable(action.getParentName()).ifPresent(name -> sb.append(" with name ").append(name));
+        Optional.ofNullable(action.getParentId()).ifPresent(id -> sb.append(" with id: ").append(id));
+        Optional.ofNullable(action.getUser().getUsername()).ifPresent(name -> sb.append(" performed by user ").append(name));
+        Optional.ofNullable(action.getUser().getId()).ifPresent(id -> sb.append(" with id: ").append(id));
+        log.debug(sb.toString());
         MDC.remove("logType");
     }
 
@@ -160,13 +159,13 @@ public class ActionsLogService {
     }
 
     private ActionLog maskSecretName(ActionLog actionLog) {
+        ActionLog.ActionLogBuilder builder = actionLog.toBuilder();
         if (actionLog.getEntityType() == EntityType.SECRET) {
-            actionLog.setEntityName("Secret");
+            builder.entityName("Secret");
         }
         if (actionLog.getParentType() == EntityType.SECRET) {
-            actionLog.setParentName("Secret");
+            builder.parentName("Secret");
         }
-
-        return actionLog;
+        return builder.build();
     }
 }

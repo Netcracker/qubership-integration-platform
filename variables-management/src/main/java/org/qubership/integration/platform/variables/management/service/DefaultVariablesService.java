@@ -18,6 +18,7 @@ package org.qubership.integration.platform.variables.management.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.variables.management.configuration.ApplicationAutoConfiguration;
+import org.qubership.integration.platform.variables.management.service.secrets.SecretService;
 import org.slf4j.MDC;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -33,13 +34,18 @@ public class DefaultVariablesService {
     public static final String TENANT_VARIABLE_NAME = "tenant_id";
     public static final String[] DEFAULT_VARIABLES_LIST = {NAMESPACE_VARIABLE_NAME, TENANT_VARIABLE_NAME};
 
+    private final SecretService secretService;
     private final CommonVariablesService commonVariablesService;
     private final SecuredVariableService securedVariableService;
     private final ApplicationAutoConfiguration applicationConfiguration;
 
-    public DefaultVariablesService(CommonVariablesService commonVariablesService,
-                                   SecuredVariableService securedVariableService,
-                                   ApplicationAutoConfiguration applicationConfiguration) {
+    public DefaultVariablesService(
+            SecretService secretService,
+            CommonVariablesService commonVariablesService,
+            SecuredVariableService securedVariableService,
+            ApplicationAutoConfiguration applicationConfiguration
+    ) {
+        this.secretService = secretService;
         this.commonVariablesService = commonVariablesService;
         this.securedVariableService = securedVariableService;
         this.applicationConfiguration = applicationConfiguration;
@@ -51,12 +57,11 @@ public class DefaultVariablesService {
     public void restoreVariables() {
         try {
             log.debug("Restore variables started");
-            securedVariableService.createSecuredVariablesSecret(securedVariableService.getKubeSecretV2Name());
+            secretService.createSecret(secretService.getDefaultSecretName());
 
             Map<String, String> defaultCommonVariables = getDefaultCommonVariables();
 
-            securedVariableService.deleteVariables(
-                    securedVariableService.getKubeSecretV2Name(), defaultCommonVariables.keySet(), false);
+            securedVariableService.deleteVariables(secretService.getDefaultSecretName(), defaultCommonVariables.keySet(), false);
 
             commonVariablesService.addVariablesUnlogged(defaultCommonVariables);
             log.debug("Restore variables finished");
