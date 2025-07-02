@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useCallback,
+} from "react";
 import { ArgsProps } from "antd/es/notification";
 
 export type NotificationType = "info" | "warning" | "error";
@@ -23,17 +29,17 @@ export const NotificationLogProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [history, setHistory] = useState<NotificationItem[]>([]);
 
-  const addToHistory = (item: NotificationItem) => {
+  const addToHistory = useCallback((item: NotificationItem) => {
     setHistory((items) => [...items, item]);
-  };
+  }, []);
 
-  const removeFromHistory = (item: NotificationItem) => {
+  const removeFromHistory = useCallback((item: NotificationItem) => {
     setHistory((current) => current.filter((i) => i !== item));
-  };
+  }, []);
 
-  const clearHistory = () => {
+  const clearHistory = useCallback(() => {
     setHistory([]);
-  };
+  }, []);
 
   return (
     <NotificationLogContext.Provider
