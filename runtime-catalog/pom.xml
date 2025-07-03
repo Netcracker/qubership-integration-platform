@@ -9,7 +9,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.1</version>
+        <version>3.4.7</version>
     </parent>
 
     <properties>
@@ -26,7 +26,7 @@
         <!-- 3rd party dependencies -->
 
         <spring-cloud.version>2024.0.0</spring-cloud.version>
-        <springdoc.version>2.6.0</springdoc.version>
+        <springdoc.version>2.8.8</springdoc.version>
         <lombok.version>1.18.30</lombok.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <postgres-driver.version>42.7.2</postgres-driver.version>
