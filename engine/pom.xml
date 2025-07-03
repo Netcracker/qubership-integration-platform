@@ -5,6 +5,7 @@
     <groupId>org.qubership</groupId>
     <artifactId>qip-engine</artifactId>
     <version>${revision}</version>
+    <name>QIP Engine</name>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
