@@ -100,6 +100,7 @@ jobs:
     needs: [update-pom-version]
     uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
     with:
+      ref: ${{ github.ref }}
       maven-command: "--batch-mode package"
       java-version: ${{ github.event.inputs.java-version }}
       upload-artifact: true
@@ -130,6 +131,7 @@ jobs:
     needs: [update-pom-version, tag]
     uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
     with:
+      ref: ${{ github.ref }}
       maven-command: ${{ (github.event.inputs.dry-run == 'true' && '--batch-mode package') || '--batch-mode deploy' }}
       java-version: ${{ github.event.inputs.java-version }}
       upload-artifact: false
