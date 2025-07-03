@@ -5,6 +5,7 @@
     <groupId>org.qubership</groupId>
     <artifactId>qip-designtime-catalog</artifactId>
     <version>${revision}</version>
+    <name>QIP Design-Time Catalog</name>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
