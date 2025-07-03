@@ -6,6 +6,7 @@
     <artifactId>qip-catalog-library</artifactId>
     <version>${revision}</version>
     <packaging>jar</packaging>
+    <name>QIP Catalog Library</name>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
