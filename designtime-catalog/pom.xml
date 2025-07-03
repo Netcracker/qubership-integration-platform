@@ -15,8 +15,8 @@
     </parent>
 
     <properties>
-        <revision>0.1.6</revision>
-        <catalog-library.revision>0.1.6</catalog-library.revision>
+        <revision>1.0.0</revision>
+        <catalog-library.revision>0.1.5</catalog-library.revision>
 
         <!-- 3rd party dependencies -->
 
