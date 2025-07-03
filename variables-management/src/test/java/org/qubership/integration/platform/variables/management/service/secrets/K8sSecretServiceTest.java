@@ -63,7 +63,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(SpringExtension.class)
 @ExtendWith(MockitoExtension.class)
 public class K8sSecretServiceTest {
-    public static final String SECRET_LABEL_NAME = "qip.netcracker.com/variable-type";
+    public static final String SECRET_LABEL_NAME = "qip/variable-type";
     public static final String KUBE_SECRET_NAME = "qip-secured-variables-v2";
 
     private static final String SECRET_NAME = "qip-test-secret";
