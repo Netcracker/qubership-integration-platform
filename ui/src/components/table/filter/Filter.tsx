@@ -3,7 +3,7 @@ import { useModalContext } from "../../../ModalContextProvider";
 import { FilterItem, FilterItemState } from "./FilterItem";
 import { ClearOutlined, PlusOutlined } from "@ant-design/icons";
 import { useState } from "react";
-import { FilterColumn } from "./filter";
+import { FilterColumn, FilterCondition } from "./filter";
 
 export type FilterProps = {
   filterColumns: FilterColumn[];
@@ -38,7 +38,7 @@ export const Filter = (props: FilterProps) => {
   const removeFilterItem = (id: string) => {
     const newState = new Map(items);
     newState.delete(id);
-    
+
     setItems(newState.size === 0 ? buildMapWithInitialItem() : newState);
   }
 
@@ -89,7 +89,10 @@ export const Filter = (props: FilterProps) => {
   function clearEmptyItems(): Map<string, FilterItemState> {
     const nonEmptyItems = new Map(items);
     for (const [key, value] of nonEmptyItems) {
-      if (value.columnValue === undefined || value.conditionValue === undefined || value.value === undefined || value.value.trim().length === 0) {
+      if (!value.columnValue
+        || !value.conditionValue
+        || (FilterCondition.getById(value.conditionValue)!.valueRequired
+          && (!value.value || value.value.trim().length === 0))) {
         nonEmptyItems.delete(key);
       }
     }

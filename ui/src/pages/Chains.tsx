@@ -29,6 +29,7 @@ import {
   CatalogItemType,
   ChainCreationRequest,
   ChainItem,
+  FolderFilter,
   FolderItem,
   ListFolderRequest,
   UpdateFolderRequest,
@@ -60,6 +61,7 @@ import { commonVariablesApi } from "../api/admin-tools/variables/commonVariables
 import { Filter } from "../components/table/filter/Filter.tsx";
 import { useChainFilters } from "../hooks/useChainFilter.ts";
 import { FilterButton } from "../components/table/filter/FilterButton.tsx";
+import { FilterItemState } from "../components/table/filter/FilterItem.tsx";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -156,6 +158,7 @@ const Chains = () => {
   const [searchString, setSearchString] = useState<string>("");
   const notificationService = useNotificationService();
   const {filterColumns, filterItemStates, setFilterItemStates} = useChainFilters();
+  const [filters, setFilters] = useState<FolderFilter[]>([]);
 
   const getFolderId = useCallback((): string | undefined => {
     return searchParams.get("folder") ?? undefined;
@@ -186,7 +189,7 @@ const Chains = () => {
     async (folderId: string | undefined) => {
       const request: ListFolderRequest = {
         folderId,
-        filters: [], // TODO
+        filters: filters,
         searchString,
       };
       setIsLoading(true);
@@ -202,7 +205,7 @@ const Chains = () => {
         setIsLoading(false);
       }
     },
-    [notificationService, searchString],
+    [notificationService, searchString, filters],
   );
 
   const updateFolderItems = useCallback(async () => {
@@ -576,11 +579,22 @@ const Chains = () => {
         <Filter
           filterColumns={filterColumns}
           filterItemStates={filterItemStates}
-          onApplyFilters={setFilterItemStates}
+          onApplyFilters={applyFilters}
         />
       ),
     });
   };
+
+  const applyFilters = (filterItems: FilterItemState[]) => {
+    setFilterItemStates(filterItems);
+
+    const f = filterItems.map((filterItem): FolderFilter => ({
+      column: filterItem.columnValue!,
+      condition: filterItem.conditionValue!,
+      value: filterItem.value
+    }));
+    setFilters(f);
+  }
 
   const onImportBtnClick = () => {
     showModal({

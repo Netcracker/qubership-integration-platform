@@ -749,9 +749,9 @@ export type ListFolderRequest = {
 };
 
 export type FolderFilter = {
-  feature: string;
+  column: string;
   condition: string;
-  value: string;
+  value?: string;
 };
 
 export type CatalogItem = BaseEntity & {

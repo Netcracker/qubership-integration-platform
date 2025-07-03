@@ -1,16 +1,18 @@
 import { Input } from "antd";
 import { FilterValueProps } from "./FilterValue";
-import { useState } from "react";
+import { ChangeEvent, useState } from "react";
 
 export const StringFilterValue = (props: FilterValueProps) => {
   const [value, setValue] = useState<string | undefined>(props.value);
 
-  const onChange = (value: any) => {
-    props.handleStringValue(disabled ? undefined : value.target.value);
+  const onChange = ({
+    target: { value },
+  }: ChangeEvent<HTMLInputElement>) => {
+    props.handleStringValue(disabled ? undefined : value);
     setValue(value);
   }
 
   const disabled = props.condition?.valueRequired === false;
 
-  return <Input placeholder="Value" onChange={onChange} disabled={disabled} defaultValue={value}/>;
+  return <Input placeholder="Value" onChange={onChange} disabled={disabled} defaultValue={value} />;
 }

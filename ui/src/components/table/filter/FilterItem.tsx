@@ -50,7 +50,7 @@ export const FilterItem = (props: FilterItemProps) => {
     },
   ];
 
-  const onActionClick: MenuProps['onClick'] = ({ item, key }) => {
+  const onActionClick: MenuProps['onClick'] = ({ key }) => {
     switch (key) {
       case 'remove':
         props.onRemove(props.state.id);
