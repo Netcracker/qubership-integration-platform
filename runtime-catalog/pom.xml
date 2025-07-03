@@ -17,7 +17,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <revision>0.1.5</revision>
-        <catalog-library.revision>0.1.5</catalog-library.revision>
+        <catalog-library.revision>0.1.6</catalog-library.revision>
 
         <!-- BOMs -->
 
