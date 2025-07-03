@@ -9,7 +9,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.1</version>
+        <version>3.4.7</version>
         <relativePath/>
     </parent>
 
@@ -30,7 +30,7 @@
         <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
         <freemarker.version>2.3.33</freemarker.version>
         <flexmark.version>0.64.8</flexmark.version>
-        <springdoc.version>2.6.0</springdoc.version>
+        <springdoc.version>2.8.8</springdoc.version>
 
         <!-- Plugins -->
 
