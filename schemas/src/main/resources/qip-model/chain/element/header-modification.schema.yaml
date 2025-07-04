@@ -1,0 +1,27 @@
+$id: http://qubership.org/schemas/product/qip/element/header-modification
+$schema: http://json-schema.org/draft-07/schema
+title: Header Modification
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: header-modification
+  folder:
+    type: string
+    const: transformation
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      headerModificationToAdd:
+        type: string
+      headerModificationToRemove:
+        type: string

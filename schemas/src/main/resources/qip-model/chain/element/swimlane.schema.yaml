@@ -1,0 +1,34 @@
+$id: http://qubership.org/schemas/product/qip/element/swimlane
+$schema: http://json-schema.org/draft-07/schema
+title: Swimlane
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: swimlane
+  folder:
+    type: string
+    const: grouping
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      color:
+        type: string
+        enum:
+          - Blue
+          - Green
+          - Yellow
+          - Purple
+          - Lagoon
+          - Brown
+      swimlaneColor:
+        type: custom

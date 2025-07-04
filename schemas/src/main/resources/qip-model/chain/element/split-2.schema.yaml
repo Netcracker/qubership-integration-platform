@@ -1,0 +1,35 @@
+$id: http://qubership.org/schemas/product/qip/element/split-2
+$schema: http://json-schema.org/draft-07/schema
+title: Split
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: split-2
+  folder:
+    type: string
+    const: routing
+  children:
+    type: array
+    items:
+      anyOf:
+        - $ref: "main-split-element-2.schema.yaml"
+        - $ref: "split-element-2.schema.yaml"
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      aggregationStrategy:
+        type: string
+      stopOnException:
+        type: boolean
+      timeout:
+        type: integer

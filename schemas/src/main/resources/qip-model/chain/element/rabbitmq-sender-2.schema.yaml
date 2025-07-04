@@ -1,0 +1,57 @@
+$id: http://qubership.org/schemas/product/qip/element/rabbitmq-sender-2
+$schema: http://json-schema.org/draft-07/schema
+title: RabbitMQ Sender
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: rabbitmq-sender-2
+  folder:
+    type: string
+    const: senders
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      addresses:
+        type: string
+      connectionSourceType:
+        type: string
+        enum:
+          - maas
+          - manual
+      exchange:
+        type: string
+      exchangePattern:
+        type: string
+      maasClassifierNamespace:
+        type: string
+      overrideContextComponent:
+        type: custom
+      overrideContextParams:
+        type: string
+      password:
+        type: string
+      propagateContext:
+        type: boolean
+      rabbitConnection:
+        type: custom
+      routingKey:
+        type: string
+      username:
+        type: string
+      vhost:
+        type: string
+      vhostClassifierName:
+        type: string
+    required:
+      - connectionSourceType
+      - exchange

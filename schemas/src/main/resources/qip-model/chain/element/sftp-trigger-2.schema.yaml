@@ -1,0 +1,65 @@
+$id: http://qubership.org/schemas/product/qip/element/sftp-trigger-2
+$schema: http://json-schema.org/draft-07/schema
+title: SFTP Trigger
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: sftp-trigger-2
+  folder:
+    type: string
+    const: triggers
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      antInclude:
+        type: string
+      binary:
+        type: boolean
+      connectUrl:
+        type: string
+      idempotent:
+        type: boolean
+      idempotentKey:
+        type: string
+      ignoreFileNotFoundOrPermissionError:
+        type: boolean
+      jschLoggingLevel:
+        type: string
+      password:
+        type: string
+      readLockLoggingLevel:
+        type: string
+      runLoggingLevel:
+        type: string
+      scheduler:
+        type: string
+      scheduler.cron:
+        type: string
+      scheduler.deleteJob:
+        type: boolean
+      scheduler.triggerGroup:
+        type: string
+      streamDownload:
+        type: boolean
+      username:
+        type: string
+      useUserKnownHostsFile:
+        type: boolean
+      autoCreate:
+        type: boolean
+    required:
+      - connectUrl
+      - scheduler
+      - scheduler.cron
+      - scheduler.deleteJob
+      - scheduler.triggerGroup

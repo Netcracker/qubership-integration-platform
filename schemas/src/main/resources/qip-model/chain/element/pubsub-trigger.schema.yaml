@@ -1,0 +1,66 @@
+$id: http://qubership.org/schemas/product/qip/element/pubsub-trigger
+$schema: http://json-schema.org/draft-07/schema
+title: PubSub Trigger
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: pubsub-trigger
+  folder:
+    type: string
+    const: triggers
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      ackMode:
+        type: string
+        enum:
+          - AUTO
+          - NONE
+      actionOnDuplicate:
+        type: string
+        enum:
+          - ignore
+          - throw-exception
+          - execute-subchain
+      chainCallTimeout:
+        type: integer
+      chainTriggerElementId:
+        type: string
+      destinationName:
+        type: string
+      enableIdempotency:
+        type: boolean
+      idempotencyKeyExpiry:
+        type: integer
+      idempotencyKeyExpression:
+        type: string
+      maxMessagesPerPoll:
+        type: integer
+      projectId:
+        type: string
+      serviceAccountKey:
+        type: string
+      synchronousPullRetryableCodes:
+        type: string
+        enum:
+          - ABORTED
+          - CANCELLED
+          - DEADLINE_EXCEEDED
+          - INTERNAL
+          - RESOURCE_EXHAUSTED
+          - UNKNOWN
+          - UNAVAILABLE
+    required:
+      - destinationName
+      - projectId
+      - serviceAccountKey

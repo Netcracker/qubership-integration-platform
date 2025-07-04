@@ -1,0 +1,53 @@
+$id: http://qubership.org/schemas/product/qip/element/circuit-breaker-configuration-2
+$schema: http://json-schema.org/draft-07/schema
+title: Circuit Breaker Configuration
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: circuit-breaker-configuration-2
+  folder:
+    type: string
+    const: routing
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      automaticTransitionFromOpenToHalfOpenEnabled:
+        type: boolean
+      failureRateThreshold:
+        type: integer
+      minimumNumberOfCalls:
+        type: integer
+      permittedNumberOfCallsInHalfOpenState:
+        type: integer
+      slidingWindowSize:
+        type: integer
+      slidingWindowType:
+        type: string
+        enum:
+          - COUNT_BASED
+          - TIME_BASED
+      slowCallDurationThreshold:
+        type: integer
+      slowCallRateThreshold:
+        type: integer
+      waitDurationInOpenState:
+        type: integer
+    required:
+      - failureRateThreshold
+      - minimumNumberOfCalls
+      - permittedNumberOfCallsInHalfOpenState
+      - slidingWindowSize
+      - slidingWindowType
+      - slowCallDurationThreshold
+      - slowCallRateThreshold
+      - waitDurationInOpenState

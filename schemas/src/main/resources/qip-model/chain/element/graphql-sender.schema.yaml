@@ -1,0 +1,54 @@
+$id: http://qubership.org/schemas/product/qip/element/graphql-sender
+$schema: http://json-schema.org/draft-07/schema
+title: GraphQL Sender
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: graphql-sender
+  folder:
+    type: string
+    const: senders
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      correlationIdReceiver:
+        type: custom
+      isExternalCall:
+        type: boolean
+      m2m:
+        type: boolean
+      operationName:
+        type: string
+      overrideContextComponent:
+        type: custom
+      overrideContextParams:
+        type: string
+      propagateContext:
+        type: boolean
+      query:
+        type: string
+      queryEditor:
+        type: custom
+      queryHeader:
+        type: string
+      reuseEstablishedConnection:
+        type: boolean
+      uri:
+        type: string
+      variablesHeader:
+        type: string
+      variablesJSON:
+        type: string
+    required:
+      - query
+      - uri

@@ -1,0 +1,43 @@
+$id: http://qubership.org/schemas/product/qip/element/sftp-upload
+$schema: http://json-schema.org/draft-07/schema
+title: SFTP Upload
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: sftp-upload
+  folder:
+    type: string
+    const: files
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      allowNullBody:
+        type: boolean
+      autoCreate:
+        type: boolean
+      binary:
+        type: boolean
+      connectUrl:
+        type: string
+      fileName:
+        type: string
+      password:
+        type: string
+      throwExceptionOnConnectFailed:
+        type: boolean
+      useUserKnownHostsFile:
+        type: boolean
+      username:
+        type: string
+    required:
+      - connectUrl

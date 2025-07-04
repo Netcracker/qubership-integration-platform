@@ -1,0 +1,53 @@
+$id: http://qubership.org/schemas/product/qip/element/async-api-trigger
+$schema: http://json-schema.org/draft-07/schema
+title: AsyncAPI Trigger
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: async-api-trigger
+  folder:
+    type: string
+    const: triggers
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      acknowledgeMode:
+        type: string
+        enum:
+          - NONE
+          - MANUAL
+          - AUTO
+      actionOnDuplicate:
+        type: string
+        enum:
+          - ignore
+          - throw-exception
+          - execute-subchain
+      chainCallTimeout:
+        type: integer
+      chainTriggerElementId:
+        type: string
+      enableIdempotency:
+        type: boolean
+      idempotencyKeyExpiry:
+        type: integer
+      idempotencyKeyExpression:
+        type: string
+      integrationOperationProtocolType:
+        type: string
+      jsonRequestSchema:
+        type: string
+      reconnectDelay:
+        type: integer
+      requestFilterHeaderAllowlist:
+        type: string

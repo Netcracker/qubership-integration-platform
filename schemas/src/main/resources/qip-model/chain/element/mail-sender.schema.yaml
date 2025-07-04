@@ -1,0 +1,63 @@
+$id: http://qubership.org/schemas/product/qip/element/mail-sender
+$schema: http://json-schema.org/draft-07/schema
+title: Mail Sender
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: mail-sender
+  folder:
+    type: string
+    const: senders
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      alternativeBodyHeader:
+        type: string
+      bcc:
+        type: string
+      cc:
+        type: string
+      connectionTimeout:
+        type: integer
+      contentType:
+        type: string
+        enum:
+          - text/plain
+          - text/html
+      from:
+        type: string
+      ignoreUnsupportedCharset:
+        type: boolean
+      overrideContextComponent:
+        type: custom
+      overrideContextParams:
+        type: string
+      password:
+        type: string
+      propagateContext:
+        type: boolean
+      replyTo:
+        type: string
+      subject:
+        type: string
+      to:
+        type: string
+      url:
+        type: string
+      useInlineAttachments:
+        type: boolean
+      username:
+        type: string
+    required:
+      - from
+      - url

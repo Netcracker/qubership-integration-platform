@@ -1,0 +1,49 @@
+$id: http://qubership.org/schemas/product/qip/element/sftp-download
+$schema: http://json-schema.org/draft-07/schema
+title: SFTP Download
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: sftp-download
+  folder:
+    type: string
+    const: triggers
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      connectUrl:
+        type: string
+      antInclude:
+        type: string
+      username:
+        type: string
+      password:
+        type: string
+      idempotent:
+        type: boolean
+      idempotentKey:
+        type: string
+      streamDownload:
+        type: boolean
+      binary:
+        type: boolean
+      autoCreate:
+        type: boolean
+      useUserKnownHostsFile:
+        type: boolean
+      sendEmptyMessageWhenIdle:
+        type: boolean
+      throwExceptionOnConnectFailed:
+        type: boolean
+    required:
+      - connectUrl

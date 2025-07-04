@@ -1,0 +1,96 @@
+$id: http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2
+$schema: http://json-schema.org/draft-07/schema
+title: RabbitMQ Trigger
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: rabbitmq-trigger-2
+  folder:
+    type: string
+    const: triggers
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      acknowledgeMode:
+        type: string
+        enum:
+          - NONE
+          - MANUAL
+          - AUTO
+      actionOnDuplicate:
+        type: string
+        enum:
+          - ignore
+          - throw-exception
+          - execute-subchain
+      addresses:
+        type: string
+      chainCallTimeout:
+        type: integer
+      chainTriggerElementId:
+        type: string
+      connectionSourceType:
+        type: string
+        enum:
+          - maas
+          - manual
+      deadLetterExchange:
+        type: string
+      deadLetterExchangeType:
+        type: string
+        enum:
+          - direct
+          - fanout
+          - headers
+          - topic
+      deadLetterQueue:
+        type: string
+      deadLetterRoutingKey:
+        type: string
+      enableIdempotency:
+        type: boolean
+      exchange:
+        type: string
+      exchangeType:
+        type: string
+        enum:
+          - direct
+          - fanout
+          - headers
+          - topic
+      idempotencyKeyExpiry:
+        type: integer
+      idempotencyKeyExpression:
+        type: string
+      maasClassifierNamespace:
+        type: string
+      password:
+        type: string
+      queues:
+        type: string
+      rabbitConnection:
+        type: custom
+      routingKey:
+        type: string
+      sslProtocol:
+        type: string
+      username:
+        type: string
+      vhost:
+        type: string
+      vhostClassifierName:
+        type: string
+    required:
+      - connectionSourceType
+      - exchange
+      - queues

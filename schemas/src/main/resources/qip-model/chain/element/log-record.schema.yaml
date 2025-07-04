@@ -1,0 +1,36 @@
+$id: http://qubership.org/schemas/product/qip/element/log-record
+$schema: http://json-schema.org/draft-07/schema
+title: Log Record
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: log-record
+  folder:
+    type: string
+    const: routing
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      businessIdentifiers:
+        type: string
+      logLevel:
+        enum:
+          - Error
+          - Warning
+          - Info
+      message:
+        type: string
+      receiver:
+        type: string
+      sender:
+        type: string

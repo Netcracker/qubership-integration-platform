@@ -1,0 +1,22 @@
+$id: http://qubership.org/schemas/product/qip/element/try-2
+$schema: http://json-schema.org/draft-07/schema
+title: Http Trigger
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: try-2
+  folder:
+    type: string
+    const: triggers
+  properties:
+    type: object
+    additionalProperties: false

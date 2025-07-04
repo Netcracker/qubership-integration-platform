@@ -1,0 +1,37 @@
+$id: http://qubership.org/schemas/product/qip/element/loop-2
+$schema: http://json-schema.org/draft-07/schema
+title: Loop
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: loop-2
+  folder:
+    type: string
+    const: routing
+  children:
+    type: array
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      copy:
+        type: boolean
+      doWhile:
+        type: boolean
+      expression:
+        type: custom
+      loopIndexPropertyName:
+        type: string
+      maxLoopIteration:
+        type: integer
+    required:
+      - expression

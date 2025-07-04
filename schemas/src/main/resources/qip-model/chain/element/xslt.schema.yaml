@@ -1,0 +1,27 @@
+$id: http://qubership.org/schemas/product/qip/element/xslt
+$schema: http://json-schema.org/draft-07/schema
+title: XSLT
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: xslt
+  folder:
+    type: string
+    const: transformation
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      templateName:
+        type: string
+    required:
+      - templateName

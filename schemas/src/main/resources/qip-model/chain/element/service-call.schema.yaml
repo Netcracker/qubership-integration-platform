@@ -1,0 +1,63 @@
+$id: http://qubership.org/schemas/product/qip/element/service-call
+$schema: http://json-schema.org/draft-07/schema
+title: Service Call
+type: object
+additionalProperties: false
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  description:
+    type: string
+  type:
+    type: string
+    const: service-call
+  folder:
+    type: string
+    const: senders
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      retryCount:
+        type: integer
+      retryDelay:
+        type: integer
+      correlationIdName:
+        type: string
+      correlationIdPosition:
+        type: string
+        enum:
+          - Header
+          - Body
+      correlationIdReceiver:
+        type: object #custom
+      handleValidationAction:
+        type: string
+        enum:
+          - default
+          - script
+          - mapper-2
+      integrationGqlOperationName:
+        type: string
+      integrationGqlQuery:
+        type: string
+      integrationGqlQueryHeader:
+        type: string
+      integrationGqlVariablesHeader:
+        type: string
+      integrationGqlVariablesJSON:
+        type: string
+      integrationOperationProtocolType:
+        type: string
+      overrideContextComponent:
+        type: custom
+      overrideContextParams:
+        type: string
+      propagateContext:
+        type: boolean
+    required:
+      - retryCount
+      - retryDelay
