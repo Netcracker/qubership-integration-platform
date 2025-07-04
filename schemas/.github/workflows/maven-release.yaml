@@ -14,7 +14,7 @@
 
 # To make it work for your project, you need to adjust the pom.xml and add configuration file for GitHub release.
 # Please find detailed instructions:
-# https://github.com/Netcracker/qubership-workflow-hub?tab=readme-ov-file#maven-project-release-workflow
+# https://github.com/netcracker/qubership-workflow-hub?tab=readme-ov-file#maven-project-release-workflow
 
 name: Release And Deploy Maven Artifact
 
@@ -36,11 +36,23 @@ on:
         type: boolean
         default: true
         description: 'Release docker image if there is Docker file'
+      profile:
+        type: choice
+        default: 'github'
+        description: 'Release mode (github or central)'
+        required: true
+        options:
+          - github
+          - central
       dry-run:
         required: false
         type: boolean
         default: false
         description: 'Dry run'
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
   check-tag:
@@ -56,7 +68,7 @@ jobs:
 
       - name: Check if tag exists
         id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-checker@main
+        uses: netcracker/qubership-workflow-hub/actions/tag-checker@v1.0.3
         with:
           tag: 'v${{ github.event.inputs.version }}'
         env:
@@ -87,23 +99,24 @@ jobs:
 
       - name: Update pom.xml
         id: config
-        uses: netcracker/qubership-workflow-hub/actions/pom-updater@main
+        uses: netcracker/qubership-workflow-hub/actions/pom-updater@v1.0.3
         with:
           new_value: ${{ github.event.inputs.version }}
 
       - name: Commit Changes
-        uses: netcracker/qubership-workflow-hub/actions/commit-and-push@main
+        uses: netcracker/qubership-workflow-hub/actions/commit-and-push@v1.0.3
         with:
           commit_message: "Update pom.xml version to ${{ github.event.inputs.version }}"
 
   mvn-package:
     needs: [update-pom-version]
-    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.3
     with:
       maven-command: "--batch-mode package"
       java-version: ${{ github.event.inputs.java-version }}
       upload-artifact: true
       artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
+      ref: ${{ github.ref }}
     secrets:
       maven-username: ${{ secrets.MAVEN_USER }}
       maven-token: ${{ secrets.MAVEN_PASSWORD }}
@@ -122,19 +135,20 @@ jobs:
 
   tag:
     needs: [tests]
-    uses: netcracker/qubership-workflow-hub/.github/workflows/tag-creator.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/tag-creator.yml@v1.0.3
     with:
       tag-name: "v${{ github.event.inputs.version }}"
 
   mvn-deploy:
     needs: [update-pom-version, tag]
-    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.3
     with:
-      maven-command: ${{ (github.event.inputs.dry-run == 'true' && '--batch-mode package') || '--batch-mode deploy' }}
+      maven-command: ${{ (github.event.inputs.dry-run == 'true' && '--batch-mode package') || github.event.inputs.profile == 'github'  && '--batch-mode deploy -P github' || '--batch-mode deploy -P central' }}
       java-version: ${{ github.event.inputs.java-version }}
       upload-artifact: false
       artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
-      server-id: "central"
+      server-id: ${{ inputs.profile }}
+      ref: ${{ github.ref }}
     secrets:
       maven-username: ${{ secrets.MAVEN_USER }}
       maven-token: ${{ secrets.MAVEN_PASSWORD }}
@@ -164,16 +178,15 @@ jobs:
   docker-build-publish:
     needs: [update-pom-version, tag, check-dockerfile]
     if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
-    uses: netcracker/qubership-workflow-hub/.github/workflows/docker-publish.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/docker-publish.yml@v1.0.3
     with:
       ref: "v${{ github.event.inputs.version }}"
       artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
       dry-run: ${{ inputs.dry-run }}
-      download-artifact: true
 
   github-release:
     needs: [tag]
-    uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@v1.0.3
     with:
       version: ${{ github.event.inputs.version }}
       publish: false
