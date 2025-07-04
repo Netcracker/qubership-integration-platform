@@ -1,10 +1,26 @@
+/*
+ * Copyright 2024-2025 NetCracker Technology Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.V101MigrationUtil;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -18,25 +34,15 @@ public class V101ChainImportFileMigration implements ChainImportFileMigration {
     @Override
     public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
         log.debug("Applying chain migration: {}", getVersion());
-        ObjectNode result = JsonNodeFactory.instance.objectNode();
-        result.set("id", fileNode.get("id"));
-        result.set("name", fileNode.get("name"));
 
         // Move all fields except id and name to the content node
-        ObjectNode contentNode = JsonNodeFactory.instance.objectNode();
-        fileNode.fields().forEachRemaining(entry -> {
-            String key = entry.getKey();
-            if (!"id".equals(key) && !"name".equals(key)) {
-                contentNode.set(key, entry.getValue());
-            }
-        });
+        ObjectNode result = V101MigrationUtil.moveFieldsToContentField(fileNode);
 
         // Rename properties-filename property to propertiesFilename
-        renameField(contentNode, "properties-filename", "propertiesFilename");
+        renameField(result, "properties-filename", "propertiesFilename");
         // Make new default value from "" to "org.apache.kafka.common.serialization.StringSerializer" for keySerializer
-        setNewValueToEmptyField(contentNode, "keySerializer", "org.apache.kafka.common.serialization.StringSerializer");
+        setNewValueToEmptyField(result, "keySerializer", "org.apache.kafka.common.serialization.StringSerializer");
 
-        result.set("content", contentNode);
         return result;
     }
 

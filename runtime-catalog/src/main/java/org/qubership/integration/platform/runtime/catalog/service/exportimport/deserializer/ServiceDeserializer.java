@@ -16,19 +16,25 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
-import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ImportFileMigrationUtils;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.MigrationException;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -36,233 +42,158 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.getFileContent;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.getNodeAsText;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_VERSION_FIELD_OLD;
 
 @Slf4j
 @Component
 public class ServiceDeserializer {
-
     private final YAMLMapper yamlMapper;
-    private final Map<Integer, ServiceImportFileMigration> importFileMigrations;
+    private final VersionsGetterService versionsGetterService;
+    private final IntegrationSystemDtoMapper integrationSystemDtoMapper;
+    private final SpecificationGroupDtoMapper specificationGroupDtoMapper;
+    private final SystemModelDtoMapper systemModelDtoMapper;
+    private final FileMigrationService fileMigrationService;
+    private final Collection<ServiceImportFileMigration> importFileMigrations;
 
     @Autowired
-    public ServiceDeserializer(YAMLMapper yamlExportImportMapper,
-                               List<ServiceImportFileMigration> importFileMigrations) {
+    public ServiceDeserializer(
+            YAMLMapper yamlExportImportMapper,
+            VersionsGetterService versionsGetterService,
+            IntegrationSystemDtoMapper integrationSystemDtoMapper,
+            SpecificationGroupDtoMapper specificationGroupDtoMapper,
+            SystemModelDtoMapper systemModelDtoMapper,
+            FileMigrationService fileMigrationService,
+            Collection<ServiceImportFileMigration> importFileMigrations
+    ) {
         this.yamlMapper = yamlExportImportMapper;
-        this.importFileMigrations = importFileMigrations.stream()
-                .collect(Collectors.toMap(ImportFileMigration::getVersion, Function.identity()));
+        this.versionsGetterService = versionsGetterService;
+        this.integrationSystemDtoMapper = integrationSystemDtoMapper;
+        this.specificationGroupDtoMapper = specificationGroupDtoMapper;
+        this.systemModelDtoMapper = systemModelDtoMapper;
+        this.fileMigrationService = fileMigrationService;
+        this.importFileMigrations = importFileMigrations;
     }
 
-    public IntegrationSystem deserializeSystem(ObjectNode serviceNode, File serviceDirectory) {
-        // TODO Future migrations should be applied before this method call for all files
-        serviceNode = enrichServiceNode(serviceNode, serviceDirectory);
-
-        IntegrationSystem system;
+    public IntegrationSystem deserializeSystem(File serviceFile) {
         try {
-            serviceNode = migrateToActualFileVersion(serviceNode);
-            system = yamlMapper.treeToValue(serviceNode, IntegrationSystem.class);
-            // Setting parent for spec groups and specifications so hibernate will save them
+            File serviceDirectory = serviceFile.getParentFile();
+            JsonNode serviceNode = yamlMapper.readTree(serviceFile);
+            Collection<Integer> versions = versionsGetterService.getVersions(serviceNode);
+            String serviceData = fileMigrationService.migrate(
+                    Files.readString(serviceFile.toPath()),
+                    importFileMigrations.stream().map(ImportFileMigration.class::cast).toList()
+            );
+            IntegrationSystemDto integrationSystemDto = yamlMapper.readValue(serviceData, IntegrationSystemDto.class);
+            IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(integrationSystemDto);
 
-            system.getSpecificationGroups().forEach(
-                    specificationGroup -> {
-                        specificationGroup.setSystem(system);
-                        specificationGroup.getSystemModels().forEach(
-                                systemModel -> systemModel.setSpecificationGroup(specificationGroup));
-                    });
+            Collection<File> files = listFiles(serviceDirectory);
+
+            getFilesData(files, SPECIFICATION_GROUP_FILE_PREFIX).forEach(node ->
+                    buildAndAddSpecificationGroup(node, versions, integrationSystem));
+
+            getFilesData(files, SPECIFICATION_FILE_PREFIX).forEach(node ->
+                    buildAndAddSpecification(node, versions, integrationSystem.getSpecificationGroups(), serviceDirectory));
+
+            return integrationSystem;
         } catch (ServiceImportException e) {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
-        return system;
     }
 
-    private ObjectNode enrichServiceNode(ObjectNode serviceNode, File serviceDirectory) {
-        Path serviceDirectoryPath = serviceDirectory.toPath();
-        String serviceId = serviceNode.get(AbstractSystemEntity.Fields.id).asText();
+    private ObjectNode migrate(ObjectNode node, Collection<Integer> versions) throws MigrationException {
+        node.set("migrations", TextNode.valueOf(versions.stream().sorted().toList().toString()));
+        return fileMigrationService.migrate(
+                node,
+                importFileMigrations.stream().map(ImportFileMigration.class::cast).toList()
+        );
+    }
+
+    private static Collection<File> listFiles(File serviceDirectory) {
         try (Stream<Path> fs = Files.walk(serviceDirectory.toPath())) {
-            List<File> listOfFile = fs.filter(Files::isRegularFile)
+            return fs.filter(Files::isRegularFile)
                     .map(Path::toFile).toList();
-
-            // Reading all the files into Nodes
-            ArrayList<JsonNode> specificationGroupNodes = new ArrayList<>();
-            Map<String, List<JsonNode>> specificationNodesMap = new HashMap<>();
-            Map<String, List<File>> sourceFiles = new HashMap<>();
-            for (File file : listOfFile) {
-                String fileName = file.getName();
-                String parentDirName = Optional.ofNullable(file.getParentFile())
-                    .map(File::toPath)
-                    .map(serviceDirectoryPath::relativize)
-                    .map(Path::toString)
-                    .orElse("");
-
-                if (fileName.startsWith(SPECIFICATION_GROUP_FILE_PREFIX)) {
-                    JsonNode specGroupNode = yamlMapper.readTree(file);
-                    String specGroupParentId = specGroupNode.get(PARENT_ID_FIELD_NAME).asText();
-                    if (!serviceId.equals(specGroupParentId)) {
-                        continue;
-                    }
-                    specificationGroupNodes.add(specGroupNode);
-
-                } else if (fileName.startsWith(SPECIFICATION_FILE_PREFIX)) {
-                    JsonNode specNode = yamlMapper.readTree(file);
-                    String specGroupId = specNode.get(PARENT_ID_FIELD_NAME).asText();
-                    specificationNodesMap.computeIfAbsent(specGroupId, k -> new ArrayList<>()).add(specNode);
-
-                } else if (parentDirName.startsWith(SOURCE_YAML_NAME_PREFIX)) {
-                    sourceFiles.computeIfAbsent(parentDirName, k -> new ArrayList<>()).add(file);
-                }
-            }
-
-            setSpecifications(serviceNode, specificationGroupNodes, specificationNodesMap);
-
-            setSpecificationSources(serviceNode, sourceFiles);
-
         } catch (IOException e) {
-            throw new RuntimeException("Unexpected error while service enriching", e);
-        }
-        return serviceNode;
-    }
-
-    private void setSpecifications(ObjectNode serviceNode, ArrayList<JsonNode> specificationGroupNodes, Map<String, List<JsonNode>> specificationNodesMap) {
-        ArrayNode specificationGroupServiceArrayNode = getSpecificationGroupServiceArrayNode(serviceNode);
-        for (JsonNode specGroupNode : specificationGroupNodes) {
-            ObjectNode specGroupObjNode = (ObjectNode) specGroupNode;
-            List<JsonNode> specificationNodes = specificationNodesMap.get(specGroupNode.get(AbstractSystemEntity.Fields.id).asText());
-            if (specificationNodes != null) {
-                specGroupObjNode.putArray(SpecificationGroup.Fields.systemModels).addAll(specificationNodes);
-                specificationGroupServiceArrayNode.add(specGroupObjNode);
-            }
+            throw new RuntimeException("Failed to list service directory", e);
         }
     }
 
-    private static ArrayNode getSpecificationGroupServiceArrayNode(ObjectNode serviceNode) {
-        ArrayNode specificationGroupServiceArrayNode = (ArrayNode) serviceNode.get(IntegrationSystem.Fields.specificationGroups);
-        if (specificationGroupServiceArrayNode == null) {
-            specificationGroupServiceArrayNode = serviceNode.putArray(IntegrationSystem.Fields.specificationGroups);
-        }
-        return specificationGroupServiceArrayNode;
-    }
-
-    private void setSpecificationSources(ObjectNode serviceNode, Map<String, List<File>> sourceFiles) throws IOException {
-        ArrayNode specificationGroupServiceArrayNode = getSpecificationGroupServiceArrayNode(serviceNode);
-        for (JsonNode specificationGroup : specificationGroupServiceArrayNode) {
-            ArrayNode specificationsArrayNode = (ArrayNode) specificationGroup.get(SpecificationGroup.Fields.systemModels);
-            if (specificationsArrayNode != null) {
-                for (JsonNode specification : specificationsArrayNode) {
-                    ArrayNode specificationSourcesArrayNode = (ArrayNode) specification.get(SystemModel.Fields.specificationSources);
-                    if (specificationSourcesArrayNode != null) {
-                        for (JsonNode specificationSource : specificationSourcesArrayNode) {
-                            ObjectNode specificationSourceObjectNode = (ObjectNode) specificationSource;
-                            String sourceFullPath = getNodeAsText(specificationSource.get(SPECIFICATION_SOURCE_FILE_NAME));
-                            String fileName;
-                            String parentDir;
-                            if (!StringUtils.isBlank(sourceFullPath)) {
-                                Path sourceFilePath = Paths.get(sourceFullPath);
-                                parentDir = sourceFilePath.getParent().toString();
-                                fileName = sourceFilePath.getFileName().toString();
-                            } else {
-                                // Fallback (old method of gathering source files)
-                                OperationProtocol protocol = yamlMapper.treeToValue(
-                                        serviceNode.get(IntegrationSystem.Fields.protocol), OperationProtocol.class);
-                                fileName = ExportImportUtils.getSpecificationFileName(specificationSource, protocol);
-                                parentDir = ExportImportUtils.generateDeprecatedSourceExportDir(specificationGroup,
-                                        specification);
-                            }
-
-                            String finalFileName = fileName;
-                            Optional<File> sourceFile = sourceFiles.computeIfAbsent(parentDir, k -> Collections.emptyList())
-                                    .stream().filter(f -> f.getName().equals(finalFileName)).findAny();
-                            if (sourceFile.isPresent()) {
-                                specificationSourceObjectNode.put(
-                                        SpecificationSource.Fields.source, getFileContent(sourceFile.get()));
-                            }
+    private Stream<ObjectNode> getFilesData(Collection<File> files, String namePrefix) {
+        return files.stream()
+                .filter(file -> file.getName().startsWith(namePrefix))
+                .map(file -> {
+                    try {
+                        JsonNode node = yamlMapper.readTree(file);
+                        if (!node.isObject()) {
+                            throw new RuntimeException("Expected object node but got " + node.getNodeType().name());
                         }
+                        return (ObjectNode) node;
+                    } catch (IOException exception) {
+                        throw new RuntimeException(exception);
                     }
-                }
+                });
+    }
+
+    private void buildAndAddSpecificationGroup(
+            ObjectNode node,
+            Collection<Integer> versions,
+            IntegrationSystem integrationSystem
+    ) {
+        try {
+            ObjectNode migratedNode = migrate(node, versions);
+            SpecificationGroupDto specificationGroupDto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
+            SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(specificationGroupDto);
+            if (Objects.equals(specificationGroupDto.getContent().getParentId(), integrationSystem.getId())) {
+                integrationSystem.addSpecificationGroup(specificationGroup);
             }
+        } catch (MigrationException exception) {
+            throw new RuntimeException("Failed to migrate specification group data", exception);
+        } catch (JsonProcessingException exception) {
+            throw new RuntimeException("Failed to construct specification group from YAML", exception);
         }
     }
 
-    private ObjectNode migrateToActualFileVersion(ObjectNode serviceNode) throws Exception {
-
-        if ((!serviceNode.has(IMPORT_VERSION_FIELD_OLD) && !serviceNode.has(IMPORT_MIGRATIONS_FIELD))
-            ||
-            (serviceNode.has(IMPORT_VERSION_FIELD_OLD) && serviceNode.get(IMPORT_VERSION_FIELD_OLD) != null
-             &&
-             serviceNode.has(IMPORT_MIGRATIONS_FIELD) && serviceNode.get(IMPORT_MIGRATIONS_FIELD) != null)
-        ) {
-            log.error(
-                    "Incorrect combination of \"{}\" and \"{}\" fields for a service migration data",
-                    IMPORT_VERSION_FIELD_OLD,
-                    IMPORT_MIGRATIONS_FIELD);
-            throw new Exception("Incorrect combination of fields for a service migration data");
+    private void buildAndAddSpecification(
+            ObjectNode node,
+            Collection<Integer> versions,
+            Collection<SpecificationGroup> specificationGroups,
+            File resourceDirectory
+    ) {
+        try {
+            ObjectNode migratedNode = migrate(node, versions);
+            SystemModelDto systemModelDto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
+            SystemModel systemModel = systemModelDtoMapper.toInternalEntity(systemModelDto);
+            specificationGroups.stream()
+                    .filter(group -> Objects.equals(group.getId(), systemModelDto.getContent().getParentId()))
+                    .findFirst()
+                    .ifPresent(group -> group.addSystemModel(systemModel));
+            systemModelDto.getContent().getSpecificationSources().forEach(specificationSourceDto -> {
+                try {
+                    SpecificationSource specificationSource = SpecificationSource.builder()
+                            .id(specificationSourceDto.getId())
+                            .name(specificationSourceDto.getName())
+                            .description(specificationSourceDto.getDescription())
+                            .createdBy(specificationSourceDto.getCreatedBy())
+                            .createdWhen(specificationSourceDto.getCreatedWhen())
+                            .modifiedBy(specificationSourceDto.getModifiedBy())
+                            .modifiedWhen(specificationSourceDto.getModifiedWhen())
+                            .sourceHash(specificationSourceDto.getSourceHash())
+                            .isMainSource(specificationSourceDto.isMainSource())
+                            .source(Files.readString(resourceDirectory.toPath().resolve(specificationSourceDto.getFileName())))
+                            .build();
+                    systemModel.addProvidedSpecificationSource(specificationSource);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to read specification source", e);
+                }
+            });
+        } catch (MigrationException exception) {
+            throw new RuntimeException("Failed to migrate specification data", exception);
+        } catch (JsonProcessingException exception) {
+            throw new RuntimeException("Failed to construct specification from YAML", exception);
         }
-
-        List<Integer> importVersions;
-        if (serviceNode.has(IMPORT_VERSION_FIELD_OLD)) {
-            importVersions =
-                    IntStream.rangeClosed(1, serviceNode.get(IMPORT_VERSION_FIELD_OLD).asInt())
-                            .boxed()
-                            .toList();
-        } else {
-            importVersions =
-                    serviceNode.get(IMPORT_MIGRATIONS_FIELD) != null
-                            ? Arrays.stream(
-                                    serviceNode.get(IMPORT_MIGRATIONS_FIELD)
-                                            .asText()
-                                            .replaceAll("[\\[\\]]", "")
-                                            .split(","))
-                                .map(String::trim)
-                                .filter(StringUtils::isNotEmpty)
-                                .map(Integer::parseInt)
-                                .toList()
-                            : new ArrayList<>();
-        }
-        log.trace("importVersions = {}", importVersions);
-
-        List<Integer> actualVersions = ImportFileMigrationUtils.getActualServiceFileMigrationVersions();
-        log.trace("actualVersions = {}", actualVersions);
-
-        List<Integer> nonexistentVersions = new ArrayList<>(importVersions);
-        nonexistentVersions.removeAll(actualVersions);
-        if (!nonexistentVersions.isEmpty()) {
-            String serviceId = Optional.ofNullable(serviceNode.get("id")).map(JsonNode::asText).orElse(null);
-            String serviceName = Optional.ofNullable(serviceNode.get("name")).map(JsonNode::asText).orElse(null);
-
-            log.error(
-                    "Unable to import the service {} ({}) exported from newer version: nonexistent migrations {} are present",
-                    serviceName,
-                    serviceId,
-                    nonexistentVersions);
-
-            throw new ServiceImportException(
-                    serviceId,
-                    serviceName,
-                    "Unable to import a service exported from newer version");
-        }
-
-        List<Integer> versionsToMigrate = new ArrayList<>(actualVersions);
-        versionsToMigrate.removeAll(importVersions);
-        versionsToMigrate.sort(null);
-        log.trace("versionsToMigrate = {}", versionsToMigrate);
-
-        for (int version : versionsToMigrate) {
-            serviceNode = importFileMigrations.get(version).makeMigration(serviceNode);
-        }
-
-        return serviceNode;
     }
 }

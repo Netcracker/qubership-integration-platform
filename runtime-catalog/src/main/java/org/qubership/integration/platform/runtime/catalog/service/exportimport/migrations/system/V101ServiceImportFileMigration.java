@@ -19,20 +19,21 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.V101MigrationUtil;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-public class V100ServiceImportFileMigration implements ServiceImportFileMigration {
-
+public class V101ServiceImportFileMigration implements ServiceImportFileMigration {
     @Override
     public int getVersion() {
-        return 100;
+        return 101;
     }
 
     @Override
     public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
-        log.debug("Initial service migration V100");
-        return fileNode;
+        log.debug("Applying chain migration: {}", getVersion());
+        // Move all fields except id and name to the content node
+        return V101MigrationUtil.moveFieldsToContentField(fileNode);
     }
 }

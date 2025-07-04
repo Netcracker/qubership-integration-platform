@@ -49,7 +49,10 @@ import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeployPrepare;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeserializationResult;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainFileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.MigrationException;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -68,6 +71,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
@@ -93,7 +97,8 @@ public class ImportService {
     private final ChainImportService chainImportService;
     protected final ChainRepository chainRepository;
     private final TransactionTemplate transactionTemplate;
-    private final ChainFileMigrationService chainFileMigrationService;
+    private final FileMigrationService fileMigrationService;
+    private final Collection<ChainImportFileMigration> chainImportFileMigrations;
 
     private static final short ASYNC_IMPORT_PERCENTAGE_THRESHOLD = 40;
     private static final short ASYNC_SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD = 90;
@@ -112,7 +117,8 @@ public class ImportService {
                          ImportSessionService importProgressService,
                          ChainImportService chainImportService,
                          TransactionTemplate transactionTemplate,
-                         ChainFileMigrationService chainFileMigrationService
+                         FileMigrationService fileMigrationService,
+                         Collection<ChainImportFileMigration> chainImportFileMigrations
     ) {
         this.chainExternalEntityMapper = chainExternalEntityMapper;
         this.objectMapper = objectMapper;
@@ -127,7 +133,8 @@ public class ImportService {
         this.importProgressService = importProgressService;
         this.chainImportService = chainImportService;
         this.transactionTemplate = transactionTemplate;
-        this.chainFileMigrationService = chainFileMigrationService;
+        this.fileMigrationService = fileMigrationService;
+        this.chainImportFileMigrations = chainImportFileMigrations;
     }
 
     public ImportPreviewDTO importFileAsPreview(MultipartFile file) {
@@ -867,7 +874,15 @@ public class ImportService {
     }
 
     protected String migrateToActualFileVersion(String fileContent) throws Exception {
-        return chainFileMigrationService.migrateToActualVersion(fileContent);
+        try {
+            return fileMigrationService.migrate(fileContent, chainImportFileMigrations.stream().map(ImportFileMigration.class::cast).toList());
+        } catch (MigrationException exception) {
+            String message = nonNull(exception.getEntityId())
+                    ? String.format("Failed to migrate data for chain %s (%s): %s",
+                            exception.getEntityName(), exception.getEntityId(), exception.getMessage())
+                    : String.format("Failed to migrate data for chain: %s", exception.getMessage());
+            throw new ChainImportException(exception.getEntityId(), exception.getEntityName(), message);
+        }
     }
 
     protected ChainCompareDTO getYamlBasicChainInfo(String yamlContent) throws IOException {

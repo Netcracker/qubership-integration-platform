@@ -63,8 +63,6 @@ public class ExportImportConstants {
     public static final String MAPPING = "mapping";
     public static final String SOURCE = "source";
     public static final String TARGET = "target";
-    public static final String SPECIFICATION_SOURCE_FILE_NAME = "fileName";
-    public static final String PARENT_ID_FIELD_NAME = "parentId";
     public static final String DIFFERENT_PROTOCOL_ERROR_MESSAGE = "Protocol of provided specification doesn't match with a system protocol";
     public static final String INVALID_INPUT_FILE_ERROR_MESSAGE = "Input file is invalid";
     public static final String NO_SPECIFICATION_SOURCE_ERROR_MESSAGE = "Can't find specification source";

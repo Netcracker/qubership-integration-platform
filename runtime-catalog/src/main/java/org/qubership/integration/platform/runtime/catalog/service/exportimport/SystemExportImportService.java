@@ -18,7 +18,6 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
@@ -166,7 +165,7 @@ public class SystemExportImportService {
             }
 
             return exportedSystem;
-        } catch (JsonProcessingException | IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             String systemId = system != null && system.getId() != null ? "with system id: " + system.getId() + " " : "";
             String errMessage = "Error while serializing system " + systemId + e.getMessage();
             log.error(errMessage);
@@ -255,7 +254,7 @@ public class SystemExportImportService {
         String systemName = null;
 
         try {
-            ObjectNode serviceNode = getFileNode(mainSystemFile);
+            JsonNode serviceNode = yamlMapper.readTree(mainSystemFile);
             SystemDeserializationResult deserializationResult = getBaseSystemDeserializationResult(serviceNode);
             IntegrationSystem baseSystem = deserializationResult.getSystem();
             systemId = baseSystem.getId();
@@ -410,21 +409,18 @@ public class SystemExportImportService {
         Optional<IntegrationSystem> baseSystemOptional = Optional.empty();
 
         try {
-            ObjectNode serviceNode = getFileNode(mainServiceFile);
+            JsonNode serviceNode = yamlMapper.readTree(mainServiceFile);
             SystemDeserializationResult deserializationResult = getBaseSystemDeserializationResult(serviceNode);
             baseSystemOptional = Optional.ofNullable(deserializationResult.getSystem());
 
             result = transactionTemplate.execute((status) -> {
-                File serviceDirectory = mainServiceFile.getParentFile();
                 IntegrationSystem baseSystem = deserializationResult.getSystem();
 
                 if (!CollectionUtils.isEmpty(systemIds) && !systemIds.contains(baseSystem.getId())) {
                     return null;
                 }
 
-                deserializationResult.setSystem(serviceDeserializer.deserializeSystem(
-                        serviceNode, serviceDirectory));
-
+                deserializationResult.setSystem(serviceDeserializer.deserializeSystem(mainServiceFile));
 
                 StringBuilder message = new StringBuilder();
                 ImportSystemStatus importStatus = enrichAndSaveIntegrationSystem(deserializationResult, deployLabel, technicalLabels, message::append);
@@ -829,15 +825,16 @@ public class SystemExportImportService {
     protected SystemDeserializationResult getBaseSystemDeserializationResult(JsonNode serviceNode) throws JsonProcessingException {
         SystemDeserializationResult result = new SystemDeserializationResult();
 
-        String systemId = serviceNode.get(AbstractSystemEntity.Fields.id) != null ? serviceNode.get(AbstractSystemEntity.Fields.id).asText(null) : null;
-        if (systemId == null) {
-            throw new RuntimeException("Missing id field in system file");
-        }
+        String systemId = Optional.ofNullable(serviceNode.get("id")).map(JsonNode::asText)
+                .orElseThrow(() -> new RuntimeException("Missing id field in system file"));
+        String systemName = Optional.ofNullable(serviceNode.get("name")).map(JsonNode::asText).orElse("");
 
-        String systemName = serviceNode.get(AbstractSystemEntity.Fields.name) != null ? serviceNode.get(AbstractSystemEntity.Fields.name).asText("") : "";
-
-        Timestamp modifiedWhen = serviceNode.get(AbstractSystemEntity.Fields.modifiedWhen) != null
-                ? new Timestamp(serviceNode.get(AbstractSystemEntity.Fields.modifiedWhen).asLong()) : null;
+        Timestamp modifiedWhen = Optional.ofNullable(serviceNode.get("context"))
+                .map(node -> node.get("modifiedWhen"))
+                .or(()  -> Optional.ofNullable(serviceNode.get("modifiedWhen")))
+                .map(JsonNode::asLong)
+                .map(Timestamp::new)
+                .orElse(null);
 
         IntegrationSystem baseSystem = new IntegrationSystem();
         baseSystem.setId(systemId);
@@ -847,10 +844,6 @@ public class SystemExportImportService {
         result.setSystem(baseSystem);
 
         return result;
-    }
-
-    protected ObjectNode getFileNode(File file) throws IOException {
-        return (ObjectNode) yamlMapper.readTree(file);
     }
 
     public void logSystemExportImport(IntegrationSystem system, String archiveName, LogOperation operation) {

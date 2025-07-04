@@ -16,27 +16,27 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ImportFileMigrationUtils;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipOutputStream;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ARCH_PARENT_DIR;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_SOURCE_FILE_NAME;
 
 
 @Component
@@ -44,55 +44,60 @@ public class ServiceSerializer {
 
     private final YAMLMapper yamlMapper;
     private final ExportableObjectWriterVisitor exportableObjectWriterVisitor;
+    private final IntegrationSystemDtoMapper integrationSystemDtoMapper;
+    private final SpecificationGroupDtoMapper specificationGroupDtoMapper;
+    private final SystemModelDtoMapper systemModelDtoMapper;
 
     @Autowired
-    public ServiceSerializer(YAMLMapper yamlExportImportMapper,
-                             ExportableObjectWriterVisitor exportableObjectWriterVisitor) {
+    public ServiceSerializer(
+            YAMLMapper yamlExportImportMapper,
+            ExportableObjectWriterVisitor exportableObjectWriterVisitor,
+            IntegrationSystemDtoMapper integrationSystemDtoMapper,
+            SpecificationGroupDtoMapper specificationGroupDtoMapper,
+            SystemModelDtoMapper systemModelDtoMapper
+    ) {
         this.yamlMapper = yamlExportImportMapper;
         this.exportableObjectWriterVisitor = exportableObjectWriterVisitor;
+        this.integrationSystemDtoMapper = integrationSystemDtoMapper;
+        this.specificationGroupDtoMapper = specificationGroupDtoMapper;
+        this.systemModelDtoMapper = systemModelDtoMapper;
     }
 
-    public ExportedSystemObject serialize(IntegrationSystem system) throws JsonProcessingException {
-        ObjectNode systemNode = yamlMapper.valueToTree(system);
+    public ExportedSystemObject serialize(IntegrationSystem system) {
+        IntegrationSystemDto integrationSystemDto = integrationSystemDtoMapper.toExternalEntity(system);
+        ObjectNode systemNode = yamlMapper.valueToTree(integrationSystemDto);
 
-        List<ExportedSpecificationGroup> exportedSpecificationGroups = new ArrayList<>();
-        for (SpecificationGroup specificationGroup : system.getSpecificationGroups()) {
-            List<ExportedSpecification> exportedSpecifications = new ArrayList<>();
-            for (SystemModel specification : specificationGroup.getSystemModels()) {
-                exportedSpecifications.add(serialize(specification));
-            }
-
-            exportedSpecificationGroups.add(new ExportedSpecificationGroup(
-                    specificationGroup.getId(), yamlMapper.valueToTree(specificationGroup), exportedSpecifications));
-        }
-
-        provideFileAdditionalData(systemNode);
+        List<ExportedSpecificationGroup> exportedSpecificationGroups = system.getSpecificationGroups()
+                .stream()
+                .map(this::serialize)
+                .toList();
 
         return new ExportedIntegrationSystem(system.getId(), systemNode, exportedSpecificationGroups);
     }
 
+    public ExportedSpecificationGroup serialize(SpecificationGroup specificationGroup) {
+        SpecificationGroupDto dto = specificationGroupDtoMapper.toExternalEntity(specificationGroup);
+        ObjectNode node = yamlMapper.valueToTree(dto);
+        List<ExportedSpecification> exportedSpecifications = specificationGroup.getSystemModels()
+                .stream()
+                .map(this::serialize)
+                .toList();
+        return new ExportedSpecificationGroup(specificationGroup.getId(), node, exportedSpecifications);
+    }
+
     public ExportedSpecification serialize(SystemModel specification) {
-        ObjectNode specificationNode = yamlMapper.valueToTree(specification);
+        SystemModelDto dto = systemModelDtoMapper.toExternalEntity(specification);
+        ObjectNode node = yamlMapper.valueToTree(dto);
 
-        ArrayNode specificationSourcesNodes = null;
+        List<ExportedSpecificationSource> exportedSpecificationSources = specification.getSpecificationSources()
+                .stream()
+                .map(source -> new ExportedSpecificationSource(
+                        source.getId(),
+                        source.getSource(),
+                        ExportImportUtils.getFullSpecificationFileName(source)))
+                .toList();
 
-        // Adding specification source object manually so we can add filename (with full path)
-        List<ExportedSpecificationSource> exportedSpecificationSources = new ArrayList<>();
-        for (SpecificationSource source : specification.getSpecificationSources()) {
-            exportedSpecificationSources.add(new ExportedSpecificationSource(source.getId(), source.getSource(),
-                    ExportImportUtils.getFullSpecificationFileName(source)));
-
-            ObjectNode specificationSourceNode = yamlMapper.valueToTree(source);
-            specificationSourceNode.remove(AbstractSystemEntity.Fields.modifiedWhen);
-            specificationSourceNode.put(SPECIFICATION_SOURCE_FILE_NAME, ExportImportUtils.getFullSpecificationFileName(source));
-            if (specificationSourcesNodes == null) {
-                specificationNode.putArray(SystemModel.Fields.specificationSources);
-                specificationSourcesNodes = (ArrayNode) specificationNode.get(SystemModel.Fields.specificationSources);
-            }
-            specificationSourcesNodes.add(specificationSourceNode);
-        }
-
-        return new ExportedSpecification(specification.getId(), specificationNode, exportedSpecificationSources);
+        return new ExportedSpecification(specification.getId(), node, exportedSpecificationSources);
     }
 
     public byte[] writeSerializedArchive(List<ExportedSystemObject> exportedSystems) {
@@ -107,14 +112,5 @@ public class ServiceSerializer {
         } catch (IOException e) {
             throw new RuntimeException("Unknown exception while archive creation: " + e.getMessage(), e);
         }
-    }
-
-    private void provideFileAdditionalData(ObjectNode serviceNode) {
-        serviceNode.put(
-                ImportFileMigration.IMPORT_MIGRATIONS_FIELD,
-                ImportFileMigrationUtils.getActualServiceFileMigrationVersions().stream()
-                        .sorted()
-                        .toList()
-                        .toString());
     }
 }

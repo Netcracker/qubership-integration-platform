@@ -45,7 +45,10 @@ import org.qubership.integration.platform.runtime.catalog.service.difference.Ent
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeployPrepare;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainFileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.MigrationException;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,6 +63,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
@@ -85,7 +89,8 @@ public class ChainImportService {
     private final MaskedFieldsService maskedFieldsService;
     private final ChainDifferenceService chainDifferenceService;
     private final ImportInstructionsService importInstructionsService;
-    private final ChainFileMigrationService chainFileMigrationService;
+    private final FileMigrationService fileMigrationService;
+    private final Collection<ChainImportFileMigration> chainImportFileMigrations;
 
     @Value("${qip.build.artifact-descriptor-version}")
     private String artifactDescriptorVersion;
@@ -108,7 +113,8 @@ public class ChainImportService {
             MaskedFieldsService maskedFieldsService,
             ChainDifferenceService chainDifferenceService,
             ImportInstructionsService importInstructionsService,
-            ChainFileMigrationService chainFileMigrationService
+            FileMigrationService fileMigrationService,
+            Collection<ChainImportFileMigration> chainImportFileMigrations
     ) {
         this.yamlMapper = yamlMapper;
         this.transactionTemplate = transactionTemplate;
@@ -126,7 +132,8 @@ public class ChainImportService {
         this.maskedFieldsService = maskedFieldsService;
         this.chainDifferenceService = chainDifferenceService;
         this.importInstructionsService = importInstructionsService;
-        this.chainFileMigrationService = chainFileMigrationService;
+        this.fileMigrationService = fileMigrationService;
+        this.chainImportFileMigrations = chainImportFileMigrations;
     }
 
     public List<ImportChainPreviewDTO> getChainsImportPreview(File importDirectory, ChainImportInstructionsConfig instructionsConfig) {
@@ -447,7 +454,15 @@ public class ChainImportService {
     }
 
     protected String migrateToActualFileVersion(String fileContent) throws Exception {
-        return chainFileMigrationService.migrateToActualVersion(fileContent);
+        try {
+            return fileMigrationService.migrate(fileContent, chainImportFileMigrations.stream().map(ImportFileMigration.class::cast).toList());
+        } catch (MigrationException exception) {
+            String message = nonNull(exception.getEntityId())
+                    ? String.format("Failed to migrate data for chain %s (%s): %s",
+                    exception.getEntityName(), exception.getEntityId(), exception.getMessage())
+                    : String.format("Failed to migrate data for chain: %s", exception.getMessage());
+            throw new ChainImportException(exception.getEntityId(), exception.getEntityName(), message);
+        }
     }
 
     private File getChainYAMLFile(File chainDir) {

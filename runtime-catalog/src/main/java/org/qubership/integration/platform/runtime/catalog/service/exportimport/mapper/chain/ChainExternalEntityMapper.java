@@ -23,7 +23,8 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainFileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.util.DistinctByKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,17 +40,17 @@ import java.util.stream.Stream;
 public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, ChainExternalMapperEntity> {
 
     private final ChainElementsExternalEntityMapper chainElementsMapper;
-    private final ChainFileMigrationService chainFileMigrationService;
+    private final Collection<ChainImportFileMigration> chainImportFileMigrations;
     private final URI chainSchemaUri;
 
     @Autowired
     public ChainExternalEntityMapper(
             ChainElementsExternalEntityMapper chainElementsMapper,
-            ChainFileMigrationService chainFileMigrationService,
+            Collection<ChainImportFileMigration> chainImportFileMigrations,
             @Value("${qip.json.schemas.chain:http://qubership.org/schemas/product/qip/chain}") URI chainSchemaUri
     ) {
         this.chainElementsMapper = chainElementsMapper;
-        this.chainFileMigrationService = chainFileMigrationService;
+        this.chainImportFileMigrations = chainImportFileMigrations;
         this.chainSchemaUri = chainSchemaUri;
     }
 
@@ -139,7 +140,8 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                         .maskedFields(createMaskedFieldExternalEntities(chain.getMaskedFields()))
                         .elements(elementsExternalMapperEntity.getChainElementExternalEntities())
                         .dependencies(extractExternalDependencies(chain))
-                        .migrations(chainFileMigrationService.getActualMigrationVersions().stream()
+                        .migrations(chainImportFileMigrations.stream()
+                                .map(ImportFileMigration::getVersion)
                                 .sorted()
                                 .toList()
                                 .toString())

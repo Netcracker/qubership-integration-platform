@@ -167,6 +167,9 @@ qip:
   json:
     schemas:
       chain: ${CHAIN_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/chain}
+      service: ${SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/service}
+      specification-group: ${SPECIFICATION_GROUP_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification-group}
+      specification: ${SPECIFICATION_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification}
   element-descriptors:
     # These properties are injected in element descriptors
     properties:
