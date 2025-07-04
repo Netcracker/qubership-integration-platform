@@ -12,6 +12,12 @@ export type FilterProps = {
 }
 
 export const Filter = (props: FilterProps) => {
+  const { closeContainingModal } = useModalContext();
+  const [form] = Form.useForm();
+  const [items, setItems] = useState<Map<string, FilterItemState>>(
+    buildInitialItemsMap(),
+  );
+
   function buildMapWithInitialItem(): Map<string, FilterItemState> {
     const result: Map<string, FilterItemState> = new Map();
     const initialItem: FilterItemState = { id: crypto.randomUUID() };
@@ -30,10 +36,6 @@ export const Filter = (props: FilterProps) => {
       return buildMapWithInitialItem();
     }
   }
-
-  const { closeContainingModal } = useModalContext();
-  const [form] = Form.useForm();
-  const [items, setItems] = useState<Map<string, FilterItemState>>(buildInitialItemsMap());
 
   const removeFilterItem = (id: string) => {
     const newState = new Map(items);
@@ -103,6 +105,7 @@ export const Filter = (props: FilterProps) => {
     title="Filter"
     open={true}
     onCancel={closeContainingModal}
+    width={600}
     footer={[
       <Button key="cancel" onClick={closeContainingModal}>
         Cancel

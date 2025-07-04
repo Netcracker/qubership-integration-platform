@@ -1,9 +1,10 @@
 import { Input } from "antd";
 import { FilterValueProps } from "./FilterValue";
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 
 export const StringFilterValue = (props: FilterValueProps) => {
   const [value, setValue] = useState<string | undefined>(props.value);
+  const disabled = props.condition?.valueRequired === false;
 
   const onChange = ({
     target: { value },
@@ -12,7 +13,11 @@ export const StringFilterValue = (props: FilterValueProps) => {
     setValue(value);
   }
 
-  const disabled = props.condition?.valueRequired === false;
+  useEffect(() => {
+    if (disabled) {
+      setValue(undefined);
+    }
+  }, [disabled]);
 
-  return <Input placeholder="Value" onChange={onChange} disabled={disabled} defaultValue={value} />;
+  return <Input placeholder="Value" onChange={onChange} disabled={disabled} value={value} />;
 }
