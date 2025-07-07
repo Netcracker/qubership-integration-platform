@@ -23,7 +23,7 @@ properties:
       source:
         $ref: "#definitions/SpecificationSourceType"
       operations:
-        $ref: "#definition/Operation"
+        $ref: "#definitions/Operation"
       specificationSources:
         type: array
         items:

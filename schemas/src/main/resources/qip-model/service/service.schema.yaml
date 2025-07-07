@@ -16,8 +16,7 @@ properties:
     properties:
       activeEnvironmentId:
         title: Active environment ID
-        id:
-          type: string
+        type: string
       integrationSystemType:
         title: Integration system type
         $ref: "#/definitions/ServiceType"
@@ -28,7 +27,7 @@ properties:
         title: Environments
         type: array
         items:
-          $ref: "#definition/Environment"
+          $ref: "#definitions/Environment"
     additionalProperties: false
     required:
       - activeEnvironmentId
