@@ -5,14 +5,14 @@ type: object
 title: Service
 group: Integrations
 allOf:
-  - $ref: "../base.schema.yaml#definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
 properties:
   content:
     type: object
     allOf:
-      - $ref: "../base.schema.yaml#definitions/CommonEntityContent"
-      - $ref: "../base.schema.yaml#definitions/WithLabels"
-      - $ref: "../base.schema.yaml#definitions/WithMigrations"
+      - $ref: "../base.schema.yaml#/definitions/CommonEntityContent"
+      - $ref: "../base.schema.yaml#/definitions/WithLabels"
+      - $ref: "../base.schema.yaml#/definitions/WithMigrations"
     properties:
       activeEnvironmentId:
         title: Active environment ID
@@ -27,7 +27,7 @@ properties:
         title: Environments
         type: array
         items:
-          $ref: "#definitions/Environment"
+          $ref: "#/definitions/Environment"
     additionalProperties: false
     required:
       - activeEnvironmentId
@@ -57,9 +57,9 @@ definitions:
       - MAAS_BY_CLASSIFIER
   Environment:
     allOf:
-      - $ref: "../base.schema.yaml#definitions/CommonEntityProperties"
-      - $ref: "../base.schema.yaml#definitions/CommonEntityContent"
-      - $ref: "../base.schema.yaml#definitions/WithLabels"
+      - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+      - $ref: "../base.schema.yaml#/definitions/CommonEntityContent"
+      - $ref: "../base.schema.yaml#/definitions/WithLabels"
     type: object
     properties:
       address:

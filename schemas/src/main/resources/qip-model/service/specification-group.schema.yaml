@@ -5,14 +5,14 @@ type: object
 title: Specification Group
 group: Integrations
 allOf:
-  - $ref: "../base.schema.yaml#definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
 properties:
   content:
     type: object
     allOf:
-      - $ref: "../base.schema.yaml#definitions/CommonEntityContent"
-      - $ref: "../base.schema.yaml#definitions/WithLabels"
-      - $ref: "../base.schema.yaml#definitions/WithParent"
+      - $ref: "../base.schema.yaml#/definitions/CommonEntityContent"
+      - $ref: "../base.schema.yaml#/definitions/WithLabels"
+      - $ref: "../base.schema.yaml#/definitions/WithParent"
     properties:
       url:
         title: URL

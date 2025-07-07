@@ -5,14 +5,14 @@ type: object
 title: Specification
 group: Integrations
 allOf:
-  - $ref: "../base.schema.yaml#definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
 properties:
   content:
     type: object
     allOf:
-      - $ref: "../base.schema.yaml#definitions/CommonEntityContent"
-      - $ref: "../base.schema.yaml#definitions/WithLabels"
-      - $ref: "../base.schema.yaml#definitions/WithParent"
+      - $ref: "../base.schema.yaml#/definitions/CommonEntityContent"
+      - $ref: "../base.schema.yaml#/definitions/WithLabels"
+      - $ref: "../base.schema.yaml#/definitions/WithParent"
     properties:
       deprecated:
         title: Specifies whether the specification is deprecated
@@ -21,13 +21,13 @@ properties:
         title: Version of the specification
         type: string
       source:
-        $ref: "#definitions/SpecificationSourceType"
+        $ref: "#/definitions/SpecificationSourceType"
       operations:
-        $ref: "#definitions/Operation"
+        $ref: "#/definitions/Operation"
       specificationSources:
         type: array
         items:
-          $ref: "#definitions/SpecificationSource"
+          $ref: "#/definitions/SpecificationSource"
     required:
       - deprecated
       - version
@@ -45,8 +45,8 @@ definitions:
   SpecificationSource:
     type: object
     allOf:
-      - $ref: "../base.schema.yaml#definitions/CommonEntityProperties"
-      - $ref: "../base.schema.yaml#definitions/CommonEntityContent"
+      - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+      - $ref: "../base.schema.yaml#/definitions/CommonEntityContent"
     properties:
       sourceHash:
         title: Source hash
@@ -64,8 +64,8 @@ definitions:
   Operation:
     type: object
     allOf:
-      - $ref: "../base.schema.yaml#definitions/CommonEntityProperties"
-      - $ref: "../base.schema.yaml#definitions/CommonEntityContent"
+      - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+      - $ref: "../base.schema.yaml#/definitions/CommonEntityContent"
     properties:
       method:
         title: Operation method
