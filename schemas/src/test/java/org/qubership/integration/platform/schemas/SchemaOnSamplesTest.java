@@ -16,10 +16,17 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Set;
+import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.empty;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -28,6 +35,8 @@ public class SchemaOnSamplesTest {
 
     static class ThisTestArgumentsProvider implements ArgumentsProvider {
         private static final YAMLMapper yamlMapper = new YAMLMapper();
+        private static final Pattern schemaCommentPattern = Pattern.compile("^#\\s*\\$schema:\\s+");
+        private static final String SHOULD_FAIL_SUFFIX = "__SHOULD_FAIL.yaml";
 
         @Override
         public Stream<? extends Arguments> provideArguments(
@@ -38,13 +47,31 @@ public class SchemaOnSamplesTest {
             Resource[] resources = resolver.getResources("classpath:samples/**/*.yaml");
             return Arrays.stream(resources).map(resource -> {
                 try {
-                    JsonNode node = yamlMapper.readTree(resource.getInputStream());
-                    String schema = node.get("$schema").asText();
-                    return Arguments.of(schema, resource);
+                    String schema = getSchema(resource);
+                    boolean shouldFail = getIsTestShouldFail(resource);
+                    logger.log(Level.FINE, "Schema: " + schema);
+                    return Arguments.of(schema, resource, shouldFail);
                 } catch (IOException e) {
+                    logger.log(Level.SEVERE, e.getMessage(), e);
                     throw new RuntimeException(e);
                 }
             });
+        }
+
+        private String getSchema(Resource resource) throws IOException {
+            String data = resource.getContentAsString(Charset.defaultCharset());
+            JsonNode node = yamlMapper.readTree(data);
+            return node.has("$schema")
+                    ? node.get("$schema").asText()
+                    : data.lines().findFirst()
+                        .map(String::trim)
+                        .filter(schemaCommentPattern.asPredicate())
+                        .map(line -> line.replaceAll(schemaCommentPattern.pattern(), ""))
+                        .orElse("");
+        }
+
+        private boolean getIsTestShouldFail(Resource resource) throws IOException {
+            return Objects.requireNonNull(resource.getFilename()).endsWith(SHOULD_FAIL_SUFFIX);
         }
     }
 
@@ -77,13 +104,17 @@ public class SchemaOnSamplesTest {
 
     @ParameterizedTest
     @ArgumentsSource(ThisTestArgumentsProvider.class)
-    public void testSchemaOnSample(String schemaId, Resource resource) throws IOException {
+    public void testSchemaOnSample(String schemaId, Resource resource, boolean shouldFail) throws IOException {
         String source = resource.getContentAsString(Charset.defaultCharset());
         JsonSchema schema = jsonSchemaFactory.getSchema(SchemaLocation.of(schemaId), config);
         Set<ValidationMessage> assertions = schema.validate(source, InputFormat.YAML, executionContext -> {
             executionContext.getExecutionConfig().setFormatAssertionsEnabled(true);
         });
-        assertAll(schemaId + " -> " + resource.getURI().getPath(), assertions.stream().map(
-                validationMessage -> () -> fail(validationMessage.getMessage())));
+        if (shouldFail) {
+            assertThat(assertions, is(not(empty())));
+        } else {
+            assertAll(schemaId + " -> " + resource.getURI().getPath(), assertions.stream().map(
+                    validationMessage -> () -> fail(validationMessage.getMessage())));
+        }
     }
 }
