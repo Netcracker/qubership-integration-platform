@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/service/specification.schema.yaml"
+$schema: "http://qubership.org/schemas/product/qip/specification.schema.yaml"
 id: "2d73a4b6-6499-47d5-864f-0c0f86654d90-petstore-1.0.7"
 name: "1.0.7"
 content:

@@ -1,18 +1,18 @@
 ---
-$id: http://qubership.org/schemas/product/qip/service/service.schema.yaml
+$id: http://qubership.org/schemas/product/qip/service.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Service
 group: Integrations
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonTopLevelEntityProperties"
+  - $ref: "base.schema.yaml#/definitions/CommonTopLevelEntityProperties"
 properties:
   content:
     type: object
     allOf:
-      - $ref: "../base.schema.yaml#/definitions/CommonEntityContent"
-      - $ref: "../base.schema.yaml#/definitions/WithLabels"
-      - $ref: "../base.schema.yaml#/definitions/WithMigrations"
+      - $ref: "base.schema.yaml#/definitions/CommonEntityContent"
+      - $ref: "base.schema.yaml#/definitions/WithLabels"
+      - $ref: "base.schema.yaml#/definitions/WithMigrations"
     properties:
       activeEnvironmentId:
         title: Active environment ID
@@ -56,9 +56,9 @@ definitions:
       - MAAS_BY_CLASSIFIER
   Environment:
     allOf:
-      - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-      - $ref: "../base.schema.yaml#/definitions/CommonEntityContent"
-      - $ref: "../base.schema.yaml#/definitions/WithLabels"
+      - $ref: "base.schema.yaml#/definitions/CommonEntityProperties"
+      - $ref: "base.schema.yaml#/definitions/CommonEntityContent"
+      - $ref: "base.schema.yaml#/definitions/WithLabels"
     type: object
     properties:
       address:
