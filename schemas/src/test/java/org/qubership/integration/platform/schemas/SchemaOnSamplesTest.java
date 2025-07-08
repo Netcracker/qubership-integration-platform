@@ -107,9 +107,8 @@ public class SchemaOnSamplesTest {
     public void testSchemaOnSample(String schemaId, Resource resource, boolean shouldFail) throws IOException {
         String source = resource.getContentAsString(Charset.defaultCharset());
         JsonSchema schema = jsonSchemaFactory.getSchema(SchemaLocation.of(schemaId), config);
-        Set<ValidationMessage> assertions = schema.validate(source, InputFormat.YAML, executionContext -> {
-            executionContext.getExecutionConfig().setFormatAssertionsEnabled(true);
-        });
+        Set<ValidationMessage> assertions = schema.validate(source, InputFormat.YAML,
+                executionContext -> executionContext.getExecutionConfig().setFormatAssertionsEnabled(true));
         if (shouldFail) {
             assertThat(assertions, is(not(empty())));
         } else {
