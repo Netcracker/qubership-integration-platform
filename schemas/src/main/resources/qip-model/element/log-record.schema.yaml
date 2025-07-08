@@ -1,4 +1,4 @@
-$id: http://qubership.org/schemas/product/qip/element/log-record
+$id: http://qubership.org/schemas/product/qip/element/log-record.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: Log Record
 type: object

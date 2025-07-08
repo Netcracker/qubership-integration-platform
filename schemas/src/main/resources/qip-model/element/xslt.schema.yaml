@@ -1,4 +1,4 @@
-$id: http://qubership.org/schemas/product/qip/element/xslt
+$id: http://qubership.org/schemas/product/qip/element/xslt.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: XSLT
 type: object

@@ -1,4 +1,4 @@
-$id: http://qubership.org/schemas/product/qip/element/split-2
+$id: http://qubership.org/schemas/product/qip/element/split-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: Split
 type: object

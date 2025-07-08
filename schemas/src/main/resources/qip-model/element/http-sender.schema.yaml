@@ -1,4 +1,4 @@
-$id: http://qubership.org/schemas/product/qip/element/http-sender
+$id: http://qubership.org/schemas/product/qip/element/http-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: Http Sender
 type: object

@@ -1,4 +1,4 @@
-$id: http://qubership.org/schemas/product/qip/element/swimlane
+$id: http://qubership.org/schemas/product/qip/element/swimlane.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: Swimlane
 type: object

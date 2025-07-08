@@ -1,4 +1,4 @@
-$id: http://qubership.org/schemas/product/qip/element/pubsub-sender
+$id: http://qubership.org/schemas/product/qip/element/pubsub-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: PubSub Sender
 type: object

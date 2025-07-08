@@ -1,4 +1,4 @@
-$id: http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2
+$id: http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: RabbitMQ Trigger
 type: object

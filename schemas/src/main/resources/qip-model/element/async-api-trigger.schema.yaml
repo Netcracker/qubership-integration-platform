@@ -1,4 +1,4 @@
-$id: http://qubership.org/schemas/product/qip/element/async-api-trigger
+$id: http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: AsyncAPI Trigger
 type: object

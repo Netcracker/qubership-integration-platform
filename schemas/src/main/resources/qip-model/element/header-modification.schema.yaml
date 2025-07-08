@@ -1,4 +1,4 @@
-$id: http://qubership.org/schemas/product/qip/element/header-modification
+$id: http://qubership.org/schemas/product/qip/element/header-modification.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: Header Modification
 type: object
