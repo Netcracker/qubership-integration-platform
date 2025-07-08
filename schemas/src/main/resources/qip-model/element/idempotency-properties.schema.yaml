@@ -1,0 +1,64 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/idempotency-properties.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+title: Idempotency properties
+type: object
+additionalProperties: false
+properties:
+  idempotency:
+    type: object
+    additionalProperties: false
+    properties:
+      enabled:
+        title: Enable idempotency
+        type: boolean
+        default: false
+      keyExpiry:
+        title: Key expiration time (seconds)
+        type: integer
+        default: 600
+      contextExpression:
+        title: Context expression
+        type: string
+      keyExpression:
+        title: Key expression
+        type: string
+      chainTriggerParameters:
+        title: Subchain execution parameters
+        type: object
+        additionalProperties: false
+        properties:
+          triggerElementId:
+            title: Reference to chain trigger
+            type: string
+          chainCallTimeout:
+            title: Timeout (ms)
+            type: integer
+            default: 30000
+        required:
+          - triggerElementId
+      actionOnDuplicate:
+        title: Action on duplicate message
+        enum:
+          - ignore
+          - throw-exception
+          - execute-subchain
+        default: ignore
+    if:
+      properties:
+        enabled:
+          const: true
+    then:
+      if:
+        properties:
+          actionOnDuplicate:
+            const: execute-subchain
+      then:
+        required:
+          - contextExpression
+          - keyExpression
+          - chainTriggerParameters
+      else:
+        required:
+          - contextExpression
+          - keyExpression
