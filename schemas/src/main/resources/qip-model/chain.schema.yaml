@@ -20,6 +20,8 @@ properties:
         type: string
       outOfScope:
         type: string
+      folder:
+        $ref: "#/definitions/Folder"
       maskingEnabled:
         type: boolean
       maskedFields:
@@ -43,6 +45,23 @@ properties:
 required:
   - content
 definitions:
+  Folder:
+    type: object
+    allOf:
+      - $ref: "base.schema.yaml#/definitions/WithDescription"
+      - $ref: "base.schema.yaml#/definitions/CommonEntityContent"
+    properties:
+      id:
+        title: Identifier
+        type: string
+      name:
+        title: Name
+        type: string
+      subfolder:
+        $ref: "#/definitions/Folder"
+    required:
+      - name
+    additionalProperties: false
   MaskedField:
     type: object
     properties:
