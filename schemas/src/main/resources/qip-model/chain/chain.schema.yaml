@@ -1,5 +1,5 @@
 ---
-$id: http://qubership.org/schemas/product/qip/chain
+$id: http://qubership.org/schemas/product/qip/chain/chain.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Chain
@@ -131,4 +131,3 @@ definitions:
       - $ref: './element/swimlane.schema.yaml'
       - $ref: './element/try-catch-finally-2.schema.yaml'
       - $ref: './element/xslt.schema.yaml'
-

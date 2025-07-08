@@ -1,5 +1,5 @@
 ---
-$id: http://qubership.org/schemas/product/qip/base
+$id: http://qubership.org/schemas/product/qip/base.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 definitions:
   CommonEntityProperties:
@@ -13,11 +13,19 @@ definitions:
       name:
         title: Name
         type: string
-      $schema:
-        type: string
     required:
       - id
       - name
+  CommonTopLevelEntityProperties:
+    title: Common top-level entity properties
+    group: Integrations
+    type: object
+    allOf:
+      - $ref: "#/definitions/CommonEntityProperties"
+    properties:
+      $schema:
+        type: string
+    required:
       - $schema
   CommonEntityContent:
     title: Common Entity Content
