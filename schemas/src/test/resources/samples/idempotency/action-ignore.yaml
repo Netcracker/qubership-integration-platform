@@ -1,0 +1,7 @@
+# $schema: http://qubership.org/schemas/product/qip/element/idempotency-properties.schema.yaml
+idempotency:
+  enabled: true
+  keyExpiry: 300
+  contextExpression: "${header.context}"
+  keyExpression: "${header.key}"
+  actionOnDuplicate: ignore
