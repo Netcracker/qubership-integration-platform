@@ -27,14 +27,21 @@ definitions:
         type: string
     required:
       - $schema
-  CommonEntityContent:
-    title: Common Entity Content
+  WithDescription:
+    title: Entity with description
     group: Integrations
     type: object
     properties:
       description:
         title: Description
         type: string
+  CommonEntityContent:
+    title: Common Entity Content
+    group: Integrations
+    type: object
+    allOf:
+      - $ref: "#/definitions/WithDescription"
+    properties:
       createdWhen:
         title: Created at
         type: integer
