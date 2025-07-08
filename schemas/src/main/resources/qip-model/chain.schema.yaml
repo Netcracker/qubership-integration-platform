@@ -4,91 +4,80 @@ $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Chain
 group: Integrations
-additionalProperties: false
+allOf:
+  - $ref: "base.schema.yaml#/definitions/CommonTopLevelEntityProperties"
 properties:
-  id:
-    type: string
-    format: uuid
-  $schema:
-    type: string
-  name:
-    type: string
   content:
     type: object
-    additionalProperties: false
+    allOf:
+      - $ref: "base.schema.yaml#/definitions/CommonEntityContent"
+      - $ref: "base.schema.yaml#/definitions/WithLabels"
+      - $ref: "base.schema.yaml#/definitions/WithMigrations"
     properties:
-      description:
-        type: string
-      modifiedWhen:
-        type: integer
       businessDescription:
         type: string
       assumptions:
         type: string
       outOfScope:
         type: string
-      labels:
-        type: array
-        items:
-          type: string
       maskingEnabled:
         type: boolean
       maskedFields:
         type: array
         items:
-          type: object
-          additionalProperties: false
-          properties:
-            name:
-              type: string
-          required:
-            - name
+          $ref: "#/definitions/MaskedField"
       elements:
         type: array
         items:
-          $ref: '#/definitions/chainElement'
+          $ref: "#/definitions/ChainElement"
       dependencies:
         type: array
         items:
-          type: object
-          additionalProperties: false
-          properties:
-            from:
-              type: string
-              format: uuid
-            to:
-              type: string
-              format: uuid
-          required:
-            - from
-            - to
+          $ref: "#/definitions/Dependency"
       deployments:
         type: array
         items:
-          type: object
-          additionalProperties: false
-          properties:
-            domain:
-              type: string
-          required:
-            - domain
+          $ref: "#/definitions/Deployment"
       deployAction:
-        type: string
-        enum:
-          - DEPLOY
-          - SNAPSHOT
-          - NONE
-      migrations:
-        type: string
-    required:
-      - migrations
+        $ref: "#/definitions/DeployAction"
 required:
-  - id
-  - $schema
-  - name
   - content
 definitions:
-  chainElement:
+  MaskedField:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    additionalProperties: false
+    required:
+      - name
+  Dependency:
+    type: object
+    properties:
+      from:
+        type: string
+      to:
+        type: string
+    additionalProperties: false
+    required:
+      - from
+      - to
+  DeployAction:
+    enum:
+      - DEPLOY
+      - SNAPSHOT
+      - NONE
+  Deployment:
+    type: object
+    properties:
+      domain:
+        type: string
+    additionalProperties: false
+    required:
+      - domain
+  ChainElement:
     type: object
     required:
       - id
@@ -119,8 +108,8 @@ definitions:
       - $ref: 'element/quartz-scheduler.schema.yaml'
       - $ref: 'element/rabbitmq-sender-2.schema.yaml'
       - $ref: 'element/rabbitmq-trigger-2.schema.yaml'
-      - $ref: 'element/reuse.schema.yaml'
       - $ref: 'element/reuse-reference.schema.yaml'
+      - $ref: 'element/reuse.schema.yaml'
       - $ref: 'element/script.schema.yaml'
       - $ref: 'element/service-call.schema.yaml'
       - $ref: 'element/sftp-download.schema.yaml'
