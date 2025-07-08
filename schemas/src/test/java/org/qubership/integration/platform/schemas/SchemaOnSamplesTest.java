@@ -62,7 +62,7 @@ public final class SchemaOnSamplesTest {
             });
         }
 
-        private String getSchema(Resource resource) throws IOException {
+        private String getSchema(final Resource resource) throws IOException {
             String data = resource.getContentAsString(Charset.defaultCharset());
             JsonNode node = MAPPER.readTree(data);
             return node.has("$schema")
