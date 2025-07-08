@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.schemas;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.networknt.schema.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -13,9 +15,8 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.Map;
+import java.util.Arrays;
 import java.util.Set;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
@@ -25,27 +26,23 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class SchemaOnSamplesTest {
     private static final Logger logger = Logger.getLogger(SchemaOnSamplesTest.class.getName());
 
-    public static final Map<String, String> testMap = Map.of(
-            "http://qubership.org/schemas/product/qip/service/service.schema.yaml", "samples/service/*.yaml",
-            "http://qubership.org/schemas/product/qip/service/specification-group.schema.yaml", "samples/specification-group/*.yaml",
-            "http://qubership.org/schemas/product/qip/service/specification.schema.yaml", "samples/specification/*.yaml"
-    );
-
     static class ThisTestArgumentsProvider implements ArgumentsProvider {
+        private static final YAMLMapper yamlMapper = new YAMLMapper();
+
         @Override
         public Stream<? extends Arguments> provideArguments(
                 ParameterDeclarations parameters,
                 ExtensionContext context
         ) throws Exception {
             PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-            return testMap.entrySet().stream().flatMap(entry -> {
+            Resource[] resources = resolver.getResources("classpath:samples/**/*.yaml");
+            return Arrays.stream(resources).map(resource -> {
                 try {
-                    String schema = entry.getKey();
-                    Resource[] resources = resolver.getResources("classpath:" + entry.getValue());
-                    return Stream.of(resources).map(resource -> Arguments.of(schema, resource));
-                } catch (IOException exception) {
-                    logger.log(Level.SEVERE, exception.getMessage(), exception);
-                    return Stream.empty();
+                    JsonNode node = yamlMapper.readTree(resource.getInputStream());
+                    String schema = node.get("$schema").asText();
+                    return Arguments.of(schema, resource);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
             });
         }
