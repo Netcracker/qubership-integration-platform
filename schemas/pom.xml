@@ -32,6 +32,11 @@
         <tag>HEAD</tag>
     </scm>
 
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <qip-checkstyle-revision>0.0.2</qip-checkstyle-revision>
+    </properties>
+
     <profiles>
         <profile>
             <id>central</id>
@@ -150,17 +155,48 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.0</version>
                 <configuration>
                     <source>21</source>
                     <target>21</target>
+                    <encoding>${project.build.sourceEncoding}</encoding>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.6.0</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>9.3</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.qubership</groupId>
+                        <artifactId>qip-checkstyle</artifactId>
+                        <version>${qip-checkstyle-revision}</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <configLocation>checkstyle.xml</configLocation>
+                    <consoleOutput>true</consoleOutput>
+                    <violationSeverity>warning</violationSeverity>
+                    <failOnViolation>true</failOnViolation>
+                    <linkXRef>false</linkXRef>
+                    <maxAllowedViolations>0</maxAllowedViolations>
+                    <excludeGeneratedSources>true</excludeGeneratedSources>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
-        <testResources>
-            <testResource>
-                <directory>${project.basedir}/src/main/resources</directory>
-            </testResource>
-        </testResources>
     </build>
 
     <repositories>
