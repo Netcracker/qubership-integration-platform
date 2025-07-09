@@ -55,6 +55,7 @@ definitions:
     type: object
     properties:
       chainTriggerParameters:
+        title: Subchain execution parameters
         $ref: "#/definitions/ChainTriggerParameters"
     required:
       - chainTriggerParameters
