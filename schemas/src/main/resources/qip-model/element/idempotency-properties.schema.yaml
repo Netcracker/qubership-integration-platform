@@ -6,8 +6,21 @@ type: object
 additionalProperties: false
 properties:
   idempotency:
+    allOf:
+      - $ref: "#/definitions/CommonIdempotencyProperties"
     type: object
-    additionalProperties: false
+    if:
+      properties:
+        enabled:
+          const: true
+        actionOnDuplicate:
+          const: execute-subchain
+    then:
+      allOf:
+        - $ref: "#/definitions/ExecuteSubchainProperties"
+definitions:
+  CommonIdempotencyProperties:
+    type: object
     properties:
       enabled:
         title: Enable idempotency
@@ -23,20 +36,6 @@ properties:
       keyExpression:
         title: Key expression
         type: string
-      chainTriggerParameters:
-        title: Subchain execution parameters
-        type: object
-        additionalProperties: false
-        properties:
-          triggerElementId:
-            title: Reference to chain trigger
-            type: string
-          chainCallTimeout:
-            title: Timeout (ms)
-            type: integer
-            default: 30000
-        required:
-          - triggerElementId
       actionOnDuplicate:
         title: Action on duplicate message
         enum:
@@ -49,16 +48,27 @@ properties:
         enabled:
           const: true
     then:
-      if:
-        properties:
-          actionOnDuplicate:
-            const: execute-subchain
-      then:
-        required:
-          - contextExpression
-          - keyExpression
-          - chainTriggerParameters
-      else:
-        required:
-          - contextExpression
-          - keyExpression
+      required:
+        - contextExpression
+        - keyExpression
+  ExecuteSubchainProperties:
+    type: object
+    properties:
+      chainTriggerParameters:
+        $ref: "#/definitions/ChainTriggerParameters"
+    required:
+      - chainTriggerParameters
+  ChainTriggerParameters:
+    title: Subchain execution parameters
+    type: object
+    additionalProperties: false
+    properties:
+      triggerElementId:
+        title: Chain trigger
+        type: string
+      chainCallTimeout:
+        title: Timeout (ms)
+        type: integer
+        default: 30000
+    required:
+      - triggerElementId
