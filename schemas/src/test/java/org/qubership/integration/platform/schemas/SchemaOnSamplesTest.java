@@ -130,6 +130,9 @@ public final class SchemaOnSamplesTest {
                         .getExecutionConfig()
                         .setFormatAssertionsEnabled(true));
         if (shouldFail) {
+            assertions.forEach(
+                    assertion -> LOGGER.info(assertion.getMessage())
+            );
             assertThat(assertions, is(not(empty())));
         } else {
             assertAll(
