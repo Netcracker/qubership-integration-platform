@@ -1,6 +1,6 @@
 # $schema: http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.yaml
 id: "3226646b-d0e0-48c1-87b1-de041677fd12"
-name: "AsyncAPI Trigger"
+name: "AsyncAPI Trigger - Kafka"
 type: "async-api-trigger"
 properties:
   after:
