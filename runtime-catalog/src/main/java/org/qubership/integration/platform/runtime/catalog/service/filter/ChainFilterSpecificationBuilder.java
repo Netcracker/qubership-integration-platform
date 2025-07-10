@@ -130,11 +130,6 @@ public class ChainFilterSpecificationBuilder {
 
             Predicate orResult = null;
             if (!orFilters.isEmpty()) {
-                if (!searchMode) {
-                    Path<Integer> chainIdPath = root.get("id");
-                    query.groupBy(chainIdPath);
-                }
-
                 List<Predicate> orPredicates = new ArrayList<>();
 
                 for (Map.Entry<FilterFeature, List<FilterRequestDTO>> entry : orFilters.entrySet()) {
