@@ -1,0 +1,51 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "5aa42289-b2f7-44c6-8703-edcc170f930b"
+name: "Try-Catch-Finally"
+content:
+  modifiedWhen: 1752158807343
+  maskingEnabled: false
+  elements:
+  - id: "41682816-4b38-436a-81b3-796fa8d77ac7"
+    name: "Try-Catch-Finally"
+    type: "try-catch-finally-2"
+    children:
+    - id: "03d6277f-7e7f-423a-a1c4-0036270cfc1b"
+      name: "Catch"
+      type: "catch-2"
+      children:
+      - id: "1564b30f-e46e-4d63-9a00-7f80c87e5f34"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-1564b30f-e46e-4d63-9a00-7f80c87e5f34.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        exception: "java.lang.Exception"
+        priority: 0
+    - id: "091957fa-e44e-411b-9ef5-b53338532f4b"
+      name: "Finally"
+      type: "finally-2"
+      children:
+      - id: "abd2b853-530e-4068-8a74-41b1fa20a405"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-abd2b853-530e-4068-8a74-41b1fa20a405.groovy"
+          propertiesToExportInSeparateFile: "script"
+    - id: "63a46308-dc51-4186-a6f6-6b9de4ed3a77"
+      name: "Try"
+      type: "try-2"
+      children:
+      - id: "2b66d49f-e28b-4c00-9faf-efa5faa1d826"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-2b66d49f-e28b-4c00-9faf-efa5faa1d826.groovy"
+          propertiesToExportInSeparateFile: "script"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

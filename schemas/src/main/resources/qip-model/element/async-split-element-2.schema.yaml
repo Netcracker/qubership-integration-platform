@@ -13,3 +13,6 @@ properties:
   folder:
     type: string
     const: routing
+  properties:
+    type: object
+    additionalProperties: false
