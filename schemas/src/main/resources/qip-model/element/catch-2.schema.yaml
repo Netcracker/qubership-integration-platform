@@ -18,6 +18,13 @@ properties:
     additionalProperties: false
     properties:
       exception:
+        title: Exception
+        description: Exception that should be handled
         type: string
       priority:
+        title: Priority
+        description: >
+          Determines the order of the catch blocks.
+          The lower the number, the earlier the exception will be handled.
+          For general exception classes such as Exception, you need to set a big number.
         type: integer
