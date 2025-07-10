@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 
 @Slf4j
 public class ExportImportUtils {
-
+    public static final String IMPORT_TMP_DIR_PATH = "/tmp/";
     private static final Pattern YAML_FILE_EXTENSION_REGEXP = Pattern.compile("yaml|yml", Pattern.CASE_INSENSITIVE);
 
     public static ResponseEntity<Object> bytesAsResponse(byte[] content, String fileName) {

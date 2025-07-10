@@ -235,7 +235,7 @@ public class CommonVariablesService {
     private Map<String, String> importVariableZip(MultipartFile file) {
         Map<String, String> variablesForImport = Collections.emptyMap();
 
-        String directoryForExport = UUID.randomUUID().toString();
+        String directoryForExport = ExportImportUtils.IMPORT_TMP_DIR_PATH + UUID.randomUUID().toString();
         List<File> extractedSystemFiles;
         try (InputStream is = file.getInputStream()) {
             extractedSystemFiles = extractVariablesFromZip(is, directoryForExport);

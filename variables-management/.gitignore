@@ -16,6 +16,9 @@ bin/
 .idea/
 *.iml
 
+# vscode
+.vscode
+
 # Cassandra
 .toDelete
 
