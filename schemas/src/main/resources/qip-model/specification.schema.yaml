@@ -78,14 +78,8 @@ definitions:
         type: object
       requestSchema:
         type: object
-        patternProperties:
-          "^.+$":
-            $ref: "http://json-schema.org/draft-07/schema"
       responseSchemas:
         type: object
-        patternProperties:
-          "^.+$":
-            $ref: "http://json-schema.org/draft-07/schema"
     required:
       - method
       - path
