@@ -1,0 +1,43 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/element.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+title: Chain element
+type: object
+required:
+  - type
+oneOf:
+  - $ref: 'async-api-trigger.schema.yaml'
+  - $ref: 'chain-call-2.schema.yaml'
+  - $ref: 'chain-trigger-2.schema.yaml'
+  - $ref: 'checkpoint.schema.yaml'
+  - $ref: 'circuit-breaker-2.schema.yaml'
+  - $ref: 'condition.schema.yaml'
+  - $ref: 'file-read.schema.yaml'
+  - $ref: 'file-write.schema.yaml'
+  - $ref: 'graphql-sender.schema.yaml'
+  - $ref: 'header-modification.schema.yaml'
+  - $ref: 'http-sender.schema.yaml'
+  - $ref: 'http-trigger.schema.yaml'
+  - $ref: 'kafka-sender-2.schema.yaml'
+  - $ref: 'kafka-trigger-2.schema.yaml'
+  - $ref: 'log-record.schema.yaml'
+  - $ref: 'loop-2.schema.yaml'
+  - $ref: 'mail-sender.schema.yaml'
+  - $ref: 'mapper-2.schema.yaml'
+  - $ref: 'pubsub-sender.schema.yaml'
+  - $ref: 'pubsub-trigger.schema.yaml'
+  - $ref: 'quartz-scheduler.schema.yaml'
+  - $ref: 'rabbitmq-sender-2.schema.yaml'
+  - $ref: 'rabbitmq-trigger-2.schema.yaml'
+  - $ref: 'reuse-reference.schema.yaml'
+  - $ref: 'reuse.schema.yaml'
+  - $ref: 'script.schema.yaml'
+  - $ref: 'service-call.schema.yaml'
+  - $ref: 'sftp-download.schema.yaml'
+  - $ref: 'sftp-trigger-2.schema.yaml'
+  - $ref: 'sftp-upload.schema.yaml'
+  - $ref: 'split-2.schema.yaml'
+  - $ref: 'split-async-2.schema.yaml'
+  - $ref: 'swimlane.schema.yaml'
+  - $ref: 'try-catch-finally-2.schema.yaml'
+  - $ref: 'xslt.schema.yaml'

@@ -2,15 +2,11 @@ $id: http://qubership.org/schemas/product/qip/element/async-split-element-2.sche
 $schema: http://json-schema.org/draft-07/schema
 title: Async Split Element
 type: object
-additionalProperties: false
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "container.schema.yaml"
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: async-split-element-2
