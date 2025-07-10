@@ -4,7 +4,6 @@ $schema: http://json-schema.org/draft-07/schema
 definitions:
   CommonEntityProperties:
     title: Common Entity Properties
-    group: Integrations
     type: object
     properties:
       id:
@@ -18,7 +17,6 @@ definitions:
       - name
   CommonTopLevelEntityProperties:
     title: Common top-level entity properties
-    group: Integrations
     type: object
     allOf:
       - $ref: "#/definitions/CommonEntityProperties"
@@ -29,7 +27,6 @@ definitions:
       - $schema
   WithDescription:
     title: Entity with description
-    group: Integrations
     type: object
     properties:
       description:
@@ -37,7 +34,6 @@ definitions:
         type: string
   CommonEntityContent:
     title: Common Entity Content
-    group: Integrations
     type: object
     allOf:
       - $ref: "#/definitions/WithDescription"
@@ -56,7 +52,6 @@ definitions:
         $ref: "#/definitions/User"
   WithLabels:
     title: Entity content with Labels
-    group: Integrations
     type: object
     properties:
       labels:
@@ -67,7 +62,6 @@ definitions:
           type: string
   WithMigrations:
     title: Entity content with Migrations
-    group: Integrations
     type: object
     properties:
       migrations:
@@ -77,7 +71,6 @@ definitions:
       - migrations
   WithParent:
     title: Entity content with Parent
-    group: Integrations
     type: object
     properties:
       parentId:
@@ -87,7 +80,6 @@ definitions:
       - parentId
   User:
     title: User
-    group: Integrations
     type: object
     additionalProperties: false
     properties:
