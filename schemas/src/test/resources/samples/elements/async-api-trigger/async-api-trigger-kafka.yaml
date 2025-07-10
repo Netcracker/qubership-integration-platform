@@ -1,0 +1,35 @@
+# $schema: http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.yaml
+id: "3226646b-d0e0-48c1-87b1-de041677fd12"
+name: "AsyncAPI Trigger"
+type: "async-api-trigger"
+properties:
+  after:
+    - code: "UserSignedUp"
+      label: "UserSignedUp"
+      schema:
+        $id: "http://system.catalog/schemas/UserSignedUp"
+        $schema: "http://json-schema.org/draft-07/schema#"
+        definitions: {}
+  asyncValidationSchema: "{\"$id\":\"http://system.catalog/schemas/UserSignedUp\"\
+        ,\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"definitions\":{}}"
+  idempotency:
+    enabled: true
+    keyExpiry: 300
+    keyExpression: "${header.idempotencyKey}"
+    actionOnDuplicate: "throw-exception"
+    contextExpression: "${header.context}"
+  integrationOperationAsyncProperties:
+    groupId: "qip"
+  integrationOperationId: "00fdc9ce-d3da-4b3d-90ec-8ad3b989d4ff-account-service-1.0.0-emitUserSignUpEvent"
+  integrationOperationMethod: "subscribe"
+  integrationOperationPath: "user/signedup"
+  integrationOperationProtocolType: "kafka"
+  integrationSpecificationGroupId: "00fdc9ce-d3da-4b3d-90ec-8ad3b989d4ff-account-service"
+  integrationSpecificationId: "00fdc9ce-d3da-4b3d-90ec-8ad3b989d4ff-account-service-1.0.0"
+  integrationSystemId: "00fdc9ce-d3da-4b3d-90ec-8ad3b989d4ff"
+  reconnectDelay: 30000
+  requestFilterHeaderWhitelist:
+    foo: "bar"
+    context: ""
+    idempotencyKey: ""
+  systemType: "EXTERNAL"
