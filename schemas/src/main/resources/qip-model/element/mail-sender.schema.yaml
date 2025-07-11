@@ -3,15 +3,10 @@ $id: http://qubership.org/schemas/product/qip/element/mail-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: Mail Sender
 type: object
-additionalProperties: false
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: mail-sender
@@ -20,45 +15,100 @@ properties:
     const: senders
   properties:
     type: object
-    additionalProperties: false
+    allOf:
+      - $ref: "properties/context-propagation.schema.yaml"
     properties:
-      alternativeBodyHeader:
+      url:
+        title: URL
+        description: >
+          Mail server URI in format: {protocol}://{host}:{port}.
+          Supported protocols are SMTP and SMTPS (secure variant
+          of SMTP layered over SSL).
+          Default ports are 25 for SMTP, and 465 for SMTPS.
         type: string
-      bcc:
-        type: string
-      cc:
-        type: string
-      connectionTimeout:
-        type: integer
-      contentType:
-        type: string
-        enum:
-          - text/plain
-          - text/html
       from:
-        type: string
-      ignoreUnsupportedCharset:
-        type: boolean
-      overrideContextComponent:
-        type: custom
-      overrideContextParams:
-        type: string
-      password:
-        type: string
-      propagateContext:
-        type: boolean
-      replyTo:
-        type: string
-      subject:
+        title: From
+        description: The From email address.
         type: string
       to:
+        title: To
+        description: >
+          The To email addresses. Setting the To email addresses in the
+          header takes precedence over this option.
+          In this case any CC and BCC settings are also retrieved
+          from headers.
+        $ref: "#/definitions/AddressList"
+      replyTo:
+        title: Reply-To
+        description: >
+          The Reply-To recipients (the receivers of the response mail).
+        $ref: "#/definitions/AddressList"
+      cc:
+        title: CC
+        description: The CC email address.
+        $ref: "#/definitions/AddressList"
+      bcc:
+        title: BCC
+        description: The BCC email address.
+        $ref: "#/definitions/AddressList"
+      subject:
+        title: Subject
+        description: >
+          The Subject of the message being sent.
+          Setting the subject in the header takes
+          precedence over this option.
         type: string
-      url:
+      username:
+        title: Username
+        description: The username for login.
+        type: string
+      password:
+        title: Password
+        description: >
+          The password for login.
+          For security purposes, use reference to secured
+          variables when entering passwords.
+        type: string
+      connectionTimeout:
+        title: Connection timeout (ms)
+        description: >
+          Connection timeout in millis (default value will be used
+          if nothing is given).
+        type: integer
+        default: 30000
+      contentType:
+        title: Content Type
+        description: >
+          The mail message content type. Use text/html for HTML mails.
+        type: string
+        default: text/plain
+      alternativeBodyHeader:
+        title: Alternative body header
+        description: >
+          Specifies the header that contains an alternative email body.
+          For example, if you send emails in text/html format and want
+          to provide an alternative mail body for non-HTML email clients,
+          set the alternative mail body with this key as a header.
         type: string
       useInlineAttachments:
+        title: Use inline attachments
+        description: Whether to use disposition inline or attachment.
         type: boolean
-      username:
-        type: string
+      ignoreUnsupportedCharset:
+        title: Ignore unsupported charset
+        description: >
+          Ignore unsupported charset in the local JVM when sending mails.
+          If the charset is unsupported then charset=XXX (where XXX represents
+          the unsupported charset) is removed from the content-type
+          and it relies on the platform default instead.
+        type: boolean
     required:
       - from
       - url
+definitions:
+  AddressList:
+    type: array
+    items:
+      $ref: "#/definitions/Address"
+  Address:
+    type: string
