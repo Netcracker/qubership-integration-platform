@@ -29,7 +29,7 @@ properties:
         type: string
       requestFilterHeaderAllowlist:
         title: Filtered headers list
-        $ref: "#/definitions/Headers"
+        $ref: "#/properties/headers.schema.yaml"
       integrationOperationId:
         title: Operation ID
         type: string
@@ -85,11 +85,6 @@ definitions:
       - code
       - label
       - schema
-  Headers:
-    type: object
-    patternProperties:
-      "^.+$":
-        type: string
   Protocol:
     enum:
       - kafka

@@ -12,10 +12,7 @@ properties:
   overrideContextParams:
     title: Override technical context headers
     description: Propagate props to headers before sending message.
-    type: object
-    patternProperties:
-      "^.+$":
-        type: string
+    $ref: "headers.schema.yaml"
 if:
   properties:
     propagateContext:
