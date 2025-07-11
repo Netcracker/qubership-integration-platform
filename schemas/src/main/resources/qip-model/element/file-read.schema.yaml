@@ -2,15 +2,10 @@ $id: http://qubership.org/schemas/product/qip/element/file-read.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: File Read
 type: object
-additionalProperties: false
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: file-read
@@ -22,6 +17,7 @@ properties:
     additionalProperties: false
     properties:
       antInclude:
+        title: File Name (mask supported)
         type: string
     required:
       - antInclude
