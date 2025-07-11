@@ -1,0 +1,25 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "621a67d5-99a8-4161-8fc2-4c32e41153c4"
+name: "Loop"
+content:
+  modifiedWhen: 1752246760896
+  maskingEnabled: false
+  elements:
+  - id: "4f2ad169-697a-4f63-972c-8a5f31a08b3c"
+    name: "Loop"
+    type: "loop-2"
+    children:
+    - id: "c679a234-afac-4796-876c-95bdda1f99be"
+      name: "Script"
+      type: "script"
+      properties:
+        exportFileExtension: "groovy"
+        propertiesFilename: "script-c679a234-afac-4796-876c-95bdda1f99be.groovy"
+        propertiesToExportInSeparateFile: "script"
+    properties:
+      expression: "true"
+      maxLoopIteration: 1500
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"
