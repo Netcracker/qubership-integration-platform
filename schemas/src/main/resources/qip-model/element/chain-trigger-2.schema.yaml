@@ -2,15 +2,10 @@ $id: http://qubership.org/schemas/product/qip/element/chain-trigger-2.schema.yam
 $schema: http://json-schema.org/draft-07/schema
 title: Chain Trigger
 type: object
-additionalProperties: false
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: chain-trigger-2
@@ -21,7 +16,5 @@ properties:
     type: object
     additionalProperties: false
     properties:
-      chainCallUsage:
-        type: custom
       elementId:
         type: string
