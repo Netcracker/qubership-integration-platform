@@ -5,6 +5,7 @@ type: object
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "container.schema.yaml"
 properties:
   type:
     type: string
