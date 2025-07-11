@@ -13,12 +13,3 @@ properties:
     title: Override technical context headers
     description: Propagate props to headers before sending message.
     $ref: "headers.schema.yaml"
-if:
-  properties:
-    propagateContext:
-      const: false
-  required:
-    - propagateContext
-else:
-  required:
-    - overrideContextParams

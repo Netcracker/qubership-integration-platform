@@ -1,0 +1,33 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/http-common.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+title: Common HTTP call properties
+type: object
+properties:
+  isExternalCall:
+    title: External call
+    description: >
+      External - http and https requests allowed (through egress gateway).
+      Internal - only http, direct call.
+    type: boolean
+    default: true
+  m2m:
+    title: Enable M2M security
+    description: >
+      Specifies whether M2M token should be used
+      to make a call.
+    type: boolean
+    default: false
+  reuseEstablishedConnection:
+    title: Reuse established connection
+    description: >
+      If checked - HTTP client will use the connection
+      for multiple requests.
+    type: boolean
+    default: true
+  uri:
+    title: Server URI
+    description: "Server URI, format: https://example.com/foo/bar"
+    type: string
+required:
+  - uri

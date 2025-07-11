@@ -18,21 +18,8 @@ properties:
     allOf:
       - $ref: "properties/correlation-id.schema.yaml"
       - $ref: "properties/context-propagation.schema.yaml"
+      - $ref: "properties/http-call-common.schema.yaml"
     properties:
-      isExternalCall:
-        title: External call
-        description: >
-          External - http and https requests allowed (through egress gateway).
-          Internal - only http, direct call.
-        type: boolean
-        default: true
-      m2m:
-        title: Enable M2M security
-        description: >
-          Specifies whether M2M token should be used
-          to make a call.
-        type: boolean
-        default: false
       operationName:
         title: Operation name
         description: >
@@ -47,17 +34,6 @@ properties:
         title: Query header
         type: string
         default: CamelGraphQLQuery
-      reuseEstablishedConnection:
-        title: Reuse established connection
-        description: >
-          If checked - HTTP client will use the connection
-          for multiple requests.
-        type: boolean
-        default: true
-      uri:
-        title: GraphQL server URI
-        description: "GraphQL server URI, format: https://example.com/graphql"
-        type: string
       variablesHeader:
         title: Variables header
         type: string
@@ -68,4 +44,3 @@ properties:
         type: string
     required:
       - query
-      - uri
