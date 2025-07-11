@@ -1,0 +1,19 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "5a21177d-c375-4fe4-b233-a9a564b2b710"
+name: "Checkpoint"
+content:
+  modifiedWhen: 1752218615432
+  maskingEnabled: false
+  elements:
+  - id: "55c08ebe-aaf5-48ca-a7a1-4a2e70628d02"
+    name: "Checkpoint"
+    type: "checkpoint"
+    properties:
+      checkpointElementId: "55c08ebe-aaf5-48ca-a7a1-4a2e70628d02"
+      contextPath: "/chains/5a21177d-c375-4fe4-b233-a9a564b2b710/sessions/{checkpointSessionId}/checkpoint-elements/55c08ebe-aaf5-48ca-a7a1-4a2e70628d02/retry"
+      externalRoute: false
+      httpMethodRestrict: "POST"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

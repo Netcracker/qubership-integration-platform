@@ -2,15 +2,10 @@ $id: http://qubership.org/schemas/product/qip/element/checkpoint.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: Checkpoint
 type: object
-additionalProperties: false
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: checkpoint
@@ -23,11 +18,11 @@ properties:
     properties:
       checkpointElementId:
         type: string
-      checkpointEndpoint:
-        type: custom
       contextPath:
         type: string
       externalRoute:
         type: boolean
+        const: false
       httpMethodRestrict:
         type: string
+        const: POST
