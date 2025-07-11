@@ -1,5 +1,5 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/idempotency-properties.schema.yaml
+$id: http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: Idempotency properties
 type: object

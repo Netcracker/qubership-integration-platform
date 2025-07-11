@@ -17,7 +17,7 @@ properties:
   properties:
     type: object
     allOf:
-      - $ref: "idempotency-properties.schema.yaml"
+      - $ref: "properties/idempotency.schema.yaml"
     properties:
       after:
         title: Request validation schemas

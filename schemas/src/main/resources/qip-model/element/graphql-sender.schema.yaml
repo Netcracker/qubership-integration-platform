@@ -1,16 +1,12 @@
+---
 $id: http://qubership.org/schemas/product/qip/element/graphql-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: GraphQL Sender
 type: object
-additionalProperties: false
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: graphql-sender
@@ -19,35 +15,56 @@ properties:
     const: senders
   properties:
     type: object
-    additionalProperties: false
+    allOf:
+      - $ref: "properties/correlation-id.schema.yaml"
+      - $ref: "properties/context-propagation.schema.yaml"
     properties:
-      correlationIdReceiver:
-        type: custom
       isExternalCall:
+        title: External call
+        description: >
+          External - http and https requests allowed (through egress gateway).
+          Internal - only http, direct call.
         type: boolean
+        default: true
       m2m:
+        title: Enable M2M security
+        description: >
+          Specifies whether M2M token should be used
+          to make a call.
         type: boolean
+        default: false
       operationName:
+        title: Operation name
+        description: >
+          The query or mutation name.
+          Optional if query contains single operation
         type: string
-      overrideContextComponent:
-        type: custom
-      overrideContextParams:
-        type: string
-      propagateContext:
-        type: boolean
       query:
+        title: Query
+        description: The query text
         type: string
-      queryEditor:
-        type: custom
       queryHeader:
+        title: Query header
         type: string
+        default: CamelGraphQLQuery
       reuseEstablishedConnection:
+        title: Reuse established connection
+        description: >
+          If checked - HTTP client will use the connection
+          for multiple requests.
         type: boolean
+        default: true
       uri:
+        title: GraphQL server URI
+        description: "GraphQL server URI, format: https://example.com/graphql"
         type: string
       variablesHeader:
+        title: Variables header
         type: string
+        default: CamelGraphQLVariables
       variablesJSON:
+        title: Variables JSON
+        description: Operation variables in JSON format.
         type: string
     required:
       - query

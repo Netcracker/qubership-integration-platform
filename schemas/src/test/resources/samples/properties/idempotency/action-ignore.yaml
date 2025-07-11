@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/idempotency-properties.schema.yaml
+# $schema: http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml
 idempotency:
   enabled: true
   keyExpiry: 300

@@ -1,0 +1,2 @@
+# $schema: http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml
+correlationIdName: foo

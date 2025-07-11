@@ -1,0 +1,2 @@
+# $schema: http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml
+propagateContext: false
