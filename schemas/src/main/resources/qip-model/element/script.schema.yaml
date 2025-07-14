@@ -30,4 +30,3 @@ properties:
     required:
       - exportFileExtension
       - propertiesFilename
-additionalProperties: false

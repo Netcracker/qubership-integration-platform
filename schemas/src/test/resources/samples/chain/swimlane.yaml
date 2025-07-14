@@ -1,0 +1,25 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "e42003e8-4d46-49db-9880-919c818aaa16"
+name: "Swimlane"
+content:
+  modifiedWhen: 1752503893976
+  maskingEnabled: false
+  elements:
+  - id: "0df67dc1-22fd-4784-ab7e-d93d7976fe36"
+    name: "Script"
+    type: "script"
+    swimlaneId: "427e6469-6b1a-4fe1-94db-feceaac5d830"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-0df67dc1-22fd-4784-ab7e-d93d7976fe36.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "427e6469-6b1a-4fe1-94db-feceaac5d830"
+    name: "Default swimlane"
+    description: "Some text"
+    type: "swimlane"
+    properties:
+      color: "Blue"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

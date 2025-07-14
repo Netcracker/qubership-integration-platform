@@ -2,15 +2,13 @@
 $id: http://qubership.org/schemas/product/qip/element/swimlane.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: Swimlane
+description: >
+  Group elements, that will be represented in UI as Swimlanes.
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: swimlane
@@ -19,17 +17,16 @@ properties:
     const: grouping
   properties:
     type: object
-    additionalProperties: false
     properties:
       color:
-        type: string
-        enum:
-          - Blue
-          - Green
-          - Yellow
-          - Purple
-          - Lagoon
-          - Brown
-      swimlaneColor:
-        type: custom
-additionalProperties: false
+        $ref: "#/definitions/Color"
+    additionalProperties: false
+definitions:
+  Color:
+    enum:
+      - Blue
+      - Green
+      - Yellow
+      - Purple
+      - Lagoon
+      - Brown
