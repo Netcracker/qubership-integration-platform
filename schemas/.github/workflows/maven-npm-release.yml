@@ -60,6 +60,7 @@ jobs:
     with:
       version-type: ${{ inputs.maven-version-type || 'patch' }}
       profile: ${{ inputs.maven-profile }}
+    secrets: inherit
 
   npm-publish:
     if: ${{ inputs.npm-publish && inputs.npm-publish != 'false' }}
