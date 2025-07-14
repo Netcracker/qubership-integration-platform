@@ -1,0 +1,27 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "0147bff2-0acb-411d-830f-e5d362760f32"
+name: "SFTP Download"
+content:
+  modifiedWhen: 1752500897360
+  maskingEnabled: false
+  elements:
+  - id: "31c7f5ba-51bc-496a-b4b9-537eab403f97"
+    name: "SFTP Download"
+    type: "sftp-download"
+    properties:
+      antInclude: "*.*"
+      autoCreate: false
+      binary: true
+      connectUrl: "localhost:22/foo/bar"
+      idempotent: true
+      idempotentKey: "${file:name}-${file:size}-${file:modified}"
+      password: "D'oh!"
+      sendEmptyMessageWhenIdle: true
+      streamDownload: true
+      throwExceptionOnConnectFailed: true
+      useUserKnownHostsFile: false
+      username: "Homer"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"
