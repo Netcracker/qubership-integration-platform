@@ -1,0 +1,12 @@
+diff --git a/package.json b/package.json
+index bf72f4b..49ddccc 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@netcracker/qip-schemas",
+-  "version": "0.0.1",
++  "version": "0.0.2",
+   "license": "Apache-2.0",
+   "description": "Schemas definition for QIP",
+   "scripts": {
