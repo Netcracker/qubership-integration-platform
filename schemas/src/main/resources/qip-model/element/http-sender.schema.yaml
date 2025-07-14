@@ -2,10 +2,10 @@
 $id: http://qubership.org/schemas/product/qip/element/http-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
-title: Http Sender
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Http Sender
 properties:
   type:
     type: string

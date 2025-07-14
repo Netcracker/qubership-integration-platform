@@ -2,9 +2,9 @@
 $id: http://qubership.org/schemas/product/qip/specification-group.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
-title: Specification Group
 allOf:
   - $ref: "base.schema.yaml#/definitions/CommonTopLevelEntityProperties"
+title: Specification Group
 properties:
   content:
     type: object

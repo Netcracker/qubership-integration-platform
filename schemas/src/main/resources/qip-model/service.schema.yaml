@@ -2,9 +2,9 @@
 $id: http://qubership.org/schemas/product/qip/service.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
-title: Service
 allOf:
   - $ref: "base.schema.yaml#/definitions/CommonTopLevelEntityProperties"
+title: Service
 properties:
   content:
     type: object

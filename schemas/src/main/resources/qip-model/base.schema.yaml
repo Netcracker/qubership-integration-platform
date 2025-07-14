@@ -17,9 +17,9 @@ definitions:
       - name
   CommonTopLevelEntityProperties:
     type: object
-    title: Common top-level entity properties
     allOf:
       - $ref: "#/definitions/CommonEntityProperties"
+    title: Common top-level entity properties
     properties:
       $schema:
         type: string
@@ -34,9 +34,9 @@ definitions:
         title: Description
   CommonEntityContent:
     type: object
-    title: Common Entity Content
     allOf:
       - $ref: "#/definitions/WithDescription"
+    title: Common Entity Content
     properties:
       createdWhen:
         type: integer

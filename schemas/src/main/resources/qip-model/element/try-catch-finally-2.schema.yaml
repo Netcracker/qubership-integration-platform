@@ -2,10 +2,10 @@
 $id: http://qubership.org/schemas/product/qip/element/try-catch-finally-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
-title: Try-Catch-Finally
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Try-Catch-Finally
 properties:
   type:
     type: string

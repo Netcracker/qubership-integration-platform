@@ -2,10 +2,10 @@
 $id: http://qubership.org/schemas/product/qip/element/mail-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
-title: Mail Sender
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Mail Sender
 properties:
   type:
     type: string
