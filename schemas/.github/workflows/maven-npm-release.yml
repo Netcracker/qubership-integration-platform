@@ -70,4 +70,3 @@ jobs:
       dist-tag: ${{ inputs.npm-dist-tag }}
       branch_name: main
     secrets: inherit
-
