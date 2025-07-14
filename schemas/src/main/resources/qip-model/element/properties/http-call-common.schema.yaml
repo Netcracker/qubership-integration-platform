@@ -1,5 +1,5 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/properties/http-common.schema.yaml
+$id: http://qubership.org/schemas/product/qip/element/properties/http-call-common.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 title: Common HTTP call properties
 type: object
