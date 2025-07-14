@@ -26,23 +26,15 @@ name: Maven release
 run-name: ${{ github.event.inputs.version-type }} release for ${{ github.event.repository.name }}
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       version-type:
         description: 'Version type to release'
-        type: choice
-        options:
-          - 'major'
-          - 'minor'
-          - 'patch'
+        type: string
         required: true
-        default: 'patch'
       profile:
         description: 'Maven profile to use'
-        type: choice
-        options:
-          - 'github'
-          - 'central'
+        type: string
         required: false
         default: 'central'
       mvn-args:
@@ -55,6 +47,21 @@ on:
         required: false
         default: false
         type: boolean
+    secrets:
+      GITHUB_TOKEN:
+        required: false
+      MAVEN_GPG_PRIVATE_KEY:
+        required: false
+      MAVEN_GPG_PASSPHRASE:
+        required: false
+      MAVEN_USER:
+        required: false
+      MAVEN_PASSWORD:
+        required: false
+      GH_BUMP_VERSION_APP_ID:
+        required: false
+      GH_BUMP_VERSION_APP_KEY:
+        required: false
 
 permissions:
   contents: write

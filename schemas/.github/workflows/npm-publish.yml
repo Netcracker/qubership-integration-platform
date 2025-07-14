@@ -1,0 +1,127 @@
+name: Reusable NPM Publish
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      scope:
+        required: false
+        type: string
+        default: "@netcracker"
+      node-version:
+        required: false
+        type: string
+        default: "22.x"
+      registry-url:
+        required: false
+        type: string
+        default: "https://npm.pkg.github.com"
+      update-nc-dependency:
+        required: false
+        type: boolean
+        default: false
+      dist-tag:
+        default: "next"
+        type: string
+        description: "NPM dist-tag"
+        required: false
+      branch_name:
+        required: false
+        type: string
+        default: "main"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  npm-build-publish:
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show branch
+        run: echo "Branch= ${{ github.event.inputs.branch_name }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.scope }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Check if project is a Lerna monorepo
+        id: check-lerna
+        run: |
+          if [ -f lerna.json ]; then
+            echo "Lerna project detected."
+            echo "IS_LERNA=true" >> $GITHUB_ENV
+          else
+            echo "Not a Lerna project."
+            echo "IS_LERNA=false" >> $GITHUB_ENV
+          fi
+
+      - name: Update dependencies (if required)
+        if: ${{ inputs.update-nc-dependency == 'true' }}
+        run: |
+          npm ls --json | jq -r '.dependencies | keys[]' | grep "@netcracker" | xargs --no-run-if-empty npm update
+
+      - name: Update package version (for Lerna or NPM)
+        run: |
+          if [ "$IS_LERNA" = "true" ]; then
+            echo "Updating version in lerna.json and all package.json files..."
+            npx lerna version ${{ inputs.version }} --yes --no-git-tag-version --no-push
+          else
+            echo "Updating version in package.json..."
+            npm version ${{ inputs.version }} --no-git-tag-version
+          fi
+          git diff --color
+          git diff >> changes.txt
+
+      - name: Get package version
+        id: get_version
+        run: |
+            if [ "$IS_LERNA" == "true" ]; then
+              VERSION=$(lerna list --json | jq -r '.[0].version')
+            else
+              VERSION=$(jq -r '.version' package.json)
+            fi
+            echo "package_version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Project
+        run: |
+          if npm run | grep -q "prepublishOnly"; then
+            npm run prepublishOnly
+          elif npm run | grep -q "build"; then
+            npm run build
+          else
+            echo "No 'prepublishOnly' or 'build' script found. Skipping build step."
+          fi
+
+      - name: Run tests
+        run: npm test --if-present
+
+      - name: Commit and Push changes
+        uses: ./.github/actions/commit-and-push
+        with:
+          branch_name: ${{ inputs.branch_name }}
+
+      - name: Publish Package
+        run: |
+          npm config get registry
+          if [ "$IS_LERNA" = "true" ]; then
+            echo "Publishing with Lerna..."
+            npx lerna publish from-package --yes --no-push --no-git-reset --no-git-tag-version --dist-tag ${{ inputs.dist-tag }}
+          else
+            echo "Publishing with npm..."
+            npm publish --tag ${{ inputs.dist-tag }}
+          fi
