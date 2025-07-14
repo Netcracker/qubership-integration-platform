@@ -4,7 +4,7 @@
 
     <groupId>org.qubership</groupId>
     <artifactId>qip-schemas</artifactId>
-    <version>0.0.4-SNAPSHOT</version>
+    <version>0.0.4</version>
     <packaging>pom</packaging>
 
     <name>${project.groupId}:${project.artifactId}</name>
@@ -28,7 +28,7 @@
         <connection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</connection>
         <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</developerConnection>
         <url>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</url>
-      <tag>v0.1.0</tag>
+      <tag>v0.0.4</tag>
   </scm>
 
         <profiles>
