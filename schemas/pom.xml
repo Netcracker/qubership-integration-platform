@@ -25,9 +25,9 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:https://github.com/andyroode/qubership-integration-schemas.git</connection>
-        <developerConnection>scm:git:https://github.com/andyroode/qubership-integration-schemas.git</developerConnection>
-        <url>scm:git:https://github.com/andyroode/qubership-integration-schemas.git</url>
+        <connection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</connection>
+        <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</developerConnection>
+        <url>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</url>
       <tag>HEAD</tag>
   </scm>
 
@@ -115,7 +115,7 @@
                     <repository>
                         <id>github</id>
                         <name>GitHub Packages</name>
-                        <url>https://maven.pkg.github.com/andyroode/qubership-integration-schemas</url>
+                        <url>https://maven.pkg.github.com/netcracker/qubership-integration-schemas</url>
                     </repository>
                 </distributionManagement>
             </profile>
@@ -172,7 +172,7 @@
         <!-- GitHub packages repository for both release and SNAPSHOT versions -->
         <repository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/andy-roode/qubership-integration-schemas</url>
+            <url>https://maven.pkg.github.com/netcracker/qubership-integration-schemas</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
