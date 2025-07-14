@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/else.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Else
 type: object
+title: Else
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"

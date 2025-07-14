@@ -1,9 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/quartz-scheduler.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Scheduler
 type: object
-additionalProperties: false
+title: Scheduler
 properties:
   id:
     type: string
@@ -28,3 +27,4 @@ properties:
         type: boolean
     required:
       - cron
+additionalProperties: false

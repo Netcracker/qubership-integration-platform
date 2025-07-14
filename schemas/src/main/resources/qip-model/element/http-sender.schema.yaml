@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/http-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Http Sender
 type: object
+title: Http Sender
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
@@ -25,11 +25,11 @@ properties:
         description: HTTP method
         $ref: "#/definitions/HttpMethod"
       connectTimeout:
+        type: integer
         title: Connection timeout (ms)
         description: >
           Specifies connection timeout in millis
           (default value will be used if nothing is given).
-        type: integer
         default: 120000
     required:
       - httpMethod

@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Http Trigger
 type: object
+title: Http Trigger
 additionalProperties: false
 properties:
   id:
@@ -20,7 +20,6 @@ properties:
     const: triggers
   properties:
     type: object
-    additionalProperties: false
     properties:
       abacResource:
         type: string
@@ -106,3 +105,4 @@ properties:
     required:
       - contextPath
       - httpBinding
+    additionalProperties: false

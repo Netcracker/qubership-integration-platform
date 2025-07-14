@@ -14,8 +14,8 @@ properties:
       - $ref: "base.schema.yaml#/definitions/WithParent"
     properties:
       url:
-        title: URL
         type: string
+        title: URL
       synchronization:
         type: boolean
         default: false

@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Mapper
 type: object
+title: Mapper
 additionalProperties: false
 properties:
   id:
@@ -20,7 +20,6 @@ properties:
     const: transformation
   properties:
     type: object
-    additionalProperties: false
     properties:
       exportFileExtension:
         type: string
@@ -28,3 +27,4 @@ properties:
         type: string
       throwException:
         type: boolean
+    additionalProperties: false

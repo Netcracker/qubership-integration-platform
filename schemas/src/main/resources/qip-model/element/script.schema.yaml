@@ -1,9 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/script.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Script
 type: object
-additionalProperties: false
+title: Script
 properties:
   id:
     type: string
@@ -31,3 +30,4 @@ properties:
     required:
       - exportFileExtension
       - propertiesFilename
+additionalProperties: false

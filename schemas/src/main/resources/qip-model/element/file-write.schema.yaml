@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/file-write.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: File Write
 type: object
+title: File Write
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
@@ -15,14 +15,14 @@ properties:
     const: files
   properties:
     type: object
-    additionalProperties: false
     properties:
       allowNullBody:
-        title: Allow null body
         type: boolean
+        title: Allow null body
         default: true
       fileName:
-        title: File Name
         type: string
+        title: File Name
     required:
       - fileName
+    additionalProperties: false

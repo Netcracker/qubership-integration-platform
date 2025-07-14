@@ -3,21 +3,21 @@ $id: http://qubership.org/schemas/product/qip/base.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 definitions:
   CommonEntityProperties:
-    title: Common Entity Properties
     type: object
+    title: Common Entity Properties
     properties:
       id:
+        type: string
         title: Identifier
-        type: string
       name:
-        title: Name
         type: string
+        title: Name
     required:
       - id
       - name
   CommonTopLevelEntityProperties:
-    title: Common top-level entity properties
     type: object
+    title: Common top-level entity properties
     allOf:
       - $ref: "#/definitions/CommonEntityProperties"
     properties:
@@ -26,24 +26,24 @@ definitions:
     required:
       - $schema
   WithDescription:
-    title: Entity with description
     type: object
+    title: Entity with description
     properties:
       description:
-        title: Description
         type: string
+        title: Description
   CommonEntityContent:
-    title: Common Entity Content
     type: object
+    title: Common Entity Content
     allOf:
       - $ref: "#/definitions/WithDescription"
     properties:
       createdWhen:
+        type: integer
         title: Created at
-        type: integer
       modifiedWhen:
-        title: Modified at
         type: integer
+        title: Modified at
       createdBy:
         title: Created by
         $ref: "#/definitions/User"
@@ -51,44 +51,44 @@ definitions:
         title: Modified by
         $ref: "#/definitions/User"
   WithLabels:
-    title: Entity content with Labels
     type: object
+    title: Entity content with Labels
     properties:
       labels:
-        title: Labels
         type: array
+        title: Labels
         items:
-          title: Label
           type: string
+          title: Label
   WithMigrations:
-    title: Entity content with Migrations
     type: object
+    title: Entity content with Migrations
     properties:
       migrations:
-        title: Migrations
         type: string
+        title: Migrations
     required:
       - migrations
   WithParent:
-    title: Entity content with Parent
     type: object
+    title: Entity content with Parent
     properties:
       parentId:
-        title: Parent ID
         type: string
+        title: Parent ID
     required:
       - parentId
   User:
-    title: User
     type: object
+    title: User
     additionalProperties: false
     properties:
       id:
+        type: string
         title: User ID
-        type: string
       username:
-        title: User name
         type: string
+        title: User name
     required:
       - id
       - username

@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/checkpoint.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Checkpoint
 type: object
+title: Checkpoint
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
@@ -15,7 +15,6 @@ properties:
     const: composite-triggers
   properties:
     type: object
-    additionalProperties: false
     properties:
       checkpointElementId:
         type: string
@@ -27,3 +26,4 @@ properties:
       httpMethodRestrict:
         type: string
         const: POST
+    additionalProperties: false

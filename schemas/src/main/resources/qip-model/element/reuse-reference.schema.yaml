@@ -1,9 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/reuse-reference.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Reuse Reference
 type: object
-additionalProperties: false
+title: Reuse Reference
 properties:
   id:
     type: string
@@ -28,3 +27,4 @@ properties:
         type: custom
     required:
       - reuseElementId
+additionalProperties: false

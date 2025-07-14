@@ -1,11 +1,11 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/log-record.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
+type: object
 title: Log Record
 description: >
   Log Record element allows to configure a message that will be logged
   for selected logging level.
-type: object
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
@@ -18,7 +18,6 @@ properties:
     const: routing
   properties:
     type: object
-    additionalProperties: false
     properties:
       logLevel:
         title: Log Level
@@ -31,21 +30,22 @@ properties:
           - Info
         default: Error
       sender:
+        type: string
         title: Sender
         description: Specifies custom system name that sends a request.
-        type: string
       receiver:
+        type: string
         title: Receiver
         description: Specifies custom system name that accepts a request.
-        type: string
       businessIdentifiers:
+        type: object
         title: Business Identifiers
         description: List of business identifiers to be logged.
-        type: object
         patternProperties:
           "^.+$":
             type: string
       message:
+        type: string
         title: Message
         description: A custom message to be logged
-        type: string
+    additionalProperties: false

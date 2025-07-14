@@ -14,11 +14,11 @@ properties:
       - $ref: "base.schema.yaml#/definitions/WithParent"
     properties:
       deprecated:
-        title: Specifies whether the specification is deprecated
         type: boolean
+        title: Specifies whether the specification is deprecated
       version:
-        title: Version of the specification
         type: string
+        title: Version of the specification
       source:
         $ref: "#/definitions/SpecificationSourceType"
       operations:
@@ -50,14 +50,14 @@ definitions:
       - $ref: "base.schema.yaml#/definitions/CommonEntityContent"
     properties:
       sourceHash:
+        type: string
         title: Source hash
-        type: string
       mainSource:
-        title: Main source
         type: boolean
+        title: Main source
       fileName:
-        title: File name
         type: string
+        title: File name
     required:
       - sourceHash
       - mainSource
@@ -69,11 +69,11 @@ definitions:
       - $ref: "base.schema.yaml#/definitions/CommonEntityContent"
     properties:
       method:
+        type: string
         title: Operation method
-        type: string
       path:
-        title: Operation path
         type: string
+        title: Operation path
       specification:
         type: object
       requestSchema:

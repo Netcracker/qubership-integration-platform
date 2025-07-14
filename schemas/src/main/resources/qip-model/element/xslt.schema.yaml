@@ -1,9 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/xslt.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: XSLT
 type: object
-additionalProperties: false
+title: XSLT
 properties:
   id:
     type: string
@@ -26,3 +25,4 @@ properties:
         type: string
     required:
       - templateName
+additionalProperties: false

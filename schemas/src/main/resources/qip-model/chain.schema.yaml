@@ -50,11 +50,11 @@ definitions:
       - $ref: "base.schema.yaml#/definitions/CommonEntityContent"
     properties:
       id:
+        type: string
         title: Identifier
-        type: string
       name:
-        title: Name
         type: string
+        title: Name
       subfolder:
         $ref: "#/definitions/Folder"
     required:
@@ -67,9 +67,9 @@ definitions:
         type: string
       name:
         type: string
-    additionalProperties: false
     required:
       - name
+    additionalProperties: false
   Dependency:
     type: object
     properties:
@@ -77,10 +77,10 @@ definitions:
         type: string
       to:
         type: string
-    additionalProperties: false
     required:
       - from
       - to
+    additionalProperties: false
   DeployAction:
     enum:
       - DEPLOY

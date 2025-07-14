@@ -1,9 +1,9 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
+type: object
 title: AsyncAPI Trigger
 description: Receives a call from a service registered in API Repository
-type: object
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
@@ -20,28 +20,28 @@ properties:
       - $ref: "properties/idempotency.schema.yaml"
     properties:
       after:
-        title: Request validation schemas
         type: array
+        title: Request validation schemas
         items:
           $ref: "#/definitions/RequestValidation"
       asyncValidationSchema:
-        title: Response validation schema
         type: string
+        title: Response validation schema
       requestFilterHeaderAllowlist:
         title: Filtered headers list
         $ref: "properties/headers.schema.yaml"
       integrationOperationId:
+        type: string
         title: Operation ID
-        type: string
       integrationSpecificationGroupId:
+        type: string
         title: Specification group ID
-        type: string
       integrationSpecificationId:
+        type: string
         title: Specification ID
-        type: string
       integrationSystemId:
-        title: Service ID
         type: string
+        title: Service ID
       systemType:
         title: Service type
         $ref: "../service.schema.yaml#/definitions/ServiceType"
@@ -52,8 +52,8 @@ properties:
         title: Operation method
         $ref: "#/definitions/Method"
       integrationOperationPath:
-        title: Operation name
         type: string
+        title: Operation name
     if:
       properties:
         integrationOperationProtocolType:
@@ -61,8 +61,8 @@ properties:
     then: # kafka
       properties:
         reconnectDelay:
-          title: Reconnection delay (ms)
           type: integer
+          title: Reconnection delay (ms)
           default: 30000
         integrationOperationAsyncProperties:
           $ref: "#/definitions/KafkaProperties"

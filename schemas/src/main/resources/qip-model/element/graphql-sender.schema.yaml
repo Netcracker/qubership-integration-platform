@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/graphql-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: GraphQL Sender
 type: object
+title: GraphQL Sender
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
@@ -21,26 +21,26 @@ properties:
       - $ref: "properties/http-call-common.schema.yaml"
     properties:
       operationName:
+        type: string
         title: Operation name
         description: >
           The query or mutation name.
           Optional if query contains single operation
-        type: string
       query:
+        type: string
         title: Query
         description: The query text
-        type: string
       queryHeader:
-        title: Query header
         type: string
+        title: Query header
         default: CamelGraphQLQuery
       variablesHeader:
-        title: Variables header
         type: string
+        title: Variables header
         default: CamelGraphQLVariables
       variablesJSON:
+        type: string
         title: Variables JSON
         description: Operation variables in JSON format.
-        type: string
     required:
       - query

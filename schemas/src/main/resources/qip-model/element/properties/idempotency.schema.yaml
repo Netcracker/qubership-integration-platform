@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Idempotency properties
 type: object
+title: Idempotency properties
 properties:
   idempotency:
     allOf:
@@ -22,25 +22,25 @@ definitions:
     type: object
     properties:
       enabled:
-        title: Enable idempotency
         type: boolean
+        title: Enable idempotency
         default: false
       keyExpiry:
-        title: Key expiration time (seconds)
         type: integer
+        title: Key expiration time (seconds)
         default: 600
       contextExpression:
+        type: string
         title: Context expression
-        type: string
       keyExpression:
-        title: Key expression
         type: string
+        title: Key expression
       actionOnDuplicate:
-        title: Action on duplicate message
         enum:
           - ignore
           - throw-exception
           - execute-subchain
+        title: Action on duplicate message
         default: ignore
     if:
       properties:
@@ -59,16 +59,16 @@ definitions:
     required:
       - chainTriggerParameters
   ChainTriggerParameters:
-    title: Subchain execution parameters
     type: object
+    title: Subchain execution parameters
     additionalProperties: false
     properties:
       triggerElementId:
-        title: Chain trigger
         type: string
+        title: Chain trigger
       chainCallTimeout:
-        title: Timeout (ms)
         type: integer
+        title: Timeout (ms)
         default: 30000
     required:
       - triggerElementId

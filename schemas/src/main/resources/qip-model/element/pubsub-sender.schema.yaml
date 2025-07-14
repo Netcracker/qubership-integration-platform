@@ -1,9 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/pubsub-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: PubSub Sender
 type: object
-additionalProperties: false
+title: PubSub Sender
 properties:
   id:
     type: string
@@ -44,3 +43,4 @@ properties:
       - destinationName
       - projectId
       - serviceAccountKey
+additionalProperties: false

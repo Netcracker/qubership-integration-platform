@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/circuit-breaker-configuration-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Circuit Breaker Configuration
 type: object
+title: Circuit Breaker Configuration
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
@@ -16,16 +16,16 @@ properties:
     const: routing
   properties:
     type: object
-    additionalProperties: false
     properties:
       automaticTransitionFromOpenToHalfOpenEnabled:
+        type: boolean
         title: Automatic transition from open to half open state
         description: >
           Enables automatic transition from OPEN to HALF_OPEN state once
           the "Wait duration in open state" has passed
-        type: boolean
         default: false
       failureRateThreshold:
+        type: integer
         title: Failure rate threshold (%)
         description: >
           Configures the failure rate threshold in percentage.
@@ -33,9 +33,9 @@ properties:
           the CircuitBreaker transitions to open and starts
           short-circuiting calls.
           The threshold must be greater than 0 and not greater than 100.
-        type: integer
         default: 50
       minimumNumberOfCalls:
+        type: integer
         title: Minimum number of calls
         description: >
           Configures the minimum number of calls which are required
@@ -46,16 +46,16 @@ properties:
           before the failure rate can be calculated.
           If only 9 calls have been recorded the CircuitBreaker
           will not transition to open even if all 9 calls have failed.
-        type: integer
         default: 100
       permittedNumberOfCallsInHalfOpenState:
+        type: integer
         title: Permitted number of calls in half open state
         description: >
           Configures the number of permitted calls when the CircuitBreaker
           is half open. The size must be greater than 0
-        type: integer
         default: 10
       slidingWindowSize:
+        type: integer
         title: Sliding window size
         description: >
           Configures the size of the sliding window which is used to record
@@ -68,22 +68,22 @@ properties:
           If the "Sliding window type" is COUNT_BASED,
           the "Minimum number of calls" cannot be greater
           than "Sliding window size".
-        type: integer
         default: 100
       slidingWindowType:
-        title: Sliding window type
         enum:
           - COUNT_BASED
           - TIME_BASED
+        title: Sliding window type
         default: COUNT_BASED
       slowCallDurationThreshold:
+        type: integer
         title: Slow call duration threshold (s)
         description: >
           Configures the duration threshold (seconds) above which calls
           are considered as slow and increase the slow calls percentage.
-        type: integer
         default: 60
       slowCallRateThreshold:
+        type: integer
         title: Slow call rate threshold (%)
         description: >
           Configures a threshold in percentage. The CircuitBreaker considers
@@ -92,15 +92,15 @@ properties:
           When the percentage of slow calls is equal or greater the threshold,
           the CircuitBreaker transitions to open and starts short-circuiting
           calls.
-        type: integer
         default: 100
       waitDurationInOpenState:
+        type: number
         title: Wait duration in open state (s)
         description: >
           Configures the wait duration (in seconds) which specifies
           how long the CircuitBreaker should stay open,
           before it switches to half open.
-        type: number
         default: 60
+    additionalProperties: false
 required:
   - properties

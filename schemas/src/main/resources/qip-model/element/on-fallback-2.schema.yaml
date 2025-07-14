@@ -1,8 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/on-fallback-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: On fallback
 type: object
+title: On fallback
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"

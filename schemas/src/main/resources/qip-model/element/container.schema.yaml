@@ -1,11 +1,11 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/container.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Container element
 type: object
+title: Container element
 properties:
   children:
-    title: Child elements
     type: array
+    title: Child elements
     items:
       $ref: "element.schema.yaml"

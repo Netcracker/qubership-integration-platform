@@ -1,12 +1,12 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: Correlation ID properties
 type: object
+title: Correlation ID properties
 properties:
   receiveCorrelationId:
-    title: Receive correlation ID
     type: boolean
+    title: Receive correlation ID
     default: false
 if:
   properties:
@@ -43,8 +43,8 @@ definitions:
         title: Correlation ID position
         $ref: "#/definitions/CorrelationIdPosition"
       correlationIdName:
-        title: Correlation ID name
         type: string
+        title: Correlation ID name
     required:
       - correlationIdPosition
       - correlationIdName

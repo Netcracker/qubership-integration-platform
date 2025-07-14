@@ -1,9 +1,8 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/sftp-download.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-title: SFTP Download
 type: object
-additionalProperties: false
+title: SFTP Download
 properties:
   id:
     type: string
@@ -48,3 +47,4 @@ properties:
         type: boolean
     required:
       - connectUrl
+additionalProperties: false
