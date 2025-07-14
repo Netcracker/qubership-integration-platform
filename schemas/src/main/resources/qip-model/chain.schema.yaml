@@ -47,7 +47,6 @@ definitions:
   Folder:
     type: object
     allOf:
-      - $ref: "base.schema.yaml#/definitions/WithDescription"
       - $ref: "base.schema.yaml#/definitions/CommonEntityContent"
     properties:
       id:
