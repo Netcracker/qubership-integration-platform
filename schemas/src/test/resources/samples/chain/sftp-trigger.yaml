@@ -1,0 +1,33 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "bb393e92-64fd-4288-a440-77d3eab57f7f"
+name: "SFTP Trigger"
+content:
+  modifiedWhen: 1752502238140
+  maskingEnabled: false
+  elements:
+  - id: "f9fab2fe-64a3-4d48-80f6-00bd0a7cd1be"
+    name: "SFTP Trigger"
+    type: "sftp-trigger-2"
+    properties:
+      antInclude: "*.*"
+      autoCreate: false
+      binary: true
+      connectUrl: "localhost:22/foo/bar"
+      idempotent: true
+      idempotentKey: "${file:name}-${file:size}-${file:modified}"
+      ignoreFileNotFoundOrPermissionError: true
+      jschLoggingLevel: "false"
+      password: "D'oh!"
+      readLockLoggingLevel: "false"
+      runLoggingLevel: "false"
+      scheduler: "quartz"
+      scheduler.cron: "0 */5 * ? * *"
+      scheduler.deleteJob: false
+      scheduler.triggerGroup: "%%{domain-placeholder}-group"
+      streamDownload: true
+      useUserKnownHostsFile: false
+      username: "Homer"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"
