@@ -48,8 +48,6 @@ on:
         default: false
         type: boolean
     secrets:
-      GITHUB_TOKEN:
-        required: false
       MAVEN_GPG_PRIVATE_KEY:
         required: false
       MAVEN_GPG_PASSPHRASE:
