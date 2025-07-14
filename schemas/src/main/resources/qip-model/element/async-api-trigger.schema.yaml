@@ -29,7 +29,7 @@ properties:
         type: string
       requestFilterHeaderAllowlist:
         title: Filtered headers list
-        $ref: "#/properties/headers.schema.yaml"
+        $ref: "properties/headers.schema.yaml"
       integrationOperationId:
         title: Operation ID
         type: string
