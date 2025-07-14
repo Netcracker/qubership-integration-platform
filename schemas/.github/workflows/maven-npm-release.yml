@@ -58,7 +58,7 @@ jobs:
     if: ${{ inputs.maven-release && inputs.maven-release != 'false' }}
     uses: ./.github/workflows/maven-release-v2.yaml
     with:
-      version-type: ${{ inputs.maven-version-type }}
+      version-type: ${{ inputs.maven-version-type || 'patch' }}
       profile: ${{ inputs.maven-profile }}
 
   npm-publish:

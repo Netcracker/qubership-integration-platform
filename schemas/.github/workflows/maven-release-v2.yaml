@@ -23,7 +23,7 @@
 
 name: Maven release
 
-run-name: ${{ github.event.inputs.version-type }} release for ${{ github.event.repository.name }}
+run-name: ${{ inputs.version-type }} release for ${{ github.event.repository.name }}
 
 on:
   workflow_call:
@@ -72,7 +72,7 @@ jobs:
       - name: "Build and Publish current SNAPSHOT (dry run)"
         uses: netcracker/qubership-workflow-hub/actions/maven-release@v1.0.3
         with:
-          version-type: ${{ github.event.inputs.version-type }}
+          version-type: ${{ inputs.version-type }}
           ref: ${{ github.ref }}
           module: ${{ github.event.repository.name }}
           maven-args: ${{ inputs.mvn-args }}
@@ -103,7 +103,7 @@ jobs:
         id: build-and-publish
         uses: netcracker/qubership-workflow-hub/actions/maven-release@v1.0.3
         with:
-          version-type: ${{ github.event.inputs.version-type }}
+          version-type: ${{ inputs.version-type }}
           ref: ${{ github.ref }}
           module: ${{ github.event.repository.name }}
           maven-args: ${{ inputs.mvn-args }}
