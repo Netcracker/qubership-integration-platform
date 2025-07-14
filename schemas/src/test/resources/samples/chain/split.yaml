@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
 id: "dbe45436-ac94-442c-858f-467b7ebb6149"
 name: "Split"
 content:

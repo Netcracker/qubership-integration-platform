@@ -3,14 +3,11 @@ $id: http://qubership.org/schemas/product/qip/element/split-element-2.schema.yam
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Split Element
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "container.schema.yaml"
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: split-element-2
@@ -19,14 +16,28 @@ properties:
     const: routing
   properties:
     type: object
-    additionalProperties: false
     properties:
-      propagateHeaders:
-        type: boolean
-      propagateProperties:
-        type: boolean
       splitName:
         type: string
+        title: Split Name
+        description: >
+          Define identifier for subchain.
+          Used as name prefix while propagating headers and properties.
+        pattern: "^[-!#-'*+.0-9A-Z^-z|~]+$"
+      propagateHeaders:
+        type: boolean
+        title: Propagate headers
+        description: >
+          Propagate headers from this branch.
+          Split name is used as header name prefix.
+        default: false
+      propagateProperties:
+        type: boolean
+        title: Propagate properties
+        description: >
+          Propagate properties from this branch.
+          Split name is used as property name prefix.
+        default: false
     required:
       - splitName
-additionalProperties: false
+    additionalProperties: false
