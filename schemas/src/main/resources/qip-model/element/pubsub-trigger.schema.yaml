@@ -2,15 +2,12 @@
 $id: http://qubership.org/schemas/product/qip/element/pubsub-trigger.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: PubSub Trigger
+description: Read message from PubSub topic.
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: pubsub-trigger
@@ -19,49 +16,64 @@ properties:
     const: triggers
   properties:
     type: object
-    additionalProperties: false
+    allOf:
+      - $ref: "properties/idempotency.schema.yaml"
     properties:
-      ackMode:
-        type: string
-        enum:
-          - AUTO
-          - NONE
-      actionOnDuplicate:
-        type: string
-        enum:
-          - ignore
-          - throw-exception
-          - execute-subchain
-      chainCallTimeout:
-        type: integer
-      chainTriggerElementId:
-        type: string
-      destinationName:
-        type: string
-      enableIdempotency:
-        type: boolean
-      idempotencyKeyExpiry:
-        type: integer
-      idempotencyKeyExpression:
-        type: string
-      maxMessagesPerPoll:
-        type: integer
       projectId:
         type: string
+        title: Project id
+        description: The Google Cloud PubSub Project ID.
+      destinationName:
+        type: string
+        title: Destination name
+        description: Subscription name.
       serviceAccountKey:
         type: string
+        title: Service account key
+        description: >
+          The Service account key that can be used as credentials for the
+          PubSub publisher/subscriber. Must be specified as a base64 encoded
+          ServiceAccount json file.
+      maxMessagesPerPoll:
+        oneOf:
+          - type: integer
+            minimum: 1
+          - type: string
+            pattern: "[1-9][0-9]*"
+        title: Max messages per poll
+        description: >
+          The max number of messages to receive from the server
+          in a single API call.
+        default: 1
       synchronousPullRetryableCodes:
-        type: string
-        enum:
-          - ABORTED
-          - CANCELLED
-          - DEADLINE_EXCEEDED
-          - INTERNAL
-          - RESOURCE_EXHAUSTED
-          - UNKNOWN
-          - UNAVAILABLE
+        type: array
+        title: Retryable error codes
+        description: >
+          List of additional retryable error codes for synchronous pull.
+        items:
+          $ref: "#/definitions/ErrorCode"
+      ackMode:
+        $ref: "#/definitions/AckMode"
+        title: Ack mode
+        description: >
+          AUTO = exchange gets ack/nack on completion.
+          NONE = downstream process has to ack/nack explicitly.
+        default: AUTO
     required:
       - destinationName
       - projectId
       - serviceAccountKey
-additionalProperties: false
+definitions:
+  AckMode:
+    enum:
+      - AUTO
+      - NONE
+  ErrorCode:
+    enum:
+      - ABORTED
+      - CANCELLED
+      - DEADLINE_EXCEEDED
+      - INTERNAL
+      - RESOURCE_EXHAUSTED
+      - UNKNOWN
+      - UNAVAILABLE
