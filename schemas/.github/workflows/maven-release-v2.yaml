@@ -26,23 +26,15 @@ name: Maven release
 run-name: ${{ github.event.inputs.version-type }} release for ${{ github.event.repository.name }}
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       version-type:
         description: 'Version type to release'
-        type: choice
-        options:
-          - 'major'
-          - 'minor'
-          - 'patch'
+        type: string
         required: true
-        default: 'patch'
       profile:
         description: 'Maven profile to use'
-        type: choice
-        options:
-          - 'github'
-          - 'central'
+        type: string
         required: false
         default: 'central'
       mvn-args:
@@ -55,6 +47,21 @@ on:
         required: false
         default: false
         type: boolean
+    secrets:
+      GITHUB_TOKEN:
+        required: false
+      MAVEN_GPG_PRIVATE_KEY:
+        required: false
+      MAVEN_GPG_PASSPHRASE:
+        required: false
+      MAVEN_USER:
+        required: false
+      MAVEN_PASSWORD:
+        required: false
+      GH_BUMP_VERSION_APP_ID:
+        required: false
+      GH_BUMP_VERSION_APP_KEY:
+        required: false
 
 permissions:
   contents: write
@@ -88,15 +95,14 @@ jobs:
     steps:
       # This step is needed if there is a GitHub App used for authentication to bypass the protected branch rule
       - name: "Prepare app token"
+        id: app-token
         uses: actions/create-github-app-token@v1
-      # id: app-token
         with:
           app-id: ${{ vars.GH_BUMP_VERSION_APP_ID }}
           private-key: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
       - name: "Build and Publish"
         id: build-and-publish
-
         uses: netcracker/qubership-workflow-hub/actions/maven-release@v1.0.3
         with:
           version-type: ${{ github.event.inputs.version-type }}
@@ -111,6 +117,7 @@ jobs:
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           dry-run: 'false'
+
   check-dockerfile:
     if: ${{ github.event.inputs.build-docker == 'true' }}
     runs-on: ubuntu-latest
@@ -132,14 +139,22 @@ jobs:
           echo "GITHUB_OUTPUT:"
           cat "$GITHUB_OUTPUT"
 
-  docker-build-publish:
-    needs: [deploy, check-dockerfile]
+  docker-build:
     if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
-    uses: netcracker/qubership-workflow-hub/.github/workflows/docker-publish.yml@v1.0.3
-    with:
-      ref: "v${{ needs.deploy.outputs.release-version }}"
-      artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
-      download-artifact: true
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    needs: [check-dockerfile, deploy]
+    steps:
+      - name: "Docker Build"
+        id: docker_build
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@main
+        with:
+          ref: v${{ needs.deploy.outputs.release-version }}
+          download-artifact: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   github-release:
     needs: [deploy]
