@@ -31,13 +31,13 @@ public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRe
                     :key,
                     :data ::json,
                     now(),
-                    date_add(now(), make_interval(secs => :ttl))
+                    now() + make_interval(secs => :ttl)
                 )
                 on conflict (key) do update
                     set
                         data = :data ::json,
                         created_at = now(),
-                        expires_at = date_add(now(), make_interval(secs => :ttl))
+                        expires_at = now() + make_interval(secs => :ttl)
                     where
                         r.expires_at < now()
             """
