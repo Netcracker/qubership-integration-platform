@@ -105,7 +105,7 @@ public class ImportInstructionsFilterSpecificationBuilder {
                     criteriaBuilder.lower(expression.as(String.class)),
                     criteriaBuilder.lower(criteriaBuilder.literal("%" + value + '%'))
             );
-            case START_WITH -> (expression, value) -> criteriaBuilder.like(
+            case STARTS_WITH -> (expression, value) -> criteriaBuilder.like(
                     criteriaBuilder.lower(expression.as(String.class)),
                     String.valueOf(value).toLowerCase() + "%");
             case ENDS_WITH -> (expression, value) -> criteriaBuilder.like(
