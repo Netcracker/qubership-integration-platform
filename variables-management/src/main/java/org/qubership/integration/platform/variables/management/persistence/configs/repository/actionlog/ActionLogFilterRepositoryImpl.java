@@ -142,7 +142,7 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
                                 builder.notLike(
                                         builder.lower(valuePath),
                                         "%" + value.toLowerCase() + "%"));
-                        case START_WITH -> predicates.add(
+                        case STARTS_WITH -> predicates.add(
                                 builder.like(
                                         builder.lower(valuePath),
                                         value.toLowerCase() + "%"));

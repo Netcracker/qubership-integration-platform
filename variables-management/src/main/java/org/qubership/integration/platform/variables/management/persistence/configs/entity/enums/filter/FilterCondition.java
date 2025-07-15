@@ -24,7 +24,7 @@ public enum FilterCondition {
     IS_NOT,
     CONTAINS,
     DOES_NOT_CONTAIN,
-    START_WITH,
+    STARTS_WITH,
     ENDS_WITH,
     EMPTY,
     NOT_EMPTY,
