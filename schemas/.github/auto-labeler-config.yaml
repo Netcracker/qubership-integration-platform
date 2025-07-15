@@ -12,7 +12,7 @@ conventional-commits:
   - type: 'refactor'
     nouns: ['refactor', 'Refactor']
     labels: ['refactor']
-  - type: 'documentation'
+  - type: 'docs'
     nouns: ['docs', 'doc', 'document', 'documentation']
     labels: ['documentation']
   - type: 'build'
@@ -21,3 +21,10 @@ conventional-commits:
   - type: 'config'
     nouns: ['config', 'conf', 'configuration', 'configure']
     labels: ['config']
+  - type: 'chore'
+    nouns: ['chore', 'Chore', 'CHORE']
+    labels: ['chore']
+
+ignore-patterns:
+  - '^\\[maven-release-plugin\\]'
+  - '^\\[ci skip\\]'
