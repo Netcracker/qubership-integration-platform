@@ -2,16 +2,12 @@
 $id: http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: Mapper
-additionalProperties: false
+description: Performs mapping between two entities.
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: mapper-2
@@ -20,11 +16,342 @@ properties:
     const: transformation
   properties:
     type: object
+    allOf:
+      - type: object
+        properties:
+          throwException:
+            type: boolean
+            title: Throw exception on transformation failure
+            description: Throw exception on transformation failure.
+            default: true
+      - oneOf:
+          - $ref: "properties/properties-in-external-file.schema.yaml"
+          - type: object
+            properties:
+              mappingDescription:
+                $ref: "#/definitions/MappingDescription"
+            required:
+              - mappingDescription
+definitions:
+  Metadata:
+    type: object
+    title: Metadata
+    patternProperties:
+      "^.+$":
+        type: string
+  MetadataAware:
+    type: object
+    title: Object with metadata
     properties:
-      exportFileExtension:
+      metadata:
+        $ref: "#/definitions/Metadata"
+  DataType:
+    type: object
+    oneOf:
+      - $ref: "#/definitions/NullType"
+      - $ref: "#/definitions/StringType"
+      - $ref: "#/definitions/IntegerType"
+      - $ref: "#/definitions/BooleanType"
+      - $ref: "#/definitions/ArrayType"
+      - $ref: "#/definitions/ObjectType"
+      - $ref: "#/definitions/ReferenceType"
+      - $ref: "#/definitions/AllOfType"
+      - $ref: "#/definitions/AnyOfType"
+      - $ref: "#/definitions/OneOfType"
+  TypeDefinition:
+    type: object
+    properties:
+      id:
         type: string
-      propertiesToExportInSeparateFile:
+      name:
         type: string
-      throwException:
+      type:
+        $ref: "#/definitions/DataType"
+    required:
+      - id
+      - name
+      - type
+  TypeDefinitionsAware:
+    type: object
+    properties:
+      definitions:
+        type: array
+        items:
+          $ref: "#/definitions/TypeDefinition"
+  NullType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      name:
+        const: null
+  StringType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      name:
+        const: string
+  IntegerType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      name:
+        const: number
+  BooleanType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      name:
+        const: boolean
+  ArrayType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+      - $ref: "#/definitions/TypeDefinitionsAware"
+    properties:
+      name:
+        const: array
+      itemType:
+        $ref: "#/definitions/DataType"
+  ObjectType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+      - $ref: "#/definitions/TypeDefinitionsAware"
+    properties:
+      name:
+        const: object
+      schema:
+        $ref: "#/definitions/ObjectSchema"
+  ReferenceType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+      - $ref: "#/definitions/TypeDefinitionsAware"
+    properties:
+      name:
+        const: reference
+      definitionId:
+        type: string
+  CompoundType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+      - $ref: "#/definitions/TypeDefinitionsAware"
+    properties:
+      types:
+        type: array
+        items:
+          $ref: "#/definitions/DataType"
+  AllOfType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/CompoundType"
+    properties:
+      name:
+        const: allOf
+  AnyOfType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/CompoundType"
+    properties:
+      name:
+        const: anyOf
+  OneOfType:
+    type: object
+    allOf:
+      - $ref: "#/definitions/CompoundType"
+    properties:
+      name:
+        const: oneOf
+  ObjectSchema:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      id:
+        type: string
+      attributes:
+        type: array
+        items:
+          $ref: "#/definitions/Attribute"
+  ConstantReference:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      type:
+        const: constant
+      constantId:
+        type: string
+  AttributeReference:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      type:
+        const: attribute
+      kind:
+        enum:
+          - header
+          - property
+          - body
+      path:
+        type: array
+        title: Path
+        items:
+          type: string
+  MappingActionSource:
+    type: object
+    oneOf:
+      - $ref: "#/definitions/ConstantReference"
+      - $ref: "#/definitions/AttributeReference"
+  Transformation:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      name:
+        type: string
+        title: Name
+      parameters:
+        type: array
+        title: Parameters
+        items:
+          type: string
+    required:
+      - name
+  MappingAction:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    title: Mapping action
+    properties:
+      id:
+        type: string
+      sources:
+        type: array
+        title: Sources
+        items:
+          $ref: "#/definitions/MappingActionSource"
+      target:
+        $ref: "#/definitions/AttributeReference"
+      transformation:
+        $ref: "#/definitions/Transformation"
+    required:
+      - id
+      - sources
+      - target
+  Element:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        $ref: "#/definitions/DataType"
+    required:
+      - id
+      - type
+      - name
+  Attribute:
+    type: object
+    allOf:
+      - $ref: "#/definitions/Element"
+    properties:
+      defaultValue:
+        type: string
+      required:
         type: boolean
-    additionalProperties: false
+        default: false
+  GivenValue:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      kind:
+        const: given
+      value:
+        type: string
+    required:
+      - kind
+      - value
+  ValueGenerator:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      name:
+        type: string
+      parameters:
+        type: array
+        items:
+          type: string
+    required:
+      - name
+  GeneratedValue:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      kind:
+        const: generated
+      generator:
+        $ref: "#/definitions/ValueGenerator"
+    required:
+      - kind
+      - generator
+  ValueSupplier:
+    type: object
+    oneOf:
+      - $ref: "#/definitions/GivenValue"
+      - $ref: "#/definitions/GeneratedValue"
+  Constant:
+    type: object
+    allOf:
+      - $ref: "#/definitions/Element"
+    properties:
+      valueSupplier:
+        $ref: "#/definitions/ValueSupplier"
+  MessageSchema:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      headers:
+        type: array
+        title: Headers
+        items:
+          $ref: "#/definitions/Attribute"
+      properties:
+        type: array
+        title: Properties
+        items:
+          $ref: "#/definitions/Attribute"
+      body:
+        $ref: "#definitions/DataType"
+  MappingDescription:
+    type: object
+    allOf:
+      - $ref: "#/definitions/MetadataAware"
+    properties:
+      source:
+        $ref: "#/definitions/MessageSchema"
+      target:
+        $ref: "#/definitions/MessageSchema"
+      constants:
+        type: array
+        title: Constants
+        items:
+          $ref: "#/definitions/Constant"
+      actions:
+        type: array
+        title: Actions
+        items:
+          $ref: "#/definitions/MappingAction"

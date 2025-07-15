@@ -1,0 +1,9 @@
+# $schema: http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml
+id: "cb1750c3-e3b9-43ef-99f1-d12ad124c0fb"
+name: "Mapper"
+type: "mapper-2"
+properties:
+  exportFileExtension: "json"
+  propertiesFilename: "mappingDescription-cb1750c3-e3b9-43ef-99f1-d12ad124c0fb.json"
+  propertiesToExportInSeparateFile: "mappingDescription"
+  throwException: true
