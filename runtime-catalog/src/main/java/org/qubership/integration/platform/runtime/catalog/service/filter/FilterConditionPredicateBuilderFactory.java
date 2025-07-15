@@ -45,7 +45,7 @@ public class FilterConditionPredicateBuilderFactory {
                     criteriaBuilder.lower(expression.as(String.class)),
                     criteriaBuilder.lower(criteriaBuilder.literal("%" + EscapeCharacter.DEFAULT.escape((String) value) + '%')), EscapeCharacter.DEFAULT.getEscapeCharacter()
             );
-            case START_WITH -> (expression, value) -> criteriaBuilder.like(
+            case STARTS_WITH -> (expression, value) -> criteriaBuilder.like(
                     criteriaBuilder.lower(expression.as(String.class)),
                     String.valueOf(EscapeCharacter.DEFAULT.escape((String) value)).toLowerCase() + "%", EscapeCharacter.DEFAULT.getEscapeCharacter());
             case ENDS_WITH -> (expression, value) -> criteriaBuilder.like(

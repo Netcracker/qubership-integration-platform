@@ -374,7 +374,7 @@ public class ChainFilterSpecificationBuilder {
         return switch (condition) {
             case IS, CONTAINS, IN -> likeValue;
             case DOES_NOT_CONTAIN, IS_NOT, NOT_IN -> criteriaBuilder.not(likeValue);
-            case START_WITH -> criteriaBuilder.like(
+            case STARTS_WITH -> criteriaBuilder.like(
                     criteriaBuilder.lower(methodPropertyExpression),
                     criteriaBuilder.lower(criteriaBuilder.literal(value + '%')));
             case ENDS_WITH -> criteriaBuilder.like(
