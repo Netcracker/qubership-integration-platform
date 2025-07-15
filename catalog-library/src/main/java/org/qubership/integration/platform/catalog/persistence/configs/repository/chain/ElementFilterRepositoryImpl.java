@@ -142,7 +142,7 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
                     endpointPredicate = getLikeEndpointPredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%");
             case DOES_NOT_CONTAIN ->
                     endpointPredicate = getLikeEndpointPredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%").not();
-            case START_WITH ->
+            case STARTS_WITH ->
                     endpointPredicate = getLikeEndpointPredicate(builder, chainElementRoot, filter.getValue().toLowerCase() + "%");
             case ENDS_WITH ->
                     endpointPredicate = getLikeEndpointPredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase());
@@ -183,7 +183,7 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
                     chainPredicate = getLikeChainPredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%");
             case DOES_NOT_CONTAIN ->
                     chainPredicate = getLikeChainPredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%").not();
-            case START_WITH ->
+            case STARTS_WITH ->
                     chainPredicate = getLikeChainPredicate(builder, chainElementRoot, filter.getValue().toLowerCase() + "%");
             case ENDS_WITH ->
                     chainPredicate = getLikeChainPredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase());
