@@ -2,15 +2,12 @@
 $id: http://qubership.org/schemas/product/qip/element/script.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: Script
+description: Executes Groovy Script
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: script
@@ -18,15 +15,25 @@ properties:
     type: string
     const: transformation
   properties:
-    type: object
-    additionalProperties: false
-    properties:
-      exportFileExtension:
-        type: string
-      propertiesToExportInSeparateFile:
-        type: string
-      propertiesFilename:
-        type: string
-    required:
-      - exportFileExtension
-      - propertiesFilename
+    oneOf:
+      - type: object
+        properties:
+          script:
+            type: string
+        additionalProperties: false
+      - type: object
+        properties:
+          exportFileExtension:
+            type: string
+            description: Specifies file extension of exported properties
+            default: groovy
+          propertiesToExportInSeparateFile:
+            type: string
+            description: Specifies list of properties to be exported is separate file
+            default: script
+          propertiesFilename:
+            type: string
+        required:
+          - exportFileExtension
+          - propertiesFilename
+        additionalProperties: false

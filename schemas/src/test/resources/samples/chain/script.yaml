@@ -1,0 +1,18 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "d65de96b-b665-4ddf-9933-9ebfcaa6662b"
+name: "Script"
+content:
+  modifiedWhen: 1752564518472
+  maskingEnabled: false
+  elements:
+  - id: "7c854b6a-ff6e-4f19-abae-8ec953e4424f"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-7c854b6a-ff6e-4f19-abae-8ec953e4424f.groovy"
+      propertiesToExportInSeparateFile: "script"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"
