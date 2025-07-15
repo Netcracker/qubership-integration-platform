@@ -30,7 +30,7 @@ properties:
       elements:
         type: array
         items:
-          $ref: "./element/element.schema.yaml"
+          $ref: "element/element.schema.yaml"
       dependencies:
         type: array
         items:
