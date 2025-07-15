@@ -21,19 +21,4 @@ properties:
           script:
             type: string
         additionalProperties: false
-      - type: object
-        properties:
-          exportFileExtension:
-            type: string
-            description: Specifies file extension of exported properties
-            default: groovy
-          propertiesToExportInSeparateFile:
-            type: string
-            description: Specifies list of properties to be exported is separate file
-            default: script
-          propertiesFilename:
-            type: string
-        required:
-          - exportFileExtension
-          - propertiesFilename
-        additionalProperties: false
+      - $ref: "properties/properties-in-external-file.schema.yaml"

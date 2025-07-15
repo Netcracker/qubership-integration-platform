@@ -56,7 +56,7 @@ definitions:
         type: boolean
         title: Main source
       fileName:
-        type: string
+        $ref: "resource-reference.schema.yaml"
         title: File name
     required:
       - sourceHash

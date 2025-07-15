@@ -1,0 +1,19 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/properties-in-external-file.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Schema for element properties in external file
+properties:
+  exportFileExtension:
+    type: string
+    description: Specifies file extension of exported properties
+    default: groovy
+  propertiesToExportInSeparateFile:
+    type: string
+    description: Specifies list of properties to be exported is separate file
+    default: script
+  propertiesFilename:
+    $ref: "../../resource-reference.schema.yaml"
+required:
+  - exportFileExtension
+  - propertiesFilename
