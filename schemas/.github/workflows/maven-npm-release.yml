@@ -42,7 +42,7 @@ on:
         description: 'NPM scope for the package'
         required: false
         type: string
-        default: '@andyroode'
+        default: '@netcracker'
       npm-dist-tag:
         description: 'NPM distribution tag'
         required: false
@@ -58,8 +58,9 @@ jobs:
     if: ${{ inputs.maven-release && inputs.maven-release != 'false' }}
     uses: ./.github/workflows/maven-release-v2.yaml
     with:
-      version-type: ${{ inputs.maven-version-type }}
+      version-type: ${{ inputs.maven-version-type || 'patch' }}
       profile: ${{ inputs.maven-profile }}
+    secrets: inherit
 
   npm-publish:
     if: ${{ inputs.npm-publish && inputs.npm-publish != 'false' }}
