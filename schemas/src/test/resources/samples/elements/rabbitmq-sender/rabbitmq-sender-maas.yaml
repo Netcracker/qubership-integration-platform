@@ -1,0 +1,14 @@
+# $schema: http://qubership.org/schemas/product/qip/element/rabbitmq-sender-2.schema.yaml
+id: "71b9ae00-68fe-4203-94e9-f39354c2e763"
+name: "RabbitMQ Sender"
+type: "rabbitmq-sender-2"
+properties:
+  connectionSourceType: "maas"
+  exchange: "bar"
+  exchangePattern: "InOnly"
+  maasClassifierNamespace: "foo"
+  overrideContextParams:
+    wer: "wer"
+  propagateContext: true
+  routingKey: "baz"
+  vhostClassifierName: "public"

@@ -2,15 +2,11 @@
 $id: http://qubership.org/schemas/product/qip/element/rabbitmq-sender-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: RabbitMQ Sender
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: rabbitmq-sender-2
@@ -19,40 +15,14 @@ properties:
     const: senders
   properties:
     type: object
-    additionalProperties: false
+    allOf:
+      - $ref: "properties/rabbitmq-connection-parameters.schema.yaml"
+      - $ref: "properties/context-propagation.schema.yaml"
     properties:
-      addresses:
-        type: string
-      connectionSourceType:
-        type: string
-        enum:
-          - maas
-          - manual
-      exchange:
-        type: string
       exchangePattern:
         type: string
-      maasClassifierNamespace:
-        type: string
-      overrideContextComponent:
-        type: custom
-      overrideContextParams:
-        type: string
-      password:
-        type: string
-      propagateContext:
-        type: boolean
-      rabbitConnection:
-        type: custom
-      routingKey:
-        type: string
-      username:
-        type: string
+        default: InOnly
+        title: Exchange Pattern
       vhost:
         type: string
-      vhostClassifierName:
-        type: string
-    required:
-      - connectionSourceType
-      - exchange
-additionalProperties: false
+        title: Vhost
