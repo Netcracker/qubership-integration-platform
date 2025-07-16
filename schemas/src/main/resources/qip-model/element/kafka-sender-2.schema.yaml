@@ -2,16 +2,12 @@
 $id: http://qubership.org/schemas/product/qip/element/kafka-sender-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: Kafka Sender
-additionalProperties: false
+description: Produce message in kafka
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: kafka-sender-2
@@ -20,134 +16,52 @@ properties:
     const: senders
   properties:
     type: object
+    allOf:
+      - $ref: "properties/kafka-connection-parameters.schema.yaml"
+      - $ref: "properties/context-propagation.schema.yaml"
     properties:
-      brokers:
-        type: string
-      connectionSourceType:
-        type: string
-        enum:
-          - manual
-          - maas
       key:
         type: string
+        title: Key
+        description: Record key
       keySerializer:
-        type: string
-        enum:
-          - org.apache.kafka.common.serialization.ByteArraySerializer
-          - org.apache.kafka.common.serialization.ByteBufferSerializer
-          - org.apache.kafka.common.serialization.BytesSerializer
-          - org.apache.kafka.common.serialization.DoubleSerializer
-          - org.apache.kafka.common.serialization.FloatSerializer
-          - org.apache.kafka.common.serialization.IntegerSerializer
-          - org.apache.kafka.common.serialization.LongSerializer
-          - org.apache.kafka.common.serialization.ShortSerializer
-          - org.apache.kafka.common.serialization.StringSerializer
-          - org.apache.kafka.common.serialization.UUIDSerializer
-          - org.apache.kafka.common.serialization.VoidSerializer
-      maasClassifierTenantEnabled:
-        type: boolean
-      overrideContextParams:
-        type: object
-        additionalProperties:
-          type: string
-      propagateContext:
-        type: boolean
-      saslJaasConfig:
-        type: string
-      saslMechanism:
-        type: string
-        enum:
-          - 9798-M-DSA-SHA1
-          - 9798-M-ECDSA-SHA1
-          - 9798-M-RSA-SHA1-ENC
-          - 9798-U-DSA-SHA1
-          - 9798-U-ECDSA-SHA1
-          - 9798-U-RSA-SHA1-ENC
-          - ANONYMOUS
-          - CRAM-MD5
-          - DIGEST-MD5
-          - EAP-AES128
-          - EAP-AES128-PLUS
-          - ECDH-X25519-CHALLENGE
-          - ECDSA-NIST256P-CHALLENGE
-          - EXTERNAL
-          - GS2-KRB5
-          - GS2-KRB5-PLUS
-          - GSS-SPNEGO
-          - GSSAPI
-          - KERBEROS_V4
-          - KERBEROS_V5
-          - LOGIN
-          - NMAS_AUTHEN
-          - NMAS_LOGIN
-          - NMAS-SAMBA-AUTH
-          - NTLM
-          - OAUTH10A
-          - OAUTHBEARER
-          - OPENID20
-          - OTP
-          - PLAIN
-          - SAML20
-          - SCRAM-SHA-1
-          - SCRAM-SHA-1-PLUS
-          - SCRAM-SHA-256
-          - SCRAM-SHA-256-PLUS
-          - SCRAM-SHA-512
-          - SECURID
-          - SKEY
-          - SPNEGO
-          - SPNEGO-PLUS
-          - XOAUTH
-          - XOAUTH2
-      securityProtocol:
-        type: string
-        enum:
-          - PLAINTEXT
-          - SASL_PLAINTEXT
-          - SASL_SSL
-          - SSL
-      sslEndpointAlgorithm:
-        type: string
-      sslProtocol:
-        type: string
-        enum:
-          - TLS
-          - TLSv1.1
-          - TLSv1.2
-          - TLSv1.3
-      topics:
-        type: string
-      topicsClassifierName:
-        type: string
+        anyOf:
+          - type: string
+          - enum:
+            - org.apache.kafka.common.serialization.ByteArraySerializer
+            - org.apache.kafka.common.serialization.ByteBufferSerializer
+            - org.apache.kafka.common.serialization.BytesSerializer
+            - org.apache.kafka.common.serialization.DoubleSerializer
+            - org.apache.kafka.common.serialization.FloatSerializer
+            - org.apache.kafka.common.serialization.IntegerSerializer
+            - org.apache.kafka.common.serialization.LongSerializer
+            - org.apache.kafka.common.serialization.ShortSerializer
+            - org.apache.kafka.common.serialization.StringSerializer
+            - org.apache.kafka.common.serialization.UUIDSerializer
+            - org.apache.kafka.common.serialization.VoidSerializer
+        default: org.apache.kafka.common.serialization.StringSerializer
+        title: Key Serializer
+        description: >
+          The serializer class for keys (defaults to the same as for messages
+          if nothing is given).
       valueSerializer:
-        type: string
-        enum:
-          - org.apache.kafka.common.serialization.ByteArraySerializer
-          - org.apache.kafka.common.serialization.ByteBufferSerializer
-          - org.apache.kafka.common.serialization.BytesSerializer
-          - org.apache.kafka.common.serialization.DoubleSerializer
-          - org.apache.kafka.common.serialization.FloatSerializer
-          - org.apache.kafka.common.serialization.IntegerSerializer
-          - org.apache.kafka.common.serialization.LongSerializer
-          - org.apache.kafka.common.serialization.ShortSerializer
-          - org.apache.kafka.common.serialization.StringSerializer
-          - org.apache.kafka.common.serialization.UUIDSerializer
-          - org.apache.kafka.common.serialization.VoidSerializer
+        anyOf:
+          - type: string
+          - enum:
+            - org.apache.kafka.common.serialization.ByteArraySerializer
+            - org.apache.kafka.common.serialization.ByteBufferSerializer
+            - org.apache.kafka.common.serialization.BytesSerializer
+            - org.apache.kafka.common.serialization.DoubleSerializer
+            - org.apache.kafka.common.serialization.FloatSerializer
+            - org.apache.kafka.common.serialization.IntegerSerializer
+            - org.apache.kafka.common.serialization.LongSerializer
+            - org.apache.kafka.common.serialization.ShortSerializer
+            - org.apache.kafka.common.serialization.StringSerializer
+            - org.apache.kafka.common.serialization.UUIDSerializer
+            - org.apache.kafka.common.serialization.VoidSerializer
+        default: org.apache.kafka.common.serialization.StringSerializer
+        title: Message serializer class
+        description: The serializer class for messages
     required:
-      - connectionSourceType
-      - sslProtocol
+      - keySerializer
       - valueSerializer
-    additionalProperties: false
-    if:
-      properties:
-        connectionSourceType:
-          const: maas
-    then:
-      required:
-        - topicsClassifierName
-    else:
-      required:
-        - brokers
-        - securityProtocol
-        - saslMechanism
-        - topics

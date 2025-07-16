@@ -1,0 +1,27 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "4c2d910e-4972-415a-b2d5-4f5b08b72c60"
+name: "Kafka Sender - MaaS"
+content:
+  modifiedWhen: 1752666853203
+  maskingEnabled: false
+  elements:
+  - id: "240c001d-c65d-447f-a982-4aa50aef7fe9"
+    name: "Kafka Sender"
+    type: "kafka-sender-2"
+    properties:
+      connectionSourceType: "maas"
+      key: "biz"
+      keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      maasClassifierNamespace: "bar"
+      maasClassifierTenantEnabled: true
+      maasClassifierTenantId: "baz"
+      overrideContextParams:
+        fghfghf: "fghfghfhf"
+      propagateContext: true
+      sslProtocol: "TLS"
+      topicsClassifierName: "foo"
+      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

@@ -6,6 +6,7 @@ allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: Kafka Trigger
+description: Trigger, that start chain after receiving kafka message.
 properties:
   type:
     type: string
