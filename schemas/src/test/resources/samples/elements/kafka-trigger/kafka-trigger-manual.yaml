@@ -1,0 +1,29 @@
+# $schema: http://qubership.org/schemas/product/qip/element/kafka-trigger-2.schema.yaml
+id: "4c00ff13-bcb2-4b31-b456-d7a0c2b07df1"
+name: "Kafka Trigger"
+type: "kafka-trigger-2"
+properties:
+  actionOnDuplicate: "ignore"
+  autoOffsetReset: "latest"
+  brokers: "localhost"
+  chainCallTimeout: 30000
+  connectionSourceType: "manual"
+  consumersCount: 1
+  enableIdempotency: false
+  groupId: "grp"
+  idempotency:
+    enabled: true
+    keyExpiry: 600
+    keyExpression: "${header.key}"
+    contextExpression: "${header.context}"
+  idempotencyKeyExpiry: 600
+  keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+  maasClassifierTenantEnabled: false
+  maxPollIntervalMs: 300000
+  maxPollRecords: 500
+  reconnectBackoffMaxMs: "30001"
+  saslMechanism: "GSSAPI"
+  securityProtocol: "PLAINTEXT"
+  sslProtocol: "TLS"
+  topics: "foo"
+  valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
