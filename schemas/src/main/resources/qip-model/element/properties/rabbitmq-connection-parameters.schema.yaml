@@ -1,0 +1,53 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/rabbitmq-connection-parameters.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: RabbitMQ connection parameters
+properties:
+  connectionSourceType:
+    title: Connection source type
+    enum:
+      - maas
+      - manual
+  exchange:
+    type: string
+    title: Exchange Name
+  routingKey:
+    type: string
+    title: Routing Key
+if:
+  properties:
+    connectionSourceType:
+      const: maas
+then: # maas
+  properties:
+    vhostClassifierName:
+      type: string
+      title: Vhost Classifier Name
+    maasClassifierNamespace:
+      type: string
+      title: Topic Classifier Namespace
+      description: >
+        MaaS topic classifier namespace.
+        By default used current namespace.
+  required:
+    - vhostClassifierName
+else: # manual
+  properties:
+    addresses:
+      type: string
+      title: Addresses
+    username:
+      type: string
+      title: Username
+    password:
+      type: string
+      title: Password
+      description: >
+        For security purposes, use reference to secured variables when
+        entering passwords.
+  required:
+    - addresses
+required:
+  - connectionSourceType
+  - exchange

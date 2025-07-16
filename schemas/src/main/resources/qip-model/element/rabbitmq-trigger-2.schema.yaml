@@ -2,15 +2,11 @@
 $id: http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: RabbitMQ Trigger
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: rabbitmq-trigger-2
@@ -19,79 +15,58 @@ properties:
     const: triggers
   properties:
     type: object
-    additionalProperties: false
+    allOf:
+      - $ref: "properties/rabbitmq-connection-parameters.schema.yaml"
+      - $ref: "properties/idempotency.schema.yaml"
     properties:
-      acknowledgeMode:
-        type: string
-        enum:
-          - NONE
-          - MANUAL
-          - AUTO
-      actionOnDuplicate:
-        type: string
-        enum:
-          - ignore
-          - throw-exception
-          - execute-subchain
-      addresses:
-        type: string
-      chainCallTimeout:
-        type: integer
-      chainTriggerElementId:
-        type: string
-      connectionSourceType:
-        type: string
-        enum:
-          - maas
-          - manual
-      deadLetterExchange:
-        type: string
-      deadLetterExchangeType:
-        type: string
-        enum:
-          - direct
-          - fanout
-          - headers
-          - topic
-      deadLetterQueue:
-        type: string
-      deadLetterRoutingKey:
-        type: string
-      enableIdempotency:
-        type: boolean
-      exchange:
-        type: string
-      exchangeType:
-        type: string
-        enum:
-          - direct
-          - fanout
-          - headers
-          - topic
-      idempotencyKeyExpiry:
-        type: integer
-      idempotencyKeyExpression:
-        type: string
-      maasClassifierNamespace:
-        type: string
-      password:
-        type: string
       queues:
         type: string
-      rabbitConnection:
-        type: custom
-      routingKey:
+        title: Queue(s) Name
+        description: >
+          The queue(s) to use for consuming messages (separated by comma).
+      acknowledgeMode:
+        $ref: "#/definitions/AcknowledgeMode"
+      exchangeType:
+        $ref: "#/definitions/ExchangeType"
+      deadLetterExchange:
         type: string
+        title: Dead Letter Exchange
+      deadLetterExchangeType:
+        $ref: "#/definitions/ExchangeType"
+        title: Dead Letter Exchange Type
+      deadLetterQueue:
+        type: string
+        title: Dead Letter Queue
+      deadLetterRoutingKey:
+        type: string
+        title: Dead Letter Routing Key
       sslProtocol:
-        type: string
-      username:
+        title: SSL
         type: string
       vhost:
-        type: string
-      vhostClassifierName:
+        title: Vhost
         type: string
     required:
-      - connectionSourceType
-      - exchange
       - queues
-additionalProperties: false
+definitions:
+  AcknowledgeMode:
+    enum:
+      - NONE
+      - MANUAL
+      - AUTO
+    default: AUTO
+    title: Acknowledge Mode
+    description: >
+      NONE - no acknowledgment will be sent.
+      MANUAL - immediately send an acknowledgment (normal or negative)
+      when message is taken.
+      AUTO - send an acknowledgment (normal or negative)
+      after the end of the chain.
+  ExchangeType:
+    enum:
+      - direct
+      - fanout
+      - headers
+      - topic
+    default: direct
+    title: Exchange type
