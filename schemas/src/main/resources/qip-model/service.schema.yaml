@@ -74,5 +74,5 @@ definitions:
         sourceType:
           const: MANUAL
     then:
-      require:
+      required:
         - address

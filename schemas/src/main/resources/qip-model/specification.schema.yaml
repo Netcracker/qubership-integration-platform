@@ -83,6 +83,3 @@ definitions:
     required:
       - method
       - path
-      - specification
-      - requestSchema
-      - responseSchemas
