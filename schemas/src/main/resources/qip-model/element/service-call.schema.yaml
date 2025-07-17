@@ -36,9 +36,11 @@ properties:
         title: Retry delay (ms)
         description: Specifies delay between retries in millis.
       before:
-        oneOf:
-          - $ref: "mapper-2.schema.yaml"
-          - $ref: "script.schema.yaml"
+        $ref: "#/definitions/ExchangeTransformation"
+      after:
+        type: array
+        items:
+          $ref: "#/definitions/ResponseHandler"
       authorizationConfiguration:
         oneOf:
           - $ref: "#/definitions/AuthorizationNone"
@@ -111,6 +113,24 @@ definitions:
         type: string
       type:
         const: responseValidation
+  ExchangeTransformation:
+    oneOf:
+      - type: object
+        allOf:
+          - $ref: "mapper-2.schema.yaml#/properties/properties"
+        properties:
+          type:
+            const: "mapper-2"
+        required:
+          - type
+      - type: object
+        allOf:
+          - $ref: "script.schema.yaml#/properties/properties"
+        properties:
+          type:
+            const: "script"
+        required:
+          - type
   ValidationFailureHandler:
     type: object
     properties:
@@ -130,13 +150,7 @@ definitions:
     then:
       properties:
         handlerContainer:
-          type: object
-          properties:
-            script:
-              type: string
-          required:
-            - script
-          additionalProperties: false
+          $ref: "script.schema.yaml#/definitions/properties/properties"
       required:
         - handlerContainer
     else:
@@ -148,10 +162,28 @@ definitions:
           - handleValidationAction
       then:
         handlerContainer:
+          $ref: "mapper-2.shema.yaml#/properties/properties"
+        required:
+          - handlerContainer
+  ResponseHandler:
+    type: object
+    anyOf:
+      - $ref: "#/definitions/ExchangeTransformation"
+      - not:
           type: object
           properties:
-            mappingDescription:
-              type: object
+            type:
+              enum:
+                - script
+                - mapper-2
           required:
-            - script
-          additionalProperties: false
+            - type
+    properties:
+      id:
+        type: string
+      code:
+        type: string
+      label:
+        type: string
+      wildcard:
+        type: boolean
