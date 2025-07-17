@@ -2,16 +2,13 @@
 $id: http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: Http Trigger
-additionalProperties: false
+description: >
+  HTTP Trigger provides an HTTP endpoint for consuming arriving HTTP requests.
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: http-trigger
@@ -20,6 +17,9 @@ properties:
     const: triggers
   properties:
     type: object
+    allOf:
+      - $ref: "properties/correlation-id.schema.yaml"
+      - $ref: "properties/idempotency.schema.yaml"
     properties:
       abacResource:
         type: string
