@@ -71,7 +71,6 @@ oneOf:
             fileName:
               type: string
           required:
-            - fieldName
             - mimeType
             - name
             - value

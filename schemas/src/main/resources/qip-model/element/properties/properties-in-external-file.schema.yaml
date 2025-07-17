@@ -13,5 +13,4 @@ properties:
   propertiesFilename:
     $ref: "../../resource-reference.schema.yaml"
 required:
-  - exportFileExtension
   - propertiesFilename
