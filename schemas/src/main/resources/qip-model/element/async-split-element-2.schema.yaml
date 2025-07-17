@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: async-split-element-2
-  folder:
-    type: string
-    const: routing
   properties:
     type: object
     additionalProperties: false

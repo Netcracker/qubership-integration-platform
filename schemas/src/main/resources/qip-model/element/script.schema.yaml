@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: script
-  folder:
-    type: string
-    const: transformation
   properties:
     oneOf:
       - type: object

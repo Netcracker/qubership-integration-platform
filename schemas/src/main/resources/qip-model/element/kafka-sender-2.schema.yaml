@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: kafka-sender-2
-  folder:
-    type: string
-    const: senders
   properties:
     type: object
     allOf:

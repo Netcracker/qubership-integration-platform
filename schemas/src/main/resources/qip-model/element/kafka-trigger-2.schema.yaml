@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: kafka-trigger-2
-  folder:
-    type: string
-    const: triggers
   properties:
     type: object
     allOf:

@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: on-fallback-2
-  folder:
-    type: string
-    const: routing
   properties:
     type: object
     additionalProperties: false

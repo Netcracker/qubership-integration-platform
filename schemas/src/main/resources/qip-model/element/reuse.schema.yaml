@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: reuse
-  folder:
-    type: string
-    const: routing
   properties:
     type: object
     additionalProperties: false

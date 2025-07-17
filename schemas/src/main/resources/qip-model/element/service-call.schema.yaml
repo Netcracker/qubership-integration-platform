@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: service-call
-  folder:
-    type: string
-    const: senders
   properties:
     type: object
     allOf:

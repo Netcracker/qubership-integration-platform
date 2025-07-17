@@ -10,9 +10,6 @@ properties:
   type:
     type: string
     const: file-write
-  folder:
-    type: string
-    const: files
   properties:
     type: object
     properties:

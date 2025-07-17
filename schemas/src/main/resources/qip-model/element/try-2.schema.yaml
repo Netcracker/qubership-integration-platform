@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: try-2
-  folder:
-    type: string
-    const: triggers
   properties:
     type: object
     additionalProperties: false

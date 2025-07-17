@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: pubsub-trigger
-  folder:
-    type: string
-    const: triggers
   properties:
     type: object
     allOf:

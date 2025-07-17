@@ -10,9 +10,6 @@ properties:
   type:
     type: string
     const: header-modification
-  folder:
-    type: string
-    const: transformation
   properties:
     type: object
     properties:

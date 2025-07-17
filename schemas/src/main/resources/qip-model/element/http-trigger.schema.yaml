@@ -12,9 +12,6 @@ properties:
   type:
     type: string
     const: http-trigger
-  folder:
-    type: string
-    const: triggers
   properties:
     type: object
     allOf:

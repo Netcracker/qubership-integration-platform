@@ -10,9 +10,6 @@ properties:
   type:
     type: string
     const: xslt
-  folder:
-    type: string
-    const: transformation
   properties:
     type: object
     properties:

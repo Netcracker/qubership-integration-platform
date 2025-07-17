@@ -12,9 +12,6 @@ properties:
   type:
     type: string
     const: swimlane
-  folder:
-    type: string
-    const: grouping
   properties:
     type: object
     properties:

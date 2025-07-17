@@ -13,9 +13,6 @@ properties:
   type:
     type: string
     const: log-record
-  folder:
-    type: string
-    const: routing
   properties:
     type: object
     properties:

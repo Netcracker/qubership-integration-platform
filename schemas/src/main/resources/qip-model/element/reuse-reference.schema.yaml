@@ -10,9 +10,6 @@ properties:
   type:
     type: string
     const: reuse-reference
-  folder:
-    type: string
-    const: routing
   properties:
     type: object
     additionalProperties: false

@@ -10,9 +10,6 @@ properties:
   type:
     type: string
     const: file-read
-  folder:
-    type: string
-    const: files
   properties:
     type: object
     additionalProperties: false

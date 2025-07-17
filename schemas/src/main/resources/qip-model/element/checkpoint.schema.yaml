@@ -10,9 +10,6 @@ properties:
   type:
     type: string
     const: checkpoint
-  folder:
-    type: string
-    const: composite-triggers
   properties:
     type: object
     properties:

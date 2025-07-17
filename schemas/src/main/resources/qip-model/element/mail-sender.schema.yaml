@@ -10,9 +10,6 @@ properties:
   type:
     type: string
     const: mail-sender
-  folder:
-    type: string
-    const: senders
   properties:
     type: object
     allOf:

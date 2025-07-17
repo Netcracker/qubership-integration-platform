@@ -10,9 +10,6 @@ properties:
   type:
     type: string
     const: split-async-2
-  folder:
-    type: string
-    const: routing
   children:
     type: array
     items:

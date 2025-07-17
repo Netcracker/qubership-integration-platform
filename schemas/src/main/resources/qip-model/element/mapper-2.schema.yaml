@@ -11,9 +11,6 @@ properties:
   type:
     type: string
     const: mapper-2
-  folder:
-    type: string
-    const: transformation
   properties:
     type: object
     allOf:

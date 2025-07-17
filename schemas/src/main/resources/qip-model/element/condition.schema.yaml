@@ -10,9 +10,6 @@ properties:
   type:
     type: string
     const: condition
-  folder:
-    type: string
-    const: routing
   children:
     type: array
     items:
