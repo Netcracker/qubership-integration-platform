@@ -24,7 +24,13 @@ public class ConformanceToJsonSchemaTest {
         // This creates a schema factory that will use Draft-07 as the default if $schema is not specified
         // in the schema data. If $schema is specified in the schema data, then that schema dialect will be used
         // instead and this version is ignored.
-        JsonSchemaFactory jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+        JsonMetaSchema metaSchema = JsonMetaSchema.builder(JsonMetaSchema.getV7())
+                .unknownKeywordFactory(DisallowUnknownKeywordFactory.getInstance())
+                .build();
+        JsonSchemaFactory jsonSchemaFactory = JsonSchemaFactory.getInstance(
+                SpecVersion.VersionFlag.V7,
+                builder -> builder.metaSchema(metaSchema)
+        );
         SchemaValidatorsConfig.Builder builder = SchemaValidatorsConfig.builder();
 
         // By default, the JDK regular expression implementation which is not ECMA 262 compliant is used
