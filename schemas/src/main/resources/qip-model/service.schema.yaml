@@ -68,5 +68,11 @@ definitions:
         type: object
       additionalProperties: true
     required:
-      - address
       - sourceType
+    if:
+      properties:
+        sourceType:
+          const: MANUAL
+    then:
+      require:
+        - address
