@@ -10,10 +10,6 @@ oneOf:
       integrationOperationMethod:
         title: Operation method
         $ref: "#/definitions/AsyncMethod"
-      reconnectDelay:
-        type: integer
-        title: Reconnection delay (ms)
-        default: 30000
       integrationOperationAsyncProperties:
         type: object
         additionalProperties: true
@@ -47,16 +43,38 @@ oneOf:
       integrationOperationMethod:
         title: Operation method
         $ref: "#/definitions/HttpMethod"
-      integrationPathParameters:
+      integrationOperationPathParameters:
         patternProperties:
           "^.*$":
             type: string
-      integrationQueryParameters:
+      integrationOperationQueryParameters:
         "^.*$":
           type: string
       integrationAdditionalParameters:
         "^.*$":
           type: string
+      bodyMimeType:
+        type: string
+      bodyFormData:
+        type: array
+        items:
+          type: object
+          properties:
+            fieldName:
+              type: string
+            mimeType:
+              type: string
+            name:
+              type: string
+            value:
+              type: string
+            fileName:
+              type: string
+          required:
+            - fieldName
+            - mimeType
+            - name
+            - value
     required:
       - integrationOperationProtocolType
       - integrationOperationMethod
