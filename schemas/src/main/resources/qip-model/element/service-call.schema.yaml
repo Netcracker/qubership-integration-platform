@@ -2,15 +2,12 @@
 $id: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
 title: Service Call
+description: Make a call to a service registered in API Repository.
 properties:
-  id:
-    type: string
-    format: uuid
-  name:
-    type: string
-  description:
-    type: string
   type:
     type: string
     const: service-call
@@ -19,46 +16,142 @@ properties:
     const: senders
   properties:
     type: object
-    additionalProperties: false
+    allOf:
+      - $ref: "properties/operation.schema.yaml"
+      - $ref: "properties/correlation-id.schema.yaml"
+      - $ref: "properties/context-propagation.schema.yaml"
+      - $ref: "#/definitions/ValidationFailureHandler"
     properties:
       retryCount:
         type: integer
+        minimum: 0
+        default: 0
+        title: Retry count
+        description: >
+          Specifies number of retries for the call before it considers as failed.
       retryDelay:
         type: integer
-      correlationIdName:
+        minimum: 0
+        default: 5000
+        title: Retry delay (ms)
+        description: Specifies delay between retries in millis.
+      before:
+        oneOf:
+          - $ref: "mapper-2.schema.yaml"
+          - $ref: "script.schema.yaml"
+      authorizationConfiguration:
+        oneOf:
+          - $ref: "#/definitions/AuthorizationNone"
+          - $ref: "#/definitions/AuthorizationBasic"
+          - $ref: "#/definitions/AuthorizationBearerToken"
+          - $ref: "#/definitions/AuthorizationM2MToken"
+    required:
+      - retryCount
+      - retryDelay
+    if:
+      properties:
+        integrationOperationProtocolType:
+          const: http
+    then:
+      properties:
+        afterValidation:
+          type: array
+          items:
+            $ref: "#/definitions/ResponseValidation"
+definitions:
+  AuthorizationNone:
+    type: object
+    properties:
+      type:
+        const: none
+  AuthorizationBasic:
+    type: object
+    properties:
+      type:
+        const: basic
+      data:
+        type: object
+        properties:
+          username:
+            type: string
+          password:
+            type: string
+        required:
+          - username
+          - password
+  AuthorizationBearerToken:
+    type: object
+    properties:
+      type:
+        const: bearer
+      data:
+        type: object
+        properties:
+          token:
+            type: string
+        required:
+          - token
+  AuthorizationM2MToken:
+    type: object
+    properties:
+      type:
+        const: m2m
+  ResponseValidation:
+    type: object
+    properties:
+      code:
         type: string
-      correlationIdPosition:
+      contentType:
         type: string
-        enum:
-          - Header
-          - Body
-      correlationIdReceiver:
-        type: object #custom
+      id:
+        type: string
+      label:
+        type: string
+      schema:
+        type: string
+      type:
+        const: responseValidation
+  ValidationFailureHandler:
+    type: object
+    properties:
       handleValidationAction:
         type: string
         enum:
           - default
           - script
           - mapper-2
-      integrationGqlOperationName:
-        type: string
-      integrationGqlQuery:
-        type: string
-      integrationGqlQueryHeader:
-        type: string
-      integrationGqlVariablesHeader:
-        type: string
-      integrationGqlVariablesJSON:
-        type: string
-      integrationOperationProtocolType:
-        type: string
-      overrideContextComponent:
-        type: custom
-      overrideContextParams:
-        type: string
-      propagateContext:
-        type: boolean
-    required:
-      - retryCount
-      - retryDelay
-additionalProperties: false
+        default: default
+    if:
+      properties:
+        handleValidationAction:
+          const: script
+      required:
+        - handleValidationAction
+    then:
+      properties:
+        handlerContainer:
+          type: object
+          properties:
+            script:
+              type: string
+          required:
+            - script
+          additionalProperties: false
+      required:
+        - handlerContainer
+    else:
+      if:
+        properties:
+          handleValidationAction:
+            const: mapper-2
+        required:
+          - handleValidationAction
+      then:
+        handlerContainer:
+          type: object
+          properties:
+            mappingDescription:
+              type: object
+          required:
+            - script
+          additionalProperties: false
