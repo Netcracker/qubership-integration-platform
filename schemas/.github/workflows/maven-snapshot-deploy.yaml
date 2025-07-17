@@ -1,0 +1,43 @@
+---
+
+# This workflow is used to deploy Maven snapshot artifacts to GitHub packages or Maven Central repository.
+# It is triggered on pushes to branches other than main and release branches.
+# The workflow uses the `netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy` action to perform the deployment.
+# Please read the documentation on how to configure pom.xml for the deployment to work properly:
+# https://github.com/netcracker/qubership-workflow-hub/blob/main/docs/maven-publish-pom-preparation_doc.md
+
+name: Maven Deploy Snapshot
+
+on:
+  push:
+    branches-ignore:
+      - "main"
+      - "**release*"
+      - "prettier/**"
+      - "dependabot/**"
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - ".github/**"
+  workflow_dispatch: {}
+permissions:
+  packages: write # Required for GitHub packages deployment. For maven central deployment it can be ommited
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Maven Snapshot
+        uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@v1.0.3
+        with:
+          java-version: '21' # Specify the Java version to use for the build
+          target-store: 'github' # or 'central' for Maven Central repository
+          # maven-command: 'package' # Relevant for action versions > v1.0.3 or main. By default maven-command == deploy
+          additional-mvn-args: '' # Additional arguments to pass to mvn command
+          maven-username: ${{ github.actor }} # For maven central repository it would be ${{ secrets.MAVEN_USER }}
+          maven-token: ${{ github.token }} # For maven central repository it would be ${{ secrets.MAVEN_PASSWORD}}
+          # gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }} # Organization level secret. Already set for Netcracker. Required only if target-store is 'central'
+          # gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }} # Organization level secret. Already set for Netcracker.  Required only if target-store is 'central'
