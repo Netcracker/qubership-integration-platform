@@ -44,15 +44,20 @@ oneOf:
         title: Operation method
         $ref: "#/definitions/HttpMethod"
       integrationOperationPathParameters:
+        type: object
         patternProperties:
           "^.*$":
             type: string
       integrationOperationQueryParameters:
-        "^.*$":
-          type: string
+        type: object
+        patternProperties:
+          "^.*$":
+            type: string
       integrationAdditionalParameters:
-        "^.*$":
-          type: string
+        type: object
+        patternProperties:
+          "^.*$":
+            type: string
       bodyMimeType:
         type: string
       bodyFormData:
