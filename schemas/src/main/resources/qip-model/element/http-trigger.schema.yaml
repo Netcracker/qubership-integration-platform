@@ -166,7 +166,7 @@ definitions:
           handleValidationAction:
             const: script
           handlerContainer:
-            $ref: "script.schema.yaml#/properties/properties"
+            $ref: "script.schema.yaml#/definitions/ScriptProperties"
         required:
           - handleValidationAction
           - handlerContainer
@@ -175,7 +175,7 @@ definitions:
           handleValidationAction:
             const: mapper-2
           handlerContainer:
-            $ref: "mapper-2.schema.yaml#/properties/properties"
+            $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
         required:
           - handleValidationAction
           - handlerContainer
@@ -204,7 +204,7 @@ definitions:
           handleChainFailureAction:
             const: script
           handlerContainer:
-            $ref: "script.schema.yaml#/properties/properties"
+            $ref: "script.schema.yaml#/definitions/ScriptProperties"
         required:
           - handleValidationAction
           - chainFailureHandlerContainer
@@ -213,7 +213,7 @@ definitions:
           handleChainFailureAction:
             const: mapper-2
           chainFailureHandlerContainer:
-            $ref: "mapper-2.schema.yaml#/properties/properties"
+            $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
         required:
           - handleValidationAction
           - chainFailureHandlerContainer

@@ -12,6 +12,9 @@ properties:
     type: string
     const: script
   properties:
+    $ref: "#/definitions/ScriptProperties"
+definitions:
+  ScriptProperties:
     oneOf:
       - type: object
         properties:

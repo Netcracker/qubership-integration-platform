@@ -12,6 +12,9 @@ properties:
     type: string
     const: mapper-2
   properties:
+    $ref: "#/definitions/MapperParameters"
+definitions:
+  MapperParameters:
     type: object
     allOf:
       - type: object
@@ -29,7 +32,6 @@ properties:
                 $ref: "#/definitions/MappingDescription"
             required:
               - mappingDescription
-definitions:
   Metadata:
     type: object
     title: Metadata
