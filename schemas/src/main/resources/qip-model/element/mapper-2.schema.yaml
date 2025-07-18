@@ -332,7 +332,9 @@ definitions:
         items:
           $ref: "#/definitions/Attribute"
       body:
-        $ref: "#definitions/DataType"
+        oneOf:
+          - $ref: "#definitions/DataType"
+          - type: "null"
   MappingDescription:
     type: object
     allOf:
