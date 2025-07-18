@@ -147,7 +147,7 @@ definitions:
     then:
       properties:
         handlerContainer:
-          $ref: "script.schema.yaml#/definitions/properties/properties"
+          $ref: "script.schema.yaml#/properties/properties"
       required:
         - handlerContainer
     else:
@@ -158,8 +158,9 @@ definitions:
         required:
           - handleValidationAction
       then:
-        handlerContainer:
-          $ref: "mapper-2.shema.yaml#/properties/properties"
+        properties:
+          handlerContainer:
+            $ref: "mapper-2.shema.yaml#/properties/properties"
         required:
           - handlerContainer
   ResponseHandler:

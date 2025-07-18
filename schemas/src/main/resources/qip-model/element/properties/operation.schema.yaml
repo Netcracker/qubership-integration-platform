@@ -1,6 +1,7 @@
 ---
 $id: http://qubership.org/schemas/product/qip/element/properties/operation.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
+type: object
 title: Operation properties
 oneOf:
   - type: object
