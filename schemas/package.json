@@ -5,13 +5,27 @@
   "description": "Schemas definition for QIP",
   "scripts": {
     "prepublishOnly": "gulp clean assembly",
-    "postpublish": "gulp clean"
+    "postpublish": "gulp clean",
+    "test": "jest"
   },
   "files": [
     "assets"
   ],
   "devDependencies": {
+    "@babel/core": "^7.28.0",
+    "@babel/preset-env": "^7.28.0",
+    "@babel/preset-typescript": "^7.27.1",
+    "@jest/globals": "^30.0.4",
+    "@nodelib/fs.walk": "^3.0.1",
+    "ajv": "^8.17.1",
+    "babel-jest": "^30.0.4",
     "gulp": "^5.0.1",
-    "gulp-clean": "^0.4.0"
+    "gulp-clean": "^0.4.0",
+    "jest": "^30.0.4",
+    "yaml": "^2.8.0"
+  },
+  "dependencies": {
+    "save-dev": "^0.0.1-security",
+    "ts-node": "^10.9.2"
   }
 }
