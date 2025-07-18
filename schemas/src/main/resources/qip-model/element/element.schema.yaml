@@ -2,7 +2,6 @@
 $id: http://qubership.org/schemas/product/qip/element/element.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
-title: Chain element
 allOf:
   - type: object
     properties:
@@ -46,3 +45,4 @@ allOf:
     - $ref: 'xslt.schema.yaml'
 required:
   - type
+title: Chain element
