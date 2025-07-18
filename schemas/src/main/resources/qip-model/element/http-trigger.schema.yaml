@@ -91,26 +91,6 @@ properties:
       httpBinding:
         type: string
         default: 'handlingHttpBinding'
-
-      handleChainFailureAction:
-        type: string
-        enum:
-          - default
-          - script
-          - mapper-2
-          - chain-call
-      handleValidationAction:
-        type: string
-        enum:
-          - default
-          - script
-          - mapper-2
-      handlerContainer:
-        type: object
-        additionalProperties: false
-        properties:
-          script:
-            type: string
 definitions:
   AccessControlProperties:
     type: object
@@ -199,6 +179,14 @@ definitions:
         required:
           - handleValidationAction
           - handlerContainer
+      - type: object
+        properties:
+          handleValidationAction:
+            const: default
+          handlerContainer:
+            type: object
+        required:
+          - handleValidationAction
     properties:
       handleValidationAction:
         type: string
@@ -244,6 +232,14 @@ definitions:
         required:
           - handleValidationAction
           - chainFailureHandlerContainer
+      - type: object
+        properties:
+          handleChainFailureAction:
+            const: default
+          chainFailureHandlerContainer:
+            type: object
+        required:
+          - handleValidationAction
     properties:
       handleChainFailureAction:
         type: string
