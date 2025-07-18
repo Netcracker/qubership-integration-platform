@@ -34,7 +34,7 @@ function getSchema(content: string): string {
 }
 
 test("Test schemas conformance", () => {
-    const ajv  = new Ajv({
+    const ajv = new Ajv({
         verbose: true,
         allErrors: true,
     });
@@ -52,7 +52,7 @@ describe("Test schemas over samples", () => {
     let ajv: Ajv;
 
     beforeAll(() => {
-        ajv  = new Ajv({
+        ajv = new Ajv({
             verbose: true,
             allErrors: true,
         });
