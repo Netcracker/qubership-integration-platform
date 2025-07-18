@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.schemas;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.networknt.schema.*;
 import org.junit.jupiter.api.BeforeAll;
@@ -12,6 +13,7 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.support.ParameterDeclarations;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.yaml.snakeyaml.LoaderOptions;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -35,10 +37,18 @@ public final class SchemaOnSamplesTest {
             Logger.getLogger(SchemaOnSamplesTest.class.getName());
 
     static class ThisTestArgumentsProvider implements ArgumentsProvider {
-        private static final YAMLMapper MAPPER = new YAMLMapper();
+        private static final YAMLMapper MAPPER;
         private static final Pattern SCHEMA_COMMENT_PATTERN =
                 Pattern.compile("^#\\s*\\$schema:\\s+");
         private static final String SHOULD_FAIL_SUFFIX = "__SHOULD_FAIL.yaml";
+
+        static {
+            LoaderOptions loaderOptions = new LoaderOptions();
+            loaderOptions.setCodePointLimit(50 * 1024 * 1024); // 25 MB
+            MAPPER = new YAMLMapper(YAMLFactory.builder()
+                    .loaderOptions(loaderOptions)
+            .build());
+        }
 
         @Override
         public Stream<? extends Arguments> provideArguments(
@@ -101,7 +111,7 @@ public final class SchemaOnSamplesTest {
                             String result = iri.replace("http://qubership.org/schemas/product/qip", "classpath:qip-model");
                             LOGGER.info(iri + " -> " + result);
                             return result;
-                        }))
+                        })).yamlMapper(ThisTestArgumentsProvider.MAPPER)
         );
         SchemaValidatorsConfig.Builder builder = SchemaValidatorsConfig.builder();
 
