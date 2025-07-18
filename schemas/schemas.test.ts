@@ -1,4 +1,4 @@
-import {expect, test} from "@jest/globals";
+import {beforeAll, describe, expect, test} from "@jest/globals";
 import Ajv from "ajv";
 import { walkSync } from "@nodelib/fs.walk";
 import { parse as parseYaml } from "yaml";
@@ -48,17 +48,11 @@ test("Test schemas conformance", () => {
         });
 });
 
-test.each(
-    getSamples()
-        .map(document => {
-            const content = parseYaml(document.content);
-            const schema = content["$schema"] ?? getSchema(document.content);
-            return [schema, document.path, parseYaml(document.content)];
-        })
-)(
-    "Test schema %s over sample %s",
-    (schema: string, path: string, sample: any) => {
-        const ajv  = new Ajv({
+describe("Test schemas over samples", () => {
+    let ajv: Ajv;
+
+    beforeAll(() => {
+        ajv  = new Ajv({
             verbose: true,
             allErrors: true,
         });
@@ -66,7 +60,20 @@ test.each(
             .map(document => document.content)
             .map(content => parseYaml(content))
             .forEach(sch => ajv.addSchema(sch, sch["$id"]));
-        const result = ajv.validate(schema, sample);
-        expect(result).toBe(!path.endsWith("__SHOULD_FAIL.yaml"));
-    }
-);
+    });
+
+    test.each(
+        getSamples()
+            .map(document => {
+                const content = parseYaml(document.content);
+                const schema = content["$schema"] ?? getSchema(document.content);
+                return [schema, document.path, parseYaml(document.content)];
+            })
+    )(
+        "Test schema %s over sample %s",
+        (schema: string, path: string, sample: any) => {
+            const result = ajv.validate(schema, sample);
+            expect(result).toBe(!path.endsWith("__SHOULD_FAIL.yaml"));
+        }
+    );
+});
