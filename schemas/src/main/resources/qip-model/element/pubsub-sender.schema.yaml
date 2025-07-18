@@ -5,6 +5,7 @@ type: object
 allOf:
   - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
   - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: PubSub Sender
 properties:
   type:
     type: string
@@ -57,4 +58,3 @@ properties:
       - projectId
       - destinationName
       - serviceAccountKey
-title: PubSub Sender
