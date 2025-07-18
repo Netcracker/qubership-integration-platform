@@ -46,9 +46,14 @@ definitions:
   SpecificationSource:
     type: object
     allOf:
-      - $ref: "base.schema.yaml#/definitions/CommonEntityProperties"
       - $ref: "base.schema.yaml#/definitions/CommonEntityContent"
     properties:
+      id:
+        type: string
+        title: Identifier
+      name:
+        type: string
+        title: Name
       sourceHash:
         type: string
         title: Source hash
@@ -59,6 +64,7 @@ definitions:
         $ref: "resource-reference.schema.yaml"
         title: File name
     required:
+      - id
       - sourceHash
       - mainSource
       - fileName
