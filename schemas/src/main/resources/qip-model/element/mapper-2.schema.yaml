@@ -333,7 +333,7 @@ definitions:
           $ref: "#/definitions/Attribute"
       body:
         oneOf:
-          - $ref: "#definitions/DataType"
+          - $ref: "#/definitions/DataType"
           - type: "null"
   MappingDescription:
     type: object
