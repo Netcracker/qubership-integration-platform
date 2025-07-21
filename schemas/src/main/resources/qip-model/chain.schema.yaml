@@ -59,7 +59,6 @@ definitions:
         $ref: "#/definitions/Folder"
     required:
       - name
-    additionalProperties: false
   MaskedField:
     type: object
     properties:
