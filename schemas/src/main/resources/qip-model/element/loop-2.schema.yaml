@@ -31,8 +31,9 @@ properties:
           of the current iteration. The property holding iteration index
           is removing after loop exits.
       maxLoopIteration:
-        allOf:
+        oneOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "../base.schema.yaml#/definitions/SimpleExpression"
         title: Maximum iteration count
         description: >
           When specified number of iterations is reached, chain stops

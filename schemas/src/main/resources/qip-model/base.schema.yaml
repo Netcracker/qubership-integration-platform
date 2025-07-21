@@ -100,3 +100,6 @@ definitions:
         pattern: "^[0-9]+$"
       - type: string
         pattern: "^#\\{[a-zA-Z0-9:._-]+\\}$"
+  SimpleExpression:
+    type: string
+    pattern: "\\$\\{[^}]+\\}"

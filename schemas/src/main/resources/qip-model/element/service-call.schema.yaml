@@ -20,15 +20,17 @@ properties:
       - $ref: "#/definitions/ValidationFailureHandler"
     properties:
       retryCount:
-        allOf:
+        oneOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "../base.schema.yaml#/definitions/SimpleExpression"
         default: 0
         title: Retry count
         description: >
           Specifies number of retries for the call before it considers as failed.
       retryDelay:
-        allOf:
+        oneOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "../base.schema.yaml#/definitions/SimpleExpression"
         default: 5000
         title: Retry delay (ms)
         description: Specifies delay between retries in millis.
