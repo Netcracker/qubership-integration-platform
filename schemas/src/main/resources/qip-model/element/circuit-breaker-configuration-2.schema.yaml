@@ -97,7 +97,8 @@ properties:
           calls.
         default: 100
       waitDurationInOpenState:
-        type: number
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Wait duration in open state (s)
         description: >
           Configures the wait duration (in seconds) which specifies
