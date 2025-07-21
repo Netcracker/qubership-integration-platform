@@ -17,6 +17,7 @@ properties:
         type: string
         title: Reference to chain trigger
       timeout:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Timeout (ms)
         default: 30000

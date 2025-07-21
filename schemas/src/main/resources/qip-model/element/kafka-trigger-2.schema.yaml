@@ -22,11 +22,8 @@ properties:
         title: Group ID
         description: The ID of the group the Producer is assigned to.
       reconnectBackoffMaxMs:
-        oneOf:
-          - type: integer
-            minimum: 0
-          - type: string
-            pattern: "[0-9]+"
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Reconnect delay (ms)
         description: Specifies delay between reconnection in millis.
         default: 30000
@@ -39,7 +36,8 @@ properties:
         description: The schema to adjust the message outset.
         default: latest
       consumersCount:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         default: 1
         minimum: 1
         title: Consumers Count
@@ -81,7 +79,8 @@ properties:
         title: Value Deserializer
         description: Value deserializer class
       maxPollIntervalMs:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         minimum: 0
         default: 300000
         title: Max Poll Interval
@@ -93,7 +92,8 @@ properties:
           to reassign the partitions to another consumer in the group.
           This "new" consumer will process the whole batch all over again.
       maxPollRecords:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         minimum: 0
         default: 500
         title: Max Poll Records

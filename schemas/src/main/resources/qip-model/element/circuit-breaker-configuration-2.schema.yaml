@@ -22,7 +22,8 @@ properties:
           the "Wait duration in open state" has passed
         default: false
       failureRateThreshold:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Failure rate threshold (%)
         description: >
           Configures the failure rate threshold in percentage.
@@ -32,7 +33,8 @@ properties:
           The threshold must be greater than 0 and not greater than 100.
         default: 50
       minimumNumberOfCalls:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Minimum number of calls
         description: >
           Configures the minimum number of calls which are required
@@ -45,14 +47,16 @@ properties:
           will not transition to open even if all 9 calls have failed.
         default: 100
       permittedNumberOfCallsInHalfOpenState:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Permitted number of calls in half open state
         description: >
           Configures the number of permitted calls when the CircuitBreaker
           is half open. The size must be greater than 0
         default: 10
       slidingWindowSize:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Sliding window size
         description: >
           Configures the size of the sliding window which is used to record
@@ -73,14 +77,16 @@ properties:
         title: Sliding window type
         default: COUNT_BASED
       slowCallDurationThreshold:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Slow call duration threshold (s)
         description: >
           Configures the duration threshold (seconds) above which calls
           are considered as slow and increase the slow calls percentage.
         default: 60
       slowCallRateThreshold:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Slow call rate threshold (%)
         description: >
           Configures a threshold in percentage. The CircuitBreaker considers

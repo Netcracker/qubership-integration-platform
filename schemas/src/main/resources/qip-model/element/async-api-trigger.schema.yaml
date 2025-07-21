@@ -58,7 +58,8 @@ properties:
     then: # kafka
       properties:
         reconnectDelay:
-          type: integer
+          allOf:
+            - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
           title: Reconnection delay (ms)
           default: 30000
         integrationOperationAsyncProperties:

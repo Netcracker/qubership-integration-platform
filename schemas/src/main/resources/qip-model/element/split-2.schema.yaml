@@ -20,7 +20,8 @@ properties:
     type: object
     properties:
       timeout:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Timeout
         description: Sets a total timeout specified in millis
         default: 0

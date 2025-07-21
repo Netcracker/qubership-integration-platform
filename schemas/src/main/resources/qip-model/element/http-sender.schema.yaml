@@ -22,7 +22,8 @@ properties:
         description: HTTP method
         $ref: "#/definitions/HttpMethod"
       connectTimeout:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Connection timeout (ms)
         description: >
           Specifies connection timeout in millis

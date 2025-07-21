@@ -67,7 +67,8 @@ properties:
           For security purposes, use reference to secured
           variables when entering passwords.
       connectionTimeout:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Connection timeout (ms)
         description: >
           Connection timeout in millis (default value will be used

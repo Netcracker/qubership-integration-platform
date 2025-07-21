@@ -1,0 +1,2 @@
+# $schema: http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder
+"#{foobar}"

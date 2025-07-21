@@ -58,7 +58,8 @@ properties:
           or exclude them from there. This is only supported for responses
           in JSON.
       connectTimeout:
-        type: integer
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Connection timeout (ms)
         description: >
           Specifies connection timeout in millis (default value will be used

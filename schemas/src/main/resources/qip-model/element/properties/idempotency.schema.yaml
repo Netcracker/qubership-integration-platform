@@ -29,7 +29,8 @@ definitions:
         title: Enable idempotency
         default: false
       keyExpiry:
-        type: integer
+        allOf:
+          - $ref: "../../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Key expiration time (seconds)
         default: 600
       contextExpression:
@@ -70,7 +71,8 @@ definitions:
         type: string
         title: Chain trigger
       chainCallTimeout:
-        type: integer
+        allOf:
+          - $ref: "../../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Timeout (ms)
         default: 30000
     required:

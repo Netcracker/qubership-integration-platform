@@ -92,3 +92,11 @@ definitions:
     required:
       - id
       - username
+  IntegerOrVariablePlaceholder:
+    oneOf:
+      - type: integer
+        minimum: 0
+      - type: string
+        pattern: "^[0-9]+$"
+      - type: string
+        pattern: "^#\\{[a-zA-Z0-9:._-]+\\}$"

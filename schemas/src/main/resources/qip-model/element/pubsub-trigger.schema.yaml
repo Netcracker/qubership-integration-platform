@@ -32,11 +32,8 @@ properties:
           PubSub publisher/subscriber. Must be specified as a base64 encoded
           ServiceAccount json file.
       maxMessagesPerPoll:
-        oneOf:
-          - type: integer
-            minimum: 1
-          - type: string
-            pattern: "[1-9][0-9]*"
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Max messages per poll
         description: >
           The max number of messages to receive from the server
