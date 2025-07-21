@@ -25,7 +25,6 @@ properties:
         title: Timeout
         description: Sets a total timeout specified in millis
         default: 0
-        minimum: 0
       stopOnException:
         type: boolean
         title: Stop On Exception

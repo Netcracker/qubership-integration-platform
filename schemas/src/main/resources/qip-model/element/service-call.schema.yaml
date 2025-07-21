@@ -22,7 +22,6 @@ properties:
       retryCount:
         allOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
-        minimum: 0
         default: 0
         title: Retry count
         description: >
@@ -30,7 +29,6 @@ properties:
       retryDelay:
         allOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
-        minimum: 0
         default: 5000
         title: Retry delay (ms)
         description: Specifies delay between retries in millis.

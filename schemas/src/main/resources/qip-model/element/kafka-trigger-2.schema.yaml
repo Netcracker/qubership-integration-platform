@@ -39,7 +39,6 @@ properties:
         allOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         default: 1
-        minimum: 1
         title: Consumers Count
         description: The number of consumers that connect to kafka server.
       keyDeserializer:
@@ -81,7 +80,6 @@ properties:
       maxPollIntervalMs:
         allOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
-        minimum: 0
         default: 300000
         title: Max Poll Interval
         description: >
@@ -94,7 +92,6 @@ properties:
       maxPollRecords:
         allOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
-        minimum: 0
         default: 500
         title: Max Poll Records
         description: >
