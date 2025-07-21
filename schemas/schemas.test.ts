@@ -1,4 +1,3 @@
-import {beforeAll, describe, expect, test} from "@jest/globals";
 import Ajv from "ajv";
 import { walkSync } from "@nodelib/fs.walk";
 import { parse as parseYaml } from "yaml";
@@ -39,12 +38,13 @@ test("Test schemas conformance", () => {
         allErrors: true,
     });
     const draft7Schema = ajv.getSchema("http://json-schema.org/draft-07/schema");
+    expect(draft7Schema).toBeDefined();
     getSchemas()
         .map(document => document.content)
         .map(content => parseYaml(content))
         .forEach(schema => {
             ajv.addSchema(schema, schema["$id"]);
-            expect(draft7Schema(schema)).toBeTruthy();
+            expect(draft7Schema!(schema)).toBeTruthy();
         });
 });
 
@@ -73,7 +73,8 @@ describe("Test schemas over samples", () => {
         "Test schema %s over sample %s",
         (schema: string, path: string, sample: any) => {
             const result = ajv.validate(schema, sample);
-            expect(result).toBe(!path.endsWith("__SHOULD_FAIL.yaml"));
+            const expected = !path.endsWith("__SHOULD_FAIL.yaml");
+            expect(result, ajv.errorsText() ?? "unknown error").toBe(expected);
         }
     );
 });

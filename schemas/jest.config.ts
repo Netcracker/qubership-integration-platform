@@ -6,6 +6,7 @@
 import type {Config} from 'jest';
 
 const config: Config = {
+
   // All imported modules in your tests should be mocked automatically
   // automock: false,
 
@@ -104,7 +105,7 @@ const config: Config = {
   // notifyMode: "failure-change",
 
   // A preset that is used as a base for Jest's configuration
-  // preset: undefined,
+  preset: 'ts-jest',
 
   // Run tests from one or more projects
   // projects: undefined,
@@ -139,7 +140,7 @@ const config: Config = {
   // setupFiles: [],
 
   // A list of paths to modules that run some code to configure or set up the testing framework before each test
-  // setupFilesAfterEnv: [],
+  setupFilesAfterEnv: ["jest-expect-message"],
 
   // The number of seconds after which a test is considered as slow and reported as such in the results.
   // slowTestThreshold: 5,
@@ -148,7 +149,7 @@ const config: Config = {
   // snapshotSerializers: [],
 
   // The test environment that will be used for testing
-  // testEnvironment: "jest-environment-node",
+  testEnvironment: "node",
 
   // Options that will be passed to the testEnvironment
   // testEnvironmentOptions: {},
@@ -157,15 +158,15 @@ const config: Config = {
   // testLocationInResults: false,
 
   // The glob patterns Jest uses to detect test files
-  // testMatch: [
-  //   "**/__tests__/**/*.?([mc])[jt]s?(x)",
-  //   "**/?(*.)+(spec|test).?([mc])[jt]s?(x)"
-  // ],
+  testMatch: [
+    "**/__tests__/**/*.?([mc])[jt]s?(x)",
+    "**/?(*.)+(spec|test).?([mc])[jt]s?(x)"
+  ],
 
   // An array of regexp pattern strings that are matched against all test paths, matched tests are skipped
-  // testPathIgnorePatterns: [
-  //   "\\\\node_modules\\\\"
-  // ],
+  testPathIgnorePatterns: [
+    "\\\\node_modules\\\\"
+  ],
 
   // The regexp pattern or array of patterns that Jest uses to detect test files
   // testRegex: [],
@@ -177,7 +178,9 @@ const config: Config = {
   // testRunner: "jest-circus/runner",
 
   // A map from regular expressions to paths to transformers
-  // transform: undefined,
+  transform: {
+      '^.+\\.tsx?$': 'ts-jest'
+  },
 
   // An array of regexp pattern strings that are matched against all source file paths, matched files will skip transformation
   // transformIgnorePatterns: [
