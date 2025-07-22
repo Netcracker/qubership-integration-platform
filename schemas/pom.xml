@@ -26,10 +26,11 @@
     </developers>
     <scm>
         <connection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</connection>
-        <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</developerConnection>
+        <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git
+        </developerConnection>
         <url>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</url>
-      <tag>v0.1.0</tag>
-  </scm>
+        <tag>v0.1.0</tag>
+    </scm>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -37,11 +38,11 @@
     </properties>
 
     <profiles>
-                    <profile>
-                <id>central</id>
-                <activation>
-                    <activeByDefault>true</activeByDefault>
-                </activation>
+        <profile>
+            <id>central</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
             <build>
                 <plugins>
                     <plugin>
@@ -111,11 +112,11 @@
         </profile>
 
 
-            <profile>
-                <id>github</id>
-                <activation>
-                    <activeByDefault>false</activeByDefault>
-                </activation>
+        <profile>
+            <id>github</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
             <distributionManagement>
                 <repository>
                     <id>github</id>
