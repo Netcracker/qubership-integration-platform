@@ -5,7 +5,7 @@
 
     <groupId>org.qubership</groupId>
     <artifactId>qip-schemas</artifactId>
-    <version>${revision}</version>
+    <version>0.0.5-SNAPSHOT</version>
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Schemas definition for QIP</description>
@@ -26,14 +26,12 @@
     </developers>
     <scm>
         <connection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</connection>
-        <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git
-        </developerConnection>
+        <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</developerConnection>
         <url>scm:git:https://github.com/netcracker/qubership-integration-schemas.git</url>
-        <tag>HEAD</tag>
-    </scm>
+      <tag>v0.1.0</tag>
+  </scm>
 
     <properties>
-        <revision>0.0.9-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <qip-checkstyle-revision>0.0.2</qip-checkstyle-revision>
     </properties>
@@ -42,7 +40,7 @@
                     <profile>
                 <id>central</id>
                 <activation>
-                    <activeByDefault>false</activeByDefault>
+                    <activeByDefault>true</activeByDefault>
                 </activation>
             <build>
                 <plugins>
@@ -113,10 +111,10 @@
         </profile>
 
 
-                    <profile>
+            <profile>
                 <id>github</id>
                 <activation>
-                    <activeByDefault>true</activeByDefault>
+                    <activeByDefault>false</activeByDefault>
                 </activation>
             <distributionManagement>
                 <repository>

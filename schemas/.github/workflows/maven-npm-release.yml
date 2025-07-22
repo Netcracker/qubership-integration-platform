@@ -1,0 +1,73 @@
+name: Maven & NPM Release
+
+run-name: Maven ${{ inputs.maven-version-type }} & NPM ${{ inputs.npm-version || 'auto' }} Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      maven-release:
+        description: 'Run Maven release'
+        required: false
+        type: boolean
+        default: true
+      npm-publish:
+        description: 'Run NPM publish'
+        required: false
+        type: boolean
+        default: true
+      # Maven specific inputs
+      maven-version-type:
+        description: 'Maven version type'
+        type: choice
+        options:
+          - 'major'
+          - 'minor'
+          - 'patch'
+        required: false
+        default: 'patch'
+      maven-profile:
+        description: 'Maven profile to use'
+        type: choice
+        options:
+          - 'github'
+          - 'central'
+        required: false
+        default: 'central'
+      # NPM specific inputs
+      npm-version:
+        description: 'NPM version to release (e.g., 1.0.0)'
+        required: false
+        type: string
+      npm-scope:
+        description: 'NPM scope for the package'
+        required: false
+        type: string
+        default: '@netcracker'
+      npm-dist-tag:
+        description: 'NPM distribution tag'
+        required: false
+        type: string
+        default: 'latest'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  maven-release:
+    if: ${{ inputs.maven-release && inputs.maven-release != 'false' }}
+    uses: ./.github/workflows/maven-release-v2.yaml
+    with:
+      version-type: ${{ inputs.maven-version-type || 'patch' }}
+      profile: ${{ inputs.maven-profile }}
+    secrets: inherit
+
+  npm-publish:
+    if: ${{ inputs.npm-publish && inputs.npm-publish != 'false' }}
+    uses: ./.github/workflows/npm-publish.yml
+    with:
+      version: ${{ inputs.npm-version }}
+      scope: ${{ inputs.npm-scope }}
+      dist-tag: ${{ inputs.npm-dist-tag }}
+      branch_name: main
+    secrets: inherit
