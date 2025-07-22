@@ -172,23 +172,29 @@ public class ServiceDeserializer {
                     .findFirst()
                     .ifPresent(group -> group.addSystemModel(systemModel));
             systemModelDto.getContent().getSpecificationSources().forEach(specificationSourceDto -> {
-                try {
-                    SpecificationSource specificationSource = SpecificationSource.builder()
-                            .id(specificationSourceDto.getId())
-                            .name(specificationSourceDto.getName())
-                            .description(specificationSourceDto.getDescription())
-                            .createdBy(specificationSourceDto.getCreatedBy())
-                            .createdWhen(specificationSourceDto.getCreatedWhen())
-                            .modifiedBy(specificationSourceDto.getModifiedBy())
-                            .modifiedWhen(specificationSourceDto.getModifiedWhen())
-                            .sourceHash(specificationSourceDto.getSourceHash())
-                            .isMainSource(specificationSourceDto.isMainSource())
-                            .source(Files.readString(resourceDirectory.toPath().resolve(specificationSourceDto.getFileName())))
-                            .build();
-                    systemModel.addProvidedSpecificationSource(specificationSource);
-                } catch (IOException e) {
-                    throw new RuntimeException("Failed to read specification source", e);
+                var specificationSourceBuilder = SpecificationSource.builder();
+                specificationSourceBuilder
+                        .id(specificationSourceDto.getId())
+                        .name(specificationSourceDto.getName())
+                        .description(specificationSourceDto.getDescription())
+                        .createdBy(specificationSourceDto.getCreatedBy())
+                        .createdWhen(specificationSourceDto.getCreatedWhen())
+                        .modifiedBy(specificationSourceDto.getModifiedBy())
+                        .modifiedWhen(specificationSourceDto.getModifiedWhen())
+                        .sourceHash(specificationSourceDto.getSourceHash())
+                        .isMainSource(specificationSourceDto.isMainSource());
+                Path sourcePath = resourceDirectory.toPath().resolve(specificationSourceDto.getFileName());
+                if (Files.exists(sourcePath)) {
+                    try {
+                        specificationSourceBuilder.source(Files.readString(sourcePath));
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to read specification source", e);
+                    }
+                } else {
+                    log.warn("Specification source file not found: {}", specificationSourceDto.getFileName());
                 }
+                SpecificationSource specificationSource = specificationSourceBuilder.build();
+                systemModel.addProvidedSpecificationSource(specificationSource);
             });
         } catch (MigrationException exception) {
             throw new RuntimeException("Failed to migrate specification data", exception);
