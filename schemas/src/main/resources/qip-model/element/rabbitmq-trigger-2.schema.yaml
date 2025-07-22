@@ -1,0 +1,69 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: RabbitMQ Trigger
+properties:
+  type:
+    type: string
+    const: rabbitmq-trigger-2
+  properties:
+    type: object
+    allOf:
+      - $ref: "properties/rabbitmq-connection-parameters.schema.yaml"
+      - $ref: "properties/idempotency.schema.yaml"
+    properties:
+      queues:
+        type: string
+        title: Queue(s) Name
+        description: >
+          The queue(s) to use for consuming messages (separated by comma).
+      acknowledgeMode:
+        $ref: "#/definitions/AcknowledgeMode"
+      exchangeType:
+        $ref: "#/definitions/ExchangeType"
+      deadLetterExchange:
+        type: string
+        title: Dead Letter Exchange
+      deadLetterExchangeType:
+        $ref: "#/definitions/ExchangeType"
+        title: Dead Letter Exchange Type
+      deadLetterQueue:
+        type: string
+        title: Dead Letter Queue
+      deadLetterRoutingKey:
+        type: string
+        title: Dead Letter Routing Key
+      sslProtocol:
+        title: SSL
+        type: string
+      vhost:
+        title: Vhost
+        type: string
+    required:
+      - queues
+definitions:
+  AcknowledgeMode:
+    enum:
+      - NONE
+      - MANUAL
+      - AUTO
+    default: AUTO
+    title: Acknowledge Mode
+    description: >
+      NONE - no acknowledgment will be sent.
+      MANUAL - immediately send an acknowledgment (normal or negative)
+      when message is taken.
+      AUTO - send an acknowledgment (normal or negative)
+      after the end of the chain.
+  ExchangeType:
+    enum:
+      - direct
+      - fanout
+      - headers
+      - topic
+    default: direct
+    title: Exchange type

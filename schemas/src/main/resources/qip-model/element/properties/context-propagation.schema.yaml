@@ -1,0 +1,15 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Context propagation properties
+properties:
+  propagateContext:
+    type: boolean
+    title: Propagate context
+    description: Propagate context to headers before sending message.
+    default: true
+  overrideContextParams:
+    title: Override technical context headers
+    description: Propagate props to headers before sending message.
+    $ref: "headers.schema.yaml"

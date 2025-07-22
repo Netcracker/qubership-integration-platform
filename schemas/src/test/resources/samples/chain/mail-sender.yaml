@@ -1,0 +1,31 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "b573b53b-08f8-49a9-ae33-601eaaa30f21"
+name: "Mail Sender"
+content:
+  modifiedWhen: 1752247383713
+  maskingEnabled: false
+  elements:
+  - id: "6a5671ca-c254-4346-87f1-ada01d9be320"
+    name: "Mail Sender"
+    type: "mail-sender"
+    properties:
+      cc:
+      - "Big brother"
+      connectionTimeout: 30000
+      contentType: "text/plain"
+      from: "Me"
+      ignoreUnsupportedCharset: false
+      password: "bar"
+      propagateContext: true
+      replyTo:
+      - "Him"
+      subject: "untitled"
+      to:
+      - "You"
+      url: "localhost"
+      useInlineAttachments: false
+      username: "foo"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

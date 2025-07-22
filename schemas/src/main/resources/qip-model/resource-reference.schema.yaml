@@ -1,0 +1,5 @@
+---
+$id: http://qubership.org/schemas/product/qip/resource-reference.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: string
+title: Resource reference

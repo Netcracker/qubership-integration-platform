@@ -1,5 +1,5 @@
 ---
-# The workflow to deploy snapshot artifact versions to GitHub packages 
+# The workflow to deploy snapshot artifact versions to GitHub packages
 # Fill free to adjust java version and additional mvn command-line parameters
 # The workflow will trigger on pushes into branches different from main and release
 # Please make sure that the version in the pom.xml file has the SNAPSHOT postfix

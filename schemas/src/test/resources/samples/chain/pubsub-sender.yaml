@@ -1,0 +1,24 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "0435193f-f55f-4889-bb33-3a1f5882c643"
+name: "PubSub Sender"
+content:
+  modifiedWhen: 1752494908646
+  maskingEnabled: false
+  elements:
+  - id: "b93ab8aa-e650-4682-b24b-3ffeafc1bbc1"
+    name: "PubSub Sender"
+    type: "pubsub-sender"
+    properties:
+      destinationName: "bar"
+      lazyStartProducer: true
+      messageOrderingEnabled: true
+      orderingKey: "biz"
+      overrideContextParams:
+        werwer: "werwerwerwer"
+      projectId: "foo"
+      propagateContext: true
+      serviceAccountKey: "baz"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

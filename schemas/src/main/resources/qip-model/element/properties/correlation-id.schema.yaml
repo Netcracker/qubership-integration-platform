@@ -1,0 +1,50 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Correlation ID properties
+properties:
+  receiveCorrelationId:
+    type: boolean
+    title: Receive correlation ID
+    default: false
+if:
+  properties:
+    receiveCorrelationId:
+      const: true
+  required:
+    - receiveCorrelationId
+then:
+  allOf:
+    - $ref: "#/definitions/CorrelationIdProperties"
+else:
+  if:
+    required:
+      - correlationIdPosition
+  then:
+    allOf:
+      - $ref: "#/definitions/CorrelationIdProperties"
+  else:
+    if:
+      required:
+        - correlationIdName
+    then:
+      allOf:
+        - $ref: "#/definitions/CorrelationIdProperties"
+definitions:
+  CorrelationIdPosition:
+    enum:
+      - header
+      - body
+  CorrelationIdProperties:
+    type: object
+    properties:
+      correlationIdPosition:
+        title: Correlation ID position
+        $ref: "#/definitions/CorrelationIdPosition"
+      correlationIdName:
+        type: string
+        title: Correlation ID name
+    required:
+      - correlationIdPosition
+      - correlationIdName

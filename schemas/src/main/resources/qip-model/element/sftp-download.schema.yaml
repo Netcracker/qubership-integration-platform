@@ -1,0 +1,68 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/sftp-download.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: SFTP Download
+properties:
+  type:
+    type: string
+    const: sftp-download
+  properties:
+    type: object
+    properties:
+      connectUrl:
+        type: string
+        title: Host:Port/Directory
+        description: Connection url
+      antInclude:
+        type: string
+        title: File Name (mask supported)
+      username:
+        type: string
+        title: Username
+      password:
+        type: string
+        title: Password
+        description: >
+          For security purposes, use reference to secured variables when
+          entering passwords.
+      idempotent:
+        type: boolean
+        title: Do not download files with same filekey
+        default: false
+      idempotentKey:
+        type: string
+        title: Filekey string
+        default: ${file:name}-${file:size}-${file:modified}
+      streamDownload:
+        type: boolean
+        title: Stream download (big filesize)
+        default: true
+      binary:
+        type: boolean
+        title: Binary
+        description: >
+          Specifies the file transfer mode, BINARY or ASCII.
+          Default is ASCII (false).
+        default: true
+      autoCreate:
+        type: boolean
+        title: Create directory to file
+        default: false
+      useUserKnownHostsFile:
+        type: boolean
+        default: false
+      sendEmptyMessageWhenIdle:
+        type: boolean
+        title: Send Empty message when Idle
+        default: true
+      throwExceptionOnConnectFailed:
+        type: boolean
+        title: Throw exception if Connection fails
+        default: true
+    required:
+      - connectUrl
+    additionalProperties: false

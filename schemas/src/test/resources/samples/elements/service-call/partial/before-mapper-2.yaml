@@ -1,0 +1,4 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml#/definitions/ExchangeTransformation
+type: "mapper-2"
+throwException: false
+propertiesFilename: "mappingDescription-before-af029601-570d-4a5c-b4bb-3572ceac42fa.json"

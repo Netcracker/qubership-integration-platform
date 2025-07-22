@@ -1,0 +1,21 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/xslt.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: XSLT
+properties:
+  type:
+    type: string
+    const: xslt
+  properties:
+    type: object
+    properties:
+      templateName:
+        type: string
+        title: Template name (path to local file)
+    required:
+      - templateName
+    additionalProperties: false

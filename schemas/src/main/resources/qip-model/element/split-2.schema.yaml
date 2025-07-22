@@ -1,0 +1,40 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/split-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Split
+properties:
+  type:
+    type: string
+    const: split-2
+  children:
+    type: array
+    items:
+      anyOf:
+        - $ref: "main-split-element-2.schema.yaml"
+        - $ref: "split-element-2.schema.yaml"
+  properties:
+    type: object
+    properties:
+      timeout:
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+        title: Timeout
+        description: Sets a total timeout specified in millis
+        default: 0
+      stopOnException:
+        type: boolean
+        title: Stop On Exception
+        description: >
+          Stop further processing if an exception or failure
+          occurred during processing.
+        default: true
+      aggregationStrategy:
+        type: string
+        title: Aggregation Strategy
+        description: Define reference to Aggregation processor.
+        default: chainsAggregationStrategy
+    additionalProperties: false

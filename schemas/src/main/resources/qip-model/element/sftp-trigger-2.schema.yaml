@@ -1,0 +1,83 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/sftp-trigger-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: SFTP Trigger
+properties:
+  type:
+    type: string
+    const: sftp-trigger-2
+  properties:
+    type: object
+    properties:
+      connectUrl:
+        type: string
+      antInclude:
+        type: string
+      binary:
+        type: boolean
+        title: Binary
+        description: >
+          Specifies the file transfer mode, BINARY or ASCII.
+          Default is ASCII (false).
+        default: true
+      idempotent:
+        type: boolean
+        title: Do not download files with same filekey
+        default: false
+      idempotentKey:
+        type: string
+        title: Filekey string
+        default: ${file:name}-${file:size}-${file:modified}
+      ignoreFileNotFoundOrPermissionError:
+        type: boolean
+        default: true
+      jschLoggingLevel:
+        type: string
+        default: OFF
+      password:
+        type: string
+        title: Password
+        description: >
+          For security purposes, use reference to secured variables when
+          entering passwords.
+      readLockLoggingLevel:
+        type: string
+        default: OFF
+      runLoggingLevel:
+        type: string
+      scheduler:
+        type: string
+        title: Scheduler type
+        default: quartz
+      scheduler.cron:
+        type: string
+      scheduler.deleteJob:
+        type: boolean
+        title: Scheduler deleteJob parameter
+        default: false
+      scheduler.triggerGroup:
+        type: string
+        title: Scheduler triggerGroup
+        default: '%%{domain-placeholder}-group'
+      streamDownload:
+        type: boolean
+        title: Stream download (big filesize)
+        default: true
+      username:
+        type: string
+        title: Username
+      useUserKnownHostsFile:
+        type: boolean
+        default: false
+      autoCreate:
+        type: boolean
+        title: Create directory to file
+        default: false
+    required:
+      - connectUrl
+      - scheduler.cron
+    additionalProperties: false

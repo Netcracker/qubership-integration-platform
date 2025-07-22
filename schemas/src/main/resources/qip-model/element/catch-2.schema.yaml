@@ -1,0 +1,28 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/catch-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "container.schema.yaml"
+title: Catch
+properties:
+  type:
+    type: string
+    const: catch-2
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      exception:
+        type: string
+        title: Exception
+        description: Exception that should be handled
+      priority:
+        type: integer
+        title: Priority
+        description: >
+          Determines the order of the catch blocks.
+          The lower the number, the earlier the exception will be handled.
+          For general exception classes such as Exception, you need to set a big number.

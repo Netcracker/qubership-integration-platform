@@ -1,0 +1,16 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "4d8090ef-1b73-442f-982c-030c5880d304"
+name: "XSLT"
+content:
+  modifiedWhen: 1752504928570
+  maskingEnabled: false
+  elements:
+  - id: "2f3e9c0d-e6ea-470d-82a2-d485561d645e"
+    name: "XSLT"
+    type: "xslt"
+    properties:
+      templateName: "foo.bar"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

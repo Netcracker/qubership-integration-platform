@@ -1,0 +1,140 @@
+# $schema: http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml
+{
+  "id": "45de6b34-420c-45e5-a29c-e2d99fe2e3db",
+  "name": "HTTP Trigger",
+  "createdWhen": 1752245532840,
+  "createdBy": {
+    "id": "0",
+    "username": "developer"
+  },
+  "modifiedWhen": 1752245532840,
+  "modifiedBy": {
+    "id": "0",
+    "username": "developer"
+  },
+  "chainId": "1d1f1fde-f9a2-427f-b3e0-f79623103f46",
+  "type": "http-trigger",
+  "properties": {
+    "handleChainFailureAction": "chain-call",
+    "accessControlType": "RBAC",
+    "httpBinding": "handlingHttpBinding",
+    "rejectRequestIfNonNullBodyGetDelete": true,
+    "chunked": true,
+    "externalRoute": true,
+    "actionOnDuplicate": "ignore",
+    "idempotencyKeyExpiry": 600,
+    "privateRoute": false,
+    "connectTimeout": 120000,
+    "enableIdempotency": false,
+    "handleValidationAction": "mapper-2",
+    "killSessionOnTimeout": false,
+    "chainCallTimeout": 30000,
+    "handlerContainer": {
+      "mappingDescription": {
+        "source": {
+          "headers": [],
+          "properties": [],
+          "body": {
+            "definitions": [],
+            "metadata": {
+              "dataFormat": "JSON"
+            },
+            "name": "object",
+            "schema": {
+              "id": "0c3a0831ed9f44c0b8e30af8995075c5",
+              "attributes": [
+                {
+                  "id": "98343f78008a4628853bcbea4aa2e90e",
+                  "name": "code",
+                  "type": {
+                    "name": "string"
+                  }
+                },
+                {
+                  "id": "8bfaae23dc064360aea05866f631ebcd",
+                  "name": "reason",
+                  "type": {
+                    "name": "string"
+                  }
+                },
+                {
+                  "id": "287f9b05838d4243aba5c196ee276c50",
+                  "name": "message",
+                  "type": {
+                    "name": "string"
+                  }
+                },
+                {
+                  "id": "50e880e4d8224fe69153a06249ad7bdb",
+                  "name": "extra",
+                  "type": {
+                    "name": "object",
+                    "schema": {
+                      "id": "d367738c90ce4a71861f2f64090daae5",
+                      "attributes": [
+                        {
+                          "id": "90e81c3555084f9db881cc8ac4a94a0a",
+                          "name": "sessionId",
+                          "type": {
+                            "name": "string"
+                          }
+                        },
+                        {
+                          "id": "7f18733d27214f69a746ea341e2385ab",
+                          "name": "failedElementId",
+                          "type": {
+                            "name": "string"
+                          }
+                        },
+                        {
+                          "id": "be7e2bd93b8c46bfa57ee83bd8832074",
+                          "name": "validationResult",
+                          "type": {
+                            "name": "string"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "target": {
+          "headers": [],
+          "properties": [],
+          "body": null
+        },
+        "constants": [],
+        "actions": []
+      }
+    },
+    "allowedContentTypes": [
+      "application/json"
+    ],
+    "integrationSystemId": "6b34f2c2-cda8-4d1c-b298-5e89f8868fe4",
+    "systemType": "IMPLEMENTED",
+    "integrationSpecificationId": "6b34f2c2-cda8-4d1c-b298-5e89f8868fe4-Idempotent Consumer Test-exported-api-specification-2025-07-17T13_54_59",
+    "integrationOperationId": "6b34f2c2-cda8-4d1c-b298-5e89f8868fe4-Idempotent Consumer Test-exported-api-specification-2025-07-17T13_54_59-get-idempotent-consumet-test-0b646c7b-6dbe-4e04-9801-03cf5605b819",
+    "integrationOperationPath": "/idempotent-consumet-test",
+    "httpMethodRestrict": "GET",
+    "after": [],
+    "integrationSpecificationGroupId": "6b34f2c2-cda8-4d1c-b298-5e89f8868fe4-Idempotent Consumer Test",
+    "invalidURI": true,
+    "chainFailureHandlerContainer": {
+      "elementId": "a5f76cd1-6d43-4538-9d78-c8f69f78714d"
+    },
+    "idempotency": {
+      "enabled": true,
+      "keyExpiry": 350,
+      "contextExpression": "${header.context}",
+      "keyExpression": "${header.key}"
+    },
+    "roles": [
+      "foo",
+      "bar"
+    ]
+  },
+  "mandatoryChecksPassed": false
+}

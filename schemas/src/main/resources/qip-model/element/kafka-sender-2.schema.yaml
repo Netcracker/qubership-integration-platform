@@ -1,0 +1,64 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/kafka-sender-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Kafka Sender
+description: Produce message in kafka
+properties:
+  type:
+    type: string
+    const: kafka-sender-2
+  properties:
+    type: object
+    allOf:
+      - $ref: "properties/kafka-connection-parameters.schema.yaml"
+      - $ref: "properties/context-propagation.schema.yaml"
+    properties:
+      key:
+        type: string
+        title: Key
+        description: Record key
+      keySerializer:
+        anyOf:
+          - type: string
+          - enum:
+            - org.apache.kafka.common.serialization.ByteArraySerializer
+            - org.apache.kafka.common.serialization.ByteBufferSerializer
+            - org.apache.kafka.common.serialization.BytesSerializer
+            - org.apache.kafka.common.serialization.DoubleSerializer
+            - org.apache.kafka.common.serialization.FloatSerializer
+            - org.apache.kafka.common.serialization.IntegerSerializer
+            - org.apache.kafka.common.serialization.LongSerializer
+            - org.apache.kafka.common.serialization.ShortSerializer
+            - org.apache.kafka.common.serialization.StringSerializer
+            - org.apache.kafka.common.serialization.UUIDSerializer
+            - org.apache.kafka.common.serialization.VoidSerializer
+        default: org.apache.kafka.common.serialization.StringSerializer
+        title: Key Serializer
+        description: >
+          The serializer class for keys (defaults to the same as for messages
+          if nothing is given).
+      valueSerializer:
+        anyOf:
+          - type: string
+          - enum:
+            - org.apache.kafka.common.serialization.ByteArraySerializer
+            - org.apache.kafka.common.serialization.ByteBufferSerializer
+            - org.apache.kafka.common.serialization.BytesSerializer
+            - org.apache.kafka.common.serialization.DoubleSerializer
+            - org.apache.kafka.common.serialization.FloatSerializer
+            - org.apache.kafka.common.serialization.IntegerSerializer
+            - org.apache.kafka.common.serialization.LongSerializer
+            - org.apache.kafka.common.serialization.ShortSerializer
+            - org.apache.kafka.common.serialization.StringSerializer
+            - org.apache.kafka.common.serialization.UUIDSerializer
+            - org.apache.kafka.common.serialization.VoidSerializer
+        default: org.apache.kafka.common.serialization.StringSerializer
+        title: Message serializer class
+        description: The serializer class for messages
+    required:
+      - keySerializer
+      - valueSerializer

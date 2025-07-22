@@ -1,0 +1,79 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Idempotency properties
+properties:
+  idempotency:
+    type: object
+    allOf:
+      - $ref: "#/definitions/CommonIdempotencyProperties"
+    if:
+      properties:
+        enabled:
+          const: true
+        actionOnDuplicate:
+          const: execute-subchain
+      required:
+        - enabled
+        - actionOnDuplicate
+    then:
+      allOf:
+        - $ref: "#/definitions/ExecuteSubchainProperties"
+definitions:
+  CommonIdempotencyProperties:
+    type: object
+    properties:
+      enabled:
+        type: boolean
+        title: Enable idempotency
+        default: false
+      keyExpiry:
+        allOf:
+          - $ref: "../../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+        title: Key expiration time (seconds)
+        default: 600
+      contextExpression:
+        type: string
+        title: Context expression
+      keyExpression:
+        type: string
+        title: Key expression
+      actionOnDuplicate:
+        enum:
+          - ignore
+          - throw-exception
+          - execute-subchain
+        title: Action on duplicate message
+        default: ignore
+    if:
+      properties:
+        enabled:
+          const: true
+    then:
+      required:
+        - contextExpression
+        - keyExpression
+  ExecuteSubchainProperties:
+    type: object
+    properties:
+      chainTriggerParameters:
+        title: Subchain execution parameters
+        $ref: "#/definitions/ChainTriggerParameters"
+    required:
+      - chainTriggerParameters
+  ChainTriggerParameters:
+    type: object
+    title: Subchain execution parameters
+    additionalProperties: false
+    properties:
+      triggerElementId:
+        type: string
+        title: Chain trigger
+      chainCallTimeout:
+        allOf:
+          - $ref: "../../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+        title: Timeout (ms)
+        default: 30000
+    required:
+      - triggerElementId

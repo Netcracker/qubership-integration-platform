@@ -1,0 +1,47 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "229dab5d-13ec-4230-a540-324ce0ab302f"
+name: "Circuit Breaker"
+content:
+  modifiedWhen: 1752219291823
+  maskingEnabled: false
+  elements:
+  - id: "c25246d0-2b5a-4cff-a78d-ff4994ce9185"
+    name: "Circuit Breaker"
+    type: "circuit-breaker-2"
+    children:
+    - id: "289dc172-085d-45d5-aace-a9bce98bfb6c"
+      name: "Circuit Breaker Configuration"
+      type: "circuit-breaker-configuration-2"
+      children:
+      - id: "906215b5-4bce-4695-8fec-59d59a201edb"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-906215b5-4bce-4695-8fec-59d59a201edb.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        automaticTransitionFromOpenToHalfOpenEnabled: false
+        failureRateThreshold: 50
+        minimumNumberOfCalls: 100
+        permittedNumberOfCallsInHalfOpenState: 10
+        slidingWindowSize: 100
+        slidingWindowType: "COUNT_BASED"
+        slowCallDurationThreshold: 60
+        slowCallRateThreshold: 100
+        waitDurationInOpenState: 60
+    - id: "b1ccfed2-5df9-440d-84d4-0df90e6627fc"
+      name: "On fallback"
+      type: "on-fallback-2"
+      children:
+      - id: "9755d86a-9ec9-4421-8cb3-b3d78ee7e91a"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-9755d86a-9ec9-4421-8cb3-b3d78ee7e91a.groovy"
+          propertiesToExportInSeparateFile: "script"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

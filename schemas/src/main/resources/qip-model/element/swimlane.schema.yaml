@@ -1,0 +1,29 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/swimlane.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Swimlane
+description: >
+  Group elements, that will be represented in UI as Swimlanes.
+properties:
+  type:
+    type: string
+    const: swimlane
+  properties:
+    type: object
+    properties:
+      color:
+        $ref: "#/definitions/Color"
+    additionalProperties: false
+definitions:
+  Color:
+    enum:
+      - Blue
+      - Green
+      - Yellow
+      - Purple
+      - Lagoon
+      - Brown

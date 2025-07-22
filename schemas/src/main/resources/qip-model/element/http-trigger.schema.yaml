@@ -1,0 +1,254 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Http Trigger
+description: >
+  HTTP Trigger provides an HTTP endpoint for consuming arriving HTTP requests.
+properties:
+  type:
+    type: string
+    const: http-trigger
+  properties:
+    type: object
+    allOf:
+      - $ref: "properties/correlation-id.schema.yaml"
+      - $ref: "properties/idempotency.schema.yaml"
+      - $ref: "#/definitions/AccessControlProperties"
+      - oneOf:
+          - $ref: "#/definitions/CustomEndpoint"
+          - $ref: "#/definitions/ImplementedServiceEndpoint"
+      - $ref: "#/definitions/ValidationFailureHandler"
+      - $ref: "#/definitions/ChainFailureHandler"
+    properties:
+      chunked:
+        type: boolean
+        default: true
+        title: Chunked
+        description: >
+          If this option is false the Servlet will disable the HTTP streaming
+          and set the content-length header on the response.
+      externalRoute:
+        type: boolean
+        default: true
+        title: External route
+        description: >
+          If checked, HTTP trigger will be registered as "external" on public
+          gateway.
+          Checkbox is inactive when default route registration is disabled in
+          global environment settings.
+      privateRoute:
+        type: boolean
+        default: false
+        title: Private route
+        description: >
+          If checked, HTTP trigger will be registered as "Private" on private
+          gateway.
+          Checkbox is inactive when default route registration is disabled in
+          global environment settings.
+      responseFilter:
+        type: boolean
+        title: Response filter
+        description: >
+          Turns on ability to handle additional query parameters "fields" and
+          "excludeFields" to include only specific fields in response
+          or exclude them from there. This is only supported for responses
+          in JSON.
+      connectTimeout:
+        oneOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "../base.schema.yaml#/definitions/SimpleExpression"
+        title: Connection timeout (ms)
+        description: >
+          Specifies connection timeout in millis (default value will be used
+          if nothing is given).
+        default: 120000
+      killSessionOnTimeout:
+        type: boolean
+        default: false
+        title: Terminate session on connection timeout
+        description: >
+          If checked, connection timeout will trigger session termination
+          process. Chain session might not be finished.
+      rejectRequestIfNonNullBodyGetDelete:
+        type: boolean
+        default: true
+        title: Reject request if body is not empty for GET, DELETE methods
+        description: >
+          Incoming request will be rejected with an error,
+          if body is received for GET and DELETE methods.
+      allowedContentTypes:
+        type: array
+        items:
+          type: string
+        title: Allowed Content Types
+        description: If no content types defined - validation disabled.
+      validationSchema:
+        type: string
+        title: Json Request Schema
+        description: Schema for input message validation.
+      httpBinding:
+        type: string
+        default: 'handlingHttpBinding'
+definitions:
+  AccessControlProperties:
+    type: object
+    properties:
+      accessControlType:
+        enum:
+          - RBAC
+          - ABAC
+    required:
+      - accessControlType
+    if:
+      properties:
+        accessControlType:
+          const: RBAC
+    then: # rbac
+      properties:
+        roles:
+          type: array
+          items:
+            type: string
+    else: # abac
+      properties:
+        abacResource:
+          type: string
+          title: Resource
+          description: ABAC resource, usually the same as the trigger URI.
+      required:
+        - abacResource
+  CustomEndpoint:
+    type: object
+    properties:
+      contextPath:
+        type: string
+        title: Path
+      httpMethodRestrict:
+        type: string
+        title: HTTP Methods
+        pattern: "^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$"
+    required:
+      - contextPath
+  ImplementedServiceEndpoint:
+    type: object
+    properties:
+      integrationOperationId:
+        type: string
+        title: Operation ID
+      integrationSpecificationGroupId:
+        type: string
+        title: Specification group ID
+      integrationSpecificationId:
+        type: string
+        title: Specification ID
+      integrationSystemId:
+        type: string
+        title: Service ID
+      systemType:
+        title: Service type
+        $ref: "../service.schema.yaml#/definitions/ServiceType"
+      integrationOperationMethod:
+        title: Operation method
+      integrationOperationPath:
+        type: string
+        title: Operation name
+      httpMethodRestrict:
+        $ref: "properties/operation.schema.yaml#/definitions/HttpMethod"
+    required:
+      - integrationOperationPath
+  ValidationFailureHandler:
+    type: object
+    oneOf:
+      - type: object
+        properties:
+          handleValidationAction:
+            const: script
+          handlerContainer:
+            $ref: "script.schema.yaml#/definitions/ScriptProperties"
+        required:
+          - handleValidationAction
+          - handlerContainer
+      - type: object
+        properties:
+          handleValidationAction:
+            const: mapper-2
+          handlerContainer:
+            $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
+        required:
+          - handleValidationAction
+          - handlerContainer
+      - type: object
+        properties:
+          handleValidationAction:
+            const: default
+          handlerContainer:
+            type: object
+        required:
+          - handleValidationAction
+    properties:
+      handleValidationAction:
+        type: string
+        enum:
+          - default
+          - script
+          - mapper-2
+        default: default
+        title: Action on validation failure
+  ChainFailureHandler:
+    type: object
+    oneOf:
+      - type: object
+        properties:
+          handleChainFailureAction:
+            const: script
+          handlerContainer:
+            $ref: "script.schema.yaml#/definitions/ScriptProperties"
+        required:
+          - handleValidationAction
+          - chainFailureHandlerContainer
+      - type: object
+        properties:
+          handleChainFailureAction:
+            const: mapper-2
+          chainFailureHandlerContainer:
+            $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
+        required:
+          - handleValidationAction
+          - chainFailureHandlerContainer
+      - type: object
+        properties:
+          handleChainFailureAction:
+            const: chain-call
+          chainFailureHandlerContainer:
+            type: object
+            properties:
+              elementId:
+                type: string
+            required:
+              - elementId
+            additionalProperties: false
+        required:
+          - handleValidationAction
+          - chainFailureHandlerContainer
+      - type: object
+        properties:
+          handleChainFailureAction:
+            const: default
+          chainFailureHandlerContainer:
+            type: object
+        required:
+          - handleValidationAction
+    properties:
+      handleChainFailureAction:
+        type: string
+        enum:
+          - default
+          - script
+          - mapper-2
+          - chain-call
+        default: default
+        title: Action on response failure

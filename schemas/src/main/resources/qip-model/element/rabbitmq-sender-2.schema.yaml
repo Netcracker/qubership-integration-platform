@@ -1,0 +1,25 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/rabbitmq-sender-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: RabbitMQ Sender
+properties:
+  type:
+    type: string
+    const: rabbitmq-sender-2
+  properties:
+    type: object
+    allOf:
+      - $ref: "properties/rabbitmq-connection-parameters.schema.yaml"
+      - $ref: "properties/context-propagation.schema.yaml"
+    properties:
+      exchangePattern:
+        type: string
+        default: InOnly
+        title: Exchange Pattern
+      vhost:
+        type: string
+        title: Vhost

@@ -1,0 +1,169 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/operation.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Operation properties
+oneOf:
+  - type: object
+    properties:
+      integrationOperationProtocolType:
+        const: kafka
+      integrationOperationMethod:
+        title: Operation method
+        $ref: "#/definitions/AsyncMethod"
+      integrationOperationAsyncProperties:
+        type: object
+        additionalProperties: true
+    required:
+      - integrationOperationProtocolType
+      - integrationOperationMethod
+  - type: object
+    properties:
+      integrationOperationProtocolType:
+        const: amqp
+      integrationOperationMethod:
+        title: Operation method
+        $ref: "#/definitions/AsyncMethod"
+      integrationOperationAsyncProperties:
+        type: object
+        additionalProperties: true
+    required:
+      - integrationOperationProtocolType
+      - integrationOperationMethod
+  - type: object
+    oneOf:
+      - type: object
+        properties:
+          integrationOperationProtocolType:
+            const: http
+      - type: object
+        properties:
+          integrationOperationProtocolType:
+            const: soap
+    properties:
+      integrationOperationMethod:
+        title: Operation method
+        $ref: "#/definitions/HttpMethod"
+      integrationOperationPathParameters:
+        type: object
+        patternProperties:
+          "^.*$":
+            type: string
+      integrationOperationQueryParameters:
+        type: object
+        patternProperties:
+          "^.*$":
+            type: string
+      integrationAdditionalParameters:
+        type: object
+        patternProperties:
+          "^.*$":
+            type: string
+      bodyMimeType:
+        type: string
+      bodyFormData:
+        type: array
+        items:
+          type: object
+          properties:
+            fieldName:
+              type: string
+            mimeType:
+              type: string
+            name:
+              type: string
+            value:
+              type: string
+            fileName:
+              type: string
+          required:
+            - mimeType
+            - name
+            - value
+    required:
+      - integrationOperationProtocolType
+      - integrationOperationMethod
+  - type: object
+    properties:
+      integrationOperationProtocolType:
+        const: graphql
+      integrationGqlOperationName:
+        type: string
+        title: Operation Name
+        description: >
+          The query or mutation name.
+          Optional if query contains single operation.
+      integrationGqlQuery:
+        type: string
+        title: Query
+        description: The query text.
+      integrationGqlQueryHeader:
+        type: string
+        default: CamelGraphQLQuery
+        title: Query header
+      integrationGqlVariablesHeader:
+        type: string
+        default: CamelGraphQLVariables
+        title: Variables header
+      integrationGqlVariablesJSON:
+        type: string
+        title: Variables JSON
+        description: Operation variables in JSON format.
+    required:
+      - integrationOperationProtocolType
+      - integrationGqlQuery
+properties:
+  integrationOperationId:
+    type: string
+    title: Operation ID
+  integrationSpecificationGroupId:
+    type: string
+    title: Specification group ID
+  integrationSpecificationId:
+    type: string
+    title: Specification ID
+  integrationSystemId:
+    type: string
+    title: Service ID
+  systemType:
+    title: Service type
+    $ref: "../../service.schema.yaml#/definitions/ServiceType"
+  integrationOperationProtocolType:
+    title: Operation protocol type
+    $ref: "#/definitions/Protocol"
+  integrationOperationMethod:
+    title: Operation method
+  integrationOperationPath:
+    type: string
+    title: Operation name
+required:
+  - integrationOperationId
+  - integrationSpecificationGroupId
+  - integrationSpecificationId
+  - integrationSystemId
+  - systemType
+  - integrationOperationProtocolType
+  - integrationOperationPath
+  - integrationOperationMethod
+definitions:
+  Protocol:
+    enum:
+      - http
+      - kafka
+      - amqp
+      - graphql
+      - grpc
+      - soap
+  HttpMethod:
+    enum:
+      - POST
+      - GET
+      - PUT
+      - DELETE
+      - PATCH
+      - HEAD
+      - OPTIONS
+  AsyncMethod:
+    enum:
+      - subscribe
+      - publish

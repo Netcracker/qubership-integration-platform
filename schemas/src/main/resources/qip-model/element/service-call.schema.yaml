@@ -1,0 +1,189 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Service Call
+description: Make a call to a service registered in API Repository.
+properties:
+  type:
+    type: string
+    const: service-call
+  properties:
+    type: object
+    allOf:
+      - $ref: "properties/operation.schema.yaml"
+      - $ref: "properties/correlation-id.schema.yaml"
+      - $ref: "properties/context-propagation.schema.yaml"
+      - $ref: "#/definitions/ValidationFailureHandler"
+    properties:
+      retryCount:
+        oneOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "../base.schema.yaml#/definitions/SimpleExpression"
+        default: 0
+        title: Retry count
+        description: >
+          Specifies number of retries for the call before it considers as failed.
+      retryDelay:
+        oneOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "../base.schema.yaml#/definitions/SimpleExpression"
+        default: 5000
+        title: Retry delay (ms)
+        description: Specifies delay between retries in millis.
+      before:
+        $ref: "#/definitions/ExchangeTransformation"
+      after:
+        type: array
+        items:
+          $ref: "#/definitions/ResponseHandler"
+      authorizationConfiguration:
+        oneOf:
+          - $ref: "#/definitions/AuthorizationNone"
+          - $ref: "#/definitions/AuthorizationBasic"
+          - $ref: "#/definitions/AuthorizationBearerToken"
+          - $ref: "#/definitions/AuthorizationM2MToken"
+    required:
+      - retryCount
+      - retryDelay
+    if:
+      properties:
+        integrationOperationProtocolType:
+          const: http
+    then:
+      properties:
+        afterValidation:
+          type: array
+          items:
+            $ref: "#/definitions/ResponseValidation"
+definitions:
+  AuthorizationNone:
+    type: object
+    properties:
+      type:
+        const: none
+  AuthorizationBasic:
+    type: object
+    properties:
+      type:
+        const: basic
+      data:
+        type: object
+        properties:
+          username:
+            type: string
+          password:
+            type: string
+        required:
+          - username
+          - password
+  AuthorizationBearerToken:
+    type: object
+    properties:
+      type:
+        const: bearer
+      data:
+        type: object
+        properties:
+          token:
+            type: string
+        required:
+          - token
+  AuthorizationM2MToken:
+    type: object
+    properties:
+      type:
+        const: m2m
+  ResponseValidation:
+    type: object
+    properties:
+      code:
+        type: string
+      contentType:
+        type: string
+      id:
+        type: string
+      label:
+        type: string
+      schema:
+        type: string
+      type:
+        const: responseValidation
+  ExchangeTransformation:
+    oneOf:
+      - type: object
+        allOf:
+          - $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
+        properties:
+          type:
+            const: "mapper-2"
+        required:
+          - type
+      - type: object
+        allOf:
+          - $ref: "script.schema.yaml#/definitions/ScriptProperties"
+        properties:
+          type:
+            const: "script"
+        required:
+          - type
+  ValidationFailureHandler:
+    type: object
+    properties:
+      handleValidationAction:
+        type: string
+        enum:
+          - default
+          - script
+          - mapper-2
+        default: default
+    if:
+      properties:
+        handleValidationAction:
+          const: script
+      required:
+        - handleValidationAction
+    then:
+      properties:
+        handlerContainer:
+          $ref: "script.schema.yaml#/definitions/ScriptProperties"
+      required:
+        - handlerContainer
+    else:
+      if:
+        properties:
+          handleValidationAction:
+            const: mapper-2
+        required:
+          - handleValidationAction
+      then:
+        properties:
+          handlerContainer:
+            $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
+        required:
+          - handlerContainer
+  ResponseHandler:
+    type: object
+    anyOf:
+      - $ref: "#/definitions/ExchangeTransformation"
+      - not:
+          type: object
+          properties:
+            type:
+              enum:
+                - script
+                - mapper-2
+          required:
+            - type
+    properties:
+      id:
+        type: string
+      code:
+        type: string
+      label:
+        type: string
+      wildcard:
+        type: boolean

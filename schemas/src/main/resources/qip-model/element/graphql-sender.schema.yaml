@@ -1,0 +1,43 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/graphql-sender.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: GraphQL Sender
+properties:
+  type:
+    type: string
+    const: graphql-sender
+  properties:
+    type: object
+    allOf:
+      - $ref: "properties/correlation-id.schema.yaml"
+      - $ref: "properties/context-propagation.schema.yaml"
+      - $ref: "properties/http-call-common.schema.yaml"
+    properties:
+      operationName:
+        type: string
+        title: Operation name
+        description: >
+          The query or mutation name.
+          Optional if query contains single operation
+      query:
+        type: string
+        title: Query
+        description: The query text
+      queryHeader:
+        type: string
+        title: Query header
+        default: CamelGraphQLQuery
+      variablesHeader:
+        type: string
+        title: Variables header
+        default: CamelGraphQLVariables
+      variablesJSON:
+        type: string
+        title: Variables JSON
+        description: Operation variables in JSON format.
+    required:
+      - query

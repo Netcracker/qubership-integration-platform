@@ -1,0 +1,23 @@
+# $schema: http://qubership.org/schemas/product/qip/element/kafka-trigger-2.schema.yaml
+id: "646c7c6c-f8f8-4458-904d-f196741dd648"
+name: "Kafka Trigger"
+type: "kafka-trigger-2"
+properties:
+  actionOnDuplicate: "ignore"
+  autoOffsetReset: "latest"
+  chainCallTimeout: 30000
+  connectionSourceType: "maas"
+  consumersCount: 1
+  enableIdempotency: false
+  groupId: "grp"
+  idempotencyKeyExpiry: 600
+  keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+  maasClassifierNamespace: "bar"
+  maasClassifierTenantEnabled: true
+  maasClassifierTenantId: "baz"
+  maxPollIntervalMs: 300000
+  maxPollRecords: 500
+  reconnectBackoffMaxMs: "30001"
+  sslProtocol: "TLS"
+  topicsClassifierName: "foo"
+  valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"

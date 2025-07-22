@@ -1,0 +1,12 @@
+# $schema: http://qubership.org/schemas/product/qip/element/http-sender.schema.yaml
+id: "1d27a8e7-e2d7-460c-89ae-94678789c513"
+name: "HTTP Sender"
+type: "http-sender"
+properties:
+  connectTimeout: 120000
+  httpMethod: "GET"
+  isExternalCall: true
+  m2m: false
+  propagateContext: true
+  reuseEstablishedConnection: true
+  uri: "localhost:8080/foo/bar"

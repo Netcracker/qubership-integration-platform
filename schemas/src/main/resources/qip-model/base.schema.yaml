@@ -1,38 +1,49 @@
 ---
-$id: http://qubership.org/schemas/product/qip/base
+$id: http://qubership.org/schemas/product/qip/base.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 definitions:
   CommonEntityProperties:
-    title: Common Entity Properties
-    group: Integrations
     type: object
+    title: Common Entity Properties
     properties:
       id:
+        type: string
         title: Identifier
-        type: string
       name:
+        type: string
         title: Name
-        type: string
-      $schema:
-        type: string
     required:
       - id
       - name
-      - $schema
-  CommonEntityContent:
-    title: Common Entity Content
-    group: Integrations
+  CommonTopLevelEntityProperties:
     type: object
+    allOf:
+      - $ref: "#/definitions/CommonEntityProperties"
+    title: Common top-level entity properties
+    properties:
+      $schema:
+        type: string
+    required:
+      - $schema
+  WithDescription:
+    type: object
+    title: Entity with description
     properties:
       description:
-        title: Description
         type: string
+        title: Description
+  CommonEntityContent:
+    type: object
+    allOf:
+      - $ref: "#/definitions/WithDescription"
+    title: Common Entity Content
+    properties:
       createdWhen:
+        type: integer
         title: Created at
-        type: integer
       modifiedWhen:
-        title: Modified at
         type: integer
+        title: Modified at
       createdBy:
         title: Created by
         $ref: "#/definitions/User"
@@ -40,48 +51,55 @@ definitions:
         title: Modified by
         $ref: "#/definitions/User"
   WithLabels:
-    title: Entity content with Labels
-    group: Integrations
     type: object
+    title: Entity content with Labels
     properties:
       labels:
-        title: Labels
         type: array
+        title: Labels
         items:
-          title: Label
           type: string
+          title: Label
   WithMigrations:
-    title: Entity content with Migrations
-    group: Integrations
     type: object
+    title: Entity content with Migrations
     properties:
       migrations:
-        title: Migrations
         type: string
+        title: Migrations
     required:
       - migrations
   WithParent:
-    title: Entity content with Parent
-    group: Integrations
     type: object
+    title: Entity content with Parent
     properties:
       parentId:
-        title: Parent ID
         type: string
+        title: Parent ID
     required:
       - parentId
   User:
-    title: User
-    group: Integrations
     type: object
+    title: User
     additionalProperties: false
     properties:
       id:
+        type: string
         title: User ID
-        type: string
       username:
-        title: User name
         type: string
+        title: User name
     required:
       - id
       - username
+  IntegerOrVariablePlaceholder:
+    oneOf:
+      - type: integer
+        minimum: 0
+      - type: string
+        pattern: "^[0-9]+$"
+      - type: string
+        pattern: "^#\\{[a-zA-Z0-9:._-]+\\}$"
+  SimpleExpression:
+    type: string
+    pattern: "\\$\\{[^}]+\\}"

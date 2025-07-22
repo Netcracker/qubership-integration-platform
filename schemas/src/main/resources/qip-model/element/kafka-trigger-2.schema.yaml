@@ -1,0 +1,104 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/kafka-trigger-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Kafka Trigger
+description: Trigger, that start chain after receiving kafka message.
+properties:
+  type:
+    type: string
+    const: kafka-trigger-2
+  properties:
+    type: object
+    allOf:
+      - $ref: "properties/kafka-connection-parameters.schema.yaml"
+      - $ref: "properties/idempotency.schema.yaml"
+    properties:
+      groupId:
+        type: string
+        title: Group ID
+        description: The ID of the group the Producer is assigned to.
+      reconnectBackoffMaxMs:
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+        title: Reconnect delay (ms)
+        description: Specifies delay between reconnection in millis.
+        default: 30000
+      autoOffsetReset:
+        enum:
+          - none
+          - earliest
+          - latest
+        title: Auto Offset Reset
+        description: The schema to adjust the message outset.
+        default: latest
+      consumersCount:
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+        default: 1
+        title: Consumers Count
+        description: The number of consumers that connect to kafka server.
+      keyDeserializer:
+        anyOf:
+          - type: string
+          - enum:
+              - org.apache.kafka.common.serialization.ByteArrayDeserializer
+              - org.apache.kafka.common.serialization.ByteBufferDeserializer
+              - org.apache.kafka.common.serialization.BytesDeserializer
+              - org.apache.kafka.common.serialization.DoubleDeserializer
+              - org.apache.kafka.common.serialization.FloatDeserializer
+              - org.apache.kafka.common.serialization.IntegerDeserializer
+              - org.apache.kafka.common.serialization.LongDeserializer
+              - org.apache.kafka.common.serialization.ShortDeserializer
+              - org.apache.kafka.common.serialization.StringDeserializer
+              - org.apache.kafka.common.serialization.UUIDDeserializer
+              - org.apache.kafka.common.serialization.VoidDeserializer
+        default: org.apache.kafka.common.serialization.StringDeserializer
+        title: Key Deserializer
+        description: Key deserializer class
+      valueDeserializer:
+        anyOf:
+          - type: string
+          - enum:
+              - org.apache.kafka.common.serialization.ByteArrayDeserializer
+              - org.apache.kafka.common.serialization.ByteBufferDeserializer
+              - org.apache.kafka.common.serialization.BytesDeserializer
+              - org.apache.kafka.common.serialization.DoubleDeserializer
+              - org.apache.kafka.common.serialization.FloatDeserializer
+              - org.apache.kafka.common.serialization.IntegerDeserializer
+              - org.apache.kafka.common.serialization.LongDeserializer
+              - org.apache.kafka.common.serialization.ShortDeserializer
+              - org.apache.kafka.common.serialization.StringDeserializer
+              - org.apache.kafka.common.serialization.UUIDDeserializer
+              - org.apache.kafka.common.serialization.VoidDeserializer
+        default: org.apache.kafka.common.serialization.StringDeserializer
+        title: Value Deserializer
+        description: Value deserializer class
+      maxPollIntervalMs:
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+        default: 300000
+        title: Max Poll Interval
+        description: >
+          The maximum delay between batch polls of records from the broker,
+          in milliseconds. If poll is not performed within given time frame,
+          then the consumer is considered to be failed.
+          In case of failure detection, related consumer group will re-balance
+          to reassign the partitions to another consumer in the group.
+          This "new" consumer will process the whole batch all over again.
+      maxPollRecords:
+        allOf:
+          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+        default: 500
+        title: Max Poll Records
+        description: >
+          The number of records that will be fetched from the broker
+          as a single batch.
+    required:
+      - autoOffsetReset
+      - groupId
+      - keyDeserializer
+      - valueDeserializer

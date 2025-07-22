@@ -1,0 +1,24 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "12db6b4c-a56d-4baa-97e2-8533d0ae3614"
+name: "RabbitMQ Sender - MaaS"
+content:
+  modifiedWhen: 1752656996638
+  maskingEnabled: false
+  elements:
+  - id: "71b9ae00-68fe-4203-94e9-f39354c2e763"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      connectionSourceType: "maas"
+      exchange: "bar"
+      exchangePattern: "InOnly"
+      maasClassifierNamespace: "foo"
+      overrideContextParams:
+        wer: "wer"
+      propagateContext: true
+      routingKey: "baz"
+      vhostClassifierName: "public"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

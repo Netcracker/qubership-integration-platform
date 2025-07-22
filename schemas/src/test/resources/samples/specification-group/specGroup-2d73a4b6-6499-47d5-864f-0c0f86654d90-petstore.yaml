@@ -1,0 +1,15 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/specification-group.schema.yaml"
+id: "2d73a4b6-6499-47d5-864f-0c0f86654d90-petstore"
+name: "petstore"
+content:
+  createdWhen: 1751626075583
+  modifiedWhen: 1751626075657
+  createdBy:
+    id: "0"
+    username: "developer"
+  modifiedBy:
+    id: "0"
+    username: "developer"
+  synchronization: false
+  parentId: "2d73a4b6-6499-47d5-864f-0c0f86654d90"

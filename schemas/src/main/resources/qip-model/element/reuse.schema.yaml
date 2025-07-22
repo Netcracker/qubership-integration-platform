@@ -1,0 +1,16 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/reuse.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "container.schema.yaml"
+title: Reuse
+properties:
+  type:
+    type: string
+    const: reuse
+  properties:
+    type: object
+    additionalProperties: false

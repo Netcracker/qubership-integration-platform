@@ -1,0 +1,21 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/condition.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Condition
+properties:
+  type:
+    type: string
+    const: condition
+  children:
+    type: array
+    items:
+      anyOf:
+        - $ref: 'if.schema.yaml'
+        - $ref: 'else.schema.yaml'
+  properties:
+    type: object
+    additionalProperties: false

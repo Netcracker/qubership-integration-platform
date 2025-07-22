@@ -1,0 +1,128 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+id: "af029601-570d-4a5c-b4bb-3572ceac42fa"
+name: "Service Call"
+type: "service-call"
+properties:
+  after:
+    - id: "100..199"
+      code: "100..199"
+      label: "1xx"
+      wildcard: true
+  afterValidation:
+    - id: "200-application/json"
+      code: "200"
+      type: "responseValidation"
+      label: "200-application/json"
+      scheme: "{\n\t\"$id\": \"http://system.catalog/schemas/#/components/schemas/Pet\"\
+          ,\n\t\"type\": \"array\",\n\t\"items\": {\n\t\t\"type\": \"object\",\n\t\
+          \t\"required\": [\n\t\t\t\"name\",\n\t\t\t\"photoUrls\"\n\t\t],\n\t\t\"\
+          properties\": {\n\t\t\t\"id\": {\n\t\t\t\t\"type\": \"integer\",\n\t\t\t\
+          \t\"format\": \"int64\"\n\t\t\t},\n\t\t\t\"name\": {\n\t\t\t\t\"type\":\
+          \ \"string\",\n\t\t\t\t\"example\": \"doggie\"\n\t\t\t},\n\t\t\t\"tags\"\
+          : {\n\t\t\t\t\"xml\": {\n\t\t\t\t\t\"wrapped\": true\n\t\t\t\t},\n\t\t\t\
+          \t\"type\": \"array\",\n\t\t\t\t\"items\": {\n\t\t\t\t\t\"$ref\": \"#/definitions/Tag\"\
+          \n\t\t\t\t}\n\t\t\t},\n\t\t\t\"status\": {\n\t\t\t\t\"enum\": [\n\t\t\t\t\
+          \t\"available\",\n\t\t\t\t\t\"pending\",\n\t\t\t\t\t\"sold\"\n\t\t\t\t],\n\
+          \t\t\t\t\"type\": \"string\",\n\t\t\t\t\"description\": \"pet status in\
+          \ the store\"\n\t\t\t},\n\t\t\t\"category\": {\n\t\t\t\t\"$ref\": \"#/definitions/Category\"\
+          \n\t\t\t},\n\t\t\t\"photoUrls\": {\n\t\t\t\t\"xml\": {\n\t\t\t\t\t\"wrapped\"\
+          : true\n\t\t\t\t},\n\t\t\t\t\"type\": \"array\",\n\t\t\t\t\"items\": {\n\
+          \t\t\t\t\t\"xml\": {\n\t\t\t\t\t\t\"name\": \"photoUrl\"\n\t\t\t\t\t},\n\
+          \t\t\t\t\t\"type\": \"string\"\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t},\n\t\"$schema\"\
+          : \"http://json-schema.org/draft-07/schema#\",\n\t\"definitions\": {\n\t\
+          \t\"Tag\": {\n\t\t\t\"xml\": {\n\t\t\t\t\"name\": \"Tag\"\n\t\t\t},\n\t\t\
+          \t\"type\": \"object\",\n\t\t\t\"properties\": {\n\t\t\t\t\"id\": {\n\t\t\
+          \t\t\t\"type\": \"integer\",\n\t\t\t\t\t\"format\": \"int64\"\n\t\t\t\t\
+          },\n\t\t\t\t\"name\": {\n\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t}\n\t\t\
+          \t}\n\t\t},\n\t\t\"Category\": {\n\t\t\t\"xml\": {\n\t\t\t\t\"name\": \"\
+          Category\"\n\t\t\t},\n\t\t\t\"type\": \"object\",\n\t\t\t\"properties\"\
+          : {\n\t\t\t\t\"id\": {\n\t\t\t\t\t\"type\": \"integer\",\n\t\t\t\t\t\"format\"\
+          : \"int64\"\n\t\t\t\t},\n\t\t\t\t\"name\": {\n\t\t\t\t\t\"type\": \"string\"\
+          \n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}"
+      wildcard: false
+      contentType: "application/json"
+  authorizationConfiguration:
+    data:
+      password: "qweqwe"
+      username: "qwe"
+    type: "basic"
+  before:
+    type: "mapper-2"
+    throwException: false
+    propertiesFilename: "mappingDescription-before-af029601-570d-4a5c-b4bb-3572ceac42fa.json"
+  bodyFormData:
+    - name: "field1"
+      value: "sds"
+      fileName: "sdfsdf"
+      mimeType: "text/plain"
+  bodyMimeType: "multipart/form-data"
+  errorThrowing: true
+  handleValidationAction: "mapper-2"
+  handlerContainer:
+    mappingDescription:
+      source:
+        body:
+          name: "object"
+          schema:
+            id: "4de2a8510d724591a65d60d1361c2df5"
+            attributes:
+              - id: "4ebaf3e7b49a40bbafc0fa2e20a5c557"
+                name: "code"
+                type:
+                  name: "string"
+              - id: "a5e8849cd80749b6bf8bb61293aa5f0d"
+                name: "reason"
+                type:
+                  name: "string"
+              - id: "f70b2e5e831c45d788e5eec0b2b1138c"
+                name: "message"
+                type:
+                  name: "string"
+              - id: "997b80abd86b4c9c81475dc124dd4c0f"
+                name: "extra"
+                type:
+                  name: "object"
+                  schema:
+                    id: "aff9d1f14acd44559684f62f93a72cf8"
+                    attributes:
+                      - id: "e192fd61855648bf8423176a02751b2a"
+                        name: "sessionId"
+                        type:
+                          name: "string"
+                      - id: "5ff5fd9b9bee44a1adf8ef3ae8469366"
+                        name: "failedElementId"
+                        type:
+                          name: "string"
+                      - id: "3de414ef689c45af81b2f4cca2a98079"
+                        name: "validationResult"
+                        type:
+                          name: "string"
+          metadata:
+            dataFormat: "JSON"
+          definitions: []
+        headers: []
+        properties: []
+      target:
+        headers: []
+        properties: []
+      actions: []
+      constants: []
+  integrationGqlQueryHeader: "CamelGraphQLQuery"
+  integrationGqlVariablesHeader: "CamelGraphQLVariables"
+  integrationOperationAsyncProperties: {}
+  integrationOperationId: "2d73a4b6-6499-47d5-864f-0c0f86654d90-petstore-1.0.7-findPetsByStatus"
+  integrationOperationMethod: "GET"
+  integrationOperationPath: "/pet/findByStatus"
+  integrationOperationPathParameters: {}
+  integrationOperationProtocolType: "http"
+  integrationOperationQueryParameters:
+    status: ""
+  integrationSpecificationGroupId: "2d73a4b6-6499-47d5-864f-0c0f86654d90-petstore"
+  integrationSpecificationId: "2d73a4b6-6499-47d5-864f-0c0f86654d90-petstore-1.0.7"
+  integrationSystemId: "2d73a4b6-6499-47d5-864f-0c0f86654d90"
+  overrideContextParams:
+    sdfsdf: "sdfsdf"
+  propagateContext: true
+  retryCount: 0
+  retryDelay: 5000
+  systemType: "EXTERNAL"

@@ -1,0 +1,21 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/reuse-reference.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Reuse Reference
+properties:
+  type:
+    type: string
+    const: reuse-reference
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      reuseElementId:
+        type: string
+        title: Reuse Element ID
+    required:
+      - reuseElementId

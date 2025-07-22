@@ -1,0 +1,48 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/log-record.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Log Record
+description: >
+  Log Record element allows to configure a message that will be logged
+  for selected logging level.
+properties:
+  type:
+    type: string
+    const: log-record
+  properties:
+    type: object
+    properties:
+      logLevel:
+        title: Log Level
+        description: >
+          Specifies the type of the message that
+          will be logged to microservice log.
+        enum:
+          - Error
+          - Warning
+          - Info
+        default: Error
+      sender:
+        type: string
+        title: Sender
+        description: Specifies custom system name that sends a request.
+      receiver:
+        type: string
+        title: Receiver
+        description: Specifies custom system name that accepts a request.
+      businessIdentifiers:
+        type: object
+        title: Business Identifiers
+        description: List of business identifiers to be logged.
+        patternProperties:
+          "^.+$":
+            type: string
+      message:
+        type: string
+        title: Message
+        description: A custom message to be logged
+    additionalProperties: false

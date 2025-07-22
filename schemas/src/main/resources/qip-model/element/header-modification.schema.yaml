@@ -1,0 +1,27 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/header-modification.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Header Modification
+properties:
+  type:
+    type: string
+    const: header-modification
+  properties:
+    type: object
+    properties:
+      headerModificationToAdd:
+        title: Headers to keep or add
+        description: >
+          List of header names and values which we need to add or keep.
+        $ref: "properties/headers.schema.yaml"
+      headerModificationToRemove:
+        type: array
+        title: Headers to remove
+        description: List of header names which we need to remove.
+        items:
+          type: string
+    additionalProperties: false

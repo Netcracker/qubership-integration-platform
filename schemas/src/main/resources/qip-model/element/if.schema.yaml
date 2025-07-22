@@ -1,0 +1,33 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/if.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "container.schema.yaml"
+title: If
+properties:
+  type:
+    type: string
+    const: if
+  properties:
+    type: object
+    properties:
+      condition:
+        type: string
+        title: Condition
+        description: Predicate written using Simple language
+      priority:
+        type: integer
+        title: Priority
+        description: >
+          Determines the order of the if blocks.
+          The lower the number, the earlier the exception will be handled.
+          For general exception classes such as Exception, you need to set
+          a big number.
+        minimum: 0
+        default: 0
+    required:
+      - condition
+    additionalProperties: false

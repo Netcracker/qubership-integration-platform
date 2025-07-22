@@ -1,0 +1,58 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/sftp-upload.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: SFTP Upload
+properties:
+  type:
+    type: string
+    const: sftp-upload
+  properties:
+    type: object
+    properties:
+      connectUrl:
+        type: string
+        title: Host:Port/Directory
+        description: Connection url
+      fileName:
+        type: string
+        title: File Name
+        description: >
+          Use Expression such as File Language to dynamically set
+          the file name.
+      autoCreate:
+        type: boolean
+        title: Create directory to file
+      username:
+        type: string
+        title: Username
+      password:
+        type: string
+        title: Password
+        description: >
+          For security purposes, use reference to secured variables when
+          entering passwords.
+      allowNullBody:
+        type: boolean
+        title: Allow null body
+        default: true
+      binary:
+        type: boolean
+        title: Binary
+        description: >
+          Specifies the file transfer mode, BINARY or ASCII.
+          Default is ASCII (false).
+        default: true
+      throwExceptionOnConnectFailed:
+        type: boolean
+        title: Throw exception if Connection fails
+        default: true
+      useUserKnownHostsFile:
+        type: boolean
+        default: false
+    required:
+      - connectUrl
+    additionalProperties: false

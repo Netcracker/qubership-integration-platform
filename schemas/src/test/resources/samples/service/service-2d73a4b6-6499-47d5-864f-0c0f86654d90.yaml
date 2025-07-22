@@ -1,0 +1,51 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/service.schema.yaml"
+id: "2d73a4b6-6499-47d5-864f-0c0f86654d90"
+name: "New External Service 1"
+content:
+  createdWhen: 1751626075576
+  modifiedWhen: 1751626075657
+  createdBy:
+    id: "0"
+    username: "developer"
+  modifiedBy:
+    id: "0"
+    username: "developer"
+  activeEnvironmentId: "d3939eba-78d3-495b-bd32-e23e3e39c744"
+  integrationSystemType: "EXTERNAL"
+  protocol: "HTTP"
+  environments:
+  - id: "59e4691f-38e6-42b9-a784-46d1a013b363"
+    name: "Environment for petstore specification group"
+    createdWhen: 1751626075580
+    modifiedWhen: 1751626075580
+    createdBy:
+      id: "0"
+      username: "developer"
+    modifiedBy:
+      id: "0"
+      username: "developer"
+    address: "http://petstore.swagger.io/v2"
+    sourceType: "MANUAL"
+    labels: []
+  - id: "d3939eba-78d3-495b-bd32-e23e3e39c744"
+    name: "Environment for petstore specification group"
+    createdWhen: 1751626075581
+    modifiedWhen: 1751626075581
+    createdBy:
+      id: "0"
+      username: "developer"
+    modifiedBy:
+      id: "0"
+      username: "developer"
+    address: "https://petstore.swagger.io/v2"
+    sourceType: "MANUAL"
+    labels: []
+    properties:
+      soTimeout: "120000"
+      getWithBody: "false"
+      connectTimeout: "120000"
+      deleteWithBody: "false"
+      responseTimeout: "120000"
+      connectionRequestTimeout: "120000"
+  migrations: "[100, 101]"

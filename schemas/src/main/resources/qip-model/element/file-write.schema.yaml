@@ -1,0 +1,25 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/file-write.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: File Write
+properties:
+  type:
+    type: string
+    const: file-write
+  properties:
+    type: object
+    properties:
+      allowNullBody:
+        type: boolean
+        title: Allow null body
+        default: true
+      fileName:
+        type: string
+        title: File Name
+    required:
+      - fileName
+    additionalProperties: false

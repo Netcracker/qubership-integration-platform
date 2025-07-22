@@ -1,0 +1,24 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/script.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
+  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+title: Script
+description: Executes Groovy Script
+properties:
+  type:
+    type: string
+    const: script
+  properties:
+    $ref: "#/definitions/ScriptProperties"
+definitions:
+  ScriptProperties:
+    oneOf:
+      - type: object
+        properties:
+          script:
+            type: string
+        additionalProperties: false
+      - $ref: "properties/properties-in-external-file.schema.yaml"

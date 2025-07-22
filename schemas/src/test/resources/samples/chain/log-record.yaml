@@ -1,0 +1,21 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "75514c86-27bf-432f-bb0b-2f4cf0f73903"
+name: "Log Record"
+content:
+  modifiedWhen: 1752246155758
+  maskingEnabled: false
+  elements:
+  - id: "b49aa037-4f0f-4cf1-9401-9e87ac9f1be3"
+    name: "Log Record"
+    type: "log-record"
+    properties:
+      businessIdentifiers:
+        foo: "bar"
+      logLevel: "Error"
+      message: "Hello world!"
+      receiver: "bar"
+      sender: "foo"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"
