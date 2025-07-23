@@ -1,10 +1,17 @@
 name: Maven & NPM Release
 
-run-name: Maven ${{ inputs.maven-version || 'auto' }} & NPM ${{ inputs.npm-version || 'auto' }} Release
+run-name: Maven & NPM Release ${{ inputs.release-version || 'auto' }}
 
 on:
   workflow_dispatch:
     inputs:
+      # =================================
+      # GENERAL SETTINGS
+      # =================================
+      release-version:
+        description: 'Release version for both Maven and NPM (e.g., 1.0.0)'
+        required: false
+        type: string
       maven-release:
         description: 'Run Maven release'
         required: false
@@ -15,11 +22,10 @@ on:
         required: false
         type: boolean
         default: true
-      # Maven specific inputs
-      maven-version:
-        description: 'Maven version to release (e.g., 1.0.0)'
-        required: false
-        type: string
+      
+      # =================================
+      # MAVEN CONFIGURATION
+      # =================================
       maven-profile:
         description: 'Maven profile to use'
         type: choice
@@ -37,17 +43,16 @@ on:
         description: 'Build Docker image for Maven project'
         required: false
         type: boolean
-        default: true
+        default: false
       maven-dry-run:
         description: 'Maven dry run'
         required: false
         type: boolean
         default: false
-      # NPM specific inputs
-      npm-version:
-        description: 'NPM version to release (e.g., 1.0.0)'
-        required: false
-        type: string
+      
+      # =================================
+      # NPM CONFIGURATION
+      # =================================
       npm-scope:
         description: 'NPM scope for the package'
         required: false
@@ -68,7 +73,7 @@ jobs:
     if: ${{ inputs.maven-release && inputs.maven-release != 'false' }}
     uses: ./.github/workflows/maven-release.yaml
     with:
-      version: ${{ inputs.maven-version }}
+      version: ${{ inputs.release-version }}
       profile: ${{ inputs.maven-profile }}
       java-version: ${{ inputs.maven-java-version }}
       build-docker: ${{ inputs.maven-build-docker }}
@@ -79,7 +84,7 @@ jobs:
     if: ${{ inputs.npm-publish && inputs.npm-publish != 'false' }}
     uses: ./.github/workflows/npm-publish.yml
     with:
-      version: ${{ inputs.npm-version }}
+      version: ${{ inputs.release-version }}
       scope: ${{ inputs.npm-scope }}
       dist-tag: ${{ inputs.npm-dist-tag }}
       branch_name: main
