@@ -1,6 +1,6 @@
 name: Maven & NPM Release
 
-run-name: Maven ${{ inputs.maven-version-type }} & NPM ${{ inputs.npm-version || 'auto' }} Release
+run-name: Maven ${{ inputs.maven-version || 'auto' }} & NPM ${{ inputs.npm-version || 'auto' }} Release
 
 on:
   workflow_dispatch:
@@ -16,15 +16,10 @@ on:
         type: boolean
         default: true
       # Maven specific inputs
-      maven-version-type:
-        description: 'Maven version type'
-        type: choice
-        options:
-          - 'major'
-          - 'minor'
-          - 'patch'
+      maven-version:
+        description: 'Maven version to release (e.g., 1.0.0)'
         required: false
-        default: 'patch'
+        type: string
       maven-profile:
         description: 'Maven profile to use'
         type: choice
@@ -33,6 +28,21 @@ on:
           - 'central'
         required: false
         default: 'central'
+      maven-java-version:
+        description: 'Java version (e.g., 21)'
+        required: false
+        type: string
+        default: '21'
+      maven-build-docker:
+        description: 'Build Docker image for Maven project'
+        required: false
+        type: boolean
+        default: true
+      maven-dry-run:
+        description: 'Maven dry run'
+        required: false
+        type: boolean
+        default: false
       # NPM specific inputs
       npm-version:
         description: 'NPM version to release (e.g., 1.0.0)'
@@ -56,10 +66,13 @@ permissions:
 jobs:
   maven-release:
     if: ${{ inputs.maven-release && inputs.maven-release != 'false' }}
-    uses: ./.github/workflows/maven-release-v2.yaml
+    uses: ./.github/workflows/maven-release.yaml
     with:
-      version-type: ${{ inputs.maven-version-type || 'patch' }}
+      version: ${{ inputs.maven-version }}
       profile: ${{ inputs.maven-profile }}
+      java-version: ${{ inputs.maven-java-version }}
+      build-docker: ${{ inputs.maven-build-docker }}
+      dry-run: ${{ inputs.maven-dry-run }}
     secrets: inherit
 
   npm-publish:
