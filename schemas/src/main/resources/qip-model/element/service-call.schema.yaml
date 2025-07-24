@@ -19,6 +19,8 @@ properties:
       - $ref: "properties/context-propagation.schema.yaml"
       - $ref: "#/definitions/ValidationFailureHandler"
     properties:
+      errorThrowing:
+        type: boolean
       retryCount:
         oneOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
