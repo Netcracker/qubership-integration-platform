@@ -17,13 +17,15 @@ import { SessionPage } from "./pages/SessionPage.tsx";
 import { ChainProperties } from "./pages/ChainProperties.tsx";
 import { EventNotification } from "./components/notifications/EventNotification.tsx";
 
-import { AdminTools } from "./pages/admin-tools/AdminToolsPage.tsx";
 import { CommonVariables } from "./components/admin_tools/variables/CommonVariables.tsx";
 import { SecuredVariables } from "./components/admin_tools/variables/SecuredVariables.tsx";
 import { Domains } from "./components/admin_tools/domains/Domains.tsx";
 import { ActionsLog } from "./components/admin_tools/ActionsLog.tsx";
 import { NotImplemented } from "./pages/NotImplemented.tsx";
 import { SessionsPage } from "./pages/SessionsPage.tsx";
+import Services from "./pages/Services.tsx";
+import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
+import AdminTools from "./pages/AdminTools.tsx";
 
 const { Header } = Layout;
 
@@ -40,15 +42,9 @@ const App = () => (
               <Route path="/admintools" element={<AdminTools />}>
                 <Route path="" element={<Navigate to="domains" />} />
                 <Route path="domains" element={<Domains />} />
-                <Route
-                  path="engine-list"
-                  element={<Navigate to="../domains" relative={"path"} />}
-                />
+                <Route path="engine-list" element={<Navigate to="../domains" relative={"path"} />} />
                 <Route path="variables/common" element={<CommonVariables />} />
-                <Route
-                  path="variables/secured"
-                  element={<SecuredVariables />}
-                />
+                <Route path="variables/secured" element={<SecuredVariables />} />
                 <Route path="audit" element={<ActionsLog />} />
                 <Route path="sessions" element={<SessionsPage />} />
               </Route>
@@ -65,7 +61,13 @@ const App = () => (
                 <Route path="logging-settings" element={<LoggingSettings />} />
                 <Route path="properties" element={<ChainProperties />} />
               </Route>
-              <Route path="*" element={<NotFound />} />
+              <Route path="/services" element={<Services />} />
+              <Route path="/services/systems/:systemId/parameters" element={<ServiceParametersPage />} />
+              <Route path="/services/systems/:systemId/specificationGroups" element={<ServiceParametersPage />} />
+              <Route path="/services/systems/:systemId/specificationGroups/:groupId/specifications" element={<ServiceParametersPage />} />
+              <Route path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:modelId/operations" element={<ServiceParametersPage />} />
+              <Route path="/services/systems/:systemId/environments" element={<ServiceParametersPage />} />
+              <Route path="*" element={<NotFound/>}/>
               <Route path="/not-implemented" element={<NotImplemented />} />
             </Routes>
           </BrowserRouter>

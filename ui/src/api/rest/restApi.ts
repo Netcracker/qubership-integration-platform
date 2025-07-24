@@ -45,6 +45,16 @@ import {
   ActionLogSearchRequest,
   ActionLogResponse,
   LogExportRequestParams,
+  IntegrationSystem,
+  SystemRequest,
+  EnvironmentRequest,
+  Environment,
+  Specification,
+  SpecificationGroup,
+  OperationInfo,
+  ImportSystemResult,
+  ImportSpecificationResult,
+  BaseEntity,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
@@ -204,6 +214,13 @@ export class RestApi implements Api {
     );
     return response.data;
   };
+
+  getElementsByType = async (chainId: string, elementType: string): Promise<Element[]> => {
+    const response = await this.instance.get<Element[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/type/${elementType}`,
+    );
+    return response.data;
+  }
 
   createElement = async (
     elementRequest: ElementRequest,
@@ -552,6 +569,19 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  getRootFolders = async (filter: string, openedFolderId: string): Promise<FolderItem[]> => {
+    const response = await this.instance.get<FolderItem[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/`,
+      {
+        params: {
+          filter: filter,
+          openedFolderId: openedFolderId
+        },
+      },
+    );
+    return response.data;
+  };
+
   getPathToFolder = async (folderId: string): Promise<FolderItem[]> => {
     const response = await this.instance.get<FolderItem[]>(
       `/api/v2/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}/path`,
@@ -638,6 +668,14 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  getChainsUsedByService = async (
+    systemId: string
+  ): Promise<BaseEntity[]> => {
+    const response = await this.instance.get<BaseEntity[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/systems/${systemId}`)
+    return response.data;
+  }
+
   exportServices = async (
     serviceIds: string[],
     modelIds: string[],
@@ -661,6 +699,89 @@ export class RestApi implements Api {
       },
     );
     return getFileFromResponse(response);
+  };
+
+  exportSpecifications = async (
+    specificationIds: string[],
+    specificationGroupId: string[],
+  ): Promise<File> => {
+    const params: Record<string, string> = {};
+    if (specificationIds?.length) {
+      params["specificationIds"] = specificationIds.join(",");
+    }
+    if (specificationGroupId?.length) {
+      params["specificationGroupId"] = specificationGroupId.join(",");
+    }
+    const response = await this.instance.get<Blob>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/export/specifications`,
+      {
+        params,
+        headers: {
+          accept: "*/*",
+        },
+        responseType: "blob",
+      },
+    );
+    return getFileFromResponse(response);
+  };
+
+  getServices = async (
+    modelType: string,
+    withSpec: boolean,
+  ): Promise<IntegrationSystem[]> => {
+    const response = await this.instance.get<IntegrationSystem[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems`,
+      {
+        params: { modelType, withSpec },
+      },
+    );
+    return response.data;
+  };
+
+  createService = async (system: SystemRequest): Promise<IntegrationSystem> => {
+    const response = await this.instance.post<IntegrationSystem>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems`,
+      system,
+    );
+    return response.data;
+  };
+
+  createEnvironment = async (
+    systemId: string,
+    envRequest: EnvironmentRequest,
+  ): Promise<Environment> => {
+    const response = await this.instance.post<Environment>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${systemId}/environments`,
+      envRequest,
+    );
+    return response.data;
+  };
+
+  updateEnvironment = async (
+    systemId: string,
+    environmentId: string,
+    envRequest: EnvironmentRequest,
+  ): Promise<Environment> => {
+    const response = await this.instance.put<Environment>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${systemId}/environments/${environmentId}`,
+      envRequest,
+    );
+    return response.data;
+  };
+
+  deleteEnvironment = async (
+    systemId: string,
+    environmentId: string,
+  ): Promise<void> => {
+    await this.instance.delete(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${systemId}/environments/${environmentId}`,
+    );
+  };
+
+  deleteService = async (serviceId: string): Promise<void> => {
+    await this.instance.delete(
+      `/api/v1/cip/systems-catalog/systems/${serviceId}`,
+    );
   };
 
   getImportPreview = async (file: File): Promise<ImportPreview> => {
@@ -786,6 +907,207 @@ export class RestApi implements Api {
         responseType: "blob",
         params: params,
       },
+    );
+    return response.data;
+  };
+
+  getService = async (id: string): Promise<IntegrationSystem> => {
+    const response = await this.instance.get<IntegrationSystem>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${id}`,
+    );
+    return response.data;
+  };
+
+  updateService = async (
+    id: string,
+    data: Partial<IntegrationSystem>,
+  ): Promise<IntegrationSystem> => {
+    const response = await this.instance.put<IntegrationSystem>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${id}`,
+      data,
+    );
+    return response.data;
+  };
+
+  getEnvironments = async (systemId: string): Promise<Environment[]> => {
+    const response = await this.instance.get<Environment[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${systemId}/environments`,
+    );
+    return response.data;
+  };
+
+  getApiSpecifications = async (
+    systemId: string,
+  ): Promise<SpecificationGroup[]> => {
+    const response = await this.instance.get<SpecificationGroup[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/specificationGroups`,
+      {
+        params: {
+          systemId: systemId,
+        },
+      },
+    );
+    return response.data;
+  };
+
+  updateApiSpecificationGroup = async (
+    id: string,
+    data: Partial<SpecificationGroup>,
+  ): Promise<SpecificationGroup> => {
+    const response = await this.instance.patch<SpecificationGroup>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/specificationGroups/${id}`,
+      data,
+    );
+    return response.data;
+  };
+
+  deleteSpecificationGroup = async (
+    id: string,
+  ): Promise<void> => {
+    await this.instance.delete<SpecificationGroup>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/specificationGroups/${id}`,
+    );
+  };
+
+  updateSpecificationModel = async (
+    id: string,
+    data: Partial<Specification>,
+  ): Promise<Specification> => {
+    const response = await this.instance.patch<Specification>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models/${id}`,
+      data,
+    );
+    return response.data;
+  };
+
+  deleteSpecificationModel = async (id: string): Promise<void> => {
+    await this.instance.delete(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models/${id}`
+    );
+  };
+
+  getSpecificationModel = async (
+    systemId?: string,
+    specificationGroupId?: string
+  ) : Promise<Specification[]> => {
+    const response = await this.instance.get<Specification[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models`,
+      {
+        params: {
+          systemId: systemId,
+          specificationGroupId: specificationGroupId,
+        },
+      },
+    );
+    return response.data;
+  }
+
+  deprecateModel = async (
+    modelId: string
+  ): Promise<Specification> => {
+    const response = await this.instance.post<Specification>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models/deprecated`,
+      modelId,
+      {
+        headers: { 'Content-Type': 'text/plain', },
+      }
+    );
+    return response.data;
+  };
+
+  getOperationInfo = async (
+    operationId: string
+  ) : Promise<OperationInfo> => {
+    const response = await this.instance.get<OperationInfo>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/operations/${operationId}/info`
+    );
+    return response.data;
+  }
+
+  importSystems = async (
+    file: File,
+    systemIds?: string[],
+    deployLabel?: string,
+    packageName?: string,
+    packageVersion?: string,
+    packagePartOf?: string
+  ): Promise<ImportSystemResult[]> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (systemIds && systemIds.length > 0) {
+      for (const id of systemIds) {
+        formData.append("systemIds", id);
+      }
+    }
+    if (deployLabel) {
+      formData.append("deployLabel", deployLabel);
+    }
+    const headers: Record<string, string> = {};
+    if (packageName) headers["X-SR-PACKAGE-NAME"] = packageName;
+    if (packageVersion) headers["X-SR-PACKAGE-VERSION"] = packageVersion;
+    if (packagePartOf) headers["X-SR-PACKAGE-PART-OF"] = packagePartOf;
+    const response = await this.instance.post<ImportSystemResult[]>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/import/system`,
+      formData,
+      {
+        headers: {
+          ...headers,
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    return response.data;
+  };
+
+  importSpecification = async (
+    specificationGroupId: string,
+    files: File[]
+  ): Promise<ImportSpecificationResult> => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    const params: Record<string, string> = {
+      specificationGroupId: specificationGroupId,
+    };
+    const response = await this.instance.post<ImportSpecificationResult>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/import`,
+      formData,
+      {
+        params,
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
+    return response.data;
+  };
+
+  importSpecificationGroup = async (
+    systemId: string,
+    name: string,
+    files: File[],
+    protocol?: string
+  ): Promise<ImportSpecificationResult> => {
+    const formData: FormData = new FormData();
+    files.forEach((file) => formData.append("files", file, file.name));
+    const params: Record<string, string> = {
+      systemId: systemId,
+      name: name,
+    };
+    if (protocol) params.protocol = protocol;
+    const response = await this.instance.post<ImportSpecificationResult>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/specificationGroups/import`,
+      formData,
+      {
+        params,
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
+    return response.data;
+  };
+
+  getImportSpecificationResult = async (
+    importId: string
+  ): Promise<ImportSpecificationResult> => {
+    const response = await this.instance.get<ImportSpecificationResult>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/import/${importId}`
     );
     return response.data;
   };

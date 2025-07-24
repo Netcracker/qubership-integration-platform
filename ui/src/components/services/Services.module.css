@@ -1,0 +1,95 @@
+.container {
+    background: #fff;
+    height: calc(100vh);
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+
+.title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0px;
+    font-size: 20px;
+    color: var(--text-color);
+    transition: color var(--transition-duration) var(--transition-easing);
+}
+
+.actions {
+    display: flex;
+    gap: 12px;
+}
+
+.icon {
+    margin-right: 12px;
+    transition: transform 0.2s var(--transition-easing), color var(--transition-duration) var(--transition-easing);
+}
+
+.loadingRow {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.codeBlock {
+  background: #fff;
+  border-radius: 4px;
+  max-height: 350px;
+  overflow: auto;
+  font-size: 14px;
+}
+
+.rightAlignedUsedBy {
+  text-align: center;
+  width: 38px;
+}
+
+.variables-container {
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding-right: 32px;
+}
+
+.variables-title {
+  font-size: 20px;
+  color: var(--text-color);
+  margin: 0;
+  font-weight: 500;
+}
+
+.serviceApiSpecsTabHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px;
+}
+.serviceApiSpecsTabHeaderLeft {
+  display: flex;
+  align-items: center;
+}
+.serviceApiSpecsTabHeaderRight {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.serviceApiSpecsTabFilterGroup {
+  display: inline-block;
+}
+.serviceApiSpecsTabFilterNone {
+  display: none;
+}
+.serviceApiSpecsTabSpin {
+  margin: 32px;
+}
+.serviceApiSpecsTabError {
+  color: red;
+}

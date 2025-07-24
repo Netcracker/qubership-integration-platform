@@ -38,6 +38,16 @@ import {
   ActionLogSearchRequest,
   ActionLogResponse,
   LogExportRequestParams,
+  IntegrationSystem,
+  SystemRequest,
+  EnvironmentRequest,
+  Environment,
+  SpecificationGroup,
+  Specification,
+  OperationInfo,
+  ImportSystemResult,
+  ImportSpecificationResult,
+  BaseEntity,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -69,6 +79,8 @@ export interface Api {
   getElements(chainId: string): Promise<Element[]>;
 
   getElementTypes(): Promise<ElementFilter[]>;
+
+  getElementsByType(chainId: string, elementType: string): Promise<Element[]>;
 
   createElement(
     elementRequest: ElementRequest,
@@ -179,6 +191,8 @@ export interface Api {
 
   getFolder(folderId: string): Promise<FolderItem>;
 
+  getRootFolders(filter: string, openedFolderId: string): Promise<FolderItem[]>
+
   getPathToFolder(folderId: string): Promise<FolderItem[]>;
 
   listFolder(request: ListFolderRequest): Promise<(FolderItem | ChainItem)[]>;
@@ -200,7 +214,11 @@ export interface Api {
 
   getServicesUsedByChains(chainIds: string[]): Promise<UsedService[]>;
 
+  getChainsUsedByService(systemId: string): Promise<BaseEntity[]>;
+
   exportServices(serviceIds: string[], modelIds: string[]): Promise<File>;
+
+  exportSpecifications(specificationIds: string[], specificationGroupId: string[]): Promise<File>;
 
   getImportPreview(file: File): Promise<ImportPreview>;
 
@@ -234,6 +252,63 @@ export interface Api {
   exportVariablesManagementActionsLog(
     params: LogExportRequestParams,
   ): Promise<Blob>;
+
+  getServices(modelType: string, withSpec: boolean): Promise<IntegrationSystem[]>;
+
+  createService(system: SystemRequest): Promise<IntegrationSystem>;
+
+  createEnvironment(systemId: string, envRequest: EnvironmentRequest): Promise<Environment>;
+
+  updateEnvironment(systemId: string, environmentId: string, envRequest: EnvironmentRequest): Promise<Environment>;
+
+  deleteEnvironment(systemId: string, environmentId: string ): Promise<void>;
+
+  deleteService(serviceId: string): Promise<void>;
+
+  importSystems(
+    file: File,
+    systemIds?: string[],
+    deployLabel?: string,
+    packageName?: string,
+    packageVersion?: string,
+    packagePartOf?: string
+  ): Promise<ImportSystemResult[]>;
+
+  importSpecification(
+    specificationGroupId: string,
+    files: File[]
+  ): Promise<ImportSpecificationResult>;
+
+  getImportSpecificationResult(importId: string): Promise<ImportSpecificationResult>;
+
+  importSpecificationGroup(
+    systemId: string,
+    name: string,
+    files: File[],
+    protocol?: string
+  ): Promise<ImportSpecificationResult>;
+
+  deleteSpecificationGroup(id: string): Promise<void>;
+
+  getService(id: string): Promise<IntegrationSystem>;
+
+  updateService(id: string, data: Partial<IntegrationSystem>): Promise<IntegrationSystem>;
+
+  getEnvironments(systemId: string): Promise<Environment[]>;
+
+  getApiSpecifications(systemId: string): Promise<SpecificationGroup[]>;
+
+  updateApiSpecificationGroup( id: string, data: Partial<SpecificationGroup>): Promise<SpecificationGroup>;
+
+  getSpecificationModel(systemId?: string, specificationGroupId?: string) : Promise<Specification[]>
+
+  updateSpecificationModel( id: string, data: Partial<Specification>): Promise<Specification>
+
+  getOperationInfo(operationId: string): Promise<OperationInfo>;
+
+  deprecateModel(modelId: string): Promise<Specification>;
+
+  deleteSpecificationModel(id: string): Promise<void>;
 }
 
 export const api: Api = new RestApi();

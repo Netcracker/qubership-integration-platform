@@ -885,3 +885,134 @@ export type ChainDeployment = {
   snapshotName: string;
   state: RuntimeState;
 };
+
+export type IntegrationSystem = {
+  id: string;
+  name: string;
+  type: IntegrationSystemType;
+  description?: string;
+  activeEnvironmentId: string;
+  internalServiceName: string;
+  protocol: string;
+  extendedProtocol: string;
+  specification: string;
+  labels?: EntityLabel[];
+  createdWhen?: string;
+  createdBy?: User;
+  modifiedWhen?: string;
+}
+
+export enum IntegrationSystemType {
+  INTERNAL = "INTERNAL",
+  EXTERNAL = "EXTERNAL",
+  IMPLEMENTED = "IMPLEMENTED",
+}
+
+export type SystemRequest = {
+  name: string;
+  type: IntegrationSystemType;
+  description?: string;
+  activeEnvironmentId?: string;
+  labels?: EntityLabel[];
+}
+
+export type Environment = {
+  id: string;
+  systemId: string;
+  name: string;
+  description?: string;
+  address?: string;
+  labels?: EnvironmentLabel[];
+  properties?: Record<string, unknown>;
+  defaultProperties?: never;
+  maasDefaultProperties?: never;
+  createdWhen?: number;
+  createdBy?: User;
+  modifiedWhen?: number;
+  modifiedBy?: User;
+  sourceType?: EnvironmentSourceType;
+  /** @deprecated */
+  maasInstanceId?: string;
+}
+
+export type EnvironmentRequest = {
+  name: string;
+  address?: string;
+  labels?: EnvironmentLabel[];
+  properties?: Record<string, unknown>;
+  sourceType?: EnvironmentSourceType;
+}
+
+export enum EnvironmentSourceType {
+  MANUAL = "MANUAL",
+  /** @deprecated */
+  MAAS = "MAAS",
+  MAAS_BY_CLASSIFIER = "MAAS_BY_CLASSIFIER",
+}
+
+export type EnvironmentLabel = {
+  name: string;
+};
+
+export interface SpecificationGroup {
+  id: string;
+  name: string;
+  systemId: string;
+  synchronization: boolean;
+  createdWhen?: number;
+  createdBy?: User;
+  modifiedWhen?: number;
+  modifiedBy?: User;
+  specifications: Specification[];
+  chains?: BaseEntity[];
+  labels?: EntityLabel[];
+}
+
+export interface Specification {
+  id: string;
+  name: string;
+  specificationGroupId: string;
+  deprecated?: boolean;
+  version: string;
+  source: string;
+  systemId: string;
+  createdWhen?: number;
+  createdBy?: User;
+  modifiedWhen?: number;
+  modifiedBy?: User;
+  chains?: BaseEntity[];
+  labels?: EntityLabel[];
+  operations?: SystemOperation
+}
+
+export interface SystemOperation {
+  id: string;
+  name: string;
+  description?: string;
+  method: string;
+  path: string;
+  modelId: string;
+  chains: BaseEntity[];
+}
+
+export interface OperationInfo {
+  id: string;
+  specification: unknown;
+  requestSchema: Record<string, unknown>;
+  responseSchemas: Record<string, unknown>;
+}
+
+export type ImportSpecificationResult = {
+  id: string;
+  description?: string;
+  warningMessage?: string;
+  done: boolean;
+  specificationGroupId: string;
+};
+
+export type ImportSpecificationGroupRequest = {
+  systemId: string;
+  name: string;
+  protocol?: string;
+  files: File[];
+};
