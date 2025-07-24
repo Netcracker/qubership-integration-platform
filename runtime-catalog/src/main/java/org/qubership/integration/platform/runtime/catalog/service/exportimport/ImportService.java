@@ -56,6 +56,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.CollectionUtils;
@@ -102,6 +103,9 @@ public class ImportService {
 
     private static final short ASYNC_IMPORT_PERCENTAGE_THRESHOLD = 40;
     private static final short ASYNC_SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD = 90;
+
+    @Value("${app.prefix}")
+    private String appName;
 
     @Autowired
     public ImportService(ChainExternalEntityMapper chainExternalEntityMapper,
@@ -690,8 +694,9 @@ public class ImportService {
         if (chainDir.listFiles() != null) {
             List<File> dirFiles = Arrays.asList(Objects.requireNonNull(chainDir.listFiles()));
             return dirFiles.stream().filter(
-                            f -> f.getName().startsWith(CHAIN_YAML_NAME_PREFIX)
+                            f -> (f.getName().startsWith(CHAIN_YAML_NAME_PREFIX)
                                     && f.getName().endsWith(YAML_FILE_NAME_POSTFIX))
+                                    || f.getName().endsWith(CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
                     .findFirst().orElseThrow(() -> new RuntimeException(
                             "Directory " + chainDir.getName() + " does not contain chain YAML file")
                     );

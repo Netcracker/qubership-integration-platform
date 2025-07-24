@@ -21,7 +21,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -97,7 +96,7 @@ public class ExportImportUtils {
         }
         String extension = properties != null && properties.containsKey(EXPORT_FILE_EXTENSION_PROPERTY)
                 ? properties.get(EXPORT_FILE_EXTENSION_PROPERTY).toString() : DEFAULT_EXTENSION;
-        return prefix + "-" + element.getId() + "." + extension;
+        return RESOURCES_FOLDER_PREFIX + prefix + "-" + element.getId() + "." + extension;
     }
 
     public static String generateAfterScriptFileName(String id, Map<String, Object> afterProp) {
@@ -139,12 +138,18 @@ public class ExportImportUtils {
     }
 
     public static String getFileContentByName(File chainFilesDir, String fileName) throws IOException {
-        File[] foundFiles = chainFilesDir.listFiles((dir, name) -> name.equals(fileName));
-        if (ArrayUtils.isEmpty(foundFiles)) {
+        Path targetPath = chainFilesDir.toPath().resolve(fileName).normalize();
+        File targetFile = targetPath.toFile();
+
+        if (!targetPath.startsWith(chainFilesDir.toPath())) {
+            throw new IOException("Access to the file is outside the base directory");
+        }
+
+        if (!targetFile.isFile()) {
             throw new RuntimeException("Directory " + chainFilesDir.getName() + " does not contain file: " + fileName);
         }
 
-        return Files.readString(foundFiles[0].toPath());
+        return Files.readString(targetPath);
     }
 
     public static File extractDirectoriesFromZip(InputStream is, String importFolderName) throws IOException {
@@ -231,11 +236,11 @@ public class ExportImportUtils {
     }
 
     public static String generateAfterMapperFileName(String id, Map<String, Object> afterProp) {
-        return MAPPING_DESCRIPTION + DASH + getIdOrCode(afterProp) + DASH + id + "." + JSON_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + MAPPING_DESCRIPTION + DASH + getIdOrCode(afterProp) + DASH + id + "." + JSON_EXTENSION;
     }
 
     public static String generateBeforeMapperFileName(String id, Map<String, Object> afterProp) {
-        return MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
     }
 
     public static ZipEntry generateSourceEntry(SpecificationSource specificationSource, String dirPrefix) {
@@ -247,8 +252,8 @@ public class ExportImportUtils {
         return new ZipEntry(zipEntryPrefix + File.separator + filename);
     }
 
-    public static String generateSpecificationFileExportName(String id) {
-        return SPECIFICATION_FILE_PREFIX + id + "." + YAML_EXTENSION;
+    public static String generateSpecificationFileExportName(String id, String appName) {
+        return id + SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static JsonPointer toJsonPointer(String... values) {
@@ -320,16 +325,16 @@ public class ExportImportUtils {
         };
     }
 
-    public static String generateMainSystemFileExportName(String id) {
-        return SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION;
+    public static String generateMainSystemFileExportName(String id, String appName) {
+        return id + SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static String generateSourceExportDir(String id) {
         return SOURCE_YAML_NAME_PREFIX + id;
     }
 
-    public static String generateSpecificationGroupFileExportName(String id) {
-        return SPECIFICATION_GROUP_FILE_PREFIX + id + "." + YAML_EXTENSION;
+    public static String generateSpecificationGroupFileExportName(String id, String appName) {
+        return id + SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static ResponseEntity<Object> convertFileToResponse(byte[] payload, String fileName) {
@@ -378,7 +383,8 @@ public class ExportImportUtils {
             try (Stream<Path> sp = Files.walk(start)) {
                 return sp.filter(Files::isRegularFile)
                         .map(Path::toFile)
-                        .filter(f -> f.getName().startsWith(SERVICE_YAML_NAME_PREFIX) && f.getName().endsWith(YAML_EXTENSION))
+                        .filter(f -> (f.getName().startsWith(SERVICE_YAML_NAME_PREFIX) && f.getName().endsWith(YAML_EXTENSION))
+                        || f.getName().contains(SERVICE_YAML_NAME_POSTFIX))
                         .collect(Collectors.toList());
             }
         }
@@ -387,7 +393,11 @@ public class ExportImportUtils {
     }
 
     public static String extractSystemIdFromFileName(File systemFile) {
-        return systemFile.getName().substring(SERVICE_YAML_NAME_PREFIX.length(), systemFile.getName().lastIndexOf("."));
+        if (systemFile.getName().startsWith(SERVICE_YAML_NAME_PREFIX)) {
+            return systemFile.getName().substring(SERVICE_YAML_NAME_PREFIX.length(), systemFile.getName().lastIndexOf("."));
+        } else {
+            return systemFile.getName().substring(0, systemFile.getName().indexOf("."));
+        }
     }
 
     private static void extractZip(String importFolderName, ZipInputStream inputStream, String archParentDir) throws IOException {

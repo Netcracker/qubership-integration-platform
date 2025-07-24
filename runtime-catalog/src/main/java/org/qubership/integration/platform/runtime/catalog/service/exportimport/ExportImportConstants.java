@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+import java.io.File;
 import java.util.regex.Pattern;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -27,13 +28,22 @@ public class ExportImportConstants {
     public static final String YAML_EXTENSION = "yaml";
     public static final String GROOVY_EXTENSION = "groovy";
     public static final String JSON_EXTENSION = "json";
+    public static final String RESOURCES_FOLDER_PREFIX = "resources" + File.separator;
+    @Deprecated
     public static final String CHAIN_YAML_NAME_PREFIX = "chain-";
+    public static final String CHAIN_YAML_NAME_POSTFIX = ".chain.";
+    @Deprecated
     public static final String SERVICE_YAML_NAME_PREFIX = "service-";
-    public static final String SOURCE_YAML_NAME_PREFIX = "source-";
+    public static final String SERVICE_YAML_NAME_POSTFIX = ".service.";
+    public static final String SOURCE_YAML_NAME_PREFIX = RESOURCES_FOLDER_PREFIX + "source-";
     public static final String EXPORT_FILE_NAME_PREFIX = "export-";
     public static final String IMPORT_FILE_NAME_PREFIX = "import-";
+    @Deprecated
     public static final String SPECIFICATION_GROUP_FILE_PREFIX = "specGroup-";
+    public static final String SPECIFICATION_GROUP_FILE_POSTFIX = ".specification-group.";
+    @Deprecated
     public static final String SPECIFICATION_FILE_PREFIX = "specification-";
+    public static final String SPECIFICATION_FILE_POSTFIX = ".specification.";
     public static final String YAML_FILE_NAME_POSTFIX = ".yaml";
     public static final String JSON_FILE_NAME_POSTFIX = ".json";
     public static final String API_SPECIFICATION_SUFFIX = "-specification-";

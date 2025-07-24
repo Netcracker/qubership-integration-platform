@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
@@ -36,6 +37,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -43,6 +45,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
@@ -57,6 +60,9 @@ public class ServiceDeserializer {
     private final SystemModelDtoMapper systemModelDtoMapper;
     private final FileMigrationService fileMigrationService;
     private final Collection<ServiceImportFileMigration> importFileMigrations;
+
+    @Value("${app.prefix}")
+    private String appName;
 
     @Autowired
     public ServiceDeserializer(
@@ -91,10 +97,13 @@ public class ServiceDeserializer {
 
             Collection<File> files = listFiles(serviceDirectory);
 
-            getFilesData(files, SPECIFICATION_GROUP_FILE_PREFIX).forEach(node ->
-                    buildAndAddSpecificationGroup(node, versions, integrationSystem));
+            Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
+                    getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
+                    .forEach(node -> buildAndAddSpecificationGroup(node, versions, integrationSystem));
 
-            getFilesData(files, SPECIFICATION_FILE_PREFIX).forEach(node ->
+            Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
+                            getFilesData(files, SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
+                    .forEach(node ->
                     buildAndAddSpecification(node, versions, integrationSystem.getSpecificationGroups(), serviceDirectory));
 
             return integrationSystem;
@@ -122,20 +131,31 @@ public class ServiceDeserializer {
         }
     }
 
-    private Stream<ObjectNode> getFilesData(Collection<File> files, String namePrefix) {
+    @Deprecated
+    private Stream<ObjectNode> getFilesDataDeprecated(Collection<File> files, String namePrefix) {
         return files.stream()
                 .filter(file -> file.getName().startsWith(namePrefix))
-                .map(file -> {
-                    try {
-                        JsonNode node = yamlMapper.readTree(file);
-                        if (!node.isObject()) {
-                            throw new RuntimeException("Expected object node but got " + node.getNodeType().name());
-                        }
-                        return (ObjectNode) node;
-                    } catch (IOException exception) {
-                        throw new RuntimeException(exception);
-                    }
-                });
+                .map(getFileObjectNode());
+    }
+
+    private Stream<ObjectNode> getFilesData(Collection<File> files, String namePostfix) {
+        return files.stream()
+                .filter(file -> file.getName().endsWith(namePostfix))
+                .map(getFileObjectNode());
+    }
+
+    private @NotNull Function<File, ObjectNode> getFileObjectNode() {
+        return file -> {
+            try {
+                JsonNode node = yamlMapper.readTree(file);
+                if (!node.isObject()) {
+                    throw new RuntimeException("Expected object node but got " + node.getNodeType().name());
+                }
+                return (ObjectNode) node;
+            } catch (IOException exception) {
+                throw new RuntimeException(exception);
+            }
+        };
     }
 
     private void buildAndAddSpecificationGroup(

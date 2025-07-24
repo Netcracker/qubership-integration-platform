@@ -275,23 +275,23 @@ public class ChainElementFilePropertiesSubstitutor {
                 .map(Object::toString)
                 .orElse(DEFAULT_EXTENSION);
 
-        return prefix + "-" + externalElement.getId() + "." + extension;
+        return RESOURCES_FOLDER_PREFIX + prefix + "-" + externalElement.getId() + "." + extension;
     }
 
     private String generateAfterScriptFileName(String id, Map<String, Object> afterProp) {
-        return SCRIPT + DASH + getIdOrCode(afterProp) + DASH + id + "." + GROOVY_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + SCRIPT + DASH + getIdOrCode(afterProp) + DASH + id + "." + GROOVY_EXTENSION;
     }
 
     private String generateBeforeScriptFileName(String id) {
-        return SCRIPT + DASH + BEFORE + DASH + id + "." + GROOVY_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + SCRIPT + DASH + BEFORE + DASH + id + "." + GROOVY_EXTENSION;
     }
 
     private String generateAfterMapperFileName(String id, Map<String, Object> afterProp) {
-        return MAPPING_DESCRIPTION + DASH + getIdOrCode(afterProp) + DASH + id + "." + JSON_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + MAPPING_DESCRIPTION + DASH + getIdOrCode(afterProp) + DASH + id + "." + JSON_EXTENSION;
     }
 
     private String generateBeforeMapperFileName(String id) {
-        return MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
     }
 
     private Object getIdOrCode(Map<String, Object> mapProp) {

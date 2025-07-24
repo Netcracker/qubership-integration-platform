@@ -184,3 +184,6 @@ camel:
   constants:
     request-filter-header:
       name: 'requestFilterHeaderAllowlist'
+
+app:
+  prefix: qip

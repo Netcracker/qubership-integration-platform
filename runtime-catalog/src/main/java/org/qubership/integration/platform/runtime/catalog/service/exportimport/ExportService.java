@@ -38,6 +38,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +61,10 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 @Transactional(readOnly = true)
 @Service
 public class ExportService {
+
+    @Value("${app.prefix}")
+    private String appName;
+
     private final YAMLMapper yamlMapper;
     private final ObjectMapper objectMapper;
     private final ChainService chainService;
@@ -171,7 +176,7 @@ public class ExportService {
     }
 
     public String generateChainYamlName(Chain chain) {
-        return CHAIN_YAML_NAME_PREFIX + chain.getId() + YAML_FILE_NAME_POSTFIX;
+        return chain.getId() + CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     private void logChainExport(Chain chain) {

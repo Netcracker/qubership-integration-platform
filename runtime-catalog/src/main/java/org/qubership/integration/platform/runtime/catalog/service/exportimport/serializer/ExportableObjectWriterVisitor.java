@@ -24,6 +24,7 @@ import org.qubership.integration.platform.runtime.catalog.model.system.exportimp
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -35,6 +36,9 @@ public class ExportableObjectWriterVisitor {
 
     private final YAMLMapper yamlMapper;
 
+    @Value("${app.prefix}")
+    private String appName;
+
     @Autowired
     public ExportableObjectWriterVisitor(YAMLMapper yamlExportImportMapper) {
         this.yamlMapper = yamlExportImportMapper;
@@ -42,21 +46,21 @@ public class ExportableObjectWriterVisitor {
 
     public void visit(ExportedIntegrationSystem exportedIntegrationSystem, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
-                entryPath + ExportImportUtils.generateMainSystemFileExportName(exportedIntegrationSystem.getId()),
+                entryPath + ExportImportUtils.generateMainSystemFileExportName(exportedIntegrationSystem.getId(), appName),
                 yamlMapper.writeValueAsString(exportedIntegrationSystem.getObjectNode()));
     }
 
     public void visit(ExportedSpecificationGroup exportedSpecificationGroup, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath
-                        + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId()),
+                        + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId(), appName),
                 yamlMapper.writeValueAsString(exportedSpecificationGroup.getObjectNode()));
     }
 
     public void visit(ExportedSpecification exportedSpecification, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath
-                        + ExportImportUtils.generateSpecificationFileExportName(exportedSpecification.getId()),
+                        + ExportImportUtils.generateSpecificationFileExportName(exportedSpecification.getId(), appName),
                 yamlMapper.writeValueAsString(exportedSpecification.getObjectNode()));
     }
 

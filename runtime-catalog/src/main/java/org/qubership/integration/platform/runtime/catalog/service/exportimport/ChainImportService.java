@@ -94,6 +94,8 @@ public class ChainImportService {
 
     @Value("${qip.build.artifact-descriptor-version}")
     private String artifactDescriptorVersion;
+    @Value("${app.prefix}")
+    private String appName;
 
     @Autowired
     public ChainImportService(
@@ -467,7 +469,8 @@ public class ChainImportService {
 
     private File getChainYAMLFile(File chainDir) {
         File[] chainFiles = chainDir.listFiles((dir, fileName) ->
-                fileName.startsWith(CHAIN_YAML_NAME_PREFIX) && fileName.endsWith(YAML_FILE_NAME_POSTFIX));
+                (fileName.startsWith(CHAIN_YAML_NAME_PREFIX) && fileName.endsWith(YAML_FILE_NAME_POSTFIX))
+                        || fileName.endsWith(CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX));
 
         if (ArrayUtils.isEmpty(chainFiles)) {
             throw new RuntimeException("Directory " + chainDir.getName() + " does not contain chain YAML file");
