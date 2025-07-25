@@ -5,7 +5,7 @@
 
     <groupId>org.qubership</groupId>
     <artifactId>qip-schemas</artifactId>
-    <version>0.0.5-SNAPSHOT</version>
+    <version>${revision}</version>
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Schemas definition for QIP</description>
@@ -33,6 +33,7 @@
     </scm>
 
     <properties>
+        <revision>0.0.5-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <qip-checkstyle-revision>0.0.2</qip-checkstyle-revision>
     </properties>
