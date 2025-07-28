@@ -15,10 +15,10 @@ properties:
     $ref: "#/definitions/ScriptProperties"
 definitions:
   ScriptProperties:
-    oneOf:
+    allOf:
+      - $ref: "properties/properties-in-external-file.schema.yaml"
       - type: object
         properties:
           script:
             type: string
-        additionalProperties: false
-      - $ref: "properties/properties-in-external-file.schema.yaml"
+            title: Script

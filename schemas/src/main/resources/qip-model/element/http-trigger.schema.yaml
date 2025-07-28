@@ -205,7 +205,7 @@ definitions:
         properties:
           handleChainFailureAction:
             const: script
-          handlerContainer:
+          chainFailureHandlerContainer:
             $ref: "script.schema.yaml#/definitions/ScriptProperties"
         required:
           - handleValidationAction

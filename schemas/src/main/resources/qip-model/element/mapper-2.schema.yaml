@@ -17,6 +17,7 @@ definitions:
   MapperParameters:
     type: object
     allOf:
+      - $ref: "properties/properties-in-external-file.schema.yaml"
       - type: object
         properties:
           throwException:
@@ -24,14 +25,8 @@ definitions:
             title: Throw exception on transformation failure
             description: Throw exception on transformation failure.
             default: true
-      - oneOf:
-          - $ref: "properties/properties-in-external-file.schema.yaml"
-          - type: object
-            properties:
-              mappingDescription:
-                $ref: "#/definitions/MappingDescription"
-            required:
-              - mappingDescription
+          mappingDescription:
+            $ref: "#/definitions/MappingDescription"
   Metadata:
     type: object
     title: Metadata
