@@ -57,3 +57,5 @@ properties:
       - projectId
       - destinationName
       - serviceAccountKey
+required:
+  - type

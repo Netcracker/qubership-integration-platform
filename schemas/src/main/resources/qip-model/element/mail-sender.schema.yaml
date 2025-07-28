@@ -109,3 +109,5 @@ definitions:
       $ref: "#/definitions/Address"
   Address:
     type: string
+required:
+  - type

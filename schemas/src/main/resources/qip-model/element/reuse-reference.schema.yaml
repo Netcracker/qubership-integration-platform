@@ -18,3 +18,5 @@ properties:
         title: Reuse Element ID
     required:
       - reuseElementId
+required:
+  - type

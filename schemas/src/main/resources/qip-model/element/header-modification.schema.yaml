@@ -24,3 +24,5 @@ properties:
         items:
           type: string
     additionalProperties: false
+required:
+  - type

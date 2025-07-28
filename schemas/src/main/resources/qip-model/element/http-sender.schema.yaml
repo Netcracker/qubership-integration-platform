@@ -40,3 +40,5 @@ definitions:
       - PATCH
       - HEAD
       - OPTIONS
+required:
+  - type

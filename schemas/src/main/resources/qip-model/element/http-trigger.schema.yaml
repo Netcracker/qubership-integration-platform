@@ -251,3 +251,5 @@ definitions:
           - chain-call
         default: default
         title: Action on response failure
+required:
+  - type

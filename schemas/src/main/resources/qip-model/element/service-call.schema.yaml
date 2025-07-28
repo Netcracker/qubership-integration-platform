@@ -188,3 +188,5 @@ definitions:
         type: string
       wildcard:
         type: boolean
+required:
+  - type

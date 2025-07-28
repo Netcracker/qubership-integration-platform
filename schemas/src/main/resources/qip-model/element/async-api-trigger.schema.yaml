@@ -104,3 +104,5 @@ definitions:
       - NONE
       - MANUAL
       - AUTO
+required:
+  - type

@@ -18,3 +18,5 @@ properties:
         title: File Name (mask supported)
     required:
       - antInclude
+required:
+  - type

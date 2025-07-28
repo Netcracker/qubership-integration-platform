@@ -66,3 +66,5 @@ definitions:
       - topic
     default: direct
     title: Exchange type
+required:
+  - type

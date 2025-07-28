@@ -30,3 +30,5 @@ properties:
     required:
       - condition
     additionalProperties: false
+required:
+  - type

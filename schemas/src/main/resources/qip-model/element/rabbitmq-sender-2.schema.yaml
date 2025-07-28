@@ -22,3 +22,5 @@ properties:
       vhost:
         type: string
         title: Vhost
+required:
+  - type

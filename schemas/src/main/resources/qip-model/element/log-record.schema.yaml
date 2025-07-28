@@ -45,3 +45,5 @@ properties:
         title: Message
         description: A custom message to be logged
     additionalProperties: false
+required:
+  - type

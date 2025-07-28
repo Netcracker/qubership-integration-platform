@@ -18,3 +18,5 @@ properties:
     required:
       - templateName
     additionalProperties: false
+required:
+  - type

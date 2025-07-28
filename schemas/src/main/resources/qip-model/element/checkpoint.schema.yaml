@@ -23,3 +23,5 @@ properties:
         type: string
         const: POST
     additionalProperties: false
+required:
+  - type

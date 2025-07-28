@@ -21,3 +21,5 @@ definitions:
           script:
             type: string
             title: Script
+required:
+  - type

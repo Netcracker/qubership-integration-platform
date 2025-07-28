@@ -37,8 +37,6 @@ definitions:
     allOf:
       - $ref: "#/definitions/CommonEntityProperties"
       - $ref: "#/definitions/WithDescription"
-    required:
-      - type
   CommonEntityContent:
     type: object
     allOf:

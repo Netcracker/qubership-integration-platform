@@ -26,3 +26,5 @@ definitions:
       - Purple
       - Lagoon
       - Brown
+required:
+  - type

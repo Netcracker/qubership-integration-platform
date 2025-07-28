@@ -21,3 +21,5 @@ properties:
     required:
       - splitName
     additionalProperties: false
+required:
+  - type

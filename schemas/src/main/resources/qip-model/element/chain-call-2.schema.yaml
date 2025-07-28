@@ -20,3 +20,5 @@ properties:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Timeout (ms)
         default: 30000
+required:
+  - type

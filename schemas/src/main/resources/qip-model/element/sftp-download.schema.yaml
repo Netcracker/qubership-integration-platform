@@ -65,3 +65,5 @@ properties:
     required:
       - connectUrl
     additionalProperties: false
+required:
+  - type

@@ -350,3 +350,5 @@ definitions:
         title: Actions
         items:
           $ref: "#/definitions/MappingAction"
+required:
+  - type

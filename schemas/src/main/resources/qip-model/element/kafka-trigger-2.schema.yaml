@@ -101,3 +101,5 @@ properties:
       - groupId
       - keyDeserializer
       - valueDeserializer
+required:
+  - type

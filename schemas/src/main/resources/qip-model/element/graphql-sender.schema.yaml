@@ -40,3 +40,5 @@ properties:
         description: Operation variables in JSON format.
     required:
       - query
+required:
+  - type

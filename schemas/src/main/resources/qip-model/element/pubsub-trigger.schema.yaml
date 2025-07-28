@@ -70,3 +70,5 @@ definitions:
       - RESOURCE_EXHAUSTED
       - UNKNOWN
       - UNAVAILABLE
+required:
+  - type

@@ -15,3 +15,5 @@ properties:
       elementId:
         type: string
     additionalProperties: false
+required:
+  - type

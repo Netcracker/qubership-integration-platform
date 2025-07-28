@@ -80,3 +80,5 @@ properties:
       - connectUrl
       - scheduler.cron
     additionalProperties: false
+required:
+  - type

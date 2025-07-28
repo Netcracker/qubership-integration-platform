@@ -14,3 +14,5 @@ properties:
     items:
       anyOf:
         - $ref: "async-split-element-2.schema.yaml"
+required:
+  - type

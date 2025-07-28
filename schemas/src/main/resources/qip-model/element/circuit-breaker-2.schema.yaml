@@ -18,3 +18,5 @@ properties:
   properties:
     type: object
     additionalProperties: false
+required:
+  - type

@@ -22,3 +22,5 @@ properties:
     required:
       - fileName
     additionalProperties: false
+required:
+  - type

@@ -41,3 +41,5 @@ properties:
     required:
       - expression
     additionalProperties: false
+required:
+  - type
