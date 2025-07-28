@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.y
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: AsyncAPI Trigger
 description: Receives a call from a service registered in API Repository
 properties:

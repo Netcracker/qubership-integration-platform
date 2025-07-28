@@ -32,6 +32,13 @@ definitions:
       description:
         type: string
         title: Description
+  CommonElementProperties:
+    type: object
+    allOf:
+      - $ref: "#/definitions/CommonEntityProperties"
+      - $ref: "#/definitions/WithDescription"
+    required:
+      - type
   CommonEntityContent:
     type: object
     allOf:
