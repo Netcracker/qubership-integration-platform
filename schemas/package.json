@@ -6,8 +6,7 @@
   "scripts": {
     "prepublishOnly": "gulp clean assembly",
     "postpublish": "gulp clean",
-    "test": "jest",
-    "resolve-schemas": "ts-node src/main/scripts/resolve-schemas.ts"
+    "test": "jest"
   },
   "files": [
     "assets"
@@ -17,7 +16,6 @@
     "@types/jest": "^30.0.0",
     "ajv": "^8.17.1",
     "gulp": "^5.0.1",
-    "gulp-clean": "^0.4.0",
     "jest": "^30.0.4",
     "jest-expect-message": "^1.1.3",
     "ts-jest": "^29.4.0",
@@ -26,8 +24,12 @@
   },
   "dependencies": {
     "@apidevtools/json-schema-ref-parser": "^14.1.1",
+    "@types/gulp": "^4.0.17",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.1.0",
+    "del": "^8.0.0",
+    "js-yaml": "^4.1.0",
     "save-dev": "^0.0.1-security",
-    "ts-node": "^10.9.2",
-    "js-yaml": "^4.1.0"
+    "ts-node": "^10.9.2"
   }
 }
