@@ -55,9 +55,13 @@ import {
   ImportSystemResult,
   ImportSpecificationResult,
   BaseEntity,
+  ElementWithChainName,
+  ApiSpecificationType,
+  ApiSpecificationFormat,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
+import qs from "qs";
 
 export class RestApi implements Api {
   instance: AxiosInstance;
@@ -66,7 +70,7 @@ export class RestApi implements Api {
     this.instance = rateLimit(
       axios.create({
         baseURL: import.meta.env.VITE_GATEWAY,
-        timeout: 1000,
+        timeout: 2000,
         headers: { "content-type": "application/json" },
       }),
       {
@@ -215,8 +219,8 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  getElementsByType = async (chainId: string, elementType: string): Promise<Element[]> => {
-    const response = await this.instance.get<Element[]>(
+  getElementsByType = async (chainId: string, elementType: string): Promise<ElementWithChainName[]> => {
+    const response = await this.instance.get<ElementWithChainName[]>(
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/type/${elementType}`,
     );
     return response.data;
@@ -257,6 +261,26 @@ export class RestApi implements Api {
     );
     return response.data;
   };
+
+  modifyHttpTriggerProperties = async (
+    chainId: string,
+    specificationGroupId: string,
+    httpTriggerIds: string[],
+  ): Promise<void> => {
+    await this.instance.put(
+      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/properties-modification`,
+      {},
+      {
+        params:
+          {
+            specificationGroupId: specificationGroupId,
+            httpTriggerIds: httpTriggerIds
+          },
+          paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' })
+      },
+
+    );
+  }
 
   getConnections = async (chainId: string): Promise<Connection[]> => {
     const response = await this.instance.get<Connection[]>(
@@ -724,6 +748,43 @@ export class RestApi implements Api {
     );
     return getFileFromResponse(response);
   };
+
+  generateApiSpecification = async (
+    deploymentIds: string[],
+    snapshotIds: string[],
+    chainIds: string[],
+    httpTriggerIds: string[],
+    externalRoutes: boolean,
+    specificationType: ApiSpecificationType,
+    format: ApiSpecificationFormat
+  ): Promise<File> => {
+    const params: Record<string, string> = {};
+    if (deploymentIds?.length) {
+      params["deploymentIds"] = deploymentIds.join(",");
+    }
+    if (snapshotIds?.length) {
+      params["snapshotIds"] = snapshotIds.join(",");
+    }
+    if (chainIds?.length) {
+      params["chainIds"] = chainIds.join(",");
+    }
+    if (httpTriggerIds?.length) {
+      params["httpTriggerIds"] = httpTriggerIds.join(",");
+    }
+
+    const response = await this.instance.get<Blob>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export/api-spec`,
+      {
+        params: {...params, externalRoutes, specificationType, format},
+        headers: {
+          accept: "*/*",
+        },
+        responseType: "blob",
+      },
+    );
+    return getFileFromResponse(response);
+  }
+
 
   getServices = async (
     modelType: string,

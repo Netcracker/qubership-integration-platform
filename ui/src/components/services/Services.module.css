@@ -47,7 +47,6 @@
 
 .rightAlignedUsedBy {
   text-align: center;
-  width: 38px;
 }
 
 .variables-container {
@@ -92,4 +91,110 @@
 }
 .serviceApiSpecsTabError {
   color: red;
+}
+
+.chainCard {
+  margin-bottom: 12px;
+}
+.chainCardBody {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+}
+.chainNameLink {
+  font-weight: bold;
+  color: var(--primary-color, #1677ff);
+  text-decoration: none;
+}
+.chainNameLink:hover {
+  text-decoration: underline;
+}
+.chainId {
+  margin-left: 4px;
+}
+.triggerNameLink {
+  font-size: 12px;
+  color: #888;
+  text-decoration: none;
+}
+.triggerNameLink:hover {
+  text-decoration: underline;
+}
+
+/* ImportSpecificationsModal styles */
+.formItemMargin {
+  margin-bottom: 12px;
+}
+
+.importButton {
+  margin-top: 16px;
+}
+
+.loadingContainer {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.loadingText {
+  display: block;
+  margin-top: 8px;
+}
+
+.checkboxMargin {
+  margin-bottom: 16px;
+}
+
+.spinCenter {
+  display: block;
+  margin: 24px auto;
+}
+
+.chainsContainer {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.checkboxRightMargin {
+  margin-right: 12px;
+}
+
+.actionsContainer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.validationErrorContainer {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid #faad14;
+  border-radius: 8px;
+  background: #fffbe6;
+  color: #ad6800;
+}
+
+.validationErrorHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.validationErrorIcon {
+  font-size: 20px;
+  margin-right: 8px;
+}
+
+.validationErrorTitle {
+  font-weight: 500;
+}
+
+.validationErrorList {
+  margin: 0;
+  padding-left: 24px;
+}
+
+.validationErrorActions {
+  text-align: right;
+  margin-top: 8px;
 }

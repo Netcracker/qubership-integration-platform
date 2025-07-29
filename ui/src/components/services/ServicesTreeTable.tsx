@@ -22,7 +22,6 @@ import type { SpecificationGroup, Specification, SystemOperation } from '../../a
 import { InlineEdit } from '../InlineEdit';
 import { LabelsEdit } from '../table/LabelsEdit';
 import { ChainColumn } from './ChainColumn';
-import styles from './Services.module.css';
 
 export type ServiceEntity = IntegrationSystem | SpecificationGroup | Specification | SystemOperation;
 
@@ -294,10 +293,10 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
     dataIndex: "usedBy",
     key: "usedBy",
     render: (_: unknown, record: ServiceEntity) => {
-      if (isIntegrationSystem(record)) return <span className={styles.rightAlignedUsedBy}></span>;
+      if (isIntegrationSystem(record)) return <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%'}}></div>;
       const chains =
         "chains" in record && Array.isArray(record.chains) ? record.chains : [];
-      return <span className={styles.rightAlignedUsedBy}><ChainColumn chains={chains} /></span>;
+      return <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%'}}><ChainColumn chains={chains} /></div>;
     },
   },
   {
@@ -400,11 +399,7 @@ function ActionMenu<T>({ record, actions }: { record: T; actions: ActionConfig<T
   return (
     <Dropdown
       menu={{
-        items,
-        onClick: ({ key }) => {
-          const action = actions.find(a => a.key === key);
-          if (action) items.find(i => i.key === key)?.onClick();
-        }
+        items
       }}
       trigger={["click"]}
       placement="bottomRight"

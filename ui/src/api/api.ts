@@ -48,6 +48,8 @@ import {
   ImportSystemResult,
   ImportSpecificationResult,
   BaseEntity,
+  ElementWithChainName, ApiSpecificationType,
+  ApiSpecificationFormat,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 
@@ -80,7 +82,7 @@ export interface Api {
 
   getElementTypes(): Promise<ElementFilter[]>;
 
-  getElementsByType(chainId: string, elementType: string): Promise<Element[]>;
+  getElementsByType(chainId: string, elementType: string): Promise<ElementWithChainName[]>;
 
   createElement(
     elementRequest: ElementRequest,
@@ -220,6 +222,8 @@ export interface Api {
 
   exportSpecifications(specificationIds: string[], specificationGroupId: string[]): Promise<File>;
 
+  generateApiSpecification(deploymentIds: string[], snapshotIds: string[], chainIds: string[], httpTriggerIds: string[], externalRoutes: boolean, specificationType: ApiSpecificationType, format: ApiSpecificationFormat): Promise<File>;
+
   getImportPreview(file: File): Promise<ImportPreview>;
 
   commitImport(
@@ -309,6 +313,12 @@ export interface Api {
   deprecateModel(modelId: string): Promise<Specification>;
 
   deleteSpecificationModel(id: string): Promise<void>;
+
+  modifyHttpTriggerProperties(
+    chainId: string,
+    specificationGroupId: string,
+    httpTriggerIds: string[],
+  ): Promise<void>;
 }
 
 export const api: Api = new RestApi();

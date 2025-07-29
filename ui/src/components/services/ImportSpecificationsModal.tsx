@@ -1,20 +1,32 @@
 import React, { useState } from "react";
-import { Modal, Upload, Button, Typography, Spin, message, Input, Form } from "antd";
+import { Button, Card, Checkbox, Form, Input, message, Modal, Spin, Tabs, Typography, Upload } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../ModalContextProvider";
 import { api } from "../../api/api";
-import { getErrorMessage } from '../../misc/error-utils';
+import { getErrorMessage } from "../../misc/error-utils";
 import { useNotificationService } from "../../hooks/useNotificationService";
+import type { ElementWithChainName } from "../../api/apiTypes";
+import { ExclamationCircleOutlined } from "@ant-design/icons";
+import { ApiSpecificationType, ApiSpecificationFormat } from "../../api/apiTypes";
+import styles from "./Services.module.css";
+
+// Constants
+const POLLING_INTERVAL = 1200;
+const DEFAULT_EXTERNAL_ROUTES_ONLY = true;
+const MODAL_WIDTH = 600;
+
+
 
 interface Props {
-  systemId?: string; 
-  specificationGroupId?: string; 
-  groupMode?: boolean; 
+  systemId?: string;
+  specificationGroupId?: string;
+  groupMode?: boolean;
   onSuccess?: () => void;
+  isImplementedService?: boolean;
 }
 
-const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGroupId, groupMode, onSuccess }) => {
+const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGroupId, groupMode, onSuccess, isImplementedService }) => {
   const { closeContainingModal } = useModalContext();
   const notify = useNotificationService();
   const [files, setFiles] = useState<RcFile[]>([]);
@@ -23,8 +35,13 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
   const [progressText, setProgressText] = useState<string | null>(null);
   const [name, setName] = useState<string>("");
   const [nameTouched, setNameTouched] = useState(false);
+  const [externalRoutesOnly, setExternalRoutesOnly] = useState(DEFAULT_EXTERNAL_ROUTES_ONLY);
+  const [elements, setElements] = useState<ElementWithChainName[]>([]);
+  const [selectedChainIds, setSelectedChainIds] = useState<string[]>([]);
+  const [loadingChains, setLoadingChains] = useState(false);
+  const [validationError, setValidationError] = useState<null | { message: string; triggers: ElementWithChainName[] }>(null);
 
-  const isGroupMode = groupMode || (!!systemId && !specificationGroupId);
+  const isGroupMode = groupMode ?? (!!systemId && !specificationGroupId);
 
   const handleCancel = () => {
     closeContainingModal();
@@ -60,28 +77,27 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       setProgressText("Processing...");
       setPolling(true);
       await pollStatus(res.id);
+      resetLoadingState();
+      closeContainingModal();
+      onSuccess?.();
     } catch (e: unknown) {
       handleError(e, 'Import failed');
     }
   };
 
   const pollStatus = async (importId: string) => {
-    try {
-      const result = await api.getImportSpecificationResult(importId);
-      if (result.done) {
-        setProgressText(result.warningMessage ? result.warningMessage : "Import complete");
-        setTimeout(() => {
-          setLoading(false);
-          setPolling(false);
-          setProgressText(null);
-          closeContainingModal();
-          onSuccess?.();
-        }, 1200);
-      } else {
-        setTimeout(() => void pollStatus(importId), 1200);
+    while (true) {
+      try {
+        const result = await api.getImportSpecificationResult(importId);
+        if (result.done) {
+          setProgressText(result.warningMessage ? result.warningMessage : "Import complete");
+          return result;
+        }
+      } catch (e: unknown) {
+        handleError(e, 'Failed to get import status');
+        throw e;
       }
-    } catch (e: unknown) {
-      handleError(e, 'Failed to get import status');
+      await new Promise(res => setTimeout(res, POLLING_INTERVAL));
     }
   };
 
@@ -93,91 +109,336 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
     }
   };
 
-  const handleError = (e: unknown, fallbackMessage: string) => {
+  const handleNameChange = (value: string) => {
+    setName(value);
+    setNameTouched(true);
+  };
+
+  const handleNameBlur = () => {
+    setNameTouched(true);
+  };
+
+  const resetLoadingState = () => {
     setLoading(false);
     setPolling(false);
     setProgressText(null);
+  };
+
+  const handleError = (e: unknown, fallbackMessage: string) => {
+    resetLoadingState();
     notify.requestFailed(getErrorMessage(e, fallbackMessage), e);
+  };
+
+  const fetchChainsWithHttpTriggers = async (externalOnly: boolean) => {
+    setLoadingChains(true);
+    try {
+      const filter = JSON.stringify({
+        chainsWithHttpTriggers: true,
+        externalRoutesOnly: externalOnly,
+      });
+      const folders = await api.getRootFolders(filter, "");
+      const targetChainIds = folders.map((f) => f.id);
+      const triggers = await api.getElementsByType("any-chain", "http-trigger");
+      const validTriggers = triggers.filter(
+        (t) =>
+          (t.properties && (!t.properties["integrationOperationId"]
+            || !t.properties["integrationSpecificationGroupId"]))
+              && targetChainIds.includes(t.chainId),
+      );
+      setElements(validTriggers);
+    } catch (e) {
+      notify.requestFailed(getErrorMessage(e, "Failed to load chains"), e);
+    } finally {
+      setLoadingChains(false);
+    }
+  };
+
+  React.useEffect(() => {
+    void fetchChainsWithHttpTriggers(externalRoutesOnly);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalRoutesOnly]);
+
+  const handleChainSelect = (chainId: string, checked: boolean) => {
+    setSelectedChainIds((prev) =>
+      checked ? [...prev, chainId] : prev.filter((id) => id !== chainId)
+    );
+  };
+
+  const handleGenerateAndImport = async () => {
+    if (selectedChainIds.length === 0) return;
+    if (!name.trim()) {
+      setNameTouched(true);
+      return;
+    }
+    const invalidTriggers: ElementWithChainName[] = elements
+      .filter(e => {
+        if (!selectedChainIds.includes(e.chainId) || !e.properties?.["httpMethodRestrict"]) {
+          return false;
+        }
+        const httpMethodRestrict = e.properties["httpMethodRestrict"];
+        if (typeof httpMethodRestrict !== "string") {
+          return false;
+        }
+        const httpMethods = httpMethodRestrict.split(",");
+        return httpMethods.length !== 1;
+      })
+    if (invalidTriggers.length > 0) {
+      setValidationError({
+        message: "Single HTTP method has to be specified for next trigger(s):",
+        triggers: invalidTriggers
+      });
+      return;
+    }
+    setLoading(true);
+    setProgressText("Generating API specification...");
+    try {
+      const selectedElements = elements.filter(e => selectedChainIds.includes(e.chainId));
+      const httpTriggerIds: string[] = selectedElements.map(e => e.id);
+      const specFile = await api.generateApiSpecification(
+        [], [],
+        selectedElements.map(e => e.chainId),
+        httpTriggerIds,
+        externalRoutesOnly,
+        ApiSpecificationType.OpenAPI,
+        ApiSpecificationFormat.YAML
+      );
+      setProgressText("Importing generated specification...");
+      if (!systemId) {
+        resetLoadingState();
+        handleError(new Error("System ID is required for import"), "System ID is required for import");
+        return;
+      }
+      const importResult = await api.importSpecificationGroup(
+        String(systemId),
+        name.trim(),
+        [specFile]
+      );
+      setProgressText("Processing import...");
+      setPolling(true);
+      await pollStatus(importResult.id);
+      await api.modifyHttpTriggerProperties(
+        "any-chain",
+        importResult.specificationGroupId,
+        httpTriggerIds
+      );
+      resetLoadingState();
+      closeContainingModal();
+      onSuccess?.();
+    } catch (e) {
+      resetLoadingState();
+      handleError(e, "Failed to generate and import API");
+    }
   };
 
   return (
     <Modal
-      title={
-        isGroupMode ? "Import Specification Group" : "Import Specification"
-      }
+      title={isGroupMode ? "Import Specification Group" : "Import Specification"}
       open={true}
       onCancel={handleCancel}
       footer={null}
-      width={500}
+      width={MODAL_WIDTH}
       maskClosable={true}
       destroyOnHidden
     >
-      <div>
-        {isGroupMode && (
-          <Form.Item
-            label="Name"
-            required
-            validateStatus={!name.trim() && nameTouched ? "error" : ""}
-            help={!name.trim() && nameTouched ? "Name is required" : undefined}
-            style={{ marginBottom: 12 }}
-          >
-            <Input
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setNameTouched(true);
-              }}
-              onBlur={() => setNameTouched(true)}
-              placeholder="Enter group name"
-              autoFocus
-            />
-          </Form.Item>
-        )}
-        <Upload.Dragger
-          name="files"
-          multiple
-          accept=".yaml,.yml,.json,.xml,.zip"
-          beforeUpload={(_file, fileList) => {
-            handleFilesChange(fileList);
-            return false;
-          }}
-          showUploadList={files.length > 0 ? { showRemoveIcon: true } : false}
-          onRemove={(file) => {
-            setFiles((prev) => prev.filter((f) => f.uid !== file.uid));
-            return true;
-          }}
-          fileList={files}
+      <Tabs
+        defaultActiveKey="file"
+        items={[
+          {
+            key: "file",
+            label: "Import File",
+            children: (
+              <div>
+                {isGroupMode && (
+                  <Form.Item
+                    label="Name"
+                    required
+                    validateStatus={!name.trim() && nameTouched ? "error" : ""}
+                    help={!name.trim() && nameTouched ? "Name is required" : undefined}
+                    className={styles.formItemMargin}
+                  >
+                    <Input
+                      value={name}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      onBlur={handleNameBlur}
+                      placeholder="Enter group name"
+                      autoFocus
+                    />
+                  </Form.Item>
+                )}
+                <Upload.Dragger
+                  name="files"
+                  multiple
+                  accept=".yaml,.yml,.json,.xml,.zip"
+                  beforeUpload={(_file, fileList) => {
+                    handleFilesChange(fileList);
+                    return false;
+                  }}
+                  showUploadList={files.length > 0 ? { showRemoveIcon: true } : false}
+                  onRemove={(file) => {
+                    setFiles((prev) => prev.filter((f) => f.uid !== file.uid));
+                    return true;
+                  }}
+                  fileList={files}
+                >
+                  <p className="ant-upload-drag-icon">
+                    <InboxOutlined />
+                  </p>
+                  <p className="ant-upload-text">
+                    Drag one or more specification files or click to choose
+                  </p>
+                </Upload.Dragger>
+                <Button
+                  type="primary"
+                  onClick={() => void handleImport()}
+                  loading={loading || polling}
+                  disabled={!files.length || (isGroupMode && !name.trim()) || loading || polling}
+                  className={styles.importButton}
+                  block
+                >
+                  Import
+                </Button>
+                {(loading || polling) && (
+                  <div className={styles.loadingContainer}>
+                    <Spin />
+                    <Typography.Text className={styles.loadingText}>
+                      {progressText}
+                    </Typography.Text>
+                  </div>
+                )}
+              </div>
+            ),
+          },
+          ...(isImplementedService ? [
+            {
+              key: "chains",
+              label: "Import from Chains",
+              children: (
+                <div>
+                  <Form.Item
+                    label="Name"
+                    required
+                    validateStatus={!name.trim() && nameTouched ? "error" : ""}
+                    help={!name.trim() && nameTouched ? "Name is required" : undefined}
+                    className={styles.formItemMargin}
+                  >
+                    <Input
+                      value={name}
+                      onChange={e => handleNameChange(e.target.value)}
+                      onBlur={handleNameBlur}
+                      placeholder="Enter group name"
+                    />
+                  </Form.Item>
+                  <Checkbox
+                    checked={externalRoutesOnly}
+                    onChange={e => setExternalRoutesOnly(e.target.checked)}
+                    className={styles.checkboxMargin}
+                  >
+                    External routes only
+                  </Checkbox>
+                  {loadingChains ? (
+                    <Spin className={styles.spinCenter} />
+                  ) : (
+                    <div className={styles.chainsContainer}>
+                      {elements.length === 0 ? (
+                        <Typography.Text type="secondary">No chains found</Typography.Text>
+                      ) : (
+                        elements.map((element: ElementWithChainName) => (
+                           (
+                            <Card
+                              key={element.chainId}
+                              className={styles.chainCard}
+                              size="small"
+                              bodyStyle={undefined}
+                            >
+                              <div className={styles.chainCardBody}>
+                                <Checkbox
+                                  checked={selectedChainIds.includes(element.chainId)}
+                                  onChange={e => handleChainSelect(element.chainId, e.target.checked)}
+                                  className={styles.checkboxRightMargin}
+                                />
+                                <div>
+                                  <Typography.Text strong>
+                                    <a
+                                      href={`/chains/${element.chainId}/graph`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={styles.chainNameLink}
+                                    >
+                                      {element.chainName}
+                                    </a>
+                                  </Typography.Text>
+                                  <Typography.Text className={styles.chainId}>{element.chainId}</Typography.Text>
+                                  <div>
+                                    <a
+                                      href={`/chains/${element.chainId}/graph/${element.id}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={styles.triggerNameLink}
+                                    >
+                                      {element.name}
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            </Card>
+                          )
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              ),
+            }
+          ] : [])
+        ]}
+      />
+      <div className={styles.actionsContainer}>
+        <Button
+          onClick={() => setSelectedChainIds([])}
+          disabled={selectedChainIds.length === 0}
         >
-          <p className="ant-upload-drag-icon">
-            <InboxOutlined />
-          </p>
-          <p className="ant-upload-text">
-            Drag one or more specification files or click to choose
-          </p>
-        </Upload.Dragger>
+          Clear
+        </Button>
         <Button
           type="primary"
-          onClick={() => void handleImport}
-          loading={loading || polling}
-          disabled={
-            !files.length || (isGroupMode && !name.trim()) || loading || polling
-          }
-          style={{ marginTop: 16 }}
-          block
+          disabled={selectedChainIds.length === 0}
+          onClick={() => void handleGenerateAndImport()}
         >
-          Import
+          Create
         </Button>
-        {(loading || polling) && (
-          <div style={{ marginTop: 24, textAlign: "center" }}>
-            <Spin />
-            <Typography.Text style={{ display: "block", marginTop: 8 }}>
-              {progressText}
-            </Typography.Text>
-          </div>
-        )}
       </div>
+      {(loading || polling) && (
+        <div className={styles.loadingContainer}>
+          <Spin />
+          <Typography.Text className={styles.loadingText}>
+            {progressText || "Processing..."}
+          </Typography.Text>
+        </div>
+      )}
+      {validationError && (
+        <div className={styles.validationErrorContainer}>
+          <div className={styles.validationErrorHeader}>
+            <ExclamationCircleOutlined className={styles.validationErrorIcon} />
+            <span className={styles.validationErrorTitle}>{validationError.message}</span>
+          </div>
+          <ul className={styles.validationErrorList}>
+            {validationError.triggers.map(t => (
+              <li key={t.id}>
+                <a href={`/chains/${t.chainId}/graph/${t.id}`} target="_blank" rel="noopener noreferrer">
+                  {t.name} on {t.chainName}
+                </a>
+              </li>
+            ))}
+          </ul>
+          <div className={styles.validationErrorActions}>
+            <Button size="small" onClick={() => setValidationError(null)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 };
 
-export default ImportSpecificationsModal;
+export { ImportSpecificationsModal };

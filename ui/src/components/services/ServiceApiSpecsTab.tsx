@@ -18,11 +18,13 @@ import {  DeleteOutlined, PlusOutlined, ExportOutlined, StopOutlined, DownOutlin
 } from "@ant-design/icons";
 import { downloadFile } from '../../misc/download-utils';
 import { prepareFile } from "./utils.tsx";
-import ImportSpecificationsModal from "./ImportSpecificationsModal";
+import { ImportSpecificationsModal } from "./ImportSpecificationsModal";
 import { useModalsContext } from "../../Modals";
 import { useAsyncRequest } from './useAsyncRequest';
 import styles from "./Services.module.css";
 import { useNotificationService } from "../../hooks/useNotificationService";
+import { useServiceContext } from "./ServiceParametersPage";
+import { IntegrationSystemType } from "../../api/apiTypes";
 
 const STORAGE_KEY = "systemParameters";
 
@@ -88,16 +90,14 @@ const getGroupActions = (
       key: 'delete',
       label: 'Delete',
       icon: <DeleteOutlined />,
-      onClick: () => {
-        void (async () => {
-          try {
-            await api.deleteSpecificationGroup(group.id);
-            message.success('Specification group deleted');
-            await refreshGroups();
-          } catch (e) {
-            notify.requestFailed('Delete failed', e);
-          }
-        })();
+      onClick: async () => {
+        try {
+          await api.deleteSpecificationGroup(group.id);
+          message.success('Specification group deleted');
+          await refreshGroups();
+        } catch (e) {
+          notify.requestFailed('Delete failed', e);
+        }
       },
       confirm: {
         title: 'Are you sure you want to permanently delete this specification group?',
@@ -134,16 +134,14 @@ const getSpecActions = (
           key: 'delete',
           label: 'Delete',
           icon: <DeleteOutlined />,
-          onClick: () => {
-            void (async () => {
-              try {
-                await api.deleteSpecificationModel(spec.id);
-                message.success('Specification deleted');
-                await refreshModels();
-              } catch (e) {
-                notify.requestFailed('Delete failed', e);
-              }
-            })();
+          onClick: async () => {
+            try {
+              await api.deleteSpecificationModel(spec.id);
+              message.success('Specification deleted');
+              await refreshModels();
+            } catch (e) {
+              notify.requestFailed('Delete failed', e);
+            }
           },
           confirm: {
             title: 'Delete this specification?',
@@ -157,16 +155,14 @@ const getSpecActions = (
           key: 'deprecate',
           label: 'Deprecate',
           icon: <StopOutlined />,
-          onClick: () => {
-            void (async () => {
-              try {
-                await api.deprecateModel(spec.id);
-                message.success('Specification deprecated');
-                await refreshModels();
-              } catch (e) {
-                notify.requestFailed('Deprecate failed', e);
-              }
-            })();
+          onClick: async () => {
+            try {
+              await api.deprecateModel(spec.id);
+              message.success('Specification deprecated');
+              await refreshModels();
+            } catch (e) {
+              notify.requestFailed('Deprecate failed', e);
+            }
           },
           confirm: {
             title: 'Deprecate this specification?',
@@ -211,14 +207,14 @@ export const ServiceApiSpecsTab: React.FC = () => {
     modelId?: string;
   }>();
 
-  const [serviceSpecData, setServiceSpecData] = useState<SpecificationGroup[]>([]);
-  const [models, setModels] = useState<Specification[]>([]);
   const [operations, setOperations] = useState<ServiceEntity[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [expandedSpecs, setExpandedSpecs] = useState<string[]>([]);
   const [selectedSpecRowKeys, setSelectedSpecRowKeys] = useState<React.Key[]>([]);
   const { showModal } = useModalsContext();
   const notify = useNotificationService();
+  const system = useServiceContext();
+  const isImplementedService = system?.type === IntegrationSystemType.IMPLEMENTED;
 
   const serviceSpecColumnsKeys = SpecificationGroupColumnsKeys();
   const specificationColumnsKeys = SpecificationColumnsKeys();
@@ -228,6 +224,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
     loading: loadingGroups,
     error: errorGroups,
     execute: loadGroups,
+    value: serviceSpecData,
   } = useAsyncRequest(async (id: string) => {
     return await api.getApiSpecifications(id);
   }, { initialValue: [] });
@@ -236,38 +233,35 @@ export const ServiceApiSpecsTab: React.FC = () => {
     loading: loadingModels,
     error: errorModels,
     execute: loadModels,
+    value: models,
   } = useAsyncRequest(async (systemId: string, groupId: string) => {
     return await api.getSpecificationModel(systemId, groupId);
   }, { initialValue: [] });
 
   useEffect(() => {
     if (!systemId) return;
-    void loadGroups(systemId).then((groups) => {
-      if (groups) setServiceSpecData(groups);
-    });
+    void loadGroups(systemId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [systemId]);
 
   useEffect(() => {
     if (!systemId || !groupId) return;
-    void loadModels(systemId, groupId).then((models) => {
-      if (models) setModels(models);
-    });
+    void loadModels(systemId, groupId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [systemId, groupId]);
 
   useEffect(() => {
-    if (!modelId || !models.length) {
+    if (!modelId || !(models ?? []).length) {
       setOperations([]);
       return;
     }
-    const model = models.find(m => m.id === modelId);
+    const model = (models ?? []).find(m => m.id === modelId);
     const ops = model?.operations;
     setOperations(Array.isArray(ops) ? ops : ops ? [ops] : []);
   }, [modelId, models]);
 
   const serviceGroupsTable = useServicesTreeTable<ServiceEntity>({
-    dataSource: serviceSpecData.map(spec => ({ ...spec, children: spec.specifications || [] })),
+    dataSource: (serviceSpecData ?? []).map(spec => ({ ...spec, children: spec.specifications || [] })),
     rowKey: "id",
     columns: serviceSpecColumnsKeys,
     storageKey: STORAGE_KEY + "_groups",
@@ -281,20 +275,19 @@ export const ServiceApiSpecsTab: React.FC = () => {
       childrenColumnName: "children",
     },
     actionsColumn: getActionsColumn<ServiceEntity>(
-      getGroupActions(expandedGroups, setExpandedGroups, () => loadGroups(systemId!).then(() => undefined), notify)
+      getGroupActions(expandedGroups, setExpandedGroups, async () => { await loadGroups(systemId!); }, notify)
     ),
     onUpdateLabels: async (record, labels) => {
       if (!systemId) return;
       if (isSpecificationGroup(record)) {
         await api.updateApiSpecificationGroup(record.id, { ...record, labels: labels.map(name => ({ name, technical: false })) });
-        const groups = await api.getApiSpecifications(systemId);
-        setServiceSpecData(groups);
+        await loadGroups(systemId);
       }
     },
   });
 
   const modelsTable = useServicesTreeTable<ServiceEntity>({
-    dataSource: models.map(model => ({ ...model, children: model.operations })),
+    dataSource: (models ?? []).map(model => ({ ...model, children: model.operations })),
     rowKey: "id",
     columns: specificationColumnsKeys,
     storageKey: STORAGE_KEY + "_models",
@@ -308,7 +301,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
       childrenColumnName: "children",
     },
     actionsColumn: getActionsColumn<ServiceEntity>(
-      getSpecActions(expandedSpecs, setExpandedSpecs, () => loadModels(systemId!, groupId!).then(() => undefined), notify)
+      getSpecActions(expandedSpecs, setExpandedSpecs, async () => { await loadModels(systemId!, groupId!); }, notify)
     ),
     enableSelection: true,
     isRootEntity: (record) => Array.isArray((record as Specification).operations),
@@ -319,8 +312,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
       if (!systemId || !groupId) return;
       if (isSpecification(record)) {
         await api.updateSpecificationModel(record.id, { ...record, labels: labels.map(name => ({ name, technical: false })) });
-        const models = await api.getSpecificationModel(systemId, groupId);
-        setModels(models);
+        await loadModels(systemId, groupId);
       }
     },
   });
@@ -406,12 +398,10 @@ export const ServiceApiSpecsTab: React.FC = () => {
                     <ImportSpecificationsModal
                       systemId={systemId}
                       groupMode={true}
+                      isImplementedService={isImplementedService}
                       onSuccess={() => {
-                        void (async () => {
-                          if (!systemId) return;
-                          const groups = await api.getApiSpecifications(systemId);
-                          setServiceSpecData(groups);
-                        })();
+                        if (!systemId) return;
+                        void loadGroups(systemId);
                       }}
                     />
                   ),
@@ -423,11 +413,11 @@ export const ServiceApiSpecsTab: React.FC = () => {
               icon={<CloudDownloadOutlined />}
               onClick={() => {
                 void (async () => {
-                  if (!serviceSpecData.length) {
+                  if (!(serviceSpecData ?? []).length) {
                     message.info('No groups to export');
                     return;
                   }
-                  const groupIds = serviceSpecData.map(g => g.id);
+                  const groupIds = (serviceSpecData ?? []).map(g => g.id);
                   try {
                     const file = await api.exportServices([], groupIds);
                     downloadFile(prepareFile(file));
@@ -453,7 +443,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                     message.info('There are no selected specifications yet');
                     return;
                   }
-                  const selected = models.filter(m => selectedSpecRowKeys.includes(m.id));
+                  const selected = (models ?? []).filter(m => selectedSpecRowKeys.includes(m.id));
                   await handleExportSpecifications(selected, notify);
                 })();
               }}
@@ -466,12 +456,10 @@ export const ServiceApiSpecsTab: React.FC = () => {
                   component: (
                     <ImportSpecificationsModal
                       specificationGroupId={groupId}
+                      isImplementedService={isImplementedService}
                       onSuccess={() => {
-                        void (async () => {
-                          if (!systemId || !groupId) return;
-                          const models = await api.getSpecificationModel(systemId, groupId);
-                          setModels(models);
-                        })();
+                        if (!systemId || !groupId) return;
+                        void loadModels(systemId, groupId);
                       }}
                     />
                   ),
@@ -495,7 +483,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                       message.info('No model to export');
                       return;
                     }
-                    const model = models.find(m => m.id === modelId);
+                    const model = (models ?? []).find(m => m.id === modelId);
                     if (!model) {
                       message.info('No model to export');
                       return;
