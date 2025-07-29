@@ -14,20 +14,13 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports;
+package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.context;
 
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
+import lombok.Data;
 
-
-@NoArgsConstructor
-@Getter
-@Setter
-public class SystemDeserializationResult {
-    private IntegrationSystem system;
-    private ContextSystem contextSystem;
+@Data
+public class ContextSystemRequestDTO {
+    private String id;
+    private String name;
+    private String description;
 }
-

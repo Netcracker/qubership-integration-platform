@@ -24,14 +24,20 @@ public class ChainBaseService {
 
     protected final ChainRepository chainRepository;
     protected final ElementBaseService elementBaseService;
+    protected final ContextBaseService contextBaseService;
 
-    public ChainBaseService(ChainRepository chainRepository, ElementBaseService elementBaseService) {
+    public ChainBaseService(ChainRepository chainRepository, ElementBaseService elementBaseService, ContextBaseService contextBaseService) {
         this.chainRepository = chainRepository;
         this.elementBaseService = elementBaseService;
+        this.contextBaseService = contextBaseService;
     }
 
     public boolean isSystemUsedByChain(String systemId) {
         return elementBaseService.isSystemUsedByElement(systemId);
+    }
+
+    public boolean isContextusedByChain(String contextId) {
+        return contextBaseService.isContextUsedByElement(contextId);
     }
 
     public boolean isSpecificationGroupUsedByChain(String specificationGroupId) {

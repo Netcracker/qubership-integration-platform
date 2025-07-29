@@ -14,20 +14,28 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports;
+package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context;
 
+import jakarta.persistence.Entity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
+import lombok.experimental.FieldNameConstants;
+import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.AbstractSystemEntity;
 
-
-@NoArgsConstructor
 @Getter
 @Setter
-public class SystemDeserializationResult {
-    private IntegrationSystem system;
-    private ContextSystem contextSystem;
+@Entity
+@SuperBuilder
+@NoArgsConstructor
+@FieldNameConstants
+public class ContextSystem extends AbstractSystemEntity {
+
+    @Override
+    public boolean equals(Object object) {
+        return equals(object, true);
+    }
+
 }
 

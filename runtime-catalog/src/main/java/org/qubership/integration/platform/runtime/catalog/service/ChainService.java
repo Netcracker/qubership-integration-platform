@@ -97,9 +97,10 @@ public class ChainService extends ChainBaseService {
             ChainRuntimePropertiesService chainRuntimePropertiesService,
             ChainFilterSpecificationBuilder chainFilterSpecificationBuilder,
             AuditingHandler auditingHandler,
-            ChainFinderService chainFinderService
+            ChainFinderService chainFinderService,
+            ContextBaseService contextBaseService
     ) {
-        super(chainRepository, elementService);
+        super(chainRepository, elementService, contextBaseService);
         this.chainRepository = chainRepository;
         this.elementRepository = elementRepository;
         this.maskedFieldRepository = maskedFieldRepository;

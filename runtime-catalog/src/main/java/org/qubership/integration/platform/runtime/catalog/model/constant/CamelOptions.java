@@ -76,6 +76,7 @@ public final class CamelOptions {
     public static final String SYSTEM_TYPE_INTERNAL = "INTERNAL";
     public static final String SYSTEM_TYPE_EXTERNAL = "EXTERNAL";
     public static final String SYSTEM_TYPE_IMPLEMENTED = "IMPLEMENTED";
+    public static final String CONTEXT_SERVICE_ID = "contextServiceId";
 
     public static final String DIRECTORY_NAME = "directoryName";
     public static final String FILENAME = "fileName";
