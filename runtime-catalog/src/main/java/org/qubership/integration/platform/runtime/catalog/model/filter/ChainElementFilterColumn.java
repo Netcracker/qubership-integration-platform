@@ -24,5 +24,7 @@ public enum ChainElementFilterColumn {
     TYPE,
     ROLES,
     CHAIN,
-    CHAIN_STATUS
+    CHAIN_STATUS,
+    ROLES_RESOURCE,
+    ACCESS_CONTROL_TYPE
 }
