@@ -583,7 +583,6 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         size={"small"}
         pagination={pagination}
         style={{ background: "#fff", borderRadius: 12, width: '100%' }}
-        bordered={true}
         rowClassName={rowClassName}
         onRow={onRowClick ? (record) => ({
           onClick: (event: React.MouseEvent<HTMLElement>) => onRowClick(record, event),

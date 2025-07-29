@@ -898,6 +898,25 @@ export type ChainDeployment = {
   state: RuntimeState;
 };
 
+export type DetailedDesignTemplate = BaseEntity & {
+  content?: string;
+};
+
+export type ChainDetailedDesign = {
+  document: string;
+  simpleSeqDiagramMermaid?: string;
+  simpleSeqDiagramPlantuml?: string;
+  triggerSpecifications?: DesignSpecificationSource[];
+};
+
+export type DesignSpecificationSource = {
+  serviceName: string;
+  specificationName: string;
+  specificationId: string;
+  fileExtension: string;
+  specificationContent: string;
+};
+
 export type IntegrationSystem = {
   id: string;
   name: string;
@@ -912,7 +931,7 @@ export type IntegrationSystem = {
   createdWhen?: string;
   createdBy?: User;
   modifiedWhen?: string;
-}
+};
 
 export enum IntegrationSystemType {
   INTERNAL = "INTERNAL",
@@ -926,7 +945,7 @@ export type SystemRequest = {
   description?: string;
   activeEnvironmentId?: string;
   labels?: EntityLabel[];
-}
+};
 
 export type Environment = {
   id: string;
@@ -945,7 +964,7 @@ export type Environment = {
   sourceType?: EnvironmentSourceType;
   /** @deprecated */
   maasInstanceId?: string;
-}
+};
 
 export type EnvironmentRequest = {
   name: string;
@@ -953,7 +972,7 @@ export type EnvironmentRequest = {
   labels?: EnvironmentLabel[];
   properties?: Record<string, unknown>;
   sourceType?: EnvironmentSourceType;
-}
+};
 
 export enum EnvironmentSourceType {
   MANUAL = "MANUAL",
@@ -994,7 +1013,7 @@ export interface Specification {
   modifiedBy?: User;
   chains?: BaseEntity[];
   labels?: EntityLabel[];
-  operations?: SystemOperation
+  operations?: SystemOperation;
 }
 
 export interface SystemOperation {
@@ -1029,6 +1048,27 @@ export type ImportSpecificationGroupRequest = {
   files: File[];
 };
 
+export enum DiagramMode {
+  SIMPLE = "SIMPLE",
+  FULL = "FULL",
+}
+
+export enum DiagramLangType {
+  PLANT_UML = "PLANT_UML",
+  MERMAID = "MERMAID",
+}
+
+export type ElementsSequenceDiagrams = Record<
+  DiagramMode,
+  ElementsSequenceDiagram
+>;
+
+export type ElementsSequenceDiagram = {
+  chainId: string;
+  snapshotId?: string;
+  diagramSources: Record<DiagramLangType, string>;
+};
+
 export enum ApiSpecificationType {
   OpenAPI = "OpenAPI",
   AsyncAPI = "AsyncAPI",
@@ -1038,3 +1078,4 @@ export enum ApiSpecificationFormat {
   JSON = "JSON",
   YAML = "YAML",
 }
+

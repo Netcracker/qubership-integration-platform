@@ -48,7 +48,12 @@ import {
   ImportSystemResult,
   ImportSpecificationResult,
   BaseEntity,
-  ElementWithChainName, ApiSpecificationType,
+  DetailedDesignTemplate,
+  ChainDetailedDesign,
+  ElementsSequenceDiagrams,
+  DiagramMode,
+  ElementWithChainName,
+  ApiSpecificationType,
   ApiSpecificationFormat,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
@@ -193,7 +198,7 @@ export interface Api {
 
   getFolder(folderId: string): Promise<FolderItem>;
 
-  getRootFolders(filter: string, openedFolderId: string): Promise<FolderItem[]>
+  getRootFolders(filter: string, openedFolderId: string): Promise<FolderItem[]>;
 
   getPathToFolder(folderId: string): Promise<FolderItem[]>;
 
@@ -220,7 +225,10 @@ export interface Api {
 
   exportServices(serviceIds: string[], modelIds: string[]): Promise<File>;
 
-  exportSpecifications(specificationIds: string[], specificationGroupId: string[]): Promise<File>;
+  exportSpecifications(
+    specificationIds: string[],
+    specificationGroupId: string[],
+  ): Promise<File>;
 
   generateApiSpecification(deploymentIds: string[], snapshotIds: string[], chainIds: string[], httpTriggerIds: string[], externalRoutes: boolean, specificationType: ApiSpecificationType, format: ApiSpecificationFormat): Promise<File>;
 
@@ -257,15 +265,25 @@ export interface Api {
     params: LogExportRequestParams,
   ): Promise<Blob>;
 
-  getServices(modelType: string, withSpec: boolean): Promise<IntegrationSystem[]>;
+  getServices(
+    modelType: string,
+    withSpec: boolean,
+  ): Promise<IntegrationSystem[]>;
 
   createService(system: SystemRequest): Promise<IntegrationSystem>;
 
-  createEnvironment(systemId: string, envRequest: EnvironmentRequest): Promise<Environment>;
+  createEnvironment(
+    systemId: string,
+    envRequest: EnvironmentRequest,
+  ): Promise<Environment>;
 
-  updateEnvironment(systemId: string, environmentId: string, envRequest: EnvironmentRequest): Promise<Environment>;
+  updateEnvironment(
+    systemId: string,
+    environmentId: string,
+    envRequest: EnvironmentRequest,
+  ): Promise<Environment>;
 
-  deleteEnvironment(systemId: string, environmentId: string ): Promise<void>;
+  deleteEnvironment(systemId: string, environmentId: string): Promise<void>;
 
   deleteService(serviceId: string): Promise<void>;
 
@@ -275,44 +293,89 @@ export interface Api {
     deployLabel?: string,
     packageName?: string,
     packageVersion?: string,
-    packagePartOf?: string
+    packagePartOf?: string,
   ): Promise<ImportSystemResult[]>;
 
   importSpecification(
     specificationGroupId: string,
-    files: File[]
+    files: File[],
   ): Promise<ImportSpecificationResult>;
 
-  getImportSpecificationResult(importId: string): Promise<ImportSpecificationResult>;
+  getImportSpecificationResult(
+    importId: string,
+  ): Promise<ImportSpecificationResult>;
 
   importSpecificationGroup(
     systemId: string,
     name: string,
     files: File[],
-    protocol?: string
+    protocol?: string,
   ): Promise<ImportSpecificationResult>;
 
   deleteSpecificationGroup(id: string): Promise<void>;
 
   getService(id: string): Promise<IntegrationSystem>;
 
-  updateService(id: string, data: Partial<IntegrationSystem>): Promise<IntegrationSystem>;
+  updateService(
+    id: string,
+    data: Partial<IntegrationSystem>,
+  ): Promise<IntegrationSystem>;
 
   getEnvironments(systemId: string): Promise<Environment[]>;
 
   getApiSpecifications(systemId: string): Promise<SpecificationGroup[]>;
 
-  updateApiSpecificationGroup( id: string, data: Partial<SpecificationGroup>): Promise<SpecificationGroup>;
+  updateApiSpecificationGroup(
+    id: string,
+    data: Partial<SpecificationGroup>,
+  ): Promise<SpecificationGroup>;
 
-  getSpecificationModel(systemId?: string, specificationGroupId?: string) : Promise<Specification[]>
+  getSpecificationModel(
+    systemId?: string,
+    specificationGroupId?: string,
+  ): Promise<Specification[]>;
 
-  updateSpecificationModel( id: string, data: Partial<Specification>): Promise<Specification>
+  updateSpecificationModel(
+    id: string,
+    data: Partial<Specification>,
+  ): Promise<Specification>;
 
   getOperationInfo(operationId: string): Promise<OperationInfo>;
 
   deprecateModel(modelId: string): Promise<Specification>;
 
   deleteSpecificationModel(id: string): Promise<void>;
+
+  getDetailedDesignTemplates(
+    includeContent: boolean,
+  ): Promise<DetailedDesignTemplate[]>;
+
+  getDetailedDesignTemplate(
+    templateId: string,
+  ): Promise<DetailedDesignTemplate>;
+
+  createOrUpdateDetailedDesignTemplate(
+    name: string,
+    content: string,
+  ): Promise<DetailedDesignTemplate>;
+
+  deleteDetailedDesignTemplates(ids: string[]): Promise<void>;
+
+  getChainDetailedDesign(
+    chainId: string,
+    templateId: string,
+  ): Promise<ChainDetailedDesign>;
+
+  getChainSequenceDiagram(
+    chainId: string,
+    diagramModes: DiagramMode[],
+  ): Promise<ElementsSequenceDiagrams>;
+
+  getSnapshotSequenceDiagram(
+    chainId: string,
+    snapshotId: string,
+    diagramModes: DiagramMode[],
+  ): Promise<ElementsSequenceDiagrams>;
 
   modifyHttpTriggerProperties(
     chainId: string,

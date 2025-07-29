@@ -187,3 +187,9 @@ button:focus-visible {
   flex-direction: column;
   height: 100%;
 }
+
+.diagram-tabs {
+    .ant-tabs-content {
+        overflow: auto;
+    }
+}

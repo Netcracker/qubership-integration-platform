@@ -62,6 +62,8 @@ import { Filter } from "../components/table/filter/Filter.tsx";
 import { useChainFilters } from "../hooks/useChainFilter.ts";
 import { FilterButton } from "../components/table/filter/FilterButton.tsx";
 import { FilterItemState } from "../components/table/filter/FilterItem.tsx";
+import { GenerateDdsModal } from "../components/modal/GenerateDdsModal.tsx";
+import { DdsPreview } from "../components/modal/DdsPreview.tsx";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -157,7 +159,8 @@ const Chains = () => {
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
   const [searchString, setSearchString] = useState<string>("");
   const notificationService = useNotificationService();
-  const {filterColumns, filterItemStates, setFilterItemStates} = useChainFilters();
+  const { filterColumns, filterItemStates, setFilterItemStates } =
+    useChainFilters();
   const [filters, setFilters] = useState<FolderFilter[]>([]);
 
   const getFolderId = useCallback((): string | undefined => {
@@ -543,6 +546,34 @@ const Chains = () => {
     });
   };
 
+  const showGenerateDdsModal = (chainId: string) => {
+    showModal({
+      component: (
+        <GenerateDdsModal
+          onSubmit={(templateId, fileName) => {
+            showDdsModal(chainId, templateId, fileName);
+          }}
+        />
+      ),
+    });
+  };
+
+  const showDdsModal = (
+    chainId: string,
+    templateId: string,
+    fileName: string,
+  ) => {
+    showModal({
+      component: (
+        <DdsPreview
+          chainId={chainId}
+          templateId={templateId}
+          fileName={fileName}
+        />
+      ),
+    });
+  };
+
   const onCreateFolderBtnClick = (parentId?: string) => {
     showEditFolderModal("create", undefined, undefined, parentId);
   };
@@ -588,13 +619,15 @@ const Chains = () => {
   const applyFilters = (filterItems: FilterItemState[]) => {
     setFilterItemStates(filterItems);
 
-    const f = filterItems.map((filterItem): FolderFilter => ({
-      column: filterItem.columnValue!,
-      condition: filterItem.conditionValue!,
-      value: filterItem.value
-    }));
+    const f = filterItems.map(
+      (filterItem): FolderFilter => ({
+        column: filterItem.columnValue!,
+        condition: filterItem.conditionValue!,
+        value: filterItem.value,
+      }),
+    );
     setFilters(f);
-  }
+  };
 
   const onImportBtnClick = () => {
     showModal({
@@ -694,6 +727,8 @@ const Chains = () => {
         return pasteItem(item.id);
       case "export":
         return exportChainsWithOptions([item.id]);
+      case "generateDDS":
+        return showGenerateDdsModal(item.id);
       default:
         return Modal.error({ title: "Not implemented yet" });
     }
