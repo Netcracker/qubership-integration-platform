@@ -27,6 +27,7 @@ import org.qubership.integration.platform.engine.service.CheckpointSessionServic
 import org.qubership.integration.platform.engine.service.DeploymentsUpdateService;
 import org.qubership.integration.platform.engine.service.IntegrationRuntimeService;
 import org.qubership.integration.platform.engine.service.VariablesService;
+import org.qubership.integration.platform.engine.service.contextstorage.ContextStorageService;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,15 +56,17 @@ public class TasksScheduler {
     @Value("${qip.sessions.checkpoints.cleanup.interval}")
     private String checkpointsInterval;
 
+    private final ContextStorageService contextStorageService;
+
     @Autowired
     public TasksScheduler(VariablesService variableService,
-                            IntegrationRuntimeService runtimeService,
-                            CheckpointSessionService checkpointSessionService,
-                            DeploymentReadinessService deploymentReadinessService,
-                            ConsulService consulService,
-                            DeploymentsUpdateService deploymentsUpdateService,
-                            Optional<ExternalLibraryService> externalLibraryService,
-                            CamelDebuggerPropertiesService debuggerPropertiesService) {
+                          IntegrationRuntimeService runtimeService,
+                          CheckpointSessionService checkpointSessionService,
+                          DeploymentReadinessService deploymentReadinessService,
+                          ConsulService consulService,
+                          DeploymentsUpdateService deploymentsUpdateService,
+                          Optional<ExternalLibraryService> externalLibraryService,
+                          CamelDebuggerPropertiesService debuggerPropertiesService, ContextStorageService contextStorageService) {
         this.variableService = variableService;
         this.runtimeService = runtimeService;
         this.checkpointSessionService = checkpointSessionService;
@@ -72,6 +75,7 @@ public class TasksScheduler {
         this.deploymentsUpdateService = deploymentsUpdateService;
         this.externalLibraryService = externalLibraryService;
         this.debuggerPropertiesService = debuggerPropertiesService;
+        this.contextStorageService = contextStorageService;
     }
 
 
@@ -108,6 +112,12 @@ public class TasksScheduler {
     public void cleanupCheckpointSessions() {
         checkpointSessionService.deleteOldRecordsByInterval(checkpointsInterval);
         log.info("Scheduled checkpoints cleanup completed");
+    }
+
+    @Scheduled(cron = "${qip.context-service.cleanup.cron}")
+    public void cleanupContextStorage() {
+        contextStorageService.deleteOldRecords();
+        log.info("Scheduled context record cleanup completed");
     }
 
     @Scheduled(fixedRate = ConsulService.SESSION_RENEW_DELAY)
