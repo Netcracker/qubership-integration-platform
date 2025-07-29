@@ -43,7 +43,9 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
     private static final String EXTERNAL_ROUTE_PROPERTY = "externalRoute";
     private static final String INTEGRATION_OPERATION_PATH_PROPERTY = "integrationOperationPath";
     private static final String INTEGRATION_SPECIFICATION_ID = "integrationSpecificationId";
-    private static final Set<String> PROPERTIES_FILTER = Set.of(ROLES_PROPERTY, CONTEXT_PATH_PROPERTY, PRIVATE_ROUTE_PROPERTY, EXTERNAL_ROUTE_PROPERTY, INTEGRATION_OPERATION_PATH_PROPERTY, INTEGRATION_SPECIFICATION_ID);
+    private static final String ACCESS_CONTROL_TYPE_PROPERTY = "accessControlType";
+    private static final String ABAC_RESOURCE_PROPERTY = "abacResource";
+    private static final Set<String> PROPERTIES_FILTER = Set.of(ROLES_PROPERTY, CONTEXT_PATH_PROPERTY, PRIVATE_ROUTE_PROPERTY, EXTERNAL_ROUTE_PROPERTY, INTEGRATION_OPERATION_PATH_PROPERTY, INTEGRATION_SPECIFICATION_ID, ACCESS_CONTROL_TYPE_PROPERTY, ABAC_RESOURCE_PROPERTY);
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -128,6 +130,8 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
                 case TYPE -> predicates.add(getTypePredicate(builder, filter, chainElementRoot));
                 case ROLES -> predicates.add(getRolesPredicate(builder, filter, chainElementRoot));
                 case CHAIN -> predicates.add(getChainPredicate(builder, filter, chainElementRoot));
+                case ACCESS_CONTROL_TYPE -> predicates.add(getAccessControlTypePredicate(builder, filter, chainElementRoot));
+                case ROLES_RESOURCE -> predicates.add(getRolesResourcePredicate(builder, filter, chainElementRoot));
             }
         }
     }
@@ -189,6 +193,26 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
                     chainPredicate = getLikeChainPredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase());
         }
         return chainPredicate;
+    }
+
+    private Predicate getAccessControlTypePredicate(CriteriaBuilder builder, ChainElementFilterRequestDTO filter, Root<ChainElement> chainElementRoot) {
+        return switch (filter.getCondition()) {
+            case IS -> getIsAccessControlTypePredicate(builder, chainElementRoot, filter.getValue());
+            case IS_NOT -> getIsAccessControlTypePredicate(builder, chainElementRoot, filter.getValue()).not();
+            default -> null;
+        };
+    }
+
+    private Predicate getRolesResourcePredicate(CriteriaBuilder builder, ChainElementFilterRequestDTO filter, Root<ChainElement> chainElementRoot) {
+        return switch (filter.getCondition()) {
+            case CONTAINS -> getContainsRolesResourcePredicate(builder, chainElementRoot, filter.getValue());
+            case DOES_NOT_CONTAIN -> getContainsRolesResourcePredicate(builder, chainElementRoot, filter.getValue()).not();
+            case IS -> getIsRolesResourcePredicate(builder, chainElementRoot, filter.getValue());
+            case IS_NOT -> getIsRolesResourcePredicate(builder, chainElementRoot, filter.getValue()).not();
+            case EMPTY -> getEmptyRolesResourcePredicate(builder, chainElementRoot);
+            case NOT_EMPTY -> getEmptyRolesResourcePredicate(builder, chainElementRoot).not();
+            default -> null;
+        };
     }
 
     private Predicate getIsEndpointPredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
@@ -333,6 +357,35 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
             }
         }
         filters.removeAll(filtersToRemove);
+    }
+
+    private Predicate getIsAccessControlTypePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
+        Expression<String> accessControlTypeExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ACCESS_CONTROL_TYPE_PROPERTY, true);
+        return builder.equal(accessControlTypeExpression, filterValue.toLowerCase());
+    }
+
+    private Predicate getContainsRolesResourcePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
+        Expression<String> rolesExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ROLES_PROPERTY, false);
+        Expression<String> abacResourceExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ABAC_RESOURCE_PROPERTY, false);
+        Predicate rolesContains = builder.like(rolesExpression, "%" + filterValue.toLowerCase() + "%");
+        Predicate abacResourceContains = builder.like(abacResourceExpression, "%" + filterValue.toLowerCase() + "%");
+        return builder.or(rolesContains, abacResourceContains);
+    }
+
+    private Predicate getIsRolesResourcePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
+        Expression<String> rolesExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ROLES_PROPERTY, true);
+        Expression<String> abacResourceExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ABAC_RESOURCE_PROPERTY, true);
+        Predicate rolesEquals = builder.equal(rolesExpression, filterValue.toLowerCase());
+        Predicate abacResourceEquals = builder.equal(abacResourceExpression, filterValue.toLowerCase());
+        return builder.or(rolesEquals, abacResourceEquals);
+    }
+
+    private Predicate getEmptyRolesResourcePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot) {
+        Expression<String> rolesExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ROLES_PROPERTY, false);
+        Expression<String> abacResourceExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ABAC_RESOURCE_PROPERTY, false);
+        Predicate rolesEmpty = builder.or(builder.isNull(rolesExpression), builder.like(rolesExpression, ""));
+        Predicate abacResourceEmpty = builder.or(builder.isNull(abacResourceExpression), builder.like(abacResourceExpression, ""));
+        return builder.and(rolesEmpty, abacResourceEmpty);
     }
 
 }
