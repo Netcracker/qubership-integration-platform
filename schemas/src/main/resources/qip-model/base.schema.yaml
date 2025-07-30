@@ -32,11 +32,17 @@ definitions:
       description:
         type: string
         title: Description
+  WithSwimlane:
+    type: object
+    properties:
+      swimlaneId:
+        type: string
   CommonElementProperties:
     type: object
     allOf:
       - $ref: "#/definitions/CommonEntityProperties"
       - $ref: "#/definitions/WithDescription"
+      - $ref: "#/definitions/WithSwimlane"
   CommonEntityContent:
     type: object
     allOf:

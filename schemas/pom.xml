@@ -32,7 +32,7 @@
     </scm>
 
     <properties>
-        <revision>0.0.8</revision>
+        <revision>0.0.9-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <qip-checkstyle-revision>0.0.2</qip-checkstyle-revision>
     </properties>

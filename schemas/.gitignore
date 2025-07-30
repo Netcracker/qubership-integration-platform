@@ -7,4 +7,5 @@ target
 .flattened-pom.xml
 *.log
 assets/
-node_modules/
+/node_modules/
+/node/
