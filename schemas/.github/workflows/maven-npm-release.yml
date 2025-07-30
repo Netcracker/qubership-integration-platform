@@ -82,7 +82,7 @@ jobs:
 
   npm-publish:
     if: ${{ inputs.npm-publish && inputs.npm-publish != 'false' }}
-    uses: Netcracker/qubership-workflow-hub/.github/workflows/re-npm-publish.yml@feature/update_npm_publish
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/re-npm-publish.yml@main
     with:
       version: ${{ inputs.release-version }}
       scope: ${{ inputs.npm-scope }}
