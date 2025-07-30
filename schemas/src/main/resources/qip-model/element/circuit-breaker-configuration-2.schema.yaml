@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/circuit-breaker-configurat
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
   - $ref: "container.schema.yaml"
 title: Circuit Breaker Configuration
 properties:
@@ -108,3 +107,4 @@ properties:
     additionalProperties: false
 required:
   - properties
+  - type

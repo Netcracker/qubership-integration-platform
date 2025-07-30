@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: Mapper
 description: Performs mapping between two entities.
 properties:
@@ -17,6 +16,7 @@ definitions:
   MapperParameters:
     type: object
     allOf:
+      - $ref: "properties/properties-in-external-file.schema.yaml"
       - type: object
         properties:
           throwException:
@@ -24,14 +24,8 @@ definitions:
             title: Throw exception on transformation failure
             description: Throw exception on transformation failure.
             default: true
-      - oneOf:
-          - $ref: "properties/properties-in-external-file.schema.yaml"
-          - type: object
-            properties:
-              mappingDescription:
-                $ref: "#/definitions/MappingDescription"
-            required:
-              - mappingDescription
+          mappingDescription:
+            $ref: "#/definitions/MappingDescription"
   Metadata:
     type: object
     title: Metadata
@@ -356,3 +350,5 @@ definitions:
         title: Actions
         items:
           $ref: "#/definitions/MappingAction"
+required:
+  - type

@@ -12,5 +12,3 @@ properties:
     description: Specifies list of properties to be exported is separate file
   propertiesFilename:
     $ref: "../../resource-reference.schema.yaml"
-required:
-  - propertiesFilename

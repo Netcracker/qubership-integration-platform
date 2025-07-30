@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/on-fallback-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
   - $ref: "container.schema.yaml"
 title: On fallback
 properties:
@@ -14,3 +13,5 @@ properties:
   properties:
     type: object
     additionalProperties: false
+required:
+  - type

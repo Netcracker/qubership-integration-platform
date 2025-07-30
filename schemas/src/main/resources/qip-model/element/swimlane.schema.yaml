@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/swimlane.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: Swimlane
 description: >
   Group elements, that will be represented in UI as Swimlanes.
@@ -27,3 +26,5 @@ definitions:
       - Purple
       - Lagoon
       - Brown
+required:
+  - type

@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/file-write.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: File Write
 properties:
   type:
@@ -23,3 +22,5 @@ properties:
     required:
       - fileName
     additionalProperties: false
+required:
+  - type

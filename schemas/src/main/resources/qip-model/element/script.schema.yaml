@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/script.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: Script
 description: Executes Groovy Script
 properties:
@@ -15,10 +14,12 @@ properties:
     $ref: "#/definitions/ScriptProperties"
 definitions:
   ScriptProperties:
-    oneOf:
+    allOf:
+      - $ref: "properties/properties-in-external-file.schema.yaml"
       - type: object
         properties:
           script:
             type: string
-        additionalProperties: false
-      - $ref: "properties/properties-in-external-file.schema.yaml"
+            title: Script
+required:
+  - type

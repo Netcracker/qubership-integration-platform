@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: RabbitMQ Trigger
 properties:
   type:
@@ -67,3 +66,5 @@ definitions:
       - topic
     default: direct
     title: Exchange type
+required:
+  - type

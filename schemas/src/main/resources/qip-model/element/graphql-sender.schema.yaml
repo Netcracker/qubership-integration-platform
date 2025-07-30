@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/graphql-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: GraphQL Sender
 properties:
   type:
@@ -41,3 +40,5 @@ properties:
         description: Operation variables in JSON format.
     required:
       - query
+required:
+  - type

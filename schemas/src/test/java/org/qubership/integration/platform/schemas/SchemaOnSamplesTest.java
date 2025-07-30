@@ -120,7 +120,7 @@ public final class SchemaOnSamplesTest {
         // Note that setting this requires including optional dependencies
         // builder.regularExpressionFactory(GraalJSRegularExpressionFactory.getInstance());
         // builder.regularExpressionFactory(JoniRegularExpressionFactory.getInstance());
-        config = builder.failFast(true).losslessNarrowing(true).build();
+        config = builder.failFast(true).losslessNarrowing(true).cacheRefs(false).build();
     }
 
     @ParameterizedTest

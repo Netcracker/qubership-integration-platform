@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/kafka-sender-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: Kafka Sender
 description: Produce message in kafka
 properties:
@@ -62,3 +61,5 @@ properties:
     required:
       - keySerializer
       - valueSerializer
+required:
+  - type

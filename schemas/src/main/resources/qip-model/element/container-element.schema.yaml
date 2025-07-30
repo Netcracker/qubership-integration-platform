@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/container-element.schema.y
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
   - $ref: "container.schema.yaml"
 title: Container
 properties:
@@ -14,3 +13,5 @@ properties:
   properties:
     type: object
     additionalProperties: false
+required:
+  - type

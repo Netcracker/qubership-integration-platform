@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/kafka-trigger-2.schema.yam
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: Kafka Trigger
 description: Trigger, that start chain after receiving kafka message.
 properties:
@@ -102,3 +101,5 @@ properties:
       - groupId
       - keyDeserializer
       - valueDeserializer
+required:
+  - type

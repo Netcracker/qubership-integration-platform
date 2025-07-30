@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: Service Call
 description: Make a call to a service registered in API Repository.
 properties:
@@ -19,6 +18,8 @@ properties:
       - $ref: "properties/context-propagation.schema.yaml"
       - $ref: "#/definitions/ValidationFailureHandler"
     properties:
+      errorThrowing:
+        type: boolean
       retryCount:
         oneOf:
           - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
@@ -187,3 +188,5 @@ definitions:
         type: string
       wildcard:
         type: boolean
+required:
+  - type

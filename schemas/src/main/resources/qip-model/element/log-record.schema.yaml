@@ -3,8 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/log-record.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonEntityProperties"
-  - $ref: "../base.schema.yaml#/definitions/WithDescription"
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
 title: Log Record
 description: >
   Log Record element allows to configure a message that will be logged
@@ -46,3 +45,5 @@ properties:
         title: Message
         description: A custom message to be logged
     additionalProperties: false
+required:
+  - type
