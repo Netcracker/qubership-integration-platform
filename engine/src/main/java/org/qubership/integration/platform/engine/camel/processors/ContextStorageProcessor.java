@@ -114,13 +114,13 @@ public class ContextStorageProcessor implements Processor {
         contextStorageService.deleteValue(contextServiceId, contextId);
     }
 
-    private static <T extends Enum<T>> T readEnumValue(Exchange exchange, String propertyName, Class<T> cls) {
+    private <T extends Enum<T>> T readEnumValue(Exchange exchange, String propertyName, Class<T> cls) {
         return Optional.ofNullable(exchange.getProperty(propertyName, String.class))
                 .map(value -> Enum.valueOf(cls, value.toUpperCase()))
                 .orElse(null);
     }
 
-    private static String getContextSessionId(Exchange exchange) {
+    private String getContextSessionId(Exchange exchange) {
         boolean useCorrelationId = exchange.getProperty(PROPERTY_USE_CORRELATION_ID, Boolean.class);
         return useCorrelationId
                 ? exchange.getProperty(CORRELATION_ID, String.class)
