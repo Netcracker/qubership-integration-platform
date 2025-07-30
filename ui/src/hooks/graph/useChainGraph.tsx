@@ -2,48 +2,70 @@ import {
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
+  Connection as ReactFlowConnection,
   Edge,
   EdgeChange,
   Node,
   NodeChange,
-  Position,
-  Connection as ReactFlowConnection,
   useEdgesState,
   useNodesState,
   useReactFlow,
+  XYPosition,
 } from "@xyflow/react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api/api.ts";
-import { Connection, Element } from "../../api/apiTypes.ts";
+import {
+  Connection,
+  CreateElementRequest,
+  Element,
+} from "../../api/apiTypes.ts";
 import { useAutoLayout } from "./useAutoLayout.tsx";
 import { useNotificationService } from "../useNotificationService.tsx";
-import { ElkDirection } from "./useElkDirection.tsx";
-
-export type ChainGraphNodeData = {
-  label: string;
-  description: string;
-  properties: Element["properties"];
-  direction?: ElkDirection;
-};
-
-function getDataFromElement(element: Element): ChainGraphNodeData {
-  return {
-    label: element.name,
-    description: element.description,
-    properties: element.properties,
-  };
-}
+import { useLibraryContext } from "../../components/LibraryContext.tsx";
+import {
+  collectChildren,
+  getDataFromElement,
+  getElementDescriptor,
+  getNodeFromElement,
+} from "../../misc/chain-graph-utils.ts";
+import {
+  ChainGraphNode,
+  ChainGraphNodeData,
+  OnDeleteEvent,
+} from "../../components/graph/nodes/ChainGraphNodeTypes.ts";
 
 export const useChainGraph = (chainId?: string) => {
   const { screenToFlowPosition } = useReactFlow();
 
+  const { elementDescriptors, isLibraryLoading } = useLibraryContext();
   const [nodes, setNodes] = useNodesState<Node<ChainGraphNodeData>>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isInitialized = useRef<boolean>(false);
   const notificationService = useNotificationService();
   const { arrangeNodes, direction, toggleDirection } = useAutoLayout();
+  const { getIntersectingNodes } = useReactFlow();
+
+  const structureChangedRef = useRef<boolean>(false);
+
+  const structureChanged = useCallback(() => {
+    structureChangedRef.current = true;
+  }, []);
 
   useEffect(() => {
+    const autoArrange = async () => {
+      if (structureChangedRef.current) {
+        structureChangedRef.current = false;
+        setNodes(await arrangeNodes(nodes, edges));
+      }
+    };
+    void autoArrange();
+  }, [nodes, edges, arrangeNodes, setNodes]);
+
+  useEffect(() => {
+    if (isInitialized.current) return;
+    if (isLibraryLoading) return;
+
     const fetchData = async () => {
       setIsLoading(true);
       try {
@@ -51,16 +73,19 @@ export const useChainGraph = (chainId?: string) => {
 
         const elements = await api.getElements(chainId);
 
-        const newNodes: Node<ChainGraphNodeData>[] = elements.map(
-          (element: Element) => ({
-            id: element.id,
-            type: element.type,
-            position: { x: 0, y: 0 },
-            data: {
-              ...getDataFromElement(element),
-            },
-          }),
-        );
+        const newNodes: ChainGraphNode[] = elements
+          .map((element: Element) => {
+            return getNodeFromElement(
+              element,
+              getElementDescriptor(element, elementDescriptors),
+              {
+                x: 0,
+                y: 0,
+              },
+              direction,
+            );
+          })
+          .filter((newNode) => newNode !== undefined);
 
         const connections = await api.getConnections(chainId);
 
@@ -72,6 +97,7 @@ export const useChainGraph = (chainId?: string) => {
 
         setNodes(await arrangeNodes(newNodes, newEdges));
         setEdges(newEdges);
+        structureChanged();
       } catch (error) {
         notificationService.requestFailed(
           "Failed to load elements or connections",
@@ -79,10 +105,21 @@ export const useChainGraph = (chainId?: string) => {
         );
       } finally {
         setIsLoading(false);
+        isInitialized.current = true;
       }
     };
     void fetchData();
-  }, [arrangeNodes, chainId, notificationService, setEdges, setNodes]);
+  }, [
+    direction,
+    arrangeNodes,
+    chainId,
+    isLibraryLoading,
+    elementDescriptors,
+    notificationService,
+    structureChanged,
+    setEdges,
+    setNodes,
+  ]);
 
   const onConnect = useCallback(
     async (connection: ReactFlowConnection) => {
@@ -95,13 +132,10 @@ export const useChainGraph = (chainId?: string) => {
           },
           chainId,
         );
-
-        console.log(response.createdDependencies?.[0]?.id);
         const edge: Edge = {
           ...connection,
           id: response.createdDependencies?.[0]?.id ?? "",
         };
-        console.log(edge);
         setEdges((eds) => addEdge(edge, eds));
       } catch (error) {
         notificationService.requestFailed("Failed to create connection", error);
@@ -113,70 +147,115 @@ export const useChainGraph = (chainId?: string) => {
   const onDrop = useCallback(
     async (event: React.DragEvent) => {
       event.preventDefault();
-      const isHorizontal = direction === "RIGHT";
       if (!chainId) return;
       const name = event.dataTransfer.getData("application/reactflow");
 
       if (!name) return;
 
-      const position = screenToFlowPosition({
+      const dropPosition = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       });
 
+      const ghostNode = {
+        id: "fake",
+        width: 1,
+        height: 1,
+        position: dropPosition,
+      };
+
+      const intersecting = getIntersectingNodes(ghostNode).filter(
+        (node) => node.type === "container",
+      );
+
+      const parentNode = intersecting.sort((a, b) => {
+        const areaA = (a.width ?? 0) * (a.height ?? 0);
+        const areaB = (b.width ?? 0) * (b.height ?? 0);
+        return areaA - areaB;
+      })[0];
+
+      let createElementRequest: CreateElementRequest = {
+        type: name,
+      };
+      if (parentNode) {
+        createElementRequest = {
+          ...createElementRequest,
+          parentElementId: parentNode.id,
+        };
+      }
+
       try {
-        const response = await api.createElement(
-          {
-            type: name,
-          },
-          chainId,
-        );
+        const response = await api.createElement(createElementRequest, chainId);
 
         const createdElement = response.createdElements?.[0];
         if (createdElement) {
-          const newNode: Node<ChainGraphNodeData> = {
-            id: createdElement.id,
-            type: createdElement.type,
-            position,
-            data: {
-              ...getDataFromElement(createdElement),
-              direction,
-            },
-            targetPosition: isHorizontal ? Position.Left : Position.Top,
-            sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
-          };
-          setNodes((nodes) => nodes.concat(newNode));
+          const newNode: ChainGraphNode = getNodeFromElement(
+            createdElement,
+            getElementDescriptor(createdElement, elementDescriptors),
+            dropPosition,
+            direction,
+          );
+          if (!newNode) {
+            return;
+          }
+          const childNodes: ChainGraphNode[] = createdElement?.children
+            ? createdElement?.children?.map((child: Element, index: number) => {
+                return getNodeFromElement(
+                  child,
+                  getElementDescriptor(child, elementDescriptors),
+                  {
+                    x: dropPosition.x + 30 * (index + 1),
+                    y: dropPosition.y + 30 * (index + 1),
+                  },
+                  direction,
+                );
+              })
+            : [];
+          const allNodes = nodes.concat(newNode, childNodes);
+          setNodes(allNodes);
+          if (parentNode || newNode.type === "container") {
+            structureChanged();
+          }
         }
       } catch (error) {
         notificationService.requestFailed("Failed to create element", error);
       }
     },
-    [chainId, direction, notificationService, screenToFlowPosition, setNodes],
+    [
+      nodes,
+      elementDescriptors,
+      chainId,
+      direction,
+      notificationService,
+      getIntersectingNodes,
+      screenToFlowPosition,
+      setNodes,
+      structureChanged,
+    ],
   );
 
   const onEdgesChange = useCallback(
     async (changes: EdgeChange[]) => {
       await Promise.all(
-        changes.map(async (change) => {
+        changes.map((change) => {
           if (!chainId) return;
           if (change.type === "remove") {
-            await api.deleteConnection(change.id, chainId);
+            return;
           }
           setEdges((eds) => applyEdgeChanges(changes, eds));
+          structureChanged();
         }),
       );
     },
-    [chainId, setEdges],
+    [chainId, setEdges, structureChanged],
   );
 
   const onNodesChange = useCallback(
-    async (changes: NodeChange<Node<ChainGraphNodeData>>[]) => {
+    async (changes: NodeChange<ChainGraphNode>[]) => {
       await Promise.all(
-        changes.map(async (change) => {
+        changes.map((change) => {
           if (!chainId) return;
-          if (change.type === "remove") {
-            await api.deleteElement(change.id, chainId);
-          }
+          if (change.type === "remove") return;
           setNodes((nds) => applyNodeChanges(changes, nds));
         }),
       );
@@ -184,23 +263,131 @@ export const useChainGraph = (chainId?: string) => {
     [chainId, setNodes],
   );
 
-  const updateNodeData = useCallback(
-    (element: Element, node: Node<ChainGraphNodeData>) => {
-      node.data = {
-        ...node.data,
-        ...getDataFromElement(element),
-      };
-      setNodes((nds) =>
-        nds.map((nd) => {
-          if (nd.id === node.id) {
+  const onDelete = useCallback(
+    async (changes: OnDeleteEvent) => {
+      if (!chainId) return;
+      const nodesToDelete: ChainGraphNode[] = changes.nodes;
+      const edgesToDelete: Edge[] = changes.edges;
+
+      const deletedEdgeIds: string[] = [];
+      const separateEdgesToDelete: Edge[] = edgesToDelete.filter(
+        (edge) =>
+          !nodesToDelete.find(
+            (node) => node.id === edge.source || node.id === edge.target,
+          ),
+      );
+      if (separateEdgesToDelete.length > 0) {
+        try {
+          const edgesDeleteResponse = await api.deleteConnection(
+            separateEdgesToDelete.map((edge) => edge.id),
+            chainId,
+          );
+          edgesDeleteResponse.removedDependencies?.map((connection) =>
+            deletedEdgeIds.push(connection.id),
+          );
+        } catch (error) {
+          notificationService.requestFailed(
+            "Failed to delete connections",
+            error,
+          );
+        }
+      }
+
+      const removingNodeIds = new Set(nodesToDelete.map((c) => c.id));
+      const parentMap = new Map<string, string | undefined>();
+
+      nodes.forEach((node) => {
+        if (removingNodeIds.has(node.id)) {
+          parentMap.set(node.id, node.parentId);
+        }
+      });
+
+      const rootIdsToDelete = Array.from(removingNodeIds).filter(
+        (id) => !removingNodeIds.has(parentMap.get(id)!),
+      );
+
+      try {
+        const elementsDeleteResponse = await api.deleteElements(
+          rootIdsToDelete,
+          chainId,
+        );
+
+        const deletedNodeIds = (
+          elementsDeleteResponse.removedElements || []
+        ).map((el: { id: string }) => el.id);
+
+        const allNodes = nodes.filter(
+          (node) => !deletedNodeIds.includes(node.id),
+        );
+        const allEdges = edges.filter(
+          (edge) => !deletedEdgeIds.includes(edge.id),
+        );
+        setNodes(allNodes);
+        setEdges(allEdges);
+        structureChanged();
+      } catch (error) {
+        notificationService.requestFailed("Failed to delete element", error);
+      }
+    },
+    [
+      chainId,
+      nodes,
+      edges,
+      notificationService,
+      setNodes,
+      setEdges,
+      structureChanged,
+    ],
+  );
+
+  const onNodeDragStop = useCallback(
+    (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
+      setNodes((prevNodes) => {
+        const originalNode = prevNodes.find((n) => n.id === draggedNode.id);
+        if (!originalNode) return prevNodes;
+
+        const delta: XYPosition = {
+          x: draggedNode.position.x - originalNode.position.x,
+          y: draggedNode.position.y - originalNode.position.y,
+        };
+
+        const children = collectChildren(draggedNode.id, prevNodes);
+
+        return prevNodes.map((node) => {
+          if (node.id === draggedNode.id) {
+            return { ...node, position: draggedNode.position };
+          }
+
+          const isChild = children.some((desc) => desc.id === node.id);
+          if (isChild) {
             return {
               ...node,
-              data: {
-                ...node.data,
+              position: {
+                x: node.position.x + delta.x,
+                y: node.position.y + delta.y,
               },
             };
           }
-          return nd;
+
+          return node;
+        });
+      });
+    },
+    [setNodes],
+  );
+
+  const updateNodeData = useCallback(
+    (element: Element, node: ChainGraphNode) => {
+      setNodes((prevNodes) =>
+        prevNodes.map((prevNode) => {
+          if (prevNode.id === node.id) {
+            const updatedNode: ChainGraphNode = {
+              ...prevNode,
+              data: getDataFromElement(element),
+            };
+            return updatedNode;
+          }
+          return prevNode;
         }),
       );
     },
@@ -212,11 +399,13 @@ export const useChainGraph = (chainId?: string) => {
     edges,
     onConnect,
     onDrop,
+    onDelete,
     onEdgesChange,
     onNodesChange,
+    onNodeDragStop,
     direction,
     toggleDirection,
     updateNodeData,
-    isLoading,
+    isLoading: isLoading && isLibraryLoading,
   };
 };

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Element } from "../api/apiTypes.ts";
+import { ElementDescriptor } from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "./useNotificationService.tsx";
 
 export const useLibraryElement = (elementType?: string) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [libraryElement, setLibraryElement] = useState<Element>();
+  const [libraryElement, setLibraryElement] = useState<ElementDescriptor>();
   const notificationService = useNotificationService();
 
   const getLibraryElement = useCallback(

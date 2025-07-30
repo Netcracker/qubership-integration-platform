@@ -16,20 +16,19 @@ import {
   Property,
   PropertyType,
 } from "../../api/apiTypes.ts";
-import { Node } from "@xyflow/react";
 import TextArea from "antd/lib/input/TextArea";
 import { useElement } from "../../hooks/useElement.tsx";
 import { useLibraryElement } from "../../hooks/useLibraryElement.tsx";
 import YAML from "yaml";
 import { InfoCircleOutlined } from "@ant-design/icons";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
-import { ChainGraphNodeData } from "../../hooks/graph/useChainGraph.tsx";
+import {ChainGraphNode} from "../graph/nodes/ChainGraphNodeTypes.ts";
 
 type ElementModificationProps = {
-  node: Node<ChainGraphNodeData>;
+  node: ChainGraphNode;
   chainId: string;
   elementId: string;
-  onSubmit: (changedElement: Element, node: Node<ChainGraphNodeData>) => void;
+  onSubmit: (changedElement: Element, node: ChainGraphNode) => void;
   onClose?: () => void;
 };
 
@@ -54,7 +53,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   onClose,
 }) => {
   const { isLoading: libraryElementIsLoading, libraryElement } =
-    useLibraryElement(node.type);
+    useLibraryElement(node.data.elementType);
   const [isLoading, setIsLoading] = useState(false);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
   const { updateElement } = useElement();
@@ -86,7 +85,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       const request: PatchElementRequest = {
         name: data.name,
         description: data.description,
-        type: node.type!,
+        type: node.data.elementType,
+        parentElementId: node.parentId,
         properties: properties,
       };
       const changedElement: Element | undefined = await updateElement(
@@ -120,20 +120,19 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     try {
       return {
         ...(data[PropertyType.COMMON]
-          ? YAML.parse(data[PropertyType.COMMON]) as object
+          ? (YAML.parse(data[PropertyType.COMMON]) as object)
           : {}),
         ...(data[PropertyType.ADVANCED]
-          ? YAML.parse(data[PropertyType.ADVANCED]) as object
+          ? (YAML.parse(data[PropertyType.ADVANCED]) as object)
           : {}),
         ...(data[PropertyType.HIDDEN]
-          ? YAML.parse(data[PropertyType.HIDDEN]) as object
+          ? (YAML.parse(data[PropertyType.HIDDEN]) as object)
           : {}),
         ...(data[PropertyType.UNKNOWN]
-          ? YAML.parse(data[PropertyType.UNKNOWN]) as object
+          ? (YAML.parse(data[PropertyType.UNKNOWN]) as object)
           : {}),
       };
     } catch (error) {
-      console.error(error);
       notificationService.errorWithDetails(
         "Parse element failed",
         "Failed to construct element properties",

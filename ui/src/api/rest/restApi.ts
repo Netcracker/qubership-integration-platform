@@ -4,9 +4,10 @@ import {
   Chain,
   ChainCreationRequest,
   Connection,
-  ElementRequest,
+  CreateElementRequest,
   LibraryData,
   Element,
+  ElementDescriptor,
   Snapshot,
   ConnectionRequest,
   ActionDifference,
@@ -231,10 +232,10 @@ export class RestApi implements Api {
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/type/${elementType}`,
     );
     return response.data;
-  };
+  }
 
   createElement = async (
-    elementRequest: ElementRequest,
+    elementRequest: CreateElementRequest,
     chainId: string,
   ): Promise<ActionDifference> => {
     const response = await this.instance.post<ActionDifference>(
@@ -256,14 +257,15 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  deleteElement = async (
-    elementId: string,
+  deleteElements = async (
+    elementIds: string[],
     chainId: string,
   ): Promise<ActionDifference> => {
+    const elementsIdsParam = elementIds.join(",");
     const response = await this.instance.delete<ActionDifference>(
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements`,
       {
-        params: { elementsIds: elementId }, //TODO send array
+        params: { elementsIds: elementsIdsParam },
       },
     );
     return response.data;
@@ -308,13 +310,14 @@ export class RestApi implements Api {
   };
 
   deleteConnection = async (
-    connectionId: string,
+    connectionIds: string[],
     chainId: string,
   ): Promise<ActionDifference> => {
+    const connectionIdsParam = connectionIds.join(",");
     const response = await this.instance.delete<ActionDifference>(
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/dependencies`,
       {
-        params: { dependenciesIds: connectionId }, //TODO send array
+        params: { dependenciesIds: connectionIdsParam },
       },
     );
     return response.data;
@@ -379,8 +382,10 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  getLibraryElementByType = async (type: string): Promise<Element> => {
-    const response = await this.instance.get<Element>(
+  getLibraryElementByType = async (
+    type: string,
+  ): Promise<ElementDescriptor> => {
+    const response = await this.instance.get<ElementDescriptor>(
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/library/${type}`,
     );
     return response.data;

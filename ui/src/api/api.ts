@@ -2,9 +2,10 @@ import {
   Chain,
   ChainCreationRequest,
   Connection,
-  ElementRequest,
+  CreateElementRequest,
   LibraryData,
   Element,
+  ElementDescriptor,
   Snapshot,
   ConnectionRequest,
   ActionDifference,
@@ -90,7 +91,7 @@ export interface Api {
   getElementsByType(chainId: string, elementType: string): Promise<ElementWithChainName[]>;
 
   createElement(
-    elementRequest: ElementRequest,
+    elementRequest: CreateElementRequest,
     chainId: string,
   ): Promise<ActionDifference>;
 
@@ -100,7 +101,10 @@ export interface Api {
     elementId: string,
   ): Promise<ActionDifference>;
 
-  deleteElement(elementId: string, chainId: string): Promise<ActionDifference>;
+  deleteElements(
+    elementIds: string[],
+    chainId: string,
+  ): Promise<ActionDifference>;
 
   getConnections(chainId: string): Promise<Connection[]>;
 
@@ -110,7 +114,7 @@ export interface Api {
   ): Promise<ActionDifference>;
 
   deleteConnection(
-    connectionId: string,
+    connectionIds: string[],
     chainId: string,
   ): Promise<ActionDifference>;
 
@@ -132,7 +136,7 @@ export interface Api {
 
   revertToSnapshot(chainId: string, snapshotId: string): Promise<Snapshot>;
 
-  getLibraryElementByType(type: string): Promise<Element>;
+  getLibraryElementByType(type: string): Promise<ElementDescriptor>;
 
   getDeployments(chainId: string): Promise<Deployment[]>;
 

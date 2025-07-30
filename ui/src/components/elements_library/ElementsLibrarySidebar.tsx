@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Menu, Spin } from "antd";
-import { Element, LibraryData } from "../../api/apiTypes.ts";
-import { api } from "../../api/api.ts";
+import { ElementDescriptor, LibraryData } from "../../api/apiTypes.ts";
 import DraggableElement from "./DraggableElement.tsx";
 import Sider from "antd/lib/layout/Sider";
 
 import styles from "./ElementsLibrarySidebar.module.css";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import { useLibraryContext } from "../LibraryContext.tsx";
 
 export const ElementsLibrarySidebar = () => {
   const [, setElementsList] = useState<LibraryData | null>(null);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const notificationService = useNotificationService();
+  const { libraryData, isLibraryLoading } = useLibraryContext();
 
   type MenuItem = {
     key: string;
@@ -21,43 +22,44 @@ export const ElementsLibrarySidebar = () => {
   };
 
   useEffect(() => {
-    const loadLibrary = async () => {
-      try {
-        const response = await api.getLibrary();
-        setElementsList(response);
+    if (libraryData) {
+      setElementsList(libraryData);
 
-        const folderMap = new Map<string, MenuItem>();
+      const folderMap = new Map<string, MenuItem>();
 
-        response.groups.forEach((group) => {
-          group.elements.forEach((element: Element) => {
-            if (element.deprecated || element.unsupported) return;
-            if (!folderMap.has(element.folder)) {
-              folderMap.set(element.folder, {
-                key: element.folder,
-                label: prettifyName(element.folder),
-                children: [],
-              });
-            }
-            folderMap.get(element.folder)!.children!.push({
-              key: element.name,
-              label: <DraggableElement element={element} />,
+      libraryData.groups.forEach((group) => {
+        group.elements.forEach((element: ElementDescriptor) => {
+          if (element.deprecated || element.unsupported) return;
+          if (!folderMap.has(element.folder)) {
+            folderMap.set(element.folder, {
+              key: element.folder,
+              label: prettifyName(element.folder),
+              children: [],
             });
+          }
+          const childrenMenuItems: MenuItem[] = [];
+          element.designContainerParameters?.children.map((child) => {
+            const childMenuItem = {
+              key: child.name,
+              label: <DraggableElement element={child} />,
+            };
+            childrenMenuItems.push(childMenuItem);
           });
+          const elementMenuItem: MenuItem = {
+            key: element.name,
+            label: <DraggableElement element={element} />,
+          };
+          if (childrenMenuItems.length !== 0) {
+            elementMenuItem.children = childrenMenuItems;
+          }
+          folderMap.get(element.folder)!.children!.push(elementMenuItem);
         });
+      });
 
-        setItems(Array.from(folderMap.values()));
-      } catch (error) {
-        console.error(error);
-        notificationService.requestFailed(
-          "Failed to load library elements",
-          error,
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-    void loadLibrary();
-  }, [notificationService]);
+      setItems(Array.from(folderMap.values()));
+      setLoading(false);
+    }
+  }, [libraryData, notificationService]);
 
   const prettifyName = (name: string): string => {
     const result = name.replace(/-/g, " ");
@@ -70,7 +72,7 @@ export const ElementsLibrarySidebar = () => {
 
   return (
     <Sider width={200} theme="light" className={styles.sideMenu}>
-      {loading ? (
+      {isLibraryLoading && loading ? (
         <Spin />
       ) : (
         <Menu

@@ -27,17 +27,17 @@ import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { useModalsContext } from "../Modals.tsx";
 import { ChainElementModification } from "../components/modal/ChainElementModification.tsx";
 import styles from "./ChainGraph.module.css";
+import { LibraryProvider } from "../components/LibraryContext.tsx";
 
-import {
-  ChainGraphNodeData,
-  useChainGraph,
-} from "../hooks/graph/useChainGraph.tsx";
+import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
 import { ElkDirectionContextProvider } from "./ElkDirectionContext.tsx";
 import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
 import { CreateDeploymentRequest, DiagramMode } from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
+import { useLibraryContext } from "../components/LibraryContext.tsx";
+import {ChainGraphNodeData, nodeTypes} from "../components/graph/nodes/ChainGraphNodeTypes.ts";
 
 const ChainGraphInner: React.FC = () => {
   const { chainId, elementId } = useParams<string>();
@@ -46,6 +46,9 @@ const ChainGraphInner: React.FC = () => {
   const [isPageLoaded, setIsPageLoaded] = useState(false);
   const navigate = useNavigate();
   const notificationService = useNotificationService();
+  const { isLibraryLoading } = useLibraryContext();
+
+
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -57,8 +60,10 @@ const ChainGraphInner: React.FC = () => {
     edges,
     onConnect,
     onDrop,
+    onDelete,
     onEdgesChange,
     onNodesChange,
+    onNodeDragStop,
     direction,
     toggleDirection,
     updateNodeData,
@@ -85,7 +90,7 @@ const ChainGraphInner: React.FC = () => {
 
   const openElementModal = useCallback(
     (node?: Node<ChainGraphNodeData>) => {
-      if (!node?.type) return;
+      if (!node?.data.elementType) return;
       setElementPath(node.id);
       showModal({
         component: (
@@ -157,13 +162,20 @@ const ChainGraphInner: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!isPageLoaded && !isLoading && nodes?.length) {
+    if (!isPageLoaded && !isLoading && !isLibraryLoading && nodes?.length) {
       setIsPageLoaded(true);
       if (elementId) {
         openElementModal(nodes.find((node) => node.id === elementId));
       }
     }
-  }, [elementId, isLoading, isPageLoaded, nodes, openElementModal]);
+  }, [
+    elementId,
+    isLoading,
+    isLibraryLoading,
+    isPageLoaded,
+    nodes,
+    openElementModal,
+  ]);
 
   return (
     <Flex className={styles["graph-wrapper"]}>
@@ -174,11 +186,15 @@ const ChainGraphInner: React.FC = () => {
         >
           <ReactFlow
             nodes={nodes}
+            nodeTypes={nodeTypes}
+            defaultEdgeOptions={{ zIndex: 1001 }}
             edges={edges}
             onNodesChange={(changes) => void onNodesChange(changes)}
             onEdgesChange={(changes) => void onEdgesChange(changes)}
             onConnect={(connection) => void onConnect(connection)}
+            onDelete={(changes) => void onDelete(changes)}
             onDrop={(event) => void onDrop(event)}
+            onNodeDragStop={onNodeDragStop}
             onDragOver={onDragOver}
             onNodeDoubleClick={onNodeDoubleClick}
             deleteKeyCode={["Backspace", "Delete"]}
@@ -213,9 +229,11 @@ const ChainGraphInner: React.FC = () => {
 };
 
 export const ChainGraph: React.FC = () => (
-  <ReactFlowProvider>
-    <DnDProvider>
-      <ChainGraphInner />
-    </DnDProvider>
-  </ReactFlowProvider>
+  <LibraryProvider>
+    <ReactFlowProvider>
+      <DnDProvider>
+        <ChainGraphInner />
+      </DnDProvider>
+    </ReactFlowProvider>
+  </LibraryProvider>
 );

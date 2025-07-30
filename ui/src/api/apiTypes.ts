@@ -37,8 +37,9 @@ export type Dependency = {
   to: string;
 };
 
-export type ElementRequest = {
+export type CreateElementRequest = {
   type: string;
+  parentElementId?: string;
 };
 
 export type PatchElementRequest = {
@@ -72,24 +73,25 @@ export type ChainCreationRequest = {
 
 export type LibraryData = {
   groups: Group[];
-  elements: Element[];
-  childElements: Record<string, Element>;
+  elements: ElementDescriptor[];
+  childElements: Record<string, ElementDescriptor>;
 };
 
 export type Group = {
   name: string;
   title: string;
   groups: Group[];
-  elements: Element[];
-  childElements: Record<string, Element>;
+  elements: ElementDescriptor[];
+  childElements: Record<string, ElementDescriptor>;
 };
 
-export type Element = {
-  id: string;
+export type ElementDescriptor = {
   name: string;
   title: string;
   description: string;
   folder: string;
+  colorType: string;
+  descriptionFormatter: string;
   type: string;
   inputEnabled: boolean;
   inputQuantity: "any" | number;
@@ -132,6 +134,22 @@ export type ElementWithChainName  = BaseEntity &  {
   swimlaneId: string
   mandatoryChecksPassed: boolean;
 }
+
+export type Element = BaseEntity & {
+  chainId: string;
+  type: string;
+  parentElementId: string;
+  originalId: string;
+  properties: {
+    [PropertyType.COMMON]: Property[];
+    [PropertyType.ADVANCED]: Property[];
+    [PropertyType.HIDDEN]: Property[];
+    [PropertyType.UNKNOWN]: Property[];
+  };
+  children?: Element[];
+  swimlaneId: string;
+  mandatoryChecksPassed: boolean;
+};
 
 export interface ElementFilter {
   elementTitle: string;
