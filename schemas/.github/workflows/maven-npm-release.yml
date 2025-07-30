@@ -1,10 +1,17 @@
 name: Maven & NPM Release
 
-run-name: Maven ${{ inputs.maven-version-type }} & NPM ${{ inputs.npm-version || 'auto' }} Release
+run-name: Maven & NPM Release ${{ inputs.release-version || 'auto' }}
 
 on:
   workflow_dispatch:
     inputs:
+      # =================================
+      # GENERAL SETTINGS
+      # =================================
+      release-version:
+        description: 'Release version for both Maven and NPM (e.g., 1.0.0)'
+        required: false
+        type: string
       maven-release:
         description: 'Run Maven release'
         required: false
@@ -15,16 +22,9 @@ on:
         required: false
         type: boolean
         default: true
-      # Maven specific inputs
-      maven-version-type:
-        description: 'Maven version type'
-        type: choice
-        options:
-          - 'major'
-          - 'minor'
-          - 'patch'
-        required: false
-        default: 'patch'
+      # =================================
+      # MAVEN CONFIGURATION
+      # =================================
       maven-profile:
         description: 'Maven profile to use'
         type: choice
@@ -33,11 +33,24 @@ on:
           - 'central'
         required: false
         default: 'central'
-      # NPM specific inputs
-      npm-version:
-        description: 'NPM version to release (e.g., 1.0.0)'
+      maven-java-version:
+        description: 'Java version (e.g., 21)'
         required: false
         type: string
+        default: '21'
+      maven-build-docker:
+        description: 'Build Docker image for Maven project'
+        required: false
+        type: boolean
+        default: false
+      maven-dry-run:
+        description: 'Maven dry run'
+        required: false
+        type: boolean
+        default: false
+      # =================================
+      # NPM CONFIGURATION
+      # =================================
       npm-scope:
         description: 'NPM scope for the package'
         required: false
@@ -56,17 +69,20 @@ permissions:
 jobs:
   maven-release:
     if: ${{ inputs.maven-release && inputs.maven-release != 'false' }}
-    uses: ./.github/workflows/maven-release-v2.yaml
+    uses: ./.github/workflows/maven-release.yaml
     with:
-      version-type: ${{ inputs.maven-version-type || 'patch' }}
+      version: ${{ inputs.release-version }}
       profile: ${{ inputs.maven-profile }}
+      java-version: ${{ inputs.maven-java-version }}
+      build-docker: ${{ inputs.maven-build-docker }}
+      dry-run: ${{ inputs.maven-dry-run }}
     secrets: inherit
 
   npm-publish:
     if: ${{ inputs.npm-publish && inputs.npm-publish != 'false' }}
-    uses: ./.github/workflows/npm-publish.yml
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/re-npm-publish.yml@main
     with:
-      version: ${{ inputs.npm-version }}
+      version: ${{ inputs.release-version }}
       scope: ${{ inputs.npm-scope }}
       dist-tag: ${{ inputs.npm-dist-tag }}
       branch_name: main

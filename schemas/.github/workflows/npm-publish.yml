@@ -110,11 +110,6 @@ jobs:
       - name: Run tests
         run: npm test --if-present
 
-      - name: Commit and Push changes
-        uses: ./.github/actions/commit-and-push
-        with:
-          branch_name: ${{ inputs.branch_name }}
-
       - name: Publish Package
         run: |
           npm config get registry
