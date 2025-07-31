@@ -31,7 +31,7 @@ import java.util.List;
 @Slf4j
 public abstract class AbstractContextSystemService {
 
-    public static final String DATABASE_SYSTEM_WITH_ID_NOT_FOUND = "Can't find database system with id: ";
+    public static final String CONTEXT_SYSTEM_WITH_ID_NOT_FOUND = "Can't find context system with id: ";
 
     protected final ContextSystemRepository contextSystemRepository;
 
@@ -55,7 +55,7 @@ public abstract class AbstractContextSystemService {
 
     public ContextSystem findById(String systemId) {
         return contextSystemRepository.findById(systemId)
-                .orElseThrow(() -> new EntityNotFoundException(DATABASE_SYSTEM_WITH_ID_NOT_FOUND + systemId));
+                .orElseThrow(() -> new EntityNotFoundException(CONTEXT_SYSTEM_WITH_ID_NOT_FOUND + systemId));
     }
 
     public ContextSystem getByIdOrNull(String systemId) {

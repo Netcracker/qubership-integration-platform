@@ -42,7 +42,6 @@ import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimpo
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system.SystemsCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.ContextBaseService;
-import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ContextServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
@@ -61,7 +60,6 @@ import java.io.InputStream;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
@@ -74,14 +72,12 @@ import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORT
 @Slf4j
 @Transactional
 public class ContextExportImportService {
-    private static final String LIB_COMPILATION_ERROR = "Failed to compile libraries for service specifications: ";
 
     private final TransactionTemplate transactionTemplate;
     private final YAMLMapper yamlMapper;
     private final SystemService systemService;
 
     private final ContextBaseService contextBaseService;
-    private final SystemModelService systemModelService;
 
     protected final ActionsLogService actionLogger;
     private final ContextServiceSerializer contextServiceSerializer;
@@ -95,7 +91,6 @@ public class ContextExportImportService {
             TransactionTemplate transactionTemplate,
             SystemService systemService,
             ContextBaseService contextBaseService,
-            SystemModelService systemModelService,
             YAMLMapper yamlExportImportMapper,
             ActionsLogService actionLogger,
             ContextServiceSerializer contextServiceSerializer, ServiceDeserializer serviceDeserializer,
@@ -106,7 +101,6 @@ public class ContextExportImportService {
         this.contextBaseService = contextBaseService;
         this.yamlMapper = yamlExportImportMapper;
         this.systemService = systemService;
-        this.systemModelService = systemModelService;
         this.actionLogger = actionLogger;
         this.contextServiceSerializer = contextServiceSerializer;
         this.contextServiceDeserializer = contextServiceDeserializer;
@@ -115,7 +109,7 @@ public class ContextExportImportService {
     }
 
 
-    private ExportedSystemObject exportOneSystem(ContextSystem system, List<String> usedSystemModelIds) {
+    private ExportedSystemObject exportOneSystem(ContextSystem system) {
         try {
             ExportedSystemObject exportedSystem;
             if (system != null) {
@@ -133,11 +127,11 @@ public class ContextExportImportService {
         }
     }
 
-    private List<ExportedSystemObject> exportSystems(List<ContextSystem> systems, List<String> usedSystemModelIds) {
-        return systems.stream().map(system -> exportOneSystem(system, usedSystemModelIds)).collect(Collectors.toList());
+    private List<ExportedSystemObject> exportSystems(List<ContextSystem> systems) {
+        return systems.stream().map(this::exportOneSystem).collect(Collectors.toList());
     }
 
-    public byte[] exportSystemsRequest(List<String> systemIds, List<String> usedSystemModelIds) {
+    public byte[] exportSystemsRequest(List<String> systemIds) {
         List<ContextSystem> systems = new ArrayList<>();
         if (systemIds == null) {
             systems.addAll(contextBaseService.getAll());
@@ -149,7 +143,7 @@ public class ContextExportImportService {
             return null;
         }
 
-        List<ExportedSystemObject> exportedSystems = exportSystems(systems, usedSystemModelIds);
+        List<ExportedSystemObject> exportedSystems = exportSystems(systems);
         byte[] archive = contextServiceSerializer.writeSerializedArchive(exportedSystems);
         for (ContextSystem system : systems) {
             logSystemExportImport(system, null, LogOperation.EXPORT);
@@ -191,22 +185,6 @@ public class ContextExportImportService {
         return response;
     }
 
-    public List<ImportSystemResult> getSystemsImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
-        List<File> systemsFiles;
-        try {
-            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath());
-        } catch (Exception e) {
-            throw new RuntimeException("Error while extracting systems", e);
-        }
-
-        List<ImportSystemResult> importSystemResults = new ArrayList<>();
-        for (File systemFile : systemsFiles) {
-            importSystemResults.add(getSystemChanges(systemFile, instructionsConfig));
-        }
-
-        return importSystemResults;
-    }
-
     protected ImportSystemResult getSystemChanges(File mainSystemFile, ImportInstructionsConfig instructionsConfig) {
         ImportSystemResult resultSystemCompareDTO;
 
@@ -245,7 +223,7 @@ public class ContextExportImportService {
 
     private void setCompareSystemResult(IntegrationSystem system, ImportSystemResult resultSystemCompareDTO) {
         IntegrationSystem oldSystem = systemService.getByIdOrNull(system.getId());
-        ;
+
         if (oldSystem == null) {
             resultSystemCompareDTO.setName(system.getName());
             resultSystemCompareDTO.setRequiredAction(SystemCompareAction.CREATE);
@@ -256,7 +234,7 @@ public class ContextExportImportService {
     }
 
     @Transactional(propagation = NOT_SUPPORTED)
-    public List<ImportSystemResult> importContextSystemRequest(MultipartFile importFile, List<String> systemIds, String deployLabel, Set<String> technicalLabels) {
+    public List<ImportSystemResult> importContextSystemRequest(MultipartFile importFile, List<String> systemIds) {
         List<ImportSystemResult> response = new ArrayList<>();
         String fileExtension = FilenameUtils.getExtension(importFile.getOriginalFilename());
         logSystemExportImport(null, importFile.getOriginalFilename(), LogOperation.IMPORT);
@@ -293,7 +271,7 @@ public class ContextExportImportService {
                     continue;
                 }
 
-                ImportSystemResult result = importOneSystemInTransaction(singleSystemFile, deployLabel, systemIds, technicalLabels);
+                ImportSystemResult result = importOneSystemInTransaction(singleSystemFile, systemIds);
                 if (result != null) {
                     response.add(result);
                 }
@@ -325,7 +303,6 @@ public class ContextExportImportService {
             throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
         }
 
-        String deployLabel = systemCommitRequest.getDeployLabel();
         List<String> systemIds = systemCommitRequest.getImportMode() == ImportMode.FULL
                 ? Collections.emptyList()
                 : systemCommitRequest.getSystemIds();
@@ -355,7 +332,7 @@ public class ContextExportImportService {
                     importId, total, counter, ImportSessionService.COMMON_VARIABLES_IMPORT_PERCENTAGE_THRESHOLD, ImportSessionService.SERVICE_IMPORT_PERCENTAGE_THRESHOLD);
             counter++;
 
-            ImportSystemResult result = importOneSystemInTransaction(systemFile, deployLabel, systemIds, technicalLabels);
+            ImportSystemResult result = importOneSystemInTransaction(systemFile, systemIds);
 
             if (result != null) {
                 response.add(result);
@@ -365,7 +342,7 @@ public class ContextExportImportService {
         return new ImportSystemsAndInstructionsResult(response, ignoreResult.importInstructionResults());
     }
 
-    protected synchronized ImportSystemResult importOneSystemInTransaction(File mainServiceFile, String deployLabel, List<String> systemIds, Set<String> technicalLabels) {
+    protected synchronized ImportSystemResult importOneSystemInTransaction(File mainServiceFile, List<String> systemIds) {
         ImportSystemResult result;
         Optional<ContextSystem> baseSystemOptional = Optional.empty();
 
@@ -375,7 +352,6 @@ public class ContextExportImportService {
             baseSystemOptional = Optional.ofNullable(deserializationResult.getContextSystem());
 
             result = transactionTemplate.execute((status) -> {
-                File serviceDirectory = mainServiceFile.getParentFile();
                 ContextSystem baseSystem = deserializationResult.getContextSystem();
 
                 if (!CollectionUtils.isEmpty(systemIds) && !systemIds.contains(baseSystem.getId())) {
@@ -383,11 +359,11 @@ public class ContextExportImportService {
                 }
 
                 deserializationResult.setContextSystem(contextServiceDeserializer.deserializeSystem(
-                        serviceNode, serviceDirectory));
+                        serviceNode));
 
 
                 StringBuilder message = new StringBuilder();
-                ImportSystemStatus importStatus = enrichAndSaveContextSystem(deserializationResult, deployLabel, technicalLabels, message::append);
+                ImportSystemStatus importStatus = enrichAndSaveContextSystem(deserializationResult);
 
                 return ImportSystemResult.builder()
                         .id(deserializationResult.getSystem().getId())
@@ -409,23 +385,16 @@ public class ContextExportImportService {
         return result;
     }
 
-    private ImportSystemStatus enrichAndSaveContextSystem(SystemDeserializationResult deserializationResult, String deployLabel, Set<String> technicalLabels, Consumer<String> messageHandler) {
+    private ImportSystemStatus enrichAndSaveContextSystem(SystemDeserializationResult deserializationResult) {
         ContextSystem system = deserializationResult.getContextSystem();
         ImportSystemStatus status;
         ContextSystem oldSystem = contextBaseService.getByIdOrNull(system.getId());
-        Collection<SystemModel> newSystemModels = new ArrayList<>();
         if (oldSystem != null) {
             status = ImportSystemStatus.UPDATED;
         } else {
             status = ImportSystemStatus.CREATED;
         }
         StringBuilder compilationErrors = new StringBuilder();
-        boolean hasErrors = compileSystemModelLibraries(
-                newSystemModels,
-                (str) -> compilationErrors.append(str).append(" "));
-        if (hasErrors) {
-            throw new RuntimeException(LIB_COMPILATION_ERROR + compilationErrors);
-        }
 
         if (oldSystem != null) {
             contextBaseService.update(system);
@@ -436,19 +405,6 @@ public class ContextExportImportService {
         return status;
     }
 
-    private boolean compileSystemModelLibraries(Collection<SystemModel> models, Consumer<String> errorHandler) {
-        return models.stream()
-                .map(model -> {
-                    try {
-                        systemModelService.patchModelWithCompiledLibrary(model);
-                        return false;
-                    } catch (Exception exception) {
-                        errorHandler.accept(exception.getMessage());
-                        return true;
-                    }
-                })
-                .reduce(false, (r1, r2) -> r1 || r2);
-    }
 
     protected SystemDeserializationResult getBaseSystemDeserializationResult(JsonNode serviceNode) throws JsonProcessingException {
         SystemDeserializationResult result = new SystemDeserializationResult();

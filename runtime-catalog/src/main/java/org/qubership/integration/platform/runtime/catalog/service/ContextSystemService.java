@@ -37,7 +37,7 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-    public class ContextSystemService extends AbstractContextSystemService {
+public class ContextSystemService extends AbstractContextSystemService {
 
     private final SystemFilterSpecificationBuilder systemFilterSpecificationBuilder;
     private final ContextSystemMapper contextSystemMapper;
@@ -64,7 +64,7 @@ import java.util.UUID;
     }
 
     public void deleteById(String contextId) {
-        if (chainService.isContextusedByChain(contextId)) {
+        if (chainService.isContextUsedByChain(contextId)) {
             throw new SystemDeleteException("Service used by one or more chains");
         }
         ContextSystem contextSystem = findById(contextId);
@@ -81,8 +81,12 @@ import java.util.UUID;
         return contextSystem;
     }
 
-    public List<ContextSystem> searchContextSystems(SystemSearchRequestDTO systemSearchRequestDT) {
-        return contextSystemRepository.searchForContextSystems(systemSearchRequestDT.getSearchCondition());
+    public List<ContextSystem> searchContextSystem(SystemSearchRequestDTO systemSearchRequestDT) {
+        return searchContextService(systemSearchRequestDT.getSearchCondition());
+    }
+
+    public List<ContextSystem> searchContextService(String searchString) {
+        return contextSystemRepository.findByNameContaining(searchString);
     }
 
 

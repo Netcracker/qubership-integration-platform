@@ -36,7 +36,7 @@ public class ChainBaseService {
         return elementBaseService.isSystemUsedByElement(systemId);
     }
 
-    public boolean isContextusedByChain(String contextId) {
+    public boolean isContextUsedByChain(String contextId) {
         return contextBaseService.isContextUsedByElement(contextId);
     }
 

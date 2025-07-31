@@ -17,8 +17,6 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
-import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -32,22 +30,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class ContextBaseService {
-
-    private static final Map<IntegrationSystemType, Collection<OperationProtocol>> ALLOWED_PROTOCOL_MAP = Map.of(
-            IntegrationSystemType.EXTERNAL, Arrays.stream(OperationProtocol.values())
-                    .filter(protocol -> !OperationProtocol.METAMODEL.equals(protocol))
-                    .collect(Collectors.toSet()),
-            IntegrationSystemType.INTERNAL, Set.of(OperationProtocol.values()),
-            IntegrationSystemType.IMPLEMENTED, Set.of(
-                    OperationProtocol.HTTP,
-                    OperationProtocol.SOAP,
-                    OperationProtocol.GRAPHQL
-            )
-    );
 
     protected final ContextSystemRepository contextSystemRepository;
     protected final ActionsLogService actionsLogger;
