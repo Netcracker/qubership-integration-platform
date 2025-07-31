@@ -42,7 +42,6 @@ import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimpo
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system.SystemsCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.ContextBaseService;
-import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ContextServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
@@ -75,7 +74,6 @@ public class ContextExportImportService {
 
     private final TransactionTemplate transactionTemplate;
     private final YAMLMapper yamlMapper;
-    private final SystemService systemService;
 
     private final ContextBaseService contextBaseService;
 
@@ -89,7 +87,6 @@ public class ContextExportImportService {
     @Autowired
     public ContextExportImportService(
             TransactionTemplate transactionTemplate,
-            SystemService systemService,
             ContextBaseService contextBaseService,
             YAMLMapper yamlExportImportMapper,
             ActionsLogService actionLogger,
@@ -100,7 +97,6 @@ public class ContextExportImportService {
         this.transactionTemplate = transactionTemplate;
         this.contextBaseService = contextBaseService;
         this.yamlMapper = yamlExportImportMapper;
-        this.systemService = systemService;
         this.actionLogger = actionLogger;
         this.contextServiceSerializer = contextServiceSerializer;
         this.contextServiceDeserializer = contextServiceDeserializer;
