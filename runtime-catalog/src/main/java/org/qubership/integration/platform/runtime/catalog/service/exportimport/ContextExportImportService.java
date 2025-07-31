@@ -207,8 +207,6 @@ public class ContextExportImportService {
                     .modified(systemModifiedWhen)
                     .instructionAction(instructionAction)
                     .build();
-
-            setCompareSystemResult(baseSystem, resultSystemCompareDTO);
         } catch (RuntimeException | IOException e) {
             log.error("Exception while system compare: ", e);
             resultSystemCompareDTO = ImportSystemResult.builder()
@@ -219,18 +217,6 @@ public class ContextExportImportService {
                     .build();
         }
         return resultSystemCompareDTO;
-    }
-
-    private void setCompareSystemResult(IntegrationSystem system, ImportSystemResult resultSystemCompareDTO) {
-        IntegrationSystem oldSystem = systemService.getByIdOrNull(system.getId());
-
-        if (oldSystem == null) {
-            resultSystemCompareDTO.setName(system.getName());
-            resultSystemCompareDTO.setRequiredAction(SystemCompareAction.CREATE);
-        } else {
-            resultSystemCompareDTO.setName(oldSystem.getName());
-            resultSystemCompareDTO.setRequiredAction(SystemCompareAction.UPDATE);
-        }
     }
 
     @Transactional(propagation = NOT_SUPPORTED)
