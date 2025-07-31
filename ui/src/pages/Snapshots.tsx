@@ -257,9 +257,9 @@ export const Snapshots: React.FC = () => {
       onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.modifiedWhen),
     },
     {
-      title: "Actions",
+      title: "",
       key: "actions",
-      width: 70,
+      width: 40,
       className: "actions-column",
       render: (_, snapshot) => (
         <>

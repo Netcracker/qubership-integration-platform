@@ -413,7 +413,7 @@ export function getActionsColumn<T extends ServiceEntity = ServiceEntity>(getAct
   return {
     key: "actions",
     title: "",
-    width: 48,
+    width: 40,
     align: "center",
     render: (_value: unknown, record: T) => {
       const actions = getActionsForRecord(record);

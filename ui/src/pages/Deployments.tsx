@@ -60,9 +60,9 @@ export const Deployments: React.FC = () => {
       render: (_, deployment) => <>{formatTimestamp(deployment.createdWhen)}</>,
     },
     {
-      title: "Actions",
+      title: "",
       key: "actions",
-      width: 80,
+      width: 40,
       className: "actions-column",
       render: (_, deployment) => (
         <Tooltip title="Delete deployment" placement="topRight">
