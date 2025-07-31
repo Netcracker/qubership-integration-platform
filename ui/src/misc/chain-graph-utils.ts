@@ -1,4 +1,4 @@
-import { Element, ElementDescriptor } from "../api/apiTypes.ts";
+import { Element, LibraryElement } from "../api/apiTypes.ts";
 import { Node, Position, XYPosition } from "@xyflow/react";
 import { ElkDirection } from "../hooks/graph/useElkDirection.tsx";
 import {
@@ -8,42 +8,42 @@ import {
 
 export function getDataFromElement(
   element: Element,
-  descriptor?: ElementDescriptor,
+  libraryElement?: LibraryElement,
 ): ChainGraphNodeData {
   return {
     elementType: element.type,
     label: element.name,
     description: element.description,
     properties: element.properties,
-    inputEnabled: descriptor?.inputEnabled ?? true,
-    outputEnabled: descriptor?.outputEnabled ?? true,
+    inputEnabled: libraryElement?.inputEnabled ?? true,
+    outputEnabled: libraryElement?.outputEnabled ?? true,
   };
 }
 
-export function getElementDescriptor(
+export function getLibraryElement(
   element: Element,
-  elementDescriptors: ElementDescriptor[] | null,
-): ElementDescriptor {
-  const elementDescriptor = elementDescriptors?.find(
+  libraryElements: LibraryElement[] | null,
+): LibraryElement {
+  const libraryElement = libraryElements?.find(
     (descriptor) => descriptor.name === element.type,
   );
   return (
-    elementDescriptor ??
+    libraryElement ??
     ({
       name: "default",
       title: "Default",
       description: "Element by Default",
-    } as ElementDescriptor)
+    } as LibraryElement)
   );
 }
 
 export function getNodeFromElement(
   element: Element,
-  descriptor?: ElementDescriptor,
+  libraryElement?: LibraryElement,
   position?: XYPosition,
   direction?: ElkDirection,
 ): ChainGraphNode {
-  const nodeType = descriptor?.container ? "container" : "unit";
+  const nodeType = libraryElement?.container ? "container" : "unit";
   const nodePosition = position ?? { x: 0, y: 0 };
   const isHorizontal = direction === "RIGHT";
   const isContainer = nodeType === "container";
@@ -60,7 +60,7 @@ export function getNodeFromElement(
     id: element.id,
     type: nodeType,
     data: {
-      ...getDataFromElement(element, descriptor),
+      ...getDataFromElement(element, libraryElement),
       direction,
     },
     position: nodePosition,

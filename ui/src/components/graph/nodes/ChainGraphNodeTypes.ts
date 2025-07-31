@@ -1,4 +1,4 @@
-import { ElementDescriptor } from "../../../api/apiTypes.ts";
+import { LibraryElement } from "../../../api/apiTypes.ts";
 import { ElkDirection } from "../../../hooks/graph/useElkDirection.tsx";
 import { Edge, Node } from "@xyflow/react";
 import { ContainerNode } from "./ContainerNode.tsx";
@@ -8,7 +8,7 @@ export type ChainGraphNodeData = {
   elementType: string;
   label: string;
   description: string;
-  properties: ElementDescriptor["properties"];
+  properties: LibraryElement["properties"];
   direction?: ElkDirection;
   inputEnabled?: boolean;
   outputEnabled?: boolean;

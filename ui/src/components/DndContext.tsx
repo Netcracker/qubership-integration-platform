@@ -4,14 +4,14 @@ import React, {
   useContext,
   useState,
 } from "react";
-import { Element } from "../api/apiTypes.ts";
+import { LibraryElement } from "../api/apiTypes.ts";
 
 const DnDContext = createContext<
-  [Element | null, React.Dispatch<React.SetStateAction<Element | null>>]
+  [LibraryElement | null, React.Dispatch<React.SetStateAction<LibraryElement | null>>]
 >([null, () => {}]);
 
 export const DnDProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  const [type, setType] = useState<Element | null>(null);
+  const [type, setType] = useState<LibraryElement | null>(null);
 
   return (
     <DnDContext.Provider value={[type, setType]}>

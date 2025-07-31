@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Menu, Spin } from "antd";
-import { ElementDescriptor, LibraryData } from "../../api/apiTypes.ts";
+import { LibraryElement, LibraryData } from "../../api/apiTypes.ts";
 import DraggableElement from "./DraggableElement.tsx";
 import Sider from "antd/lib/layout/Sider";
 
@@ -28,7 +28,7 @@ export const ElementsLibrarySidebar = () => {
       const folderMap = new Map<string, MenuItem>();
 
       libraryData.groups.forEach((group) => {
-        group.elements.forEach((element: ElementDescriptor) => {
+        group.elements.forEach((element: LibraryElement) => {
           if (element.deprecated || element.unsupported) return;
           if (!folderMap.has(element.folder)) {
             folderMap.set(element.folder, {

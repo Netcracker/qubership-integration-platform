@@ -25,7 +25,7 @@ import { useLibraryContext } from "../../components/LibraryContext.tsx";
 import {
   collectChildren,
   getDataFromElement,
-  getElementDescriptor,
+  getLibraryElement,
   getNodeFromElement,
 } from "../../misc/chain-graph-utils.ts";
 import {
@@ -37,7 +37,7 @@ import {
 export const useChainGraph = (chainId?: string) => {
   const { screenToFlowPosition } = useReactFlow();
 
-  const { elementDescriptors, isLibraryLoading } = useLibraryContext();
+  const { libraryElements, isLibraryLoading } = useLibraryContext();
   const [nodes, setNodes] = useNodesState<Node<ChainGraphNodeData>>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,7 +77,7 @@ export const useChainGraph = (chainId?: string) => {
           .map((element: Element) => {
             return getNodeFromElement(
               element,
-              getElementDescriptor(element, elementDescriptors),
+              getLibraryElement(element, libraryElements),
               {
                 x: 0,
                 y: 0,
@@ -114,7 +114,7 @@ export const useChainGraph = (chainId?: string) => {
     arrangeNodes,
     chainId,
     isLibraryLoading,
-    elementDescriptors,
+    libraryElements,
     notificationService,
     structureChanged,
     setEdges,
@@ -191,7 +191,7 @@ export const useChainGraph = (chainId?: string) => {
         if (createdElement) {
           const newNode: ChainGraphNode = getNodeFromElement(
             createdElement,
-            getElementDescriptor(createdElement, elementDescriptors),
+            getLibraryElement(createdElement, libraryElements),
             dropPosition,
             direction,
           );
@@ -202,7 +202,7 @@ export const useChainGraph = (chainId?: string) => {
             ? createdElement?.children?.map((child: Element, index: number) => {
                 return getNodeFromElement(
                   child,
-                  getElementDescriptor(child, elementDescriptors),
+                  getLibraryElement(child, libraryElements),
                   {
                     x: dropPosition.x + 30 * (index + 1),
                     y: dropPosition.y + 30 * (index + 1),
@@ -223,7 +223,7 @@ export const useChainGraph = (chainId?: string) => {
     },
     [
       nodes,
-      elementDescriptors,
+      libraryElements,
       chainId,
       direction,
       notificationService,

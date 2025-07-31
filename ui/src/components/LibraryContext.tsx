@@ -1,4 +1,4 @@
-import { ElementDescriptor, LibraryData } from "../api/apiTypes.ts";
+import { LibraryElement, LibraryData } from "../api/apiTypes.ts";
 import React, {
   createContext,
   ReactNode,
@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 
 export type LibraryContextData = {
   libraryData: LibraryData | undefined;
-  elementDescriptors: ElementDescriptor[] | null;
+  libraryElements: LibraryElement[] | null;
   isLibraryLoading: boolean;
 };
 
@@ -40,12 +40,12 @@ export const LibraryProvider: React.FC<{ children: ReactNode }> = ({
     notificationService.requestFailed("Failed to load library elements", error);
   }
 
-  const elementDescriptors: ElementDescriptor[] = useMemo(() => {
+  const libraryElements: LibraryElement[] = useMemo(() => {
     if (!libraryData) return [];
 
-    const elements: ElementDescriptor[] = [];
+    const elements: LibraryElement[] = [];
     libraryData?.groups.forEach((group) => {
-      group.elements.forEach((element: ElementDescriptor) => {
+      group.elements.forEach((element: LibraryElement) => {
         //TODO check if it necessary
         if (element.deprecated || element.unsupported) return;
 
@@ -53,7 +53,7 @@ export const LibraryProvider: React.FC<{ children: ReactNode }> = ({
       });
     });
     Object.values(libraryData.childElements).forEach(
-      (element: ElementDescriptor) => {
+      (element: LibraryElement) => {
         //TODO check if it necessary
         if (element.deprecated || element.unsupported) return;
 
@@ -65,7 +65,7 @@ export const LibraryProvider: React.FC<{ children: ReactNode }> = ({
 
   return (
     <LibraryContext.Provider
-      value={{ libraryData, elementDescriptors, isLibraryLoading }}
+      value={{ libraryData, libraryElements, isLibraryLoading }}
     >
       {children}
     </LibraryContext.Provider>

@@ -16,8 +16,8 @@ export type Chain = BaseEntity & {
   labels: EntityLabel[];
   defaultSwimlaneId: string;
   reuseSwimlaneId: string;
-  parentId: string;
-  currentSnapshot: BaseEntity;
+  parentId?: string;
+  currentSnapshot?: BaseEntity;
   unsavedChanges: boolean;
   businessDescription: string;
   assumptions: string;
@@ -25,10 +25,10 @@ export type Chain = BaseEntity & {
   containsDeprecatedContainers: boolean;
   containsDeprecatedElements: boolean;
   containsUnsupportedElements: boolean;
-  overriddenByChainId: string;
-  overriddenByChainName: string;
-  overridesChainId: string;
-  overridesChainName: string;
+  overriddenByChainId?: string;
+  overriddenByChainName?: string;
+  overridesChainId?: string;
+  overridesChainName?: string;
 };
 
 export type Dependency = {
@@ -73,19 +73,30 @@ export type ChainCreationRequest = {
 
 export type LibraryData = {
   groups: Group[];
-  elements: ElementDescriptor[];
-  childElements: Record<string, ElementDescriptor>;
+  elements: LibraryElement[];
+  childElements: Record<string, LibraryElement>;
 };
 
 export type Group = {
   name: string;
   title: string;
   groups: Group[];
-  elements: ElementDescriptor[];
-  childElements: Record<string, ElementDescriptor>;
+  elements: LibraryElement[];
+  childElements: Record<string, LibraryElement>;
 };
 
-export type ElementDescriptor = {
+export type Element = BaseEntity & {
+  chainId: string;
+  type: string;
+  parentElementId?: string;
+  originalId?: string;
+  properties: never;
+  children?: Element[];
+  swimlaneId?: string;
+  mandatoryChecksPassed: boolean;
+}
+
+export type LibraryElement = {
   name: string;
   title: string;
   description: string;
@@ -105,10 +116,10 @@ export type ElementDescriptor = {
   parentRestriction: string[];
   allowedChildren: Record<string, "one" | "many">;
   properties: {
-    [PropertyType.COMMON]: Property[];
-    [PropertyType.ADVANCED]: Property[];
-    [PropertyType.HIDDEN]: Property[];
-    [PropertyType.UNKNOWN]: Property[];
+    [PropertyType.COMMON]: LibraryElementProperty[];
+    [PropertyType.ADVANCED]: LibraryElementProperty[];
+    [PropertyType.HIDDEN]: LibraryElementProperty[];
+    [PropertyType.UNKNOWN]: LibraryElementProperty[];
   };
   customTabs: unknown[];
   deprecated: boolean;
@@ -135,22 +146,6 @@ export type ElementWithChainName  = BaseEntity &  {
   mandatoryChecksPassed: boolean;
 }
 
-export type Element = BaseEntity & {
-  chainId: string;
-  type: string;
-  parentElementId: string;
-  originalId: string;
-  properties: {
-    [PropertyType.COMMON]: Property[];
-    [PropertyType.ADVANCED]: Property[];
-    [PropertyType.HIDDEN]: Property[];
-    [PropertyType.UNKNOWN]: Property[];
-  };
-  children?: Element[];
-  swimlaneId: string;
-  mandatoryChecksPassed: boolean;
-};
-
 export interface ElementFilter {
   elementTitle: string;
   elementType: string;
@@ -163,7 +158,7 @@ export enum PropertyType {
   UNKNOWN = "unknown",
 }
 
-export type Property = {
+export type LibraryElementProperty = {
   name: string;
   title: string;
   description?: string;

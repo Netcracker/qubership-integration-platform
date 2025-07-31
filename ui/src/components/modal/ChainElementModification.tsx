@@ -13,7 +13,7 @@ import styles from "./ChainElementModification.module.css";
 import {
   Element,
   PatchElementRequest,
-  Property,
+  LibraryElementProperty,
   PropertyType,
 } from "../../api/apiTypes.ts";
 import TextArea from "antd/lib/input/TextArea";
@@ -184,7 +184,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       const result = Object.keys(properties)
         .filter((key) => {
           return libraryElement!.properties[type].find(
-            (val: Property) => val.name === key,
+            (val: LibraryElementProperty) => val.name === key,
           );
         })
         .reduce((obj: Record<string, unknown>, key) => {

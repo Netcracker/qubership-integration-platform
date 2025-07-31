@@ -6,8 +6,7 @@ import {
   Connection,
   CreateElementRequest,
   LibraryData,
-  Element,
-  ElementDescriptor,
+  LibraryElement,
   Snapshot,
   ConnectionRequest,
   ActionDifference,
@@ -384,8 +383,8 @@ export class RestApi implements Api {
 
   getLibraryElementByType = async (
     type: string,
-  ): Promise<ElementDescriptor> => {
-    const response = await this.instance.get<ElementDescriptor>(
+  ): Promise<LibraryElement> => {
+    const response = await this.instance.get<LibraryElement>(
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/library/${type}`,
     );
     return response.data;

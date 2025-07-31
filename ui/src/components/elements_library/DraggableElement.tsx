@@ -1,11 +1,11 @@
-import { ChildElement, ElementDescriptor } from "../../api/apiTypes.ts";
+import { ChildElement, LibraryElement } from "../../api/apiTypes.ts";
 import React from "react";
 
 interface DraggableElementProps {
-  element:  ElementDescriptor | ChildElement;
+  element:  LibraryElement | ChildElement;
 }
 
-export function isElement(obj: unknown): obj is ElementDescriptor {
+export function isElement(obj: unknown): obj is LibraryElement {
     return (
         typeof obj === "object" &&
         obj !== null &&
