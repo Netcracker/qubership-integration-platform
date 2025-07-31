@@ -6,6 +6,7 @@ import {
   Drawer,
   Dropdown,
   Flex,
+  FloatButton,
   MenuProps,
   Table,
   Typography,
@@ -18,17 +19,18 @@ import {
   ApartmentOutlined,
   ApiOutlined,
   AuditOutlined,
+  CloudDownloadOutlined,
   CloudOutlined,
   ClusterOutlined,
   ContainerOutlined,
   DeploymentUnitOutlined,
-  ExportOutlined,
   EyeInvisibleOutlined,
   FileDoneOutlined,
   FileTextOutlined,
   FileUnknownOutlined,
   FolderOpenOutlined,
   GlobalOutlined,
+  MoreOutlined,
   QuestionOutlined,
   RadarChartOutlined,
   RedoOutlined,
@@ -52,6 +54,7 @@ import {
 import { makeEnumColumnFilterDropdown } from "../EnumColumnFilterDropdown.tsx";
 import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 import { ResizableTitle } from "../ResizableTitle.tsx";
+import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 
 export enum OperationType {
   READ = "read",
@@ -527,17 +530,6 @@ export const ActionsLog: React.FC = () => {
           Audit
         </Title>
         <Flex vertical={false} gap={8}>
-          <Button
-            icon={<RedoOutlined />}
-            disabled={isLoading || isFetching}
-            onClick={() => void refresh()}
-          />
-          <DateRangePicker
-            trigger={<Button icon={<ExportOutlined />} />}
-            onRangeApply={(from, to) => {
-              void exportActionLogs(from, to);
-            }}
-          />
           <Dropdown
             menu={{
               items: columnVisibilityMenuItems,
@@ -644,6 +636,31 @@ export const ActionsLog: React.FC = () => {
                 };
               }}
             />
+            <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+              <FloatButton
+                tooltip={{ title: "Refresh", placement: "left" }}
+                icon={<RedoOutlined />}
+                onClick={() => void refresh()}
+              />
+              {isLoading || isFetching ? (
+                <></>
+              ) : (
+                <DateRangePicker
+                  trigger={
+                    <FloatButton
+                      tooltip={{
+                        title: "Export action logs",
+                        placement: "left",
+                      }}
+                      icon={<CloudDownloadOutlined />}
+                    />
+                  }
+                  onRangeApply={(from, to) => {
+                    void exportActionLogs(from, to);
+                  }}
+                />
+              )}
+            </FloatButtonGroup>
             <div ref={observerRef} style={{ height: 1 }} />
           </div>
         </Flex>
