@@ -43,16 +43,19 @@ public class ElementModificationService {
     public void makeHttpTriggersTypeImplemented(List<String> httpTriggerIds, String specificationGroupId) {
         SpecificationGroup specificationGroup = this.specificationGroupService.getById(specificationGroupId);
         List<ChainElement> chainElements = httpTriggerIds.stream().map(this.elementService::findById).toList();
-        Operation operation = null;
 
         if (specificationGroup != null) {
-            SystemModel latestSystemModel = specificationGroup.getSystemModels().stream().sorted(Comparator.comparing(SystemModel::getCreatedWhen).reversed()).toList().get(0);
+            SystemModel latestSystemModel = specificationGroup.getSystemModels().stream()
+                    .max(Comparator.comparing(SystemModel::getCreatedWhen))
+                    .orElse(null);
 
             for (ChainElement element : chainElements) {
                 Map<String, Object> elementProperties = element.getProperties();
+                Operation operation = null;
 
                 if (latestSystemModel != null) {
-                    operation = latestSystemModel.getOperations().stream().findFirst().orElse(null);
+                    operation = latestSystemModel.getOperations().stream()
+                            .filter(o -> o.getName().contains(element.getId())).findFirst().orElse(null);
                     elementProperties.put("integrationSpecificationId", latestSystemModel.getId());
                 }
 

@@ -43,7 +43,7 @@ public class ElementModificationController {
 
     @PutMapping
     @Operation(description = "Change specified http triggers type to implemented with specified specification group")
-    public ResponseEntity<Void> modifyHttpTriggerProperties(@PathVariable(required = false) @Parameter(description = "Chain id") String chainId,
+    public ResponseEntity<Void> modifyHttpTriggerProperties(@Deprecated @PathVariable(required = false) @Parameter(description = "Chain id (deprecated, not used)", deprecated = true) String chainId,
                                                             @RequestParam @Parameter(description = "Specification group id") String specificationGroupId,
                                                             @RequestParam @Parameter(description = "List of http trigger elements separated by comma") List<String> httpTriggerIds) {
         this.elementModificationService.makeHttpTriggersTypeImplemented(httpTriggerIds, specificationGroupId);
