@@ -854,7 +854,7 @@ export class RestApi implements Api {
 
   deleteService = async (serviceId: string): Promise<void> => {
     await this.instance.delete(
-      `/api/v1/cip/systems-catalog/systems/${serviceId}`,
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${serviceId}`,
     );
   };
 
