@@ -20,7 +20,6 @@ folder: services
 inputEnabled: true
 outputEnabled: true
 container: false
-colorType: sender
 customTabs:
   - name: Operation
     uiComponent: context-storage
