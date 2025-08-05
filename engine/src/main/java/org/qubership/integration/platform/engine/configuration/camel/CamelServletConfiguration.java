@@ -18,9 +18,9 @@ package org.qubership.integration.platform.engine.configuration.camel;
 
 import jakarta.servlet.Servlet;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.component.servlet.CamelHttpTransportServlet;
 import org.apache.camel.spi.ComponentCustomizer;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
+import org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomComponent;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
 import org.springframework.boot.web.embedded.tomcat.TomcatConnectorCustomizer;
@@ -52,7 +52,7 @@ public class CamelServletConfiguration {
         var mapping = new ServletRegistrationBean<>();
         mapping.setName(CAMEL_SERVLET_NAME);
         mapping.addUrlMappings(CAMEL_SERVLET_MAPPING);
-        mapping.setServlet(new CamelHttpTransportServlet());
+        mapping.setServlet(new CustomCamelHttpTransportServlet());
 
         return mapping;
     }
