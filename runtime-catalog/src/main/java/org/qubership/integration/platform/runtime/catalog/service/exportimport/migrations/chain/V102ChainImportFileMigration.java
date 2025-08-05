@@ -83,7 +83,11 @@ public class V102ChainImportFileMigration implements ChainImportFileMigration {
         if (!(properties instanceof ObjectNode)) {
             return;
         }
-        Optional.ofNullable(PROPERTY_MIGRATOR_MAP.get(type))
+        Optional.ofNullable(getMigratorMap().get(type))
                 .ifPresent(migrator -> migrator.accept((ObjectNode) properties));
+    }
+
+    protected Map<String, Consumer<ObjectNode>> getMigratorMap() {
+        return PROPERTY_MIGRATOR_MAP;
     }
 }
