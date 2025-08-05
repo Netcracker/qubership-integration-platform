@@ -38,11 +38,11 @@ import static jakarta.persistence.CascadeType.*;
 public class Folder extends FoldableEntity {
 
     @Builder.Default
-    @OneToMany(mappedBy = "parentFolder", fetch = FetchType.LAZY, cascade = { PERSIST, MERGE, REFRESH, DETACH })
+    @OneToMany(mappedBy = "parentFolder", fetch = FetchType.LAZY, cascade = ALL)
     private List<Folder> folderList = new LinkedList<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "parentFolder", fetch = FetchType.LAZY, cascade = { PERSIST, MERGE, REFRESH, DETACH })
+    @OneToMany(mappedBy = "parentFolder", fetch = FetchType.LAZY, cascade = ALL)
     private List<Chain> chainList = new LinkedList<>();
 
     public void addChildFolder(Folder folder) {
