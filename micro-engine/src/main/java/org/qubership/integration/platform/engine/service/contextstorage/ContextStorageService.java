@@ -62,13 +62,6 @@ public class ContextStorageService {
         log.debug("Value stored successfully for contextKey: {}, contextServiceId: {}, contextId: {}", contextKey, contextServiceId, contextId);
     }
 
-    private ContextData createNewContext(String key, String value) {
-        Map<String, String> updatedContext = new HashMap<>();
-        updatedContext.put(key, value);
-        log.info("Creating new context with key: {} and value: {}", key, value);
-        return ContextData.builder().context(updatedContext).build();
-    }
-
     public Map<String, String> getValue(String contextServiceId, String contextId, List<String> keys) {
         Object jsonValue = contextStorageRepository.findByContextServiceIdAndContextId(contextServiceId, contextId)
                 .filter(record -> record.getExpiresAt().after(Timestamp.from(Instant.now())))
@@ -133,6 +126,13 @@ public class ContextStorageService {
             throw new ContextStorageException("Error occurred while processing contextKey: " + contextKey + " contextServiceId: " + contextServiceId + " contextId: " + contextId, e);
 
         }
+    }
+
+    private ContextData createNewContext(String key, String value) {
+        Map<String, String> updatedContext = new HashMap<>();
+        updatedContext.put(key, value);
+        log.info("Creating new context with key: {} and value: {}", key, value);
+        return ContextData.builder().context(updatedContext).build();
     }
 
 }
