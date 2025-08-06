@@ -24,31 +24,37 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
 @Component
 public class DefaultVariablesService {
     public static final String NAMESPACE_VARIABLE_NAME = "namespace";
-    public static final String TENANT_VARIABLE_NAME = "tenant_id";
-    public static final String[] DEFAULT_VARIABLES_LIST = {NAMESPACE_VARIABLE_NAME, TENANT_VARIABLE_NAME};
+    public static final List<String> DEFAULT_VARIABLES_LIST = new ArrayList<>();
 
     private final SecretService secretService;
     private final CommonVariablesService commonVariablesService;
     private final SecuredVariableService securedVariableService;
     private final ApplicationAutoConfiguration applicationConfiguration;
+    private final DefaultVariablesProvider defaultVariablesProvider;
 
     public DefaultVariablesService(
             SecretService secretService,
             CommonVariablesService commonVariablesService,
             SecuredVariableService securedVariableService,
-            ApplicationAutoConfiguration applicationConfiguration
+            ApplicationAutoConfiguration applicationConfiguration,
+            DefaultVariablesProvider defaultVariablesProvider
     ) {
         this.secretService = secretService;
         this.commonVariablesService = commonVariablesService;
         this.securedVariableService = securedVariableService;
         this.applicationConfiguration = applicationConfiguration;
+        this.defaultVariablesProvider = defaultVariablesProvider;
+        DEFAULT_VARIABLES_LIST.add(NAMESPACE_VARIABLE_NAME);
+        DEFAULT_VARIABLES_LIST.addAll(defaultVariablesProvider.getDefaultVariableNames());
     }
 
     @Retryable(
@@ -77,8 +83,8 @@ public class DefaultVariablesService {
         Map<String, String> defaultCommonVariables = new HashMap<>();
 
         defaultCommonVariables.put(NAMESPACE_VARIABLE_NAME, applicationConfiguration.getNamespace());
+        defaultCommonVariables.putAll(defaultVariablesProvider.provide());
 
         return defaultCommonVariables;
     }
-
 }
