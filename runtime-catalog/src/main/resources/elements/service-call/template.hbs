@@ -23,24 +23,24 @@
             <simple>{{property "integrationOperationMethod"}}</simple>
         </setProperty>
         <setProperty name="serviceCallPath">
-            <simple>{{property "integrationOperationPath"}}</simple>
+            <simple>{{escape (property "integrationOperationPath")}}</simple>
         </setProperty>
 
         {{#each (property 'integrationOperationQueryParameters' raw='')}}
-            <setProperty name="serviceCallQueryParameter_{{@key}}">
-                <simple>{{this}}</simple>
+            <setProperty name="serviceCallQueryParameter_{{escape @key}}">
+                <simple>{{escape this}}</simple>
             </setProperty>
         {{/each}}
 
         {{#each (property 'integrationOperationPathParameters' raw='')}}
-            <setProperty name="serviceCallPathParameter_{{@key}}">
-                <simple>{{this}}</simple>
+            <setProperty name="serviceCallPathParameter_{{escape @key}}">
+                <simple>{{escape this}}</simple>
             </setProperty>
         {{/each}}
 
         {{#each (environmentProperties)}}
-            <setProperty name="serviceCallParameter_{{@key}}">
-                <simple>{{this}}</simple>
+            <setProperty name="serviceCallParameter_{{escape @key}}">
+                <simple>{{escape this}}</simple>
             </setProperty>
         {{/each}}
     {{/if-property}}
@@ -50,15 +50,15 @@
             <simple>{{property "integrationOperationMethod"}}</simple>
         </setProperty>
         <setProperty name="serviceCallTopic">
-            <simple>{{property 'integrationOperationPath'}}</simple>
+            <simple>{{escape (property 'integrationOperationPath')}}</simple>
         </setProperty>
         <setProperty name="serviceCallBrokers">
             <simple>{{integrationEndpoint}}</simple>
         </setProperty>
 
         {{#each (asyncProperties)}}
-            <setProperty name="serviceCallParameter_{{@key}}">
-                <simple>{{this}}</simple>
+            <setProperty name="serviceCallParameter_{{escape @key}}">
+                <simple>{{escape this}}</simple>
             </setProperty>
         {{/each}}
     {{/if-property}}
@@ -68,15 +68,15 @@
             <simple>{{property "integrationOperationMethod"}}</simple>
         </setProperty>
         <setProperty name="serviceCallExchange">
-            <simple>{{property 'integrationOperationPath'}}</simple>
+            <simple>{{escape (property 'integrationOperationPath')}}</simple>
         </setProperty>
         <setProperty name="serviceCallAddress">
             <simple>{{integrationAddress}}</simple>
         </setProperty>
 
         {{#each (asyncProperties)}}
-            <setProperty name="serviceCallParameter_{{@key}}">
-                <simple>{{this}}</simple>
+            <setProperty name="serviceCallParameter_{{escape @key}}">
+                <simple>{{escape this}}</simple>
             </setProperty>
         {{/each}}
     {{/if-property}}
@@ -86,15 +86,15 @@
             <simple>{{property "integrationOperationMethod"}}</simple>
         </setProperty>
         <setProperty name="serviceCallService">
-            <simple>{{property 'integrationOperationPath'}}</simple>
+            <simple>{{escape (property 'integrationOperationPath')}}</simple>
         </setProperty>
         <setProperty name="serviceCallAddress">
             <simple>{{integrationEndpoint}}</simple>
         </setProperty>
 
         {{#each (grpcProperties)}}
-            <setProperty name="serviceCallParameter_{{@key}}">
-                <simple>{{this}}</simple>
+            <setProperty name="serviceCallParameter_{{escape @key}}">
+                <simple>{{escape this}}</simple>
             </setProperty>
         {{/each}}
     {{/if-property}}
@@ -107,21 +107,21 @@
             <simple>{{property "integrationOperationMethod"}}</simple>
         </setProperty>
         <setProperty name="serviceCallPath">
-            <simple>{{property "integrationOperationPath"}}</simple>
+            <simple>{{escape (property "integrationOperationPath")}}</simple>
         </setProperty>
         <setProperty name="serviceCallVariablesHeader">
             <simple>{{property 'integrationGqlVariablesHeader'}}</simple>
         </setProperty>
 
         {{#each (property 'integrationOperationQueryParameters' raw='')}}
-            <setProperty name="serviceCallQueryParameter_{{@key}}">
-                <simple>{{this}}</simple>
+            <setProperty name="serviceCallQueryParameter_{{escape @key}}">
+                <simple>{{escape this}}</simple>
             </setProperty>
         {{/each}}
 
         {{#each (environmentProperties)}}
-            <setProperty name="serviceCallParameter_{{@key}}">
-                <simple>{{this}}</simple>
+            <setProperty name="serviceCallParameter_{{escape @key}}">
+                <simple>{{escape this}}</simple>
             </setProperty>
         {{/each}}
     {{/if-property}}
