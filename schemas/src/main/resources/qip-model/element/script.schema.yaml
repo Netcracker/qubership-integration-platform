@@ -14,12 +14,18 @@ properties:
     $ref: "#/definitions/ScriptProperties"
 definitions:
   ScriptProperties:
-    allOf:
-      - $ref: "properties/properties-in-external-file.schema.yaml"
-      - type: object
-        properties:
-          script:
-            type: string
-            title: Script
+    type: object
+    properties:
+      exportFileExtension:
+        type: string
+        const: groovy
+      propertiesToExportInSeparateFile:
+        type: string
+        const: script
+      propertiesFilename:
+        $ref: "../resource-reference.schema.yaml#/definitions/ScriptResourceReference"
+      script:
+        type: string
+        title: Script
 required:
   - type

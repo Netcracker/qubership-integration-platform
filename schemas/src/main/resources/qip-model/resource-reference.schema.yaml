@@ -1,5 +1,13 @@
 ---
 $id: http://qubership.org/schemas/product/qip/resource-reference.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
-type: string
-title: Resource reference
+definitions:
+  ScriptResourceReference:
+    type: string
+    title: Script resource reference
+  MapperResourceReference:
+    type: string
+    title: Mapper resource reference
+  SpecificationResourceReference:
+    type: string
+    title: Specification resource reference

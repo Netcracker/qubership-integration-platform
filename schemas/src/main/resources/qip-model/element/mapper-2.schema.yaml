@@ -15,17 +15,22 @@ properties:
 definitions:
   MapperParameters:
     type: object
-    allOf:
-      - $ref: "properties/properties-in-external-file.schema.yaml"
-      - type: object
-        properties:
-          throwException:
-            type: boolean
-            title: Throw exception on transformation failure
-            description: Throw exception on transformation failure.
-            default: true
-          mappingDescription:
-            $ref: "#/definitions/MappingDescription"
+    properties:
+      exportFileExtension:
+        type: string
+        const: json
+      propertiesToExportInSeparateFile:
+        type: string
+        const: mappingDescription
+      propertiesFilename:
+        $ref: "../resource-reference.schema.yaml#/definitions/MapperResourceReference"
+      throwException:
+        type: boolean
+        title: Throw exception on transformation failure
+        description: Throw exception on transformation failure.
+        default: true
+      mappingDescription:
+        $ref: "#/definitions/MappingDescription"
   Metadata:
     type: object
     title: Metadata
