@@ -14,20 +14,16 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports;
+package org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.context;
 
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
+import java.util.List;
 
-@NoArgsConstructor
-@Getter
-@Setter
-public class SystemDeserializationResult {
-    private IntegrationSystem system;
-    private ContextSystem contextSystem;
+public interface ContextSystemRepository extends JpaRepository<ContextSystem, String>, JpaSpecificationExecutor<ContextSystem> {
+
+    List<ContextSystem> findByNameContaining(String name);
 }
-
