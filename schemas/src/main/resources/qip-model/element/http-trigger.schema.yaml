@@ -18,8 +18,8 @@ properties:
       - $ref: "properties/idempotency.schema.yaml"
       - $ref: "#/definitions/AccessControlProperties"
       - oneOf:
-          - $ref: "#/definitions/CustomEndpoint"
-          - $ref: "#/definitions/ImplementedServiceEndpoint"
+        - $ref: "#/definitions/CustomEndpoint"
+        - $ref: "#/definitions/ImplementedServiceEndpoint"
       - $ref: "#/definitions/ValidationFailureHandler"
       - $ref: "#/definitions/ChainFailureHandler"
     properties:
@@ -97,6 +97,9 @@ definitions:
     type: object
     properties:
       accessControlType:
+        title: Access Control Type
+        default: RBAC
+        type: string
         enum:
           - RBAC
           - ABAC
@@ -109,9 +112,12 @@ definitions:
     then: # rbac
       properties:
         roles:
+          title: Roles
           type: array
           items:
             type: string
+      required:
+        - roles
     else: # abac
       properties:
         abacResource:
@@ -121,6 +127,7 @@ definitions:
       required:
         - abacResource
   CustomEndpoint:
+    title: Custom Endpoint
     type: object
     properties:
       contextPath:
@@ -133,6 +140,7 @@ definitions:
     required:
       - contextPath
   ImplementedServiceEndpoint:
+    title: Implemented Service Endpoint
     type: object
     properties:
       integrationOperationId:
@@ -151,43 +159,17 @@ definitions:
         title: Service type
         $ref: "../service.schema.yaml#/definitions/ServiceType"
       integrationOperationMethod:
+        type: string
         title: Operation method
       integrationOperationPath:
         type: string
         title: Operation name
-      httpMethodRestrict:
-        $ref: "properties/operation.schema.yaml#/definitions/HttpMethod"
     required:
       - integrationOperationPath
   ValidationFailureHandler:
     type: object
-    oneOf:
-      - type: object
-        properties:
-          handleValidationAction:
-            const: script
-          handlerContainer:
-            $ref: "script.schema.yaml#/definitions/ScriptProperties"
-        required:
-          - handleValidationAction
-          - handlerContainer
-      - type: object
-        properties:
-          handleValidationAction:
-            const: mapper-2
-          handlerContainer:
-            $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
-        required:
-          - handleValidationAction
-          - handlerContainer
-      - type: object
-        properties:
-          handleValidationAction:
-            const: default
-          handlerContainer:
-            type: object
-        required:
-          - handleValidationAction
+    required:
+      - handleValidationAction
     properties:
       handleValidationAction:
         type: string
@@ -197,50 +179,41 @@ definitions:
           - mapper-2
         default: default
         title: Action on validation failure
+      handlerContainer:
+        type: object
+    allOf:
+      - if:
+          properties:
+            handleValidationAction:
+              const: script
+        then:
+          required:
+            - handlerContainer
+          properties:
+            handlerContainer:
+              $ref: "script.schema.yaml#/definitions/ScriptProperties"
+      - if:
+          properties:
+            handleValidationAction:
+              const: mapper-2
+        then:
+          required:
+            - handlerContainer
+          properties:
+            handlerContainer:
+              $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
+      - if:
+          properties:
+            handleValidationAction:
+              const: default
+        then:
+          properties:
+            handlerContainer:
+              type: object
   ChainFailureHandler:
     type: object
-    oneOf:
-      - type: object
-        properties:
-          handleChainFailureAction:
-            const: script
-          chainFailureHandlerContainer:
-            $ref: "script.schema.yaml#/definitions/ScriptProperties"
-        required:
-          - handleValidationAction
-          - chainFailureHandlerContainer
-      - type: object
-        properties:
-          handleChainFailureAction:
-            const: mapper-2
-          chainFailureHandlerContainer:
-            $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
-        required:
-          - handleValidationAction
-          - chainFailureHandlerContainer
-      - type: object
-        properties:
-          handleChainFailureAction:
-            const: chain-call
-          chainFailureHandlerContainer:
-            type: object
-            properties:
-              elementId:
-                type: string
-            required:
-              - elementId
-            additionalProperties: false
-        required:
-          - handleValidationAction
-          - chainFailureHandlerContainer
-      - type: object
-        properties:
-          handleChainFailureAction:
-            const: default
-          chainFailureHandlerContainer:
-            type: object
-        required:
-          - handleValidationAction
+    required:
+      - handleChainFailureAction
     properties:
       handleChainFailureAction:
         type: string
@@ -251,5 +224,54 @@ definitions:
           - chain-call
         default: default
         title: Action on response failure
+      chainFailureHandlerContainer:
+        type: object
+    allOf:
+      - if:
+          properties:
+            handleChainFailureAction:
+              const: script
+        then:
+          required:
+            - chainFailureHandlerContainer
+          properties:
+            chainFailureHandlerContainer:
+              $ref: "script.schema.yaml#/definitions/ScriptProperties"
+      - if:
+          properties:
+            handleChainFailureAction:
+              const: mapper-2
+        then:
+          required:
+            - chainFailureHandlerContainer
+          properties:
+            chainFailureHandlerContainer:
+              $ref: "mapper-2.schema.yaml#/definitions/MapperParameters"
+      - if:
+          properties:
+            handleChainFailureAction:
+              const: chain-call
+        then:
+          required:
+            - chainFailureHandlerContainer
+          properties:
+            chainFailureHandlerContainer:
+              type: object
+              properties:
+                elementId:
+                  type: string
+              required:
+                - elementId
+              additionalProperties: false
+      - if:
+          properties:
+            handleChainFailureAction:
+              const: default
+        then:
+          required:
+            - chainFailureHandlerContainer
+          properties:
+            chainFailureHandlerContainer:
+              type: object
 required:
   - type
