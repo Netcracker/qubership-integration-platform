@@ -71,7 +71,6 @@ public class CommonVariablesService {
     protected static final String ZIP_EXTENSION = "zip";
     private static final String YAML_EXTENSION = "yaml";
     private static final String YML_EXTENSION = "yml";
-    private static final String[] NON_EXPORTABLE_VARIABLES = DEFAULT_VARIABLES_LIST;
     private static final String EMPTY_COMMON_VARIABLE_NAME_ERROR_MESSAGE = "Common variable's name is empty";
 
     private final ActionsLogService actionLogger;
@@ -163,7 +162,8 @@ public class CommonVariablesService {
                 : consulService.getCommonVariables(variablesNames);
 
         variablesForExport = variablesForExport.entrySet().stream()
-                .filter(name -> Arrays.stream(NON_EXPORTABLE_VARIABLES)
+                .filter(name -> DEFAULT_VARIABLES_LIST
+                        .stream()
                         .noneMatch(excludedName -> excludedName.equals(name.getKey())))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
