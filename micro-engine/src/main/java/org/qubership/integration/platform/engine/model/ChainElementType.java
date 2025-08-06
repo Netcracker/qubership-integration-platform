@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 
 public enum ChainElementType {
     SERVICE_CALL("service-call"),
+    CONTEXT_STORAGE("context-storage"),
     HTTP_TRIGGER("http-trigger"),
     KAFKA_TRIGGER("kafka"),
     RABBITMQ_TRIGGER("rabbitmq"),

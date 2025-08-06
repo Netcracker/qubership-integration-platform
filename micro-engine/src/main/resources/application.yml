@@ -199,6 +199,9 @@ qip:
     thread-pool:
       core-size: 3
       max-size: 3
+  context-service:
+    cleanup:
+      cron: ${CONTEXT_RECORDS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
   opensearch:
     client:
       urls: ${OPENSEARCH_PROTOCOL:http}://${OPENSEARCH_HOST:opensearch}:${OPENSEARCH_PORT:9200}
@@ -250,6 +253,7 @@ qip:
       cleanup:
         interval: ${SESSIONS_CHECKPOINTS_CLEANUP_INTERVAL:1 month} # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
         cron: ${SESSIONS_CHECKPOINTS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
+
   local-truststore:
     store:
       path: /tmp/truststore/defaulttruststore.jks
