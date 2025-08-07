@@ -164,7 +164,7 @@ public class SystemController {
      * @param type The system type to filter by (e.g., EXTERNAL, INTERNAL)
      * @return A {@link ResponseEntity} containing a list of {@link SystemUsageResponse} objects in JSON format
      */
-    @GetMapping(value = "/usages", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(value = "/usage", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(description = "Get data of all the service endpoints used.")
     public ResponseEntity<List<SystemUsageResponse>> getSystemUsages(@RequestParam(value = "type") SystemType type) {
         log.info("Request to fetch systems for system type: {}", type);
