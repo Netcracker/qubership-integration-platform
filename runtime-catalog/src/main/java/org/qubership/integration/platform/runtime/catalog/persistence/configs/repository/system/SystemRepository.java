@@ -69,4 +69,8 @@ public interface SystemRepository extends JpaRepository<IntegrationSystem, Strin
                     WHERE UPPER(sys.description) LIKE UPPER('%'||:searchCondition||'%')"""
     )
     List<IntegrationSystem> searchForSystems(String searchCondition);
+
+    @Query(nativeQuery = true,
+            value = "SELECT sys.name FROM catalog.integration_system sys WHERE sys.id = :id")
+    String findNameById(String id);
 }

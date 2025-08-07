@@ -26,6 +26,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.E
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.runtime.catalog.model.ElementsWithSystemUsage;
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.UsedSystem;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemUsageResponse;
 import org.qubership.integration.platform.runtime.catalog.model.library.*;
 import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -54,8 +55,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SPECIFICATION_ID;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
 
 @Slf4j
 @Service
@@ -75,6 +75,8 @@ public class ElementService extends ElementBaseService {
     protected final OrderedElementService orderedElementService;
     protected final ElementUtils elementUtils;
     protected final SystemEnvironmentsGenerator systemEnvironmentsGenerator;
+    protected final SystemBaseService systemBaseService;
+    protected final SystemModelBaseService systemModelBaseService;
 
     @Autowired
     public ElementService(
@@ -86,7 +88,9 @@ public class ElementService extends ElementBaseService {
             ActionsLogService actionLogger,
             OrderedElementService orderedElementService,
             ElementUtils elementUtils,
-            SystemEnvironmentsGenerator systemEnvironmentsGenerator
+            SystemEnvironmentsGenerator systemEnvironmentsGenerator,
+            SystemBaseService systemBaseService,
+            SystemModelBaseService systemModelBaseService
     ) {
         super(elementRepository);
         this.auditingHandler = jpaAuditingHandler;
@@ -97,6 +101,8 @@ public class ElementService extends ElementBaseService {
         this.orderedElementService = orderedElementService;
         this.elementUtils = elementUtils;
         this.systemEnvironmentsGenerator = systemEnvironmentsGenerator;
+        this.systemBaseService = systemBaseService;
+        this.systemModelBaseService = systemModelBaseService;
     }
 
     public List<ChainElement> findAllBySnapshotIdAndType(String snapshotId, String type) {
@@ -707,13 +713,7 @@ public class ElementService extends ElementBaseService {
 
     public List<UsedSystem> getUsedSystemIdsByChainIds(List<String> chainIds) {
         List<UsedSystem> usedSystems = new ArrayList<>();
-        List<String> elementTypes = new ArrayList<>();
-
-        for (var element : ElementsWithSystemUsage.values()) {
-            elementTypes.add(element.getElementName());
-        }
-
-        List<ChainElement> elements = elementRepository.findAllByTypeInAndChainNotNull(elementTypes);
+        List<ChainElement> elements = getChainElements();
 
         for (String chainId : chainIds) {
             for (ChainElement chainElement : elements) {
@@ -745,15 +745,26 @@ public class ElementService extends ElementBaseService {
     }
 
     public List<UsedSystem> getAllUsedSystemIds() {
-        List<String> elementTypes = new ArrayList<>();
-
-        for (var element : ElementsWithSystemUsage.values()) {
-            elementTypes.add(element.getElementName());
-        }
-
-        List<ChainElement> elements = elementRepository.findAllByTypeInAndChainNotNull(elementTypes);
+        List<ChainElement> elements = getChainElements();
 
         return getUsedSystemsFromElements(elements);
+    }
+
+    /**
+     * Retrieves a list of services and operations used across chains,
+     * filtered by the specified system type.
+     *
+     * <p>This method collects all relevant chain elements and calls private method fetchSystemUsageData
+     * to extract metadata such as service name, operation path, HTTP method, version, and associated chain details.</p>
+     *
+     * @param type The system type to filter by (e.g., "EXTERNAL", "INTERNAL")
+     * @return A list of {@link SystemUsageResponse} objects representing the used services and their details
+     */
+    public List<SystemUsageResponse> getUsedSystemsByType(String type) {
+        List<ChainElement> elements = getChainElements();
+        List<SystemUsageResponse> result = fetchSystemUsageData(elements, type);
+        log.info("Fetched {} system usage records for type {}", result.size(), type);
+        return result;
     }
 
     public boolean isElementDeprecated(ChainElement chainElement) {
@@ -804,7 +815,6 @@ public class ElementService extends ElementBaseService {
             if (chainElement.getChain() != null) {
                 String systemId = (String) chainElement.getProperties().get(SYSTEM_ID);
                 String specificationId = (String) chainElement.getProperties().get(SPECIFICATION_ID);
-
                 if (!StringUtils.isBlank(systemId)) {
                     if (usedSystems.stream().noneMatch(system -> system.getSystemId().equals(systemId))) {
                         UsedSystem usedSystem = new UsedSystem(systemId, new ArrayList<>());
@@ -822,6 +832,56 @@ public class ElementService extends ElementBaseService {
             }
         }
         return usedSystems;
+    }
+
+    /**
+     * Extracts and builds a list of service usage details from the given chain elements,
+     * filtered by the specified system type.
+     *
+     * <p>For each chain element that belongs to a chain and matches the given system type,
+     * this method collects the following information:
+     * <ul>
+     *   <li>Operation path and method</li>
+     *   <li>Service name resolved from the system ID</li>
+     *   <li>Specification version</li>
+     *   <li>Element and chain metadata (name, ID)</li>
+     * </ul>
+     *
+     * @param elements List of {@link ChainElement} to analyze
+     * @param type     The system type to filter by (e.g., "EXTERNAL", "INTERNAL")
+     * @return A list of {@link SystemUsageResponse} containing service usage information
+     */
+    private List<SystemUsageResponse> fetchSystemUsageData(List<ChainElement> elements, String type) {
+        List<SystemUsageResponse> systemUsageResponseList = new ArrayList<>();
+        for (ChainElement chainElement : elements) {
+            if (chainElement.getChain() != null && type.equals(chainElement.getProperties().get(SYSTEM_TYPE))) {
+                String systemId = (String) chainElement.getProperties().get(SYSTEM_ID);
+                String specificationId = (String) chainElement.getProperties().get(SPECIFICATION_ID);
+
+                systemUsageResponseList.add(SystemUsageResponse.builder()
+                        .path((String) chainElement.getProperties().get(OPERATION_PATH))
+                        .service(systemBaseService.getNameByIdOrNull(systemId))
+                        .version(systemModelBaseService.getVersionOrNull(specificationId))
+                        .elementName(chainElement.getName())
+                        .elementId(chainElement.getId())
+                        .method((String) chainElement.getProperties().get(OPERATION_METHOD))
+                        .chainName(chainElement.getChain().getName())
+                        .chainId(chainElement.getChain().getId())
+                        .build());
+            }
+        }
+        log.info("Completed system usage data fetch: matched = {}", systemUsageResponseList.size());
+        return systemUsageResponseList;
+    }
+
+    private List<ChainElement> getChainElements() {
+        List<String> elementTypes = new ArrayList<>();
+
+        for (var element : ElementsWithSystemUsage.values()) {
+            elementTypes.add(element.getElementName());
+        }
+
+        return elementRepository.findAllByTypeInAndChainNotNull(elementTypes);
     }
 
     private List<ChainElement> getAllChildElements(List<ChainElement> chainElementList) {
