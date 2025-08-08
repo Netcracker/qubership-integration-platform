@@ -33,8 +33,6 @@ properties:
       - deprecated
       - version
       - source
-      - operations
-      - specificationSources
 required:
   - content
 definitions:
@@ -61,11 +59,10 @@ definitions:
         type: boolean
         title: Main source
       fileName:
-        $ref: "resource-reference.schema.yaml"
+        $ref: "resource-reference.schema.yaml#/definitions/SpecificationResourceReference"
         title: File name
     required:
       - id
-      - sourceHash
       - mainSource
       - fileName
   Operation:
