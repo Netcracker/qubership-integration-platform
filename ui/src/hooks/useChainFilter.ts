@@ -16,6 +16,7 @@ import {
 import { useFilter } from "../components/table/filter/useFilter";
 import { capitalize } from "../misc/format-utils.ts";
 import { useCallback, useMemo } from "react";
+import { useServices } from "./useServices.ts";
 
 export const LabelsStringTableFilter: FilterConditions = {
   defaultCondition: FilterCondition.CONTAINS,
@@ -65,6 +66,7 @@ export const useChainFilters = () => {
   const { domains } = useDomains();
   const { elementTypes } = useElementTypes();
   const [filterItemStates, setFilterItemStates] = useFilter();
+  const { services } = useServices();
 
   const buildElementTypes = useCallback((): ListValue[] => {
     return elementTypes.map((item) => ({
@@ -121,9 +123,14 @@ export const useChainFilters = () => {
         conditions: AdvancedFilterConditions,
       },
       { id: "QUEUE", name: "Queue", conditions: AdvancedFilterConditions },
-      { id: "SERVICE_ID", name: "Service", conditions: ListFilterConditions },
+      {
+        id: "SERVICE_ID",
+        name: "Service",
+        allowedValues: services,
+        conditions: ListFilterConditions,
+      },
     ],
-    [buildElementTypes, domains],
+    [buildElementTypes, domains, services],
   );
 
   return { filterColumns, filterItemStates, setFilterItemStates };
