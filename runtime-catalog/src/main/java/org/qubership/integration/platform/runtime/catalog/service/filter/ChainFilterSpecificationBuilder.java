@@ -113,7 +113,10 @@ public class ChainFilterSpecificationBuilder {
             BiFunction<CriteriaBuilder, Predicate[], Predicate> predicateAccumulator,
             boolean searchMode) {
         return (root, query, criteriaBuilder) -> {
-            query.distinct(true);
+            boolean isMainQuery = query.getResultType() == Chain.class;
+            if (isMainQuery) {
+                query.distinct(true);
+            }
 
             List<Predicate> havingPredicates = new ArrayList<>();
 
@@ -140,7 +143,7 @@ public class ChainFilterSpecificationBuilder {
                             .map(dto -> buildPredicate(root, criteriaBuilder, dto))
                             .forEach(orPredicates::add);
 
-                    if (!filterRequestDTOS.isEmpty()) {
+                    if (isMainQuery && !filterRequestDTOS.isEmpty()) {
                         Expression<? extends Long> expression = switch (feature) {
                             case TOPIC -> criteriaBuilder.sum(
                                     criteriaBuilder.countDistinct(getChainElementPropertyExpression(root, criteriaBuilder, OPERATION_PATH_TOPIC)),
@@ -170,13 +173,16 @@ public class ChainFilterSpecificationBuilder {
                     }
                 }
 
-                if (!havingPredicates.isEmpty() && !orPredicates.isEmpty()) {
-                    if (!searchMode) {
-                        query.having(havingPredicates.size() > 1
-                                ? criteriaBuilder.and(havingPredicates.toArray(Predicate[]::new))
-                                : havingPredicates.get(0));
-                    }
+                if (!havingPredicates.isEmpty() && !searchMode) {
+                    Path<Integer> chainIdPath = root.get("id");
+                    query.groupBy(chainIdPath);
 
+                    query.having(havingPredicates.size() > 1
+                            ? criteriaBuilder.and(havingPredicates.toArray(Predicate[]::new))
+                            : havingPredicates.get(0));
+                }
+
+                if (!orPredicates.isEmpty()) {
                     orResult = orPredicates.size() > 1
                             ? criteriaBuilder.or(orPredicates.toArray(Predicate[]::new))
                             : orPredicates.get(0);

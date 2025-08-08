@@ -238,7 +238,9 @@ public class ChainService extends ChainBaseService {
                         ? criteriaBuilder.isNull(root.get("parentFolder").get("id"))
                         : criteriaBuilder.equal(root.get("parentFolder").get("id"), request.getFolderId())
         );
-        return chainRepository.findAll(specification);
+
+        List<Chain> chains = chainRepository.findAll(specification);
+        return applyComplexFilters(chains, request.getFilters());
     }
 
     public List<Chain> searchChains(ChainSearchRequestDTO searchRequestDTO) {
