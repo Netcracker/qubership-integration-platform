@@ -64,7 +64,8 @@ export class SchemaResolver {
                 excludedPathMatcher: (path: string) => {
                     return path.includes("mappingDescription") ||
                         path.includes("/definitions/DataType/") ||
-                        path.includes("/properties/children/items")
+                        path.includes("/properties/children/items") ||
+                        path.includes("/properties/schema");
                 },
                 onCircular: (refPath: string) => {
                     console.warn("ERROR", refPath);

@@ -116,8 +116,6 @@ definitions:
           type: array
           items:
             type: string
-      required:
-        - roles
     else: # abac
       properties:
         abacResource:
@@ -268,8 +266,6 @@ definitions:
             handleChainFailureAction:
               const: default
         then:
-          required:
-            - chainFailureHandlerContainer
           properties:
             chainFailureHandlerContainer:
               type: object
