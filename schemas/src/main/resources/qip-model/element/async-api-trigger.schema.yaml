@@ -75,8 +75,6 @@ definitions:
         type: string
       label:
         type: string
-      schema:
-        $ref: "http://json-schema.org/draft-07/schema"
     additionalProperties: false
     required:
       - code

@@ -5,7 +5,7 @@ import $RefParser from "@apidevtools/json-schema-ref-parser";
 import yaml from "js-yaml";
 
 export class SchemaResolver {
-    private inputDir = path.resolve(process.cwd(), "src/main/resources/qip-model");
+    private inputDir = path.resolve(process.cwd(), "src/main/resources/qip-model/element");
     private outputDir = path.resolve(process.cwd(), "assets");
 
     public async resolveAllSchemas(): Promise<void> {
@@ -19,7 +19,7 @@ export class SchemaResolver {
     private collectYamlFiles(dir: string): string[] {
         let results: string[] = [];
 
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
             const fullPath = path.join(dir, entry.name);
 
             if (entry.isDirectory()) {
@@ -32,12 +32,50 @@ export class SchemaResolver {
         return results;
     }
 
+    private inlineNestedRefs(obj: any): void {
+        if (typeof obj !== 'object' || obj === null) return;
+
+        if ('$ref' in obj) {
+            delete obj.$ref;
+            obj.type = 'object';
+        }
+
+        for (const key of Object.keys(obj)) {
+            this.inlineNestedRefs(obj[key]);
+        }
+    }
+
+    private removeNestedIds(obj: any, isRoot: boolean = true): void {
+        if (typeof obj !== 'object' || obj === null) return;
+
+        if ('$id' in obj && !isRoot) {
+            delete obj.$id;
+        }
+
+        for (const key of Object.keys(obj)) {
+            this.removeNestedIds(obj[key], false);
+        }
+    }
+
     private async resolveSchemaFile(filename: string): Promise<void> {
         const fullPath = path.join(this.inputDir, filename);
-        const schema = await $RefParser.dereference(fullPath);
+        const schema = await $RefParser.dereference(fullPath, {
+            dereference: {
+                excludedPathMatcher: (path: string) => {
+                    return path.includes("mappingDescription") ||
+                        path.includes("/definitions/DataType/") ||
+                        path.includes("/properties/children/items")
+                },
+                onCircular: (refPath: string) => {
+                    console.warn("ERROR", refPath);
+                },
+            }
+        });
+        this.inlineNestedRefs(schema);
+        this.removeNestedIds(schema);
         const outputPath = path.join(this.outputDir, filename);
 
-        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+        fs.mkdirSync(path.dirname(outputPath), {recursive: true});
         fs.writeFileSync(outputPath, yaml.dump(schema));
     }
 }

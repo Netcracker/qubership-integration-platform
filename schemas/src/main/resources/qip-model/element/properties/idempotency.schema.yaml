@@ -5,7 +5,6 @@ type: object
 title: Idempotency properties
 properties:
   idempotency:
-    type: object
     allOf:
       - $ref: "#/definitions/CommonIdempotencyProperties"
     if:

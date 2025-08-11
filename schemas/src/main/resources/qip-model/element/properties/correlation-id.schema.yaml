@@ -17,20 +17,6 @@ if:
 then:
   allOf:
     - $ref: "#/definitions/CorrelationIdProperties"
-else:
-  if:
-    required:
-      - correlationIdPosition
-  then:
-    allOf:
-      - $ref: "#/definitions/CorrelationIdProperties"
-  else:
-    if:
-      required:
-        - correlationIdName
-    then:
-      allOf:
-        - $ref: "#/definitions/CorrelationIdProperties"
 definitions:
   CorrelationIdPosition:
     enum:
