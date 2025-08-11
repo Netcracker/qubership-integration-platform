@@ -39,6 +39,7 @@ oneOf:
   - $ref: 'try-catch-finally-2.schema.yaml'
   - $ref: 'xslt.schema.yaml'
   - $ref: 'container-element.schema.yaml'
+  - $ref: 'context-storage.schema.yaml'
 required:
   - type
 title: Chain element

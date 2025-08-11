@@ -1,0 +1,69 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/context-storage.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+title: Context Storage
+properties:
+  type:
+    type: string
+    const: context-storage
+  properties:
+    type: object
+    properties:
+      contextServiceId:
+        type: string
+      contextId:
+        type: string
+      useCorrelationId:
+        type: boolean
+      operation:
+        type: string
+        enum:
+          - GET
+          - DELETE
+          - SET
+      ttl:
+        type: integer
+
+    if:
+      properties:
+        operation:
+          const: SET
+    then:
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+      required:
+        - key
+        - value
+    else:
+      if:
+        properties:
+          operation:
+            const: GET
+      then:
+        properties:
+          keys:
+            type: string
+          target:
+            type: string
+            enum:
+              - BODY
+              - HEADER
+              - PROPERTY
+          targetName:
+            type: string
+          unwrap:
+            type: boolean
+        required:
+          - target
+    required:
+      - contextServiceId
+      - useCorrelationId
+      - operation
+required:
+  - type

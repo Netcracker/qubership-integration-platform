@@ -1,0 +1,9 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/context-service.schema.yaml"
+id: "770d5315-98ed-4314-bb03-4211d236657a"
+name: "New Context Services"
+content:
+  description: "xx"
+  createdWhen: 1754546771779
+  modifiedWhen: 1754641413392
+  migrations: "[100, 101, 102]"
