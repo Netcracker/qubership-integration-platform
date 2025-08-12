@@ -70,7 +70,11 @@ public class V102ChainImportFileMigration implements ChainImportFileMigration {
     }
 
     private void migrateElementNode(JsonNode elementNode) {
-        String type = elementNode.path("type").asText();
+        JsonNode typeNode = elementNode.path("type");
+        if (typeNode.isMissingNode()) {
+            typeNode = elementNode.path("element-type");
+        }
+        String type = typeNode.asText();
         JsonNode propertiesNode = elementNode.path("properties");
         log.debug("Applying migration to element {} of type {}", elementNode.path("id").asText(), type);
         migrateElementNode(type, propertiesNode);
