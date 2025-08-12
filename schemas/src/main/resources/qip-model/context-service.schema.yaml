@@ -4,7 +4,7 @@ $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
   - $ref: "base.schema.yaml#/definitions/CommonTopLevelEntityProperties"
-title: Service
+title: Context Service
 properties:
   content:
     type: object
