@@ -854,17 +854,17 @@ public class ElementService extends ElementBaseService {
     private List<SystemUsageResponse> fetchSystemUsageData(List<ChainElement> elements, String type) {
         List<SystemUsageResponse> systemUsageResponseList = new ArrayList<>();
         for (ChainElement chainElement : elements) {
-            if (chainElement.getChain() != null && type.equals(chainElement.getProperties().get(SYSTEM_TYPE))) {
-                String systemId = (String) chainElement.getProperties().get(SYSTEM_ID);
-                String specificationId = (String) chainElement.getProperties().get(SPECIFICATION_ID);
+            if (chainElement.getChain() != null && type.equals(chainElement.getPropertyAsString(SYSTEM_TYPE))) {
+                String systemId = chainElement.getPropertyAsString(SYSTEM_ID);
+                String specificationId = chainElement.getPropertyAsString(SPECIFICATION_ID);
 
                 systemUsageResponseList.add(SystemUsageResponse.builder()
-                        .path((String) chainElement.getProperties().get(OPERATION_PATH))
+                        .path(chainElement.getPropertyAsString(OPERATION_PATH))
                         .service(systemBaseService.getNameByIdOrNull(systemId))
                         .version(systemModelBaseService.getVersionOrNull(specificationId))
                         .elementName(chainElement.getName())
                         .elementId(chainElement.getId())
-                        .method((String) chainElement.getProperties().get(OPERATION_METHOD))
+                        .method(chainElement.getPropertyAsString(OPERATION_METHOD))
                         .chainName(chainElement.getChain().getName())
                         .chainId(chainElement.getChain().getId())
                         .build());
