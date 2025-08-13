@@ -62,6 +62,7 @@ import {
   ElementWithChainName,
   ApiSpecificationType,
   ApiSpecificationFormat,
+  Element,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
@@ -308,7 +309,7 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  deleteConnection = async (
+  deleteConnections = async (
     connectionIds: string[],
     chainId: string,
   ): Promise<ActionDifference> => {

@@ -278,7 +278,7 @@ export const useChainGraph = (chainId?: string) => {
       );
       if (separateEdgesToDelete.length > 0) {
         try {
-          const edgesDeleteResponse = await api.deleteConnection(
+          const edgesDeleteResponse = await api.deleteConnections(
             separateEdgesToDelete.map((edge) => edge.id),
             chainId,
           );
