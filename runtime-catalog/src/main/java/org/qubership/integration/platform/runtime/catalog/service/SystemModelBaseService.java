@@ -82,7 +82,7 @@ public class SystemModelBaseService {
 
     @Transactional
     public String getVersionOrNull(String modelId) {
-        return String.valueOf(systemModelRepository.findVersionById(modelId));
+        return systemModelRepository.findVersionById(modelId);
     }
 
     public String getMainSystemModelSource(String modelId) {
