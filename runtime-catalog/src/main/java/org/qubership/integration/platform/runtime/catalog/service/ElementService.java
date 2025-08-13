@@ -713,7 +713,7 @@ public class ElementService extends ElementBaseService {
 
     public List<UsedSystem> getUsedSystemIdsByChainIds(List<String> chainIds) {
         List<UsedSystem> usedSystems = new ArrayList<>();
-        List<ChainElement> elements = getChainElements();
+        List<ChainElement> elements = getChainElementsWithSystemUsage();
 
         for (String chainId : chainIds) {
             for (ChainElement chainElement : elements) {
@@ -745,7 +745,7 @@ public class ElementService extends ElementBaseService {
     }
 
     public List<UsedSystem> getAllUsedSystemIds() {
-        List<ChainElement> elements = getChainElements();
+        List<ChainElement> elements = getChainElementsWithSystemUsage();
 
         return getUsedSystemsFromElements(elements);
     }
@@ -761,7 +761,7 @@ public class ElementService extends ElementBaseService {
      * @return A list of {@link SystemUsageResponse} objects representing the used services and their details
      */
     public List<SystemUsageResponse> getUsedSystemsByType(String type) {
-        List<ChainElement> elements = getChainElements();
+        List<ChainElement> elements = getChainElementsWithSystemUsage();
         List<SystemUsageResponse> result = fetchSystemUsageData(elements, type);
         log.info("Fetched {} system usage records for type {}", result.size(), type);
         return result;
@@ -874,7 +874,7 @@ public class ElementService extends ElementBaseService {
         return systemUsageResponseList;
     }
 
-    private List<ChainElement> getChainElements() {
+    private List<ChainElement> getChainElementsWithSystemUsage() {
         List<String> elementTypes = new ArrayList<>();
 
         for (var element : ElementsWithSystemUsage.values()) {
