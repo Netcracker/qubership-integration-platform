@@ -55,6 +55,7 @@ import {
   ElementWithChainName,
   ApiSpecificationType,
   ApiSpecificationFormat,
+  Element,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -113,7 +114,7 @@ export interface Api {
     chainId: string,
   ): Promise<ActionDifference>;
 
-  deleteConnection(
+  deleteConnections(
     connectionIds: string[],
     chainId: string,
   ): Promise<ActionDifference>;

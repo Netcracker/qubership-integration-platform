@@ -114,7 +114,7 @@ export type LibraryElement = {
   reuseReferenceProperty?: string;
   mandatoryInnerElement: boolean;
   parentRestriction: string[];
-  allowedChildren: Record<string, "one" | "many">;
+  allowedChildren: Record<string, LibraryElementQuantity>;
   properties: {
     [PropertyType.COMMON]: LibraryElementProperty[];
     [PropertyType.ADVANCED]: LibraryElementProperty[];
@@ -133,6 +133,12 @@ export type LibraryElement = {
   queryProperties: unknown[];
   referenceProperties: unknown[];
 };
+
+export enum LibraryElementQuantity {
+  ONE = "one",
+  ONE_OR_ZERO = "one-or-zero",
+  ONE_OR_MANY = "one-or-many",
+}
 
 export type ElementWithChainName  = BaseEntity &  {
   type: string;

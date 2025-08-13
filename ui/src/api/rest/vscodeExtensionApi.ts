@@ -39,6 +39,7 @@ import {
   Specification,
   SpecificationGroup,
   UsedService,
+  Element,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 
@@ -132,15 +133,15 @@ export class VSCodeExtensionApi implements Api {
     ).payload;
   };
 
-  deleteElement = async (
-    elementId: string,
+  deleteElements = async (
+    elementIds: string[],
     chainId: string,
   ): Promise<ActionDifference> => {
     return <ActionDifference>(
       (
-        await this.sendMessageToExtension("deleteElement", {
+        await this.sendMessageToExtension("deleteElements", {
           chainId,
-          elementId,
+          elementIds,
         })
       ).payload
     );
@@ -164,14 +165,14 @@ export class VSCodeExtensionApi implements Api {
     ).payload;
   };
 
-  deleteConnection = async (
-    connectionId: string[],
+  deleteConnections = async (
+    connectionIds: string[],
     chainId: string,
   ): Promise<ActionDifference> => {
     return <ActionDifference>(
-      await this.sendMessageToExtension("deleteConnection", {
+      await this.sendMessageToExtension("deleteConnections", {
         chainId,
-        connectionId,
+        connectionIds,
       })
     ).payload;
   };
@@ -193,10 +194,6 @@ export class VSCodeExtensionApi implements Api {
     );
   };
 
-
-  deleteElements(): Promise<ActionDifference> {
-    throw new Error("Method not implemented.");
-  }
 
   getElementsByType(): Promise<ElementWithChainName[]> {
     throw new Error("Method not implemented.");
