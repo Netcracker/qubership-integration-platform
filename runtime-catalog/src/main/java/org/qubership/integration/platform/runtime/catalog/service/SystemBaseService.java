@@ -74,7 +74,7 @@ public class SystemBaseService {
 
     @Transactional
     public String getNameByIdOrNull(String id) {
-        return String.valueOf(systemRepository.findNameById(id));
+        return systemRepository.findNameById(id);
     }
 
     @Transactional
