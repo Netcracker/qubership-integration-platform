@@ -36,17 +36,19 @@ public class V101ChainImportFileMigration implements ChainImportFileMigration {
         log.debug("Applying chain migration: {}", getVersion());
 
         // Move all fields except id and name to the content node
-        ObjectNode result = V101MigrationUtil.moveFieldsToContentField(fileNode);
+        ObjectNode result = V101MigrationUtil.moveFieldsToContentField(fileNode.deepCopy());
 
         // Rename properties-filename property to propertiesFilename
-        renameField(result, "properties-filename", "propertiesFilename");
+        renameField(result, "properties-filename", "propertiesFilename", true);
         // Make new default value from "" to "org.apache.kafka.common.serialization.StringSerializer" for keySerializer
         setNewValueToEmptyField(result, "keySerializer", "org.apache.kafka.common.serialization.StringSerializer");
-
+        // Rename element-type property to type in all elements
+        result.path("content").path("elements")
+            .forEach(elementNode -> renameField(elementNode, "element-type", "type", false));
         return result;
     }
 
-    private void renameField(JsonNode node, String from, String to) {
+    private void renameField(JsonNode node, String from, String to, boolean recursive) {
         if (node.isObject()) {
             if (node.has(from)) {
                 if (node.has(to)) {
@@ -57,7 +59,9 @@ public class V101ChainImportFileMigration implements ChainImportFileMigration {
                 }
             }
         }
-        node.forEach(child -> renameField(child, from, to));
+        if (recursive) {
+            node.forEach(child -> renameField(child, from, to, recursive));
+        }
     }
 
     private void setNewValueToEmptyField(JsonNode node, String fieldName, String newValue) {
