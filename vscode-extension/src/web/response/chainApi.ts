@@ -1,10 +1,10 @@
-import {VSCodeMessage} from "./apiTypes";
+import {Element, VSCodeMessage} from "./apiTypes";
 import vscode, {ExtensionContext, Uri} from "vscode";
 import {
     createConnection,
     createElement,
-    deleteConnection,
-    deleteElement,
+    deleteConnections,
+    deleteElements,
     updateChain,
     updateElement
 } from "./chainApiModify";
@@ -29,9 +29,9 @@ export async function getApiResponse(message: VSCodeMessage, context: ExtensionC
         case 'getLibraryElementByType': return await getLibraryElementByType(context, message.payload);
         case 'updateElement': return await updateElement(mainFolder, message.payload.chainId, message.payload.elementId, message.payload.elementRequest);
         case 'createElement': return await createElement(context, mainFolder, message.payload.chainId, message.payload.elementRequest);
-        case 'deleteElement': return await deleteElement(mainFolder, message.payload.chainId, message.payload.elementId);
+        case 'deleteElements': return await deleteElements(mainFolder, message.payload.chainId, message.payload.elementIds);
         case 'createConnection': return await createConnection(mainFolder, message.payload.chainId, message.payload.connectionRequest);
-        case 'deleteConnection': return await deleteConnection(mainFolder, message.payload.chainId, message.payload.connectionId);
+        case 'deleteConnections': return await deleteConnections(mainFolder, message.payload.chainId, message.payload.connectionIds);
         case 'updateChain': return await updateChain(mainFolder, message.payload.id, message.payload.chain);
     }
 }
@@ -46,17 +46,49 @@ export function getChainFolderUri(openedDocumentFolderUri: Uri | undefined): Uri
     if (openedDocumentFolderUri) {
         return openedDocumentFolderUri;
     }
-    
+
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (workspaceFolders) {
         return  workspaceFolders[0].uri;
     }
-    
+
     vscode.window.showWarningMessage('No workspace folders found.');
     throw Error("No current workfolder found");
+}
+
+export function findElementById(elements: Element[] | undefined, elementId: string): Element | undefined {
+    if (!elements) {
+        return undefined;
+    }
+    for (const element of elements) {
+        if (element.id === elementId) {
+            return element;
+        }
+        const found = findElementById(element.children, elementId);
+        if (found) {
+            return found;
+        }
+    }
+    return undefined;
 }
 
 export const EMPTY_USER = {
     id: "",
     username: ""
 };
+
+export const RESOURCES_FOLDER = 'resources';
+
+export function getElementChildren(children: Element[] | undefined): Element[] {
+    const result: Element[] = [];
+    if (children?.length) {
+        for (const child of children) {
+            if (child.children?.length) {
+                result.push(...getElementChildren(child.children));
+            }
+            result.push(child);
+        }
+    }
+
+    return result;
+}

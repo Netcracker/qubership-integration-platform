@@ -1,9 +1,12 @@
 import {
-    ActionDifference, Chain,
+    ActionDifference,
+    Chain,
     ConnectionRequest,
+    CreateElementRequest,
     Dependency,
     Element,
-    ElementRequest, LibraryElementProperty,
+    LibraryElementProperty,
+    LibraryElementQuantity,
     PatchElementRequest
 } from "./apiTypes";
 import * as yaml from 'yaml';
@@ -15,11 +18,10 @@ import {
     getMainChain,
     getMainChainFileUri
 } from "./chainApiRead";
-import {EMPTY_USER} from "./chainApi";
+import {EMPTY_USER, findElementById, getElementChildren, RESOURCES_FOLDER} from "./chainApi";
 import {ExtensionContext, Uri} from "vscode";
 
 const vscode = require('vscode');
-
 
 export async function updateChain(mainFolderUri: Uri, chainId: string, chainRequest: Partial<Chain>): Promise<Chain> {
     const chain: any = await getMainChain(mainFolderUri);
@@ -47,16 +49,33 @@ export async function updateElement(mainFolderUri: Uri, chainId: string, element
         throw Error("ChainId mismatch");
     }
 
-    const element = chain.content.elements?.find((element: { id: string; }) => element.id === elementId);
+    const element = findAndRemoveElementById(chain.content.elements, elementId);
     if (!element) {
         console.error(`ElementId not found`);
         throw Error("ElementId not found");
     }
 
+    let parentElement = undefined;
+    if (elementRequest.parentElementId) {
+        parentElement = findElementById(chain.content.elements, elementRequest.parentElementId);
+        if (!parentElement) {
+            console.error(`Parent ElementId not found`);
+            throw Error("Parent ElementId not found");
+        }
+    }
+
     element.name = elementRequest.name;
-    // TODO parentElementId -> child
     element.description = elementRequest.description;
     element.properties = elementRequest.properties;
+    element.parentElementId = elementRequest.parentElementId;
+    if (parentElement) {
+        if (!parentElement.children?.length) {
+            parentElement.children = [];
+        }
+        parentElement.children.push(element);
+    } else {
+        chain.content.elements.push(element);
+    }
 
     await writeElementProperties(mainFolderUri, element);
     await writeMainChain(mainFolderUri, chain);
@@ -68,9 +87,22 @@ export async function updateElement(mainFolderUri: Uri, chainId: string, element
     };
 }
 
+function getOrCreatePropertyFilename(type: string, propertyNames: string[], exportFileExtension: any, id: string) {
+    let prefix: string;
+    if (type.startsWith('mapper')) {
+        prefix = propertyNames.length === 1 ? propertyNames[0] : 'mapper';
+    } else {
+        prefix = propertyNames.length === 1 ? propertyNames[0] : 'properties';
+    }
+
+    return `resources/${prefix}-${id}.${exportFileExtension}`;
+}
+
 async function writeElementProperties(mainFolderUri: Uri, element: any): Promise<void> {
     async function handleServiceCallProperty(beforeAfterBlock: any) {
+        const propertiesFilenameId = (beforeAfterBlock.id ? beforeAfterBlock.id + '-' : '') + element.id;
         if (beforeAfterBlock.type === 'script') {
+            beforeAfterBlock.propertiesFilename = getOrCreatePropertyFilename(beforeAfterBlock.type, ['script'], 'groovy', propertiesFilenameId);
             await writePropertyFile(mainFolderUri, beforeAfterBlock.propertiesFilename, beforeAfterBlock['script']);
             delete beforeAfterBlock['script'];
         } else if (beforeAfterBlock.type?.startsWith('mapper')) {
@@ -78,7 +110,7 @@ async function writeElementProperties(mainFolderUri: Uri, element: any): Promise
                 console.error("Attempt to save Deprecated element failed as it is not supported");
                 throw Error("Deprecated Mapper element is not supported");
             }
-
+            beforeAfterBlock.propertiesFilename = getOrCreatePropertyFilename(beforeAfterBlock.type, ['mappingDescription'], 'json', propertiesFilenameId);
             const property: any = JSON.stringify({mappingDescription: beforeAfterBlock['mappingDescription']});
             await writePropertyFile(mainFolderUri, beforeAfterBlock.propertiesFilename, property);
             delete beforeAfterBlock['mappingDescription'];
@@ -86,10 +118,11 @@ async function writeElementProperties(mainFolderUri: Uri, element: any): Promise
     }
 
     if (element.properties.propertiesToExportInSeparateFile) {
+        const propertyNames: string[] = element.properties.propertiesToExportInSeparateFile.split(',').map(function (item: string) {
+            return item.trim();
+        });
+        element.properties.propertiesFilename = getOrCreatePropertyFilename(element.type, propertyNames, element.properties.exportFileExtension, element.id);
         if (element.properties.exportFileExtension === 'json') {
-            const propertyNames: string[] = element.properties.propertiesToExportInSeparateFile.split(',').map(function (item: string) {
-                return item.trim();
-            });
             const properties: any = {};
             for (const propertyName of propertyNames) {
                 properties[propertyName] = element.properties[propertyName];
@@ -138,16 +171,20 @@ async function writeMainChain(mainFolderUri: Uri, chain: any) {
     }
 }
 
-export async function createElement(context: ExtensionContext, mainFolderUri: Uri, chainId: string, elementRequest: ElementRequest): Promise<ActionDifference> {
-    const chain: any = await getMainChain(mainFolderUri);
-    if (chain.id !== chainId) {
-        console.error(`ChainId mismatch`);
-        throw Error("ChainId mismatch");
-    }
-
+async function getDefaultElementByType(context: ExtensionContext, chainId: string, elementRequest: CreateElementRequest) {
     const elementId = crypto.randomUUID();
     const libraryData = await getLibraryElementByType(context, elementRequest.type);
 
+    let children: Element[] | undefined = undefined;
+    if (libraryData.allowedChildren && Object.keys(libraryData.allowedChildren).length) {
+        children = [];
+        for (const childType in libraryData.allowedChildren) {
+            if (libraryData.allowedChildren[childType] === LibraryElementQuantity.ONE ||
+                libraryData.allowedChildren[childType] === LibraryElementQuantity.ONE_OR_MANY) {
+                children.push(await getDefaultElementByType(context, chainId, {type: childType, parentElementId: elementId}));
+            }
+        }
+    }
 
     const element: Element = {
         chainId: chainId,
@@ -160,16 +197,31 @@ export async function createElement(context: ExtensionContext, mainFolderUri: Ur
         modifiedWhen: 0,
         name: libraryData.title,
         properties: await getDefaultPropertiesForElement(libraryData.properties),
-        type: elementRequest.type
+        type: elementRequest.type,
+        children: children,
+        parentElementId: elementRequest.parentElementId
     };
-    // TODO all todos from update element applicable to this method too (create mutual method for saving entity?)
+
+    return element;
+}
+
+export async function createElement(context: ExtensionContext, mainFolderUri: Uri, chainId: string, elementRequest: CreateElementRequest): Promise<ActionDifference> {
+    const chain: any = await getMainChain(mainFolderUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    const element = await getDefaultElementByType(context, chainId, elementRequest);
 
     chain.content.elements.push(element);
+
+    await writeElementProperties(mainFolderUri, element);
     await writeMainChain(mainFolderUri, chain);
 
     return {
         createdElements: [
-            await getElement(mainFolderUri, chainId, elementId)
+            await getElement(mainFolderUri, chainId, element.id)
         ]
     };
 }
@@ -196,29 +248,100 @@ function getDefaultTypedProperties(propertiesData: LibraryElementProperty[]): an
     return result;
 }
 
-export async function deleteElement(mainFolderUri: Uri, chainId: string, elementId: string): Promise<ActionDifference> {
+function findAndRemoveElementById(
+    elements: Element[] | undefined,
+    elementId: string
+): Element | undefined {
+    if (!elements) return undefined;
+
+    const index = elements.findIndex(e => e.id === elementId);
+    if (index !== -1) {
+        return elements.splice(index, 1)[0];
+    }
+
+    for (const element of elements) {
+        const found = findAndRemoveElementById(element.children, elementId);
+        if (found) {
+            return found;
+        }
+    }
+
+    return undefined;
+}
+
+async function deleteElementsPropertyFiles(mainFolderUri: Uri, removedElements: any[]) {
+    async function handleServiceCallProperty(beforeAfterBlock: any) {
+        if (beforeAfterBlock.type === 'script') {
+            beforeAfterBlock['script'] = await removeFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
+        } else if (beforeAfterBlock.type?.startsWith('mapper')) {
+            await removeFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
+        }
+    }
+
+    for (const element of removedElements) {
+        if (element.properties?.propertiesToExportInSeparateFile) {
+            await removeFile(mainFolderUri, element.properties.propertiesFilename);
+        }
+
+        if (element.type === 'service-call') {
+            if (Array.isArray((element.properties.after))) {
+                for (const afterBlock of element.properties.after) {
+                    await handleServiceCallProperty(afterBlock);
+                }
+            }
+            if (element.properties.before) {
+                await handleServiceCallProperty(element.properties.before);
+            }
+        }
+
+        if (element.children?.length) {
+            await deleteElementsPropertyFiles(mainFolderUri, element.children);
+        }
+    }
+}
+
+async function removeFile(mainFolderUri: Uri, propertiesFilename: string): Promise<void> {
+    console.log("removing property file", propertiesFilename);
+    const fileUri = vscode.Uri.joinPath(mainFolderUri, propertiesFilename);
+    console.log("property file uri", fileUri);
+    try {
+        await vscode.workspace.fs.delete(fileUri);
+    } catch (error) {
+        console.log("Error deleting property file", fileUri);
+    }
+
+    return;
+}
+
+export async function deleteElements(mainFolderUri: Uri, chainId: string, elementIds: string[]): Promise<ActionDifference> {
     const chain: any = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    const element = chain.content.elements?.find((element: Element) => element.id === elementId);
-    if (!element) {
-        console.error(`ElementId not found`);
-        throw Error("ElementId not found");
+    const removedElements: any[] = [];
+    for (const elementId of elementIds) {
+        const element = findAndRemoveElementById(chain.content.elements, elementId);
+        if (!element) {
+            console.error(`ElementId not found`);
+            throw Error("ElementId not found");
+        }
+
+        for (const childElement of getElementChildren(element.children)) {
+            await deleteDependenciesForElement(childElement.id, chain.content.dependencies);
+            removedElements.push(childElement);
+        }
+
+        await deleteDependenciesForElement(elementId, chain.content.dependencies);
+        removedElements.push(element);
     }
 
-    let index = chain.content.elements.findIndex((e: Element) => e === element);
-    chain.content.elements.splice(index, 1);
-    await deleteDependenciesForElement(elementId, chain.content.dependencies);
-
     await writeMainChain(mainFolderUri, chain);
+    await deleteElementsPropertyFiles(mainFolderUri, removedElements);
 
     return {
-        removedElements: [
-            element
-        ]
+        removedElements: [...removedElements]
     };
 }
 
@@ -237,12 +360,12 @@ export async function createConnection(mainFolderUri: Uri, chainId: string, conn
         throw Error("ChainId mismatch");
     }
 
-    const elementFrom = chain.content.elements?.find((element: Element) => element.id === connectionRequest.from);
+    const elementFrom = findElementById(chain.content.elements, connectionRequest.from);
     if (!elementFrom) {
         console.error(`ElementId from not found`);
         throw Error("ElementId from not found");
     }
-    const elementTo = chain.content.elements?.find((element: Element) => element.id === connectionRequest.to);
+    const elementTo = findElementById(chain.content.elements, connectionRequest.to);
     if (!elementTo) {
         console.error(`ElementId to not found`);
         throw Error("ElementId to not found");
@@ -271,28 +394,34 @@ export async function createConnection(mainFolderUri: Uri, chainId: string, conn
     };
 }
 
-export async function deleteConnection(mainFolderUri: Uri, chainId: string, connectionId: string): Promise<ActionDifference> {
+export async function deleteConnections(mainFolderUri: Uri, chainId: string, connectionIds: string[]): Promise<ActionDifference> {
     const chain: any = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    let dependency: Dependency = chain.content.dependencies?.find((dependency: Dependency) =>
-        getDependencyId(dependency) === connectionId);
-    if (!dependency) {
-        console.error(`Connection not found`);
-        throw Error("Connection not found");
-    }
+    const removedConnections: any[] = [];
 
-    let index = chain.content.dependencies.findIndex((d: Dependency) => d === dependency);
-    chain.content.dependencies.splice(index, 1);
+    for (const connectionId of connectionIds) {
+        let dependency: Dependency = chain.content.dependencies?.find((dependency: Dependency) =>
+            getDependencyId(dependency) === connectionId);
+        if (!dependency) {
+            console.error(`Connection not found`);
+            throw Error("Connection not found");
+        }
+
+        let index = chain.content.dependencies.findIndex((d: Dependency) => d === dependency);
+        chain.content.dependencies.splice(index, 1);
+
+        removedConnections.push(dependency);
+    }
 
     await writeMainChain(mainFolderUri, chain);
 
     return {
         removedDependencies: [
-            dependency
+            ...removedConnections
         ]
     };
 }

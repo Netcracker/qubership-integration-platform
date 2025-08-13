@@ -70,8 +70,9 @@ export type Dependency = {
   to: string;
 };
 
-export type ElementRequest = {
+export type CreateElementRequest = {
   type: string;
+  parentElementId?: string;
 };
 
 export type PatchElementRequest = {
@@ -145,7 +146,7 @@ export type LibraryElement = {
   reuseReferenceProperty?: string;
   mandatoryInnerElement: boolean;
   parentRestriction: string[];
-  allowedChildren: Record<string, "one" | "many">;
+  allowedChildren: Record<string, LibraryElementQuantity>;
   properties: {
     common: LibraryElementProperty[];
     advanced: LibraryElementProperty[];
@@ -164,6 +165,12 @@ export type LibraryElement = {
   queryProperties: any[];
   referenceProperties: any[];
 };
+
+export enum LibraryElementQuantity {
+    ONE = "one",
+    ONE_OR_ZERO = "one-or-zero",
+    ONE_OR_MANY = "one-or-many",
+}
 
 export enum PropertyType {
   COMMON = "common",

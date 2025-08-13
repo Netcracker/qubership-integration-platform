@@ -1,7 +1,7 @@
 import {Chain, Dependency, Element, LibraryData, LibraryElement} from "./apiTypes";
 import * as yaml from 'yaml';
 import {ExtensionContext, FileType, Uri} from "vscode";
-import {EMPTY_USER} from "./chainApi";
+import {EMPTY_USER, findElementById, getElementChildren} from "./chainApi";
 
 const vscode = require('vscode');
 
@@ -69,8 +69,11 @@ function findLibraryElementByType(obj: any, type: string): any | null {
         return null;
     }
     for (const key of Object.keys(obj)) {
-        const value = obj[key];
-        if (key === 'elements' && Array.isArray(value)) {
+        let value = obj[key];
+        if (key === 'childElements' && typeof value === 'object') {
+            value = Object.values(value);
+        }
+        if ((key === 'elements' || key === 'childElements') && Array.isArray(value)) {
             for (const item of value) {
                 if (item && typeof item === 'object' && item.name === type) {
                     return item;
@@ -112,7 +115,7 @@ export async function getElement(mainFolderUri: Uri, chainId: string, elementId:
         throw Error("ChainId mismatch");
     }
 
-    const element = chain.content.elements?.find((element: { id: string; }) => element.id === elementId);
+    const element = findElementById(chain.content.elements, elementId);
     if (!element) {
         console.error(`ElementId not found`);
         throw Error("ElementId not found");
@@ -147,10 +150,9 @@ async function readFile(mainFolderUri: Uri, propertiesFilename: string): Promise
     const textFile = new TextDecoder('utf-8').decode(fileContent);
     console.log("property file", textFile);
     return textFile;
-
 }
 
-async function parseElement(mainFolderUri: Uri, element: any, chainId: string): Promise<Element> {
+async function parseElement(mainFolderUri: Uri, element: any, chainId: string, parentId: string | undefined = undefined): Promise<Element> {
     async function handleServiceCallProperty(beforeAfterBlock: any) {
         if (beforeAfterBlock.type === 'script') {
             beforeAfterBlock['script'] = await readFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
@@ -162,7 +164,7 @@ async function parseElement(mainFolderUri: Uri, element: any, chainId: string): 
         }
     }
 
-    if (element.properties.propertiesToExportInSeparateFile) {
+    if (element.properties?.propertiesToExportInSeparateFile) {
         if (element.properties.exportFileExtension === 'json') {
             const propertyNames: string[] = element.properties.propertiesToExportInSeparateFile.split(',').map(function (item: string) {
                 return item.trim();
@@ -187,6 +189,14 @@ async function parseElement(mainFolderUri: Uri, element: any, chainId: string): 
         }
     }
 
+    let children: Element[] | undefined = undefined;
+    if (element.children?.length) {
+        children = [];
+        for (const child of element.children) {
+            children.push(await parseElement(mainFolderUri, child, chainId, element.id));
+        }
+    }
+
     return {
         id: element.id,
         name: element.name,
@@ -199,6 +209,8 @@ async function parseElement(mainFolderUri: Uri, element: any, chainId: string): 
         modifiedWhen: element.modifiedWhen,
         chainId: chainId,
         description: element.description,
+        parentElementId: parentId,
+        children: children,
     };
 }
 
@@ -207,7 +219,9 @@ async function parseElements(mainFolderUri: Uri, elements: any[], chainId: strin
 
     if (elements && elements.length) {
         for (const element of elements) {
-            result.push(await parseElement(mainFolderUri, element, chainId));
+            const parsedElement = await parseElement(mainFolderUri, element, chainId);
+            result.push(parsedElement);
+            result.push(...getElementChildren(parsedElement.children));
         }
     }
     return result;
