@@ -80,6 +80,11 @@ public class SystemModelBaseService {
                 .orElseThrow(() -> new EntityNotFoundException(SYSTEM_MODEL_WITH_ID_NOT_FOUND_MESSAGE + modelId));
     }
 
+    @Transactional
+    public String getVersionOrNull(String modelId) {
+        return systemModelRepository.findVersionById(modelId);
+    }
+
     public String getMainSystemModelSource(String modelId) {
         SystemModel systemModel = getSystemModel(modelId);
         if (systemModel.getSpecificationSources() != null) {

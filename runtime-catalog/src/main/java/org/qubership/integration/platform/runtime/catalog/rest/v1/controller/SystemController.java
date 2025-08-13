@@ -20,16 +20,20 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemUsageResponse;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemSearchRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemType;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.SystemMapper;
+import org.qubership.integration.platform.runtime.catalog.service.ElementService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,11 +50,14 @@ public class SystemController {
 
     private final SystemService systemService;
     private final SystemMapper systemMapper;
+    private final ElementService elementService;
 
     @Autowired
-    public SystemController(SystemService systemService, SystemMapper systemMapper) {
+    public SystemController(SystemService systemService, SystemMapper systemMapper,
+                            ElementService elementService) {
         this.systemService = systemService;
         this.systemMapper = systemMapper;
+        this.elementService = elementService;
     }
 
     @GetMapping(produces = "application/json")
@@ -145,5 +152,23 @@ public class SystemController {
     public void deleteSystem(@PathVariable @Parameter(description = "Service id") String systemId) {
         log.info("Request to delete system {}", systemId);
         systemService.delete(systemId);
+    }
+
+    /**
+     * Endpoint to retrieve a list of all service endpoints used in chains,
+     * filtered by the specified system type.
+     *
+     * <p>The returned data includes information such as service name, operation path,
+     * HTTP method, specification version, and the associated chain and element metadata.</p>
+     *
+     * @param type The system type to filter by (e.g., EXTERNAL, INTERNAL)
+     * @return A {@link ResponseEntity} containing a list of {@link SystemUsageResponse} objects in JSON format
+     */
+    @GetMapping(value = "/usage", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(description = "Get data of all the service endpoints used.")
+    public ResponseEntity<List<SystemUsageResponse>> getSystemUsages(@RequestParam(value = "type") SystemType type) {
+        log.info("Request to fetch systems for system type: {}", type);
+        List<SystemUsageResponse> reportEntities = elementService.getUsedSystemsByType(type.toString());
+        return ResponseEntity.ok().body(reportEntities);
     }
 }

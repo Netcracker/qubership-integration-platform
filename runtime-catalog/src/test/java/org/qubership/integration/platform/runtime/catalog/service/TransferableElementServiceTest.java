@@ -112,6 +112,10 @@ public class TransferableElementServiceTest {
     SystemEnvironmentsGenerator systemEnvironmentsGenerator;
     @MockBean
     private ChainRepository chainRepository;
+    @MockBean
+    private SystemBaseService systemBaseService;
+    @MockBean
+    private SystemModelBaseService systemModelBaseService;
 
     @Autowired
     private LibraryElementsService libraryService;

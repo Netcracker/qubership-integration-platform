@@ -73,6 +73,11 @@ public class SystemBaseService {
     }
 
     @Transactional
+    public String getNameByIdOrNull(String id) {
+        return systemRepository.findNameById(id);
+    }
+
+    @Transactional
     public IntegrationSystem save(IntegrationSystem system) {
         return update(system);
     }

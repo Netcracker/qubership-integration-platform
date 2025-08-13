@@ -41,4 +41,7 @@ public interface SystemModelRepository extends JpaRepository<SystemModel, String
             + "inner join model.compiledLibrary lib "
             + "where lib.data is not null")
     List<Object[]> findAllWithCompiledLibraries();
+
+    @Query(nativeQuery = true, value = "SELECT model.version from catalog.models model where model.id=:id")
+    String findVersionById(String id);
 }

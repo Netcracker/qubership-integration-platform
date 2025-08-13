@@ -134,6 +134,10 @@ public class DependencyServiceTest {
     SystemEnvironmentsGenerator systemEnvironmentsGenerator;
     @MockBean
     ChainFinderService chainFinderService;
+    @MockBean
+    private SystemBaseService systemBaseService;
+    @MockBean
+    private SystemModelBaseService systemModelBaseService;
 
 
     private final ChainMapper chainMapper;
