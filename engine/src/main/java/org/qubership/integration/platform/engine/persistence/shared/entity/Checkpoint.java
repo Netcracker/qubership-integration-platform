@@ -54,9 +54,15 @@ public class Checkpoint {
     @Column(columnDefinition = "TEXT")
     private String contextData;
 
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "body_bytea")
+    private byte[] body;
+
     @Lob
     @Basic(fetch = FetchType.LAZY)
-    private byte[] body;
+    @Column(name = "body")
+    @Deprecated
+    private byte[] deprecatedBody;
 
     @Default
     private Timestamp timestamp = Timestamp.from(new Date().toInstant());

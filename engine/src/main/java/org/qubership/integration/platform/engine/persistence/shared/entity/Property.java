@@ -37,9 +37,15 @@ public class Property {
 
     private String type;
 
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "value_bytea")
+    private byte[] value;
+
     @Lob
     @Basic(fetch = FetchType.LAZY)
-    private byte[] value;
+    @Column(name = "value")
+    @Deprecated
+    private byte[] deprecatedValue;
 
     @ManyToOne(fetch = FetchType.EAGER)
     private Checkpoint checkpoint;
