@@ -16,6 +16,7 @@ properties:
         type: string
       contextPath:
         type: string
+        title: Path Template
       externalRoute:
         type: boolean
         const: false

@@ -54,6 +54,7 @@ properties:
       useUserKnownHostsFile:
         type: boolean
         default: false
+        title: User knows hosts file
       sendEmptyMessageWhenIdle:
         type: boolean
         title: Send Empty message when Idle

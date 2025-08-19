@@ -14,8 +14,11 @@ properties:
     properties:
       connectUrl:
         type: string
+        title: Host:Port/Directory
+        description: Connection url
       antInclude:
         type: string
+        title: File Name (mask supported)
       binary:
         type: boolean
         title: Binary
@@ -34,9 +37,11 @@ properties:
       ignoreFileNotFoundOrPermissionError:
         type: boolean
         default: true
+        title: Ignore file not found or permission error
       jschLoggingLevel:
         type: string
         default: OFF
+        title: JSCH logging level
       password:
         type: string
         title: Password
@@ -46,14 +51,17 @@ properties:
       readLockLoggingLevel:
         type: string
         default: OFF
+        title: ReadLock logging level
       runLoggingLevel:
         type: string
+        title: Run logging level
       scheduler:
         type: string
         title: Scheduler type
         default: quartz
       scheduler.cron:
         type: string
+        title: Scheduler cron job
       scheduler.deleteJob:
         type: boolean
         title: Scheduler deleteJob parameter
@@ -72,6 +80,7 @@ properties:
       useUserKnownHostsFile:
         type: boolean
         default: false
+        title: User knows hosts file
       autoCreate:
         type: boolean
         title: Create directory to file

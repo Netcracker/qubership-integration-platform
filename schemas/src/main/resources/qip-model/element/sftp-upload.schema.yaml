@@ -52,6 +52,7 @@ properties:
       useUserKnownHostsFile:
         type: boolean
         default: false
+        title: User knows hosts file
     required:
       - connectUrl
     additionalProperties: false

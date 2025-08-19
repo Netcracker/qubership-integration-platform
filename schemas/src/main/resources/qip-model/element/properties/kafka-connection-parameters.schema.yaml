@@ -9,6 +9,7 @@ properties:
     enum:
       - maas
       - manual
+    default: manual
   sslProtocol:
     enum:
       - TLS

@@ -9,6 +9,7 @@ properties:
     enum:
       - maas
       - manual
+    default: manual
   exchange:
     type: string
     title: Exchange Name
