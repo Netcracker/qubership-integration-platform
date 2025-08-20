@@ -85,5 +85,5 @@ jobs:
       version: ${{ inputs.release-version }}
       scope: ${{ inputs.npm-scope }}
       dist-tag: ${{ inputs.npm-dist-tag }}
-      branch_name: main
+      ref: ${{ github.ref_name }}
     secrets: inherit

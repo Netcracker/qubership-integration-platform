@@ -1,122 +1,86 @@
-name: Reusable NPM Publish
+---
 
-on:
-  workflow_call:
-    inputs:
-      version:
-        required: true
-        type: string
-      scope:
-        required: false
-        type: string
-        default: "@netcracker"
-      node-version:
-        required: false
-        type: string
-        default: "22.x"
-      registry-url:
-        required: false
-        type: string
-        default: "https://npm.pkg.github.com"
-      update-nc-dependency:
-        required: false
-        type: boolean
-        default: false
-      dist-tag:
-        default: "next"
-        type: string
-        description: "NPM dist-tag"
-        required: false
-      branch_name:
-        required: false
-        type: string
-        default: "main"
-
-permissions:
-  contents: write
-  packages: write
-
-jobs:
-  npm-build-publish:
-    runs-on: ubuntu-latest
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Show branch
-        run: echo "Branch= ${{ github.event.inputs.branch_name }}"
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          registry-url: ${{ inputs.registry-url }}
-          scope: ${{ inputs.scope }}
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Check if project is a Lerna monorepo
-        id: check-lerna
-        run: |
-          if [ -f lerna.json ]; then
-            echo "Lerna project detected."
-            echo "IS_LERNA=true" >> $GITHUB_ENV
-          else
-            echo "Not a Lerna project."
-            echo "IS_LERNA=false" >> $GITHUB_ENV
-          fi
-
-      - name: Update dependencies (if required)
-        if: ${{ inputs.update-nc-dependency == 'true' }}
-        run: |
-          npm ls --json | jq -r '.dependencies | keys[]' | grep "@netcracker" | xargs --no-run-if-empty npm update
-
-      - name: Update package version (for Lerna or NPM)
-        run: |
-          if [ "$IS_LERNA" = "true" ]; then
-            echo "Updating version in lerna.json and all package.json files..."
-            npx lerna version ${{ inputs.version }} --yes --no-git-tag-version --no-push
-          else
-            echo "Updating version in package.json..."
-            npm version ${{ inputs.version }} --no-git-tag-version
-          fi
-          git diff --color
-          git diff >> changes.txt
-
-      - name: Get package version
-        id: get_version
-        run: |
-            if [ "$IS_LERNA" == "true" ]; then
-              VERSION=$(lerna list --json | jq -r '.[0].version')
-            else
-              VERSION=$(jq -r '.version' package.json)
-            fi
-            echo "package_version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Build Project
-        run: |
-          if npm run | grep -q "prepublishOnly"; then
-            npm run prepublishOnly
-          elif npm run | grep -q "build"; then
-            npm run build
-          else
-            echo "No 'prepublishOnly' or 'build' script found. Skipping build step."
-          fi
-
-      - name: Run tests
-        run: npm test --if-present
-
-      - name: Publish Package
-        run: |
-          npm config get registry
-          if [ "$IS_LERNA" = "true" ]; then
-            echo "Publishing with Lerna..."
-            npx lerna publish from-package --yes --no-push --no-git-reset --no-git-tag-version --dist-tag ${{ inputs.dist-tag }}
-          else
-            echo "Publishing with npm..."
-            npm publish --tag ${{ inputs.dist-tag }}
-          fi
+  # This GitHub Actions workflow can be triggered in two ways:
+  # 1. Automatically on push to any branch (runs in dry-run mode for safety)
+  # 2. Manually via workflow_dispatch with configurable parameters
+  #
+  # The workflow delegates the actual NPM publishing process to the re-npm-publish.yml workflow
+  # from the qubership-workflow-hub repository, which performs the following tasks:
+  # 1. Checks out the repository.
+  # 2. Sets up Node.js environment.
+  # 3. Installs dependencies.
+  # 4. Detects if the project is a Lerna monorepo.
+  # 5. Updates dependencies if required.
+  # 6. Updates package version in package.json or lerna.json.
+  # 7. Builds the project.
+  # 8. Runs tests.
+  # 9. Commits and pushes changes.
+  # 10. Publishes the package to NPM registry.
+  
+  # To make it work for your project, you need to adjust the package.json and add configuration file for GitHub release.
+  # Please find detailed instructions:
+  # https://github.com/netcracker/qubership-workflow-hub?tab=readme-ov-file#npm-project-release-workflow
+  #
+  # Note: When triggered by push, the workflow automatically runs in dry-run mode to prevent
+  # accidental publishing. Use workflow_dispatch for actual releases.
+  
+  name: Publish NPM package
+    
+  run-name: NPM Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry-run)) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && !inputs.dry-run && inputs.version) && format(' {0}', inputs.version) || '' }}
+  
+  on:
+    push:
+      branches:
+        - '**'
+    workflow_dispatch:
+      inputs:
+        version:
+          description: 'Release version for NPM (e.g., 1.0.0)'
+          required: false
+          type: string
+        scope:
+          description: 'NPM scope for the package'
+          required: false
+          type: string
+          default: '@netcracker'
+        node-version:
+          required: false
+          type: string
+          default: "22.x"
+        registry-url:
+          required: false
+          type: string
+          default: "https://npm.pkg.github.com"
+        update-nc-dependency:
+          required: false
+          type: boolean
+          default: false
+        dry-run:
+          description: 'Run in dry-run mode (no actual publishing)'
+          required: false
+          type: boolean
+          default: false
+        npm-dist-tag:
+          description: 'NPM distribution tag'
+          required: false
+          type: string
+          default: 'latest'
+  
+  permissions:
+    contents: write
+    packages: write
+  
+  jobs:
+    npm-publish:
+      uses: Netcracker/qubership-workflow-hub/.github/workflows/re-npm-publish.yml@main
+      with:
+        version: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
+        scope: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || '@netcracker' }}
+        node-version: ${{ github.event_name == 'workflow_dispatch' && inputs.node-version || '22.x' }}
+        registry-url: ${{ github.event_name == 'workflow_dispatch' && inputs.registry-url || 'https://npm.pkg.github.com' }}
+        update-nc-dependency: ${{ github.event_name == 'workflow_dispatch' && inputs.update-nc-dependency || false }}
+        dry-run: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
+        dist-tag: ${{ github.event_name == 'workflow_dispatch' && inputs.npm-dist-tag || 'latest' }}
+        ref: ${{ github.ref_name }}
+      secrets: inherit
+ 
