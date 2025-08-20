@@ -137,7 +137,7 @@ export type LibraryElement = {
   folder: string;
   type: string;
   inputEnabled: boolean;
-  inputQuantity: "any" | number;
+  inputQuantity: LibraryInputQuantity;
   outputEnabled: boolean;
   container: boolean;
   ordered: boolean;
@@ -170,6 +170,11 @@ export enum LibraryElementQuantity {
     ONE = "one",
     ONE_OR_ZERO = "one-or-zero",
     ONE_OR_MANY = "one-or-many",
+}
+
+export enum LibraryInputQuantity {
+    ONE = "one",
+    ANY = "any",
 }
 
 export enum PropertyType {

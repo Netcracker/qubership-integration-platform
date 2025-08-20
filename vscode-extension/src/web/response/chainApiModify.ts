@@ -7,6 +7,7 @@ import {
     Element,
     LibraryElementProperty,
     LibraryElementQuantity,
+    LibraryInputQuantity,
     PatchElementRequest
 } from "./apiTypes";
 import * as yaml from 'yaml';
@@ -18,7 +19,7 @@ import {
     getMainChain,
     getMainChainFileUri
 } from "./chainApiRead";
-import {EMPTY_USER, findElementById, getElementChildren, RESOURCES_FOLDER} from "./chainApi";
+import {EMPTY_USER, findElementById, getElementChildren} from "./chainApi";
 import {ExtensionContext, Uri} from "vscode";
 
 const vscode = require('vscode');
@@ -42,7 +43,66 @@ export async function updateChain(mainFolderUri: Uri, chainId: string, chainRequ
     return await getChain(mainFolderUri, chainId);
 }
 
-export async function updateElement(mainFolderUri: Uri, chainId: string, elementId: string, elementRequest: PatchElementRequest): Promise<ActionDifference> {
+async function checkRestrictions(context: ExtensionContext, element: any, elements:any[]) {
+    const libraryData = await getLibraryElementByType(context, element.type);
+    const parentElementId = findElementById(elements, element.id)?.parentId; // More consistent way instead of parentElementId field
+
+    if (parentElementId) {
+        if (!libraryData.allowedInContainers) {
+            console.error(`Invalid parent for element`);
+            throw Error("Invalid parent for element");
+        }
+
+        const parentElement = findElementById(elements, parentElementId)?.element;
+        if (parentElement) {
+            const libraryParentData = await getLibraryElementByType(context, parentElement.type);
+
+            if (libraryData.parentRestriction?.length > 0) {
+                if (libraryData.parentRestriction.find(type => type === parentElement.type)?.length === 0) {
+                    console.error(`Invalid parent type for element`);
+                    throw Error("Invalid parent type for element");
+                }
+            }
+
+            // Check for allowed children inside parent element
+            if (libraryParentData.allowedChildren && Object.keys(libraryParentData.allowedChildren).length > 0) {
+                const amount = libraryParentData.allowedChildren[element.type];
+                if (!amount) {
+                    console.error(`Invalid type for parent element`);
+                    throw Error("Invalid type for parent element");
+                }
+
+                if (amount === LibraryElementQuantity.ONE || amount === LibraryElementQuantity.ONE_OR_ZERO) {
+                    const actualAmount = parentElement.children?.filter((e: { type: string; }) => e.type === element.type).length;
+
+                    if (actualAmount == undefined || actualAmount > 1 || (actualAmount === 0 && amount === LibraryElementQuantity.ONE)) {
+                        console.error(`Incorrect amount of element type for parent element`);
+                        throw Error("Incorrect amount of element type for parent element");
+                    }
+                }
+            }
+        }
+    }
+
+    // Check if element doesn't have enough elements as children (in case of deletion)
+    if (libraryData.allowedChildren && Object.keys(libraryData.allowedChildren).length > 0) {
+        for (const childType in libraryData.allowedChildren) {
+            if (libraryData.allowedChildren[childType] === LibraryElementQuantity.ONE || libraryData.allowedChildren[childType] === LibraryElementQuantity.ONE_OR_MANY) {
+                if (!(element.children?.filter((e: { type: string; }) => e.type === childType).length > 0)) {
+                    console.error(`Incorrect amount of children elements`);
+                    throw Error("Incorrect amount of children elements");
+                }
+            }
+        }
+    }
+    // Can't check it after element add, i.e. if you add "Try" element it will be always empty
+    // if (libraryData.mandatoryInnerElement && !(element.children?.length > 0)) {
+    //     console.error(`Incorrect amount of children elements`);
+    //     throw Error("Incorrect amount of children elements");
+    // }
+}
+
+export async function updateElement(context: ExtensionContext, mainFolderUri: Uri, chainId: string, elementId: string, elementRequest: PatchElementRequest): Promise<ActionDifference> {
     const chain: any = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
@@ -69,13 +129,15 @@ export async function updateElement(mainFolderUri: Uri, chainId: string, element
     element.properties = elementRequest.properties;
     element.parentElementId = elementRequest.parentElementId;
     if (parentElement) {
-        if (!parentElement.children?.length) {
-            parentElement.children = [];
+        if (!parentElement.element.children?.length) {
+            parentElement.element.children = [];
         }
-        parentElement.children.push(element);
+        parentElement.element.children.push(element);
     } else {
         chain.content.elements.push(element);
     }
+
+    await checkRestrictions(context, element, chain.content.elements);
 
     await writeElementProperties(mainFolderUri, element);
     await writeMainChain(mainFolderUri, chain);
@@ -214,7 +276,11 @@ export async function createElement(context: ExtensionContext, mainFolderUri: Ur
 
     const element = await getDefaultElementByType(context, chainId, elementRequest);
 
-    chain.content.elements.push(element);
+    if (!insertElement(chain.content.elements, element)) {
+        chain.content.elements.push(element);
+    }
+
+    await checkRestrictions(context, element, chain.content.elements);
 
     await writeElementProperties(mainFolderUri, element);
     await writeMainChain(mainFolderUri, chain);
@@ -224,6 +290,30 @@ export async function createElement(context: ExtensionContext, mainFolderUri: Ur
             await getElement(mainFolderUri, chainId, element.id)
         ]
     };
+}
+
+function insertElement(elements: Element[], newElement: Element): boolean {
+    if (!newElement.parentElementId) {
+        // no parent, add to root
+        elements.push(newElement);
+        return true;
+    }
+
+    for (const element of elements) {
+        if (element.id === newElement.parentElementId) {
+            if (!element.children) {
+                element.children = [];
+            }
+            element.children.push(newElement);
+            return true;
+        }
+
+        if (element.children && insertElement(element.children, newElement)) {
+            return true; // inserted in nested children
+        }
+    }
+
+    return false; // parent not found
 }
 
 function getDefaultPropertiesForElement(libraryProperties: any): any {
@@ -313,7 +403,7 @@ async function removeFile(mainFolderUri: Uri, propertiesFilename: string): Promi
     return;
 }
 
-export async function deleteElements(mainFolderUri: Uri, chainId: string, elementIds: string[]): Promise<ActionDifference> {
+export async function deleteElements(context: ExtensionContext, mainFolderUri: Uri, chainId: string, elementIds: string[]): Promise<ActionDifference> {
     const chain: any = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
@@ -322,6 +412,7 @@ export async function deleteElements(mainFolderUri: Uri, chainId: string, elemen
 
     const removedElements: any[] = [];
     for (const elementId of elementIds) {
+        const parentElementId = findElementById(chain.content.elements, elementId)?.parentId;
         const element = findAndRemoveElementById(chain.content.elements, elementId);
         if (!element) {
             console.error(`ElementId not found`);
@@ -335,6 +426,11 @@ export async function deleteElements(mainFolderUri: Uri, chainId: string, elemen
 
         await deleteDependenciesForElement(elementId, chain.content.dependencies);
         removedElements.push(element);
+
+        const parentElement = parentElementId ? findElementById(chain.content.elements, parentElementId)?.element : undefined;
+        if (parentElement) {
+            await checkRestrictions(context, parentElement, chain.content.elements);
+        }
     }
 
     await writeMainChain(mainFolderUri, chain);
@@ -353,23 +449,39 @@ async function deleteDependenciesForElement(elementId: string, dependencies: Dep
     });
 }
 
-export async function createConnection(mainFolderUri: Uri, chainId: string, connectionRequest: ConnectionRequest): Promise<ActionDifference> {
+export async function createConnection(context: ExtensionContext, mainFolderUri: Uri, chainId: string, connectionRequest: ConnectionRequest): Promise<ActionDifference> {
     const chain: any = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    const elementFrom = findElementById(chain.content.elements, connectionRequest.from);
+    const elementFrom = findElementById(chain.content.elements, connectionRequest.from)?.element;
     if (!elementFrom) {
         console.error(`ElementId from not found`);
         throw Error("ElementId from not found");
     }
-    const elementTo = findElementById(chain.content.elements, connectionRequest.to);
+    const libraryDataFrom = await getLibraryElementByType(context, elementFrom.type);
+    if (!libraryDataFrom.outputEnabled) {
+        console.error(`Element from does not allow output connections`);
+        throw Error("Element from does not allow output connections");
+    }
+
+    const elementTo = findElementById(chain.content.elements, connectionRequest.to)?.element;
     if (!elementTo) {
         console.error(`ElementId to not found`);
         throw Error("ElementId to not found");
     }
+    const libraryDataTo = await getLibraryElementByType(context, elementTo.type);
+    if (!libraryDataTo.inputEnabled) {
+        console.error(`Element to does not allow output connections`);
+        throw Error("Element to does not allow output connections");
+    }
+    if (libraryDataTo.inputQuantity === LibraryInputQuantity.ONE && chain.content.dependencies?.find((d: Dependency) => d.to === connectionRequest.to)) {
+        console.error(`Element to does not allow another connections`);
+        throw Error("Element to does not allow another connections");
+    }
+
     const dependency: Dependency = chain.content.dependencies?.find((dependency: Dependency) =>
         dependency.from === connectionRequest.from && dependency.to === connectionRequest.to);
     if (dependency) {
@@ -414,6 +526,7 @@ export async function deleteConnections(mainFolderUri: Uri, chainId: string, con
         let index = chain.content.dependencies.findIndex((d: Dependency) => d === dependency);
         chain.content.dependencies.splice(index, 1);
 
+        dependency['id'] = getDependencyId(dependency);
         removedConnections.push(dependency);
     }
 

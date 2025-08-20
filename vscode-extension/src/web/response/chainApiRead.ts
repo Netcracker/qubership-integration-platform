@@ -121,7 +121,7 @@ export async function getElement(mainFolderUri: Uri, chainId: string, elementId:
         throw Error("ElementId not found");
     }
 
-    return await parseElement(mainFolderUri, element, chain.id);
+    return await parseElement(mainFolderUri, element.element, chain.id, element.parentId);
 }
 
 export function getDependencyId(dependency: Dependency) {

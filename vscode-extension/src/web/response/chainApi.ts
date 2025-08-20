@@ -27,10 +27,10 @@ export async function getApiResponse(message: VSCodeMessage, context: ExtensionC
         case 'getConnections': return await getConnections(mainFolder, message.payload);
         case 'getLibrary': return await getLibrary(context);
         case 'getLibraryElementByType': return await getLibraryElementByType(context, message.payload);
-        case 'updateElement': return await updateElement(mainFolder, message.payload.chainId, message.payload.elementId, message.payload.elementRequest);
+        case 'updateElement': return await updateElement(context, mainFolder, message.payload.chainId, message.payload.elementId, message.payload.elementRequest);
         case 'createElement': return await createElement(context, mainFolder, message.payload.chainId, message.payload.elementRequest);
-        case 'deleteElements': return await deleteElements(mainFolder, message.payload.chainId, message.payload.elementIds);
-        case 'createConnection': return await createConnection(mainFolder, message.payload.chainId, message.payload.connectionRequest);
+        case 'deleteElements': return await deleteElements(context, mainFolder, message.payload.chainId, message.payload.elementIds);
+        case 'createConnection': return await createConnection(context, mainFolder, message.payload.chainId, message.payload.connectionRequest);
         case 'deleteConnections': return await deleteConnections(mainFolder, message.payload.chainId, message.payload.connectionIds);
         case 'updateChain': return await updateChain(mainFolder, message.payload.id, message.payload.chain);
     }
@@ -56,19 +56,29 @@ export function getChainFolderUri(openedDocumentFolderUri: Uri | undefined): Uri
     throw Error("No current workfolder found");
 }
 
-export function findElementById(elements: Element[] | undefined, elementId: string): Element | undefined {
+export function findElementById(
+    elements: any[] | undefined,
+    elementId: string,
+    parentId: string | undefined = undefined
+): {
+    element: any;
+    parentId: string | undefined;
+} | undefined {
     if (!elements) {
         return undefined;
     }
+
     for (const element of elements) {
         if (element.id === elementId) {
-            return element;
+            return { element, parentId };
         }
-        const found = findElementById(element.children, elementId);
+
+        const found = findElementById(element.children, elementId, element.id);
         if (found) {
             return found;
         }
     }
+
     return undefined;
 }
 
@@ -79,7 +89,7 @@ export const EMPTY_USER = {
 
 export const RESOURCES_FOLDER = 'resources';
 
-export function getElementChildren(children: Element[] | undefined): Element[] {
+export function getElementChildren(children: any[] | undefined): any[] {
     const result: Element[] = [];
     if (children?.length) {
         for (const child of children) {
