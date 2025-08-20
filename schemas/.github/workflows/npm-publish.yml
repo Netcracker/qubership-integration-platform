@@ -16,18 +16,18 @@
   # 8. Runs tests.
   # 9. Commits and pushes changes.
   # 10. Publishes the package to NPM registry.
-  
+
   # To make it work for your project, you need to adjust the package.json and add configuration file for GitHub release.
   # Please find detailed instructions:
   # https://github.com/netcracker/qubership-workflow-hub?tab=readme-ov-file#npm-project-release-workflow
   #
   # Note: When triggered by push, the workflow automatically runs in dry-run mode to prevent
   # accidental publishing. Use workflow_dispatch for actual releases.
-  
+
   name: Publish NPM package
-    
+
   run-name: NPM Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry-run)) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && !inputs.dry-run && inputs.version) && format(' {0}', inputs.version) || '' }}
-  
+
   on:
     push:
       branches:
@@ -65,11 +65,11 @@
           required: false
           type: string
           default: 'latest'
-  
+
   permissions:
     contents: write
     packages: write
-  
+
   jobs:
     npm-publish:
       uses: Netcracker/qubership-workflow-hub/.github/workflows/re-npm-publish.yml@main
@@ -83,4 +83,3 @@
         dist-tag: ${{ github.event_name == 'workflow_dispatch' && inputs.npm-dist-tag || 'latest' }}
         ref: ${{ github.ref_name }}
       secrets: inherit
- 
