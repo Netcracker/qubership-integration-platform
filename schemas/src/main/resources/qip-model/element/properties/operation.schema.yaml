@@ -127,7 +127,7 @@ properties:
     title: Service ID
   systemType:
     title: Service type
-    $ref: "../../service.schema.yaml#/definitions/ServiceType"
+    $ref: "http://qubership.org/schemas/product/qip/service.schema.yaml#/definitions/ServiceType"
   integrationOperationProtocolType:
     title: Operation protocol type
     $ref: "#/definitions/Protocol"

@@ -8,4 +8,4 @@ properties:
     type: array
     title: Child elements
     items:
-      $ref: "element.schema.yaml"
+      $ref: "http://qubership.org/schemas/product/qip/element/element.schema.yaml"

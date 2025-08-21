@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/kafka-sender-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
 title: Kafka Sender
 description: Produce message in kafka
 properties:
@@ -13,8 +13,8 @@ properties:
   properties:
     type: object
     allOf:
-      - $ref: "properties/kafka-connection-parameters.schema.yaml"
-      - $ref: "properties/context-propagation.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/kafka-connection-parameters.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
     properties:
       key:
         type: string

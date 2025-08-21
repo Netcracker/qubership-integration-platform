@@ -12,4 +12,4 @@ properties:
   overrideContextParams:
     title: Override technical context headers
     description: Propagate props to headers before sending message.
-    $ref: "headers.schema.yaml"
+    $ref: "http://qubership.org/schemas/product/qip/element/properties/headers.schema.yaml"

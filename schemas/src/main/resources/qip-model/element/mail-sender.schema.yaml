@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/mail-sender.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
 title: Mail Sender
 properties:
   type:
@@ -12,7 +12,7 @@ properties:
   properties:
     type: object
     allOf:
-      - $ref: "properties/context-propagation.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
     properties:
       url:
         type: string
@@ -67,7 +67,7 @@ properties:
           variables when entering passwords.
       connectionTimeout:
         allOf:
-          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Connection timeout (ms)
         description: >
           Connection timeout in millis (default value will be used

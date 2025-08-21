@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/condition.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
 title: Condition
 properties:
   type:
@@ -13,8 +13,8 @@ properties:
     type: array
     items:
       anyOf:
-        - $ref: 'if.schema.yaml'
-        - $ref: 'else.schema.yaml'
+        - $ref: "http://qubership.org/schemas/product/qip/element/if.schema.yaml"
+        - $ref: "http://qubership.org/schemas/product/qip/element/else.schema.yaml"
   properties:
     type: object
     additionalProperties: false

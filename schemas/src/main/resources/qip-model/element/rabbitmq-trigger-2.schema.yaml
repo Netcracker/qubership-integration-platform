@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
 title: RabbitMQ Trigger
 properties:
   type:
@@ -12,8 +12,8 @@ properties:
   properties:
     type: object
     allOf:
-      - $ref: "properties/rabbitmq-connection-parameters.schema.yaml"
-      - $ref: "properties/idempotency.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/rabbitmq-connection-parameters.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
     properties:
       queues:
         type: string

@@ -3,8 +3,8 @@ $id: http://qubership.org/schemas/product/qip/element/loop-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
-  - $ref: "container.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/element/container.schema.yaml"
 title: Loop
 properties:
   type:
@@ -31,8 +31,8 @@ properties:
           is removing after loop exits.
       maxLoopIteration:
         oneOf:
-          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
-          - $ref: "../base.schema.yaml#/definitions/SimpleExpression"
+          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/SimpleExpression"
         title: Maximum iteration count
         description: >
           When specified number of iterations is reached, chain stops

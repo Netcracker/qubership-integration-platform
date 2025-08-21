@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/kafka-trigger-2.schema.yam
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
 title: Kafka Trigger
 description: Trigger, that start chain after receiving kafka message.
 properties:
@@ -13,8 +13,8 @@ properties:
   properties:
     type: object
     allOf:
-      - $ref: "properties/kafka-connection-parameters.schema.yaml"
-      - $ref: "properties/idempotency.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/kafka-connection-parameters.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
     properties:
       groupId:
         type: string
@@ -22,7 +22,7 @@ properties:
         description: The ID of the group the Producer is assigned to.
       reconnectBackoffMaxMs:
         allOf:
-          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Reconnect delay (ms)
         description: Specifies delay between reconnection in millis.
         default: 30000
@@ -36,7 +36,7 @@ properties:
         default: latest
       consumersCount:
         allOf:
-          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         default: 1
         title: Consumers Count
         description: The number of consumers that connect to kafka server.
@@ -78,7 +78,7 @@ properties:
         description: Value deserializer class
       maxPollIntervalMs:
         allOf:
-          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         default: 300000
         title: Max Poll Interval
         description: >
@@ -90,7 +90,7 @@ properties:
           This "new" consumer will process the whole batch all over again.
       maxPollRecords:
         allOf:
-          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         default: 500
         title: Max Poll Records
         description: >

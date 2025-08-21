@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.y
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
 title: AsyncAPI Trigger
 description: Receives a call from a service registered in API Repository
 properties:
@@ -13,7 +13,7 @@ properties:
   properties:
     type: object
     allOf:
-      - $ref: "properties/idempotency.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
     properties:
       after:
         type: array
@@ -25,7 +25,7 @@ properties:
         title: Response validation schema
       requestFilterHeaderAllowlist:
         title: Filtered headers list
-        $ref: "properties/headers.schema.yaml"
+        $ref: "http://qubership.org/schemas/product/qip/element/properties/headers.schema.yaml"
       integrationOperationId:
         type: string
         title: Operation ID
@@ -40,7 +40,7 @@ properties:
         title: Service ID
       systemType:
         title: Service type
-        $ref: "../service.schema.yaml#/definitions/ServiceType"
+        $ref: "http://qubership.org/schemas/product/qip/service.schema.yaml#/definitions/ServiceType"
       integrationOperationProtocolType:
         title: Operation protocol type
         $ref: "#/definitions/Protocol"
@@ -58,7 +58,7 @@ properties:
       properties:
         reconnectDelay:
           allOf:
-            - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+            - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
           title: Reconnection delay (ms)
           default: 30000
         integrationOperationAsyncProperties:

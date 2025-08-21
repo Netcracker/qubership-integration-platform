@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/sftp-trigger-2.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
 title: SFTP Trigger
 properties:
   type:
@@ -69,7 +69,7 @@ properties:
       scheduler.triggerGroup:
         type: string
         title: Scheduler triggerGroup
-        default: '%%{domain-placeholder}-group'
+        default: "%%{domain-placeholder}-group"
       streamDownload:
         type: boolean
         title: Stream download (big filesize)

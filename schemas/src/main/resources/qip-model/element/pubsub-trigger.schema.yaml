@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/pubsub-trigger.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
 title: PubSub Trigger
 description: Read message from PubSub topic.
 properties:
@@ -13,7 +13,7 @@ properties:
   properties:
     type: object
     allOf:
-      - $ref: "properties/idempotency.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
     properties:
       projectId:
         type: string
@@ -32,7 +32,7 @@ properties:
           ServiceAccount json file.
       maxMessagesPerPoll:
         allOf:
-          - $ref: "../base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
         title: Max messages per poll
         description: >
           The max number of messages to receive from the server

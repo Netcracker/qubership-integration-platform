@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/script.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "../base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
 title: Script
 description: Executes Groovy Script
 properties:
@@ -23,7 +23,7 @@ definitions:
         type: string
         const: script
       propertiesFilename:
-        $ref: "../resource-reference.schema.yaml#/definitions/ScriptResourceReference"
+        $ref: "http://qubership.org/schemas/product/qip/resource-reference.schema.yaml#/definitions/ScriptResourceReference"
       script:
         type: string
         title: Script
