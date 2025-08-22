@@ -3,7 +3,7 @@ $id: http://qubership.org/schemas/product/qip/element/log-record.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonElementProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
 title: Log Record
 description: >
   Log Record element allows to configure a message that will be logged
