@@ -7,9 +7,9 @@ import { DESCRIPTION_KEY, EXAMPLES_KEY } from "../model/metadata.ts";
 import { MetadataUtil } from "../util/metadata.ts";
 import { MessageSchemaUtil } from "../util/schema.ts";
 import {
-    bindParameterValues,
-    TransformationInfo,
-    TRANSFORMATIONS,
+  bindParameterValues,
+  TransformationInfo,
+  TRANSFORMATIONS,
 } from "../model/transformations.ts";
 import { GENERATORS } from "../model/generators.ts";
 
@@ -120,7 +120,7 @@ function buildConstantRow(constant: Constant): string[] {
     [constant?.name],
     [DataTypes.buildTypeName(constant?.type, [])],
     buildConstantValueEntries(constant?.valueSupplier),
-    [String(MetadataUtil.getValue(constant, DESCRIPTION_KEY))],
+    [MetadataUtil.getString(constant, DESCRIPTION_KEY) ?? ""],
   ].map((cellContext) => renderTableCellContext(cellContext));
 }
 
@@ -225,10 +225,7 @@ function buildMarkdownTableRowsForAttribute(
     mapping.constants,
   );
   const optionality = attribute.required ? "required" : "optional";
-  const description = MetadataUtil.getValue(
-    attribute,
-    DESCRIPTION_KEY,
-  ) as string;
+  const description = MetadataUtil.getString(attribute, DESCRIPTION_KEY) ?? "";
 
   const examples = buildExamples(
     MetadataUtil.getValue(attribute, EXAMPLES_KEY),
@@ -257,7 +254,7 @@ function buildMarkdownTableRowsForAttribute(
     .map((t) => buildTransformationDetails(t))
     .reduce((l1, l2) => [...l1, ...l2], []);
   const actionDescriptions = actions
-    .map((a) => MetadataUtil.getValue(a, DESCRIPTION_KEY) as string)
+    .map((a) => MetadataUtil.getString(a, DESCRIPTION_KEY))
     .filter((d) => !!d);
 
   const childAttributes = Attributes.getChildAttributes(
@@ -306,12 +303,10 @@ function buildElementPathString(
   constants: Constant[],
 ): string {
   return MappingUtil.isConstantReference(reference)
-    ? (constants.find(
-        (c) => c.id === reference.constantId,
-      )?.name ?? "")
-    : MessageSchemaUtil.restorePath(messageSchema, reference)
+    ? (constants.find((c) => c.id === reference.constantId)?.name ?? "")
+    : (MessageSchemaUtil.restorePath(messageSchema, reference)
         ?.map((a) => a.name ?? "")
-        .join(".") ?? "";
+        .join(".") ?? "");
 }
 
 function buildTransformationDetails(

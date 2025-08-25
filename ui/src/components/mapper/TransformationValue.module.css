@@ -1,0 +1,62 @@
+.transformation-title::first-letter {
+  text-transform: uppercase;
+}
+
+.transformation-content {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+}
+
+.transformation-details {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 1;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.transformation-title {
+  flex-shrink: 1;
+  flex-grow: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transformation-parameters {
+  align-items: center;
+  min-width: 0;
+  flex-shrink: 10000;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+}
+
+.transformation-parameter-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  text-wrap: nowrap;
+  color: #626d82;
+  font-style: italic;
+}
+
+.transformation-parameter-values {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.transformation-errors {
+
+}
+
+.transformation-error {
+
+}

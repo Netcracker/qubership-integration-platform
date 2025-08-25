@@ -4,6 +4,7 @@ import { Button, Form, Input, Modal, Select, SelectProps } from "antd";
 import { DetailedDesignTemplate } from "../../api/apiTypes.ts";
 import { api } from "../../api/api.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import { formatDate } from "../../misc/format-utils.ts";
 
 type GenerateDdsFormData = {
   templateId: string;
@@ -16,10 +17,6 @@ export type GenerateDdsModalProps = {
     fileName: string,
   ) => void | Promise<void>;
 };
-
-function formatDate(date: Date): string {
-  return date.toISOString().replace(/\..*/g, "").replaceAll(/:/g, "_");
-}
 
 export const GenerateDdsModal: React.FC<GenerateDdsModalProps> = ({
   onSubmit,

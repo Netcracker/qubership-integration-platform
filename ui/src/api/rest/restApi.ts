@@ -232,7 +232,7 @@ export class RestApi implements Api {
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/type/${elementType}`,
     );
     return response.data;
-  }
+  };
 
   createElement = async (
     elementRequest: CreateElementRequest,
@@ -280,16 +280,15 @@ export class RestApi implements Api {
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/properties-modification`,
       {},
       {
-        params:
-          {
-            specificationGroupId: specificationGroupId,
-            httpTriggerIds: httpTriggerIds
-          },
-          paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' })
+        params: {
+          specificationGroupId: specificationGroupId,
+          httpTriggerIds: httpTriggerIds,
+        },
+        paramsSerializer: (params) =>
+          qs.stringify(params, { arrayFormat: "repeat" }),
       },
-
     );
-  }
+  };
 
   getConnections = async (chainId: string): Promise<Connection[]> => {
     const response = await this.instance.get<Connection[]>(
@@ -382,9 +381,7 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  getLibraryElementByType = async (
-    type: string,
-  ): Promise<LibraryElement> => {
+  getLibraryElementByType = async (type: string): Promise<LibraryElement> => {
     const response = await this.instance.get<LibraryElement>(
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/library/${type}`,
     );
@@ -770,7 +767,7 @@ export class RestApi implements Api {
     httpTriggerIds: string[],
     externalRoutes: boolean,
     specificationType: ApiSpecificationType,
-    format: ApiSpecificationFormat
+    format: ApiSpecificationFormat,
   ): Promise<File> => {
     const params: Record<string, string> = {};
     if (deploymentIds?.length) {
@@ -789,7 +786,7 @@ export class RestApi implements Api {
     const response = await this.instance.get<Blob>(
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export/api-spec`,
       {
-        params: {...params, externalRoutes, specificationType, format},
+        params: { ...params, externalRoutes, specificationType, format },
         headers: {
           accept: "*/*",
         },
@@ -797,8 +794,7 @@ export class RestApi implements Api {
       },
     );
     return getFileFromResponse(response);
-  }
-
+  };
 
   getServices = async (
     modelType: string,
@@ -1049,6 +1045,13 @@ export class RestApi implements Api {
     const response = await this.instance.patch<Specification>(
       `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models/${id}`,
       data,
+    );
+    return response.data;
+  };
+
+  getSpecificationModelSource = async (id: string): Promise<string> => {
+    const response = await this.instance.get<string>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models/${id}/source`,
     );
     return response.data;
   };

@@ -55,7 +55,6 @@ export const DdsPreview: React.FC<DdsViewProps> = ({
             result.replace(`[//]:#(mapper-table-export-view-${id})`, markdown),
           design.document,
         );
-      console.log({ original: design.document, result: document });
       return { ...design, document };
     },
     [chainId],

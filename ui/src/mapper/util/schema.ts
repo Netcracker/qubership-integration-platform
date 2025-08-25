@@ -30,6 +30,18 @@ export interface AttributeDetail {
   definitions: TypeDefinition[];
 }
 
+export function isAttributeDetail(obj: unknown): obj is AttributeDetail {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "kind" in obj &&
+    "path" in obj &&
+    Array.isArray(obj.path) &&
+    "definitions" in obj &&
+    Array.isArray(obj.definitions)
+  );
+}
+
 export class MessageSchemaUtil {
   public static findAttribute(
     schema: MessageSchema,

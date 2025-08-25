@@ -159,4 +159,28 @@ export class MappingUtil {
   ): reference is ConstantReference {
     return reference.type === "constant";
   }
+
+  public static isObjConstantReference(obj: unknown): obj is ConstantReference {
+    return (
+      typeof obj === "object" &&
+      obj !== null &&
+      "type" in obj &&
+      "constantId" in obj &&
+      obj.type === "constant" &&
+      typeof obj.constantId === "string"
+    );
+  }
+
+  public static isAttributeReference(obj: unknown): obj is AttributeReference {
+    return (
+      typeof obj === "object" &&
+      obj !== null &&
+      "type" in obj &&
+      "kind" in obj &&
+      "path" in obj &&
+      obj.type === "attribute" &&
+      (["header", "property", "body"] as unknown[]).includes(obj.kind) &&
+      Array.isArray(obj.path)
+    );
+  }
 }

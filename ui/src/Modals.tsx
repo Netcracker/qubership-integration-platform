@@ -2,6 +2,7 @@ import React, {
   createContext,
   PropsWithChildren,
   ReactNode,
+  useCallback,
   useContext,
   useState,
 } from "react";
@@ -24,19 +25,19 @@ type ShowModalProps = {
 const useModals = () => {
   const [modals, setModals] = useState<Modal[]>([]);
 
-  const showModal = ({
+  const showModal = useCallback(({
     component,
     id = crypto.randomUUID(),
   }: ShowModalProps) => {
     setModals((components) => [...components, { component, id }]);
     return id;
-  };
+  }, []);
 
-  const closeModal = (id: string) => {
+  const closeModal = useCallback((id: string) => {
     setModals((components) =>
       components.filter((component) => component.id !== id),
     );
-  };
+  }, []);
 
   return { modals, showModal, closeModal };
 };

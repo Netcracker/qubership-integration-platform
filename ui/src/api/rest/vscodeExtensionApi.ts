@@ -138,13 +138,11 @@ export class VSCodeExtensionApi implements Api {
     chainId: string,
   ): Promise<ActionDifference> => {
     return <ActionDifference>(
-      (
-        await this.sendMessageToExtension("deleteElements", {
-          chainId,
-          elementIds,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("deleteElements", {
+        chainId,
+        elementIds,
+      })
+    ).payload;
   };
 
   getConnections = async (chainId: string): Promise<Connection[]> => {
@@ -193,7 +191,6 @@ export class VSCodeExtensionApi implements Api {
       (await this.sendMessageToExtension("updateChain", { id, chain })).payload
     );
   };
-
 
   getElementsByType(): Promise<ElementWithChainName[]> {
     throw new Error("Method not implemented.");
@@ -280,6 +277,10 @@ export class VSCodeExtensionApi implements Api {
   }
 
   getSpecificationModel(): Promise<Specification[]> {
+    throw new Error("Method not implemented.");
+  }
+
+  getSpecificationModelSource(): Promise<string> {
     throw new Error("Method not implemented.");
   }
 

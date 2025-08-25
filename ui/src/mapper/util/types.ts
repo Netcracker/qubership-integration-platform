@@ -112,25 +112,24 @@ export class DataTypes {
   }
 
   public static resolveType(
-    type: DataType,
+    type: DataType | undefined,
     typeDefinitions: TypeDefinition[],
   ): TypeResolutionResult {
-    let t: DataType | undefined = type;
-    while (t && DataTypes.isReferenceType(t)) {
+    while (type && DataTypes.isReferenceType(type)) {
       typeDefinitions = DataTypes.mergeTypeDefinitions(
         typeDefinitions,
-        t.definitions,
+        type.definitions,
       );
       const definition = typeDefinitions.find(
-        (d) => d.id === (t as ReferenceType).definitionId,
+        (d) => d.id === (type as ReferenceType).definitionId,
       );
       // Check for self-referencing type
-      if (t === definition?.type) {
+      if (type === definition?.type) {
         break;
       }
-      t = definition?.type;
+      type = definition?.type;
     }
-    return { type: t, definitions: typeDefinitions };
+    return { type, definitions: typeDefinitions };
   }
 
   public static resolveArrayItemType(
@@ -419,5 +418,18 @@ export class DataTypes {
   private static describeNestedTypes(type: CompoundType): string {
     const c = type?.types.length;
     return c === 0 ? "..." : `${c} ${c === 1 ? "type" : "types"}`;
+  }
+
+  public static isComplexType(
+    type: DataType,
+    typeDefinitions: TypeDefinition[],
+  ): boolean {
+    const result = this.resolveType(type, typeDefinitions);
+    return (
+      (result.type?.name === "array" &&
+        this.isComplexType(result.type.itemType, result.definitions)) ||
+      result.type?.name === "object" ||
+      result.type?.name === "reference"
+    );
   }
 }

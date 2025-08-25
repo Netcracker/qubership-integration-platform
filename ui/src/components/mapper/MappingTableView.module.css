@@ -1,0 +1,12 @@
+.group-row {
+
+}
+
+.group-label {
+  text-transform: capitalize;
+  font-weight: bold;
+}
+
+.invalid-value {
+  background-color: #ffc2c1;
+}

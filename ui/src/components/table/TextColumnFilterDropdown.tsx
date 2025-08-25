@@ -49,7 +49,7 @@ function getTextFilterFunction(
   }
 }
 
-function getTextFilterPredicate(
+export function getTextFilterPredicate(
   filter: TextFilter,
 ): (value: string) => boolean {
   const filterFunction = getTextFilterFunction(filter.condition);

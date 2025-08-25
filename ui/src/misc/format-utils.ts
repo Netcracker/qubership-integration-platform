@@ -69,3 +69,7 @@ export function capitalize(s: string) {
 export function formatSnakeCased(s: string) {
   return capitalize(s.split("_").join(" "));
 }
+
+export function formatDate(date: Date): string {
+  return date.toISOString().replace(/\..*/g, "").replaceAll(/:/g, "_");
+}

@@ -12,6 +12,7 @@ import React, {
   DragEvent,
   MouseEvent,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -37,18 +38,21 @@ import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
 import { useLibraryContext } from "../components/LibraryContext.tsx";
-import {ChainGraphNodeData, nodeTypes} from "../components/graph/nodes/ChainGraphNodeTypes.ts";
+import {
+  ChainGraphNodeData,
+  nodeTypes,
+} from "../components/graph/nodes/ChainGraphNodeTypes.ts";
+import { ChainContext } from "./ChainPage.tsx";
 
 const ChainGraphInner: React.FC = () => {
   const { chainId, elementId } = useParams<string>();
+  const chainContext = useContext(ChainContext);
   const { showModal } = useModalsContext();
   const reactFlowWrapper = useRef(null);
   const [isPageLoaded, setIsPageLoaded] = useState(false);
   const navigate = useNavigate();
   const notificationService = useNotificationService();
   const { isLibraryLoading } = useLibraryContext();
-
-
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -94,17 +98,26 @@ const ChainGraphInner: React.FC = () => {
       setElementPath(node.id);
       showModal({
         component: (
-          <ChainElementModification
-            node={node}
-            chainId={chainId!}
-            elementId={node.id}
-            onSubmit={updateNodeData}
-            onClose={clearElementPath}
-          />
+          <ChainContext.Provider value={chainContext}>
+            <ChainElementModification
+              node={node}
+              chainId={chainId!}
+              elementId={node.id}
+              onSubmit={updateNodeData}
+              onClose={clearElementPath}
+            />
+          </ChainContext.Provider>
         ),
       });
     },
-    [chainId, clearElementPath, setElementPath, showModal, updateNodeData],
+    [
+      chainContext,
+      chainId,
+      clearElementPath,
+      setElementPath,
+      showModal,
+      updateNodeData,
+    ],
   );
 
   const saveAndDeploy = async (domain: string) => {

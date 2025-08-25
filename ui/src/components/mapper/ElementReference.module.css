@@ -1,0 +1,26 @@
+.element-reference {
+  padding-left: 0;
+  display: flex;
+  align-items: center;
+  background-color: #ECEDEF;
+  margin-right: 0;
+  min-width: 0;
+}
+
+.element-type {
+  text-transform: capitalize;
+  font-weight: 600;
+  font-style: italic;
+  background-color: #D5DCE3;
+  padding-left: 8px;
+  padding-right: 8px;
+  border-bottom-left-radius: 3px;
+  border-top-left-radius: 3px;
+}
+
+.element-name {
+  padding-left: 8px;
+  min-width: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
