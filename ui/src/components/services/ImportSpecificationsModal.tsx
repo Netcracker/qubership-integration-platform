@@ -11,12 +11,9 @@ import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { ApiSpecificationType, ApiSpecificationFormat } from "../../api/apiTypes";
 import styles from "./Services.module.css";
 
-// Constants
 const POLLING_INTERVAL = 1200;
 const DEFAULT_EXTERNAL_ROUTES_ONLY = true;
 const MODAL_WIDTH = 600;
-
-
 
 interface Props {
   systemId?: string;
@@ -172,10 +169,10 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
     }
     const invalidTriggers: ElementWithChainName[] = elements
       .filter(e => {
-        if (!selectedChainIds.includes(e.chainId) || !e.properties?.["httpMethodRestrict"]) {
+        if (!selectedChainIds.includes(e.chainId)) {
           return false;
         }
-        const httpMethodRestrict = e.properties["httpMethodRestrict"];
+        const httpMethodRestrict = e.properties?.["httpMethodRestrict"];
         if (typeof httpMethodRestrict !== "string") {
           return false;
         }
@@ -348,7 +345,6 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                               key={element.chainId}
                               className={styles.chainCard}
                               size="small"
-                              bodyStyle={undefined}
                             >
                               <div className={styles.chainCardBody}>
                                 <Checkbox
@@ -407,14 +403,6 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
           Create
         </Button>
       </div>
-      {(loading || polling) && (
-        <div className={styles.loadingContainer}>
-          <Spin />
-          <Typography.Text className={styles.loadingText}>
-            {progressText || "Processing..."}
-          </Typography.Text>
-        </div>
-      )}
       {validationError && (
         <div className={styles.validationErrorContainer}>
           <div className={styles.validationErrorHeader}>

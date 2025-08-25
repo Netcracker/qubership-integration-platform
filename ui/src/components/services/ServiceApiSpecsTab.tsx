@@ -333,14 +333,16 @@ export const ServiceApiSpecsTab: React.FC = () => {
   }, [groupId, modelId]);
 
 
-  const goToTable = (type: TableType, options?: { groupId?: string; modelId?: string }) => {
+  const goToTable = async (type: TableType, options?: { groupId?: string; modelId?: string }) => {
     switch (type) {
       case "groups":
         if (!systemId) return;
+        await loadGroups(systemId);
         void navigate(`/services/systems/${systemId}/specificationGroups`);
         break;
       case "specs":
         if (options?.groupId && systemId) {
+          await loadModels(systemId, options.groupId);
           void navigate(`/services/systems/${systemId}/specificationGroups/${options.groupId}/specifications`);
         }
         break;
@@ -361,12 +363,12 @@ export const ServiceApiSpecsTab: React.FC = () => {
       <div className={css.serviceApiSpecsTabHeader}>
         <div className={css.serviceApiSpecsTabHeaderLeft}>
           {currentTable === "operations" && (
-            <Button onClick={() => goToTable("specs", { groupId })}>
+            <Button onClick={() => { void goToTable("specs", { groupId }); }}>
               To Specifications
             </Button>
           )}
           {currentTable === "specs" && (
-            <Button onClick={() => goToTable("groups")}>
+            <Button onClick={() => { void goToTable("groups"); }}>
               To Specification Groups
             </Button>
           )}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal, Input, Button, Form, Select } from "antd";
 import { IntegrationSystemType } from "../../api/apiTypes";
 import { getErrorMessage } from "../../misc/error-utils";
@@ -9,6 +9,7 @@ interface CreateServiceModalProps {
   onCreate: (name: string, description: string | undefined, type: IntegrationSystemType) => Promise<unknown>;
   loading: boolean;
   error?: string | null;
+  defaultType?: IntegrationSystemType;
 }
 
 type CreateServiceFormValues = {
@@ -17,9 +18,45 @@ type CreateServiceFormValues = {
   type: IntegrationSystemType;
 };
 
-export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({ open, onCancel, onCreate, loading, error }) => {
+const getServiceTypeLabel = (type: IntegrationSystemType): string => {
+  switch (type) {
+    case IntegrationSystemType.EXTERNAL: return "External";
+    case IntegrationSystemType.INTERNAL: return "Internal";
+    case IntegrationSystemType.IMPLEMENTED: return "Implemented";
+    default: return "Service";
+  }
+};
+
+export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
+  open,
+  onCancel,
+  onCreate,
+  loading,
+  error,
+  defaultType = IntegrationSystemType.EXTERNAL
+}) => {
   const [form] = Form.useForm<CreateServiceFormValues>();
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      const serviceTypeLabel = getServiceTypeLabel(defaultType);
+      form.setFieldsValue({
+        type: defaultType,
+        name: `New ${serviceTypeLabel} service`
+      });
+    }
+  }, [open, defaultType, form]);
+
+  const handleTypeChange = (newType: IntegrationSystemType) => {
+    const currentName = form.getFieldValue('name') as string;
+    const serviceTypeLabel = getServiceTypeLabel(newType);
+    const expectedName = `New ${serviceTypeLabel} service`;
+
+    if (currentName && currentName.startsWith('New ') && currentName.endsWith(' service')) {
+      form.setFieldValue('name', expectedName);
+    }
+  };
 
   const handleOk = async (values: CreateServiceFormValues) => {
     try {
@@ -43,7 +80,7 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({ open, on
         form={form}
         layout="vertical"
         onFinish={(values) => { void handleOk(values); }}
-        initialValues={{ type: IntegrationSystemType.EXTERNAL }}
+        initialValues={{ type: defaultType }}
       >
         <Form.Item
           label="Name"
@@ -55,8 +92,8 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({ open, on
         <Form.Item label="Description" name="description">
           <Input.TextArea disabled={loading} maxLength={512} />
         </Form.Item>
-        <Form.Item label="Service type" name="type" rules={[{ required: true, message: "Select service type" }]}> 
-          <Select disabled={loading}>
+        <Form.Item label="Service type" name="type" rules={[{ required: true, message: "Select service type" }]}>
+          <Select disabled={loading} onChange={handleTypeChange}>
             <Select.Option value={IntegrationSystemType.EXTERNAL}>External</Select.Option>
             <Select.Option value={IntegrationSystemType.INTERNAL}>Internal</Select.Option>
             <Select.Option value={IntegrationSystemType.IMPLEMENTED}>Implemented</Select.Option>
