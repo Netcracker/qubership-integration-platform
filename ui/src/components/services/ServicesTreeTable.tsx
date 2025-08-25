@@ -504,10 +504,12 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
   onRowClick,
 }: ServicesTreeTableProps<T>) {
   const allColumnKeys = useMemo(() => {
-    return allColumns && allColumns.length > 0
+    const actionsKey = actionsColumn?.key ?? 'actions';
+    const base = (allColumns && allColumns.length > 0
       ? allColumns
-      : allServicesTreeTableColumns.map(col => col.key);
-  }, [allColumns]);
+      : allServicesTreeTableColumns.map(col => col.key));
+    return base.filter(key => key !== actionsKey);
+  }, [allColumns, actionsColumn]);
 
   const initialKeys = useMemo(() => {
     return defaultVisibleKeys && defaultVisibleKeys.length > 0
@@ -539,6 +541,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
           allColumns={allColumnKeys}
           defaultColumns={initialKeys}
           storageKey={storageKey}
+          labelsByKey={Object.fromEntries(allServicesTreeTableColumns.map(c => [c.key, c.title]))}
           onChange={handleColumnsChange}
         />
       )}

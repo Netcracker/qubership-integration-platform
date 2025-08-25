@@ -7,6 +7,7 @@ interface ColumnFilterProps {
   defaultColumns?: string[];
   storageKey: string;
   onChange: (columnsOrder: string[], visibleColumns: string[]) => void;
+  labelsByKey?: Record<string, string>;
 }
 
 export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
@@ -14,6 +15,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
   defaultColumns,
   storageKey,
   onChange,
+  labelsByKey,
 }) => {
   const initialColumns = defaultColumns && defaultColumns.length > 0 ? defaultColumns : allColumns;
 
@@ -42,6 +44,29 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
   };
 
   console.log("visibleColumns " + storageKey, visibleColumns);
+
+  const humanizeKey = (key: string): string => {
+    const withSpaces = key
+      .replace(/[_-]+/g, " ")
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+    return withSpaces
+      .split(" ")
+      .filter(Boolean)
+      .map(part => {
+        const lower = part.toLowerCase();
+        if (lower === "id") return "ID";
+        if (lower === "url") return "URL";
+        if (lower === "api") return "API";
+        return part.charAt(0).toUpperCase() + part.slice(1);
+      })
+      .join(" ");
+  };
+
+  const getLabel = (key: string): string => {
+    const fromMap = labelsByKey?.[key];
+    if (typeof fromMap === "string" && fromMap.length > 0) return fromMap;
+    return humanizeKey(key);
+  };
   return (
     <div
       style={{
@@ -93,7 +118,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
               }}
               style={{ flex: 1 }}
             >
-              {key.charAt(0).toUpperCase() + key.slice(1)}
+              {getLabel(key)}
             </Checkbox>
           </div>
         ))}
