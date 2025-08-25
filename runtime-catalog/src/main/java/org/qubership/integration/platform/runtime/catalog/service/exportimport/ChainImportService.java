@@ -413,6 +413,10 @@ public class ChainImportService {
         Folder existingFolder = null;
         if (chainExternalEntity.getContent().getFolder() != null) {
             existingFolder = folderService.findFirstByName(chainExternalEntity.getContent().getFolder().getName(), null);
+            if (existingFolder == null) {
+                existingFolder = Folder.builder().name(chainExternalEntity.getContent().getFolder().getName()).build();
+                existingFolder = folderService.save(existingFolder, (String) null);
+            }
         }
 
         Chain newChainState = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
