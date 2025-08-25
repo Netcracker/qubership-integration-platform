@@ -112,6 +112,7 @@ jobs:
     needs: [update-pom-version]
     uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.3
     with:
+      ref: ${{ github.ref }}
       maven-command: "--batch-mode package"
       java-version: ${{ github.event.inputs.java-version }}
       upload-artifact: true
