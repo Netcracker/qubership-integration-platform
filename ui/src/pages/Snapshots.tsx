@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Button, Dropdown, FloatButton, Modal, Table } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
+import { useNavigate } from "react-router";
 import {
   DeleteOutlined,
   FileTextOutlined,
@@ -36,6 +37,7 @@ import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
+  const navigate = useNavigate();
   const { isLoading, snapshots, setSnapshots } = useSnapshots(chainId);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const { showModal } = useModalsContext();
@@ -134,6 +136,7 @@ export const Snapshots: React.FC = () => {
     if (!chainId) return;
     try {
       await api.revertToSnapshot(chainId, id);
+      void navigate(`/chains/${chainId}/graph`);
     } catch (error) {
       notificationService.requestFailed("Failed to revert to snapshot", error);
     }
