@@ -1,5 +1,5 @@
 import "@xyflow/react/dist/style.css";
-import { Breadcrumb, Col, Flex, Radio, RadioChangeEvent, Row } from "antd";
+import { Breadcrumb, Col, Flex, Radio, RadioChangeEvent, Row, Result, Button } from "antd";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
@@ -41,7 +41,7 @@ const ChainPage = () => {
   const navigate = useNavigate();
   const activeKey = getActiveTabKey(pathname);
 
-  const { chain, setChain, updateChain } = useChain(chainId);
+  const { chain, setChain, updateChain, isLoading, error } = useChain(chainId);
 
   useEffect(() => {
     const items: BreadcrumbProps["items"] = [
@@ -60,6 +60,42 @@ const ChainPage = () => {
   const handlePageChange = (event: RadioChangeEvent) => {
     void navigate(`${event.target.value}`); // Update the URL with the selected tab key
   };
+
+  if (isLoading && !chain) {
+    return (
+      <Flex className={styles.stretched} gap={"middle"} vertical>
+        <Row className={styles.stretched}>
+          <Col span={24}>
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+              Loading chain...
+            </div>
+          </Col>
+        </Row>
+      </Flex>
+    );
+  }
+
+  if (error || !chain) {
+    return (
+      <Flex className={styles.stretched} gap={"middle"} vertical>
+        <Row className={styles.stretched}>
+          <Col span={24}>
+            <Result
+              status="404"
+              title="Chain Not Found"
+              subTitle={`Chain with ID "${chainId}" does not exist.`
+              }
+              extra={[
+                <Button type="primary" key="back" onClick={() => void navigate("/chains")}>
+                  Back to Chains
+                </Button>
+              ]}
+            />
+          </Col>
+        </Row>
+      </Flex>
+    );
+  }
 
   return (
     <Flex className={styles.stretched} gap={"middle"} vertical>

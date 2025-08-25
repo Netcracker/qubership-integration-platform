@@ -95,8 +95,12 @@ const ChainGraphInner: React.FC = () => {
   const openElementModal = useCallback(
     (node?: Node<ChainGraphNodeData>) => {
       if (!node?.data.elementType) return;
-      setElementPath(node.id);
+      const modalId = `chain-element-${node.id}`;
+      if (elementId !== node.id) {
+        setElementPath(node.id);
+      }
       showModal({
+        id: modalId,
         component: (
           <ChainContext.Provider value={chainContext}>
             <ChainElementModification
@@ -113,6 +117,7 @@ const ChainGraphInner: React.FC = () => {
     [
       chainContext,
       chainId,
+      elementId,
       clearElementPath,
       setElementPath,
       showModal,
@@ -178,7 +183,8 @@ const ChainGraphInner: React.FC = () => {
     if (!isPageLoaded && !isLoading && !isLibraryLoading && nodes?.length) {
       setIsPageLoaded(true);
       if (elementId) {
-        openElementModal(nodes.find((node) => node.id === elementId));
+        const targetNode = nodes.find((node) => node.id === elementId);
+        if (targetNode) openElementModal(targetNode);
       }
     }
   }, [

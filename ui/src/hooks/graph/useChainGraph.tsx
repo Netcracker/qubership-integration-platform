@@ -71,7 +71,7 @@ export const useChainGraph = (chainId?: string) => {
       try {
         if (!chainId) return;
 
-        const elements = await api.getElements(chainId);
+        const elements = (await api.getElements(chainId)) as unknown as Element[];
 
         const newNodes: ChainGraphNode[] = elements
           .map((element: Element) => {

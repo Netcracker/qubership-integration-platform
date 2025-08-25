@@ -1,11 +1,12 @@
 import { api } from "../api/api.ts";
-import { Chain } from "../api/apiTypes.ts";
+import { Chain, RestApiError } from "../api/apiTypes.ts";
 import { useCallback, useEffect, useState } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 
 export const useChain = (chainId?: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [chain, setChain] = useState<Chain>();
+  const [error, setError] = useState<Error | null>(null);
   const notificationService = useNotificationService();
 
   const updateChain = useCallback(
@@ -26,10 +27,17 @@ export const useChain = (chainId?: string) => {
   const getChain = useCallback(async () => {
     if (!chainId) return;
     setIsLoading(true);
+    setError(null);
     try {
-      return api.getChain(chainId);
+      const chainData = await api.getChain(chainId);
+      setChain(chainData);
+      return chainData;
     } catch (error) {
-      notificationService.requestFailed("Failed to load snapshots", error);
+      setError(error as Error);
+      if (error instanceof RestApiError && error.responseCode === 404) {
+        return;
+      }
+      notificationService.requestFailed("Failed to load chain", error);
     } finally {
       setIsLoading(false);
     }
@@ -39,5 +47,5 @@ export const useChain = (chainId?: string) => {
     void getChain().then(setChain);
   }, [getChain]);
 
-  return { isLoading, chain, setChain, updateChain };
+  return { isLoading, chain, setChain, updateChain, error };
 };
