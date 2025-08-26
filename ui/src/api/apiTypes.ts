@@ -50,6 +50,12 @@ export type PatchElementRequest = {
   properties: Record<string, unknown>;
 };
 
+export type TransferElementRequest = {
+    parentId: string | null;
+    elements: string[];
+    swimlaneId: string | null;
+}
+
 export type ConnectionRequest = {
   from: string;
   to: string;

@@ -10,23 +10,34 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
-  XYPosition,
 } from "@xyflow/react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  DragEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { api } from "../../api/api.ts";
 import {
   Connection,
   CreateElementRequest,
   Element,
+  TransferElementRequest,
 } from "../../api/apiTypes.ts";
 import { useAutoLayout } from "./useAutoLayout.tsx";
 import { useNotificationService } from "../useNotificationService.tsx";
 import { useLibraryContext } from "../../components/LibraryContext.tsx";
 import {
+  applyHighlight,
   collectChildren,
+  findUpdatedElement,
   getDataFromElement,
+  getFakeNode,
+  getIntersectionParent,
   getLibraryElement,
   getNodeFromElement,
+  getPossibleGraphIntersection,
 } from "../../misc/chain-graph-utils.ts";
 import {
   ChainGraphNode,
@@ -46,11 +57,28 @@ export const useChainGraph = (chainId?: string) => {
   const { arrangeNodes, direction, toggleDirection } = useAutoLayout();
   const { getIntersectingNodes } = useReactFlow();
 
+  const highlightDragIntersections = useCallback(
+    (draggedNode: ChainGraphNode) => {
+      const possibleIntersections = getPossibleGraphIntersection(
+        getIntersectingNodes(draggedNode),
+        collectChildren(draggedNode.id, nodes),
+      )?.id;
+
+      setNodes((curr) => applyHighlight(curr, possibleIntersections));
+    },
+    [getIntersectingNodes, nodes, setNodes],
+  );
+
+  const clearHighlight = useCallback(() => {
+    setNodes((curr) => applyHighlight(curr));
+  }, [setNodes]);
+
   const structureChangedRef = useRef<boolean>(false);
 
   const structureChanged = useCallback(() => {
     structureChangedRef.current = true;
-  }, []);
+    clearHighlight();
+  }, [clearHighlight]);
 
   useEffect(() => {
     const autoArrange = async () => {
@@ -110,6 +138,7 @@ export const useChainGraph = (chainId?: string) => {
     };
     void fetchData();
   }, [
+    nodes,
     direction,
     arrangeNodes,
     chainId,
@@ -144,6 +173,26 @@ export const useChainGraph = (chainId?: string) => {
     [chainId, notificationService, setEdges],
   );
 
+  const onDragOver = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+
+      const currentDragPosition = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      const fakeDragNode = getFakeNode(currentDragPosition);
+      const dragIntersection = getPossibleGraphIntersection(
+        getIntersectingNodes(fakeDragNode),
+      )?.id;
+
+      setNodes((nodes) => applyHighlight(nodes, dragIntersection));
+    },
+    [getIntersectingNodes, screenToFlowPosition, setNodes],
+  );
+
   const onDrop = useCallback(
     async (event: React.DragEvent) => {
       event.preventDefault();
@@ -157,14 +206,9 @@ export const useChainGraph = (chainId?: string) => {
         y: event.clientY,
       });
 
-      const ghostNode = {
-        id: "fake",
-        width: 1,
-        height: 1,
-        position: dropPosition,
-      };
+      const fakeNode = getFakeNode(dropPosition);
 
-      const intersecting = getIntersectingNodes(ghostNode).filter(
+      const intersecting = getIntersectingNodes(fakeNode).filter(
         (node) => node.type === "container",
       );
 
@@ -192,7 +236,7 @@ export const useChainGraph = (chainId?: string) => {
           const newNode: ChainGraphNode = getNodeFromElement(
             createdElement,
             getLibraryElement(createdElement, libraryElements),
-            dropPosition,
+            fakeNode.position,
             direction,
           );
           if (!newNode) {
@@ -203,6 +247,7 @@ export const useChainGraph = (chainId?: string) => {
                 return getNodeFromElement(
                   child,
                   getLibraryElement(child, libraryElements),
+                  //TODO Mb useless mb solve by ELK
                   {
                     x: dropPosition.x + 30 * (index + 1),
                     y: dropPosition.y + 30 * (index + 1),
@@ -222,15 +267,15 @@ export const useChainGraph = (chainId?: string) => {
       }
     },
     [
-      nodes,
-      libraryElements,
       chainId,
-      direction,
-      notificationService,
-      getIntersectingNodes,
       screenToFlowPosition,
+      getIntersectingNodes,
+      libraryElements,
+      direction,
+      nodes,
       setNodes,
       structureChanged,
+      notificationService,
     ],
   );
 
@@ -316,6 +361,10 @@ export const useChainGraph = (chainId?: string) => {
           elementsDeleteResponse.removedElements || []
         ).map((el: { id: string }) => el.id);
 
+        elementsDeleteResponse.removedDependencies?.map((connection) =>
+          deletedEdgeIds.push(connection.id),
+        );
+
         const allNodes = nodes.filter(
           (node) => !deletedNodeIds.includes(node.id),
         );
@@ -340,40 +389,103 @@ export const useChainGraph = (chainId?: string) => {
     ],
   );
 
-  const onNodeDragStop = useCallback(
+  const onNodeDragStart = useCallback(
     (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
-      setNodes((prevNodes) => {
-        const originalNode = prevNodes.find((n) => n.id === draggedNode.id);
-        if (!originalNode) return prevNodes;
+      highlightDragIntersections(draggedNode);
+    },
+    [highlightDragIntersections],
+  );
 
-        const delta: XYPosition = {
-          x: draggedNode.position.x - originalNode.position.x,
-          y: draggedNode.position.y - originalNode.position.y,
-        };
+  const onNodeDrag = useCallback(
+    (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
+      highlightDragIntersections(draggedNode);
+    },
+    [highlightDragIntersections],
+  );
 
-        const children = collectChildren(draggedNode.id, prevNodes);
+  const onNodeDragStop = useCallback(
+    async (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
+      if (!chainId) return;
+      if (isLibraryLoading) return;
+      const originalNode = nodes.find((n) => n.id === draggedNode.id);
+      if (!originalNode) return;
+      const allSelectedIds: string[] | undefined = nodes
+        .filter((node) => node.selected)
+        .map((node) => node.id);
+      if (allSelectedIds === undefined) return;
 
-        return prevNodes.map((node) => {
-          if (node.id === draggedNode.id) {
-            return { ...node, position: draggedNode.position };
-          }
+      const originalParentId: string | undefined = originalNode.parentId;
 
-          const isChild = children.some((desc) => desc.id === node.id);
-          if (isChild) {
+      let newParentNode: Node | undefined = undefined;
+
+      const possibleGraphIntersect: Node | undefined =
+        getPossibleGraphIntersection(
+          getIntersectingNodes(draggedNode) as ChainGraphNode[],
+          collectChildren(draggedNode.id, nodes),
+        ) ?? undefined;
+
+      if (possibleGraphIntersect !== undefined) {
+        newParentNode = getIntersectionParent(
+          draggedNode,
+          possibleGraphIntersect,
+          libraryElements ?? [],
+        );
+      }
+
+      const parentNodeId = newParentNode?.id ?? undefined;
+
+      const isParentChanged: boolean = parentNodeId !== originalParentId;
+      if (!isParentChanged && newParentNode === undefined) return;
+      let parentId = originalParentId;
+
+      if (isParentChanged) {
+        try {
+          const request: TransferElementRequest = {
+            parentId: newParentNode?.id ?? null,
+            elements: allSelectedIds,
+            swimlaneId: null,
+          };
+
+          const response = await api.transferElement(request, chainId);
+          parentId =
+            findUpdatedElement(response.updatedElements, draggedNode.id)
+              ?.parentElementId ?? undefined;
+        } catch (error) {
+          notificationService.errorWithDetails(
+            "Drag element failed",
+            "Failed to drag element",
+            error,
+          );
+          parentId = originalParentId;
+        }
+      }
+
+      setNodes((prevNodes) =>
+        prevNodes.map((prevNode) => {
+          if (allSelectedIds.includes(prevNode.id)) {
             return {
-              ...node,
-              position: {
-                x: node.position.x + delta.x,
-                y: node.position.y + delta.y,
+              ...prevNode,
+              parentId: parentId ?? undefined,
+              data: {
+                ...prevNode.data,
               },
             };
           }
-
-          return node;
-        });
-      });
+          return prevNode;
+        }),
+      );
+      structureChanged();
     },
-    [setNodes],
+    [
+      chainId,
+      getIntersectingNodes,
+      isLibraryLoading,
+      libraryElements,
+      nodes,
+      notificationService,
+      setNodes,
+      structureChanged,
+    ],
   );
 
   const updateNodeData = useCallback(
@@ -398,10 +510,13 @@ export const useChainGraph = (chainId?: string) => {
     nodes,
     edges,
     onConnect,
+    onDragOver,
     onDrop,
     onDelete,
     onEdgesChange,
     onNodesChange,
+    onNodeDragStart,
+    onNodeDrag,
     onNodeDragStop,
     direction,
     toggleDirection,

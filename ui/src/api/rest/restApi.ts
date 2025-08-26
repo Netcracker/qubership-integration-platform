@@ -62,6 +62,7 @@ import {
   ElementWithChainName,
   ApiSpecificationType,
   ApiSpecificationFormat,
+  TransferElementRequest,
   Element,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
@@ -267,6 +268,17 @@ export class RestApi implements Api {
     const response = await this.instance.patch<ActionDifference>(
       `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/${elementId}`,
       elementRequest,
+    );
+    return response.data;
+  };
+
+  transferElement = async (
+    transferElementRequest: TransferElementRequest,
+    chainId: string,
+  ): Promise<ActionDifference> => {
+    const response = await this.instance.post<ActionDifference>(
+      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/transfer`,
+      transferElementRequest,
     );
     return response.data;
   };

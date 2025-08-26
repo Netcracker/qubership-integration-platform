@@ -64,12 +64,12 @@ export function getNodeFromElement(
       direction,
     },
     position: nodePosition,
+    draggable: libraryElement?.inputEnabled && libraryElement?.outputEnabled,
     targetPosition: isHorizontal ? Position.Left : Position.Top,
     sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
     ...defaultSize,
     ...(element.parentElementId && {
       parentId: element.parentElementId,
-      extent: "parent",
     }),
   };
 }
@@ -102,4 +102,80 @@ export function collectChildren(
 
   traverse(parentId);
   return result;
+}
+
+export function getPossibleGraphIntersection(
+  allIntersections: Node[],
+  draggedChildren?: Node[],
+): Node | undefined {
+  return allIntersections
+    .filter((intersectingNode) => !draggedChildren?.includes(intersectingNode))
+    .filter((intersectingNode) => intersectingNode.type === "container")
+    .sort((a, b) => {
+      const areaA = (a.width ?? 0) * (a.height ?? 0);
+      const areaB = (b.width ?? 0) * (b.height ?? 0);
+      return areaA - areaB;
+    })[0];
+}
+
+export function getIntersectionParent(
+  draggedNode: Node,
+  parentCandidate: Node,
+  libraryElements: LibraryElement[],
+): Node | undefined {
+  if (parentCandidate === undefined) return undefined;
+
+  let parentNode: Node | undefined = undefined;
+
+  const intersectDescriptor: LibraryElement | undefined = libraryElements?.find(
+    (libraryElement) =>
+      libraryElement.name === parentCandidate.data.elementType,
+  );
+  if (intersectDescriptor) {
+    parentNode =
+      Object.keys(intersectDescriptor.allowedChildren).length === 0 ||
+      Object.keys(intersectDescriptor.allowedChildren).includes(
+        <string>draggedNode.data.elementType,
+      )
+        ? parentCandidate
+        : parentNode;
+  }
+  return parentNode;
+}
+
+export function findUpdatedElement(
+  updatedElements: Element[] | undefined,
+  elementId: string,
+): Element | undefined {
+  if (!updatedElements) return undefined;
+
+  let updatedElementsPlain: Element[] = [];
+  updatedElements.forEach((updatedElement) => {
+    updatedElementsPlain.push(updatedElement);
+    if (updatedElement.children !== undefined) {
+      updatedElementsPlain = updatedElementsPlain.concat(
+        updatedElement.children,
+      );
+    }
+  });
+
+  return updatedElementsPlain.find(
+    (updatedElement) => updatedElement.id === elementId,
+  );
+}
+
+export function getFakeNode(flowPosition: XYPosition): ChainGraphNode {
+  return {
+    id: "fake",
+    width: 1,
+    height: 1,
+    position: flowPosition,
+  } as ChainGraphNode;
+}
+
+export function applyHighlight(nodes: ChainGraphNode[], highlightId?: string): ChainGraphNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    className: highlightId?.includes(node.id)  ? "highlight" : "",
+  }));
 }

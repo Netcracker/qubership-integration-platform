@@ -55,6 +55,7 @@ import {
   ElementWithChainName,
   ApiSpecificationType,
   ApiSpecificationFormat,
+  TransferElementRequest,
   Element,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
@@ -103,6 +104,11 @@ export interface Api {
     elementRequest: PatchElementRequest,
     chainId: string,
     elementId: string,
+  ): Promise<ActionDifference>;
+
+  transferElement(
+    transferElementRequest: TransferElementRequest,
+    chainId: string,
   ): Promise<ActionDifference>;
 
   deleteElements(

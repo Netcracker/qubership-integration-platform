@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 
 import "./index.css";
+import "./components/graph/nodes/Node.component.css";
 import { isVsCode } from "./api/rest/vscodeExtensionApi.ts";
 import AppExtension from "./AppExtension.tsx";
 

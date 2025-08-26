@@ -9,7 +9,6 @@ import {
 
 import "@xyflow/react/dist/style.css";
 import React, {
-  DragEvent,
   MouseEvent,
   useCallback,
   useContext,
@@ -38,11 +37,11 @@ import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
 import { useLibraryContext } from "../components/LibraryContext.tsx";
+import { ChainContext } from "./ChainPage.tsx";
 import {
   ChainGraphNodeData,
   nodeTypes,
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
-import { ChainContext } from "./ChainPage.tsx";
 
 const ChainGraphInner: React.FC = () => {
   const { chainId, elementId } = useParams<string>();
@@ -54,19 +53,17 @@ const ChainGraphInner: React.FC = () => {
   const notificationService = useNotificationService();
   const { isLibraryLoading } = useLibraryContext();
 
-  const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-  }, []);
-
   const {
     nodes,
     edges,
     onConnect,
+    onDragOver,
     onDrop,
     onDelete,
     onEdgesChange,
     onNodesChange,
+    onNodeDragStart,
+    onNodeDrag,
     onNodeDragStop,
     direction,
     toggleDirection,
@@ -208,14 +205,19 @@ const ChainGraphInner: React.FC = () => {
             nodeTypes={nodeTypes}
             defaultEdgeOptions={{ zIndex: 1001 }}
             edges={edges}
+            onNodeDragStart={onNodeDragStart}
+            onNodeDrag={onNodeDrag}
+            onNodeDragStop={(event, draggedNode) =>
+              void onNodeDragStop(event, draggedNode)
+            }
             onNodesChange={(changes) => void onNodesChange(changes)}
             onEdgesChange={(changes) => void onEdgesChange(changes)}
             onConnect={(connection) => void onConnect(connection)}
             onDelete={(changes) => void onDelete(changes)}
             onDrop={(event) => void onDrop(event)}
-            onNodeDragStop={onNodeDragStop}
             onDragOver={onDragOver}
             onNodeDoubleClick={onNodeDoubleClick}
+            zoomOnDoubleClick={false}
             deleteKeyCode={["Backspace", "Delete"]}
             fitView
           >

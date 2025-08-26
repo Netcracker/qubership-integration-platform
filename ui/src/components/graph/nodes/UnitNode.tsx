@@ -1,6 +1,5 @@
-import {Handle, NodeProps, Position} from "@xyflow/react";
-import {ChainGraphNode} from "./ChainGraphNodeTypes.ts";
-
+import { Handle, NodeProps, Position } from "@xyflow/react";
+import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
 
 export function UnitNode({
   data,
@@ -8,19 +7,34 @@ export function UnitNode({
   selected,
   targetPosition = Position.Left,
   sourcePosition = Position.Right,
-}:  NodeProps<ChainGraphNode>) {
+}: NodeProps<ChainGraphNode>) {
   return (
     <div
       style={{
-        padding: 10,
+        background: "#fff",
         border: selected ? "2px solid #000" : "1px solid #000",
-        borderRadius: 4,
-        background: "white",
-        minWidth: 100,
-        textAlign: "center",
+        borderRadius: 5,
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
       }}
     >
-      {data.label ?? "Node"}
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "grid",
+          placeItems: "center",
+          pointerEvents: "none",
+          userSelect: "none",
+          textAlign: "center",
+          lineHeight: 1.2,
+        }}
+      >
+        <span>{data.label ?? "Node"}</span>
+      </div>
 
       {data.inputEnabled !== false && (
         <Handle

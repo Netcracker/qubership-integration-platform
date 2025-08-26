@@ -7,12 +7,19 @@ import ELK, {
 } from "elkjs/lib/elk.bundled";
 import { ElkDirection, useElkDirection } from "./useElkDirection.tsx";
 
-const layoutOptions: LayoutOptions = {
+const baseLayoutOptions: LayoutOptions = {
   "elk.algorithm": "layered",
   "elk.direction": "DOWN",
+  "elk.hierarchyHandling": "INCLUDE_CHILDREN",
   "elk.layering.strategy": "LONGEST_PATH",
   "elk.spacing.nodeNode": "40",
   "elk.spacing.nodeNodeBetweenLayers": "40",
+  "elk.padding": "[top=45,left=20,right=20,bottom=20]",
+};
+
+const fixedLayoutOptions: LayoutOptions = {
+  "elk.algorithm": "fixed",
+  "elk.spacing.nodeNode": "40",
   "elk.padding": "[top=45,left=20,right=20,bottom=20]",
 };
 
@@ -26,9 +33,16 @@ function buildElkGraph<
   direction: ElkDirection,
 ): T {
   const nodeMap = new Map<string, ElkNode>();
+  const childrenMap = new Map<string, Node<NodeData>[] | undefined>();
 
   for (const node of nodes) {
     const hasChildren = nodes.some((n) => n.parentId === node.id);
+    if (hasChildren) {
+      childrenMap.set(
+        node.id,
+        nodes.filter((cn) => cn.parentId === node.id),
+      );
+    }
     nodeMap.set(node.id, {
       id: node.id,
       ...(hasChildren
@@ -53,18 +67,30 @@ function buildElkGraph<
 
   for (const elkNode of nodeMap.values()) {
     if (elkNode.children?.length) {
-      const childrenIds = new Set(elkNode.children.map((c) => c.id));
+      const hasInnerHandlers = childrenMap
+        .get(elkNode.id)
+        ?.every(
+          (cn) =>
+            cn.data.inputEnabled === true && cn.data.outputEnabled === true,
+        );
 
-      const hasInnerEdges = edges.some(
-        (edge) => childrenIds.has(edge.source) && childrenIds.has(edge.target),
-      );
+      if (hasInnerHandlers) {
+        elkNode.layoutOptions = {
+          ...baseLayoutOptions,
+          "elk.algorithm": "layered",
+          "elk.layering.strategy": "LONGEST_PATH",
+        };
+      } else {
+        elkNode.layoutOptions = {
+          ...fixedLayoutOptions,
+        };
+      }
 
       elkNode.layoutOptions = {
-        ...layoutOptions,
-        "elk.layering.strategy": hasInnerEdges
+        ...baseLayoutOptions,
+        "elk.layering.strategy": hasInnerHandlers
           ? "LONGEST_PATH"
           : "NETWORK_SIMPLEX",
-        "elk.direction": direction,
       };
     }
   }
@@ -77,7 +103,7 @@ function buildElkGraph<
   return {
     id: "root",
     layoutOptions: {
-      ...layoutOptions,
+      ...baseLayoutOptions,
       "elk.direction": direction,
     },
     children: topLevelNodes,
@@ -108,7 +134,6 @@ function buildNode<NodeData extends Record<string, unknown> = never>(
     width: elkNode.width,
     height: elkNode.height,
     parentId,
-    extent: parentId ? "parent" : undefined,
     data: {
       ...node.data,
       direction,
@@ -159,6 +184,7 @@ function autoLayout(
     reactFlow.getEdges(),
     direction,
   );
+
   void elk.layout(elkGraph).then((layout) => {
     layout.children?.forEach((node) => {
       reactFlow.updateNode(node.id, (n) => buildNode(node, n, direction));
