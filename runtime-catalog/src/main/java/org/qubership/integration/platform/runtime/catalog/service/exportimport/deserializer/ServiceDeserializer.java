@@ -204,6 +204,9 @@ public class ServiceDeserializer {
                         .sourceHash(specificationSourceDto.getSourceHash())
                         .isMainSource(specificationSourceDto.isMainSource());
                 Path sourcePath = resourceDirectory.toPath().resolve(specificationSourceDto.getFileName());
+                if (!Files.exists(sourcePath) && !specificationSourceDto.getFileName().contains(RESOURCES_FOLDER_PREFIX)) {
+                    sourcePath = resourceDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + specificationSourceDto.getFileName());
+                }
                 if (Files.exists(sourcePath)) {
                     try {
                         specificationSourceBuilder.source(Files.readString(sourcePath));

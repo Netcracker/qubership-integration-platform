@@ -30,6 +30,8 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.util.zip.ZipOutputStream;
 
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
+
 @Slf4j
 @Component
 public class ExportableObjectWriterVisitor {
@@ -70,7 +72,7 @@ public class ExportableObjectWriterVisitor {
             return;
         }
 
-        ExportImportUtils.writeSystemObject(zipOut, entryPath + exportedSpecificationSource.getName(),
+        ExportImportUtils.writeSystemObject(zipOut, entryPath + RESOURCES_FOLDER_PREFIX + exportedSpecificationSource.getName(),
                 exportedSpecificationSource.getSource());
     }
 }

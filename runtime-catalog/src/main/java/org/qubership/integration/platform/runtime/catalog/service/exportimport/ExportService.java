@@ -16,14 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.json.JSONException;
-import org.json.JSONObject;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainExportException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
@@ -31,18 +27,15 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,7 +43,6 @@ import java.nio.file.Path;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -66,7 +58,6 @@ public class ExportService {
     private String appName;
 
     private final YAMLMapper yamlMapper;
-    private final ObjectMapper objectMapper;
     private final ChainService chainService;
     private final ChainFinderService chainFinderService;
     private final ActionsLogService actionLogger;
@@ -75,14 +66,12 @@ public class ExportService {
     @Autowired
     public ExportService(
             YAMLMapper yamlMapper,
-            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
             ChainService chainService,
             ActionsLogService actionLogger,
             ChainFinderService chainFinderService,
             ChainExternalEntityMapper chainExternalEntityMapper
     ) {
         this.yamlMapper = yamlMapper;
-        this.objectMapper = objectMapper;
         this.chainService = chainService;
         this.chainFinderService = chainFinderService;
         this.actionLogger = actionLogger;
@@ -144,7 +133,7 @@ public class ExportService {
         String chainYaml = yamlMapper.writeValueAsString(entity.getChainExternalEntity());
         result.put(chainDirectory.resolve(chainFileName), chainYaml.getBytes());
         entity.getElementPropertyFiles()
-                .forEach((name, data) -> result.put(chainDirectory.resolve(name), data));
+                .forEach((name, data) -> result.put(chainDirectory.resolve(RESOURCES_FOLDER_PREFIX + name), data));
 
         return result;
     }
@@ -189,81 +178,5 @@ public class ExportService {
                 .parentName(chain.getParentFolder() == null ? null : chain.getParentFolder().getName())
                 .operation(LogOperation.EXPORT)
                 .build());
-    }
-
-    protected Map<String, String> getPropertiesToSaveInSeparateFile(Chain chain) throws JsonProcessingException, JSONException {
-        Map<String, String> result = new HashMap<>();
-
-        for (ChainElement element : chain.getElements()) {
-            ArrayList<String> propsToExportSeparately = ExportImportUtils.getPropertiesToExportInSeparateFile(element);
-            if (!CollectionUtils.isEmpty(propsToExportSeparately)) {
-                Map<String, Object> properties = element.getProperties();
-                String propString = null;
-                if (ExportImportUtils.isPropertiesFileGroove(element.getProperties())
-                        || ExportImportUtils.isPropertiesFileSql(element.getProperties())) {
-                    Object propObject = properties.get(propsToExportSeparately.get(0));
-                    if (propObject != null) {
-                        propString = propObject.toString();
-                    } else {
-                        propString = "";
-                    }
-                } else if (ExportImportUtils.isPropertiesFileJson(element.getProperties())) {
-                    Map<String, Object> propsToExportSeparatelyMap = properties.keySet().stream()
-                            .filter(p -> propsToExportSeparately.contains(p) && properties.get(p) != null)
-                            .collect(Collectors.toMap(p -> p, properties::get));
-                    if (!CollectionUtils.isEmpty(propsToExportSeparatelyMap)) {
-                        propString = new JSONObject(objectMapper.writeValueAsString(propsToExportSeparatelyMap))
-                                .toString(4);
-                    }
-                } else {
-                    throw new IllegalArgumentException("Invalid property '" + EXPORT_FILE_EXTENSION_PROPERTY
-                            + "' of element " + element.getId());
-                }
-
-                if (propString != null) {
-                    result.put(ExportImportUtils.generatePropertiesFileName(element), propString);
-                }
-            }
-
-            if (SERVICE_CALL.equals(element.getType())) {
-                String propString;
-                List<Map<String, Object>> afterPropertyList = (List<Map<String, Object>>) element.getProperties().get(AFTER);
-                if (!CollectionUtils.isEmpty(afterPropertyList)) {
-                    for (Map<String, Object> afterProperty : afterPropertyList) {
-                        if (SCRIPT.equals(afterProperty.get(TYPE))) {
-                            propString = afterProperty.get(SCRIPT) != null ? afterProperty.get(SCRIPT).toString() : "";
-                            result.put(ExportImportUtils.generateAfterScriptFileName(element.getId(), afterProperty), propString);
-                        } else if (null != afterProperty.get(TYPE) && StringUtils.contains((String) afterProperty.get(TYPE), MAPPER)) {
-                            propString = getPropertyStringForMapper(afterProperty);
-                            result.put(ExportImportUtils.generateAfterMapperFileName(element.getId(), afterProperty), propString);
-                        }
-                    }
-                }
-                Map beforeProperty = (Map<String, Object>) element.getProperties().get(BEFORE);
-                if (!CollectionUtils.isEmpty(beforeProperty)) {
-                    if (SCRIPT.equals(beforeProperty.get(TYPE))) {
-                        propString = beforeProperty.get(SCRIPT) != null ? beforeProperty.get(SCRIPT).toString() : "";
-                        result.put(ExportImportUtils.generateBeforeScriptFileName(element.getId()), propString);
-                    } else if (null != beforeProperty.get(TYPE) && StringUtils.contains((String) beforeProperty.get(TYPE), MAPPER)) {
-                        propString = getPropertyStringForMapper(beforeProperty);
-                        result.put(ExportImportUtils.generateBeforeMapperFileName(element.getId(), beforeProperty), propString);
-                    }
-                }
-            }
-        }
-        return result;
-    }
-
-    private String getPropertyStringForMapper(Map beforeProperty) throws JsonProcessingException, JSONException {
-        String propString = "";
-        List<String> props = List.of(MAPPING_DESCRIPTION, MAPPING, SOURCE, TARGET);
-        Map<String, Object> propsToExportSeparatelyMap = (Map<String, Object>) beforeProperty.keySet().stream()
-                .filter(p -> props.stream().anyMatch(p1 -> p1.equals(p)) && beforeProperty.get(p) != null)
-                .collect(Collectors.toMap(p -> p, beforeProperty::get));
-        if (!CollectionUtils.isEmpty(propsToExportSeparatelyMap)) {
-            propString = new JSONObject(objectMapper.writeValueAsString(propsToExportSeparatelyMap))
-                    .toString(4);
-        }
-        return propString;
     }
 }

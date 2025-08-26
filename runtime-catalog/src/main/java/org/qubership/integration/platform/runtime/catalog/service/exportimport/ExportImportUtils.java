@@ -16,15 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.core.JsonPointer;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.AbstractSystemEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.springframework.core.io.ByteArrayResource;
@@ -41,9 +37,10 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -61,54 +58,6 @@ public class ExportImportUtils {
     public static String generateArchiveExportName() {
         DateFormat dateFormat = new SimpleDateFormat(DATE_TIME_FORMAT_PATTERN);
         return EXPORT_FILE_NAME_PREFIX + dateFormat.format(new Date()) + "." + ZIP_EXTENSION;
-    }
-
-    public static ArrayList<String> getPropertiesToExportInSeparateFile(ChainElement element) {
-        Map<String, Object> properties = element.getProperties();
-        ArrayList<String> propsNames = new ArrayList<>();
-
-        if (properties != null) {
-            if (properties.get(PROPS_EXPORT_IN_SEPARATE_FILE_PROPERTY) != null) {
-                List<String> convertedPropsList =
-                        Stream.of(((String) properties.get(PROPS_EXPORT_IN_SEPARATE_FILE_PROPERTY))
-                                        .replace(" ", "")
-                                        .split(",", -1))
-                                .collect(Collectors.toList());
-                if (!CollectionUtils.isEmpty(convertedPropsList)) {
-                    propsNames.addAll(convertedPropsList);
-                }
-            }
-        }
-        return propsNames;
-    }
-
-    public static String generatePropertiesFileName(ChainElement element) {
-        String prefix;
-        Map<String, Object> properties = element.getProperties();
-        ArrayList<String> propsToExportInSeparateFile = getPropertiesToExportInSeparateFile(element);
-
-        if (element.getType().startsWith(MAPPER)) {
-            prefix = propsToExportInSeparateFile.size() == 1
-                    ? propsToExportInSeparateFile.get(0) : "mapper";
-        } else {
-            prefix = propsToExportInSeparateFile.size() == 1
-                    ? propsToExportInSeparateFile.get(0) : "properties";
-        }
-        String extension = properties != null && properties.containsKey(EXPORT_FILE_EXTENSION_PROPERTY)
-                ? properties.get(EXPORT_FILE_EXTENSION_PROPERTY).toString() : DEFAULT_EXTENSION;
-        return RESOURCES_FOLDER_PREFIX + prefix + "-" + element.getId() + "." + extension;
-    }
-
-    public static String generateAfterScriptFileName(String id, Map<String, Object> afterProp) {
-        return SCRIPT + DASH + getIdOrCode(afterProp) + DASH + id + "." + GROOVY_EXTENSION;
-    }
-
-    public static Object getIdOrCode(Map<String, Object> mapProp) {
-        return mapProp.get(ID) == null ? mapProp.get(CODE) : mapProp.get(ID);
-    }
-
-    public static String generateBeforeScriptFileName(String id) {
-        return SCRIPT + DASH + BEFORE + DASH + id + "." + GROOVY_EXTENSION;
     }
 
     public static boolean isPropertiesFileGroove(Map<String, Object> properties) {
@@ -146,6 +95,9 @@ public class ExportImportUtils {
         }
 
         if (!targetFile.isFile()) {
+            if (!fileName.contains(RESOURCES_FOLDER_PREFIX)) {
+                return getFileContentByName(chainFilesDir, RESOURCES_FOLDER_PREFIX + fileName);
+            }
             throw new RuntimeException("Directory " + chainFilesDir.getName() + " does not contain file: " + fileName);
         }
 
@@ -182,16 +134,6 @@ public class ExportImportUtils {
         deleteFile(new File(directoryString));
     }
 
-    public static String getPureDomainName(String domainName) {
-        String result = "";
-        Pattern pattern = Pattern.compile("cloud-integration-platform-engine-(.*?)-v1");
-        Matcher matcher = pattern.matcher(domainName);
-        if (matcher.find()) {
-            result = matcher.group(1);
-        }
-        return result;
-    }
-
     public static Boolean isAfterScriptInServiceCall(Map properties) {
         List<Map<String, Object>> afterList = (List<Map<String, Object>>) properties.get(AFTER);
         if (!CollectionUtils.isEmpty(afterList)) {
@@ -209,40 +151,6 @@ public class ExportImportUtils {
         return null != innerProperties && SCRIPT.equals(innerProperties.get(TYPE));
     }
 
-    public static boolean isScriptInServiceCall(ChainElement element) {
-        return SERVICE_CALL.equals(element.getType())
-                && (isAfterScriptInServiceCall(element.getProperties())
-                        || isBeforeScriptInServiceCall(element.getProperties()));
-    }
-
-    public static boolean isMapperInServiceCall(ChainElement element) {
-        if (SERVICE_CALL.equals(element.getType())) {
-            List<Map<String, Object>> afterList = (List<Map<String, Object>>) element.getProperties().get(AFTER);
-            if (!CollectionUtils.isEmpty(afterList)) {
-                for (Map<String, Object> after : afterList) {
-                    if (null != after && null != after.get(TYPE) && ((String) after.get(TYPE)).contains(MAPPER)) {
-                        return true;
-                    }
-                }
-            }
-            Map<String, Object> beforeProperties = (Map<String, Object>) element.getProperties().get(BEFORE);
-            if (!CollectionUtils.isEmpty(beforeProperties)) {
-                if (null != beforeProperties.get(TYPE)) {
-                    return ((String) beforeProperties.get(TYPE)).contains(MAPPER);
-                }
-            }
-        }
-        return false;
-    }
-
-    public static String generateAfterMapperFileName(String id, Map<String, Object> afterProp) {
-        return RESOURCES_FOLDER_PREFIX + MAPPING_DESCRIPTION + DASH + getIdOrCode(afterProp) + DASH + id + "." + JSON_EXTENSION;
-    }
-
-    public static String generateBeforeMapperFileName(String id, Map<String, Object> afterProp) {
-        return RESOURCES_FOLDER_PREFIX + MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
-    }
-
     public static ZipEntry generateSourceEntry(SpecificationSource specificationSource, String dirPrefix) {
         String zipEntryPrefix = generateSourceExportDir(specificationSource.getSystemModel().getId());
         if (!StringUtils.isEmpty(dirPrefix)) {
@@ -254,11 +162,6 @@ public class ExportImportUtils {
 
     public static String generateSpecificationFileExportName(String id, String appName) {
         return id + SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
-    }
-
-    public static JsonPointer toJsonPointer(String... values) {
-        String expression = Stream.of(values).collect(Collectors.joining("/", "/", ""));
-        return JsonPointer.compile(expression);
     }
 
     public static void writeZip(ZipOutputStream zipOut, SystemModel systemModel) {
@@ -284,15 +187,6 @@ public class ExportImportUtils {
         }
     }
 
-    public static String getSpecificationFileName(JsonNode specificationSourceNode, OperationProtocol protocol) {
-        String filename = getNodeAsText(specificationSourceNode.get(AbstractSystemEntity.Fields.name));
-        if (!StringUtils.isBlank(filename)) {
-            return filename;
-        }
-
-        return specificationSourceNode.get(AbstractSystemEntity.Fields.id).asText() + "." + getFallbackExtensionByProtocol(protocol);
-    }
-
     public static String getSpecificationFileName(SpecificationSource source) {
         if (!StringUtils.isBlank(source.getName())) {
             return source.getName();
@@ -300,11 +194,6 @@ public class ExportImportUtils {
 
         OperationProtocol protocol = source.getSystemModel().getSpecificationGroup().getSystem().getProtocol();
         return source.getId() + "." + getFallbackExtensionByProtocol(protocol);
-    }
-
-    public static String generateDeprecatedSourceExportDir(JsonNode specificationGroup, JsonNode specification) {
-        return SOURCE_YAML_NAME_PREFIX + specificationGroup.get(AbstractSystemEntity.Fields.name).asText() + "-"
-                + specification.get(AbstractSystemEntity.Fields.name).asText();
     }
 
     public static String getFallbackExtensionByProtocol(OperationProtocol protocol) {
@@ -362,13 +251,6 @@ public class ExportImportUtils {
                 + File.separator + getSpecificationFileName(source);
     }
 
-    public static String getNodeAsText(JsonNode node) {
-        if (node != null) {
-            return node.asText();
-        }
-        return null;
-    }
-
     public static List<File> extractSystemsFromZip(InputStream is, String importFolderName) throws IOException {
         try (ZipInputStream inputStream = new ZipInputStream(is)) {
             extractZip(importFolderName, inputStream, ARCH_PARENT_DIR);
@@ -418,10 +300,6 @@ public class ExportImportUtils {
                 }
             }
         }
-    }
-
-    public static String getFileContent(File file) throws IOException {
-        return Files.readString(file.toPath());
     }
 
     public static boolean isYamlFile(String fileName) {
