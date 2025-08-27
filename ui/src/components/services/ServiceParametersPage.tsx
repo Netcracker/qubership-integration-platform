@@ -24,7 +24,7 @@ export const ChainsContext = createContext<BaseEntity[] | null>(null);
 export const useChainsContext = () => useContext(ChainsContext);
 
 export const ServiceParametersPage: React.FC = () => {
-  const { systemId, groupId, modelId } = useParams<{ systemId: string; groupId?: string; modelId?: string }>();
+  const { systemId, groupId, specId } = useParams<{ systemId: string; groupId?: string; specId?: string }>();
   const location = useLocation();
   const state = location.state as { type?: IntegrationSystemType; name?: string } | undefined;
   const [system, setSystem] = useState<IntegrationSystem | null>(null);
@@ -49,7 +49,12 @@ export const ServiceParametersPage: React.FC = () => {
       });
     } else if (systemId) {
       void api.getService(systemId)
-        .then(setSystem);
+        .then((service) => {
+          setSystem(service);
+        })
+        .catch((error) => {
+          console.error('ServiceParametersPage: Error loading service', error);
+        });
     }
   }, [systemId, state]);
 
@@ -65,15 +70,15 @@ export const ServiceParametersPage: React.FC = () => {
   }, [groupId, systemId]);
 
   useEffect(() => {
-    if (groupId && modelId && systemId) {
+    if (groupId && specId && systemId) {
       void api.getSpecificationModel(systemId, groupId).then(models => {
-        const model = models.find(m => m.id === modelId);
+        const model = models.find(m => m.id === specId);
         setSpecName(model?.name || null);
       });
     } else {
       setSpecName(null);
     }
-  }, [groupId, modelId, systemId]);
+  }, [groupId, specId, systemId]);
 
   useEffect(() => {
     if (system && system.id) {
@@ -99,14 +104,14 @@ export const ServiceParametersPage: React.FC = () => {
     }
   };
 
-  const tabKeyByPath: Record<string, string> = {
-    parameters: 'parameters',
-    specificationGroups: 'api-specs',
-    environments: 'environments',
+  const getActiveTab = (pathname: string): string => {
+    if (pathname.includes('/parameters')) return 'parameters';
+    if (pathname.includes('/environments')) return 'environments';
+    if (pathname.includes('/specificationGroups')) return 'api-specs';
+    return 'api-specs'; // default
   };
-  const pathParts = location.pathname.split('/');
-  const pathKey = pathParts[pathParts.length - 1];
-  const activeTab = tabKeyByPath[pathKey] || 'api-specs';
+
+  const activeTab = getActiveTab(location.pathname);
 
   const handleTabChange = (key: string) => {
     let path = '';
@@ -205,7 +210,7 @@ export const ServiceParametersPage: React.FC = () => {
                   </a>
                 </Breadcrumb.Item>
               )}
-              {modelId && specName && (
+              {specId && specName && (
                 <Breadcrumb.Item>
                   <span>{specName}</span>
                 </Breadcrumb.Item>

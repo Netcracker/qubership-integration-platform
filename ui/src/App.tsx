@@ -65,7 +65,7 @@ const App = () => (
               <Route path="/services/systems/:systemId/parameters" element={<ServiceParametersPage />} />
               <Route path="/services/systems/:systemId/specificationGroups" element={<ServiceParametersPage />} />
               <Route path="/services/systems/:systemId/specificationGroups/:groupId/specifications" element={<ServiceParametersPage />} />
-              <Route path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:modelId/operations" element={<ServiceParametersPage />} />
+              <Route path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations" element={<ServiceParametersPage />} />
               <Route path="/services/systems/:systemId/environments" element={<ServiceParametersPage />} />
               <Route path="*" element={<NotFound/>}/>
               <Route path="/not-implemented" element={<NotImplemented />} />

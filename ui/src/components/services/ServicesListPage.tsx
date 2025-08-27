@@ -55,8 +55,6 @@ const visibleColumns: string[] = [
   "source",
   "labels",
   "usedBy",
-  "createdWhen",
-  "createdBy",
 ];
 
 export const ServicesListPage: React.FC = () => {
@@ -433,6 +431,7 @@ export const ServicesListPage: React.FC = () => {
           onCreate={handleCreate}
           loading={createLoading}
           error={createError}
+          defaultType={tab === "external" ? IntegrationSystemType.EXTERNAL : (tab === "internal" ? IntegrationSystemType.INTERNAL : IntegrationSystemType.IMPLEMENTED)}
         />
     </Flex>
   );

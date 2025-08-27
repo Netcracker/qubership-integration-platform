@@ -70,6 +70,7 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@types/react-resizable": "^3.0.8",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "@types/react-transition-group": "^4.4.12",
     "@types/sortablejs": "^1.15.8",
     "@types/to-json-schema": "^0.2.4",

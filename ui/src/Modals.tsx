@@ -29,8 +29,13 @@ const useModals = () => {
     component,
     id = crypto.randomUUID(),
   }: ShowModalProps) => {
-    setModals((components) => [...components, { component, id }]);
-    return id;
+    setModals((modals) => {
+      const existingIndex = modals.findIndex((m) => m.id === id);
+      if (existingIndex >= 0) {
+        return modals;
+      }
+      return [...modals, { component, id }];
+    });
   }, []);
 
   const closeModal = useCallback((id: string) => {

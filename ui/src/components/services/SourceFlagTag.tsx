@@ -13,6 +13,7 @@ const sourceColors: Record<string, string> = {
   graphql: 'red',
   metamodel: 'violet',
   grpc: 'lightblue',
+  soap: 'red',
   New: 'blue',
   use: 'green',
   deprecated: 'red',

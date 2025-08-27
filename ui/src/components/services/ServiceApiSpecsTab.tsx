@@ -34,10 +34,6 @@ const SpecificationGroupColumnsKeys = () => [
   "status",
   "source",
   "labels",
-  "createdWhen",
-  "createdBy",
-  "modifiedWhen",
-  "modifiedBy",
 ];
 
 const SpecificationColumnsKeys = () => [
@@ -48,8 +44,6 @@ const SpecificationColumnsKeys = () => [
   "labels",
   "method",
   "url",
-  "modifiedWhen",
-  "modifiedBy",
 ];
 
 const OperationColumnKeys = () => [
@@ -201,10 +195,10 @@ type TableType = "groups" | "specs" | "operations";
 
 export const ServiceApiSpecsTab: React.FC = () => {
   const navigate = useNavigate();
-  const { systemId, groupId, modelId } = useParams<{
+  const { systemId, groupId, specId } = useParams<{
     systemId: string;
     groupId?: string;
-    modelId?: string;
+    specId?: string;
   }>();
 
   const [operations, setOperations] = useState<ServiceEntity[]>([]);
@@ -230,7 +224,6 @@ export const ServiceApiSpecsTab: React.FC = () => {
   }, { initialValue: [] });
 
   const {
-    loading: loadingModels,
     error: errorModels,
     execute: loadModels,
     value: models,
@@ -251,26 +244,29 @@ export const ServiceApiSpecsTab: React.FC = () => {
   }, [systemId, groupId]);
 
   useEffect(() => {
-    if (!modelId || !(models ?? []).length) {
+    if (!specId || !(models ?? []).length) {
       setOperations([]);
       return;
     }
-    const model = (models ?? []).find(m => m.id === modelId);
+    const model = (models ?? []).find(m => m.id === specId);
     const ops = model?.operations;
     setOperations(Array.isArray(ops) ? ops : ops ? [ops] : []);
-  }, [modelId, models]);
+  }, [specId, models]);
 
   const serviceGroupsTable = useServicesTreeTable<ServiceEntity>({
-    dataSource: (serviceSpecData ?? []).map(spec => ({ ...spec, children: spec.specifications || [] })),
+    dataSource: (serviceSpecData ?? []).map(spec => {
+      return { ...spec, children: spec.specifications || [] };
+    }),
     rowKey: "id",
     columns: serviceSpecColumnsKeys,
     storageKey: STORAGE_KEY + "_groups",
     defaultVisibleKeys: serviceSpecColumnsKeys,
-    expandable: {
-      expandedRowKeys: expandedGroups,
-      onExpand: (expanded, record) => {
-        setExpandedGroups(keys => expanded ? [...keys, record.id] : keys.filter(k => k !== record.id));
-      },
+    loading: loadingGroups,
+          expandable: {
+        expandedRowKeys: expandedGroups,
+        onExpand: (expanded, record) => {
+          setExpandedGroups(keys => expanded ? [...keys, record.id] : keys.filter(k => k !== record.id));
+        },
       rowExpandable: () => true,
       childrenColumnName: "children",
     },
@@ -327,10 +323,10 @@ export const ServiceApiSpecsTab: React.FC = () => {
   });
 
   const currentTable = useMemo<TableType>(() => {
-    if (modelId) return "operations";
+    if (specId) return "operations";
     if (groupId) return "specs";
     return "groups";
-  }, [groupId, modelId]);
+  }, [groupId, specId]);
 
 
   const goToTable = async (type: TableType, options?: { groupId?: string; modelId?: string }) => {
@@ -481,16 +477,16 @@ export const ServiceApiSpecsTab: React.FC = () => {
               onClick={() => {
                 void (async () => {
                   try {
-                    if (!modelId) {
+                    if (!specId) {
                       message.info('No model to export');
                       return;
                     }
-                    const model = (models ?? []).find(m => m.id === modelId);
+                    const model = (models ?? []).find(m => m.id === specId);
                     if (!model) {
                       message.info('No model to export');
                       return;
                     }
-                    const file = await api.exportServices([modelId], []);
+                    const file = await api.exportServices([specId], []);
                     downloadFile(prepareFile(file));
                   } catch (e) {
                     notify.requestFailed('Export error', e);
@@ -501,7 +497,6 @@ export const ServiceApiSpecsTab: React.FC = () => {
           </FloatButtonGroup>
         </>
       )}
-      {loadingModels && <Spin className={css.serviceApiSpecsTabSpin} />}
       {errorModels && <div className={css.serviceApiSpecsTabError}>Error: {errorModels}</div>}
     </Flex>
   );

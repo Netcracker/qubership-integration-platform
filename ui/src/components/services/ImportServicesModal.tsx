@@ -7,10 +7,13 @@ import { api } from "../../api/api";
 import { ImportSystemResult, SystemImportStatus } from "../../api/apiTypes";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useNotificationService } from "../../hooks/useNotificationService";
+import { validateFiles } from "./utils";
 
 interface Props {
   onSuccess?: () => void;
 }
+
+const SUPPORTED_EXTENSIONS = ['.zip'];
 
 const statusColor = {
   CREATED: "green",
@@ -23,7 +26,7 @@ const statusColor = {
 const ImportServicesModal: React.FC<Props> = ({ onSuccess }) => {
   const { closeContainingModal } = useModalContext();
   const notify = useNotificationService();
-  const [file, setFile] = useState<RcFile | null>(null);
+  const [files, setFiles] = useState<RcFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ImportSystemResult[] | null>(null);
 
@@ -32,15 +35,14 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess }) => {
   };
 
   const handleImport = async () => {
-    if (!file) {
-      message.warning("Choose a file first");
+    const validation = validateFiles(files, SUPPORTED_EXTENSIONS);
+    if (!validation.valid) {
+      message.warning(validation.message);
       return;
     }
     setLoading(true);
     try {
-      console.log("Import services from file");
-      const res = await api.importSystems(file);
-      console.log(res);
+      const res = await api.importSystems(files[0]);
       setResult(res);
       onSuccess?.();
     } catch (e: unknown) {
@@ -48,6 +50,20 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFilesChange = (fileList: RcFile[]) => {
+    if (fileList.length > 1) {
+      message.warning("Only one Zip file is allowed");
+      return;
+    }
+
+    const validation = validateFiles(fileList, SUPPORTED_EXTENSIONS);
+    if (!validation.valid) {
+      message.warning(validation.message);
+      return;
+    }
+    setFiles(fileList);
   };
 
   return (
@@ -64,30 +80,55 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess }) => {
       <div tabIndex={-1}>
         {!result && (
           <>
+            <div style={{ marginBottom: 16 }}>
+              <Typography.Text type="secondary">
+                Supported file type: Zip archive only
+              </Typography.Text>
+              <br />
+              <Typography.Text type="secondary">
+                Maximum file size: 25MB
+              </Typography.Text>
+            </div>
+
             <Upload.Dragger
-              name="file"
+              name="files"
+              multiple={false}
               accept=".zip"
-              beforeUpload={(file) => {
-                setFile(file);
+              beforeUpload={(_file, fileList) => {
+                handleFilesChange(fileList);
                 return false;
               }}
-              showUploadList={file ? { showRemoveIcon: true } : false}
-              onRemove={() => setFile(null)}
+              showUploadList={files.length > 0 ? {
+                showRemoveIcon: true,
+                showPreviewIcon: false,
+                showDownloadIcon: false
+              } : false}
+              onRemove={(file) => {
+                setFiles((prev) => prev.filter((f) => f.uid !== file.uid));
+                return true;
+              }}
+              fileList={files}
             >
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />
               </p>
-              <p className="ant-upload-text">Drag a ZIP file or click to choose</p>
+              <p className="ant-upload-text">
+                Drag a Zip file or click to choose
+              </p>
+              <p className="ant-upload-hint">
+                Supports: Zip archives with service configurations only
+              </p>
             </Upload.Dragger>
+
             <Button
               type="primary"
-              onClick={() => void handleImport}
+              onClick={() => void handleImport()}
               loading={loading}
-              disabled={!file}
+              disabled={!files.length}
               style={{ marginTop: 16 }}
               block
             >
-              Import
+              Import Zip File
             </Button>
           </>
         )}

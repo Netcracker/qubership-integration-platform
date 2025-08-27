@@ -10,10 +10,13 @@ import type { ElementWithChainName } from "../../api/apiTypes";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { ApiSpecificationType, ApiSpecificationFormat } from "../../api/apiTypes";
 import styles from "./Services.module.css";
+import { validateFiles } from "./utils";
 
 const POLLING_INTERVAL = 1200;
 const DEFAULT_EXTERNAL_ROUTES_ONLY = true;
 const MODAL_WIDTH = 600;
+
+const SUPPORTED_EXTENSIONS = ['.json', '.yaml', '.yml', '.xml', '.wsdl', '.xsd', '.graphql', '.graphqls', '.proto', '.zip'];
 
 interface Props {
   systemId?: string;
@@ -45,8 +48,9 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
   };
 
   const handleImport = async () => {
-    if (!files.length) {
-      message.warning("Choose at least one file");
+    const validation = validateFiles(files, SUPPORTED_EXTENSIONS);
+    if (!validation.valid) {
+      message.warning(validation.message);
       return;
     }
     if (isGroupMode) {
@@ -99,6 +103,12 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
   };
 
   const handleFilesChange = (fileList: RcFile[]) => {
+    const validation = validateFiles(fileList, SUPPORTED_EXTENSIONS);
+    if (!validation.valid) {
+      message.warning(validation.message);
+      return;
+    }
+
     setFiles(fileList);
     if (!nameTouched && fileList.length > 0 && isGroupMode) {
       const base = fileList[0].name.replace(/\.[^.]+$/, "");
@@ -169,10 +179,10 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
     }
     const invalidTriggers: ElementWithChainName[] = elements
       .filter(e => {
-        if (!selectedChainIds.includes(e.chainId)) {
+        if (!selectedChainIds.includes(e.chainId) || !e.properties?.["httpMethodRestrict"]) {
           return false;
         }
-        const httpMethodRestrict = e.properties?.["httpMethodRestrict"];
+        const httpMethodRestrict = e.properties["httpMethodRestrict"];
         if (typeof httpMethodRestrict !== "string") {
           return false;
         }
@@ -262,10 +272,19 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                     />
                   </Form.Item>
                 )}
+                <div style={{ marginBottom: 16 }}>
+                  <Typography.Text type="secondary">
+                    Supported file types: {SUPPORTED_EXTENSIONS.join(', ')}
+                  </Typography.Text>
+                  <br />
+                  <Typography.Text type="secondary">
+                    Maximum file size: 25MB per file
+                  </Typography.Text>
+                </div>
                 <Upload.Dragger
                   name="files"
                   multiple
-                  accept=".yaml,.yml,.json,.xml,.zip"
+                  accept={SUPPORTED_EXTENSIONS.join(',')}
                   beforeUpload={(_file, fileList) => {
                     handleFilesChange(fileList);
                     return false;
@@ -292,7 +311,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                   className={styles.importButton}
                   block
                 >
-                  Import
+                  Import {files.length > 1 ? `${files.length} Files` : 'File'}
                 </Button>
                 {(loading || polling) && (
                   <div className={styles.loadingContainer}>
@@ -345,6 +364,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                               key={element.chainId}
                               className={styles.chainCard}
                               size="small"
+                              styles={{ body: {} }}
                             >
                               <div className={styles.chainCardBody}>
                                 <Checkbox

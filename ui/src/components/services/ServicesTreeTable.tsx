@@ -162,7 +162,10 @@ const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
 
   return (
     <>
-      <span style={clickableStyle} onClick={handleClick}>
+      <span
+        style={clickableStyle}
+        onClick={() => void handleClick()}
+      >
         {getIcon(record)}
         {record.name}
       </span>
@@ -504,12 +507,10 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
   onRowClick,
 }: ServicesTreeTableProps<T>) {
   const allColumnKeys = useMemo(() => {
-    const actionsKey = actionsColumn?.key ?? 'actions';
-    const base = (allColumns && allColumns.length > 0
+    return allColumns && allColumns.length > 0
       ? allColumns
-      : allServicesTreeTableColumns.map(col => col.key));
-    return base.filter(key => key !== actionsKey);
-  }, [allColumns, actionsColumn]);
+      : allServicesTreeTableColumns.map(col => col.key);
+  }, [allColumns]);
 
   const initialKeys = useMemo(() => {
     return defaultVisibleKeys && defaultVisibleKeys.length > 0
