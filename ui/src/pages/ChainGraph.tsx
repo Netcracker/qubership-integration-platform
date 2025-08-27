@@ -25,7 +25,7 @@ import { useParams } from "react-router-dom";
 import { CustomControls } from "../components/graph/CustomControls.tsx";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { useModalsContext } from "../Modals.tsx";
-import { ChainElementModification } from "../components/modal/ChainElementModification.tsx";
+import { ChainElementModification } from "../components/modal/chain_element/ChainElementModification.tsx";
 import styles from "./ChainGraph.module.css";
 import { LibraryProvider } from "../components/LibraryContext.tsx";
 
