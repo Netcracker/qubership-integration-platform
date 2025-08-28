@@ -99,17 +99,15 @@ export const useChainGraph = (chainId?: string) => {
       try {
         if (!chainId) return;
 
-        const elements = (await api.getElements(chainId)) as unknown as Element[];
+        const elements = (await api.getElements(
+          chainId,
+        )) as unknown as Element[];
 
         const newNodes: ChainGraphNode[] = elements
           .map((element: Element) => {
             return getNodeFromElement(
               element,
               getLibraryElement(element, libraryElements),
-              {
-                x: 0,
-                y: 0,
-              },
               direction,
             );
           })
@@ -166,11 +164,19 @@ export const useChainGraph = (chainId?: string) => {
           id: response.createdDependencies?.[0]?.id ?? "",
         };
         setEdges((eds) => addEdge(edge, eds));
+        const isUnderParent: boolean = nodes.some(
+          (node: ChainGraphNode) =>
+            (node.id === connection.source || node.id === connection.target) &&
+            node.parentId !== undefined,
+        );
+        if (isUnderParent) {
+          structureChanged();
+        }
       } catch (error) {
         notificationService.requestFailed("Failed to create connection", error);
       }
     },
-    [chainId, notificationService, setEdges],
+    [chainId, nodes, notificationService, setEdges, structureChanged],
   );
 
   const onDragOver = useCallback(
@@ -236,22 +242,16 @@ export const useChainGraph = (chainId?: string) => {
           const newNode: ChainGraphNode = getNodeFromElement(
             createdElement,
             getLibraryElement(createdElement, libraryElements),
-            fakeNode.position,
             direction,
           );
           if (!newNode) {
             return;
           }
           const childNodes: ChainGraphNode[] = createdElement?.children
-            ? createdElement?.children?.map((child: Element, index: number) => {
+            ? createdElement?.children?.map((child: Element) => {
                 return getNodeFromElement(
                   child,
                   getLibraryElement(child, libraryElements),
-                  //TODO Mb useless mb solve by ELK
-                  {
-                    x: dropPosition.x + 30 * (index + 1),
-                    y: dropPosition.y + 30 * (index + 1),
-                  },
                   direction,
                 );
               })
@@ -288,11 +288,10 @@ export const useChainGraph = (chainId?: string) => {
             return;
           }
           setEdges((eds) => applyEdgeChanges(changes, eds));
-          structureChanged();
         }),
       );
     },
-    [chainId, setEdges, structureChanged],
+    [chainId, setEdges],
   );
 
   const onNodesChange = useCallback(

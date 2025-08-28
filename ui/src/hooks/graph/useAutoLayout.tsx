@@ -7,22 +7,6 @@ import ELK, {
 } from "elkjs/lib/elk.bundled";
 import { ElkDirection, useElkDirection } from "./useElkDirection.tsx";
 
-const baseLayoutOptions: LayoutOptions = {
-  "elk.algorithm": "layered",
-  "elk.direction": "DOWN",
-  "elk.hierarchyHandling": "INCLUDE_CHILDREN",
-  "elk.layering.strategy": "LONGEST_PATH",
-  "elk.spacing.nodeNode": "40",
-  "elk.spacing.nodeNodeBetweenLayers": "40",
-  "elk.padding": "[top=45,left=20,right=20,bottom=20]",
-};
-
-const fixedLayoutOptions: LayoutOptions = {
-  "elk.algorithm": "fixed",
-  "elk.spacing.nodeNode": "40",
-  "elk.padding": "[top=45,left=20,right=20,bottom=20]",
-};
-
 function buildElkGraph<
   T extends ElkNode,
   NodeData extends Record<string, unknown> = never,
@@ -32,24 +16,31 @@ function buildElkGraph<
   edges: Edge<EdgeData>[],
   direction: ElkDirection,
 ): T {
+  const baseLayoutOptions: LayoutOptions = {
+    "elk.algorithm": "layered",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
+    "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
+    "elk.layered.nodePlacement.bk.fixedAlignment": "LEFTUP",
+    "elk.layered.compaction.postCompaction.enabled": "true",
+    "elk.layering.strategy": "LONGEST_PATH",
+    "elk.spacing.nodeNode": "40",
+    "elk.spacing.nodeNodeBetweenLayers": "40",
+    "elk.spacing.componentComponent": "20",
+    "elk.padding": "[top=45,left=20,right=20,bottom=20]",
+  };
+
   const nodeMap = new Map<string, ElkNode>();
-  const childrenMap = new Map<string, Node<NodeData>[] | undefined>();
+  const parentMap = new Map<string, string | undefined>();
 
   for (const node of nodes) {
+    parentMap.set(node.id, node.parentId);
     const hasChildren = nodes.some((n) => n.parentId === node.id);
-    if (hasChildren) {
-      childrenMap.set(
-        node.id,
-        nodes.filter((cn) => cn.parentId === node.id),
-      );
-    }
+
     nodeMap.set(node.id, {
       id: node.id,
       ...(hasChildren
-        ? {
-            width: node.width ?? 150,
-            height: node.height ?? 50,
-          }
+        ? { width: node.width ?? 150, height: node.height ?? 50 }
         : { width: 150, height: 50 }),
     });
   }
@@ -57,62 +48,71 @@ function buildElkGraph<
   for (const node of nodes) {
     if (node.parentId) {
       const parent = nodeMap.get(node.parentId);
-      const self = nodeMap.get(node.id);
-      if (parent && self) {
-        parent.children = parent.children || [];
-        parent.children.push(self);
+      const child = nodeMap.get(node.id);
+      if (parent && child) {
+        (parent.children ??= []).push(child);
       }
     }
   }
 
   for (const elkNode of nodeMap.values()) {
     if (elkNode.children?.length) {
-      const hasInnerHandlers = childrenMap
-        .get(elkNode.id)
-        ?.every(
-          (cn) =>
-            cn.data.inputEnabled === true && cn.data.outputEnabled === true,
-        );
-
-      if (hasInnerHandlers) {
-        elkNode.layoutOptions = {
-          ...baseLayoutOptions,
-          "elk.algorithm": "layered",
-          "elk.layering.strategy": "LONGEST_PATH",
-        };
-      } else {
-        elkNode.layoutOptions = {
-          ...fixedLayoutOptions,
-        };
-      }
-
-      elkNode.layoutOptions = {
-        ...baseLayoutOptions,
-        "elk.layering.strategy": hasInnerHandlers
-          ? "LONGEST_PATH"
-          : "NETWORK_SIMPLEX",
-      };
+      elkNode.layoutOptions = baseLayoutOptions;
     }
   }
+
+  const getNestedParents = (id: string): string[] => {
+    const result: string[] = [];
+    let current: string | undefined = id;
+    const seen = new Set<string>();
+    while (current && !seen.has(current)) {
+      result.push(current);
+      seen.add(current);
+      current = parentMap.get(current);
+    }
+    return result;
+  };
+
+  const getClosestParent = (a: string, b: string): string | undefined => {
+    const allParents = new Set(getNestedParents(a));
+    let current: string | undefined = b;
+    const seen = new Set<string>();
+    while (current && !seen.has(current)) {
+      if (allParents.has(current)) return current;
+      seen.add(current);
+      current = parentMap.get(current);
+    }
+    return undefined;
+  };
 
   const topLevelNodes = nodes
     .filter((n) => !n.parentId)
     .map((n) => nodeMap.get(n.id)!)
     .filter(Boolean);
 
-  return {
+  const root: ElkNode = {
     id: "root",
     layoutOptions: {
       ...baseLayoutOptions,
       "elk.direction": direction,
     },
     children: topLevelNodes,
-    edges: edges.map((edge) => ({
+    edges: [],
+  };
+
+  const getEdgeLocation = (id?: string) => (id ? nodeMap.get(id) : root);
+
+  for (const edge of edges) {
+    const edgeLocationId = getClosestParent(edge.source, edge.target);
+    const edgeLocation = getEdgeLocation(edgeLocationId);
+    (edgeLocation!.edges ??= []).push({
       id: edge.id,
       sources: [edge.source],
       targets: [edge.target],
-    })),
-  } as unknown as T;
+    });
+  }
+
+  return root as unknown as T;
 }
 
 function buildNode<NodeData extends Record<string, unknown> = never>(
@@ -127,17 +127,11 @@ function buildNode<NodeData extends Record<string, unknown> = never>(
 
   return {
     ...node,
-    position: {
-      x: elkNode.x || 0,
-      y: elkNode.y || 0,
-    },
+    position: { x: elkNode.x || 0, y: elkNode.y || 0 },
     width: elkNode.width,
     height: elkNode.height,
-    parentId,
-    data: {
-      ...node.data,
-      direction,
-    },
+    parentId: parentId ?? node.parentId,
+    data: { ...node.data, direction },
     targetPosition,
     sourcePosition,
   };
@@ -186,9 +180,12 @@ function autoLayout(
   );
 
   void elk.layout(elkGraph).then((layout) => {
-    layout.children?.forEach((node) => {
-      reactFlow.updateNode(node.id, (n) => buildNode(node, n, direction));
-    });
+    const updateRec = (elkNode: ElkNode, parentId?: string) => {
+      reactFlow.updateNode(elkNode.id, (node) => buildNode(elkNode, node, direction, parentId));
+      elkNode.children?.forEach((child) => updateRec(child, elkNode.id));
+    };
+
+    layout.children?.forEach((n) => updateRec(n, undefined));
     requestAnimationFrame(() => void reactFlow.fitView());
   });
 }

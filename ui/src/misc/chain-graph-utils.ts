@@ -40,11 +40,9 @@ export function getLibraryElement(
 export function getNodeFromElement(
   element: Element,
   libraryElement?: LibraryElement,
-  position?: XYPosition,
   direction?: ElkDirection,
 ): ChainGraphNode {
   const nodeType = libraryElement?.container ? "container" : "unit";
-  const nodePosition = position ?? { x: 0, y: 0 };
   const isHorizontal = direction === "RIGHT";
   const isContainer = nodeType === "container";
 
@@ -63,7 +61,7 @@ export function getNodeFromElement(
       ...getDataFromElement(element, libraryElement),
       direction,
     },
-    position: nodePosition,
+    position: { x: 0, y: 0 },
     draggable: libraryElement?.inputEnabled && libraryElement?.outputEnabled,
     targetPosition: isHorizontal ? Position.Left : Position.Top,
     sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
