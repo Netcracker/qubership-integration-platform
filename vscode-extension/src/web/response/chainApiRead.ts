@@ -1,7 +1,7 @@
 import {Chain, Dependency, Element, LibraryData, LibraryElement} from "./apiTypes";
 import * as yaml from 'yaml';
 import {ExtensionContext, FileType, Uri} from "vscode";
-import {EMPTY_USER, findElementById, getElementChildren} from "./chainApi";
+import {EMPTY_USER, findElementById, getElementChildren, RESOURCES_FOLDER} from "./chainApi";
 
 const vscode = require('vscode');
 
@@ -146,7 +146,15 @@ async function readFile(mainFolderUri: Uri, propertiesFilename: string): Promise
     console.log("read property file", propertiesFilename);
     const fileUri = vscode.Uri.joinPath(mainFolderUri, propertiesFilename);
     console.log("property file uri", fileUri);
-    const fileContent = await vscode.workspace.fs.readFile(fileUri);
+    let fileContent;
+    try {
+        fileContent = await vscode.workspace.fs.readFile(fileUri);
+    } catch (error) {
+        if (!propertiesFilename.includes(RESOURCES_FOLDER)) {
+            return await readFile(mainFolderUri, RESOURCES_FOLDER + '/' + propertiesFilename);
+        }
+        throw error;
+    }
     const textFile = new TextDecoder('utf-8').decode(fileContent);
     console.log("property file", textFile);
     return textFile;

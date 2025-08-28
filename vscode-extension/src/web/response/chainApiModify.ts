@@ -19,7 +19,7 @@ import {
     getMainChain,
     getMainChainFileUri
 } from "./chainApiRead";
-import {EMPTY_USER, findElementById, getElementChildren} from "./chainApi";
+import {EMPTY_USER, findElementById, getElementChildren, RESOURCES_FOLDER} from "./chainApi";
 import {ExtensionContext, Uri} from "vscode";
 
 const vscode = require('vscode');
@@ -157,7 +157,7 @@ function getOrCreatePropertyFilename(type: string, propertyNames: string[], expo
         prefix = propertyNames.length === 1 ? propertyNames[0] : 'properties';
     }
 
-    return `resources/${prefix}-${id}.${exportFileExtension}`;
+    return `${prefix}-${id}.${exportFileExtension}`;
 }
 
 async function writeElementProperties(mainFolderUri: Uri, element: any): Promise<void> {
@@ -214,7 +214,7 @@ async function writeElementProperties(mainFolderUri: Uri, element: any): Promise
 async function writePropertyFile(mainFolderUri: Uri, fileName: string, data: string) {
     const bytes = new TextEncoder().encode(data);
     try {
-        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(mainFolderUri, fileName), bytes);
+        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(mainFolderUri, RESOURCES_FOLDER, fileName), bytes);
         vscode.window.showInformationMessage('Property file has been updated!');
     } catch (err) {
         vscode.window.showErrorMessage('Failed to write file: ' + err);
