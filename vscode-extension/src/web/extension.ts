@@ -8,8 +8,9 @@ import {
 } from "vscode";
 import {getApiResponse} from "./response/chainApi";
 import {VSCodeMessage, VSCodeResponse} from "./response/apiTypes";
-import {createEmptyChain} from "./response/chainApiModify";
 import * as path from "path";
+import { setFileApi } from "./response/file/fileApiProvider";
+import { VSCodeFileApi } from "./response/file/fileApiImpl";
 
 const vscode = require('vscode');
 
@@ -35,18 +36,23 @@ class ChainFileEditorProvider implements CustomTextEditorProvider {
 }
 
 function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolderUri: Uri | undefined = undefined) {
+    type VSCodeMessageWrapper = {
+        command: string;
+        data: VSCodeMessage;
+    };
+
     panel.webview.html = getWebviewContent(context, panel.webview);
 
-    panel.webview.onDidReceiveMessage(async (message: VSCodeMessage) => {
+    panel.webview.onDidReceiveMessage(async (message: VSCodeMessageWrapper) => {
         // Handle the mock response
-        console.log('QIP Extension API Request:', message);
+        console.log('QIP Extension API Request:', message.data);
 
         const response: VSCodeResponse = {
-            requestId: message.requestId,
-            type: message.type,
+            requestId: message.data.requestId,
+            type: message.data.type,
         };
         try {
-            response.payload = await getApiResponse(message, context, mainFolderUri);
+            response.payload = await getApiResponse(message.data, mainFolderUri);
             console.log('QIP Extension API Response:', response);
         } catch (e) {
             console.error("Failed to fetch data for QIP Extension API", e);
@@ -58,6 +64,8 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolde
 
 // Your extension is activated the very first time the command is executed
 export function activate(context: ExtensionContext) {
+    const fileApi = new VSCodeFileApi(context);
+    setFileApi(fileApi);
 
     context.subscriptions.push(
         vscode.window.registerCustomEditorProvider(
@@ -97,13 +105,13 @@ export function activate(context: ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('qip.createChain',
         async () => {
-            await createEmptyChain();
+            await fileApi.createEmptyChain();
         }
     ));
 
     context.subscriptions.push(vscode.commands.registerCommand('qip.createChainParent',
         async () => {
-            await createEmptyChain(true);
+            await fileApi.createEmptyChain(true);
         }
     ));
 }

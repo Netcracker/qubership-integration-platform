@@ -10,19 +10,10 @@ import {
     LibraryInputQuantity,
     PatchElementRequest
 } from "./apiTypes";
-import * as yaml from 'yaml';
-import {
-    getChain,
-    getDependencyId,
-    getElement,
-    getLibraryElementByType,
-    getMainChain,
-    getMainChainFileUri
-} from "./chainApiRead";
-import {EMPTY_USER, findElementById, getElementChildren, RESOURCES_FOLDER} from "./chainApi";
-import {ExtensionContext, Uri} from "vscode";
-
-const vscode = require('vscode');
+import {getChain, getDependencyId, getElement, getLibraryElementByType, getMainChain} from "./chainApiRead";
+import {EMPTY_USER, findElementById, getElementChildren} from "./chainApiUtils";
+import {Uri} from "vscode";
+import {fileApi} from "./file/fileApiProvider";
 
 export async function updateChain(mainFolderUri: Uri, chainId: string, chainRequest: Partial<Chain>): Promise<Chain> {
     const chain: any = await getMainChain(mainFolderUri);
@@ -38,13 +29,13 @@ export async function updateChain(mainFolderUri: Uri, chainId: string, chainRequ
     chain.content.assumptions = chainRequest.assumptions !== undefined ? chainRequest.assumptions : chain.content.assumptions;
     chain.content.outOfScope = chainRequest.outOfScope !== undefined ? chainRequest.outOfScope : chain.content.outOfScope;
 
-    await writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(mainFolderUri, chain);
 
     return await getChain(mainFolderUri, chainId);
 }
 
-async function checkRestrictions(context: ExtensionContext, element: any, elements:any[]) {
-    const libraryData = await getLibraryElementByType(context, element.type);
+async function checkRestrictions(element: any, elements:any[]) {
+    const libraryData = await getLibraryElementByType(element.type);
     const parentElementId = findElementById(elements, element.id)?.parentId; // More consistent way instead of parentElementId field
 
     if (parentElementId) {
@@ -55,7 +46,7 @@ async function checkRestrictions(context: ExtensionContext, element: any, elemen
 
         const parentElement = findElementById(elements, parentElementId)?.element;
         if (parentElement) {
-            const libraryParentData = await getLibraryElementByType(context, parentElement.type);
+            const libraryParentData = await getLibraryElementByType(parentElement.type);
 
             if (libraryData.parentRestriction?.length > 0) {
                 if (libraryData.parentRestriction.find(type => type === parentElement.type)?.length === 0) {
@@ -102,7 +93,7 @@ async function checkRestrictions(context: ExtensionContext, element: any, elemen
     // }
 }
 
-export async function updateElement(context: ExtensionContext, mainFolderUri: Uri, chainId: string, elementId: string, elementRequest: PatchElementRequest): Promise<ActionDifference> {
+export async function updateElement(mainFolderUri: Uri, chainId: string, elementId: string, elementRequest: PatchElementRequest): Promise<ActionDifference> {
     const chain: any = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
@@ -137,10 +128,10 @@ export async function updateElement(context: ExtensionContext, mainFolderUri: Ur
         chain.content.elements.push(element);
     }
 
-    await checkRestrictions(context, element, chain.content.elements);
+    await checkRestrictions(element, chain.content.elements);
 
     await writeElementProperties(mainFolderUri, element);
-    await writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(mainFolderUri, chain);
 
     return {
         updatedElements: [
@@ -165,7 +156,7 @@ async function writeElementProperties(mainFolderUri: Uri, element: any): Promise
         const propertiesFilenameId = (beforeAfterBlock.id ? beforeAfterBlock.id + '-' : '') + element.id;
         if (beforeAfterBlock.type === 'script') {
             beforeAfterBlock.propertiesFilename = getOrCreatePropertyFilename(beforeAfterBlock.type, ['script'], 'groovy', propertiesFilenameId);
-            await writePropertyFile(mainFolderUri, beforeAfterBlock.propertiesFilename, beforeAfterBlock['script']);
+            await fileApi.writePropertyFile(mainFolderUri, beforeAfterBlock.propertiesFilename, beforeAfterBlock['script']);
             delete beforeAfterBlock['script'];
         } else if (beforeAfterBlock.type?.startsWith('mapper')) {
             if (beforeAfterBlock.type === 'mapper') {
@@ -174,7 +165,7 @@ async function writeElementProperties(mainFolderUri: Uri, element: any): Promise
             }
             beforeAfterBlock.propertiesFilename = getOrCreatePropertyFilename(beforeAfterBlock.type, ['mappingDescription'], 'json', propertiesFilenameId);
             const property: any = JSON.stringify({mappingDescription: beforeAfterBlock['mappingDescription']});
-            await writePropertyFile(mainFolderUri, beforeAfterBlock.propertiesFilename, property);
+            await fileApi.writePropertyFile(mainFolderUri, beforeAfterBlock.propertiesFilename, property);
             delete beforeAfterBlock['mappingDescription'];
         }
     }
@@ -189,12 +180,12 @@ async function writeElementProperties(mainFolderUri: Uri, element: any): Promise
             for (const propertyName of propertyNames) {
                 properties[propertyName] = element.properties[propertyName];
             }
-            await writePropertyFile(mainFolderUri, element.properties.propertiesFilename, JSON.stringify(properties));
+            await fileApi.writePropertyFile(mainFolderUri, element.properties.propertiesFilename, JSON.stringify(properties));
             for (const propertyName of propertyNames) {
                 delete element.properties[propertyName];
             }
         } else {
-            await writePropertyFile(mainFolderUri, element.properties.propertiesFilename, element.properties[element.properties.propertiesToExportInSeparateFile]);
+            await fileApi.writePropertyFile(mainFolderUri, element.properties.propertiesFilename, element.properties[element.properties.propertiesToExportInSeparateFile]);
             delete element.properties[element.properties.propertiesToExportInSeparateFile];
         }
     }
@@ -211,31 +202,9 @@ async function writeElementProperties(mainFolderUri: Uri, element: any): Promise
     }
 }
 
-async function writePropertyFile(mainFolderUri: Uri, fileName: string, data: string) {
-    const bytes = new TextEncoder().encode(data);
-    try {
-        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(mainFolderUri, RESOURCES_FOLDER, fileName), bytes);
-        vscode.window.showInformationMessage('Property file has been updated!');
-    } catch (err) {
-        vscode.window.showErrorMessage('Failed to write file: ' + err);
-        throw Error('Failed to write file: ' + err);
-    }
-}
-
-async function writeMainChain(mainFolderUri: Uri, chain: any) {
-    const bytes = new TextEncoder().encode(yaml.stringify(chain));
-    try {
-        await vscode.workspace.fs.writeFile(await getMainChainFileUri(mainFolderUri), bytes);
-        vscode.window.showInformationMessage('Chain has been updated!');
-    } catch (err) {
-        vscode.window.showErrorMessage('Failed to write file: ' + err);
-        throw Error('Failed to write file: ' + err);
-    }
-}
-
-async function getDefaultElementByType(context: ExtensionContext, chainId: string, elementRequest: CreateElementRequest) {
+async function getDefaultElementByType(chainId: string, elementRequest: CreateElementRequest) {
     const elementId = crypto.randomUUID();
-    const libraryData = await getLibraryElementByType(context, elementRequest.type);
+    const libraryData = await getLibraryElementByType(elementRequest.type);
 
     let children: Element[] | undefined = undefined;
     if (libraryData.allowedChildren && Object.keys(libraryData.allowedChildren).length) {
@@ -243,7 +212,7 @@ async function getDefaultElementByType(context: ExtensionContext, chainId: strin
         for (const childType in libraryData.allowedChildren) {
             if (libraryData.allowedChildren[childType] === LibraryElementQuantity.ONE ||
                 libraryData.allowedChildren[childType] === LibraryElementQuantity.ONE_OR_MANY) {
-                children.push(await getDefaultElementByType(context, chainId, {type: childType, parentElementId: elementId}));
+                children.push(await getDefaultElementByType(chainId, {type: childType, parentElementId: elementId}));
             }
         }
     }
@@ -267,23 +236,23 @@ async function getDefaultElementByType(context: ExtensionContext, chainId: strin
     return element;
 }
 
-export async function createElement(context: ExtensionContext, mainFolderUri: Uri, chainId: string, elementRequest: CreateElementRequest): Promise<ActionDifference> {
+export async function createElement(mainFolderUri: Uri, chainId: string, elementRequest: CreateElementRequest): Promise<ActionDifference> {
     const chain: any = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    const element = await getDefaultElementByType(context, chainId, elementRequest);
+    const element = await getDefaultElementByType(chainId, elementRequest);
 
     if (!insertElement(chain.content.elements, element)) {
         chain.content.elements.push(element);
     }
 
-    await checkRestrictions(context, element, chain.content.elements);
+    await checkRestrictions(element, chain.content.elements);
 
     await writeElementProperties(mainFolderUri, element);
-    await writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(mainFolderUri, chain);
 
     return {
         createdElements: [
@@ -362,15 +331,15 @@ function findAndRemoveElementById(
 async function deleteElementsPropertyFiles(mainFolderUri: Uri, removedElements: any[]) {
     async function handleServiceCallProperty(beforeAfterBlock: any) {
         if (beforeAfterBlock.type === 'script') {
-            beforeAfterBlock['script'] = await removeFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
+            beforeAfterBlock['script'] = await fileApi.removeFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
         } else if (beforeAfterBlock.type?.startsWith('mapper')) {
-            await removeFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
+            await fileApi.removeFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
         }
     }
 
     for (const element of removedElements) {
         if (element.properties?.propertiesToExportInSeparateFile) {
-            await removeFile(mainFolderUri, element.properties.propertiesFilename);
+            await fileApi.removeFile(mainFolderUri, element.properties.propertiesFilename);
         }
 
         if (element.type === 'service-call') {
@@ -390,20 +359,9 @@ async function deleteElementsPropertyFiles(mainFolderUri: Uri, removedElements: 
     }
 }
 
-async function removeFile(mainFolderUri: Uri, propertiesFilename: string): Promise<void> {
-    console.log("removing property file", propertiesFilename);
-    const fileUri = vscode.Uri.joinPath(mainFolderUri, propertiesFilename);
-    console.log("property file uri", fileUri);
-    try {
-        await vscode.workspace.fs.delete(fileUri);
-    } catch (error) {
-        console.log("Error deleting property file", fileUri);
-    }
 
-    return;
-}
 
-export async function deleteElements(context: ExtensionContext, mainFolderUri: Uri, chainId: string, elementIds: string[]): Promise<ActionDifference> {
+export async function deleteElements(mainFolderUri: Uri, chainId: string, elementIds: string[]): Promise<ActionDifference> {
     const chain: any = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
@@ -429,11 +387,11 @@ export async function deleteElements(context: ExtensionContext, mainFolderUri: U
 
         const parentElement = parentElementId ? findElementById(chain.content.elements, parentElementId)?.element : undefined;
         if (parentElement) {
-            await checkRestrictions(context, parentElement, chain.content.elements);
+            await checkRestrictions(parentElement, chain.content.elements);
         }
     }
 
-    await writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(mainFolderUri, chain);
     await deleteElementsPropertyFiles(mainFolderUri, removedElements);
 
     return {
@@ -449,7 +407,7 @@ async function deleteDependenciesForElement(elementId: string, dependencies: Dep
     });
 }
 
-export async function createConnection(context: ExtensionContext, mainFolderUri: Uri, chainId: string, connectionRequest: ConnectionRequest): Promise<ActionDifference> {
+export async function createConnection(mainFolderUri: Uri, chainId: string, connectionRequest: ConnectionRequest): Promise<ActionDifference> {
     const chain: any = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
@@ -461,7 +419,7 @@ export async function createConnection(context: ExtensionContext, mainFolderUri:
         console.error(`ElementId from not found`);
         throw Error("ElementId from not found");
     }
-    const libraryDataFrom = await getLibraryElementByType(context, elementFrom.type);
+    const libraryDataFrom = await getLibraryElementByType(elementFrom.type);
     if (!libraryDataFrom.outputEnabled) {
         console.error(`Element from does not allow output connections`);
         throw Error("Element from does not allow output connections");
@@ -472,7 +430,7 @@ export async function createConnection(context: ExtensionContext, mainFolderUri:
         console.error(`ElementId to not found`);
         throw Error("ElementId to not found");
     }
-    const libraryDataTo = await getLibraryElementByType(context, elementTo.type);
+    const libraryDataTo = await getLibraryElementByType(elementTo.type);
     if (!libraryDataTo.inputEnabled) {
         console.error(`Element to does not allow output connections`);
         throw Error("Element to does not allow output connections");
@@ -495,7 +453,7 @@ export async function createConnection(context: ExtensionContext, mainFolderUri:
 
     chain.content.dependencies.push(newDependency);
 
-    await writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(mainFolderUri, chain);
 
     // TODO Change to read dependency from file
     newDependency['id'] = getDependencyId(newDependency);
@@ -530,52 +488,11 @@ export async function deleteConnections(mainFolderUri: Uri, chainId: string, con
         removedConnections.push(dependency);
     }
 
-    await writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(mainFolderUri, chain);
 
     return {
         removedDependencies: [
             ...removedConnections
         ]
     };
-}
-
-export async function createEmptyChain(isInParentDir: boolean = false) {
-    try {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) {
-            vscode.window.showErrorMessage('Open a workspace folder first');
-            return;
-        }
-        const arg = await vscode.window.showInputBox({prompt: 'Enter new chain name'});
-
-        let folderUri = workspaceFolders[0].uri;
-        const chainId = crypto.randomUUID();
-        const chainName = arg || 'New Chain';
-        if (isInParentDir) {
-            folderUri = vscode.Uri.joinPath(folderUri, '..');
-        }
-        folderUri = vscode.Uri.joinPath(folderUri, chainId);
-
-        // Create the folder
-        await vscode.workspace.fs.createDirectory(folderUri);
-
-        // Create template file
-        const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}.chain.qip.yaml`);
-        const chain = {
-            $schema: 'http://qubership.org/schemas/product/qip/chain',
-            id: chainId,
-            name: chainName,
-            content: {
-                migrations: "[100, 101]",
-                elements: [],
-                dependencies: [],
-            }
-        };
-        const bytes = new TextEncoder().encode(yaml.stringify(chain));
-
-        await vscode.workspace.fs.writeFile(chainFileUri, bytes);
-        vscode.window.showInformationMessage(`Chain "${chainName}" created with id ${chainId}`);
-    } catch (err) {
-        vscode.window.showErrorMessage(`Failed: ${err}`);
-    }
 }

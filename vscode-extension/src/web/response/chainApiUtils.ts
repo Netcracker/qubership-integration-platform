@@ -1,0 +1,68 @@
+import vscode, {Uri} from "vscode";
+import {getCurrentChainId} from "./chainApiRead";
+import {Element} from "./apiTypes";
+
+export async function getChainUri(mainFolderUri: vscode.Uri): Promise<string> {
+    const result = `/chains/${await getCurrentChainId(mainFolderUri)}/graph`;
+    console.log('getChainUri', result);
+    return result;
+}
+
+export function getChainFolderUri(openedDocumentFolderUri: Uri | undefined): Uri {
+    if (openedDocumentFolderUri) {
+        return openedDocumentFolderUri;
+    }
+
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (workspaceFolders) {
+        return  workspaceFolders[0].uri;
+    }
+
+    console.error('No workspace folders found');
+    throw Error("No workspace folders found");
+}
+
+export function findElementById(
+    elements: any[] | undefined,
+    elementId: string,
+    parentId: string | undefined = undefined
+): {
+    element: any;
+    parentId: string | undefined;
+} | undefined {
+    if (!elements) {
+        return undefined;
+    }
+
+    for (const element of elements) {
+        if (element.id === elementId) {
+            return { element, parentId };
+        }
+
+        const found = findElementById(element.children, elementId, element.id);
+        if (found) {
+            return found;
+        }
+    }
+
+    return undefined;
+}
+
+export function getElementChildren(children: any[] | undefined): any[] {
+    const result: Element[] = [];
+    if (children?.length) {
+        for (const child of children) {
+            if (child.children?.length) {
+                result.push(...getElementChildren(child.children));
+            }
+            result.push(child);
+        }
+    }
+
+    return result;
+}
+
+export const EMPTY_USER = {
+    id: "",
+    username: ""
+};
