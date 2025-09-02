@@ -54,8 +54,8 @@ export class VSCodeExtensionApi implements Api {
     this.vscode = acquireVsCodeApi();
 
     // Listener for messages FROM extension
-    window.addEventListener("message", (event) => {
-      const message: VSCodeResponse<never> = <VSCodeResponse<never>>event.data;
+    window.addEventListener("message", (event: MessageEvent<VSCodeResponse<never>>) => {
+      const message: VSCodeResponse<never> = event.data;
       const { requestId, error } = message;
 
       if (requestId && this.responseResolvers[requestId]) {
@@ -87,8 +87,11 @@ export class VSCodeExtensionApi implements Api {
     const requestId = crypto.randomUUID();
     const message: VSCodeMessage<V> = { type, requestId, payload };
 
-    // @ts-expect-error since any type is prohibited
-    this.vscode.postMessage(message);
+    this.vscode.postMessage({
+      command: import.meta.env.VITE_API_APP,
+      // @ts-expect-error since any type is prohibited
+      data: message
+    });
 
     return new Promise((resolve, reject) => {
       this.responseResolvers[requestId] = { resolve, reject };
@@ -550,10 +553,15 @@ export class VSCodeExtensionApi implements Api {
 }
 
 interface VSCodeApi<T> {
-  postMessage: (message: VSCodeMessage<T>) => void;
+  postMessage: (message: VSCodeMessageWrapper<T>) => void;
   getState?: () => never;
   setState?: (newState: never) => void;
 }
+
+export type VSCodeMessageWrapper<T> = {
+  command: string;
+  data: VSCodeMessage<T>;
+};
 
 export type VSCodeMessage<T> = {
   type: string;
