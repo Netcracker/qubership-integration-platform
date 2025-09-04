@@ -42,10 +42,14 @@ describe("Mapper", () => {
 
     describe("extractTypeDefinitions", () => {
       it("should return an empty list when the attributes list is undefined or null", () => {
-        ([undefined, null] as unknown as Attribute[]).forEach((attributes: Attribute[]) => {
-          expect(Attributes.extractTypeDefinitions(attributes), String(attributes as unknown as (undefined | null)))
-            .toEqual([]);
-        });
+        ([undefined, null] as unknown as Attribute[]).forEach(
+          (attributes: Attribute[]) => {
+            expect(
+              Attributes.extractTypeDefinitions(attributes),
+              String(attributes as unknown as undefined | null),
+            ).toEqual([]);
+          },
+        );
       });
 
       it("should return an empty list when the attributes list is empty", () => {
@@ -266,8 +270,10 @@ describe("Mapper", () => {
               ],
             } as DataType,
           };
-          expect(Attributes.getChildAttributes(attribute, []), typeName)
-            .toEqual([...schema1.attributes, ...schema2.attributes]);
+          expect(
+            Attributes.getChildAttributes(attribute, []),
+            typeName,
+          ).toEqual([...schema1.attributes, ...schema2.attributes]);
         });
       });
 

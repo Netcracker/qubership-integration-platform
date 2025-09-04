@@ -47,7 +47,9 @@ export function setUpDocumentFormatting(editor: editor_.IStandaloneCodeEditor) {
   // on every initialization
   editor.onDidLayoutChange(formatDocument);
 
-  editor.onDidChangeModelContent(() => setTimeout(() => void formatDocument(), 1));
+  editor.onDidChangeModelContent(() =>
+    setTimeout(() => void formatDocument(), 1),
+  );
 }
 
 export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
@@ -65,7 +67,7 @@ export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
       className="qip-editor"
       language={language}
       value={body}
-      options={{ readOnly: true }}
+      options={{ readOnly: true, fixedOverflowWidgets: true }}
       onMount={setUpDocumentFormatting}
     />
   );

@@ -6,4 +6,5 @@
 
 .libraryElements {
   position: absolute;
+  border: none !important;
 }

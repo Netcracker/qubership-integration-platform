@@ -1,10 +1,10 @@
 import { ValueSupplier } from "../../mapper/model/model.ts";
-import { Tag, Tooltip } from "antd";
+import { Tag } from "antd";
 import React, { useEffect, useState } from "react";
 import styles from "./ConstantValue.module.css";
 import { GENERATORS } from "../../mapper/model/generators.ts";
 import { TransformationInfo } from "../../mapper/model/transformations.ts";
-import { TransformationInfoCard } from "./TransformationInfo.tsx";
+import { TransformationInfoTooltip } from "./TransformationInfoTooltip.tsx";
 
 export type ConstantValueProps = React.HTMLAttributes<HTMLDivElement> & {
   valueSupplier: ValueSupplier;
@@ -33,17 +33,9 @@ export const ConstantValue: React.FC<ConstantValueProps> = ({
       ) : (
         <>
           <Tag className={styles["constant-generator-tag"]}>G</Tag>
-          <Tooltip
-            title={
-              transformationInfo ? (
-                <TransformationInfoCard
-                  transformationInfo={transformationInfo}
-                  parameters={valueSupplier.generator.parameters}
-                />
-              ) : (
-                ""
-              )
-            }
+          <TransformationInfoTooltip
+            transformation={valueSupplier.generator}
+            transformationsInfo={GENERATORS}
           >
             <div className={styles["constant-generator-details"]}>
               <span className={styles["constant-generator-title"]}>
@@ -60,7 +52,7 @@ export const ConstantValue: React.FC<ConstantValueProps> = ({
                 ))}
               </div>
             </div>
-          </Tooltip>
+          </TransformationInfoTooltip>
         </>
       )}
     </div>

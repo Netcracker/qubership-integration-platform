@@ -2,14 +2,15 @@ import { Checkbox, Col, Form, FormItemProps, Input, Row } from "antd";
 import React, { useEffect } from "react";
 
 export type TimestampFormatParametersProps = {
+  path?: (string | number)[];
   offset: number;
   caption: string;
-  layout: FormItemProps["layout"];
+  layout?: FormItemProps["layout"];
 };
 
 export const TimestampFormatParameters: React.FC<
   TimestampFormatParametersProps
-> = ({ offset, caption, layout }) => {
+> = ({ path = [], offset, caption, layout }) => {
   const [isUnixEpoch, setIsUnixEpoch] = React.useState<boolean>(false);
   const form = Form.useFormInstance();
 
@@ -22,7 +23,7 @@ export const TimestampFormatParameters: React.FC<
     <>
       <span>{caption}</span>
       <Form.Item
-        name={["parameters", offset]}
+        name={[...path, "parameters", offset]}
         valuePropName="checked"
         getValueProps={(value) => ({ checked: value === "true" })}
         normalize={(value) => String(value)}
@@ -39,7 +40,7 @@ export const TimestampFormatParameters: React.FC<
         labelCol={layout === "vertical" ? { flex: "0" } : undefined}
         layout={layout}
         hidden={isUnixEpoch}
-        name={["parameters", offset + 1]}
+        name={[...path, "parameters", offset + 1]}
         label="Format"
         rules={[
           {
@@ -54,7 +55,7 @@ export const TimestampFormatParameters: React.FC<
         labelCol={layout === "vertical" ? { flex: "0" } : undefined}
         layout={layout}
         hidden={isUnixEpoch}
-        name={["parameters", offset + 2]}
+        name={[...path, "parameters", offset + 2]}
         label="Locale"
       >
         <Input />
@@ -63,7 +64,7 @@ export const TimestampFormatParameters: React.FC<
         labelCol={layout === "vertical" ? { flex: "0" } : undefined}
         layout={layout}
         hidden={isUnixEpoch}
-        name={["parameters", offset + 3]}
+        name={[...path, "parameters", offset + 3]}
         label="Time zone"
       >
         <Input />

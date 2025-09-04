@@ -239,3 +239,14 @@ button:focus-visible {
 .width100 {
   width: 100%;
 }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: auto;
+}
+
+*:hover {
+  scrollbar-width: thin;
+  scrollbar-color: lightgray transparent;
+}

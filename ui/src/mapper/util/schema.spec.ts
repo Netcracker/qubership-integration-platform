@@ -345,12 +345,13 @@ describe("Mapper", () => {
 
     describe("updateAttribute", () => {
       it("should throw exception when an attribute with the same name exists", () => {
-        expect(() =>
-          MessageSchemaUtil.updateAttribute(messageSchema, "header", [], {
-            id: "foo",
-            name: "header2",
-            type: { name: "string" },
-          }),
+        expect(
+          () =>
+            MessageSchemaUtil.updateAttribute(messageSchema, "header", [], {
+              id: "foo",
+              name: "header2",
+              type: { name: "string" },
+            }),
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         ).toThrow(expect.anything());
       });

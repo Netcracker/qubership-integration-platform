@@ -1,0 +1,57 @@
+.connection-anchor {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease-in-out;
+  border: 2px solid lightgray;
+}
+
+.connection-anchor:hover {
+  width: 10px;
+  height: 10px;
+}
+
+.disconnected {
+}
+
+.disconnected:hover {
+  border: 4px solid #ffb02e;
+}
+
+.connected {
+  .inner-circle {
+    visibility: visible;
+  }
+}
+
+.connected:hover {
+  border: 4px solid #ffb02e;
+
+  .inner-circle {
+    visibility: hidden;
+  }
+}
+
+.invalid {
+  border: 2px solid #ff5260;
+  background: rgba(255, 82, 96, 0.2);
+  .inner-circle {
+    background-color: #ff5260;
+  }
+}
+
+.invalid:hover {
+  border: 4px solid #ff5260;
+}
+
+.inner-circle {
+  visibility: hidden;
+  background-color: lightgray;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}

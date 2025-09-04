@@ -1,0 +1,44 @@
+.mapping-table-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.source-anchor-column {
+  padding-left: 0 !important;
+}
+
+.target-anchor-column {
+  padding-right: 0 !important;
+}
+
+.constant-value {
+  min-width: 0;
+  font-style: italic;
+  color: gray;
+}
+
+.attribute-name, .attribute-type, .attribute-default-value {
+  min-width: 0;
+  text-overflow: ellipsis;
+  text-wrap: nowrap;
+  overflow: hidden;
+}
+
+.attribute-default-value {
+  font-style: italic;
+  color: gray;
+}
+
+.type-bracket {
+  font-style: italic;
+  color: gray;
+}
+
+.type-name {
+  min-width: 0;
+  font-style: italic;
+  color: gray;
+  text-overflow: ellipsis;
+  text-wrap: nowrap;
+  overflow: hidden;
+}

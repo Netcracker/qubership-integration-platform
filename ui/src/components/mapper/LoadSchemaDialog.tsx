@@ -572,7 +572,10 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         <Editor
                           className="qip-editor"
                           language={"graphql"}
-                          options={{ readOnly: true }}
+                          options={{
+                            readOnly: true,
+                            fixedOverflowWidgets: true,
+                          }}
                         />
                       </Form.Item>
                       <Form.Item
@@ -584,7 +587,10 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         <Editor
                           className="qip-editor"
                           language={"graphql"}
-                          options={{ readOnly: true }}
+                          options={{
+                            readOnly: true,
+                            fixedOverflowWidgets: true,
+                          }}
                         />
                       </Form.Item>
                     </>
@@ -597,7 +603,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                     >
                       <Editor
                         className="qip-editor"
-                        options={{ readOnly: true }}
+                        options={{ readOnly: true, fixedOverflowWidgets: true }}
                         language={"json"}
                       />
                     </Form.Item>
@@ -725,6 +731,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                               ["sample", "graphql", "schema"],
                             ]);
                           }}
+                          options={{ fixedOverflowWidgets: true }}
                         />
                       </Form.Item>
                       <Form.Item
@@ -762,6 +769,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                               ["sample", "graphql", "query"],
                             ]);
                           }}
+                          options={{ fixedOverflowWidgets: true }}
                         />
                       </Form.Item>
                     </>
@@ -801,6 +809,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                           );
                           void form.validateFields([["sample", "text"]]);
                         }}
+                        options={{ fixedOverflowWidgets: true }}
                       />
                     </Form.Item>
                   )}

@@ -9,11 +9,55 @@ import {
   TableProps,
   Tabs,
 } from "antd";
-import TextArea from "antd/lib/input/TextArea";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { InlineEdit } from "../../../InlineEdit";
 import { KeyValuePair, makeString, parse } from "./key-value-text-util";
 import { TextValueEdit } from "../../../table/TextValueEdit";
+import { Editor, Monaco } from "@monaco-editor/react";
+import { editor, languages, MarkerSeverity } from "monaco-editor";
+import { isParseError } from "../../../../mapper/actions-text/parser.ts";
+import { LocationRange } from "pegjs";
+
+const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
+
+const MAPPER_DICTIONARY_LANGUAGE_CONFIGURATION: languages.LanguageConfiguration =
+  {};
+
+const MAPPER_DICTIONARY_LANGUAGE_TOKENIZER: languages.IMonarchLanguage = {
+  tokenizer: {
+    start: [
+      { regex: /[ \t\r\n]+/, action: { token: "white" } },
+      { regex: /([^=;\\]|\\[=;\\])+/, action: { token: "string" } },
+      { regex: /[=;]/, action: { token: "delimiter" } },
+    ],
+  },
+  defaultToken: "invalid",
+  start: "start",
+  includeLF: true,
+};
+
+function configureMapperDictionaryLanguage(monaco: Monaco) {
+  const alreadyRegistered = monaco.languages
+    .getLanguages()
+    .some((language) => language.id === MAPPER_DICTIONARY_LANGUAGE_ID);
+  if (alreadyRegistered) {
+    console.log(
+      `Language already registered: ${MAPPER_DICTIONARY_LANGUAGE_ID}`,
+    );
+    return;
+  }
+  monaco.languages.register({
+    id: MAPPER_DICTIONARY_LANGUAGE_ID,
+  });
+  monaco.languages.setLanguageConfiguration(
+    MAPPER_DICTIONARY_LANGUAGE_ID,
+    MAPPER_DICTIONARY_LANGUAGE_CONFIGURATION,
+  );
+  monaco.languages.setMonarchTokensProvider(
+    MAPPER_DICTIONARY_LANGUAGE_ID,
+    MAPPER_DICTIONARY_LANGUAGE_TOKENIZER,
+  );
+}
 
 export type DictionaryEditorProps = {
   value?: string;
@@ -206,20 +250,67 @@ const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
     setText(value ?? "");
   }, [value]);
 
+  const editorRef = useRef<editor.IStandaloneCodeEditor>();
+  const monacoRef = useRef<Monaco>();
+
+  const setMarkers = useCallback((markers: editor.IMarkerData[]) => {
+    const model = editorRef.current?.getModel();
+    if (!model) {
+      return;
+    }
+    monacoRef.current?.editor?.setModelMarkers(
+      model,
+      MAPPER_DICTIONARY_LANGUAGE_ID,
+      markers,
+    );
+  }, []);
+
+  const setMarker = useCallback(
+    (locationRange: LocationRange, message: string) => {
+      const markers: editor.IMarkerData[] = [
+        {
+          severity: MarkerSeverity.Error,
+          message,
+          startLineNumber: locationRange.start.line,
+          startColumn: locationRange.start.column,
+          endLineNumber: locationRange.end.line,
+          endColumn: locationRange.end.column,
+        },
+      ];
+      setMarkers(markers);
+    },
+    [setMarkers],
+  );
+
+  const clearMarkers = useCallback(() => {
+    setMarkers([]);
+  }, [setMarkers]);
+
   return (
-    <TextArea
-      style={{ height: "100%", resize: "none" }}
-      autoSize={false}
+    <Editor
+      className="qip-editor"
       value={text}
-      onChange={(e) => {
-        const v = e.target.value;
+      language={MAPPER_DICTIONARY_LANGUAGE_ID}
+      onMount={(editor, monaco) => {
+        editorRef.current = editor;
+        monacoRef.current = monaco;
+        configureMapperDictionaryLanguage(monaco);
+      }}
+      onChange={(value) => {
+        const v = value ?? "";
         setText(v);
         try {
           parse(v);
           onChange?.(v);
-        } catch {
-          // Do nothing
+          clearMarkers();
+        } catch (error) {
+          if (isParseError(error)) {
+            setMarker(error.location, error.message);
+          }
         }
+      }}
+      options={{
+        fixedOverflowWidgets: true,
       }}
     />
   );
@@ -231,7 +322,7 @@ const DictionaryEditor: React.FC<DictionaryEditorProps> = ({
 }) => {
   return (
     <Tabs
-      style={{ height: "100%" }}
+      style={{ height: "100%", width: "100%" }}
       className={"flex-tabs"}
       tabPosition="bottom"
       size="small"

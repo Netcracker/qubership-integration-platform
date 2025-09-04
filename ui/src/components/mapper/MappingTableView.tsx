@@ -1,22 +1,21 @@
 import {
   Attribute,
   AttributeKind,
-  AttributeReference,
   Constant,
-  ConstantReference,
   DataType,
   MappingAction,
   MappingDescription,
   TypeDefinition,
   ValueSupplier,
   SchemaKind,
+  ConstantReference,
+  AttributeReference,
 } from "../../mapper/model/model.ts";
 import {
   Button,
   Dropdown,
   Flex,
   message,
-  Modal,
   Radio,
   Select,
   Space,
@@ -26,15 +25,11 @@ import {
 import Search from "antd/lib/input/Search";
 import {
   ClearOutlined,
-  CloudDownloadOutlined,
-  CloudUploadOutlined,
-  DeleteOutlined,
   FileMarkdownOutlined,
   MoreOutlined,
-  PlusCircleOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   exportAsMarkdown,
   MarkdownMappingExportOptions,
@@ -44,6 +39,7 @@ import { MappingUtil } from "../../mapper/util/mapping.ts";
 import { formatDate, PLACEHOLDER } from "../../misc/format-utils.ts";
 import {
   DESCRIPTION_KEY,
+  isXmlNamespaces,
   METADATA_DATA_FORMAT_KEY,
   METADATA_SOURCE_XML_NAMESPACES_KEY,
   SourceFormat,
@@ -54,7 +50,6 @@ import { Attributes } from "../../mapper/util/attributes.ts";
 import { DataTypes } from "../../mapper/util/types.ts";
 import styles from "./MappingTableView.module.css";
 import inlineEditStyles from "../InlineEdit.module.css";
-import { ItemType } from "antd/es/menu/interface";
 import { MappingActions } from "../../mapper/util/actions.ts";
 import { ConstantValue } from "./ConstantValue.tsx";
 import { TransformationValue } from "./TransformationValue.tsx";
@@ -77,12 +72,8 @@ import {
   TransformationColumnFilterDropdown,
 } from "./TransformationColumnFilterDropdown.tsx";
 import { TRANSFORMATIONS } from "../../mapper/model/transformations.ts";
-import {
-  isAttributeDetail,
-  MessageSchemaUtil,
-} from "../../mapper/util/schema.ts";
+import { isAttributeDetail } from "../../mapper/util/schema.ts";
 import { GENERATORS } from "../../mapper/model/generators.ts";
-import { exportAsJsonSchema } from "../../mapper/json-schema/json-schema.ts";
 import { TextValueEdit } from "../table/TextValueEdit.tsx";
 import { InlineEdit } from "../InlineEdit.tsx";
 import { SelectEdit } from "../table/SelectEdit.tsx";
@@ -91,12 +82,17 @@ import { DefaultValueEdit } from "./DefaultValueEdit.tsx";
 import { InlineElementReferencesEdit } from "./InlineElementReferencesEdit.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 import { ConstantValueEditDialog } from "./ConstantValueEditDialog.tsx";
-import { LoadSchemaDialog } from "./LoadSchemaDialog.tsx";
-import { TransformationEditDialog } from "./TransformationEditDialog.tsx";
-import { NamespacesEditDialog } from "./NamespacesEditDialog.tsx";
-import { ChainContext } from "../../pages/ChainPage.tsx";
+import {
+  TransformationContext,
+  TransformationEditDialog,
+} from "./TransformationEditDialog.tsx";
+import { useMappingDescription } from "./useMappingDescription.tsx";
+import { MappingTableItemActionButton } from "./MappingTableItemActionButton.tsx";
 
-export type MappingTableViewProps = React.HTMLAttributes<HTMLElement> & {
+export type MappingTableViewProps = Omit<
+  React.HTMLAttributes<HTMLElement>,
+  "onChange"
+> & {
   elementId: string;
   mapping?: MappingDescription;
   readonlySource?: boolean;
@@ -110,21 +106,21 @@ type Filters = Parameters<OnChange>[1];
 type GetSingle<T> = T extends (infer U)[] ? U : never;
 type Sorts = GetSingle<Parameters<OnChange>[2]>;
 
-type TableControlsState = {
+export type TableControlsState = {
   searchString: string;
   selectedColumns: string[];
   filters: Filters;
   sorts: Sorts;
 };
 
-type ConstantItem = {
+export type ConstantItem = {
   id: string;
   itemType: "constant";
   constant: Constant;
   actions: MappingAction[];
 };
 
-function isConstantItem(obj: unknown): obj is ConstantItem {
+export function isConstantItem(obj: unknown): obj is ConstantItem {
   return (
     typeof obj === "object" &&
     obj !== null &&
@@ -133,7 +129,7 @@ function isConstantItem(obj: unknown): obj is ConstantItem {
   );
 }
 
-type AttributeItem = {
+export type AttributeItem = {
   id: string;
   itemType: "attribute";
   kind: AttributeKind;
@@ -145,7 +141,7 @@ type AttributeItem = {
   children?: AttributeItem[];
 };
 
-function isAttributeItem(obj: unknown): obj is AttributeItem {
+export function isAttributeItem(obj: unknown): obj is AttributeItem {
   return (
     typeof obj === "object" &&
     obj !== null &&
@@ -154,13 +150,13 @@ function isAttributeItem(obj: unknown): obj is AttributeItem {
   );
 }
 
-type ConstantGroup = {
+export type ConstantGroup = {
   id: string;
   itemType: "constant-group";
   children: ConstantItem[];
 };
 
-function isConstantGroup(obj: unknown): obj is ConstantGroup {
+export function isConstantGroup(obj: unknown): obj is ConstantGroup {
   return (
     typeof obj === "object" &&
     obj !== null &&
@@ -169,13 +165,14 @@ function isConstantGroup(obj: unknown): obj is ConstantGroup {
   );
 }
 
-type HeaderGroup = {
+export type HeaderGroup = {
   id: string;
   itemType: "header-group";
+  kind: "header";
   children: AttributeItem[];
 };
 
-function isHeaderGroup(obj: unknown): obj is HeaderGroup {
+export function isHeaderGroup(obj: unknown): obj is HeaderGroup {
   return (
     typeof obj === "object" &&
     obj !== null &&
@@ -184,13 +181,14 @@ function isHeaderGroup(obj: unknown): obj is HeaderGroup {
   );
 }
 
-type PropertyGroup = {
+export type PropertyGroup = {
   id: string;
   itemType: "property-group";
+  kind: "property";
   children: AttributeItem[];
 };
 
-function isPropertyGroup(obj: unknown): obj is PropertyGroup {
+export function isPropertyGroup(obj: unknown): obj is PropertyGroup {
   return (
     typeof obj === "object" &&
     obj !== null &&
@@ -199,14 +197,15 @@ function isPropertyGroup(obj: unknown): obj is PropertyGroup {
   );
 }
 
-type BodyGroup = {
+export type BodyGroup = {
   id: string;
   itemType: "body-group";
+  kind: "body";
   type: DataType | null | undefined;
   children?: AttributeItem[];
 };
 
-function isBodyGroup(obj: unknown): obj is BodyGroup {
+export function isBodyGroup(obj: unknown): obj is BodyGroup {
   return (
     typeof obj === "object" &&
     obj !== null &&
@@ -215,7 +214,7 @@ function isBodyGroup(obj: unknown): obj is BodyGroup {
   );
 }
 
-type MappingTableItem =
+export type MappingTableItem =
   | ConstantGroup
   | HeaderGroup
   | PropertyGroup
@@ -235,7 +234,20 @@ function exportMappingAsMarkdown(mapping: MappingDescription): void {
   downloadFile(file);
 }
 
+export function buildAttributeItemId(
+  schemaKind: SchemaKind,
+  kind: AttributeKind,
+  path: string[],
+): string {
+  return `${schemaKind}-${kind}-${path.join("-")}`;
+}
+
+export function buildConstantId(constantId: string): string {
+  return `constant-${constantId}`;
+}
+
 function buildAttributeItem(
+  schemaKind: SchemaKind,
   attribute: Attribute,
   kind: AttributeKind,
   path: Attribute[],
@@ -254,9 +266,15 @@ function buildAttributeItem(
     resolveResult.definitions,
   )
     .filter((a) => !p.some((a1) => a1.id === a.id))
-    .map((a) => buildAttributeItem(a, kind, p, definitions, actions));
+    .map((a) =>
+      buildAttributeItem(schemaKind, a, kind, p, definitions, actions),
+    );
   return {
-    id: `${attribute.id}-${p.length}`,
+    id: buildAttributeItemId(
+      schemaKind,
+      kind,
+      p.map((i) => i.id),
+    ),
     itemType: "attribute",
     kind,
     attribute,
@@ -272,7 +290,7 @@ function buildAttributeItem(
   };
 }
 
-function buildMappingTableItems(
+export function buildMappingTableItems(
   mappingDescription: MappingDescription,
   schemaKind: SchemaKind,
 ): MappingTableItem[] {
@@ -282,7 +300,7 @@ function buildMappingTableItems(
       id: "constant-group",
       itemType: "constant-group",
       children: mappingDescription.constants.map((constant) => ({
-        id: constant.id,
+        id: buildConstantId(constant.id),
         itemType: "constant",
         constant,
         actions: MappingActions.findActionsByElementReference(
@@ -303,8 +321,10 @@ function buildMappingTableItems(
     {
       id: "header-group",
       itemType: "header-group",
+      kind: "header",
       children: schema.headers.map((attribute) =>
         buildAttributeItem(
+          schemaKind,
           attribute,
           "header",
           [],
@@ -316,8 +336,10 @@ function buildMappingTableItems(
     {
       id: "property-group",
       itemType: "property-group",
+      kind: "property",
       children: schema.properties.map((attribute) =>
         buildAttributeItem(
+          schemaKind,
           attribute,
           "property",
           [],
@@ -329,6 +351,7 @@ function buildMappingTableItems(
     {
       id: "body-group",
       itemType: "body-group",
+      kind: "body",
       type: schema.body
         ? DataTypes.resolveType(schema.body, []).type
         : undefined,
@@ -338,6 +361,7 @@ function buildMappingTableItems(
             DataTypes.getTypeDefinitions(schema.body),
           ).map((a) =>
             buildAttributeItem(
+              schemaKind,
               a,
               "body",
               [],
@@ -366,7 +390,7 @@ function compareGroupItems(
   return sortOrder === "ascend" ? result : -result;
 }
 
-function filterMappingTableItems<
+export function filterMappingTableItems<
   T extends MappingTableItem | ConstantItem | AttributeItem,
 >(items: T[], predicate: (item: MappingTableItem) => boolean): T[] {
   return items
@@ -383,7 +407,7 @@ function filterMappingTableItems<
     );
 }
 
-function buildMappingTableItemPredicate(
+export function buildMappingTableItemPredicate(
   mappingDescription: MappingDescription,
   schemaKind: SchemaKind,
   searchString: string,
@@ -528,23 +552,7 @@ function updateConstantValueToMatchType(
   }
 }
 
-function isXmlNamespace(obj: unknown): obj is XmlNamespace {
-  return (
-    obj !== undefined &&
-    obj !== null &&
-    typeof obj === "object" &&
-    "alias" in obj &&
-    "uri" in obj &&
-    typeof obj.alias === "string" &&
-    typeof obj.uri === "string"
-  );
-}
-
-function isXmlNamespaces(obj: unknown): obj is XmlNamespace[] {
-  return Array.isArray(obj) && (obj.length === 0 || obj.every(isXmlNamespace));
-}
-
-function getXmlNamespaces(
+export function getXmlNamespaces(
   type: DataType,
   definitions: TypeDefinition[],
 ): XmlNamespace[] {
@@ -568,6 +576,21 @@ function getXmlNamespaces(
   return xmlNamespaces ?? [];
 }
 
+export function buildElementReference(
+  item: ConstantItem | AttributeItem,
+): ConstantReference | AttributeReference {
+  return isConstantItem(item)
+    ? {
+        type: "constant" as const,
+        constantId: item.constant.id,
+      }
+    : {
+        type: "attribute" as const,
+        kind: item.kind,
+        path: item.path.map((i) => i.id),
+      };
+}
+
 export const MappingTableView: React.FC<MappingTableViewProps> = ({
   elementId,
   mapping,
@@ -576,7 +599,6 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
   onChange,
   ...otherProps
 }) => {
-  const chainContext = useContext(ChainContext);
   const { showModal } = useModalsContext();
   const [messageApi, contextHolder] = message.useMessage();
   const [selectedSchema, setSelectedSchema] = useState<SchemaKind>(
@@ -609,8 +631,24 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
   const [columns, setColumns] = useState<
     TableProps<MappingTableItem>["columns"]
   >([]);
-  const [mappingDescription, setMappingDescription] =
-    useState<MappingDescription>(MappingUtil.emptyMapping());
+  const {
+    mappingDescription,
+    clearConstants,
+    clearTree,
+    removeConstant,
+    removeAttribute,
+    updateBodyType,
+    exportDataType,
+    addConstant,
+    addAttribute,
+    updateAttribute,
+    updateConstant,
+    updateActions,
+    createOrUpdateMappingActionForTarget,
+    createOrUpdateMappingActionsForSource,
+    updateXmlNamespaces,
+  } = useMappingDescription({ mapping, onChange });
+
   const [tableItems, setTableItems] = useState<MappingTableItem[]>([]);
   const [readonly, setReadonly] = useState<boolean>(false);
   const [bodyFormat, setBodyFormat] = useState<string>(SourceFormat.JSON);
@@ -621,10 +659,6 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
         (selectedSchema === SchemaKind.TARGET && !!readonlyTarget),
     );
   }, [readonlySource, readonlyTarget, selectedSchema]);
-
-  useEffect(() => {
-    setMappingDescription(mapping ?? MappingUtil.emptyMapping());
-  }, [mapping]);
 
   useEffect(() => {
     const items = buildMappingTableItems(mappingDescription, selectedSchema);
@@ -679,320 +713,75 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
     setSearchString(controlsStateMap.get(selectedSchema)?.searchString ?? "");
   }, [selectedSchema, controlsStateMap]);
 
-  const clearTree = useCallback(
+  const clearTreeForItem = useCallback(
     (item: MappingTableItem) => {
-      setMappingDescription((mapping) => {
-        if (isConstantGroup(item)) {
-          mapping = { ...mapping, constants: [] };
-        } else {
-          const path = isAttributeItem(item) ? item.path : [];
-          const kind = isAttributeItem(item)
-            ? item.kind
-            : isHeaderGroup(item)
-              ? "header"
-              : isPropertyGroup(item)
-                ? "property"
-                : "body";
-          const messageSchema = MessageSchemaUtil.clearAttributes(
-            mapping[selectedSchema],
-            kind,
-            path,
-          );
-          mapping = {
-            ...mapping,
-            [selectedSchema]: messageSchema,
-          };
-        }
-        mapping = MappingUtil.removeDanglingActions(mapping);
-        onChange?.(mapping);
-        return mapping;
-      });
+      if (isConstantGroup(item)) {
+        clearConstants();
+      } else if (isConstantItem(item)) {
+        // Do nothing
+      } else {
+        const path = isAttributeItem(item) ? item.path : [];
+        clearTree(selectedSchema, item.kind, path);
+      }
     },
-    [onChange, selectedSchema],
+    [clearConstants, clearTree, selectedSchema],
   );
 
-  const removeElement = useCallback(
+  const exportElement = useCallback(
     (item: MappingTableItem) => {
-      setMappingDescription((mapping) => {
-        if (isConstantItem(item)) {
-          const constants = mapping.constants.filter(
-            (constant) => constant.id !== item.constant.id,
-          );
-          mapping = { ...mapping, constants };
-        } else if (isAttributeItem(item)) {
-          const messageSchema = MessageSchemaUtil.removeAttribute(
-            mapping[selectedSchema],
-            item.kind,
-            item.path,
-          );
-          mapping = {
-            ...mapping,
-            [selectedSchema]: messageSchema,
-          };
-        }
-        mapping = MappingUtil.removeDanglingActions(mapping);
-        onChange?.(mapping);
-        return mapping;
-      });
+      const type = isAttributeItem(item)
+        ? item.resolvedType
+        : isBodyGroup(item)
+          ? (item.type ?? DataTypes.nullType())
+          : DataTypes.nullType();
+      const definitions = isAttributeItem(item) ? item.typeDefinitions : [];
+      exportDataType(type, definitions);
     },
-    [onChange, selectedSchema],
+    [exportDataType],
   );
 
-  const updateBodyType = useCallback(
-    (type: DataType | undefined | null) => {
-      setMappingDescription((mapping) => {
-        const messageSchema = { ...mapping[selectedSchema], body: type };
-        mapping = {
-          ...mapping,
-          [selectedSchema]: messageSchema,
-        };
-        mapping = MappingUtil.removeDanglingActions(mapping);
-        onChange?.(mapping);
-        return mapping;
-      });
-    },
-    [onChange, selectedSchema],
-  );
-
-  const exportElement = useCallback((item: MappingTableItem) => {
-    const type = isAttributeItem(item)
-      ? item.resolvedType
-      : isBodyGroup(item)
-        ? (item.type ?? DataTypes.nullType())
-        : DataTypes.nullType();
-    const definitions = isAttributeItem(item) ? item.typeDefinitions : [];
-    const schema = exportAsJsonSchema(type, definitions);
-    const text = JSON.stringify(schema);
-    const blob = new Blob([text], { type: "application/json" });
-    const timestamp = formatDate(new Date());
-    const fileName = `schema-${timestamp}.json`;
-    const file = new File([blob], fileName, { type: "application/json" });
-    downloadFile(file);
-  }, []);
-
-  const addElement = useCallback(
+  const tryAddElement = useCallback(
     (item: MappingTableItem) => {
-      setMappingDescription((mapping) => {
-        if (isConstantGroup(item)) {
-          const constant: Constant = {
-            id: MappingUtil.generateUUID(),
-            name: "",
-            type: DataTypes.stringType(),
-            valueSupplier: { kind: "given", value: "" },
-          };
-          mapping = { ...mapping, constants: [...mapping.constants, constant] };
-        } else {
-          const attribute = Attributes.buildAttribute(
-            MappingUtil.generateUUID(),
-            "",
-            DataTypes.stringType(),
-          );
-          const path = isAttributeItem(item) ? item.path : [];
-          const kind = isAttributeItem(item)
-            ? item.kind
-            : isHeaderGroup(item)
-              ? "header"
-              : isPropertyGroup(item)
-                ? "property"
-                : "body";
-          try {
-            const messageSchema = MessageSchemaUtil.updateAttribute(
-              mapping[selectedSchema],
-              kind,
-              path,
-              attribute,
-            );
-            mapping = { ...mapping, [selectedSchema]: messageSchema };
-          } catch (error) {
-            const content =
-              error instanceof Error
-                ? error.message
-                : "Failed to add attribute";
-            void messageApi.open({ type: "error", content });
-          }
-        }
-        onChange?.(mapping);
-        return mapping;
-      });
-    },
-    [messageApi, onChange, selectedSchema],
-  );
-
-  const updateAttribute = useCallback(
-    (kind: AttributeKind, path: Attribute[], changes: Partial<Attribute>) => {
-      setMappingDescription((mapping) => {
-        if (path.length === 0) {
-          return mapping;
-        }
-        try {
-          const attribute: Attribute = { ...path.slice(-1).pop()!, ...changes };
-          const messageSchema = MessageSchemaUtil.updateAttribute(
-            mapping[selectedSchema],
-            kind,
-            path.slice(0, -1),
-            attribute,
-          );
-          mapping = { ...mapping, [selectedSchema]: messageSchema };
-          onChange?.(mapping);
-          return mapping;
-        } catch (error) {
+      if (isConstantGroup(item)) {
+        addConstant({}, (error: unknown) => {
           const content =
-            error instanceof Error
-              ? error.message
-              : "Failed to rename attribute";
+            error instanceof Error ? error.message : "Failed to add constant";
           void messageApi.open({ type: "error", content });
-          return mapping;
-        }
-      });
+        });
+      } else if (isConstantItem(item)) {
+        // Do nothing
+      } else {
+        const path = isAttributeItem(item) ? item.path : [];
+        addAttribute(selectedSchema, item.kind, path, {}, (error: unknown) => {
+          const content =
+            error instanceof Error ? error.message : "Failed to add attribute";
+          void messageApi.open({ type: "error", content });
+        });
+      }
     },
-    [messageApi, onChange, selectedSchema],
+    [addAttribute, addConstant, messageApi, selectedSchema],
   );
 
-  const updateConstant = useCallback(
+  const tryUpdateAttribute = useCallback(
+    (kind: AttributeKind, path: Attribute[], changes: Partial<Attribute>) => {
+      updateAttribute(selectedSchema, kind, path, changes, (error: unknown) => {
+        const content =
+          error instanceof Error ? error.message : "Failed to update attribute";
+        void messageApi.open({ type: "error", content });
+      });
+    },
+    [messageApi, selectedSchema, updateAttribute],
+  );
+
+  const tryUpdateConstant = useCallback(
     (id: string, changes: Partial<Constant>) => {
-      setMappingDescription((mapping) => {
-        const constantWithSameNameExists = MappingUtil.findConstant(
-          mapping,
-          (constant) => constant.id !== id && constant.name === changes.name,
-        );
-        if (constantWithSameNameExists) {
-          void messageApi.open({
-            type: "error",
-            content: `Constant "${changes.name}" already exists.`,
-          });
-          return mapping;
-        }
-        mapping = MappingUtil.updateConstant(mapping, id, (constant) => ({
-          ...constant,
-          ...changes,
-        }));
-        onChange?.(mapping);
-        return mapping;
+      updateConstant(id, changes, (error: unknown) => {
+        const content =
+          error instanceof Error ? error.message : "Failed to update constant";
+        void messageApi.open({ type: "error", content });
       });
     },
-    [messageApi, onChange],
-  );
-
-  const updateActions = useCallback(
-    (updateFn: (action: MappingAction) => MappingAction) => {
-      setMappingDescription((mapping) => {
-        const actions = mapping.actions.map(updateFn);
-        mapping = { ...mapping, actions };
-        onChange?.(mapping);
-        return mapping;
-      });
-    },
-    [onChange],
-  );
-
-  const createOrUpdateMappingActionForTarget = useCallback(
-    (
-      affectedActions: MappingAction[],
-      target: AttributeReference,
-      sources: (ConstantReference | AttributeReference)[],
-    ) => {
-      setMappingDescription((mapping) => {
-        const affectedActionIds = new Set(affectedActions.map((a) => a.id));
-        const actions: MappingAction[] = [];
-        if (affectedActionIds.size !== 0) {
-          if (sources.length > 0) {
-            actions.push(
-              ...mapping.actions.map((a) =>
-                affectedActionIds.has(a.id) ? { ...a, sources } : a,
-              ),
-            );
-          } else {
-            actions.push(
-              ...mapping.actions.filter((a) => !affectedActionIds.has(a.id)),
-            );
-          }
-        } else {
-          const action: MappingAction = {
-            id: MappingUtil.generateUUID(),
-            sources,
-            target,
-            transformation: undefined,
-          };
-          actions.push(...mapping.actions, action);
-        }
-        mapping = { ...mapping, actions };
-        onChange?.(mapping);
-        return mapping;
-      });
-    },
-    [onChange],
-  );
-
-  const createOrUpdateMappingActionsForSource = useCallback(
-    (
-      source: ConstantReference | AttributeReference,
-      targets: AttributeReference[],
-    ) => {
-      setMappingDescription((mapping) => {
-        const actions =
-          mapping.actions
-            .map((action) => {
-              const targetMatches = targets.some((t) =>
-                MappingActions.referencesAreEqual(t, action.target),
-              );
-              const hasSource = action.sources?.some((s) =>
-                MappingActions.referencesAreEqual(s, source),
-              );
-              if (hasSource) {
-                return targetMatches
-                  ? action
-                  : action.sources.length === 1
-                    ? null
-                    : {
-                        ...action,
-                        sources: action.sources?.filter(
-                          (s) => !MappingActions.referencesAreEqual(s, source),
-                        ),
-                      };
-              } else {
-                return targetMatches
-                  ? { ...action, sources: [...action.sources, source] }
-                  : action;
-              }
-            })
-            .filter((a) => !!a) ?? [];
-        const targetsToAddActions = targets.filter(
-          (target) =>
-            !mapping.actions.some((a) =>
-              MappingActions.referencesAreEqual(a.target, target),
-            ),
-        );
-        const newActions = targetsToAddActions.map((target) => ({
-          id: MappingUtil.generateUUID(),
-          sources: [source],
-          target,
-          transformation: undefined,
-        }));
-        mapping = { ...mapping, actions: [...actions, ...newActions] };
-        onChange?.(mapping);
-        return mapping;
-      });
-    },
-    [onChange],
-  );
-
-  const updateXmlNamespaces = useCallback(
-    (path: Attribute[], namespaces: XmlNamespace[]) => {
-      setMappingDescription((mapping) => {
-        const messageSchema = MessageSchemaUtil.updateXmlNamespaces(
-          mapping[selectedSchema],
-          path,
-          namespaces,
-        );
-        mapping = {
-          ...mapping,
-          [selectedSchema]: messageSchema,
-        };
-        onChange?.(mapping);
-        return mapping;
-      });
-    },
-    [onChange, selectedSchema],
+    [messageApi, updateConstant],
   );
 
   const buildColumns =
@@ -1007,6 +796,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                 <span className={styles["group-label"]}>body</span>
                 {mappingDescription[selectedSchema].body ? (
                   <Select<string>
+                    size={"small"}
                     value={bodyFormat}
                     variant="borderless"
                     options={[
@@ -1022,7 +812,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                         METADATA_DATA_FORMAT_KEY,
                         value,
                       );
-                      updateBodyType(type);
+                      updateBodyType(selectedSchema, type);
                     }}
                   />
                 ) : (
@@ -1045,7 +835,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                   viewer={item.attribute.name}
                   initialActive={!item.attribute.name}
                   onSubmit={({ name }) => {
-                    updateAttribute(item.kind, item.path, { name });
+                    tryUpdateAttribute(item.kind, item.path, { name });
                   }}
                 />
               )
@@ -1059,7 +849,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                   viewer={item.constant.name}
                   initialActive={!item.constant.name}
                   onSubmit={({ name }) => {
-                    updateConstant(item.constant.id, { name });
+                    tryUpdateConstant(item.constant.id, { name });
                   }}
                 />
               )
@@ -1126,7 +916,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                   }
                   readonly={readonly}
                   onSubmit={(type) => {
-                    updateBodyType(type);
+                    updateBodyType(selectedSchema, type);
                   }}
                 />
               );
@@ -1140,7 +930,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                   disableArrayTypes={true}
                   onSubmit={(type) => {
                     if (type) {
-                      updateConstant(item.constant.id, {
+                      tryUpdateConstant(item.constant.id, {
                         ...item.constant,
                         type,
                         valueSupplier: updateConstantValueToMatchType(
@@ -1160,7 +950,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                   readonly={readonly}
                   onSubmit={(type) => {
                     if (type) {
-                      updateAttribute(item.kind, item.path, {
+                      tryUpdateAttribute(item.kind, item.path, {
                         type,
                         defaultValue: undefined,
                       });
@@ -1253,7 +1043,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                   }
                   viewer={item.attribute.required ? "required" : "optional"}
                   onSubmit={({ optionality }) => {
-                    updateAttribute(item.kind, item.path, {
+                    tryUpdateAttribute(item.kind, item.path, {
                       required: optionality === "true",
                     });
                   }}
@@ -1325,7 +1115,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                     PLACEHOLDER
                   }
                   onSubmit={({ description }) => {
-                    updateAttribute(item.kind, item.path, {
+                    tryUpdateAttribute(item.kind, item.path, {
                       metadata: MetadataUtil.upsert(
                         item.attribute.metadata,
                         DESCRIPTION_KEY,
@@ -1352,7 +1142,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                     PLACEHOLDER
                   }
                   onSubmit={({ description }) => {
-                    updateConstant(item.constant.id, {
+                    tryUpdateConstant(item.constant.id, {
                       metadata: MetadataUtil.upsert(
                         item.constant.metadata,
                         DESCRIPTION_KEY,
@@ -1441,7 +1231,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                     }
                     viewer={item.attribute.defaultValue ?? PLACEHOLDER}
                     onSubmit={({ value }) => {
-                      updateAttribute(item.kind, item.path, {
+                      tryUpdateAttribute(item.kind, item.path, {
                         defaultValue:
                           item.resolvedType.name === "boolean" && value === ""
                             ? undefined
@@ -1467,7 +1257,9 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                         type={item.constant.type}
                         valueSupplier={item.constant.valueSupplier}
                         onSubmit={(valueSupplier) => {
-                          updateConstant(item.constant.id, { valueSupplier });
+                          tryUpdateConstant(item.constant.id, {
+                            valueSupplier,
+                          });
                         }}
                       />
                     ),
@@ -1539,16 +1331,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                       isTarget={true}
                       values={item.actions.map((a) => a.target)}
                       onSubmit={(values) => {
-                        const source = isConstantItem(item)
-                          ? {
-                              type: "constant" as const,
-                              constantId: item.constant.id,
-                            }
-                          : {
-                              type: "attribute" as const,
-                              kind: item.kind,
-                              path: item.path.map((i) => i.id),
-                            };
+                        const source = buildElementReference(item);
                         const targets = values.filter((reference) =>
                           MappingUtil.isAttributeReference(reference),
                         );
@@ -1651,19 +1434,26 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                           }
                           showModal({
                             component: (
-                              <TransformationEditDialog
-                                transformation={action.transformation}
-                                onSubmit={(transformation) => {
-                                  updateActions((a) => {
-                                    return a.id === action.id
-                                      ? {
-                                          ...a,
-                                          transformation,
-                                        }
-                                      : a;
-                                  });
+                              <TransformationContext.Provider
+                                value={{
+                                  mappingDescription: mappingDescription,
+                                  action,
                                 }}
-                              />
+                              >
+                                <TransformationEditDialog
+                                  transformation={action.transformation}
+                                  onSubmit={(transformation) => {
+                                    updateActions((a) => {
+                                      return a.id === action.id
+                                        ? {
+                                            ...a,
+                                            transformation,
+                                          }
+                                        : a;
+                                    });
+                                  }}
+                                />
+                              </TransformationContext.Provider>
                             ),
                           });
                         }}
@@ -1849,131 +1639,40 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
           align: "right" as const,
           className: "actions-column",
           render: (_value: unknown, item: MappingTableItem) => {
-            const isGroup =
-              isConstantGroup(item) ||
-              isHeaderGroup(item) ||
-              isPropertyGroup(item) ||
-              isBodyGroup(item);
-            const isObject =
-              (isAttributeItem(item) &&
-                DataTypes.isComplexType(
-                  item.resolvedType,
-                  item.typeDefinitions,
-                )) ||
-              (isBodyGroup(item) &&
-                item.type &&
-                DataTypes.isComplexType(item.type, []));
-            const items: ItemType[] = [];
-            if (isObject && !readonly) {
-              items.push({
-                key: "load",
-                label: "Load",
-                icon: <CloudUploadOutlined />,
-                onClick: () => {
-                  showModal({
-                    component: (
-                      <ChainContext.Provider value={chainContext}>
-                        <LoadSchemaDialog
-                          elementId={elementId}
-                          onSubmit={(type) => {
-                            if (isBodyGroup(item)) {
-                              updateBodyType(type);
-                            } else if (isAttributeItem(item)) {
-                              updateAttribute(item.kind, item.path, { type });
-                            }
-                          }}
-                        />
-                      </ChainContext.Provider>
-                    ),
-                  });
-                },
-              });
-            }
-            if (isObject) {
-              items.push({
-                key: "export",
-                label: "Export",
-                icon: <CloudDownloadOutlined />,
-                onClick: () => {
-                  exportElement(item);
-                },
-              });
-            }
-            if (
-              isObject &&
-              !isBodyGroup(item) &&
-              bodyFormat === SourceFormat.XML.toString() &&
-              !readonly
-            ) {
-              items.push({
-                key: "namespaces",
-                label: "Namespaces",
-                icon: <span style={{ fontSize: "9px" }}>{"</>"}</span>,
-                onClick: () => {
-                  showModal({
-                    component: (
-                      <NamespacesEditDialog
-                        namespaces={getXmlNamespaces(
-                          item.resolvedType,
-                          item.typeDefinitions,
-                        )}
-                        onSubmit={(namespaces) => {
-                          updateXmlNamespaces(item.path, namespaces);
-                        }}
-                      />
-                    ),
-                  });
-                },
-              });
-            }
-            if ((isGroup || isObject) && !readonly) {
-              items.push(
-                {
-                  key: "add",
-                  label: "Add",
-                  icon: <PlusCircleOutlined />,
-                  onClick: () => {
-                    addElement(item);
-                  },
-                },
-                {
-                  key: "clear",
-                  label: "Clear",
-                  icon: <ClearOutlined />,
-                  onClick: () => {
-                    Modal.confirm({
-                      title: "Clear tree",
-                      content: "Are you sure you want to clear the whole tree?",
-                      onOk: () => clearTree(item),
-                    });
-                  },
-                },
-              );
-            }
-            if (!readonly && !isGroup) {
-              items.push({
-                key: "delete",
-                label: "Delete",
-                icon: <DeleteOutlined />,
-                onClick: () => {
-                  const title = `Delete ${isConstantItem(item) ? "constant" : "attribute"}`;
-                  const content = `Are you sure you want to delete this ${isConstantItem(item) ? "constant" : "attribute"} and all related connections?`;
-                  Modal.confirm({
-                    title,
-                    content,
-                    onOk: () => removeElement(item),
-                  });
-                },
-              });
-            }
             return (
-              <Dropdown
-                menu={{ items }}
-                trigger={["click"]}
-                placement="bottomRight"
-              >
-                <Button size="small" type="text" icon={<MoreOutlined />} />
-              </Dropdown>
+              <MappingTableItemActionButton
+                elementId={elementId}
+                item={item}
+                readonly={readonly}
+                enableEdit={false}
+                enableXmlNamespaces={bodyFormat === SourceFormat.XML.toString()}
+                onLoad={(type) => {
+                  if (isBodyGroup(item)) {
+                    updateBodyType(selectedSchema, type);
+                  } else if (isAttributeItem(item)) {
+                    tryUpdateAttribute(item.kind, item.path, {
+                      type,
+                    });
+                  }
+                }}
+                onExport={() => exportElement(item)}
+                onUpdateXmlNamespaces={(namespaces) =>
+                  updateXmlNamespaces(
+                    selectedSchema,
+                    isAttributeItem(item) ? item.path : [],
+                    namespaces,
+                  )
+                }
+                onAdd={() => tryAddElement(item)}
+                onClear={() => clearTreeForItem(item)}
+                onDelete={() => {
+                  if (isConstantItem(item)) {
+                    removeConstant(item.constant.id);
+                  } else if (isAttributeItem(item)) {
+                    removeAttribute(selectedSchema, item.kind, item.path);
+                  }
+                }}
+              />
             );
           },
         },
@@ -1992,19 +1691,19 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
       bodyFormat,
       readonly,
       updateBodyType,
-      updateAttribute,
-      updateConstant,
+      tryUpdateAttribute,
+      tryUpdateConstant,
       showModal,
       createOrUpdateMappingActionsForSource,
       createOrUpdateMappingActionForTarget,
       updateActions,
-      chainContext,
       elementId,
       exportElement,
       updateXmlNamespaces,
-      addElement,
-      clearTree,
-      removeElement,
+      tryAddElement,
+      clearTreeForItem,
+      removeConstant,
+      removeAttribute,
     ]);
 
   useEffect(() => {

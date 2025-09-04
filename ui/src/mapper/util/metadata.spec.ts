@@ -5,10 +5,14 @@ describe("Mapper", () => {
   describe("MetadataUtil", () => {
     describe("upsert", () => {
       it("should return object that has only specified key-value pair if metadata is falsy", () => {
-        ([undefined, null] as unknown as Metadata[]).forEach((metadata: Metadata) => {
-          expect(MetadataUtil.upsert(metadata, "foo", "bar"), String(metadata as unknown))
-            .toEqual({ foo: "bar" });
-        });
+        ([undefined, null] as unknown as Metadata[]).forEach(
+          (metadata: Metadata) => {
+            expect(
+              MetadataUtil.upsert(metadata, "foo", "bar"),
+              String(metadata as unknown),
+            ).toEqual({ foo: "bar" });
+          },
+        );
       });
 
       it("should override existing value with given value", () => {
@@ -33,17 +37,25 @@ describe("Mapper", () => {
 
     describe("getValue", () => {
       it("should return undefined value when object is undefined or null", () => {
-        ([undefined, null] as unknown as MetadataAware[]).forEach((obj: MetadataAware) => {
-          expect(MetadataUtil.getValue(obj, "foo"), String(obj as unknown))
-            .toBeUndefined();
-        });
+        ([undefined, null] as unknown as MetadataAware[]).forEach(
+          (obj: MetadataAware) => {
+            expect(
+              MetadataUtil.getValue(obj, "foo"),
+              String(obj as unknown),
+            ).toBeUndefined();
+          },
+        );
       });
 
       it("should return undefined value when metadata is undefined or null", () => {
-        ([undefined, null] as unknown as Metadata[]).forEach((metadata: Metadata) => {
-          expect(MetadataUtil.getValue({ metadata }, "foo"), String(metadata as unknown))
-            .toBeUndefined();
-        });
+        ([undefined, null] as unknown as Metadata[]).forEach(
+          (metadata: Metadata) => {
+            expect(
+              MetadataUtil.getValue({ metadata }, "foo"),
+              String(metadata as unknown),
+            ).toBeUndefined();
+          },
+        );
       });
 
       it("should return undefined value when key is not in metadata", () => {

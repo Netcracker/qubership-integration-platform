@@ -51,7 +51,7 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
         height={"80vh"}
         defaultLanguage="xml"
         defaultValue={snapshot?.xmlDefinition}
-        options={{ readOnly: true }}
+        options={{ readOnly: true, fixedOverflowWidgets: true }}
       />
     </Modal>
   );

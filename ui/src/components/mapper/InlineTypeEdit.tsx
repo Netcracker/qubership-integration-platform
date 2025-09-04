@@ -15,7 +15,7 @@ type InlineTypeEditProps = {
   onSubmit?: (dataType: DataType | null | undefined) => void;
 };
 
-function buildTypeOptions(
+export function buildTypeOptions(
   type: DataType | null | undefined,
   typeDefinitions: TypeDefinition[],
   enableArrayTypes: boolean,

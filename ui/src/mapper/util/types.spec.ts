@@ -125,8 +125,10 @@ describe("Mapper", () => {
           { name: "string" },
         ];
         types.forEach((type) =>
-          expect(DataTypes.isPrimitiveType(type), getContext(type))
-            .toBeTruthy(),
+          expect(
+            DataTypes.isPrimitiveType(type),
+            getContext(type),
+          ).toBeTruthy(),
         );
       });
 
@@ -144,15 +146,13 @@ describe("Mapper", () => {
           { name: "oneOf", types: [] },
         ];
         types.forEach((type) =>
-          expect(DataTypes.isPrimitiveType(type), getContext(type))
-            .toBeFalsy(),
+          expect(DataTypes.isPrimitiveType(type), getContext(type)).toBeFalsy(),
         );
       });
 
       it("should return false for null and undefined argument values", () => {
         [null, undefined].forEach((type) =>
-          expect(DataTypes.isPrimitiveType(type), getContext(type))
-            .toBeFalsy(),
+          expect(DataTypes.isPrimitiveType(type), getContext(type)).toBeFalsy(),
         );
       });
     });
@@ -165,8 +165,7 @@ describe("Mapper", () => {
           { name: "oneOf", types: [] },
         ];
         types.forEach((type) =>
-          expect(DataTypes.isCompoundType(type), getContext(type))
-            .toBeTruthy(),
+          expect(DataTypes.isCompoundType(type), getContext(type)).toBeTruthy(),
         );
       });
 
@@ -181,15 +180,13 @@ describe("Mapper", () => {
           { name: "reference", definitionId: "" },
         ];
         types.forEach((type) =>
-          expect(DataTypes.isCompoundType(type), getContext(type))
-            .toBeFalsy(),
+          expect(DataTypes.isCompoundType(type), getContext(type)).toBeFalsy(),
         );
       });
 
       it("should return false for null and undefined argument values", () => {
         [null, undefined].forEach((type) =>
-          expect(DataTypes.isCompoundType(type), getContext(type))
-            .toBeFalsy(),
+          expect(DataTypes.isCompoundType(type), getContext(type)).toBeFalsy(),
         );
       });
     });
@@ -205,8 +202,10 @@ describe("Mapper", () => {
           { name: "oneOf", types: [] },
         ];
         types.forEach((type) =>
-          expect(DataTypes.typeIsDefinitionsAware(type), getContext(type))
-            .toBeTruthy(),
+          expect(
+            DataTypes.typeIsDefinitionsAware(type),
+            getContext(type),
+          ).toBeTruthy(),
         );
       });
 
@@ -218,15 +217,19 @@ describe("Mapper", () => {
           { name: "null" },
         ];
         types.forEach((type) =>
-          expect(DataTypes.typeIsDefinitionsAware(type), getContext(type))
-            .toBeFalsy(),
+          expect(
+            DataTypes.typeIsDefinitionsAware(type),
+            getContext(type),
+          ).toBeFalsy(),
         );
       });
 
       it("should return false for null and undefined argument values", () => {
         [null, undefined].forEach((type) =>
-          expect(DataTypes.typeIsDefinitionsAware(type), getContext(type))
-            .toBeFalsy(),
+          expect(
+            DataTypes.typeIsDefinitionsAware(type),
+            getContext(type),
+          ).toBeFalsy(),
         );
       });
     });
@@ -242,8 +245,10 @@ describe("Mapper", () => {
           { name: "oneOf", types: [] },
         ];
         types.forEach((type) =>
-          expect(DataTypes.getTypeDefinitions(type), getContext(type))
-            .toHaveLength(0),
+          expect(
+            DataTypes.getTypeDefinitions(type),
+            getContext(type),
+          ).toHaveLength(0),
         );
       });
 
@@ -263,7 +268,9 @@ describe("Mapper", () => {
         types
           .map((type) => ({ ...type, definitions }))
           .forEach((type) =>
-            expect(DataTypes.getTypeDefinitions(type).sort()).toEqual(definitions.sort()),
+            expect(DataTypes.getTypeDefinitions(type).sort()).toEqual(
+              definitions.sort(),
+            ),
           );
       });
 
@@ -275,15 +282,19 @@ describe("Mapper", () => {
           { name: "null" },
         ];
         types.forEach((type) =>
-          expect(DataTypes.getTypeDefinitions(type), getContext(type))
-            .toHaveLength(0),
+          expect(
+            DataTypes.getTypeDefinitions(type),
+            getContext(type),
+          ).toHaveLength(0),
         );
       });
 
       it("should return empty array for null and undefined argument values", () => {
         [null, undefined].forEach((type) =>
-          expect(DataTypes.getTypeDefinitions(type), getContext(type))
-            .toHaveLength(0),
+          expect(
+            DataTypes.getTypeDefinitions(type),
+            getContext(type),
+          ).toHaveLength(0),
         );
       });
     });
@@ -299,17 +310,18 @@ describe("Mapper", () => {
 
       it("should return type with same metadata when null or undefined metadata value is passed", () => {
         [null, undefined].forEach((metadata) => {
-          expect(DataTypes.updateMetadata({ name: "null" }, metadata).metadata, getContext(metadata))
-            .toBeUndefined();
+          expect(
+            DataTypes.updateMetadata({ name: "null" }, metadata).metadata,
+            getContext(metadata),
+          ).toBeUndefined();
           const typeMetadata: Metadata = { foo: "bar", baz: {} };
           expect(
             DataTypes.updateMetadata(
               { name: "null", metadata: typeMetadata },
               metadata,
             ).metadata,
-            getContext(metadata)
-          )
-            .toEqual(expect.objectContaining(typeMetadata));
+            getContext(metadata),
+          ).toEqual(expect.objectContaining(typeMetadata));
         });
         expect(
           DataTypes.updateMetadata({ name: "null" }, null).metadata,
@@ -350,7 +362,9 @@ describe("Mapper", () => {
           { id: "bar", name: "bar", type: { name: "string" } },
         ];
         const result: DataType = DataTypes.updateDefinitions(type, definitions);
-        expect((result as TypeDefinitionsAware).definitions.sort()).toEqual(definitions.sort());
+        expect((result as TypeDefinitionsAware).definitions.sort()).toEqual(
+          definitions.sort(),
+        );
       });
 
       it("should return object with all definitions from passed type object and definition list", () => {
@@ -366,7 +380,9 @@ describe("Mapper", () => {
           { id: "baz", name: "baz", type: { name: "string" } },
         ];
         const result: DataType = DataTypes.updateDefinitions(type, definitions);
-        expect((result as TypeDefinitionsAware).definitions.sort()).toEqual(typeDefinitions.concat(definitions).sort());
+        expect((result as TypeDefinitionsAware).definitions.sort()).toEqual(
+          typeDefinitions.concat(definitions).sort(),
+        );
       });
     });
 
@@ -686,28 +702,38 @@ describe("Mapper", () => {
           id: "4",
           attributes: [{ id: "5", name: "bar", type: { name: "number" } }],
         };
-        expect(DataTypes.objectSchemasAreSame(schema1, schema1, []), "comparing same schema objects")
-          .toBeTruthy();
-        expect(DataTypes.objectSchemasAreSame(schema1, schema2, []), "comparing equal schemes")
-          .toBeTruthy();
-        expect(DataTypes.objectSchemasAreSame(schema1, schema3, []), "comparing different schemes")
-          .toBeFalsy();
+        expect(
+          DataTypes.objectSchemasAreSame(schema1, schema1, []),
+          "comparing same schema objects",
+        ).toBeTruthy();
+        expect(
+          DataTypes.objectSchemasAreSame(schema1, schema2, []),
+          "comparing equal schemes",
+        ).toBeTruthy();
+        expect(
+          DataTypes.objectSchemasAreSame(schema1, schema3, []),
+          "comparing different schemes",
+        ).toBeFalsy();
       });
     });
 
     describe("mergeTypeDefinitions", () => {
       it("should merge type definition lists", () => {
-        expect(DataTypes.mergeTypeDefinitions(
+        expect(
+          DataTypes.mergeTypeDefinitions(
+            [
+              { id: "1", name: "foo", type: { name: "string" } },
+              { id: "2", name: "bar", type: { name: "number" } },
+            ],
+            [{ id: "3", name: "baz", type: { name: "boolean" } }],
+          ).sort(),
+        ).toEqual(
           [
             { id: "1", name: "foo", type: { name: "string" } },
             { id: "2", name: "bar", type: { name: "number" } },
-          ],
-          [{ id: "3", name: "baz", type: { name: "boolean" } }],
-        ).sort()).toEqual([
-          { id: "1", name: "foo", type: { name: "string" } },
-          { id: "2", name: "bar", type: { name: "number" } },
-          { id: "3", name: "baz", type: { name: "boolean" } },
-        ].sort());
+            { id: "3", name: "baz", type: { name: "boolean" } },
+          ].sort(),
+        );
       });
     });
 
@@ -745,17 +771,18 @@ describe("Mapper", () => {
                   { name: name2 } as DataType,
                   [],
                 ),
-                `${name1} and ${name2}`
-              )
-                .toBeFalsy(),
+                `${name1} and ${name2}`,
+              ).toBeFalsy(),
             ),
         );
       });
 
       it("should return true when comparing same primitive types", () => {
         ["null", "string", "number", "boolean"].forEach((name) =>
-          expect(DataTypes.same({ name } as DataType, { name } as DataType, []), name)
-            .toBeTruthy(),
+          expect(
+            DataTypes.same({ name } as DataType, { name } as DataType, []),
+            name,
+          ).toBeTruthy(),
         );
       });
 
@@ -813,8 +840,7 @@ describe("Mapper", () => {
             [{ id: "foo", name: "foo-type", type: { name: "string" } }],
           ),
           "should return true when references are resolving to same types",
-        )
-          .toBeTruthy();
+        ).toBeTruthy();
         expect(
           DataTypes.same(
             { name: "reference", definitionId: "foo" },
@@ -828,8 +854,7 @@ describe("Mapper", () => {
             [{ id: "foo", name: "foo-type", type: { name: "boolean" } }],
           ),
           "should return false when references are resolving to different types",
-        )
-          .toBeFalsy();
+        ).toBeFalsy();
       });
 
       it("should compare object types by schemas", () => {
@@ -857,9 +882,8 @@ describe("Mapper", () => {
             { name: "object", schema: schema2 },
             [],
           ),
-          "should return true for object types with same schemas"
-        )
-          .toBeTruthy();
+          "should return true for object types with same schemas",
+        ).toBeTruthy();
         expect(
           DataTypes.same(
             { name: "object", schema: schema1 },
@@ -867,8 +891,7 @@ describe("Mapper", () => {
             [],
           ),
           "should return false for object types with different schemas",
-        )
-          .toBeFalsy();
+        ).toBeFalsy();
       });
 
       it("should return true when comparing compound types with same sets of subtypes", () => {

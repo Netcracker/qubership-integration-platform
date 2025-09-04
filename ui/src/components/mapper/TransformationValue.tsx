@@ -1,5 +1,4 @@
 import { Transformation } from "../../mapper/model/model.ts";
-import { TransformationInfoCard } from "./TransformationInfo.tsx";
 import { Flex, Tooltip } from "antd";
 import React, { useEffect, useState } from "react";
 import {
@@ -10,6 +9,7 @@ import styles from "./TransformationValue.module.css";
 import { VerificationError } from "../../mapper/verification/model.ts";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
+import { TransformationInfoTooltip } from "./TransformationInfoTooltip.tsx";
 
 export type TransformationValueProps = {
   transformation?: Transformation;
@@ -33,17 +33,8 @@ export const TransformationValue: React.FC<TransformationValueProps> = ({
   return (
     <div className={styles["transformation-content"]}>
       {transformation ? (
-        <Tooltip
-          title={
-            transformationInfo ? (
-              <TransformationInfoCard
-                transformationInfo={transformationInfo}
-                parameters={transformation.parameters}
-              />
-            ) : (
-              ""
-            )
-          }
+        <TransformationInfoTooltip
+          transformation={transformation}
         >
           <div className={styles["transformation-details"]}>
             <span className={styles["transformation-title"]}>
@@ -60,7 +51,7 @@ export const TransformationValue: React.FC<TransformationValueProps> = ({
               ))}
             </div>
           </div>
-        </Tooltip>
+        </TransformationInfoTooltip>
       ) : (
         PLACEHOLDER
       )}

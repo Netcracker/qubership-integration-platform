@@ -357,6 +357,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
   return (
     <Modal
+      width={"80vw"}
       open
       title={title}
       onCancel={handleClose}

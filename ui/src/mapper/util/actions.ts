@@ -109,13 +109,8 @@ export class MappingActions {
     mapping: MappingDescription,
   ): Constant[] {
     return references
-      .filter(ref => MappingUtil.isConstantReference(ref))
-      .map((ref) =>
-        MappingUtil.findConstantById(
-          mapping,
-          ref.constantId,
-        ),
-      )
-      .filter(constant => !!constant);
+      .filter((ref) => MappingUtil.isConstantReference(ref))
+      .map((ref) => MappingUtil.findConstantById(mapping, ref.constantId))
+      .filter((constant) => !!constant);
   }
 }

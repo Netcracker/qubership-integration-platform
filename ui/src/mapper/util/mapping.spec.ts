@@ -38,10 +38,14 @@ describe("Mapper", () => {
 
     describe("isEmpty", () => {
       it("should return true when schema is undefined or null", () => {
-        ([undefined, null] as unknown as MessageSchema[]).forEach((schema: MessageSchema) => {
-          expect(MappingUtil.isEmpty(schema), String(schema as unknown))
-            .toBeTruthy();
-        });
+        ([undefined, null] as unknown as MessageSchema[]).forEach(
+          (schema: MessageSchema) => {
+            expect(
+              MappingUtil.isEmpty(schema),
+              String(schema as unknown),
+            ).toBeTruthy();
+          },
+        );
       });
 
       it("should return false when schema has properties", () => {
@@ -103,9 +107,7 @@ describe("Mapper", () => {
           ],
           actions: [],
         };
-        expect(
-          MappingUtil.constantExists(mapping, () => false),
-        ).toBeFalsy();
+        expect(MappingUtil.constantExists(mapping, () => false)).toBeFalsy();
       });
 
       it("should return true when there is a constant in the mapping that matches a predicate", () => {
@@ -146,9 +148,7 @@ describe("Mapper", () => {
           ],
           actions: [],
         };
-        expect(
-          MappingUtil.findConstant(mapping, () => false),
-        ).toBeUndefined();
+        expect(MappingUtil.findConstant(mapping, () => false)).toBeUndefined();
       });
 
       it("should return constant that matches a predicate", () => {

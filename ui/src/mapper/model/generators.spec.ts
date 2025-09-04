@@ -5,8 +5,10 @@ describe("Mapper", () => {
   describe("getGeneratorsForType", () => {
     it("should return empty list when type is undefined or null", () => {
       ([undefined, null] as unknown as DataType[]).forEach((type: DataType) => {
-        expect(getGeneratorsForType(type), `with ${type as unknown as (undefined | null)}`)
-          .toEqual([]);
+        expect(
+          getGeneratorsForType(type),
+          `with ${type as unknown as undefined | null}`,
+        ).toEqual([]);
       });
     });
 
