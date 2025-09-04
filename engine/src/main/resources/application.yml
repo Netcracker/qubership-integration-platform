@@ -54,7 +54,10 @@ spring:
           use_jdbc_metadata_defaults: false # disable connection during init
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: engine
+        order_inserts: true
+        order_updates: true
         jdbc:
+          batch_size: 30
           time_zone: UTC
           lob:
             non_contextual_creation: true
@@ -135,6 +138,8 @@ db:
         minimum-idle: ${db.hikari.datasources.datasource.minimum-idle}
         idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
         leak-detection-threshold: ${db.hikari.datasources.datasource.leak-detection-threshold}
+        dataSourceProperties:
+          reWriteBatchedInserts: true
       qrtz-datasource:
         driver-class-name: ${db.hikari.datasources.datasource.driver-class-name}
         jdbcUrl: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_qrtz_db

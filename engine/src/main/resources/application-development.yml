@@ -22,8 +22,13 @@ spring:
         acl-token: ${CONSUL_ADMIN_TOKEN}
   jpa:
     show-sql: false
-    hibernate:
-      ddl-auto: validate
+    properties:
+      hibernate:
+        order_inserts: true
+        order_updates: true
+        ddl-auto: validate
+        jdbc:
+          batch_size: 30
 
 logging:
   level:
