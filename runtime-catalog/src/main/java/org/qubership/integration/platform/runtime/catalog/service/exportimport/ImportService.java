@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import static java.util.Objects.nonNull;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.CONTEXT_SYSTEM_ID;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
@@ -232,8 +233,12 @@ public class ImportService {
                 continue;
             }
             JsonNode integrationSystemId = properties.get(SYSTEM_ID);
+            JsonNode contextServiceId = properties.get(CONTEXT_SYSTEM_ID);
             if (integrationSystemId != null && !StringUtils.isBlank(integrationSystemId.asText())) {
                 usedSystems.add(integrationSystemId.asText());
+            }
+            if (contextServiceId != null && !StringUtils.isBlank(contextServiceId.asText())) {
+                usedSystems.add(contextServiceId.asText());
             }
         }
         return usedSystems;

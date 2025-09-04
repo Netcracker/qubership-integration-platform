@@ -19,17 +19,16 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ImportFileMigrationUtils;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ContextServiceDtoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipOutputStream;
 
@@ -40,22 +39,21 @@ public class ContextServiceSerializer {
 
     private final YAMLMapper yamlMapper;
     private final ExportableObjectWriterVisitor exportableObjectWriterVisitor;
+    private final ContextServiceDtoMapper contextServiceDtoMapper;
 
     @Autowired
     public ContextServiceSerializer(YAMLMapper yamlExportImportMapper,
-                             ExportableObjectWriterVisitor exportableObjectWriterVisitor) {
+                                    ExportableObjectWriterVisitor exportableObjectWriterVisitor, ContextServiceDtoMapper contextServiceDtoMapper) {
         this.yamlMapper = yamlExportImportMapper;
         this.exportableObjectWriterVisitor = exportableObjectWriterVisitor;
+        this.contextServiceDtoMapper = contextServiceDtoMapper;
     }
 
     public ExportedSystemObject serialize(ContextSystem system) throws JsonProcessingException {
-        ObjectNode systemNode = yamlMapper.valueToTree(system);
+        ContextServiceDto contextServiceDto = contextServiceDtoMapper.toExternalEntity(system);
+        ObjectNode systemNode = yamlMapper.valueToTree(contextServiceDto);
 
-        List<ExportedSpecificationGroup> exportedSpecificationGroups = new ArrayList<>();
-
-        provideFileAdditionalData(systemNode);
-
-        return new ExportedIntegrationSystem(system.getId(), systemNode, exportedSpecificationGroups);
+        return new ExportedContextService(system.getId(), systemNode);
     }
 
 
@@ -73,12 +71,4 @@ public class ContextServiceSerializer {
         }
     }
 
-    private void provideFileAdditionalData(ObjectNode serviceNode) {
-        serviceNode.put(
-                ImportFileMigration.IMPORT_MIGRATIONS_FIELD,
-                ImportFileMigrationUtils.getActualServiceFileMigrationVersions().stream()
-                        .sorted()
-                        .toList()
-                        .toString());
-    }
 }

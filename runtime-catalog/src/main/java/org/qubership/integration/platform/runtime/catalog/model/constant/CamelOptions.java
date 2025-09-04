@@ -63,6 +63,7 @@ public final class CamelOptions {
 
     public static final String SYSTEM_TYPE = "systemType";
     public static final String SYSTEM_ID = "integrationSystemId";
+    public static final String CONTEXT_SYSTEM_ID = "contextServiceId";
     public static final String SPECIFICATION_ID = "integrationSpecificationId";
     public static final String SPECIFICATION_GROUP_ID = "integrationSpecificationGroupId";
     public static final String MODEL_ID = "integrationSpecificationId";

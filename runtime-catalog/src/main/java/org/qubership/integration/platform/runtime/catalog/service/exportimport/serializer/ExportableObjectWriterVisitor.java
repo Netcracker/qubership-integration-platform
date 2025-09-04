@@ -18,10 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedIntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecification;
-import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationGroup;
-import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationSource;
+import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,5 +71,11 @@ public class ExportableObjectWriterVisitor {
 
         ExportImportUtils.writeSystemObject(zipOut, entryPath + RESOURCES_FOLDER_PREFIX + exportedSpecificationSource.getName(),
                 exportedSpecificationSource.getSource());
+    }
+
+    public void visit(ExportedContextService exportedContextService, ZipOutputStream zipOut, String entryPath) throws IOException {
+        ExportImportUtils.writeSystemObject(zipOut,
+                entryPath + ExportImportUtils.generateMainContextServiceFileExportName(exportedContextService.getId(), appName),
+                yamlMapper.writeValueAsString(exportedContextService.getObjectNode()));
     }
 }

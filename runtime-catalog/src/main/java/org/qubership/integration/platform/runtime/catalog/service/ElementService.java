@@ -720,9 +720,15 @@ public class ElementService extends ElementBaseService {
             for (ChainElement chainElement : elements) {
                 if (chainElement.getChain() != null) {
                     if (Objects.equals(chainElement.getChain().getId(), chainId)) {
+                        String contextServiceId = (String) chainElement.getProperties().get(CONTEXT_SYSTEM_ID);
                         String systemId = (String) chainElement.getProperties().get(SYSTEM_ID);
                         String specificationId = (String) chainElement.getProperties().get(SPECIFICATION_ID);
-
+                        if (!StringUtils.isBlank(contextServiceId)) {
+                            if (usedSystems.stream().noneMatch(system -> system.getSystemId().equals(contextServiceId))) {
+                                UsedSystem usedSystem = new UsedSystem(contextServiceId, new ArrayList<>());
+                                usedSystems.add(usedSystem);
+                            }
+                        }
                         if (!StringUtils.isBlank(systemId)) {
                             if (usedSystems.stream().noneMatch(system -> system.getSystemId().equals(systemId))) {
                                 UsedSystem usedSystem = new UsedSystem(systemId, new ArrayList<>());
@@ -824,8 +830,15 @@ public class ElementService extends ElementBaseService {
         List<UsedSystem> usedSystems = new ArrayList<>();
         for (ChainElement chainElement : elements) {
             if (chainElement.getChain() != null) {
+                String contextServiceId = (String) chainElement.getProperties().get(CONTEXT_SYSTEM_ID);
                 String systemId = (String) chainElement.getProperties().get(SYSTEM_ID);
                 String specificationId = (String) chainElement.getProperties().get(SPECIFICATION_ID);
+                if (!StringUtils.isBlank(contextServiceId)) {
+                    if (usedSystems.stream().noneMatch(system -> system.getSystemId().equals(contextServiceId))) {
+                        UsedSystem usedSystem = new UsedSystem(contextServiceId, new ArrayList<>());
+                        usedSystems.add(usedSystem);
+                    }
+                }
                 if (!StringUtils.isBlank(systemId)) {
                     if (usedSystems.stream().noneMatch(system -> system.getSystemId().equals(systemId))) {
                         UsedSystem usedSystem = new UsedSystem(systemId, new ArrayList<>());

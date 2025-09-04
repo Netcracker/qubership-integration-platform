@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServicesNotFoundException;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportContextServiceAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionAction;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionsConfig;
@@ -157,7 +157,7 @@ public class ContextExportImportService {
             List<File> extractedSystemFiles = new ArrayList<>();
 
             try (InputStream fs = file.getInputStream()) {
-                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory);
+                extractedSystemFiles = extractContextServiceFromZip(fs, exportDirectory);
             } catch (ServicesNotFoundException e) {
                 deleteFile(exportDirectory);
             } catch (IOException e) {
@@ -181,6 +181,22 @@ public class ContextExportImportService {
         return response;
     }
 
+    public List<ImportSystemResult> getContextServiceImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
+        List<File> systemsFiles;
+        try {
+            systemsFiles = extractContextServiceFromImportDirectory(importDirectory.getAbsolutePath());
+        } catch (Exception e) {
+            throw new RuntimeException("Error while extracting context service", e);
+        }
+
+        List<ImportSystemResult> importSystemResults = new ArrayList<>();
+        for (File systemFile : systemsFiles) {
+            importSystemResults.add(getSystemChanges(systemFile, instructionsConfig));
+        }
+
+        return importSystemResults;
+    }
+
     protected ImportSystemResult getSystemChanges(File mainSystemFile, ImportInstructionsConfig instructionsConfig) {
         ImportSystemResult resultSystemCompareDTO;
 
@@ -190,7 +206,7 @@ public class ContextExportImportService {
         try {
             ObjectNode serviceNode = getFileNode(mainSystemFile);
             SystemDeserializationResult deserializationResult = getBaseSystemDeserializationResult(serviceNode);
-            IntegrationSystem baseSystem = deserializationResult.getSystem();
+            ContextSystem baseSystem = deserializationResult.getContextSystem();
             systemId = baseSystem.getId();
             systemName = baseSystem.getName();
             Long systemModifiedWhen = baseSystem.getModifiedWhen() != null ? baseSystem.getModifiedWhen().getTime() : 0;
@@ -203,6 +219,7 @@ public class ContextExportImportService {
                     .modified(systemModifiedWhen)
                     .instructionAction(instructionAction)
                     .build();
+            setCompareSystemResult(baseSystem, resultSystemCompareDTO);
         } catch (RuntimeException | IOException e) {
             log.error("Exception while system compare: ", e);
             resultSystemCompareDTO = ImportSystemResult.builder()
@@ -213,6 +230,17 @@ public class ContextExportImportService {
                     .build();
         }
         return resultSystemCompareDTO;
+    }
+
+    private void setCompareSystemResult(ContextSystem contextSystem, ImportSystemResult resultSystemCompareDTO) {
+        ContextSystem oldSystem = contextBaseService.getByIdOrNull(contextSystem.getId());
+        if (oldSystem == null) {
+            resultSystemCompareDTO.setName(contextSystem.getName());
+            resultSystemCompareDTO.setRequiredAction(SystemCompareAction.CREATE);
+        } else {
+            resultSystemCompareDTO.setName(oldSystem.getName());
+            resultSystemCompareDTO.setRequiredAction(SystemCompareAction.UPDATE);
+        }
     }
 
     @Transactional(propagation = NOT_SUPPORTED)
@@ -226,7 +254,7 @@ public class ContextExportImportService {
             List<File> extractedSystemFiles;
 
             try (InputStream fs = importFile.getInputStream()) {
-                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory);
+                extractedSystemFiles = extractContextServiceFromZip(fs, exportDirectory);
             } catch (IOException e) {
                 deleteFile(exportDirectory);
                 throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
@@ -268,19 +296,18 @@ public class ContextExportImportService {
     }
 
     @Transactional(propagation = NOT_SUPPORTED)
-    public ImportSystemsAndInstructionsResult importSystems(
+    public ImportContextServiceAndInstructionsResult importContextService(
             File importDirectory,
             SystemsCommitRequest systemCommitRequest,
-            String importId,
-            Set<String> technicalLabels
+            String importId
     ) {
         if (systemCommitRequest.getImportMode() == ImportMode.NONE) {
-            return new ImportSystemsAndInstructionsResult();
+            return new ImportContextServiceAndInstructionsResult();
         }
 
         List<File> systemsFiles;
         try {
-            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath());
+            systemsFiles = extractContextServiceFromImportDirectory(importDirectory.getAbsolutePath());
         } catch (IOException e) {
             throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
         }
@@ -321,7 +348,7 @@ public class ContextExportImportService {
             }
         }
 
-        return new ImportSystemsAndInstructionsResult(response, ignoreResult.importInstructionResults());
+        return new ImportContextServiceAndInstructionsResult(response, ignoreResult.importInstructionResults());
     }
 
     protected synchronized ImportSystemResult importOneSystemInTransaction(File mainServiceFile, List<String> systemIds) {
@@ -340,16 +367,20 @@ public class ContextExportImportService {
                     return null;
                 }
 
-                deserializationResult.setContextSystem(contextServiceDeserializer.deserializeSystem(
-                        serviceNode));
+                try {
+                    deserializationResult.setContextSystem(contextServiceDeserializer.deserializeSystem(
+                            mainServiceFile));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
 
 
                 StringBuilder message = new StringBuilder();
                 ImportSystemStatus importStatus = enrichAndSaveContextSystem(deserializationResult);
 
                 return ImportSystemResult.builder()
-                        .id(deserializationResult.getSystem().getId())
-                        .name(deserializationResult.getSystem().getName())
+                        .id(deserializationResult.getContextSystem().getId())
+                        .name(deserializationResult.getContextSystem().getName())
                         .status(importStatus)
                         .message(message.toString())
                         .build();
@@ -401,12 +432,12 @@ public class ContextExportImportService {
         Timestamp modifiedWhen = serviceNode.get(AbstractSystemEntity.Fields.modifiedWhen) != null
                 ? new Timestamp(serviceNode.get(AbstractSystemEntity.Fields.modifiedWhen).asLong()) : null;
 
-        IntegrationSystem baseSystem = new IntegrationSystem();
+        ContextSystem baseSystem = new ContextSystem();
         baseSystem.setId(systemId);
         baseSystem.setName(systemName);
         baseSystem.setModifiedWhen(modifiedWhen);
 
-        result.setSystem(baseSystem);
+        result.setContextSystem(baseSystem);
 
         return result;
     }

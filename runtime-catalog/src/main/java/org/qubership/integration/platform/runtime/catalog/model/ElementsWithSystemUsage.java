@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.model;
 public enum ElementsWithSystemUsage {
     SERVICE_CALL("service-call"),
     ASYNC_API_TRIGGER("async-api-trigger"),
+    CONTEXT_STORAGE("context-storage"),
     HTTP_TRIGGER("http-trigger");
 
     private final String elementName;

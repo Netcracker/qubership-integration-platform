@@ -22,16 +22,20 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ContextServiceDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ImportFileMigrationUtils;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
@@ -43,29 +47,43 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 public class ContextServiceDeserializer {
 
     private final YAMLMapper yamlMapper;
-    private final Map<Integer, ServiceImportFileMigration> importFileMigrations;
+    private final FileMigrationService fileMigrationService;
+    private final Collection<ServiceImportFileMigration> importFileMigrations;
+
+    private final VersionsGetterService versionsGetterService;
+    private final ContextServiceDtoMapper contextServiceDtoMapper;
 
     @Autowired
     public ContextServiceDeserializer(YAMLMapper yamlExportImportMapper,
-                               List<ServiceImportFileMigration> importFileMigrations) {
+                                      FileMigrationService fileMigrationService,
+                                      Collection<ServiceImportFileMigration> importFileMigrations,
+                                      VersionsGetterService versionsGetterService, ContextServiceDtoMapper contextServiceDtoMapper) {
         this.yamlMapper = yamlExportImportMapper;
-        this.importFileMigrations = importFileMigrations.stream()
-                .collect(Collectors.toMap(ImportFileMigration::getVersion, Function.identity()));
+        this.fileMigrationService = fileMigrationService;
+        this.importFileMigrations = importFileMigrations;
+        this.versionsGetterService = versionsGetterService;
+        this.contextServiceDtoMapper = contextServiceDtoMapper;
     }
 
-    public ContextSystem deserializeSystem(ObjectNode serviceNode) {
+    public ContextSystem deserializeSystem(File serviceFile) {
 
-        ContextSystem system;
         try {
-            serviceNode = migrateToActualFileVersion(serviceNode);
-            system = yamlMapper.treeToValue(serviceNode, ContextSystem.class);
+            File serviceDirectory = serviceFile.getParentFile();
+            JsonNode serviceNode = yamlMapper.readTree(serviceFile);
+            Collection<Integer> versions = versionsGetterService.getVersions(serviceNode);
+            String serviceData = fileMigrationService.migrate(
+                    Files.readString(serviceFile.toPath()),
+                    importFileMigrations.stream().map(ImportFileMigration.class::cast).toList()
+            );
+            ContextServiceDto contextServiceDto = yamlMapper.readValue(serviceData, ContextServiceDto.class);
+            ContextSystem contextSystem  = contextServiceDtoMapper.toInternalEntity(contextServiceDto);
+            return contextSystem;
         } catch (ServiceImportException e) {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
-        return system;
     }
 
     private ObjectNode migrateToActualFileVersion(ObjectNode serviceNode) throws Exception {
@@ -132,7 +150,11 @@ public class ContextServiceDeserializer {
         log.trace("versionsToMigrate = {}", versionsToMigrate);
 
         for (int version : versionsToMigrate) {
-            serviceNode = importFileMigrations.get(version).makeMigration(serviceNode);
+            serviceNode = serviceNode = importFileMigrations.stream()
+                    .filter(migration -> migration.getVersion() == version)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Migration not found for version: " + version))
+                    .makeMigration(serviceNode);
         }
 
         return serviceNode;

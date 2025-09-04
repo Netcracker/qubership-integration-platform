@@ -44,6 +44,9 @@ public class GeneralImportInstructionsConfig {
     private ImportInstructionsConfig services = new ImportInstructionsConfig();
     @Valid
     @Builder.Default
+    private ImportInstructionsConfig contextServices = new ImportInstructionsConfig();
+    @Valid
+    @Builder.Default
     @JsonIgnoreProperties(value = "ignore")
     private ImportInstructionsConfig specificationGroups = new ImportInstructionsConfig();
     @Valid

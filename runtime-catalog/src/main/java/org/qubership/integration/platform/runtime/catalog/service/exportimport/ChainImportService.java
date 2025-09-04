@@ -64,6 +64,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.nonNull;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.CONTEXT_SYSTEM_ID;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
@@ -259,8 +260,12 @@ public class ChainImportService {
             }
 
             String integrationSystemId = (String) elementExternalEntity.getProperties().get(SYSTEM_ID);
+            String contextSystemId = (String) elementExternalEntity.getProperties().get(CONTEXT_SYSTEM_ID);
             if (integrationSystemId != null) {
                 usedSystemIds.add(integrationSystemId);
+            }
+            if (contextSystemId != null) {
+                usedSystemIds.add(contextSystemId);
             }
         }
     }

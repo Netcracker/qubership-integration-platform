@@ -46,6 +46,9 @@ public class ImportPreviewResponse {
     @Schema(description = "List of results by each service")
     private List<ImportSystemResult> systems = new ArrayList<>();
     @Builder.Default
+    @Schema(description = "List of results by each context service")
+    private List<ImportSystemResult> contextService = new ArrayList<>();
+    @Builder.Default
     @Schema(description = "List of results by each variable")
     private List<ImportVariablePreviewResult> variables = new ArrayList<>();
     @Schema(description = "Import instructions preview")

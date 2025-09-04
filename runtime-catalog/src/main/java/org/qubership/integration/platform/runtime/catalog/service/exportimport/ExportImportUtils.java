@@ -218,6 +218,10 @@ public class ExportImportUtils {
         return id + SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
+    public static String generateMainContextServiceFileExportName(String id, String appName) {
+        return id + CONTEXT_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+    }
+
     public static String generateSourceExportDir(String id) {
         return SOURCE_YAML_NAME_PREFIX + id;
     }
@@ -259,6 +263,14 @@ public class ExportImportUtils {
         }
     }
 
+    public static List<File> extractContextServiceFromZip(InputStream is, String importFolderName) throws IOException {
+        try (ZipInputStream inputStream = new ZipInputStream(is)) {
+            extractZip(importFolderName, inputStream, ARCH_PARENT_DIR);
+
+            return extractContextServiceFromImportDirectory(importFolderName);
+        }
+    }
+
     public static List<File> extractSystemsFromImportDirectory(String importFolderName) throws IOException {
         Path start = Paths.get(importFolderName + File.separator + ARCH_PARENT_DIR);
         if (Files.exists(start)) {
@@ -267,6 +279,21 @@ public class ExportImportUtils {
                         .map(Path::toFile)
                         .filter(f -> (f.getName().startsWith(SERVICE_YAML_NAME_PREFIX) && f.getName().endsWith(YAML_EXTENSION))
                         || f.getName().contains(SERVICE_YAML_NAME_POSTFIX))
+                        .collect(Collectors.toList());
+            }
+        }
+
+        return Collections.emptyList();
+    }
+
+    public static List<File> extractContextServiceFromImportDirectory(String importFolderName) throws IOException {
+        Path start = Paths.get(importFolderName + File.separator + ARCH_PARENT_DIR);
+        if (Files.exists(start)) {
+            try (Stream<Path> sp = Files.walk(start)) {
+                return sp.filter(Files::isRegularFile)
+                        .map(Path::toFile)
+                        .filter(f -> (f.getName().startsWith(SERVICE_YAML_NAME_PREFIX) && f.getName().endsWith(YAML_EXTENSION))
+                                || f.getName().contains(CONTEXT_SERVICE_YAML_NAME_POSTFIX))
                         .collect(Collectors.toList());
             }
         }
