@@ -26,6 +26,7 @@ import { SessionsPage } from "./pages/SessionsPage.tsx";
 import Services from "./pages/Services.tsx";
 import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
 import AdminTools from "./pages/AdminTools.tsx";
+import { Masking } from "./pages/Masking.tsx";
 
 const { Header } = Layout;
 
@@ -59,6 +60,7 @@ const App = () => (
                 <Route path="sessions" element={<Sessions />} />
                 <Route path="sessions/:sessionId" element={<SessionPage />} />
                 <Route path="logging-settings" element={<LoggingSettings />} />
+                <Route path="masking" element={<Masking />} />
                 <Route path="properties" element={<ChainProperties />} />
               </Route>
               <Route path="/services" element={<Services />} />

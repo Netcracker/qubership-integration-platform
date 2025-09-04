@@ -116,7 +116,10 @@ const ChainPage = () => {
             <Radio.Button value="deployments">Deployments</Radio.Button>
             <Radio.Button value="sessions">Sessions</Radio.Button>
             <Radio.Button value="logging-settings">
-              Logging Settings
+              Logging
+            </Radio.Button>
+            <Radio.Button value="masking">
+              Masking
             </Radio.Button>
             <Radio.Button value="properties">Properties</Radio.Button>
           </Radio.Group>
