@@ -27,7 +27,6 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequ
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemSearchRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemType;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.SystemMapper;
 import org.qubership.integration.platform.runtime.catalog.service.ElementService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
@@ -166,9 +165,9 @@ public class SystemController {
      */
     @GetMapping(value = "/usage", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(description = "Get data of all the service endpoints used.")
-    public ResponseEntity<List<SystemUsageResponse>> getSystemUsages(@RequestParam(value = "type") SystemType type) {
+    public ResponseEntity<List<SystemUsageResponse>> getSystemUsages(@RequestParam(value = "type", required = false) String type) {
         log.info("Request to fetch systems for system type: {}", type);
-        List<SystemUsageResponse> reportEntities = elementService.getUsedSystemsByType(type.toString());
+        List<SystemUsageResponse> reportEntities = elementService.getUsedSystemsByType(type);
         return ResponseEntity.ok().body(reportEntities);
     }
 }

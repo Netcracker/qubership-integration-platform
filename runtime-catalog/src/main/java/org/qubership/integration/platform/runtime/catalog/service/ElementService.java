@@ -38,6 +38,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.CreateElementRequest;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemType;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
@@ -761,10 +762,20 @@ public class ElementService extends ElementBaseService {
      * @return A list of {@link SystemUsageResponse} objects representing the used services and their details
      */
     public List<SystemUsageResponse> getUsedSystemsByType(String type) {
-        List<ChainElement> elements = getChainElementsWithSystemUsage();
-        List<SystemUsageResponse> result = fetchSystemUsageData(elements, type);
-        log.info("Fetched {} system usage records for type {}", result.size(), type);
-        return result;
+        if (type == null) {
+            log.error("System type parameter is null");
+            throw new IllegalArgumentException("Required parameter 'type' is not present");
+        }
+        try {
+            SystemType systemType = SystemType.valueOf(type.toUpperCase());
+            List<ChainElement> elements = getChainElementsWithSystemUsage();
+            List<SystemUsageResponse> result = fetchSystemUsageData(elements, systemType.toString());
+            log.info("Fetched {} system usage records for type {}", result.size(), type);
+            return result;
+        } catch (IllegalArgumentException e) {
+            log.error("System type is not valid : {}", type);
+            throw new IllegalArgumentException("Failed to convert 'type' with value: " + type);
+        }
     }
 
     public boolean isElementDeprecated(ChainElement chainElement) {
