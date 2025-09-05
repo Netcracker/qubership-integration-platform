@@ -22,6 +22,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
@@ -125,6 +126,8 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
     @Override
     public ChainExternalMapperEntity toExternalEntity(@NonNull Chain chain) {
         ChainElementsExternalMapperEntity elementsExternalMapperEntity = chainElementsMapper.toExternalEntity(chain.getElements());
+        List<DeploymentExternalEntity> deployments = extractChainDeployments(chain);
+        
         ChainExternalEntity chainExternalEntity = ChainExternalEntity.builder()
                 .schema(chainSchemaUri)
                 .id(chain.getId())
@@ -145,6 +148,9 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                                 .sorted()
                                 .toList()
                                 .toString())
+                        .deployments(deployments)
+                        .deployAction(CollectionUtils.isEmpty(deployments) ? ChainCommitRequestAction.SNAPSHOT
+                                : ChainCommitRequestAction.DEPLOY)
                         .build())
                 .build();
 
@@ -152,6 +158,15 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                 .chainExternalEntity(chainExternalEntity)
                 .elementPropertyFiles(elementsExternalMapperEntity.getElementPropertyFiles())
                 .build();
+    }
+
+    private List<DeploymentExternalEntity> extractChainDeployments(Chain chain) {
+        List<DeploymentExternalEntity> deploymentsForExport = new ArrayList<>();
+
+        chain.getDeployments().forEach(deployment -> deploymentsForExport.add(DeploymentExternalEntity.builder()
+                .domain(deployment.getDomain())
+                .build()));
+        return deploymentsForExport;
     }
 
     private void specifyChainSwimlanes(ChainExternalEntity externalChain, Chain resultChain) {
