@@ -48,6 +48,7 @@
   },
   "scripts": {
     "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
+    "test-on-ci": "vscode-test-web --browserType=chromium --browserOptions.headless=true --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
     "pretest": "npm run compile-web",
     "prepublishOnly": "rimraf dist && npm run compile-web",
     "postpublish": "rimraf dist",
