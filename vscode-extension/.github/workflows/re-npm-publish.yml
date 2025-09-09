@@ -183,6 +183,8 @@ jobs:
             npm run test-on-ci
           elif npm run | grep -q "test"; then
             npm run test
+          else
+            echo "No 'test-on-ci' or 'test' script found. Skipping test step."
           fi
 
       - name: Skip publishing (dry-run mode)
