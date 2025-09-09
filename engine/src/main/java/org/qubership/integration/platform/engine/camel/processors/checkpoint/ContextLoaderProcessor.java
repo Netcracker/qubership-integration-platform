@@ -118,7 +118,8 @@ public class ContextLoaderProcessor implements Processor {
         message.getHeaders().putAll(
                 checkpointMapper.readValue(checkpoint.getHeaders(), new TypeReference<Map<String, Object>>() {
                 }));
-        message.setBody(checkpoint.getBody() == null ? null : new String(checkpoint.getBody(), StandardCharsets.UTF_8));
+        byte[] body = checkpoint.getBody() == null ? checkpoint.getDeprecatedBody() : checkpoint.getBody();
+        message.setBody(body == null ? null : new String(body, StandardCharsets.UTF_8));
     }
 
     private void updatePayloadFromRequest(Exchange exchange, CheckpointPayloadOptions replaceOptions) {
@@ -132,20 +133,21 @@ public class ContextLoaderProcessor implements Processor {
     void deserializeProperties(Checkpoint checkpoint, Map<String, Object> result) throws IOException {
 
         for (Property property : checkpoint.getProperties()) {
+            byte[] value = property.getValue() == null ? property.getDeprecatedValue() : property.getValue();
             try {
                 Class<?> clazz = Class.forName(property.getType());
                 if (Serializable.class.isAssignableFrom(clazz)) {
-                    result.put(property.getName(), deserializeWithMetadata(property.getValue()));
+                    result.put(property.getName(), deserializeWithMetadata(value));
                 } else {
-                    result.put(property.getName(), checkpointMapper.readValue(property.getValue(), clazz));
+                    result.put(property.getName(), checkpointMapper.readValue(value, clazz));
                 }
             } catch (ClassNotFoundException e) {
                 try {
-                    result.put(property.getName(), checkpointMapper.readValue(property.getValue(), new TypeReference<>() {
+                    result.put(property.getName(), checkpointMapper.readValue(value, new TypeReference<>() {
                     }));
                 } catch (Exception exception) {
                     //WA for properties without type after migration
-                    result.put(property.getName(), new String(property.getValue()));
+                    result.put(property.getName(), new String(value));
                 }
             }
         }
