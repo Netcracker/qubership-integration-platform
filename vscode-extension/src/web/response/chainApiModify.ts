@@ -28,6 +28,8 @@ export async function updateChain(mainFolderUri: Uri, chainId: string, chainRequ
     chain.content.businessDescription = chainRequest.businessDescription !== undefined ? chainRequest.businessDescription : chain.content.businessDescription;
     chain.content.assumptions = chainRequest.assumptions !== undefined ? chainRequest.assumptions : chain.content.assumptions;
     chain.content.outOfScope = chainRequest.outOfScope !== undefined ? chainRequest.outOfScope : chain.content.outOfScope;
+    chain.content.deployments = chainRequest.deployments !== undefined ? chainRequest.deployments : chain.content.deployments;
+    chain.content.deployAction = chainRequest.deployAction !== undefined ? chainRequest.deployAction : chain.content.deployAction;
 
     await fileApi.writeMainChain(mainFolderUri, chain);
 

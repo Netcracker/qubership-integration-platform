@@ -1,4 +1,4 @@
-import {Chain, Dependency, Element, LibraryData, LibraryElement} from "./apiTypes";
+import {Chain, ChainCommitRequestAction, Dependency, Element, LibraryData, LibraryElement} from "./apiTypes";
 import {Uri} from "vscode";
 import {EMPTY_USER, findElementById, getElementChildren} from "./chainApiUtils";
 import {fileApi} from "./file/fileApiProvider";
@@ -192,7 +192,10 @@ export async function getChain(mainFolderUri: Uri, chainId: string): Promise<Cha
         currentSnapshot: undefined,
         defaultSwimlaneId: chain.content.defaultSwimlaneId,
         dependencies: parseDependencies(chain.content.dependencies),
-        deployments: [],
+        deployments: chain.content.deployments,
+        deployAction: chain.content.deployAction
+          ? ChainCommitRequestAction[chain.content.deployAction as keyof typeof ChainCommitRequestAction]
+          : undefined,
         description: chain.content.description,
         elements: await parseElements(mainFolderUri, chain.content.elements, chain.id),
         id: chain.id,
