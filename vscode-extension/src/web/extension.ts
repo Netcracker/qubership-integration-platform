@@ -1,3 +1,4 @@
+import * as vscode from "vscode";
 import {
     CancellationToken,
     CustomTextEditorProvider,
@@ -11,9 +12,7 @@ import {VSCodeMessage, VSCodeResponse} from "./response/apiTypes";
 import * as path from "path";
 import { setFileApi } from "./response/file/fileApiProvider";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
-
-const vscode = require('vscode');
-
+import { QipExplorerProvider } from "./qipExplorer";
 
 class ChainFileEditorProvider implements CustomTextEditorProvider {
     constructor(private readonly context: ExtensionContext) {
@@ -52,7 +51,7 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolde
             type: message.data.type,
         };
         try {
-            response.payload = await getApiResponse(message.data, mainFolderUri);
+            response.payload = await getApiResponse(message.data, mainFolderUri, context);
             console.log('QIP Extension API Response:', response);
         } catch (e) {
             console.error("Failed to fetch data for QIP Extension API", e);
@@ -67,21 +66,38 @@ export function activate(context: ExtensionContext) {
     const fileApi = new VSCodeFileApi(context);
     setFileApi(fileApi);
 
+    // Register QIP Explorer provider
+    const qipProvider = new QipExplorerProvider(context);
+
+    context.subscriptions.push(
+        vscode.window.registerTreeDataProvider('qip-main', qipProvider)
+    );
+
     context.subscriptions.push(
         vscode.window.registerCustomEditorProvider(
             'qip.chainFile.editor',
             new ChainFileEditorProvider(context),
             {
                 webviewOptions: {
-                    retainContextWhenHidden: true,
-                    enableScripts: true,
-                    enableCommandUris: true
+                    retainContextWhenHidden: true
                 },
                 supportsMultipleEditorsPerDocument: false
             }
         )
     );
 
+    context.subscriptions.push(
+        vscode.window.registerCustomEditorProvider(
+            'qip.serviceFile.editor',
+            new ChainFileEditorProvider(context),
+            {
+                webviewOptions: {
+                    retainContextWhenHidden: true
+                },
+                supportsMultipleEditorsPerDocument: false
+            }
+        )
+    );
 
     context.subscriptions.push(vscode.commands.registerCommand('qip.open', function () {
 		// The code you place here will be executed every time your command is executed
@@ -100,7 +116,7 @@ export function activate(context: ExtensionContext) {
           }
         );
 
-        enrichWebview(panel, context);
+        enrichWebview(panel, context, undefined);
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('qip.createChain',
@@ -114,6 +130,86 @@ export function activate(context: ExtensionContext) {
             await fileApi.createEmptyChain(true);
         }
     ));
+
+    context.subscriptions.push(vscode.commands.registerCommand('qip.createService',
+        async () => {
+            await fileApi.createEmptyService();
+        }
+    ));
+
+    // Register refresh command
+    context.subscriptions.push(
+        vscode.commands.registerCommand('qip.refreshExplorer', () => {
+            qipProvider.refresh();
+        })
+    );
+
+    // Simplified approach - no complex UI refresh mechanism
+
+    // Register delete commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('qip.deleteService', async (item: any) => {
+            if (item && item.fileUri) {
+                const result = await vscode.window.showWarningMessage(
+                    `Are you sure you want to delete service "${item.label}"?`,
+                    { modal: true },
+                    'Delete'
+                );
+                if (result === 'Delete') {
+                    try {
+                        await vscode.workspace.fs.delete(item.fileUri);
+                        qipProvider.refresh();
+                        vscode.window.showInformationMessage(`Service "${item.label}" deleted successfully`);
+                    } catch (error) {
+                        vscode.window.showErrorMessage(`Failed to delete service: ${error}`);
+                    }
+                }
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('qip.deleteChain', async (item: any) => {
+            if (item && item.fileUri) {
+                const result = await vscode.window.showWarningMessage(
+                    `Are you sure you want to delete chain "${item.label}"?`,
+                    { modal: true },
+                    'Delete'
+                );
+                if (result === 'Delete') {
+                    try {
+                        await vscode.workspace.fs.delete(item.fileUri);
+                        qipProvider.refresh();
+                        vscode.window.showInformationMessage(`Chain "${item.label}" deleted successfully`);
+                    } catch (error) {
+                        vscode.window.showErrorMessage(`Failed to delete chain: ${error}`);
+                    }
+                }
+            }
+        })
+    );
+
+    // Register open in text editor command
+    context.subscriptions.push(
+        vscode.commands.registerCommand('qip.openInTextEditor', async (item: any) => {
+            if (item && item.fileUri) {
+                try {
+                    // Open file in text editor instead of custom editor
+                    const document = await vscode.workspace.openTextDocument(item.fileUri);
+                    await vscode.window.showTextDocument(document, {
+                        viewColumn: vscode.ViewColumn.Active,
+                        preview: false
+                    });
+                    console.log(`QIP Explorer: Opened ${item.label} in text editor`);
+                } catch (error) {
+                    console.error(`Failed to open file in text editor:`, error);
+                    vscode.window.showErrorMessage(`Failed to open file in text editor: ${error}`);
+                }
+            }
+        })
+    );
+
+    console.log('QIP Extension: QIP Explorer providers registered successfully');
 }
 
 function getDocumentDir(document: TextDocument): Uri {

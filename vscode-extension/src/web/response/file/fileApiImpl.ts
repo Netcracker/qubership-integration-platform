@@ -2,6 +2,7 @@ import {FileApi} from './fileApi';
 import {ExtensionContext, FileType, Uri} from 'vscode';
 import * as yaml from 'yaml';
 import {LibraryData} from "../apiTypes";
+import { EMPTY_USER } from '../chainApi';
 
 const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';
@@ -150,6 +151,196 @@ export class VSCodeFileApi implements FileApi {
         } catch (err) {
             vscode.window.showErrorMessage(`Failed: ${err}`);
         }
+    }
+
+    async createEmptyService() {
+        try {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders) {
+                vscode.window.showErrorMessage('Open a workspace folder first');
+                return;
+            }
+            
+            const serviceName = await vscode.window.showInputBox({prompt: 'Enter new service name'});
+            if (!serviceName) {
+                return;
+            }
+
+            const serviceId = crypto.randomUUID();
+            const workspaceUri = workspaceFolders[0].uri;
+
+            // Create service folder with serviceId as name
+            const serviceFolderUri = vscode.Uri.joinPath(workspaceUri, serviceId);
+            await vscode.workspace.fs.createDirectory(serviceFolderUri);
+
+            // Create template file inside the service folder
+            const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
+            const service = {
+                $schema: 'http://qubership.org/schemas/product/qip/service',
+                id: serviceId,
+                name: serviceName,
+                content: {
+                    createdWhen: Date.now(),
+                    modifiedWhen: Date.now(),
+                    createdBy: {...EMPTY_USER},
+                    modifiedBy: {...EMPTY_USER},
+                    description: 'New service',
+                    activeEnvironmentId: '',
+                    integrationSystemType: 'EXTERNAL',
+                    protocol: '',
+                    extendedProtocol: '',
+                    specification: '',
+                    environments: [],
+                    labels: [],
+                    migrations: []
+                }
+            };
+            const bytes = new TextEncoder().encode(yaml.stringify(service));
+
+            await vscode.workspace.fs.writeFile(serviceFileUri, bytes);
+            vscode.window.showInformationMessage(`Service "${serviceName}" created with id ${serviceId} in folder ${serviceId}`);
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed: ${err}`);
+        }
+    }
+
+    // Service-related methods
+    private async getMainServiceFileUri(mainFolderUri: Uri): Promise<Uri> {
+        if (mainFolderUri) {
+            let entries = await vscode.workspace.fs.readDirectory(mainFolderUri);
+
+            if (!entries || !Array.isArray(entries)) {
+                console.error(`Failed to read directory contents`);
+                throw Error("Failed to read directory contents");
+            }
+
+            const files = entries.filter(([, type]: [string, FileType]) => type === 1)
+                .filter(([name]: [string]) => name.endsWith('.service.qip.yaml'))
+                .map(([name]: [string]) => name);
+            if (files.length !== 1) {
+                console.error(`Single *.service.qip.yaml file not found in the current directory`);
+                vscode.window.showWarningMessage("*.service.qip.yaml file not found in the current directory");
+                throw Error("Single *.service.qip.yaml file not found in the current directory");
+            }
+            return vscode.Uri.joinPath(mainFolderUri, files[0]);
+        }
+        throw Error('No main service file');
+    }
+
+    async getMainService(parameters: any): Promise<any> {
+        const mainFolderUri = parameters as Uri;
+        const fileUri = await this.getMainServiceFileUri(mainFolderUri);
+        try {
+            const fileContent = await vscode.workspace.fs.readFile(fileUri);
+            const text = new TextDecoder('utf-8').decode(fileContent);
+            const parsed = yaml.parse(text);
+
+            if (parsed && parsed.name) {
+                return parsed;
+            }
+            throw Error('Invalid service file content');
+        } catch (e) {
+            console.error(`Service file ${fileUri} can't be parsed from QIP Extension API`, e);
+            throw e;
+        }
+    }
+
+    async getService(parameters: any, serviceId: string): Promise<any> {
+        const serviceFolderUri = parameters as Uri;
+        const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
+        try {
+            const fileContent = await vscode.workspace.fs.readFile(serviceFileUri);
+            const text = new TextDecoder('utf-8').decode(fileContent);
+            const parsed = yaml.parse(text);
+
+            if (parsed && parsed.id === serviceId) {
+                return parsed;
+            }
+            throw Error('Invalid service file content or service ID mismatch');
+        } catch (e) {
+            console.error(`Service file ${serviceFileUri} can't be parsed from QIP Extension API`, e);
+            throw e;
+        }
+    }
+
+    async writeMainService(parameters: any, serviceData: any): Promise<void> {
+        const mainFolderUri = parameters as Uri;
+        const fileUri = await this.getMainServiceFileUri(mainFolderUri);
+        await this.writeServiceFile(fileUri, serviceData);
+    }
+
+    async writeServiceFile(fileUri: Uri, serviceData: any): Promise<void> {
+        console.log('writeServiceFile: Starting write for fileUri:', fileUri);
+        console.log('writeServiceFile: Service object to write:', serviceData);
+        
+        const yamlString = yaml.stringify(serviceData);
+        console.log('writeServiceFile: Generated YAML string:', yamlString);
+        
+        const bytes = new TextEncoder().encode(yamlString);
+        console.log('writeServiceFile: Encoded bytes length:', bytes.length);
+        
+        try {
+            console.log('writeServiceFile: Attempting to write file...');
+            await vscode.workspace.fs.writeFile(fileUri, bytes);
+            console.log('writeServiceFile: File written successfully');
+            vscode.window.showInformationMessage('Service has been updated!');
+        } catch (err) {
+            console.error('writeServiceFile: Error writing file:', err);
+            vscode.window.showErrorMessage('Failed to write file: ' + err);
+            throw Error('Failed to write file: ' + err);
+        }
+    }
+
+    async createServiceDirectory(parameters: any, serviceId: string): Promise<Uri> {
+        const mainFolderUri = parameters as Uri;
+        const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
+        await vscode.workspace.fs.createDirectory(serviceFolderUri);
+        return serviceFolderUri;
+    }
+
+    async deleteServiceDirectory(parameters: any, serviceId: string): Promise<void> {
+        const mainFolderUri = parameters as Uri;
+        const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
+        await vscode.workspace.fs.delete(serviceFolderUri, { recursive: true });
+    }
+
+    // Directory operations
+    async readDirectory(parameters: any): Promise<[string, number][]> {
+        const mainFolderUri = parameters as Uri;
+        return await vscode.workspace.fs.readDirectory(mainFolderUri);
+    }
+
+    async createDirectory(parameters: any, dirName: string): Promise<void> {
+        const mainFolderUri = parameters as Uri;
+        const dirUri = vscode.Uri.joinPath(mainFolderUri, dirName);
+        await vscode.workspace.fs.createDirectory(dirUri);
+    }
+
+    async createDirectoryByUri(dirUri: Uri): Promise<void> {
+        await vscode.workspace.fs.createDirectory(dirUri);
+    }
+
+    async deleteDirectory(parameters: any, dirName: string): Promise<void> {
+        const mainFolderUri = parameters as Uri;
+        const dirUri = vscode.Uri.joinPath(mainFolderUri, dirName);
+        await vscode.workspace.fs.delete(dirUri, { recursive: true });
+    }
+
+    // File operations
+    async writeFile(fileUri: Uri, data: Uint8Array): Promise<void> {
+        await vscode.workspace.fs.writeFile(fileUri, data);
+    }
+
+    async readFileContent(fileUri: Uri): Promise<Uint8Array> {
+        return await vscode.workspace.fs.readFile(fileUri);
+    }
+
+    async deleteFile(fileUri: Uri): Promise<void> {
+        await vscode.workspace.fs.delete(fileUri);
+    }
+
+    async getFileStat(fileUri: Uri): Promise<any> {
+        return await vscode.workspace.fs.stat(fileUri);
     }
 }
 

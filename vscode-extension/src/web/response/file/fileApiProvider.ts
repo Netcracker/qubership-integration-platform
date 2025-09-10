@@ -1,5 +1,6 @@
 import {LibraryData} from '../apiTypes';
 import {FileApi} from './fileApi';
+import {Uri} from 'vscode';
 
 let current: FileApi = {
     getMainChain: async () => {
@@ -19,6 +20,57 @@ let current: FileApi = {
     },
     removeFile: async () => {
         throw new Error('FileApi not configured');
+    },
+    createEmptyChain: async () => {
+        throw new Error('FileApi not configured');
+    },
+    createEmptyService: async () => {
+        throw new Error('FileApi not configured');
+    },
+    // Service-related methods
+    getMainService: async () => {
+        throw new Error('FileApi not configured');
+    },
+    getService: async () => {
+        throw new Error('FileApi not configured');
+    },
+    writeMainService: async () => {
+        throw new Error('FileApi not configured');
+    },
+    writeServiceFile: async () => {
+        throw new Error('FileApi not configured');
+    },
+    createServiceDirectory: async () => {
+        throw new Error('FileApi not configured');
+    },
+    deleteServiceDirectory: async () => {
+        throw new Error('FileApi not configured');
+    },
+    // Directory operations
+    readDirectory: async () => {
+        throw new Error('FileApi not configured');
+    },
+    createDirectory: async () => {
+        throw new Error('FileApi not configured');
+    },
+    createDirectoryByUri: async () => {
+        throw new Error('FileApi not configured');
+    },
+    deleteDirectory: async () => {
+        throw new Error('FileApi not configured');
+    },
+    // File operations
+    writeFile: async () => {
+        throw new Error('FileApi not configured');
+    },
+    readFileContent: async () => {
+        throw new Error('FileApi not configured');
+    },
+    deleteFile: async () => {
+        throw new Error('FileApi not configured');
+    },
+    getFileStat: async () => {
+        throw new Error('FileApi not configured');
     }
 };
 
@@ -34,4 +86,23 @@ export const fileApi: FileApi = {
     writePropertyFile: async (parameters: any, propertyFilename: string, propertyData: string): Promise<void> => current.writePropertyFile(parameters, propertyFilename, propertyData),
     writeMainChain: async (parameters: any, chainData: any): Promise<void> => current.writeMainChain(parameters, chainData),
     removeFile: async (mainFolderUri, propertyFilename: string): Promise<void> => current.removeFile(mainFolderUri, propertyFilename),
+    createEmptyChain: async (createInParentDir?: boolean): Promise<void> => current.createEmptyChain(createInParentDir),
+    createEmptyService: async (): Promise<void> => current.createEmptyService(),
+    // Service-related methods
+    getMainService: async (parameters: any): Promise<any> => current.getMainService(parameters),
+    getService: async (parameters: any, serviceId: string): Promise<any> => current.getService(parameters, serviceId),
+    writeMainService: async (parameters: any, serviceData: any): Promise<void> => current.writeMainService(parameters, serviceData),
+    writeServiceFile: async (fileUri: Uri, serviceData: any): Promise<void> => current.writeServiceFile(fileUri, serviceData),
+    createServiceDirectory: async (parameters: any, serviceId: string): Promise<Uri> => current.createServiceDirectory(parameters, serviceId),
+    deleteServiceDirectory: async (parameters: any, serviceId: string): Promise<void> => current.deleteServiceDirectory(parameters, serviceId),
+    // Directory operations
+    readDirectory: async (parameters: any): Promise<[string, number][]> => current.readDirectory(parameters),
+    createDirectory: async (parameters: any, dirName: string): Promise<void> => current.createDirectory(parameters, dirName),
+    createDirectoryByUri: async (dirUri: Uri): Promise<void> => current.createDirectoryByUri(dirUri),
+    deleteDirectory: async (parameters: any, dirName: string): Promise<void> => current.deleteDirectory(parameters, dirName),
+    // File operations
+    writeFile: async (fileUri: Uri, data: Uint8Array): Promise<void> => current.writeFile(fileUri, data),
+    readFileContent: async (fileUri: Uri): Promise<Uint8Array> => current.readFileContent(fileUri),
+    deleteFile: async (fileUri: Uri): Promise<void> => current.deleteFile(fileUri),
+    getFileStat: async (fileUri: Uri): Promise<any> => current.getFileStat(fileUri),
 };
