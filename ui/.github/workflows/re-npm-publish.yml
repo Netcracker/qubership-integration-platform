@@ -1,0 +1,200 @@
+name: Reusable NPM Publish
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      scope:
+        required: false
+        type: string
+        default: "@netcracker"
+      node-version:
+        required: false
+        type: string
+        default: "22.x"
+      registry-url:
+        required: false
+        type: string
+        default: "https://npm.pkg.github.com"
+      update-nc-dependency:
+        required: false
+        type: boolean
+        default: false
+      dry-run:
+        description: 'Run in dry-run mode (no actual publishing)'
+        required: false
+        type: boolean
+        default: false
+      dist-tag:
+        default: "next"
+        type: string
+        description: "NPM dist-tag"
+        required: false
+      ref:
+        required: false
+        type: string
+        default: "main"
+      is_dev:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  npm-build-publish:
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref}}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.scope }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Check if project is a Lerna monorepo
+        id: check-lerna
+        run: |
+          if [ -f lerna.json ]; then
+            echo "Lerna project detected."
+            echo "IS_LERNA=true" >> $GITHUB_ENV
+          else
+            echo "Not a Lerna project."
+            echo "IS_LERNA=false" >> $GITHUB_ENV
+          fi
+
+      - name: Update dependencies (if required)
+        if: ${{ inputs.update-nc-dependency == 'true' }}
+        run: |
+          npm ls --json | jq -r '.dependencies | keys[]' | grep "@netcracker" | xargs --no-run-if-empty npm update
+
+      - name: Update npm version for dev version
+        if: ${{ inputs.is_dev }}
+        run: |
+          REQUESTED_VERSION="${{ inputs.version }}"
+
+          if [ "$IS_LERNA" == "true" ]; then
+            CURRENT_VERSION=$(lerna list --json | jq -r '.[0].version')
+          else
+            CURRENT_VERSION=$(jq -r '.version' package.json)
+          fi
+
+          if [ "$CURRENT_VERSION" != "$REQUESTED_VERSION" ]; then
+            echo "Updating version from $CURRENT_VERSION to $REQUESTED_VERSION"
+            npm version "$REQUESTED_VERSION" --no-git-tag-version
+          else
+            echo "Version already $CURRENT_VERSION, skipping"
+          fi
+
+      - name: Check current version
+        id: current_version
+        if: ${{ !inputs.dry-run && !inputs.is_dev }}
+        run: |
+          if [ "$IS_LERNA" == "true" ]; then
+            CURRENT_VERSION=$(lerna list --json | jq -r '.[0].version')
+          else
+            CURRENT_VERSION=$(jq -r '.version' package.json)
+          fi
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+          echo "Requested version: ${{ inputs.version }}"
+
+      - name: Validate version
+        if: ${{ !inputs.dry-run && !inputs.is_dev }}
+        run: |
+          CURRENT_VERSION="${{ steps.current_version.outputs.current_version }}"
+          REQUESTED_VERSION="${{ inputs.version }}"
+
+          echo "Current version: $CURRENT_VERSION"
+          echo "Requested version: $REQUESTED_VERSION"
+
+          # Use sort -V for proper semantic version comparison
+          if [ "$(printf '%s\n%s' "$CURRENT_VERSION" "$REQUESTED_VERSION" | sort -V | head -n1)" = "$REQUESTED_VERSION" ] && [ "$CURRENT_VERSION" != "$REQUESTED_VERSION" ]; then
+            echo "Error: Requested version $REQUESTED_VERSION is not greater than current version $CURRENT_VERSION"
+            echo "Please provide a version higher than $CURRENT_VERSION"
+            echo "Valid examples for current version $CURRENT_VERSION:"
+            echo "  - Patch: $(echo "$CURRENT_VERSION" | awk -F. '{print $1"."$2"."$3+1}')"
+            echo "  - Minor: $(echo "$CURRENT_VERSION" | awk -F. '{print $1"."$2+1".0"}')"
+            echo "  - Major: $(echo "$CURRENT_VERSION" | awk -F. '{print $1+1".0.0"}')"
+            exit 1
+          fi
+
+          echo "Version validation passed: $REQUESTED_VERSION > $CURRENT_VERSION"
+
+      - name: Update package version (for Lerna or NPM)
+        if: ${{ !inputs.dry-run && !inputs.is_dev }}
+        run: |
+          if [ "$IS_LERNA" = "true" ]; then
+            echo "Updating version in lerna.json and all package.json files..."
+            npx lerna version ${{ inputs.version }} --yes --no-git-tag-version --no-push
+          else
+            echo "Updating version in package.json..."
+            npm version ${{ inputs.version }} --no-git-tag-version
+          fi
+          git diff --color
+          git diff >> changes.txt
+
+      - name: Commit Changes
+        if: ${{ !inputs.dry-run && !inputs.is_dev }}
+        uses: netcracker/qubership-workflow-hub/actions/commit-and-push@v1.0.3
+        with:
+          commit_message: "Update package.json version to ${{ inputs.version }}"
+
+      - name: Get package version
+        if: ${{ !inputs.dry-run && !inputs.is_dev }}
+        id: get_version
+        run: |
+            if [ "$IS_LERNA" == "true" ]; then
+              VERSION=$(lerna list --json | jq -r '.[0].version')
+            else
+              VERSION=$(jq -r '.version' package.json)
+            fi
+            echo "package_version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Project
+        run: |
+          if npm run | grep -q "prepublishOnly"; then
+            npm run prepublishOnly
+          elif npm run | grep -q "build"; then
+            npm run build:lib
+          else
+            echo "No 'prepublishOnly' or 'build' script found. Skipping build step."
+          fi
+
+      - name: Run tests
+        run: npm test --if-present
+
+      - name: Skip publishing (dry-run mode)
+        if: ${{ inputs.dry-run }}
+        run: |
+          echo "Publishing skipped - running in dry-run mode"
+          echo "Package version: ${{ steps.get_version.outputs.package_version }}"
+          echo "Would publish with tag: ${{ inputs.dist-tag }}"
+
+      - name: Publish Package
+        if: ${{ !inputs.dry-run }}
+        run: |
+          npm config get registry
+          if [ "$IS_LERNA" = "true" ]; then
+            echo "Publishing with Lerna..."
+            npx lerna publish from-package --yes --no-push --no-git-reset --no-git-tag-version --dist-tag ${{ inputs.dist-tag }}
+          else
+            echo "Publishing with npm..."
+            npm publish --tag ${{ inputs.dist-tag }}
+          fi
