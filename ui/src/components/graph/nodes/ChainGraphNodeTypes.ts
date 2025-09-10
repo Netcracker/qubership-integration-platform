@@ -12,6 +12,9 @@ export type ChainGraphNodeData = {
   direction?: ElkDirection;
   inputEnabled?: boolean;
   outputEnabled?: boolean;
+  collapsed?: boolean;
+  unitCount?: number;
+  onToggleCollapse?: () => void;
 };
 
 export type ChainGraphNode = Node<ChainGraphNodeData>;

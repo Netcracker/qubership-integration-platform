@@ -26,11 +26,15 @@ import {
   TransferElementRequest,
 } from "../../api/apiTypes.ts";
 import { useAutoLayout } from "./useAutoLayout.tsx";
+import { useExpandCollapse } from "./useExpandCollapse.tsx";
 import { useNotificationService } from "../useNotificationService.tsx";
 import { useLibraryContext } from "../../components/LibraryContext.tsx";
 import {
   applyHighlight,
   collectChildren,
+  getContainerIdsForEdges,
+  collectSubgraphByParents,
+  edgesForSubgraph,
   findUpdatedElement,
   getDataFromElement,
   getFakeNode,
@@ -38,6 +42,11 @@ import {
   getLibraryElement,
   getNodeFromElement,
   getPossibleGraphIntersection,
+  sortParentsBeforeChildren,
+  getLeastCommonParent,
+  expandWithParent,
+  depthOf,
+  mergeWithPinnedPositions,
 } from "../../misc/chain-graph-utils.ts";
 import {
   ChainGraphNode,
@@ -47,15 +56,45 @@ import {
 
 export const useChainGraph = (chainId?: string) => {
   const { screenToFlowPosition } = useReactFlow();
-
   const { libraryElements, isLibraryLoading } = useLibraryContext();
+
   const [nodes, setNodes] = useNodesState<Node<ChainGraphNodeData>>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
   const [isLoading, setIsLoading] = useState(true);
+
   const isInitialized = useRef<boolean>(false);
+  const nodesRef = useRef(nodes);
+
   const notificationService = useNotificationService();
   const { arrangeNodes, direction, toggleDirection } = useAutoLayout();
   const { getIntersectingNodes } = useReactFlow();
+
+  const structureChangedRef = useRef<boolean>(false);
+  const structureChangedParentIdsRef = useRef<string[] | null>(null);
+
+  const hoverExpandTimerRef = useRef<number | null>(null);
+  const lastHoverContainerIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  const clearHoverTimer = useCallback(() => {
+    if (hoverExpandTimerRef.current !== null) {
+      window.clearTimeout(hoverExpandTimerRef.current);
+      hoverExpandTimerRef.current = null;
+    }
+    lastHoverContainerIdRef.current = null;
+  }, []);
+
+  const clearHighlight = useCallback(() => {
+    setNodes((curr) => applyHighlight(curr)); // сброс .highlight
+  }, [setNodes]);
+
+  const clearDragVisuals = useCallback(() => {
+    clearHoverTimer();
+    clearHighlight();
+  }, [clearHoverTimer, clearHighlight]);
 
   const highlightDragIntersections = useCallback(
     (draggedNode: ChainGraphNode) => {
@@ -63,32 +102,112 @@ export const useChainGraph = (chainId?: string) => {
         getIntersectingNodes(draggedNode),
         collectChildren(draggedNode.id, nodes),
       )?.id;
-
       setNodes((curr) => applyHighlight(curr, possibleIntersections));
     },
     [getIntersectingNodes, nodes, setNodes],
   );
 
-  const clearHighlight = useCallback(() => {
-    setNodes((curr) => applyHighlight(curr));
-  }, [setNodes]);
+  const expandDragIntersection = useCallback(
+    (draggedNode: ChainGraphNode) => {
+      const possibleGraphIntersect: ChainGraphNode | undefined =
+        (getPossibleGraphIntersection(
+          getIntersectingNodes(draggedNode) as ChainGraphNode[],
+          collectChildren(draggedNode.id, nodes),
+        ) as ChainGraphNode) ?? undefined;
 
-  const structureChangedRef = useRef<boolean>(false);
+      const candidateId = possibleGraphIntersect?.id ?? null;
 
-  const structureChanged = useCallback(() => {
-    structureChangedRef.current = true;
-    clearHighlight();
-  }, [clearHighlight]);
+      if (candidateId !== lastHoverContainerIdRef.current) {
+        clearHoverTimer();
+        lastHoverContainerIdRef.current = candidateId;
+
+        if (possibleGraphIntersect && possibleGraphIntersect.data?.collapsed) {
+          hoverExpandTimerRef.current = window.setTimeout(() => {
+            if (lastHoverContainerIdRef.current !== candidateId) return;
+            const current = nodesRef.current.find((n) => n.id === candidateId);
+            if (current?.type === "container" && current.data?.collapsed) {
+              current.data.onToggleCollapse?.();
+            }
+          }, 250);
+        }
+      }
+    },
+    [getIntersectingNodes, nodes, clearHoverTimer],
+  );
+
+  const structureChanged = useCallback(
+    (parentIds?: string[]) => {
+      structureChangedRef.current = true;
+      if (parentIds && parentIds.length) {
+        const expanded = expandWithParent(parentIds, nodesRef.current);
+        structureChangedParentIdsRef.current = Array.from(new Set(expanded));
+      } else {
+        structureChangedParentIdsRef.current = null; // полная перестройка
+      }
+      clearHighlight();
+    },
+    [clearHighlight],
+  );
+
+  const {
+    attachToggle,
+    setNestedUnitCounts,
+    reapplyNodesVisibility,
+    reapplyEdgesVisibility,
+  } = useExpandCollapse(nodes, setNodes, edges, setEdges, structureChanged);
 
   useEffect(() => {
     const autoArrange = async () => {
-      if (structureChangedRef.current) {
-        structureChangedRef.current = false;
-        setNodes(await arrangeNodes(nodes, edges));
+      if (!structureChangedRef.current) return;
+      structureChangedRef.current = false;
+
+      const parentIds = structureChangedParentIdsRef.current;
+      let arrangedNodes: ChainGraphNode[] = nodes;
+
+      if (parentIds && parentIds.length) {
+        const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+        const sorted = [...new Set(parentIds)].sort(
+          (left, right) => depthOf(right, nodeMap) - depthOf(left, nodeMap),
+        );
+
+        let current = nodes;
+        for (const parents of sorted) {
+          const subNodes = collectSubgraphByParents([parents], current);
+          const subEdges = edgesForSubgraph(edges, subNodes);
+          const laidSubset = await arrangeNodes(subNodes, subEdges);
+
+          const pinned = new Set(expandWithParent([parents], current));
+          current = mergeWithPinnedPositions(current, laidSubset, pinned);
+        }
+        arrangedNodes = current;
+      } else {
+        arrangedNodes = await arrangeNodes(nodes, edges);
       }
+
+      const withToggle = attachToggle(arrangedNodes);
+      const visibleNodes = reapplyNodesVisibility(withToggle);
+      const withCounts = setNestedUnitCounts(visibleNodes); // ✅ обновляем счётчики
+      const orderedVisibleNodes = sortParentsBeforeChildren(withCounts);
+      const visibleEdges = reapplyEdgesVisibility(withToggle, edges);
+
+      setNodes(orderedVisibleNodes);
+      setEdges(visibleEdges);
+
+      structureChangedParentIdsRef.current = null;
     };
+
     void autoArrange();
-  }, [nodes, edges, arrangeNodes, setNodes]);
+  }, [
+    nodes,
+    edges,
+    arrangeNodes,
+    setNodes,
+    setEdges,
+    attachToggle,
+    reapplyNodesVisibility,
+    reapplyEdgesVisibility,
+    setNestedUnitCounts,
+  ]);
 
   useEffect(() => {
     if (isInitialized.current) return;
@@ -104,25 +223,31 @@ export const useChainGraph = (chainId?: string) => {
         )) as unknown as Element[];
 
         const newNodes: ChainGraphNode[] = elements
-          .map((element: Element) => {
-            return getNodeFromElement(
+          .map((element: Element) =>
+            getNodeFromElement(
               element,
               getLibraryElement(element, libraryElements),
               direction,
-            );
-          })
-          .filter((newNode) => newNode !== undefined);
+            ),
+          )
+          .filter((n): n is ChainGraphNode => !!n);
 
         const connections = await api.getConnections(chainId);
-
-        const newEdges: Edge[] = connections.map((connection: Connection) => ({
-          id: connection.id, //TODO better to use addEdge!
-          source: connection.from,
-          target: connection.to,
+        const newEdges: Edge[] = connections.map((c: Connection) => ({
+          id: c.id,
+          source: c.from,
+          target: c.to,
         }));
 
-        setNodes(await arrangeNodes(newNodes, newEdges));
+        const arranged = await arrangeNodes(newNodes, newEdges);
+        const withToggle = attachToggle(arranged);
+        const visibleNodes = reapplyNodesVisibility(withToggle);
+        const withCount = setNestedUnitCounts(visibleNodes);
+        const ordered = sortParentsBeforeChildren(withCount);
+
+        setNodes(ordered);
         setEdges(newEdges);
+
         structureChanged();
       } catch (error) {
         notificationService.requestFailed(
@@ -134,6 +259,7 @@ export const useChainGraph = (chainId?: string) => {
         isInitialized.current = true;
       }
     };
+
     void fetchData();
   }, [
     nodes,
@@ -146,17 +272,19 @@ export const useChainGraph = (chainId?: string) => {
     structureChanged,
     setEdges,
     setNodes,
+    attachToggle,
+    reapplyNodesVisibility,
+    setNestedUnitCounts,
   ]);
+
+  useEffect(() => () => clearHoverTimer(), [clearHoverTimer]);
 
   const onConnect = useCallback(
     async (connection: ReactFlowConnection) => {
       if (!chainId) return;
       try {
         const response = await api.createConnection(
-          {
-            from: connection.source,
-            to: connection.target,
-          },
+          { from: connection.source, to: connection.target },
           chainId,
         );
         const edge: Edge = {
@@ -164,14 +292,17 @@ export const useChainGraph = (chainId?: string) => {
           id: response.createdDependencies?.[0]?.id ?? "",
         };
         setEdges((eds) => addEdge(edge, eds));
-        const isUnderParent: boolean = nodes.some(
-          (node: ChainGraphNode) =>
-            (node.id === connection.source || node.id === connection.target) &&
-            node.parentId !== undefined,
+
+        const sourceParent = nodes.find(
+          (node) => node.id === connection.source,
+        )?.parentId;
+        const targetParent = nodes.find(
+          (node) => node.id === connection.target,
+        )?.parentId;
+        const parents = Array.from(
+          new Set([sourceParent, targetParent].filter(Boolean) as string[]),
         );
-        if (isUnderParent) {
-          structureChanged();
-        }
+        if (parents.length) structureChanged(parents);
       } catch (error) {
         notificationService.requestFailed("Failed to create connection", error);
       }
@@ -182,6 +313,7 @@ export const useChainGraph = (chainId?: string) => {
   const onDragOver = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
+      clearHoverTimer();
       event.dataTransfer.dropEffect = "move";
 
       const currentDragPosition = screenToFlowPosition({
@@ -190,21 +322,23 @@ export const useChainGraph = (chainId?: string) => {
       });
 
       const fakeDragNode = getFakeNode(currentDragPosition);
-      const dragIntersection = getPossibleGraphIntersection(
-        getIntersectingNodes(fakeDragNode),
-      )?.id;
-
-      setNodes((nodes) => applyHighlight(nodes, dragIntersection));
+      highlightDragIntersections(fakeDragNode);
+      expandDragIntersection(fakeDragNode);
     },
-    [getIntersectingNodes, screenToFlowPosition, setNodes],
+    [
+      clearHoverTimer,
+      expandDragIntersection,
+      highlightDragIntersections,
+      screenToFlowPosition,
+    ],
   );
 
   const onDrop = useCallback(
     async (event: React.DragEvent) => {
       event.preventDefault();
       if (!chainId) return;
-      const name = event.dataTransfer.getData("application/reactflow");
 
+      const name = event.dataTransfer.getData("application/reactflow");
       if (!name) return;
 
       const dropPosition = screenToFlowPosition({
@@ -213,7 +347,6 @@ export const useChainGraph = (chainId?: string) => {
       });
 
       const fakeNode = getFakeNode(dropPosition);
-
       const intersecting = getIntersectingNodes(fakeNode).filter(
         (node) => node.type === "container",
       );
@@ -224,9 +357,7 @@ export const useChainGraph = (chainId?: string) => {
         return areaA - areaB;
       })[0];
 
-      let createElementRequest: CreateElementRequest = {
-        type: name,
-      };
+      let createElementRequest: CreateElementRequest = { type: name };
       if (parentNode) {
         createElementRequest = {
           ...createElementRequest,
@@ -236,32 +367,46 @@ export const useChainGraph = (chainId?: string) => {
 
       try {
         const response = await api.createElement(createElementRequest, chainId);
-
         const createdElement = response.createdElements?.[0];
-        if (createdElement) {
-          const newNode: ChainGraphNode = getNodeFromElement(
-            createdElement,
-            getLibraryElement(createdElement, libraryElements),
-            direction,
-          );
-          if (!newNode) {
-            return;
-          }
-          const childNodes: ChainGraphNode[] = createdElement?.children
-            ? createdElement?.children?.map((child: Element) => {
-                return getNodeFromElement(
-                  child,
-                  getLibraryElement(child, libraryElements),
-                  direction,
-                );
-              })
-            : [];
-          const allNodes = nodes.concat(newNode, childNodes);
-          setNodes(allNodes);
-          if (parentNode || newNode.type === "container") {
-            structureChanged();
-          }
+        if (!createdElement) return;
+
+        const newNode: ChainGraphNode = getNodeFromElement(
+          createdElement,
+          getLibraryElement(createdElement, libraryElements),
+          direction,
+          dropPosition,
+        );
+        if (!newNode) return;
+
+        const childNodes: ChainGraphNode[] = createdElement?.children
+          ? createdElement.children.map((child: Element) =>
+              getNodeFromElement(
+                child,
+                getLibraryElement(child, libraryElements),
+                direction,
+                dropPosition,
+              ),
+            )
+          : [];
+
+        const arrangedNew = await arrangeNodes(childNodes.concat(newNode), []);
+        const allNodes = nodes.concat(arrangedNew);
+        const withToggle = attachToggle(allNodes);
+        const withCount = setNestedUnitCounts(withToggle);
+
+        const withDropPosition = withCount.map((node: ChainGraphNode) => {
+          if (node.id === newNode.id) node.position = dropPosition;
+          return node;
+        });
+
+        const ordered = sortParentsBeforeChildren(withDropPosition);
+        setNodes(ordered);
+
+        if (parentNode) {
+          structureChanged([parentNode.id]);
         }
+
+        clearDragVisuals();
       } catch (error) {
         notificationService.requestFailed("Failed to create element", error);
       }
@@ -273,9 +418,13 @@ export const useChainGraph = (chainId?: string) => {
       libraryElements,
       direction,
       nodes,
+      arrangeNodes,
+      attachToggle,
+      setNestedUnitCounts,
       setNodes,
-      structureChanged,
       notificationService,
+      structureChanged,
+      clearDragVisuals,
     ],
   );
 
@@ -284,9 +433,7 @@ export const useChainGraph = (chainId?: string) => {
       await Promise.all(
         changes.map((change) => {
           if (!chainId) return;
-          if (change.type === "remove") {
-            return;
-          }
+          if (change.type === "remove") return;
           setEdges((eds) => applyEdgeChanges(changes, eds));
         }),
       );
@@ -300,7 +447,10 @@ export const useChainGraph = (chainId?: string) => {
         changes.map((change) => {
           if (!chainId) return;
           if (change.type === "remove") return;
-          setNodes((nds) => applyNodeChanges(changes, nds));
+          setNodes((nds) => {
+            const next = applyNodeChanges(changes, nds);
+            return sortParentsBeforeChildren(next as ChainGraphNode[]);
+          });
         }),
       );
     },
@@ -310,10 +460,35 @@ export const useChainGraph = (chainId?: string) => {
   const onDelete = useCallback(
     async (changes: OnDeleteEvent) => {
       if (!chainId) return;
+
       const nodesToDelete: ChainGraphNode[] = changes.nodes;
       const edgesToDelete: Edge[] = changes.edges;
 
+      const affectedParents = new Set<string>();
+
+      for (const parentContainer of getContainerIdsForEdges(
+        edgesToDelete,
+        nodes,
+      )) {
+        affectedParents.add(parentContainer);
+      }
+
+      const removingNodeIds = new Set(nodesToDelete.map((node) => node.id));
+      const parentMap = new Map<string, string | undefined>();
+      nodes.forEach((node) => {
+        if (removingNodeIds.has(node.id)) parentMap.set(node.id, node.parentId);
+      });
+
+      const rootIdsToDelete = Array.from(removingNodeIds).filter(
+        (id) => !removingNodeIds.has(parentMap.get(id)!),
+      );
+      for (const id of rootIdsToDelete) {
+        const node = nodes.find((x) => x.id === id);
+        if (node?.parentId) affectedParents.add(node.parentId);
+      }
+
       const deletedEdgeIds: string[] = [];
+
       const separateEdgesToDelete: Edge[] = edgesToDelete.filter(
         (edge) =>
           !nodesToDelete.find(
@@ -322,11 +497,11 @@ export const useChainGraph = (chainId?: string) => {
       );
       if (separateEdgesToDelete.length > 0) {
         try {
-          const edgesDeleteResponse = await api.deleteConnections(
+          const response = await api.deleteConnections(
             separateEdgesToDelete.map((edge) => edge.id),
             chainId,
           );
-          edgesDeleteResponse.removedDependencies?.map((connection) =>
+          response.removedDependencies?.forEach((connection) =>
             deletedEdgeIds.push(connection.id),
           );
         } catch (error) {
@@ -337,19 +512,6 @@ export const useChainGraph = (chainId?: string) => {
         }
       }
 
-      const removingNodeIds = new Set(nodesToDelete.map((c) => c.id));
-      const parentMap = new Map<string, string | undefined>();
-
-      nodes.forEach((node) => {
-        if (removingNodeIds.has(node.id)) {
-          parentMap.set(node.id, node.parentId);
-        }
-      });
-
-      const rootIdsToDelete = Array.from(removingNodeIds).filter(
-        (id) => !removingNodeIds.has(parentMap.get(id)!),
-      );
-
       try {
         const elementsDeleteResponse = await api.deleteElements(
           rootIdsToDelete,
@@ -358,9 +520,9 @@ export const useChainGraph = (chainId?: string) => {
 
         const deletedNodeIds = (
           elementsDeleteResponse.removedElements || []
-        ).map((el: { id: string }) => el.id);
+        ).map((element: { id: string }) => element.id);
 
-        elementsDeleteResponse.removedDependencies?.map((connection) =>
+        elementsDeleteResponse.removedDependencies?.forEach((connection) =>
           deletedEdgeIds.push(connection.id),
         );
 
@@ -370,9 +532,15 @@ export const useChainGraph = (chainId?: string) => {
         const allEdges = edges.filter(
           (edge) => !deletedEdgeIds.includes(edge.id),
         );
-        setNodes(allNodes);
+
+        const ordered = sortParentsBeforeChildren(allNodes);
+        setNodes(ordered);
         setEdges(allEdges);
-        structureChanged();
+
+        const ids = Array.from(affectedParents);
+        if (ids.length) {
+          structureChanged(ids);
+        }
       } catch (error) {
         notificationService.requestFailed("Failed to delete element", error);
       }
@@ -390,37 +558,47 @@ export const useChainGraph = (chainId?: string) => {
 
   const onNodeDragStart = useCallback(
     (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
+      clearHoverTimer();
       highlightDragIntersections(draggedNode);
+      expandDragIntersection(draggedNode);
     },
-    [highlightDragIntersections],
+    [clearHoverTimer, expandDragIntersection, highlightDragIntersections],
   );
 
   const onNodeDrag = useCallback(
     (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
+      clearHoverTimer();
       highlightDragIntersections(draggedNode);
+      expandDragIntersection(draggedNode);
     },
-    [highlightDragIntersections],
+    [clearHoverTimer, expandDragIntersection, highlightDragIntersections],
   );
 
   const onNodeDragStop = useCallback(
-    async (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
+    async (_event: React.MouseEvent, draggedNode: ChainGraphNode) => {
       if (!chainId) return;
       if (isLibraryLoading) return;
-      const originalNode = nodes.find((n) => n.id === draggedNode.id);
-      if (!originalNode) return;
-      const allSelectedIds: string[] | undefined = nodes
-        .filter((node) => node.selected)
-        .map((node) => node.id);
-      if (allSelectedIds === undefined) return;
 
-      const originalParentId: string | undefined = originalNode.parentId;
+      clearHoverTimer?.();
+      setNodes((curr) => applyHighlight(curr));
+
+      const allBefore = nodesRef.current as ChainGraphNode[];
+
+      const originalNode = allBefore.find((node) => node.id === draggedNode.id);
+      if (!originalNode) return;
+
+      const selectedIds = allBefore
+        .filter((n) => n.selected)
+        .map((n) => n.id) || [originalNode.id];
+      if (!selectedIds.length) return;
+
+      const originalParentId = originalNode.parentId;
 
       let newParentNode: Node | undefined = undefined;
-
       const possibleGraphIntersect: Node | undefined =
         getPossibleGraphIntersection(
           getIntersectingNodes(draggedNode) as ChainGraphNode[],
-          collectChildren(draggedNode.id, nodes),
+          collectChildren(draggedNode.id, allBefore),
         ) ?? undefined;
 
       if (possibleGraphIntersect !== undefined) {
@@ -432,58 +610,109 @@ export const useChainGraph = (chainId?: string) => {
       }
 
       const parentNodeId = newParentNode?.id ?? undefined;
+      const isParentChanged = parentNodeId !== originalParentId;
 
-      const isParentChanged: boolean = parentNodeId !== originalParentId;
-      if (!isParentChanged && newParentNode === undefined) return;
-      let parentId = originalParentId;
+      if (!isParentChanged) return;
 
-      if (isParentChanged) {
-        try {
-          const request: TransferElementRequest = {
-            parentId: newParentNode?.id ?? null,
-            elements: allSelectedIds,
-            swimlaneId: null,
-          };
-
-          const response = await api.transferElement(request, chainId);
-          parentId =
-            findUpdatedElement(response.updatedElements, draggedNode.id)
-              ?.parentElementId ?? undefined;
-        } catch (error) {
-          notificationService.errorWithDetails(
-            "Drag element failed",
-            "Failed to drag element",
-            error,
-          );
-          parentId = originalParentId;
-        }
+      let finalParentId = originalParentId;
+      try {
+        const request: TransferElementRequest = {
+          parentId: newParentNode?.id ?? null,
+          elements: selectedIds,
+          swimlaneId: null,
+        };
+        const response = await api.transferElement(request, chainId);
+        finalParentId =
+          findUpdatedElement(response.updatedElements, draggedNode.id)
+            ?.parentElementId ?? undefined;
+      } catch (error) {
+        notificationService.errorWithDetails(
+          "Drag element failed",
+          "Failed to drag element",
+          error,
+        );
+        finalParentId = originalParentId;
       }
 
-      setNodes((prevNodes) =>
-        prevNodes.map((prevNode) => {
-          if (allSelectedIds.includes(prevNode.id)) {
-            return {
-              ...prevNode,
-              parentId: parentId ?? undefined,
-              data: {
-                ...prevNode.data,
-              },
-            };
-          }
-          return prevNode;
-        }),
+      const getAbs = (node: ChainGraphNode, allNodes: ChainGraphNode[]) => {
+        let x = node.position?.x ?? 0;
+        let y = node.position?.y ?? 0;
+        let parentId = node.parentId;
+        while (parentId) {
+          const parent = allNodes.find((node) => node.id === parentId);
+          if (!parent) break;
+          x += parent.position?.x ?? 0;
+          y += parent.position?.y ?? 0;
+          parentId = parent.parentId;
+        }
+        return { x, y };
+      };
+
+      const getParentAbs = (
+        parentId: string | undefined,
+        all: ChainGraphNode[],
+      ) => {
+        if (!parentId) return { x: 0, y: 0 };
+        const parent = all.find((node) => node.id === parentId);
+        if (!parent) return { x: 0, y: 0 };
+        return getAbs(parent, all);
+      };
+
+      setNodes((prev) => {
+        const snapshot = nodesRef.current as ChainGraphNode[];
+        const parentAbs = getParentAbs(finalParentId, snapshot);
+
+        const next = (prev as ChainGraphNode[]).map((node) => {
+          if (!selectedIds.includes(node.id)) return node;
+
+          const nowAbs = getAbs(
+            snapshot.find((z) => z.id === node.id)!,
+            snapshot,
+          );
+
+          const newLocal = {
+            x: nowAbs.x - parentAbs.x,
+            y: nowAbs.y - parentAbs.y,
+          };
+
+          return {
+            ...node,
+            parentId: finalParentId ?? undefined,
+            position: newLocal,
+          };
+        });
+
+        return sortParentsBeforeChildren(next);
+      });
+
+      const affectedParents = new Set<string>();
+      if (originalParentId) affectedParents.add(originalParentId);
+      if (finalParentId && finalParentId !== originalParentId)
+        affectedParents.add(finalParentId);
+
+      const leastCommonParent = getLeastCommonParent(
+        originalParentId,
+        finalParentId,
+        nodesRef.current as ChainGraphNode[],
       );
-      structureChanged();
+      if (leastCommonParent) affectedParents.add(leastCommonParent);
+
+      const affectedParentIds = Array.from(affectedParents);
+      if (affectedParentIds.length) {
+        structureChanged(affectedParentIds);
+      } else {
+        structureChanged();
+      }
     },
     [
       chainId,
-      getIntersectingNodes,
       isLibraryLoading,
+      getIntersectingNodes,
       libraryElements,
-      nodes,
       notificationService,
       setNodes,
       structureChanged,
+      clearHoverTimer,
     ],
   );
 

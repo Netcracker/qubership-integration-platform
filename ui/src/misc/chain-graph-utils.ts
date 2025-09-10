@@ -1,5 +1,5 @@
 import { Element, LibraryElement } from "../api/apiTypes.ts";
-import { Node, Position, XYPosition } from "@xyflow/react";
+import { Edge, Node, Position, XYPosition } from "@xyflow/react";
 import { ElkDirection } from "../hooks/graph/useElkDirection.tsx";
 import {
   ChainGraphNode,
@@ -41,7 +41,9 @@ export function getNodeFromElement(
   element: Element,
   libraryElement?: LibraryElement,
   direction?: ElkDirection,
+  position?: XYPosition,
 ): ChainGraphNode {
+  const defaultPosition: XYPosition = { x: 0, y: 0 };
   const nodeType = libraryElement?.container ? "container" : "unit";
   const isHorizontal = direction === "RIGHT";
   const isContainer = nodeType === "container";
@@ -54,6 +56,8 @@ export function getNodeFromElement(
       ? { width: 300, height: 300 }
       : { width: 150, height: 50 };
 
+  const possiblePosition = position ?? defaultPosition;
+
   return {
     id: element.id,
     type: nodeType,
@@ -61,8 +65,11 @@ export function getNodeFromElement(
       ...getDataFromElement(element, libraryElement),
       direction,
     },
-    position: { x: 0, y: 0 },
-    draggable: libraryElement?.inputEnabled && libraryElement?.outputEnabled,
+    position: element.parentElementId ? defaultPosition : possiblePosition,
+    draggable: !(
+      libraryElement?.parentRestriction !== undefined &&
+      libraryElement?.parentRestriction.length > 0
+    ),
     targetPosition: isHorizontal ? Position.Left : Position.Top,
     sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
     ...defaultSize,
@@ -171,9 +178,214 @@ export function getFakeNode(flowPosition: XYPosition): ChainGraphNode {
   } as ChainGraphNode;
 }
 
-export function applyHighlight(nodes: ChainGraphNode[], highlightId?: string): ChainGraphNode[] {
+export function applyHighlight(
+  nodes: ChainGraphNode[],
+  highlightId?: string,
+): ChainGraphNode[] {
   return nodes.map((node) => ({
     ...node,
-    className: highlightId?.includes(node.id)  ? "highlight" : "",
+    className: highlightId?.includes(node.id) ? "highlight" : "",
   }));
+}
+
+export function computeNestedUnitCounts(
+  nodes: ChainGraphNode[],
+): Map<string, number> {
+  const childrenMap = new Map<string, ChainGraphNode[]>();
+  for (const node of nodes) {
+    if (node.parentId) {
+      (
+        childrenMap.get(node.parentId) ??
+        childrenMap.set(node.parentId, []).get(node.parentId)!
+      ).push(node);
+    }
+  }
+
+  const childrenCountMap = new Map<string, number>();
+  const visiting = new Set<string>();
+
+  const getNestedNodesCount = (id: string): number => {
+    if (childrenCountMap.has(id)) return childrenCountMap.get(id)!;
+    if (visiting.has(id)) return 0;
+    visiting.add(id);
+
+    let counter = 0;
+    const children = childrenMap.get(id) ?? [];
+    for (const child of children) {
+      if (child.type === "container") {
+        counter += getNestedNodesCount(child.id);
+      } else {
+        counter += 1 + getNestedNodesCount(child.id);
+      }
+    }
+    visiting.delete(id);
+    childrenCountMap.set(id, counter);
+    return counter;
+  };
+
+  for (const node of nodes) {
+    if (node.type === "container") getNestedNodesCount(node.id);
+  }
+  return childrenCountMap;
+}
+
+export function collectSubgraphByParents(
+  parentIds: string[],
+  allNodes: ChainGraphNode[],
+): ChainGraphNode[] {
+  const subGraphMap = new Map<string, ChainGraphNode>();
+
+  for (const parentId of parentIds) {
+    const parent = allNodes.find((n) => n.id === parentId);
+    if (!parent) continue;
+
+    subGraphMap.set(parent.id, parent);
+    const children = collectChildren(parent.id, allNodes);
+    for (const ch of children) subGraphMap.set(ch.id, ch);
+  }
+  return Array.from(subGraphMap.values());
+}
+
+export function edgesForSubgraph(
+  allEdges: Edge[],
+  nodesInSubgraph: ChainGraphNode[],
+): Edge[] {
+  const ids = new Set(nodesInSubgraph.map((n) => n.id));
+  return allEdges.filter((e) => ids.has(e.source) && ids.has(e.target));
+}
+
+export function sortParentsBeforeChildren<
+  T extends { id: string; parentId?: string },
+>(nodes: T[]): T[] {
+  const nodesMap = new Map(nodes.map((node) => [node.id, node]));
+  const depthCache = new Map<string, number>();
+  const getDepth = (n: T): number => {
+    let depth = 0;
+    let parentId = n.parentId ? nodesMap.get(n.parentId) : undefined;
+    while (parentId) {
+      depth++;
+      parentId = parentId.parentId
+        ? nodesMap.get(parentId.parentId)
+        : undefined;
+      if (depth > 1000) break;
+    }
+    return depth;
+  };
+
+  const index = new Map(nodes.map((node, i) => [node.id, i]));
+
+  return [...nodes].sort((left, right) => {
+    const leftDepth = depthCache.has(left.id)
+      ? depthCache.get(left.id)!
+      : getDepth(left);
+    const rightDepth = depthCache.has(right.id)
+      ? depthCache.get(right.id)!
+      : getDepth(right);
+    if (!depthCache.has(left.id)) depthCache.set(left.id, leftDepth);
+    if (!depthCache.has(right.id)) depthCache.set(right.id, rightDepth);
+
+    if (leftDepth !== rightDepth) return leftDepth - rightDepth;
+    return index.get(left.id)! - index.get(right.id)!;
+  });
+}
+
+export function getContainerIdsForEdges(
+  edges: Edge[],
+  allNodes: ChainGraphNode[],
+): string[] {
+  const nodeMap = new Map(allNodes.map((node) => [node.id, node]));
+  const resultSet = new Set<string>();
+  for (const edge of edges) {
+    const sourceParent = nodeMap.get(edge.source)?.parentId;
+    const targetParent = nodeMap.get(edge.target)?.parentId;
+    if (sourceParent) resultSet.add(sourceParent);
+    if (targetParent) resultSet.add(targetParent);
+  }
+  return Array.from(resultSet);
+}
+
+export function getParentChain(
+  id: string | undefined,
+  allNodes: ChainGraphNode[],
+): string[] {
+  if (!id) return [];
+  const nodeMap = new Map(allNodes.map((node) => [node.id, node]));
+  const chain: string[] = [];
+  const seen = new Set<string>();
+
+  let cur: string | undefined = id;
+  while (cur && !seen.has(cur)) {
+    chain.push(cur);
+    seen.add(cur);
+    cur = nodeMap.get(cur)?.parentId;
+  }
+  return chain;
+}
+
+export function getLeastCommonParent(
+  left: string | undefined,
+  right: string | undefined,
+  allNodes: ChainGraphNode[],
+): string | undefined {
+  if (!left || !right) return undefined;
+  if (left === right) return left;
+
+  const nodeMap = new Map(allNodes.map((node) => [node.id, node]));
+  const up = new Set(getParentChain(left, allNodes));
+
+  let cur: string | undefined = right;
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur)) {
+    if (up.has(cur)) return cur;
+    seen.add(cur);
+    cur = nodeMap.get(cur)?.parentId;
+  }
+  return undefined;
+}
+
+export function expandWithParent(
+  parentIds: string[],
+  allNodes: ChainGraphNode[],
+): string[] {
+  const nodeMap = new Map(allNodes.map((node) => [node.id, node]));
+  const out = new Set<string>(parentIds);
+  const stack = [...parentIds];
+  while (stack.length) {
+    const id = stack.pop()!;
+    const node = nodeMap.get(id);
+    if (node?.parentId && !out.has(node.parentId)) {
+      out.add(node.parentId);
+      stack.push(node.parentId);
+    }
+  }
+  return Array.from(out.values());
+}
+
+export function mergeWithPinnedPositions(
+    base: ChainGraphNode[],
+    laidSubset: ChainGraphNode[],
+    pinnedIds: Set<string>,
+): ChainGraphNode[] {
+    const baseMap = new Map(base.map((node) => [node.id, node]));
+    const laidMap = new Map(laidSubset.map((node) => [node.id, node]));
+    return base.map((node) => {
+        const laid = laidMap.get(node.id);
+        if (!laid) return node;
+        const merged: ChainGraphNode = { ...node, ...laid };
+        if (pinnedIds.has(node.id)) {
+            merged.position = baseMap.get(node.id)?.position ?? merged.position;
+        }
+        return merged;
+    });
+}
+
+export function depthOf(id: string, byId: Map<string, ChainGraphNode>): number {
+    let depth = 0;
+    let parent = byId.get(id)?.parentId;
+    while (parent) {
+        depth++;
+        parent = byId.get(parent)?.parentId;
+        if (depth > 1000) break;
+    }
+    return depth;
 }

@@ -1,5 +1,7 @@
 import { Handle, NodeProps, Position } from "@xyflow/react";
 import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
+import { useMemo } from "react";
+import { EllipsisLabel } from "./EllipsisLabel";
 
 export function UnitNode({
   data,
@@ -8,6 +10,11 @@ export function UnitNode({
   targetPosition = Position.Left,
   sourcePosition = Position.Right,
 }: NodeProps<ChainGraphNode>) {
+  const trimmedLabel = useMemo(
+    () => (data.label?.split("\n")[0] ?? "Node").trim(),
+    [data.label],
+  );
+
   return (
     <div
       style={{
@@ -27,13 +34,19 @@ export function UnitNode({
           height: "100%",
           display: "grid",
           placeItems: "center",
-          pointerEvents: "none",
           userSelect: "none",
           textAlign: "center",
           lineHeight: 1.2,
+          padding: "6px 8px",
         }}
       >
-        <span>{data.label ?? "Node"}</span>
+        <EllipsisLabel
+          text={trimmedLabel}
+          style={{
+            maxWidth: "100%",
+            minWidth: 0,
+          }}
+        />
       </div>
 
       {data.inputEnabled !== false && (
