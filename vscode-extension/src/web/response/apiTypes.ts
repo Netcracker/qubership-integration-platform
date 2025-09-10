@@ -46,6 +46,7 @@ export type Chain = BaseEntity & {
   elements: Element[];
   dependencies: Dependency[];
   deployments: Deployment[];
+  deployAction?: ChainCommitRequestAction;
   labels: EntityLabel[];
   defaultSwimlaneId: string;
   reuseSwimlaneId: string;
