@@ -4,14 +4,17 @@ import TextArea from "antd/lib/input/TextArea";
 import { Chain } from "../api/apiTypes.ts";
 import { useForm } from "antd/lib/form/Form";
 import { ChainContext } from "./ChainPage.tsx";
+import { ChainExtensionProperties, loadChainExtensionPropertiesToForm, readChainExtensionPropertiesFromForm } from "./ChainExtensionProperties.tsx";
 
-type FormData = {
+export type FormData = {
   name: string;
   labels: string[];
   description: string;
   businessDescription: string;
   assumptions: string;
   outOfScope: string;
+  domain?: string;
+  deployAction?: string;
 };
 
 export const ChainProperties: React.FC = () => {
@@ -23,7 +26,7 @@ export const ChainProperties: React.FC = () => {
 
   useEffect(() => {
     if (chainContext?.chain) {
-      const formData = {
+      const formData: FormData = {
         name: chainContext.chain.name,
         labels: chainContext.chain.labels.map((label) => label.name),
         description: chainContext.chain.description,
@@ -31,6 +34,7 @@ export const ChainProperties: React.FC = () => {
         assumptions: chainContext.chain.assumptions,
         outOfScope: chainContext.chain.outOfScope,
       };
+      loadChainExtensionPropertiesToForm(chainContext, formData);
       form.setFieldsValue(formData);
     }
   }, [chainContext, form]);
@@ -56,6 +60,7 @@ export const ChainProperties: React.FC = () => {
             assumptions: values.assumptions,
             outOfScope: values.outOfScope,
           };
+          readChainExtensionPropertiesFromForm(values, changes);
           setIsUpdating(true);
           void chainContext
             .update(changes)
@@ -88,6 +93,7 @@ export const ChainProperties: React.FC = () => {
       <Form.Item label="Out of Scope" name="outOfScope">
         <TextArea style={{ height: 120, resize: "none" }} />
       </Form.Item>
+      <ChainExtensionProperties onChange={() => setHasChanges(true)}/>
       <Button
         type="primary"
         htmlType="submit"
