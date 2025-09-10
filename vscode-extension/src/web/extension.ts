@@ -45,7 +45,7 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolde
 
     panel.webview.onDidReceiveMessage(async (message: VSCodeMessageWrapper) => {
         // Handle the mock response
-        console.log('QIP Extension API Request:', message.data);
+        console.log('QIP Extension API Request:', message);
 
         const response: VSCodeResponse = {
             requestId: message.data.requestId,

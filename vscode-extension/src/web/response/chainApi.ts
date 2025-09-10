@@ -3,12 +3,22 @@ import {Uri} from "vscode";
 import {
     createConnection,
     createElement,
+    createMaskedField,
     deleteConnections,
     deleteElements,
+    deleteMaskedFields,
     updateChain,
-    updateElement
+    updateElement,
+    updateMaskedField
 } from "./chainApiModify";
-import {getChain, getConnections, getElements, getLibrary, getLibraryElementByType} from "./chainApiRead";
+import {
+    getChain,
+    getConnections,
+    getElements,
+    getLibrary,
+    getLibraryElementByType,
+    getMaskedFields
+} from "./chainApiRead";
 import {getChainFolderUri, getChainUri} from "./chainApiUtils";
 
 export async function getApiResponse(message: VSCodeMessage, openedDocumentFolderUri: Uri | undefined): Promise<any> {
@@ -27,5 +37,9 @@ export async function getApiResponse(message: VSCodeMessage, openedDocumentFolde
         case 'createConnection': return await createConnection(mainFolder, message.payload.chainId, message.payload.connectionRequest);
         case 'deleteConnections': return await deleteConnections(mainFolder, message.payload.chainId, message.payload.connectionIds);
         case 'updateChain': return await updateChain(mainFolder, message.payload.id, message.payload.chain);
+        case 'getMaskedFields': return await getMaskedFields(mainFolder, message.payload);
+        case 'createMaskedField': return await createMaskedField(mainFolder, message.payload.chainId, message.payload.maskedField);
+        case 'deleteMaskedFields': return await deleteMaskedFields(mainFolder, message.payload.chainId, message.payload.maskedFieldIds);
+        case 'updateMaskedField': return await updateMaskedField(mainFolder, message.payload.id, message.payload.chainId, message.payload.maskedField);
     }
 }

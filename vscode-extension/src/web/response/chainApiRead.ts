@@ -1,4 +1,4 @@
-import {Chain, Dependency, Element, LibraryData, LibraryElement} from "./apiTypes";
+import {Chain, Dependency, Element, LibraryData, LibraryElement, MaskedField, MaskedFields} from "./apiTypes";
 import {Uri} from "vscode";
 import {EMPTY_USER, findElementById, getElementChildren} from "./chainApiUtils";
 import {fileApi} from "./file/fileApiProvider";
@@ -44,6 +44,48 @@ function findLibraryElementByType(partialLibraryData: any, type: string): any | 
         }
     }
     return null;
+}
+
+export function getMaskedField(chain: any, id: string) {
+    let maskedField = chain.content.maskedFields?.find((mf: any) => mf.id === id);
+    if (!maskedField) {
+        console.error(`Masked Field not found`);
+        throw Error("Masked Field not found");
+    }
+    return maskedField;
+}
+
+export function parseMaskedField(chain: any, id: string): MaskedField {
+
+    const maskedField = getMaskedField(chain, id);
+
+    return {
+        id: maskedField.id,
+        name: maskedField.name,
+        createdWhen: chain.content.modifiedWhen,
+        modifiedWhen: chain.content.modifiedWhen,
+        createdBy: {...EMPTY_USER},
+        modifiedBy: {...EMPTY_USER},
+    };
+}
+
+export async function getMaskedFields(mainFolderUri: Uri, chainId: string): Promise<MaskedFields> {
+    const chain: any = await getMainChain(mainFolderUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    const fields: MaskedField[] = [];
+    if (chain.content.maskedFields) {
+        for (const maskedField of chain.content.maskedFields) {
+            fields.push(parseMaskedField(chain, maskedField.id));
+        }
+    }
+
+    return  {
+        fields,
+    };
 }
 
 export async function getConnections(mainFolderUri: Uri, chainId: string): Promise<Dependency[]> {

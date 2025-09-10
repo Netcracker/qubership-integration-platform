@@ -7,10 +7,17 @@ import {
     Element,
     LibraryElementProperty,
     LibraryElementQuantity,
-    LibraryInputQuantity,
+    LibraryInputQuantity, MaskedField,
     PatchElementRequest
 } from "./apiTypes";
-import {getChain, getDependencyId, getElement, getLibraryElementByType, getMainChain} from "./chainApiRead";
+import {
+    getChain,
+    getDependencyId,
+    getElement,
+    getLibraryElementByType,
+    getMainChain,
+    getMaskedField, parseMaskedField
+} from "./chainApiRead";
 import {EMPTY_USER, findElementById, getElementChildren} from "./chainApiUtils";
 import {Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";
@@ -495,4 +502,58 @@ export async function deleteConnections(mainFolderUri: Uri, chainId: string, con
             ...removedConnections
         ]
     };
+}
+
+export async function deleteMaskedFields(mainFolderUri: Uri, chainId: string, maskedFieldIds: string[]): Promise<void> {
+    const chain: any = await getMainChain(mainFolderUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    for (const maskedFieldId of maskedFieldIds) {
+        let index = chain.content.maskedFields?.findIndex((mf: any) => mf.id === maskedFieldId);
+        if (index) {
+            chain.content.maskedFields.splice(index, 1);
+        }
+    }
+
+    await fileApi.writeMainChain(mainFolderUri, chain);
+}
+
+export async function updateMaskedField(mainFolderUri: Uri, id: string, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
+    const chain: any = await getMainChain(mainFolderUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+    let maskedField = getMaskedField(chain, id);
+
+    maskedField.name = changes.name;
+
+    await fileApi.writeMainChain(mainFolderUri, chain);
+
+    return parseMaskedField(chain, id);
+}
+
+export async function createMaskedField(mainFolderUri: Uri, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
+    const chain: any = await getMainChain(mainFolderUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    if (!chain.content.maskedFields) {
+        chain.content.maskedFields = [];
+    }
+
+    const id = crypto.randomUUID();;
+    chain.content.maskedFields.push({
+        id: id,
+        name: changes.name,
+    });
+
+    await fileApi.writeMainChain(mainFolderUri, chain);
+
+    return parseMaskedField(chain, id);
 }
