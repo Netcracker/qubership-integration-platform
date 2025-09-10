@@ -36,13 +36,16 @@ properties:
         title: Retry delay (ms)
         description: Specifies delay between retries in millis.
       before:
+        title: Action
         $ref: "#/definitions/ExchangeTransformation"
       after:
         type: array
         items:
           $ref: "#/definitions/ResponseHandler"
       authorizationConfiguration:
+        title: Authorization type
         oneOf:
+          - $ref: "#/definitions/AuthorizationInherit"
           - $ref: "#/definitions/AuthorizationNone"
           - $ref: "#/definitions/AuthorizationBasic"
           - $ref: "#/definitions/AuthorizationBearerToken"
@@ -61,12 +64,22 @@ properties:
           items:
             $ref: "#/definitions/ResponseValidation"
 definitions:
-  AuthorizationNone:
+  AuthorizationInherit:
+    title: Inherit
     type: object
+    description: "Authorization will be inherited from exchange header"
+    properties:
+      type:
+        const: inherit
+  AuthorizationNone:
+    title: None
+    type: object
+    description: "Authorization will be deleted from exchange header"
     properties:
       type:
         const: none
   AuthorizationBasic:
+    title: Basic Auth
     type: object
     properties:
       type:
@@ -75,13 +88,16 @@ definitions:
         type: object
         properties:
           username:
+            title: Username
             type: string
           password:
+            title: Password
             type: string
         required:
           - username
           - password
   AuthorizationBearerToken:
+    title: Bearer Token
     type: object
     properties:
       type:
@@ -90,11 +106,14 @@ definitions:
         type: object
         properties:
           token:
+            title: Token
             type: string
         required:
           - token
   AuthorizationM2MToken:
+    title: M2M Token
     type: object
+    description: "Authorization header will be replaced on the generated machine to machine token"
     properties:
       type:
         const: m2m
@@ -116,6 +135,7 @@ definitions:
   ExchangeTransformation:
     oneOf:
       - type: object
+        title: Mapper
         allOf:
           - $ref: "http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml#/definitions/MapperParameters"
         properties:
@@ -124,6 +144,7 @@ definitions:
         required:
           - type
       - type: object
+        title: Scripting
         allOf:
           - $ref: "http://qubership.org/schemas/product/qip/element/script.schema.yaml#/definitions/ScriptProperties"
         properties:
@@ -131,10 +152,18 @@ definitions:
             const: "script"
         required:
           - type
+      - type: object
+        title: None
+        properties:
+          type:
+            anyOf:
+              - const: "none"
+              - not: { }
   ValidationFailureHandler:
     type: object
     properties:
       handleValidationAction:
+        title: Action
         type: string
         enum:
           - default
@@ -168,17 +197,7 @@ definitions:
           - handlerContainer
   ResponseHandler:
     type: object
-    anyOf:
-      - $ref: "#/definitions/ExchangeTransformation"
-      - not:
-          type: object
-          properties:
-            type:
-              enum:
-                - script
-                - mapper-2
-          required:
-            - type
+    $ref: "#/definitions/ExchangeTransformation"
     properties:
       id:
         type: string

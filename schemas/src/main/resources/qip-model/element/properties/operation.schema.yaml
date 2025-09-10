@@ -133,6 +133,7 @@ properties:
     $ref: "#/definitions/Protocol"
   integrationOperationMethod:
     title: Operation method
+    type: string
   integrationOperationPath:
     type: string
     title: Operation name

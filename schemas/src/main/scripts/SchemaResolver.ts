@@ -4,6 +4,43 @@ import $RefParser from "@apidevtools/json-schema-ref-parser";
 // @ts-ignore
 import yaml from "js-yaml";
 
+const qubershipResolver = {
+    order: 1,
+    canRead: (file: any) => {
+        return file.url.startsWith("http://qubership.org/schemas/product/qip/")
+    },
+    read(file: any) {
+
+
+        const relPath = file.url.replace(
+            "http://qubership.org/schemas/product/qip/",
+            ""
+        );
+
+        const absPath = path.resolve(
+            process.cwd(),
+            "src/main/resources/qip-model/",
+            relPath
+        );
+
+
+        const content = fs.readFileSync(absPath, "utf-8");
+
+        if (absPath.endsWith(".yaml")) {
+            return yaml.load(content);
+        }
+    },
+};
+
+const ignoreSchemaResolver = {
+    order: 0,
+    canRead: (file: any) =>
+        file.url === "http://json-schema.org/draft-07/schema",
+    read: (file: any) => {
+        return file.url;
+    },
+};
+
 export class SchemaResolver {
     private inputDir = path.resolve(process.cwd(), "src/main/resources/qip-model/element");
     private outputDir = path.resolve(process.cwd(), "assets");
@@ -59,7 +96,17 @@ export class SchemaResolver {
 
     private async resolveSchemaFile(filename: string): Promise<void> {
         const fullPath = path.join(this.inputDir, filename);
-        const schema = await $RefParser.dereference(fullPath, {
+
+        const rawContent = fs.readFileSync(fullPath, "utf-8");
+        const schema = yaml.load(rawContent);
+
+        const derefSchema = await $RefParser.dereference(schema, {
+            resolve: {
+                ignoreSchema: ignoreSchemaResolver,
+                qubership: qubershipResolver,
+                file: true,
+                http: false,
+            },
             dereference: {
                 excludedPathMatcher: (path: string) => {
                     return path.includes("mappingDescription") ||
@@ -72,11 +119,12 @@ export class SchemaResolver {
                 },
             }
         });
-        this.inlineNestedRefs(schema);
-        this.removeNestedIds(schema);
+
+        this.inlineNestedRefs(derefSchema);
+        this.removeNestedIds(derefSchema);
         const outputPath = path.join(this.outputDir, filename);
 
         fs.mkdirSync(path.dirname(outputPath), {recursive: true});
-        fs.writeFileSync(outputPath, yaml.dump(schema));
+        fs.writeFileSync(outputPath, yaml.dump(derefSchema));
     }
 }
