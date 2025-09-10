@@ -38,7 +38,7 @@ on:
         description: 'Release docker image if there is Docker file'
       profile:
         type: choice
-        default: 'github'
+        default: 'central'
         description: 'Release mode (github or central)'
         required: true
         options:
@@ -64,7 +64,7 @@ jobs:
           echo "Java version: ${{ github.event.inputs.java-version }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Check if tag exists
         id: check_tag
@@ -93,7 +93,7 @@ jobs:
       artifact_id: ${{ steps.config.outputs.artifact_id }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
 
@@ -112,7 +112,6 @@ jobs:
     needs: [update-pom-version]
     uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.3
     with:
-      ref: ${{ github.ref }}
       maven-command: "--batch-mode package"
       java-version: ${{ github.event.inputs.java-version }}
       upload-artifact: true
@@ -129,7 +128,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Run tests
         run: echo "Running tests here"
@@ -162,7 +163,8 @@ jobs:
     outputs:
       dockerfile_exists: ${{ steps.check_dockerfile.outputs.df_exists }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
       - name: "Check Dockerfile existence"
         id: check_dockerfile
         shell: bash
