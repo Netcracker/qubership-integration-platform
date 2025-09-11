@@ -11,28 +11,41 @@ import { EventNotification } from "./components/notifications/EventNotification.
 import { MemoryRouter } from "react-router-dom";
 import DefaultExtensionPage from "./pages/DefaultExtensionPage.tsx";
 import { NotImplemented } from "./pages/NotImplemented.tsx";
+import { Masking } from "./pages/Masking.tsx";
+import { AppProps, setAppName } from "./appConfig.ts";
+import { STARTUP_EVENT, VSCodeExtensionApi } from "./api/rest/vscodeExtensionApi.ts";
+import { api } from "./api/api.ts";
 
-const AppExtension = () => (
-  <Layout className={styles.layout}>
-    <EventNotification>
-      <Modals>
-        <Content className={styles.content}>
-          <MemoryRouter>
-            <Routes>
-              <Route path="/" element={<DefaultExtensionPage />} />
-              <Route path="/chains/:chainId" element={<ChainPage />}>
-                <Route index element={<ChainGraph />} />
-                <Route index path="graph" element={<ChainGraph />} />
-                <Route path="graph/:elementId" element={<ChainGraph />} />
-                <Route path="properties" element={<ChainProperties />} />
-              </Route>
-              <Route path="*" element={<NotImplemented />} />
-            </Routes>
-          </MemoryRouter>
-        </Content>
-      </Modals>
-    </EventNotification>
-  </Layout>
-);
+
+const AppExtension = ({ appName = undefined }: AppProps) => {
+  setAppName(appName);
+  if (api instanceof VSCodeExtensionApi) {
+    void api.sendMessageToExtension(STARTUP_EVENT);
+  }
+
+  return (
+    <Layout className={styles.layout}>
+      <EventNotification>
+        <Modals>
+          <Content className={styles.content}>
+            <MemoryRouter>
+              <Routes>
+                <Route path="/" element={<DefaultExtensionPage />} />
+                <Route path="/chains/:chainId" element={<ChainPage />}>
+                  <Route index element={<ChainGraph />} />
+                  <Route index path="graph" element={<ChainGraph />} />
+                  <Route path="graph/:elementId" element={<ChainGraph />} />
+                  <Route path="masking" element={<Masking />} />
+                  <Route path="properties" element={<ChainProperties />} />
+                </Route>
+                <Route path="*" element={<NotImplemented />} />
+              </Routes>
+            </MemoryRouter>
+          </Content>
+        </Modals>
+      </EventNotification>
+    </Layout>
+  );
+};
 
 export default AppExtension;

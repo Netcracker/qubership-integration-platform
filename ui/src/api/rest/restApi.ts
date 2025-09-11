@@ -68,6 +68,7 @@ import {
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
 import qs from "qs";
+import { getAppName } from "../../appConfig.ts";
 
 export class RestApi implements Api {
   instance: AxiosInstance;
@@ -121,21 +122,21 @@ export class RestApi implements Api {
 
   getChains = async (): Promise<Chain[]> => {
     const response = await this.instance.get<Chain[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains`,
+      `/api/v1/${getAppName()}/catalog/chains`,
     );
     return response.data;
   };
 
   getChain = async (id: string): Promise<Chain> => {
     const response = await this.instance.get<Chain>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${id}`,
+      `/api/v1/${getAppName()}/catalog/chains/${id}`,
     );
     return response.data;
   };
 
   updateChain = async (id: string, chain: Partial<Chain>): Promise<Chain> => {
     const response = await this.instance.put<Chain>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${id}`,
+      `/api/v1/${getAppName()}/catalog/chains/${id}`,
       chain,
     );
     return response.data;
@@ -143,7 +144,7 @@ export class RestApi implements Api {
 
   createChain = async (chain: ChainCreationRequest): Promise<Chain> => {
     const response = await this.instance.post<Chain>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains`,
+      `/api/v1/${getAppName()}/catalog/chains`,
       chain,
     );
     return response.data;
@@ -151,27 +152,27 @@ export class RestApi implements Api {
 
   deleteChain = async (chainId: string): Promise<void> => {
     await this.instance.delete<Chain>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}`,
     );
   };
 
   deleteChains = async (chainIds: string[]): Promise<void> => {
     await this.instance.post(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/bulk-delete`,
+      `/api/v1/${getAppName()}/catalog/chains/bulk-delete`,
       chainIds,
     );
   };
 
   duplicateChain = async (chainId: string): Promise<Chain> => {
     const response = await this.instance.post<Chain>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/duplicate`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/duplicate`,
     );
     return response.data;
   };
 
   copyChain = async (chainId: string, folderId?: string): Promise<Chain> => {
     const response = await this.instance.post<Chain>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/copy`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/copy`,
       null,
       {
         params: { targetFolderId: folderId },
@@ -182,7 +183,7 @@ export class RestApi implements Api {
 
   moveChain = async (chainId: string, folderId?: string): Promise<Chain> => {
     const response = await this.instance.post<Chain>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/move`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/move`,
       null,
       {
         params: { targetFolderId: folderId },
@@ -193,7 +194,7 @@ export class RestApi implements Api {
 
   exportAllChains = async (): Promise<File> => {
     const response = await this.instance.get<Blob>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export`,
+      `/api/v1/${getAppName()}/catalog/export`,
       {
         responseType: "blob",
       },
@@ -206,7 +207,7 @@ export class RestApi implements Api {
     exportSubchains: boolean,
   ): Promise<File> => {
     const response = await this.instance.get<Blob>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export/chains`,
+      `/api/v1/${getAppName()}/catalog/export/chains`,
       {
         params: { chainIds, exportWithSubChains: exportSubchains },
         paramsSerializer: {
@@ -220,21 +221,21 @@ export class RestApi implements Api {
 
   getLibrary = async (): Promise<LibraryData> => {
     const response = await this.instance.get<LibraryData>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/library`,
+      `/api/v1/${getAppName()}/catalog/library`,
     );
     return response.data;
   };
 
   getElementTypes = async (): Promise<ElementFilter[]> => {
     const response = await this.instance.get<ElementFilter[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/library/elements/types`,
+      `/api/v1/${getAppName()}/catalog/library/elements/types`,
     );
     return response.data;
   };
 
   getElements = async (chainId: string): Promise<Element[]> => {
     const response = await this.instance.get<Element[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements`,
     );
     return response.data;
   };
@@ -244,7 +245,7 @@ export class RestApi implements Api {
     elementType: string,
   ): Promise<ElementWithChainName[]> => {
     const response = await this.instance.get<ElementWithChainName[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/type/${elementType}`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements/type/${elementType}`,
     );
     return response.data;
   };
@@ -254,7 +255,7 @@ export class RestApi implements Api {
     chainId: string,
   ): Promise<ActionDifference> => {
     const response = await this.instance.post<ActionDifference>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements`,
       elementRequest,
     );
     return response.data;
@@ -266,7 +267,7 @@ export class RestApi implements Api {
     elementId: string,
   ): Promise<ActionDifference> => {
     const response = await this.instance.patch<ActionDifference>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/${elementId}`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements/${elementId}`,
       elementRequest,
     );
     return response.data;
@@ -277,7 +278,7 @@ export class RestApi implements Api {
     chainId: string,
   ): Promise<ActionDifference> => {
     const response = await this.instance.post<ActionDifference>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/transfer`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements/transfer`,
       transferElementRequest,
     );
     return response.data;
@@ -289,7 +290,7 @@ export class RestApi implements Api {
   ): Promise<ActionDifference> => {
     const elementsIdsParam = elementIds.join(",");
     const response = await this.instance.delete<ActionDifference>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements`,
       {
         params: { elementsIds: elementsIdsParam },
       },
@@ -303,7 +304,7 @@ export class RestApi implements Api {
     httpTriggerIds: string[],
   ): Promise<void> => {
     await this.instance.put(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/elements/properties-modification`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements/properties-modification`,
       {},
       {
         params: {
@@ -318,7 +319,7 @@ export class RestApi implements Api {
 
   getConnections = async (chainId: string): Promise<Connection[]> => {
     const response = await this.instance.get<Connection[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/dependencies`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/dependencies`,
     );
     return response.data;
   };
@@ -328,7 +329,7 @@ export class RestApi implements Api {
     chainId: string,
   ): Promise<ActionDifference> => {
     const response = await this.instance.post<ActionDifference>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/dependencies`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/dependencies`,
       connectionRequest,
     );
     return response.data;
@@ -340,7 +341,7 @@ export class RestApi implements Api {
   ): Promise<ActionDifference> => {
     const connectionIdsParam = connectionIds.join(",");
     const response = await this.instance.delete<ActionDifference>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/dependencies`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/dependencies`,
       {
         params: { dependenciesIds: connectionIdsParam },
       },
@@ -350,34 +351,34 @@ export class RestApi implements Api {
 
   createSnapshot = async (chainId: string): Promise<Snapshot> => {
     const response = await this.instance.post<Snapshot>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/snapshots`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/snapshots`,
     );
     return response.data;
   };
 
   getSnapshots = async (chainId: string): Promise<Snapshot[]> => {
     const response = await this.instance.get<Snapshot[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/snapshots`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/snapshots`,
     );
     return response.data;
   };
 
   getSnapshot = async (snapshotId: string): Promise<Snapshot> => {
     const response = await this.instance.get<Snapshot>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/chainId/snapshots/${snapshotId}`,
+      `/api/v1/${getAppName()}/catalog/chains/chainId/snapshots/${snapshotId}`,
     );
     return response.data;
   };
 
   deleteSnapshot = async (snapshotId: string): Promise<void> => {
     await this.instance.delete(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/chainId/snapshots/${snapshotId}`,
+      `/api/v1/${getAppName()}/catalog/chains/chainId/snapshots/${snapshotId}`,
     );
   };
 
   deleteSnapshots = async (snapshotIds: string[]): Promise<void> => {
     await this.instance.post(
-      `/api/v2/${import.meta.env.VITE_API_APP}/catalog/snapshots/bulk-delete`,
+      `/api/v2/${getAppName()}/catalog/snapshots/bulk-delete`,
       snapshotIds,
     );
   };
@@ -387,7 +388,7 @@ export class RestApi implements Api {
     snapshotId: string,
   ): Promise<Snapshot> => {
     const response = await this.instance.post<Snapshot>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/snapshots/${snapshotId}/revert`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/snapshots/${snapshotId}/revert`,
     );
     return response.data;
   };
@@ -398,7 +399,7 @@ export class RestApi implements Api {
     labels: EntityLabel[],
   ): Promise<Snapshot> => {
     const response = await this.instance.put<Snapshot>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/chainId/snapshots/${snapshotId}`,
+      `/api/v1/${getAppName()}/catalog/chains/chainId/snapshots/${snapshotId}`,
       {
         name,
         labels,
@@ -409,14 +410,14 @@ export class RestApi implements Api {
 
   getLibraryElementByType = async (type: string): Promise<LibraryElement> => {
     const response = await this.instance.get<LibraryElement>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/library/${type}`,
+      `/api/v1/${getAppName()}/catalog/library/${type}`,
     );
     return response.data;
   };
 
   getDeployments = async (chainId: string): Promise<Deployment[]> => {
     const response = await this.instance.get<Deployment[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/deployments`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/deployments`,
     );
     return response.data;
   };
@@ -426,7 +427,7 @@ export class RestApi implements Api {
     request: CreateDeploymentRequest,
   ): Promise<Deployment> => {
     const response = await this.instance.post<Deployment>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/deployments`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/deployments`,
       request,
     );
     return response.data;
@@ -434,13 +435,13 @@ export class RestApi implements Api {
 
   deleteDeployment = async (deploymentId: string): Promise<void> => {
     await this.instance.delete(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/chainId/deployments/${deploymentId}`,
+      `/api/v1/${getAppName()}/catalog/chains/chainId/deployments/${deploymentId}`,
     );
   };
 
   getDomains = async (): Promise<EngineDomain[]> => {
     const response = await this.instance.get<EngineDomain[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/domains`,
+      `/api/v1/${getAppName()}/catalog/domains`,
     );
     return response.data;
   };
@@ -449,7 +450,7 @@ export class RestApi implements Api {
     chainId: string,
   ): Promise<ChainLoggingSettings> => {
     const response = await this.instance.get<ChainLoggingSettings>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/properties/logging`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/properties/logging`,
     );
     return response.data;
   };
@@ -459,20 +460,20 @@ export class RestApi implements Api {
     properties: ChainLoggingProperties,
   ): Promise<void> => {
     await this.instance.post(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/properties/logging`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/properties/logging`,
       properties,
     );
   };
 
   deleteLoggingSettings = async (chainId: string): Promise<void> => {
     await this.instance.delete(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/properties/logging`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/properties/logging`,
     );
   };
 
   getMaskedFields = async (chainId: string): Promise<MaskedField[]> => {
     const response = await this.instance.get<MaskedFields>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/masking`,
     );
     return response.data.fields;
   };
@@ -482,7 +483,7 @@ export class RestApi implements Api {
     maskedField: Partial<Omit<MaskedField, "id">>,
   ): Promise<MaskedField> => {
     const response = await this.instance.post<MaskedField>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/masking`,
       maskedField,
     );
     return response.data;
@@ -493,7 +494,7 @@ export class RestApi implements Api {
     maskedFieldIds: string[],
   ): Promise<void> => {
     await this.instance.post(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking/field`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/masking/field`,
       maskedFieldIds,
     );
   };
@@ -503,7 +504,7 @@ export class RestApi implements Api {
     maskedFieldId: string,
   ): Promise<void> => {
     await this.instance.delete(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking/field/${maskedFieldId}`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/masking/field/${maskedFieldId}`,
     );
   };
 
@@ -513,7 +514,7 @@ export class RestApi implements Api {
     changes: Partial<Omit<MaskedField, "id">>,
   ): Promise<MaskedField> => {
     const response = await this.instance.put<MaskedField>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/${chainId}/masking/field/${maskedFieldId}`,
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/masking/field/${maskedFieldId}`,
       changes,
     );
     return response.data;
@@ -524,7 +525,7 @@ export class RestApi implements Api {
     filters: SessionFilterAndSearchRequest,
     paginationOptions: PaginationOptions,
   ): Promise<SessionSearchResponse> => {
-    const prefix = `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions`;
+    const prefix = `/api/v1/${getAppName()}/sessions-management/sessions`;
     const url = chainId ? `${prefix}/chains/${chainId}` : prefix;
     const params: Record<string, string> = {};
     if (paginationOptions.offset) {
@@ -543,7 +544,7 @@ export class RestApi implements Api {
 
   deleteSessions = async (sessionIds: string[]): Promise<void> => {
     await this.instance.post(
-      `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions/bulk-delete`,
+      `/api/v1/${getAppName()}/sessions-management/sessions/bulk-delete`,
       sessionIds,
     );
   };
@@ -551,14 +552,14 @@ export class RestApi implements Api {
   deleteSessionsByChainId = async (
     chainId: string | undefined,
   ): Promise<void> => {
-    const prefix = `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions`;
+    const prefix = `/api/v1/${getAppName()}/sessions-management/sessions`;
     const url = chainId ? `${prefix}/chains/${chainId}` : prefix;
     await this.instance.delete(url);
   };
 
   exportSessions = async (sessionIds: string[]): Promise<File> => {
     const response = await this.instance.post<Blob>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions/export`,
+      `/api/v1/${getAppName()}/sessions-management/sessions/export`,
       sessionIds,
       { responseType: "blob" },
     );
@@ -572,7 +573,7 @@ export class RestApi implements Api {
     headers.set("Content-Type", "multipart/form-data");
     headers.set("accept", "*/*");
     const response = await this.instance.post<Session[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions/import`,
+      `/api/v1/${getAppName()}/sessions-management/sessions/import`,
       formData,
       { headers },
     );
@@ -584,14 +585,14 @@ export class RestApi implements Api {
     sessionId: string,
   ): Promise<void> => {
     await this.instance.post(
-      `/api/v1/${import.meta.env.VITE_API_APP}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
+      `/api/v1/${getAppName()}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
       null,
     );
   };
 
   getSession = async (sessionId: string): Promise<Session> => {
     const response = await this.instance.get<Session>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/sessions-management/sessions/${sessionId}`,
+      `/api/v1/${getAppName()}/sessions-management/sessions/${sessionId}`,
     );
     return response.data;
   };
@@ -600,7 +601,7 @@ export class RestApi implements Api {
     sessionIds: string[],
   ): Promise<CheckpointSession[]> => {
     const response = await this.instance.get<CheckpointSession[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/engine/sessions`,
+      `/api/v1/${getAppName()}/engine/sessions`,
       {
         params: { ids: sessionIds },
         paramsSerializer: {
@@ -616,14 +617,14 @@ export class RestApi implements Api {
     sessionId: string,
   ): Promise<void> => {
     return this.instance.post(
-      `/api/v1/${import.meta.env.VITE_API_APP}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
+      `/api/v1/${getAppName()}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
       null,
     );
   };
 
   getFolder = async (folderId: string): Promise<FolderItem> => {
     const response = await this.instance.get<FolderItem>(
-      `/api/v2/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
+      `/api/v2/${getAppName()}/catalog/folders/${folderId}`,
     );
     return response.data;
   };
@@ -633,7 +634,7 @@ export class RestApi implements Api {
     openedFolderId: string,
   ): Promise<FolderItem[]> => {
     const response = await this.instance.get<FolderItem[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/`,
+      `/api/v1/${getAppName()}/catalog/folders/`,
       {
         params: {
           filter: filter,
@@ -646,14 +647,14 @@ export class RestApi implements Api {
 
   getPathToFolder = async (folderId: string): Promise<FolderItem[]> => {
     const response = await this.instance.get<FolderItem[]>(
-      `/api/v2/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}/path`,
+      `/api/v2/${getAppName()}/catalog/folders/${folderId}/path`,
     );
     return response.data;
   };
 
   createFolder = async (request: CreateFolderRequest): Promise<FolderItem> => {
     const response = await this.instance.post<FolderItem>(
-      `/api/v2/${import.meta.env.VITE_API_APP}/catalog/folders`,
+      `/api/v2/${getAppName()}/catalog/folders`,
       request,
     );
     return response.data;
@@ -664,7 +665,7 @@ export class RestApi implements Api {
     changes: UpdateFolderRequest,
   ): Promise<FolderItem> => {
     const response = await this.instance.put<FolderItem>(
-      `/api/v2/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
+      `/api/v2/${getAppName()}/catalog/folders/${folderId}`,
       changes,
     );
     return response.data;
@@ -672,13 +673,13 @@ export class RestApi implements Api {
 
   deleteFolder = async (folderId: string): Promise<void> => {
     await this.instance.delete(
-      `/api/v2/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}`,
+      `/api/v2/${getAppName()}/catalog/folders/${folderId}`,
     );
   };
 
   deleteFolders = async (folderIds: string[]): Promise<void> => {
     await this.instance.post(
-      `/api/v2/${import.meta.env.VITE_API_APP}/catalog/folders/bulk-delete`,
+      `/api/v2/${getAppName()}/catalog/folders/bulk-delete`,
       folderIds,
     );
   };
@@ -687,7 +688,7 @@ export class RestApi implements Api {
     request: ListFolderRequest,
   ): Promise<(FolderItem | ChainItem)[]> => {
     const response = await this.instance.post<(FolderItem | ChainItem)[]>(
-      `/api/v2/${import.meta.env.VITE_API_APP}/catalog/folders/list`,
+      `/api/v2/${getAppName()}/catalog/folders/list`,
       request,
     );
     return response.data;
@@ -702,7 +703,7 @@ export class RestApi implements Api {
       targetId: targetFolderId,
     };
     const response = await this.instance.post<FolderItem>(
-      `/api/v2/${import.meta.env.VITE_API_APP}/catalog/folders/move`,
+      `/api/v2/${getAppName()}/catalog/folders/move`,
       request,
     );
     return response.data;
@@ -710,7 +711,7 @@ export class RestApi implements Api {
 
   getNestedChains = async (folderId: string): Promise<Chain[]> => {
     const response = await this.instance.get<Chain[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/folders/${folderId}/chains`,
+      `/api/v1/${getAppName()}/catalog/folders/${folderId}/chains`,
     );
     return response.data;
   };
@@ -719,7 +720,7 @@ export class RestApi implements Api {
     chainIds: string[],
   ): Promise<UsedService[]> => {
     const response = await this.instance.get<UsedService[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/used-systems`,
+      `/api/v1/${getAppName()}/catalog/chains/used-systems`,
       {
         params: { chainIds },
         paramsSerializer: {
@@ -732,7 +733,7 @@ export class RestApi implements Api {
 
   getChainsUsedByService = async (systemId: string): Promise<BaseEntity[]> => {
     const response = await this.instance.get<BaseEntity[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/chains/systems/${systemId}`,
+      `/api/v1/${getAppName()}/catalog/chains/systems/${systemId}`,
     );
     return response.data;
   };
@@ -749,7 +750,7 @@ export class RestApi implements Api {
       formData.append("usedSystemModelIds", modelIds.join(","));
     }
     const response = await this.instance.post<Blob>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/export/system`,
+      `/api/v1/${getAppName()}/systems-catalog/export/system`,
       formData,
       {
         headers: {
@@ -774,7 +775,7 @@ export class RestApi implements Api {
       params["specificationGroupId"] = specificationGroupId.join(",");
     }
     const response = await this.instance.get<Blob>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/export/specifications`,
+      `/api/v1/${getAppName()}/systems-catalog/export/specifications`,
       {
         params,
         headers: {
@@ -810,7 +811,7 @@ export class RestApi implements Api {
     }
 
     const response = await this.instance.get<Blob>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/export/api-spec`,
+      `/api/v1/${getAppName()}/catalog/export/api-spec`,
       {
         params: { ...params, externalRoutes, specificationType, format },
         headers: {
@@ -840,7 +841,7 @@ export class RestApi implements Api {
     withSpec: boolean,
   ): Promise<IntegrationSystem[]> => {
     const response = await this.instance.get<IntegrationSystem[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems`,
+      `/api/v1/${getAppName()}/systems-catalog/systems`,
       {
         params: { modelType, withSpec },
       },
@@ -850,7 +851,7 @@ export class RestApi implements Api {
 
   createService = async (system: SystemRequest): Promise<IntegrationSystem> => {
     const response = await this.instance.post<IntegrationSystem>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems`,
+      `/api/v1/${getAppName()}/systems-catalog/systems`,
       system,
     );
     return response.data;
@@ -861,7 +862,7 @@ export class RestApi implements Api {
     envRequest: EnvironmentRequest,
   ): Promise<Environment> => {
     const response = await this.instance.post<Environment>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${systemId}/environments`,
+      `/api/v1/${getAppName()}/systems-catalog/systems/${systemId}/environments`,
       envRequest,
     );
     return response.data;
@@ -873,7 +874,7 @@ export class RestApi implements Api {
     envRequest: EnvironmentRequest,
   ): Promise<Environment> => {
     const response = await this.instance.put<Environment>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${systemId}/environments/${environmentId}`,
+      `/api/v1/${getAppName()}/systems-catalog/systems/${systemId}/environments/${environmentId}`,
       envRequest,
     );
     return response.data;
@@ -884,13 +885,13 @@ export class RestApi implements Api {
     environmentId: string,
   ): Promise<void> => {
     await this.instance.delete(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${systemId}/environments/${environmentId}`,
+      `/api/v1/${getAppName()}/systems-catalog/systems/${systemId}/environments/${environmentId}`,
     );
   };
 
   deleteService = async (serviceId: string): Promise<void> => {
     await this.instance.delete(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${serviceId}`,
+      `/api/v1/${getAppName()}/systems-catalog/systems/${serviceId}`,
     );
   };
 
@@ -898,7 +899,7 @@ export class RestApi implements Api {
     const formData: FormData = new FormData();
     formData.append("file", file, file.name);
     const response = await this.instance.post<ImportPreview>(
-      `/api/${import.meta.env.VITE_API_APP}/v3/import/preview`,
+      `/api/${getAppName()}/v3/import/preview`,
       formData,
       {
         headers: {
@@ -924,7 +925,7 @@ export class RestApi implements Api {
       formData.append("validateByHash", validateByHash.toString());
     }
     const response = await this.instance.post<ImportCommitResponse>(
-      `/api/${import.meta.env.VITE_API_APP}/v3/import`,
+      `/api/${getAppName()}/v3/import`,
       formData,
       {
         headers: {
@@ -938,14 +939,14 @@ export class RestApi implements Api {
 
   getImportStatus = async (importId: string): Promise<ImportStatusResponse> => {
     const response = await this.instance.get<ImportStatusResponse>(
-      `/api/${import.meta.env.VITE_API_APP}/v3/import/${importId}`,
+      `/api/${getAppName()}/v3/import/${importId}`,
     );
     return response.data;
   };
 
   getEvents = async (lastEventId: string): Promise<EventsUpdate> => {
     const response = await this.instance.get<EventsUpdate>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/events`,
+      `/api/v1/${getAppName()}/catalog/events`,
       {
         params: {
           lastEventId: lastEventId,
@@ -960,14 +961,14 @@ export class RestApi implements Api {
     engineHost: string,
   ): Promise<ChainDeployment[]> => {
     const response = await this.instance.get<ChainDeployment[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/domains/${domain}/engines/${engineHost}/deployments`,
+      `/api/v1/${getAppName()}/catalog/domains/${domain}/engines/${engineHost}/deployments`,
     );
     return response.data;
   };
 
   getEnginesByDomain = async (domain: string): Promise<Engine[]> => {
     const response = await this.instance.get<Engine[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/domains/${domain}/engines`,
+      `/api/v1/${getAppName()}/catalog/domains/${domain}/engines`,
     );
     return response.data;
   };
@@ -989,7 +990,7 @@ export class RestApi implements Api {
     searchRequest: ActionLogSearchRequest,
   ): Promise<ActionLogResponse> => {
     const response = await this.instance.post<ActionLogResponse>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/${serviceName}/actions-log`,
+      `/api/v1/${getAppName()}/${serviceName}/actions-log`,
       searchRequest,
     );
     return response.data;
@@ -1012,7 +1013,7 @@ export class RestApi implements Api {
     params: LogExportRequestParams,
   ): Promise<Blob> => {
     const response = await this.instance.get<Blob>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/${serviceName}/actions-log/export`,
+      `/api/v1/${getAppName()}/${serviceName}/actions-log/export`,
       {
         responseType: "blob",
         params: params,
@@ -1023,7 +1024,7 @@ export class RestApi implements Api {
 
   getService = async (id: string): Promise<IntegrationSystem> => {
     const response = await this.instance.get<IntegrationSystem>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${id}`,
+      `/api/v1/${getAppName()}/systems-catalog/systems/${id}`,
     );
     return response.data;
   };
@@ -1033,7 +1034,7 @@ export class RestApi implements Api {
     data: Partial<IntegrationSystem>,
   ): Promise<IntegrationSystem> => {
     const response = await this.instance.put<IntegrationSystem>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${id}`,
+      `/api/v1/${getAppName()}/systems-catalog/systems/${id}`,
       data,
     );
     return response.data;
@@ -1041,7 +1042,7 @@ export class RestApi implements Api {
 
   getEnvironments = async (systemId: string): Promise<Environment[]> => {
     const response = await this.instance.get<Environment[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/systems/${systemId}/environments`,
+      `/api/v1/${getAppName()}/systems-catalog/systems/${systemId}/environments`,
     );
     return response.data;
   };
@@ -1050,7 +1051,7 @@ export class RestApi implements Api {
     systemId: string,
   ): Promise<SpecificationGroup[]> => {
     const response = await this.instance.get<SpecificationGroup[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/specificationGroups`,
+      `/api/v1/${getAppName()}/systems-catalog/specificationGroups`,
       {
         params: {
           systemId: systemId,
@@ -1065,7 +1066,7 @@ export class RestApi implements Api {
     data: Partial<SpecificationGroup>,
   ): Promise<SpecificationGroup> => {
     const response = await this.instance.patch<SpecificationGroup>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/specificationGroups/${id}`,
+      `/api/v1/${getAppName()}/systems-catalog/specificationGroups/${id}`,
       data,
     );
     return response.data;
@@ -1073,7 +1074,7 @@ export class RestApi implements Api {
 
   deleteSpecificationGroup = async (id: string): Promise<void> => {
     await this.instance.delete<SpecificationGroup>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/specificationGroups/${id}`,
+      `/api/v1/${getAppName()}/systems-catalog/specificationGroups/${id}`,
     );
   };
 
@@ -1082,7 +1083,7 @@ export class RestApi implements Api {
     data: Partial<Specification>,
   ): Promise<Specification> => {
     const response = await this.instance.patch<Specification>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models/${id}`,
+      `/api/v1/${getAppName()}/systems-catalog/models/${id}`,
       data,
     );
     return response.data;
@@ -1090,14 +1091,14 @@ export class RestApi implements Api {
 
   getSpecificationModelSource = async (id: string): Promise<string> => {
     const response = await this.instance.get<string>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models/${id}/source`,
+      `/api/v1/${getAppName()}/systems-catalog/models/${id}/source`,
     );
     return response.data;
   };
 
   deleteSpecificationModel = async (id: string): Promise<void> => {
     await this.instance.delete(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models/${id}`,
+      `/api/v1/${getAppName()}/systems-catalog/models/${id}`,
     );
   };
 
@@ -1106,7 +1107,7 @@ export class RestApi implements Api {
     specificationGroupId?: string,
   ): Promise<Specification[]> => {
     const response = await this.instance.get<Specification[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models`,
+      `/api/v1/${getAppName()}/systems-catalog/models`,
       {
         params: {
           systemId: systemId,
@@ -1119,7 +1120,7 @@ export class RestApi implements Api {
 
   deprecateModel = async (modelId: string): Promise<Specification> => {
     const response = await this.instance.post<Specification>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/models/deprecated`,
+      `/api/v1/${getAppName()}/systems-catalog/models/deprecated`,
       modelId,
       {
         headers: { "Content-Type": "text/plain" },
@@ -1130,7 +1131,7 @@ export class RestApi implements Api {
 
   getOperationInfo = async (operationId: string): Promise<OperationInfo> => {
     const response = await this.instance.get<OperationInfo>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/operations/${operationId}/info`,
+      `/api/v1/${getAppName()}/systems-catalog/operations/${operationId}/info`,
     );
     return response.data;
   };
@@ -1158,7 +1159,7 @@ export class RestApi implements Api {
     if (packageVersion) headers["X-SR-PACKAGE-VERSION"] = packageVersion;
     if (packagePartOf) headers["X-SR-PACKAGE-PART-OF"] = packagePartOf;
     const response = await this.instance.post<ImportSystemResult[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/import/system`,
+      `/api/v1/${getAppName()}/systems-catalog/import/system`,
       formData,
       {
         headers: {
@@ -1180,7 +1181,7 @@ export class RestApi implements Api {
       specificationGroupId: specificationGroupId,
     };
     const response = await this.instance.post<ImportSpecificationResult>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/import`,
+      `/api/v1/${getAppName()}/systems-catalog/import`,
       formData,
       {
         params,
@@ -1204,7 +1205,7 @@ export class RestApi implements Api {
     };
     if (protocol) params.protocol = protocol;
     const response = await this.instance.post<ImportSpecificationResult>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/specificationGroups/import`,
+      `/api/v1/${getAppName()}/systems-catalog/specificationGroups/import`,
       formData,
       {
         params,
@@ -1218,7 +1219,7 @@ export class RestApi implements Api {
     importId: string,
   ): Promise<ImportSpecificationResult> => {
     const response = await this.instance.get<ImportSpecificationResult>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/systems-catalog/import/${importId}`,
+      `/api/v1/${getAppName()}/systems-catalog/import/${importId}`,
     );
     return response.data;
   };
@@ -1227,7 +1228,7 @@ export class RestApi implements Api {
     includeContent: boolean,
   ): Promise<DetailedDesignTemplate[]> => {
     const response = await this.instance.get<DetailedDesignTemplate[]>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/detailed-design/templates`,
+      `/api/v1/${getAppName()}/catalog/detailed-design/templates`,
       {
         params: {
           includeContent,
@@ -1241,7 +1242,7 @@ export class RestApi implements Api {
     templateId: string,
   ): Promise<DetailedDesignTemplate> => {
     const response = await this.instance.get<DetailedDesignTemplate>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/detailed-design/templates/${templateId}`,
+      `/api/v1/${getAppName()}/catalog/detailed-design/templates/${templateId}`,
     );
     return response.data;
   };
@@ -1251,7 +1252,7 @@ export class RestApi implements Api {
     content: string,
   ): Promise<DetailedDesignTemplate> => {
     const response = await this.instance.put<DetailedDesignTemplate>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/detailed-design/templates`,
+      `/api/v1/${getAppName()}/catalog/detailed-design/templates`,
       { name, content },
     );
     return response.data;
@@ -1259,7 +1260,7 @@ export class RestApi implements Api {
 
   deleteDetailedDesignTemplates = async (ids: string[]): Promise<void> => {
     await this.instance.delete<void>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/detailed-design/templates`,
+      `/api/v1/${getAppName()}/catalog/detailed-design/templates`,
       {
         params: {
           ids,
@@ -1273,7 +1274,7 @@ export class RestApi implements Api {
     templateId: string,
   ): Promise<ChainDetailedDesign> => {
     const response = await this.instance.get<ChainDetailedDesign>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/detailed-design/chains/${chainId}`,
+      `/api/v1/${getAppName()}/catalog/detailed-design/chains/${chainId}`,
       {
         params: {
           templateId,
@@ -1288,7 +1289,7 @@ export class RestApi implements Api {
     diagramModes: DiagramMode[],
   ): Promise<ElementsSequenceDiagrams> => {
     const response = await this.instance.post<ElementsSequenceDiagrams>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/design-generator/chains/${chainId}`,
+      `/api/v1/${getAppName()}/catalog/design-generator/chains/${chainId}`,
       {
         diagramModes,
       },
@@ -1302,7 +1303,7 @@ export class RestApi implements Api {
     diagramModes: DiagramMode[],
   ): Promise<ElementsSequenceDiagrams> => {
     const response = await this.instance.post<ElementsSequenceDiagrams>(
-      `/api/v1/${import.meta.env.VITE_API_APP}/catalog/design-generator/chains/${chainId}/snapshots/${snapshotId}`,
+      `/api/v1/${getAppName()}/catalog/design-generator/chains/${chainId}/snapshots/${snapshotId}`,
       {
         diagramModes,
       },

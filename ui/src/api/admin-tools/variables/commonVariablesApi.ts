@@ -5,8 +5,9 @@ import {
   ImportVariablesResult,
   VariableImportPreview,
 } from "../../apiTypes.ts";
+import { getAppName } from "../../../appConfig.ts";
 
-const urlPrefixV1 = `/api/v1/${import.meta.env.VITE_API_APP}/variables-management`;
+const urlPrefixV1 = `/api/v1/${getAppName()}/variables-management`;
 
 export class CommonVariablesApi extends BaseApi {
   private serviceName = "Common Variables API";
@@ -100,7 +101,7 @@ export class CommonVariablesApi extends BaseApi {
     if (!formData) {
       return this.getEmptyFormResponse();
     }
-    const path = `/api/v1/${import.meta.env.VITE_API_APP}/variables-management/common-variables/preview`;
+    const path = `/api/v1/${getAppName()}/variables-management/common-variables/preview`;
     return this.wrap(
       async () => {
         const response = await this.instance.post<VariableImportPreview[]>(
@@ -124,7 +125,7 @@ export class CommonVariablesApi extends BaseApi {
       return this.getEmptyFormResponse();
     }
 
-    const path = `/api/v2/${import.meta.env.VITE_API_APP}/variables-management/common-variables/import`;
+    const path = `/api/v2/${getAppName()}/variables-management/common-variables/import`;
     return this.wrap(
       async () => {
         const response = await this.instance.post<ImportVariablesResult>(

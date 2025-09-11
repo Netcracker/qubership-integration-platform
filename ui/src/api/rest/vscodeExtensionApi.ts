@@ -40,8 +40,10 @@ import {
   SpecificationGroup,
   UsedService,
   Element,
+  MaskedFields
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
+import { getAppName } from "../../appConfig.ts";
 
 export const STARTUP_EVENT = "navigate";
 export const isVsCode = window.location.protocol === "vscode-webview:";
@@ -77,7 +79,6 @@ export class VSCodeExtensionApi implements Api {
         delete this.responseResolvers[requestId];
       }
     });
-    void this.sendMessageToExtension(STARTUP_EVENT);
   }
 
   sendMessageToExtension = async <T, V>(
@@ -88,7 +89,7 @@ export class VSCodeExtensionApi implements Api {
     const message: VSCodeMessage<V> = { type, requestId, payload };
 
     this.vscode.postMessage({
-      command: import.meta.env.VITE_API_APP,
+      command: getAppName(),
       // @ts-expect-error since any type is prohibited
       data: message
     });
@@ -193,6 +194,55 @@ export class VSCodeExtensionApi implements Api {
     return <Chain>(
       (await this.sendMessageToExtension("updateChain", { id, chain })).payload
     );
+  };
+
+  getMaskedFields = async (chainId: string): Promise<MaskedField[]> => {
+    return (
+      (<MaskedFields>(await this.sendMessageToExtension("getMaskedFields", chainId)).payload)?.fields
+    );
+  };
+
+  createMaskedField = async (
+    chainId: string,
+    maskedField: Partial<Omit<MaskedField, "id">>,
+  ): Promise<MaskedField> => {
+    return <MaskedField>(
+      await this.sendMessageToExtension("createMaskedField", {
+        chainId,
+        maskedField,
+      })
+    ).payload;
+  };
+
+  deleteMaskedFields = async (
+    chainId: string,
+    maskedFieldIds: string[],
+  ): Promise<void> => {
+    await this.sendMessageToExtension("deleteMaskedFields", {
+      chainId,
+      maskedFieldIds,
+    });
+  };
+
+  deleteMaskedField = async (
+    chainId: string,
+    maskedFieldId: string,
+  ): Promise<void> => {
+    await this.deleteMaskedFields(chainId, [maskedFieldId]);
+  };
+
+  updateMaskedField = async (
+    chainId: string,
+    id: string,
+    maskedField: Partial<Omit<MaskedField, "id">>,
+  ): Promise<MaskedField> => {
+    return <MaskedField>(
+      await this.sendMessageToExtension("updateMaskedField", {
+        id,
+        chainId,
+        maskedField,
+      })
+    ).payload;
   };
 
   getElementsByType(): Promise<ElementWithChainName[]> {
@@ -448,26 +498,6 @@ export class VSCodeExtensionApi implements Api {
   }
 
   deleteLoggingSettings(): Promise<void> {
-    throw new Error("Method not implemented.");
-  }
-
-  getMaskedFields(): Promise<MaskedField[]> {
-    throw new Error("Method not implemented.");
-  }
-
-  createMaskedField(): Promise<MaskedField> {
-    throw new Error("Method not implemented.");
-  }
-
-  deleteMaskedFields(): Promise<void> {
-    throw new Error("Method not implemented.");
-  }
-
-  deleteMaskedField(): Promise<void> {
-    throw new Error("Method not implemented.");
-  }
-
-  updateMaskedField(): Promise<MaskedField> {
     throw new Error("Method not implemented.");
   }
 

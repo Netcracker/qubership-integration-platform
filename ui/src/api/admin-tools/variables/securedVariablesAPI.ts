@@ -6,8 +6,9 @@ import {
   SecretResponse,
 } from "./types.ts";
 import { getFileFromResponse } from "../../../misc/download-utils.ts";
+import { getAppName } from "../../../appConfig.ts";
 
-const urlPrefixV2 = `/api/v2/${import.meta.env.VITE_API_APP}/variables-management`;
+const urlPrefixV2 = `/api/v2/${getAppName()}/variables-management`;
 
 export class SecuredVariablesApi extends BaseApi {
   private serviceName = "Secured Variables API";
