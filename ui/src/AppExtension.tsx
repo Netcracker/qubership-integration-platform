@@ -16,6 +16,7 @@ import { AppProps, setAppName } from "./appConfig.ts";
 import { STARTUP_EVENT, VSCodeExtensionApi } from "./api/rest/vscodeExtensionApi.ts";
 import { api } from "./api/api.ts";
 
+import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
 
 const AppExtension = ({ appName = undefined }: AppProps) => {
   setAppName(appName);
@@ -38,6 +39,11 @@ const AppExtension = ({ appName = undefined }: AppProps) => {
                   <Route path="masking" element={<Masking />} />
                   <Route path="properties" element={<ChainProperties />} />
                 </Route>
+                <Route path="/services/systems/:systemId/parameters" element={<ServiceParametersPage />} />
+                <Route path="/services/systems/:systemId/specificationGroups" element={<ServiceParametersPage />} />
+                <Route path="/services/systems/:systemId/specificationGroups/:groupId/specifications" element={<ServiceParametersPage />} />
+                <Route path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations" element={<ServiceParametersPage />} />
+                <Route path="/services/systems/:systemId/environments" element={<ServiceParametersPage />} />
                 <Route path="*" element={<NotImplemented />} />
               </Routes>
             </MemoryRouter>

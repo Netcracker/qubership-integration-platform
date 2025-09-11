@@ -1072,11 +1072,19 @@ export type ImportSpecificationResult = {
   specificationGroupId: string;
 };
 
+export type SerializedFile = {
+  name: string;
+  size: number;
+  type: string;
+  lastModified: number;
+  content: ArrayBuffer;
+};
+
 export type ImportSpecificationGroupRequest = {
   systemId: string;
   name: string;
   protocol?: string;
-  files: File[];
+  files: SerializedFile[];
 };
 
 export enum DiagramMode {

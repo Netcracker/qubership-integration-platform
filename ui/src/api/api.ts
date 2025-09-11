@@ -323,6 +323,7 @@ export interface Api {
   importSpecification(
     specificationGroupId: string,
     files: File[],
+    systemId: string,
   ): Promise<ImportSpecificationResult>;
 
   getImportSpecificationResult(

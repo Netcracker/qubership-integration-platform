@@ -11,6 +11,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { ChainColumn } from './ChainColumn';
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { getErrorMessage } from '../../misc/error-utils';
+import { useLocation } from "react-router-dom";
 
 interface ServiceEnvironmentsTabProps {
   formatTimestamp: (val: number) => string;
@@ -37,6 +38,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [switchingEnvId, setSwitchingEnvId] = useState<string | null>(null);
   const notificationService = useNotificationService();
+  const location = useLocation();
 
   const getDefaultProperties = useCallback((protocol: string, sourceType: EnvironmentSourceType) => {
     if (sourceType === EnvironmentSourceType.MANUAL) {
@@ -124,33 +126,36 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
     });
   }, [systemId, system, setSystem, notificationService]);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadEnvironments = useCallback(async (silent = false) => {
     if (!systemId) return;
-    setError(null);
-    setLoading(true);
-
-    if (cacheRef.current[systemId]) {
-      setEnvironments(cacheRef.current[systemId]);
-      setLoading(false);
-      return;
+    if (!silent) {
+      setError(null);
+      setLoading(true);
     }
-
-    api.getEnvironments(systemId)
-      .then((data) => {
-        if (!isMounted) return;
-        setEnvironments(data);
-        cacheRef.current[systemId] = data;
-      })
-      .catch((e: unknown) => {
-        if (!isMounted) return;
+    try {
+      const data = await api.getEnvironments(systemId);
+      setEnvironments(data);
+      cacheRef.current[systemId] = data;
+    } catch (e: unknown) {
+      if (!silent) {
         setError(getErrorMessage(e, 'Environments load error'));
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
-    return () => { isMounted = false; };
+      }
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
   }, [systemId]);
+
+  useEffect(() => {
+    void loadEnvironments();
+  }, [loadEnvironments]);
+
+  useEffect(() => {
+    if (systemId && location.pathname.includes('/environments')) {
+      void loadEnvironments(true);
+    }
+  }, [location.pathname, systemId, loadEnvironments]);
 
   const handleEditClick = useCallback((env: Environment) => {
     setEditingEnv(env);

@@ -57,7 +57,12 @@ const getGroupActions = (
   expandedRowKeys: string[],
   setExpandedRowKeys: (keys: string[]) => void,
   refreshGroups: () => Promise<void>,
-  notify: ReturnType<typeof useNotificationService>
+  notify: ReturnType<typeof useNotificationService>,
+  showModal: (modal: { component: React.ReactNode }) => void,
+  systemId: string,
+  isImplementedService: boolean,
+  loadModels: (systemId: string, groupId: string) => Promise<void>,
+  loadGroups: (systemId: string) => Promise<void>
 ) => (record: ServiceEntity) => {
   if (isSpecification(record)) return [];
   const group = record as SpecificationGroup;
@@ -78,7 +83,21 @@ const getGroupActions = (
       key: 'add',
       label: 'Add Specification',
       icon: <PlusOutlined />,
-      onClick: () => message.info('Add Specification (stub)'),
+      onClick: () => {
+        showModal({
+          component: (
+            <ImportSpecificationsModal
+              systemId={systemId}
+              specificationGroupId={group.id}
+              isImplementedService={isImplementedService}
+              onSuccess={() => {
+                void loadGroups(systemId);
+                void loadModels(systemId, group.id);
+              }}
+            />
+          ),
+        });
+      },
     },
     {
       key: 'delete',
@@ -271,7 +290,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
       childrenColumnName: "children",
     },
     actionsColumn: getActionsColumn<ServiceEntity>(
-      getGroupActions(expandedGroups, setExpandedGroups, async () => { await loadGroups(systemId!); }, notify)
+      getGroupActions(expandedGroups, setExpandedGroups, async () => { await loadGroups(systemId!); }, notify, showModal, systemId!, isImplementedService, async (systemId: string, groupId: string) => { await loadModels(systemId, groupId); }, async (systemId: string) => { await loadGroups(systemId); })
     ),
     onUpdateLabels: async (record, labels) => {
       if (!systemId) return;
@@ -329,7 +348,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
   }, [groupId, specId]);
 
 
-  const goToTable = async (type: TableType, options?: { groupId?: string; modelId?: string }) => {
+  const goToTable = async (type: TableType, options?: { groupId?: string; specId?: string }) => {
     switch (type) {
       case "groups":
         if (!systemId) return;
@@ -343,8 +362,8 @@ export const ServiceApiSpecsTab: React.FC = () => {
         }
         break;
       case "operations":
-        if (options?.groupId && options?.modelId && systemId) {
-          void navigate(`/services/systems/${systemId}/specificationGroups/${options.groupId}/specifications/${options.modelId}`);
+        if (options?.groupId && options?.specId && systemId) {
+          void navigate(`/services/systems/${systemId}/specificationGroups/${options.groupId}/specifications/${options.specId}`);
         }
         break;
       default:
@@ -453,10 +472,12 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 showModal({
                   component: (
                     <ImportSpecificationsModal
+                      systemId={systemId}
                       specificationGroupId={groupId}
                       isImplementedService={isImplementedService}
                       onSuccess={() => {
                         if (!systemId || !groupId) return;
+                        void loadGroups(systemId);
                         void loadModels(systemId, groupId);
                       }}
                     />

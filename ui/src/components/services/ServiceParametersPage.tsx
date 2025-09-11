@@ -59,6 +59,19 @@ export const ServiceParametersPage: React.FC = () => {
   }, [systemId, state]);
 
   useEffect(() => {
+    console.log('ServiceParametersPage: URL changed, refreshing service data');
+    if (systemId) {
+      void api.getService(systemId)
+        .then((service) => {
+          setSystem(service);
+        })
+        .catch((error) => {
+          console.error('ServiceParametersPage: Error reloading service', error);
+        });
+    }
+  }, [location.pathname, systemId]);
+
+  useEffect(() => {
     if (groupId && systemId) {
       void api.getApiSpecifications(systemId).then(groups => {
         const group = groups.find(g => g.id === groupId);

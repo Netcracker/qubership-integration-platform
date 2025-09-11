@@ -73,6 +73,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
         res = await api.importSpecification(
           specificationGroupId!,
           files,
+          systemId!
         );
       }
       setProgressText("Processing...");

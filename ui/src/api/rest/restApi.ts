@@ -1145,7 +1145,7 @@ export class RestApi implements Api {
     packagePartOf?: string,
   ): Promise<ImportSystemResult[]> => {
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("files", file);
     if (systemIds && systemIds.length > 0) {
       for (const id of systemIds) {
         formData.append("systemIds", id);
@@ -1309,5 +1309,12 @@ export class RestApi implements Api {
       },
     );
     return response.data;
+  };
+
+  sendMessageToExtension = async <T, V>(
+    _type: string,
+    _payload?: V,
+  ): Promise<T> => {
+    return Promise.resolve({} as T);
   };
 }

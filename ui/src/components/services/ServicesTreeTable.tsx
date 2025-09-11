@@ -198,6 +198,9 @@ const methodColors: Record<string, string> = {
   PUT: '#fca130',
   DELETE: '#f93e3e',
   PATCH: '#50e3c2',
+  QUERY: '#1890ff',
+  MUTATION: '#52c41a',
+  SUBSCRIPTION: '#722ed1',
 };
 
 function renderLabelsCell(
@@ -339,7 +342,10 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
     render: (value: unknown) => {
       const method = value as string | undefined;
       if (!method) return "-";
-      const color = methodColors[method.toUpperCase()] || "#d9d9d9";
+
+      const displayMethod = method.toUpperCase();
+
+      const color = methodColors[displayMethod] || "#d9d9d9";
       return (
         <Tag
           style={{
@@ -350,7 +356,7 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
             fontWeight: 500,
           }}
         >
-          {method.toUpperCase()}
+          {displayMethod}
         </Tag>
       );
     },
