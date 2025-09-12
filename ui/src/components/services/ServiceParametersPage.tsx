@@ -12,6 +12,7 @@ import { ServiceApiSpecsTab } from "./ServiceApiSpecsTab";
 import { ServiceEnvironmentsTab } from "./ServiceEnvironmentsTab";
 import { api } from "../../api/api";
 import { IntegrationSystem, IntegrationSystemType, BaseEntity } from "../../api/apiTypes";
+import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 import styles from "./Services.module.css";
 
 const { Title } = Typography;
@@ -189,15 +190,21 @@ export const ServiceParametersPage: React.FC = () => {
           >
             <Breadcrumb>
               <Breadcrumb.Item>
-                <a
-                  onClick={e => {
-                    e.preventDefault();
-                    void navigate(`/services#${getTabHash(system?.type)}`);
-                  }}
-                  href={`/services#${getTabHash(system?.type)}`}
-                >
-                  {getTypeLabel(system?.type)}
-                </a>
+                {isVsCode ? (
+                  <span>
+                    {getTypeLabel(system?.type)}
+                  </span>
+                ) : (
+                  <a
+                    onClick={e => {
+                      e.preventDefault();
+                      void navigate(`/services#${getTabHash(system?.type)}`);
+                    }}
+                    href={`/services#${getTabHash(system?.type)}`}
+                  >
+                    {getTypeLabel(system?.type)}
+                  </a>
+                )}
               </Breadcrumb.Item>
               <Breadcrumb.Item>
                 <a

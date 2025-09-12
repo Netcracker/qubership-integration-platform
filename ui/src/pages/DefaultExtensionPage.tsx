@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router";
-import { STARTUP_EVENT } from "../api/rest/vscodeExtensionApi.ts";
-import { VSCodeResponse } from "../api/vscodeApi.ts";
+import { STARTUP_EVENT, VSCodeResponse } from "../api/rest/vscodeExtensionApi.ts";
 import React from "react";
 import { Result } from "antd";
 

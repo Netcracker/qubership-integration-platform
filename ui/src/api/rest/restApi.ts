@@ -1310,11 +1310,4 @@ export class RestApi implements Api {
     );
     return response.data;
   };
-
-  sendMessageToExtension = async <T, V>(
-    _type: string,
-    _payload?: V,
-  ): Promise<T> => {
-    return Promise.resolve({} as T);
-  };
 }

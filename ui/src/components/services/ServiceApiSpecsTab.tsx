@@ -16,6 +16,7 @@ import {  message } from "antd";
 import {  DeleteOutlined, PlusOutlined, ExportOutlined, StopOutlined, DownOutlined, UpOutlined, CloudDownloadOutlined, CloudUploadOutlined,
   MoreOutlined
 } from "@ant-design/icons";
+import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 import { downloadFile } from '../../misc/download-utils';
 import { prepareFile } from "./utils.tsx";
 import { ImportSpecificationsModal } from "./ImportSpecificationsModal";
@@ -425,25 +426,27 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 });
               }}
             />
-            <FloatButton
-              tooltip={{ title: "Export all groups", placement: "left" }}
-              icon={<CloudDownloadOutlined />}
-              onClick={() => {
-                void (async () => {
-                  if (!(serviceSpecData ?? []).length) {
-                    message.info('No groups to export');
-                    return;
-                  }
-                  const groupIds = (serviceSpecData ?? []).map(g => g.id);
-                  try {
-                    const file = await api.exportServices([], groupIds);
-                    downloadFile(prepareFile(file));
-                  } catch (e) {
-                    notify.requestFailed('Export error', e);
-                  }
-                })();
-              }}
-            />
+            {!isVsCode && (
+              <FloatButton
+                tooltip={{ title: "Export all groups", placement: "left" }}
+                icon={<CloudDownloadOutlined />}
+                onClick={() => {
+                  void (async () => {
+                    if (!(serviceSpecData ?? []).length) {
+                      message.info('No groups to export');
+                      return;
+                    }
+                    const groupIds = (serviceSpecData ?? []).map(g => g.id);
+                    try {
+                      const file = await api.exportServices([], groupIds);
+                      downloadFile(prepareFile(file));
+                    } catch (e) {
+                      notify.requestFailed('Export error', e);
+                    }
+                  })();
+                }}
+              />
+            )}
           </FloatButtonGroup>
         </>
       )}
@@ -451,20 +454,6 @@ export const ServiceApiSpecsTab: React.FC = () => {
         <>
           <modelsTable.Table />
           <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
-            <FloatButton
-              tooltip={{ title: "Export selected specifications", placement: "left" }}
-              icon={<CloudDownloadOutlined />}
-              onClick={() => {
-                void (async () => {
-                  if (selectedSpecRowKeys.length === 0) {
-                    message.info('There are no selected specifications yet');
-                    return;
-                  }
-                  const selected = (models ?? []).filter(m => selectedSpecRowKeys.includes(m.id));
-                  await handleExportSpecifications(selected, notify);
-                })();
-              }}
-            />
             <FloatButton
               tooltip={{ title: "Import Specification", placement: "left" }}
               icon={<CloudUploadOutlined />}
@@ -485,37 +474,55 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 });
               }}
             />
+            {!isVsCode && (
+              <FloatButton
+                tooltip={{ title: "Export selected specifications", placement: "left" }}
+                icon={<CloudDownloadOutlined />}
+                onClick={() => {
+                  void (async () => {
+                    if (selectedSpecRowKeys.length === 0) {
+                      message.info('There are no selected specifications yet');
+                      return;
+                    }
+                    const selected = (models ?? []).filter(m => selectedSpecRowKeys.includes(m.id));
+                    await handleExportSpecifications(selected, notify);
+                  })();
+                }}
+              />
+            )}
           </FloatButtonGroup>
         </>
       )}
       {currentTable === "operations" && (
         <>
           <operationsTable.Table />
-          <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
-            <FloatButton
-              tooltip={{ title: "Export", placement: "left" }}
-              icon={<CloudDownloadOutlined />}
-              onClick={() => {
-                void (async () => {
-                  try {
-                    if (!specId) {
-                      message.info('No model to export');
-                      return;
+          {!isVsCode && (
+            <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+              <FloatButton
+                tooltip={{ title: "Export", placement: "left" }}
+                icon={<CloudDownloadOutlined />}
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      if (!specId) {
+                        message.info('No model to export');
+                        return;
+                      }
+                      const model = (models ?? []).find(m => m.id === specId);
+                      if (!model) {
+                        message.info('No model to export');
+                        return;
+                      }
+                      const file = await api.exportServices([specId], []);
+                      downloadFile(prepareFile(file));
+                    } catch (e) {
+                      notify.requestFailed('Export error', e);
                     }
-                    const model = (models ?? []).find(m => m.id === specId);
-                    if (!model) {
-                      message.info('No model to export');
-                      return;
-                    }
-                    const file = await api.exportServices([specId], []);
-                    downloadFile(prepareFile(file));
-                  } catch (e) {
-                    notify.requestFailed('Export error', e);
-                  }
-                })();
-              }}
-            />
-          </FloatButtonGroup>
+                  })();
+                }}
+              />
+            </FloatButtonGroup>
+          )}
         </>
       )}
       {errorModels && <div className={css.serviceApiSpecsTabError}>Error: {errorModels}</div>}
