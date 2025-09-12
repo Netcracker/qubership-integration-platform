@@ -9,7 +9,7 @@ import {
     OpenApiSpecificationParser,
     AsyncApiSpecificationParser
 } from "./parsers";
-import { EMPTY_USER } from "../response/chainApi";
+import { EMPTY_USER } from "../response/chainApiUtils";
 
 const vscode = require('vscode');
 

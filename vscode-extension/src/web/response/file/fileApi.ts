@@ -1,5 +1,5 @@
 import {Uri} from "vscode";
-import {LibraryData, IntegrationSystem, Environment, SpecificationGroup, Specification} from "../apiTypes";
+import {LibraryData} from "../apiTypes";
 
 export interface FileApi {
 
@@ -15,9 +15,6 @@ export interface FileApi {
 
     removeFile(mainFolderUri: Uri, propertyFilename: string): Promise<void>;
 
-    createEmptyChain(createInParentDir?: boolean): Promise<void>;
-
-    createEmptyService(): Promise<void>;
 
     // Service-related methods
     getMainService(parameters: any): Promise<any>;

@@ -36,15 +36,15 @@
       },
       {
         "command": "qip.createService",
-        "title": "QIP Create an empty service"
+        "title": "QIP Create service"
       },
       {
         "command": "qip.refreshExplorer",
         "title": "Refresh QIP Explorer"
       },
       {
-        "command": "qip.createService",
-        "title": "Create Service"
+        "command": "qip.revealInExplorer",
+        "title": "Open File"
       },
       {
         "command": "qip.createChain",

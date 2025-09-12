@@ -2,7 +2,7 @@ import { ExtensionContext, Uri, FileType } from "vscode";
 import { IntegrationSystem } from "../response/apiTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
-import { EMPTY_USER } from "../response/chainApi";
+import { EMPTY_USER } from "../response/chainApiUtils";
 
 const vscode = require('vscode');
 

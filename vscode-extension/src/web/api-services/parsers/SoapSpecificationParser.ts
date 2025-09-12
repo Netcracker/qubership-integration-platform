@@ -1,4 +1,4 @@
-import { EMPTY_USER } from "../../response/chainApi";
+import { EMPTY_USER } from "../../response/chainApiUtils";
 
 export interface WsdlData {
     type: 'WSDL';

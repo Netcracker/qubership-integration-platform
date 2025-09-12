@@ -1,4 +1,4 @@
-import { EMPTY_USER } from "../response/chainApi";
+import { EMPTY_USER } from "../response/chainApiUtils";
 
 export class QipSpecificationGenerator {
     private static readonly HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options'];

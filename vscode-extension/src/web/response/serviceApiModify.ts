@@ -12,6 +12,7 @@ import {getService, getMainService, getMainServiceFileUri} from "./serviceApiRea
 import {EMPTY_USER} from "./chainApiUtils";
 import vscode, {ExtensionContext, Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";
+import { refreshQipExplorer } from "../extension";
 
 export async function updateService(mainFolderUri: Uri, serviceId: string, serviceRequest: Partial<IntegrationSystem>): Promise<IntegrationSystem> {
     console.log('updateService: Starting update for serviceId:', serviceId);
@@ -111,13 +112,36 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
 
         console.log('createService: Created service object:', service);
 
-        const serviceFileUri = vscode.Uri.joinPath(mainFolderUri, `${serviceId}.service.qip.yaml`);
+        // Create service folder with serviceId as name
+        const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
+        await vscode.workspace.fs.createDirectory(serviceFolderUri);
+        console.log('createService: Created service folder:', serviceFolderUri);
+
+        // Create service file inside the service folder
+        const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
         console.log('createService: Service file URI:', serviceFileUri);
         
         await writeServiceFile(serviceFileUri, service);
         console.log('createService: Service file written successfully');
 
-        const result = await getService(mainFolderUri, serviceId);
+        // Convert the created service object to IntegrationSystem format
+        const result: IntegrationSystem = {
+            id: service.id,
+            name: service.name,
+            description: service.content.description || "",
+            createdBy: service.content.createdBy || {...EMPTY_USER},
+            modifiedBy: service.content.modifiedBy || {...EMPTY_USER},
+            createdWhen: service.content.createdWhen || 0,
+            modifiedWhen: service.content.modifiedWhen || 0,
+            activeEnvironmentId: service.content.activeEnvironmentId || "",
+            integrationSystemType: service.content.integrationSystemType || "EXTERNAL",
+            protocol: service.content.protocol || "HTTP",
+            extendedProtocol: service.content.extendedProtocol || "",
+            specification: service.content.specification || "",
+            environments: service.content.environments || [],
+            labels: service.content.labels || []
+        };
+        
         console.log('createService: Service created successfully:', result);
         return result;
     } catch (error) {
@@ -626,7 +650,14 @@ export async function createEmptyService() {
 
         const service = await createService({} as ExtensionContext, workspaceFolders[0].uri, serviceRequest);
         
-        vscode.window.showInformationMessage(`Service "${serviceName}" created successfully with type ${serviceType.label}`);
+        // Refresh QIP Explorer to show the new service
+        try {
+            refreshQipExplorer();
+        } catch (error) {
+            console.log('Could not refresh QIP Explorer:', error);
+        }
+        
+        vscode.window.showInformationMessage(`Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${service.id}`);
         return service;
     } catch (err) {
         vscode.window.showErrorMessage(`Failed to create service: ${err}`);

@@ -21,12 +21,6 @@ let current: FileApi = {
     removeFile: async () => {
         throw new Error('FileApi not configured');
     },
-    createEmptyChain: async () => {
-        throw new Error('FileApi not configured');
-    },
-    createEmptyService: async () => {
-        throw new Error('FileApi not configured');
-    },
     // Service-related methods
     getMainService: async () => {
         throw new Error('FileApi not configured');
@@ -86,8 +80,6 @@ export const fileApi: FileApi = {
     writePropertyFile: async (parameters: any, propertyFilename: string, propertyData: string): Promise<void> => current.writePropertyFile(parameters, propertyFilename, propertyData),
     writeMainChain: async (parameters: any, chainData: any): Promise<void> => current.writeMainChain(parameters, chainData),
     removeFile: async (mainFolderUri, propertyFilename: string): Promise<void> => current.removeFile(mainFolderUri, propertyFilename),
-    createEmptyChain: async (createInParentDir?: boolean): Promise<void> => current.createEmptyChain(createInParentDir),
-    createEmptyService: async (): Promise<void> => current.createEmptyService(),
     // Service-related methods
     getMainService: async (parameters: any): Promise<any> => current.getMainService(parameters),
     getService: async (parameters: any, serviceId: string): Promise<any> => current.getService(parameters, serviceId),

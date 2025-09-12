@@ -37,9 +37,9 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
         
         if (element.fileUri) {
             treeItem.command = {
-                command: 'vscode.open',
+                command: 'qip.revealInExplorer',
                 title: 'Open File',
-                arguments: [element.fileUri]
+                arguments: [element]
             };
         }
         
@@ -200,15 +200,32 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                             // Format: ${name}-${protocol}-${uuid}
                             const displayName = serviceData.name || serviceData.id;
                             const protocol = serviceData.content.protocol || 'Unknown';
+                            const serviceType = serviceData.content.integrationSystemType || 'Unknown';
                             const label = `${displayName}-${protocol}-${serviceData.id}`;
+                            
+                            // Choose icon based on service type
+                            let iconName = 'server';
+                            switch (serviceType) {
+                                case 'EXTERNAL':
+                                    iconName = 'globe';
+                                    break;
+                                case 'INTERNAL':
+                                    iconName = 'home';
+                                    break;
+                                case 'IMPLEMENTED':
+                                    iconName = 'tools';
+                                    break;
+                                default:
+                                    iconName = 'server';
+                            }
                             
                             const serviceItem: QipExplorerItem = {
                                 id: serviceData.id,
                                 label: label,
-                                description: `${serviceData.content.integrationSystemType || 'Unknown'} service`,
-                                iconPath: new vscode.ThemeIcon('server'),
+                                description: `${serviceType} service`,
+                                iconPath: new vscode.ThemeIcon(iconName),
                                 contextValue: 'qip-service',
-                                collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
+                                collapsibleState: vscode.TreeItemCollapsibleState.None,
                                 type: 'service',
                                 fileUri: fileUri
                             };

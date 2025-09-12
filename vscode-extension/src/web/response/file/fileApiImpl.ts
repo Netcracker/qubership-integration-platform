@@ -2,7 +2,7 @@ import {FileApi} from './fileApi';
 import {ExtensionContext, FileType, Uri} from 'vscode';
 import * as yaml from 'yaml';
 import {LibraryData} from "../apiTypes";
-import { EMPTY_USER } from '../chainApi';
+import { EMPTY_USER } from '../chainApiUtils';
 
 const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';
@@ -112,97 +112,6 @@ export class VSCodeFileApi implements FileApi {
         return;
     }
 
-    async createEmptyChain(createInParentDir: boolean = false) {
-        try {
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (!workspaceFolders) {
-                vscode.window.showErrorMessage('Open a workspace folder first');
-                return;
-            }
-            const arg = await vscode.window.showInputBox({prompt: 'Enter new chain name'});
-
-            let folderUri = workspaceFolders[0].uri;
-            const chainId = crypto.randomUUID();
-            const chainName = arg || 'New Chain';
-            if (createInParentDir) {
-                folderUri = vscode.Uri.joinPath(folderUri, '..');
-            }
-            folderUri = vscode.Uri.joinPath(folderUri, chainId);
-
-            // Create the folder
-            await vscode.workspace.fs.createDirectory(folderUri);
-
-            // Create template file
-            const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}.chain.qip.yaml`);
-            const chain = {
-                $schema: 'http://qubership.org/schemas/product/qip/chain',
-                id: chainId,
-                name: chainName,
-                content: {
-                    migrations: "[100, 101]",
-                    elements: [],
-                    dependencies: [],
-                }
-            };
-            const bytes = new TextEncoder().encode(yaml.stringify(chain));
-
-            await vscode.workspace.fs.writeFile(chainFileUri, bytes);
-            vscode.window.showInformationMessage(`Chain "${chainName}" created with id ${chainId}`);
-        } catch (err) {
-            vscode.window.showErrorMessage(`Failed: ${err}`);
-        }
-    }
-
-    async createEmptyService() {
-        try {
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (!workspaceFolders) {
-                vscode.window.showErrorMessage('Open a workspace folder first');
-                return;
-            }
-            
-            const serviceName = await vscode.window.showInputBox({prompt: 'Enter new service name'});
-            if (!serviceName) {
-                return;
-            }
-
-            const serviceId = crypto.randomUUID();
-            const workspaceUri = workspaceFolders[0].uri;
-
-            // Create service folder with serviceId as name
-            const serviceFolderUri = vscode.Uri.joinPath(workspaceUri, serviceId);
-            await vscode.workspace.fs.createDirectory(serviceFolderUri);
-
-            // Create template file inside the service folder
-            const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
-            const service = {
-                $schema: 'http://qubership.org/schemas/product/qip/service',
-                id: serviceId,
-                name: serviceName,
-                content: {
-                    createdWhen: Date.now(),
-                    modifiedWhen: Date.now(),
-                    createdBy: {...EMPTY_USER},
-                    modifiedBy: {...EMPTY_USER},
-                    description: 'New service',
-                    activeEnvironmentId: '',
-                    integrationSystemType: 'EXTERNAL',
-                    protocol: '',
-                    extendedProtocol: '',
-                    specification: '',
-                    environments: [],
-                    labels: [],
-                    migrations: []
-                }
-            };
-            const bytes = new TextEncoder().encode(yaml.stringify(service));
-
-            await vscode.workspace.fs.writeFile(serviceFileUri, bytes);
-            vscode.window.showInformationMessage(`Service "${serviceName}" created with id ${serviceId} in folder ${serviceId}`);
-        } catch (err) {
-            vscode.window.showErrorMessage(`Failed: ${err}`);
-        }
-    }
 
     // Service-related methods
     private async getMainServiceFileUri(mainFolderUri: Uri): Promise<Uri> {
