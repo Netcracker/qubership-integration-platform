@@ -254,10 +254,8 @@ export class VSCodeExtensionApi implements Api {
     );
   }
 
-  getRootFolders = async (): Promise<FolderItem[]> => {
-    return <FolderItem[]>(
-      (await this.sendMessageToExtension("getRootFolders")).payload
-    );
+  getRootFolders = (): Promise<FolderItem[]> => {
+    return Promise.resolve([]);
   };
 
   getChainsUsedByService(): Promise<BaseEntity[]> {
