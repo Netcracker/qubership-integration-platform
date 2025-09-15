@@ -69,4 +69,4 @@ This software is licensed under Apache License Version 2.0. License text is loca
 
 ## Additional Resources
 
-- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — сore deployment guide.
+- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment guide.
