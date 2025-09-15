@@ -26,7 +26,7 @@
 }
 
 .multiline-icon {
-  color: #1890ff; /* Цвет для иконки многострочности, можно выбрать другой */
+  color: #1890ff;
 }
 
 .editable-cell-wrapper:hover .inline-icon {
