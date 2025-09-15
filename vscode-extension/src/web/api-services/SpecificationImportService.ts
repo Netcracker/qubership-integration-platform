@@ -439,8 +439,8 @@ export class SpecificationImportService {
             const sourceFolder = Uri.joinPath(resourcesFolder, sourceFolderName);
 
             // Create directories
-            await fileApi.createDirectoryByUri(resourcesFolder);
-            await fileApi.createDirectoryByUri(sourceFolder);
+            await vscode.workspace.fs.createDirectory(resourcesFolder);
+            await vscode.workspace.fs.createDirectory(sourceFolder);
 
             // Copy file
             const targetFileUri = Uri.joinPath(sourceFolder, sourceFile.name);

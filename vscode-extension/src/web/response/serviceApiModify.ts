@@ -18,10 +18,10 @@ export async function updateService(mainFolderUri: Uri, serviceId: string, servi
     console.log('updateService: Starting update for serviceId:', serviceId);
     console.log('updateService: mainFolderUri:', mainFolderUri);
     console.log('updateService: serviceRequest:', serviceRequest);
-    
+
     const service: any = await getMainService(mainFolderUri);
     console.log('updateService: Loaded service:', service);
-    
+
     if (service.id !== serviceId) {
         console.error(`ServiceId mismatch: expected ${serviceId}, got ${service.id}`);
         throw Error("ServiceId mismatch");
@@ -69,14 +69,14 @@ export async function updateService(mainFolderUri: Uri, serviceId: string, servi
 
     console.log('updateService: Service object before writing:', service);
     console.log('updateService: Calling writeMainService...');
-    
+
     await writeMainService(mainFolderUri, service);
     console.log('updateService: writeMainService completed successfully');
 
     console.log('updateService: Calling getService to return updated service...');
     const updatedService = await getService(mainFolderUri, serviceId);
     console.log('updateService: Returning updated service:', updatedService);
-    
+
     return updatedService;
 }
 
@@ -84,7 +84,7 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
     console.log('createService: Starting service creation');
     console.log('createService: mainFolderUri:', mainFolderUri);
     console.log('createService: serviceRequest:', serviceRequest);
-    
+
     try {
         const serviceId = crypto.randomUUID();
         console.log('createService: Generated serviceId:', serviceId);
@@ -120,7 +120,7 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
         // Create service file inside the service folder
         const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
         console.log('createService: Service file URI:', serviceFileUri);
-        
+
         await writeServiceFile(serviceFileUri, service);
         console.log('createService: Service file written successfully');
 
@@ -141,7 +141,7 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
             environments: service.content.environments || [],
             labels: service.content.labels || []
         };
-        
+
         console.log('createService: Service created successfully:', result);
         return result;
     } catch (error) {
@@ -280,10 +280,10 @@ export async function updateSpecificationModel(mainFolderUri: Uri, modelId: stri
 
 export async function deprecateModel(mainFolderUri: Uri, modelId: string): Promise<Specification> {
     console.log('[deprecateModel] Starting deprecation for modelId:', modelId);
-    
+
     try {
         const { specificationFile, specificationInfo } = await findSpecificationFileById(mainFolderUri, modelId);
-        
+
         console.log(`[deprecateModel] Found specification file: ${specificationFile}`);
         console.log(`[deprecateModel] Current deprecated status: ${specificationInfo.content?.deprecated || false}`);
 
@@ -300,7 +300,7 @@ export async function deprecateModel(mainFolderUri: Uri, modelId: string): Promi
         const yamlContent = yaml.stringify(specificationInfo);
         const bytes = new TextEncoder().encode(yamlContent);
         await fileApi.writeFile(specificationFileUri, bytes);
-        
+
         console.log(`[deprecateModel] Successfully deprecated specification: ${specificationInfo.name}`);
         vscode.window.showInformationMessage(`Specification "${specificationInfo.name}" has been deprecated successfully!`);
 
@@ -326,7 +326,7 @@ export async function deprecateModel(mainFolderUri: Uri, modelId: string): Promi
             createdBy: specificationInfo.content.createdBy || EMPTY_USER,
             modifiedBy: specificationInfo.content.modifiedBy || EMPTY_USER
         };
-        
+
     } catch (error) {
         console.error('[deprecateModel] Error:', error);
         vscode.window.showErrorMessage(`Failed to deprecate specification: ${error}`);
@@ -342,10 +342,7 @@ async function findSpecificationFilesByGroup(mainFolderUri: Uri, groupId: string
         throw new Error('Service not found');
     }
 
-    const entries = await fileApi.readDirectory(mainFolderUri);
-    const groupFiles = entries.filter(([name, type]: [string, vscode.FileType]) => type === 1)
-        .filter(([name]: [string, vscode.FileType]) => name.endsWith('.specification-group.qip.yaml'))
-        .map(([name]: [string, vscode.FileType]) => name);
+    const groupFiles = await fileApi.findSpecificationGroupFiles(mainFolderUri);
 
     let groupFileToDelete: string | null = null;
     let groupInfo: any = null;
@@ -373,14 +370,12 @@ async function findSpecificationFilesByGroup(mainFolderUri: Uri, groupId: string
 
     console.log(`[findSpecificationFilesByGroup] Found group file: ${groupFileToDelete}`);
 
-    const specificationFiles = entries.filter(([name, type]: [string, vscode.FileType]) => type === 1)
-        .filter(([name]: [string, vscode.FileType]) => name.endsWith('.specification.qip.yaml'))
-        .map(([name]: [string, vscode.FileType]) => name);
+    const specificationFiles = await fileApi.findSpecificationFiles(mainFolderUri);
 
     const groupName = groupInfo.name;
     const systemId = groupInfo.content.parentId;
 
-    const groupSpecificationFiles = specificationFiles.filter(fileName => 
+    const groupSpecificationFiles = specificationFiles.filter(fileName =>
         fileName.startsWith(`${systemId}-${groupName}-`)
     );
 
@@ -395,11 +390,8 @@ async function findSpecificationFilesByGroup(mainFolderUri: Uri, groupId: string
 
 async function findSpecificationFileById(mainFolderUri: Uri, modelId: string): Promise<{ specificationFile: string, specificationInfo: any }> {
     console.log(`[findSpecificationFileById] Searching for specification: ${modelId}`);
-    
-    const entries = await fileApi.readDirectory(mainFolderUri);
-    const specificationFiles = entries.filter(([name, type]: [string, vscode.FileType]) => type === 1)
-        .filter(([name]: [string, vscode.FileType]) => name.endsWith('.specification.qip.yaml'))
-        .map(([name]: [string, vscode.FileType]) => name);
+
+    const specificationFiles = await fileApi.findSpecificationFiles(mainFolderUri);
 
     let specificationFileToDelete: string | null = null;
     let specificationInfo: any = null;
@@ -440,39 +432,37 @@ async function deleteSourceFilesFromSpecificationSources(mainFolderUri: Uri, spe
     }
 
     console.log(`[deleteSourceFilesFromSpecificationSources] Found ${specificationInfo.specificationSources.length} source files to delete`);
-    console.log('[deleteSourceFilesFromSpecificationSources] specificationSources:', JSON.stringify(specificationInfo.specificationSources, null, 2));
 
-    const filesToDelete: string[] = [];
     const foldersToCheck: string[] = [];
 
     for (const source of specificationInfo.specificationSources) {
         try {
             console.log(`[deleteSourceFilesFromSpecificationSources] Processing source: ${source.name}, fileName: ${source.fileName}`);
-            
+
             const filePath = source.fileName;
             if (filePath && filePath.startsWith('resources/')) {
                 const relativePath = filePath.replace('resources/', '');
                 const sourceFileUri = vscode.Uri.joinPath(mainFolderUri, 'resources', relativePath);
-                
+
                 console.log(`[deleteSourceFilesFromSpecificationSources] Full file path: ${sourceFileUri.fsPath}`);
 
                 try {
-                    const fileStat = await fileApi.getFileStat(sourceFileUri);
+                    const fileStat = await vscode.workspace.fs.stat(sourceFileUri);
                     console.log(`[deleteSourceFilesFromSpecificationSources] File stat for ${source.name}:`, fileStat);
-                    
+
                     if (fileStat.type === vscode.FileType.File) {
-                        filesToDelete.push(sourceFileUri.fsPath);
-                        console.log(`[deleteSourceFilesFromSpecificationSources] Added file for deletion: ${source.name}`);
+                        await fileApi.deleteFile(sourceFileUri);
+                        console.log(`[deleteSourceFilesFromSpecificationSources] Successfully deleted file: ${source.name}`);
+
+                        const folderPath = relativePath.split('/')[0];
+                        if (folderPath && !foldersToCheck.includes(folderPath)) {
+                            foldersToCheck.push(folderPath);
+                        }
                     } else {
                         console.log(`[deleteSourceFilesFromSpecificationSources] File ${source.name} is not a regular file, type:`, fileStat.type);
                     }
                 } catch (error) {
                     console.log(`[deleteSourceFilesFromSpecificationSources] Source file ${source.name} not found:`, error);
-                }
-
-                const folderPath = relativePath.split('/')[0]; 
-                if (folderPath && !foldersToCheck.includes(folderPath)) {
-                    foldersToCheck.push(folderPath);
                 }
             } else {
                 console.log(`[deleteSourceFilesFromSpecificationSources] File path ${filePath} does not start with 'resources/'`);
@@ -482,30 +472,19 @@ async function deleteSourceFilesFromSpecificationSources(mainFolderUri: Uri, spe
         }
     }
 
-    console.log(`[deleteSourceFilesFromSpecificationSources] Deleting ${filesToDelete.length} files...`);
-    for (const filePath of filesToDelete) {
-        try {
-            const fileUri = vscode.Uri.file(filePath);
-            await fileApi.deleteFile(fileUri);
-            console.log(`[deleteSourceFilesFromSpecificationSources] Successfully deleted file: ${filePath}`);
-        } catch (error) {
-            console.error(`[deleteSourceFilesFromSpecificationSources] Error deleting file ${filePath}:`, error);
-        }
-    }
-
     console.log(`[deleteSourceFilesFromSpecificationSources] Checking ${foldersToCheck.length} folders for cleanup...`);
     for (const folderName of foldersToCheck) {
         try {
             const folderUri = vscode.Uri.joinPath(mainFolderUri, 'resources', folderName);
-            const folderStat = await fileApi.getFileStat(folderUri);
-            
+            const folderStat = await vscode.workspace.fs.stat(folderUri);
+
             if (folderStat.type === vscode.FileType.Directory) {
-                const folderEntries = await fileApi.readDirectory(folderUri);
-                if (folderEntries.length === 0) {
-                    await fileApi.deleteFile(folderUri);
+                const entries = await vscode.workspace.fs.readDirectory(folderUri);
+                if (entries.length === 0) {
+                    await vscode.workspace.fs.delete(folderUri);
                     console.log(`[deleteSourceFilesFromSpecificationSources] Deleted empty folder: ${folderName}`);
                 } else {
-                    console.log(`[deleteSourceFilesFromSpecificationSources] Folder ${folderName} not empty (${folderEntries.length} items), keeping it`);
+                    console.log(`[deleteSourceFilesFromSpecificationSources] Folder ${folderName} not empty, keeping it`);
                 }
             }
         } catch (error) {
@@ -516,25 +495,25 @@ async function deleteSourceFilesFromSpecificationSources(mainFolderUri: Uri, spe
 
 export async function deleteSpecificationGroup(mainFolderUri: Uri, groupId: string): Promise<void> {
     console.log('[deleteSpecificationGroup] Starting deletion for groupId:', groupId);
-    
+
     try {
-        
+
         const { groupFile, groupInfo, specificationFiles } = await findSpecificationFilesByGroup(mainFolderUri, groupId);
-        
+
         console.log(`[deleteSpecificationGroup] Will delete group file: ${groupFile}`);
         console.log(`[deleteSpecificationGroup] Will delete ${specificationFiles.length} specification files`);
 
         for (const specFileName of specificationFiles) {
             try {
                 console.log(`[deleteSpecificationGroup] Processing specification file: ${specFileName}`);
-                
+
                 const fileUri = vscode.Uri.joinPath(mainFolderUri, specFileName);
                 const fileContent = await fileApi.readFileContent(fileUri);
                 const text = new TextDecoder().decode(fileContent);
                 const specInfo = yaml.parse(text);
 
                 await deleteSourceFilesFromSpecificationSources(mainFolderUri, specInfo);
-                
+
                 console.log(`[deleteSpecificationGroup] Processed specification: ${specFileName}`);
             } catch (error) {
                 console.error(`[deleteSpecificationGroup] Error processing specification file ${specFileName}:`, error);
@@ -557,7 +536,7 @@ export async function deleteSpecificationGroup(mainFolderUri: Uri, groupId: stri
         console.log(`[deleteSpecificationGroup] Deleted group file: ${groupFile}`);
 
         vscode.window.showInformationMessage(`Specification group "${groupInfo.name}" has been deleted successfully!`);
-        
+
     } catch (error) {
         console.error('deleteSpecificationGroup: Error:', error);
         vscode.window.showErrorMessage(`Failed to delete specification group: ${error}`);
@@ -567,11 +546,11 @@ export async function deleteSpecificationGroup(mainFolderUri: Uri, groupId: stri
 
 export async function deleteSpecificationModel(mainFolderUri: Uri, modelId: string): Promise<void> {
     console.log('[deleteSpecificationModel] Starting deletion for modelId:', modelId);
-    
+
     try {
-        
+
         const { specificationFile, specificationInfo } = await findSpecificationFileById(mainFolderUri, modelId);
-        
+
         console.log(`[deleteSpecificationModel] Will delete specification file: ${specificationFile}`);
 
         await deleteSourceFilesFromSpecificationSources(mainFolderUri, specificationInfo);
@@ -581,7 +560,7 @@ export async function deleteSpecificationModel(mainFolderUri: Uri, modelId: stri
         console.log(`[deleteSpecificationModel] Deleted specification file: ${specificationFile}`);
 
         vscode.window.showInformationMessage(`Specification "${specificationInfo.name}" has been deleted successfully!`);
-        
+
     } catch (error) {
         console.error('[deleteSpecificationModel] Error:', error);
         vscode.window.showErrorMessage(`Failed to delete specification: ${error}`);
@@ -649,14 +628,9 @@ export async function createEmptyService() {
         };
 
         const service = await createService({} as ExtensionContext, workspaceFolders[0].uri, serviceRequest);
-        
-        // Refresh QIP Explorer to show the new service
-        try {
-            refreshQipExplorer();
-        } catch (error) {
-            console.log('Could not refresh QIP Explorer:', error);
-        }
-        
+
+        refreshQipExplorer();
+
         vscode.window.showInformationMessage(`Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${service.id}`);
         return service;
     } catch (err) {

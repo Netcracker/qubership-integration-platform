@@ -89,7 +89,7 @@ export class SystemService {
      */
     private async getMainServiceFileUri(mainFolderUri: Uri): Promise<Uri | undefined> {
         if (mainFolderUri) {
-            let entries = await fileApi.readDirectory(mainFolderUri);
+            let entries = await vscode.workspace.fs.readDirectory(mainFolderUri);
 
             if (!entries || !Array.isArray(entries)) {
                 console.error(`Failed to read directory contents`);

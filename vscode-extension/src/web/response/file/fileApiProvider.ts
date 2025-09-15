@@ -34,25 +34,6 @@ let current: FileApi = {
     writeServiceFile: async () => {
         throw new Error('FileApi not configured');
     },
-    createServiceDirectory: async () => {
-        throw new Error('FileApi not configured');
-    },
-    deleteServiceDirectory: async () => {
-        throw new Error('FileApi not configured');
-    },
-    // Directory operations
-    readDirectory: async () => {
-        throw new Error('FileApi not configured');
-    },
-    createDirectory: async () => {
-        throw new Error('FileApi not configured');
-    },
-    createDirectoryByUri: async () => {
-        throw new Error('FileApi not configured');
-    },
-    deleteDirectory: async () => {
-        throw new Error('FileApi not configured');
-    },
     // File operations
     writeFile: async () => {
         throw new Error('FileApi not configured');
@@ -63,9 +44,15 @@ let current: FileApi = {
     deleteFile: async () => {
         throw new Error('FileApi not configured');
     },
-    getFileStat: async () => {
+    getFileType: async () => {
         throw new Error('FileApi not configured');
-    }
+    },
+    findSpecificationGroupFiles: async () => {
+        throw new Error('FileApi not configured');
+    },
+    findSpecificationFiles: async () => {
+        throw new Error('FileApi not configured');
+    },
 };
 
 export function setFileApi(api: FileApi) {
@@ -85,16 +72,11 @@ export const fileApi: FileApi = {
     getService: async (parameters: any, serviceId: string): Promise<any> => current.getService(parameters, serviceId),
     writeMainService: async (parameters: any, serviceData: any): Promise<void> => current.writeMainService(parameters, serviceData),
     writeServiceFile: async (fileUri: Uri, serviceData: any): Promise<void> => current.writeServiceFile(fileUri, serviceData),
-    createServiceDirectory: async (parameters: any, serviceId: string): Promise<Uri> => current.createServiceDirectory(parameters, serviceId),
-    deleteServiceDirectory: async (parameters: any, serviceId: string): Promise<void> => current.deleteServiceDirectory(parameters, serviceId),
-    // Directory operations
-    readDirectory: async (parameters: any): Promise<[string, number][]> => current.readDirectory(parameters),
-    createDirectory: async (parameters: any, dirName: string): Promise<void> => current.createDirectory(parameters, dirName),
-    createDirectoryByUri: async (dirUri: Uri): Promise<void> => current.createDirectoryByUri(dirUri),
-    deleteDirectory: async (parameters: any, dirName: string): Promise<void> => current.deleteDirectory(parameters, dirName),
+    findSpecificationGroupFiles: async (mainFolderUri: Uri): Promise<string[]> => current.findSpecificationGroupFiles(mainFolderUri),
+    findSpecificationFiles: async (mainFolderUri: Uri): Promise<string[]> => current.findSpecificationFiles(mainFolderUri),
     // File operations
     writeFile: async (fileUri: Uri, data: Uint8Array): Promise<void> => current.writeFile(fileUri, data),
     readFileContent: async (fileUri: Uri): Promise<Uint8Array> => current.readFileContent(fileUri),
     deleteFile: async (fileUri: Uri): Promise<void> => current.deleteFile(fileUri),
-    getFileStat: async (fileUri: Uri): Promise<any> => current.getFileStat(fileUri),
+    getFileType: async (mainFolderUri: Uri): Promise<string> => current.getFileType(mainFolderUri),
 };

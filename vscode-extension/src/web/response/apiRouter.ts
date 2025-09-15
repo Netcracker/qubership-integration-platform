@@ -1,4 +1,4 @@
-import {Element, VSCodeMessage, IntegrationSystem, Environment, SpecificationGroup, Specification, FolderItem, FolderItemType} from "./apiTypes";
+import {Element, VSCodeMessage, IntegrationSystem, Environment, SpecificationGroup, Specification, FolderItem, FolderItemType, QipFileType} from "./apiTypes";
 import {SerializedFile} from "../api-services/importApiTypes";
 import vscode, {ExtensionContext, Uri} from "vscode";
 import {
@@ -90,7 +90,7 @@ export async function getApiResponse(message: VSCodeMessage, openedDocumentFolde
         case 'createMaskedField': return await createMaskedField(mainFolder, message.payload.chainId, message.payload.maskedField);
         case 'deleteMaskedFields': return await deleteMaskedFields(mainFolder, message.payload.chainId, message.payload.maskedFieldIds);
         case 'updateMaskedField': return await updateMaskedField(mainFolder, message.payload.id, message.payload.chainId, message.payload.maskedField);
-    
+
 
         // Service operations
         case 'getService': return await getService(mainFolder, message.payload);
@@ -119,11 +119,6 @@ export async function getApiResponse(message: VSCodeMessage, openedDocumentFolde
         case 'importSpecification': return await handleImportSpecification(context, mainFolder, message.payload);
         case 'getImportSpecificationResult': return await handleGetImportSpecificationResult(context, mainFolder, message.payload);
 
-        // Folder operations
-        case 'getRootFolders':
-            console.log("Method getRootFolders is not implemented - returning empty array");
-            return [];
-
         // Navigation operations
         case 'navigateToSpecifications': return await getServiceSpecificationsUri(mainFolder, message.payload.groupId);
         case 'navigateToOperations': return await getServiceOperationsUri(mainFolder, message.payload.groupId, message.payload.specId);
@@ -132,26 +127,23 @@ export async function getApiResponse(message: VSCodeMessage, openedDocumentFolde
 
 export async function getNavigateUri(mainFolderUri: vscode.Uri): Promise<string> {
     try {
-        const entries = await fileApi.readDirectory(mainFolderUri);
+        const fileType = await fileApi.getFileType(mainFolderUri);
 
-        const hasChainFile = entries.some(([name]: [string, vscode.FileType]) => name.endsWith('.chain.qip.yaml'));
-        const hasServiceFile = entries.some(([name]: [string, vscode.FileType]) => name.endsWith('.service.qip.yaml'));
-
-        if (hasServiceFile) {
-            const serviceUri = await getServiceUri(mainFolderUri);
-            return serviceUri;
-        } else if (hasChainFile) {
-            const chainUri = await getChainUri(mainFolderUri);
-            return chainUri;
-        } else {
-            return "/services";
+        switch (fileType) {
+            case QipFileType.SERVICE:
+                const serviceUri = await getServiceUri(mainFolderUri);
+                return serviceUri;
+            case QipFileType.CHAIN:
+                const chainUri = await getChainUri(mainFolderUri);
+                return chainUri;
+            case QipFileType.UNKNOWN:
+            default:
+                return "/services";
         }
     } catch (e) {
         return "/services";
     }
 }
-
-export const RESOURCES_FOLDER = 'resources';
 
 async function parseNavigatePath(path: string, mainFolderUri: vscode.Uri): Promise<string> {
 

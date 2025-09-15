@@ -28,6 +28,12 @@ export enum FolderItemType {
   CHAIN = "CHAIN",
 }
 
+export enum QipFileType {
+  CHAIN = "CHAIN",
+  SERVICE = "SERVICE",
+  UNKNOWN = "UNKNOWN"
+}
+
 export type FolderUpdateRequest = {
   name: string;
   description: string;

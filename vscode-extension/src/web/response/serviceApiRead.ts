@@ -3,8 +3,15 @@ import * as yaml from 'yaml';
 import {ExtensionContext, FileType, Uri} from "vscode";
 import {EMPTY_USER} from "./chainApiUtils";
 import {fileApi} from "./file/fileApiProvider";
+import {VSCodeFileApi} from "./file/fileApiImpl";
 
 const vscode = require('vscode');
+
+let fileApiImpl: VSCodeFileApi | null = null;
+
+export function setFileApiImpl(context: ExtensionContext) {
+    fileApiImpl = new VSCodeFileApi(context);
+}
 
 export async function getCurrentServiceId(mainFolderUri: Uri): Promise<string> {
     const service: any = await getMainService(mainFolderUri);
@@ -14,7 +21,10 @@ export async function getCurrentServiceId(mainFolderUri: Uri): Promise<string> {
 
 export async function getMainServiceFileUri(mainFolderUri: Uri) {
     if (mainFolderUri) {
-        let entries = await fileApi.readDirectory(mainFolderUri);
+        if (!fileApiImpl) {
+            throw new Error('FileApiImpl not configured');
+        }
+        let entries = await fileApiImpl.readDirectory(mainFolderUri);
 
         if (!entries || !Array.isArray(entries)) {
             console.error(`Failed to read directory contents`);
@@ -122,7 +132,10 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
         throw Error("ServiceId mismatch");
     }
 
-    const entries = await fileApi.readDirectory(mainFolderUri);
+    if (!fileApiImpl) {
+        throw new Error('FileApiImpl not configured');
+    }
+    const entries = await fileApiImpl.readDirectory(mainFolderUri);
     
         const specGroupFiles = entries.filter(([, type]: [string, FileType]) => type === 1)
             .filter(([name]: [string, FileType]) => name.endsWith('.specification-group.qip.yaml'))
@@ -167,7 +180,10 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
 
 export async function getSpecificationModel(mainFolderUri: Uri, serviceId: string, groupId: string): Promise<Specification[]> {
     
-    const entries = await fileApi.readDirectory(mainFolderUri);
+    if (!fileApiImpl) {
+        throw new Error('FileApiImpl not configured');
+    }
+    const entries = await fileApiImpl.readDirectory(mainFolderUri);
     
     const specFiles = entries.filter(([, type]: [string, FileType]) => type === 1)
         .filter(([name]: [string, FileType]) => name.endsWith('.specification.qip.yaml'))
@@ -217,7 +233,10 @@ export async function getSpecificationModel(mainFolderUri: Uri, serviceId: strin
 
 export async function getOperationInfo(mainFolderUri: Uri, operationId: string): Promise<OperationInfo> {
     
-    const entries = await fileApi.readDirectory(mainFolderUri);
+    if (!fileApiImpl) {
+        throw new Error('FileApiImpl not configured');
+    }
+    const entries = await fileApiImpl.readDirectory(mainFolderUri);
     const specFiles = entries.filter(([, type]: [string, FileType]) => type === 1)
         .filter(([name]: [string, FileType]) => name.endsWith('.specification.qip.yaml'))
         .map(([name]: [string, FileType]) => name);

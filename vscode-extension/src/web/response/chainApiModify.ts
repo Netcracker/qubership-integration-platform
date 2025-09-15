@@ -75,7 +75,7 @@ async function checkRestrictions(element: any, elements:any[]) {
                 if (amount === LibraryElementQuantity.ONE || amount === LibraryElementQuantity.ONE_OR_ZERO) {
                     const actualAmount = parentElement.children?.filter((e: { type: string; }) => e.type === element.type).length;
 
-                    if (actualAmount == undefined || actualAmount > 1 || (actualAmount === 0 && amount === LibraryElementQuantity.ONE)) {
+                    if (actualAmount === undefined || actualAmount > 1 || (actualAmount === 0 && amount === LibraryElementQuantity.ONE)) {
                         console.error(`Incorrect amount of element type for parent element`);
                         throw Error("Incorrect amount of element type for parent element");
                     }
@@ -320,8 +320,9 @@ function findAndRemoveElementById(
     elements: Element[] | undefined,
     elementId: string
 ): Element | undefined {
-    if (!elements) return undefined;
-
+    if (!elements) {
+        return undefined;
+    }
     const index = elements.findIndex(e => e.id === elementId);
     if (index !== -1) {
         return elements.splice(index, 1)[0];

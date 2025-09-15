@@ -12,9 +12,9 @@ import {VSCodeMessage, VSCodeResponse} from "./response/apiTypes";
 import * as path from "path";
 import { setFileApi } from "./response/file/fileApiProvider";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
+import { setFileApiImpl } from "./response/serviceApiRead";
 import { QipExplorerProvider } from "./qipExplorer";
 import * as yaml from "yaml";
-import { createEmptyService as createEmptyServiceFromModify } from "./response/serviceApiModify";
 
 let globalQipProvider: QipExplorerProvider | null = null;
 
@@ -42,6 +42,21 @@ class ChainFileEditorProvider implements CustomTextEditorProvider {
 
         enrichWebview(panel, this.context, getDocumentDir(document));
     }
+}
+
+function openWebviewForElement(context: ExtensionContext, folderUri: Uri, elementType: 'chain' | 'service') {
+    const panel = vscode.window.createWebviewPanel(
+        'qipWebView', // Identifies the type of the webview
+        `QIP ${elementType === 'chain' ? 'Chain' : 'Service'} Editor`, // Title of the panel
+        vscode.ViewColumn.One, // Show in the first column
+        {
+            enableScripts: true, // Allow JavaScript execution
+            retainContextWhenHidden: true, // Keep state when hidden
+            enableCommandUris: true
+        }
+    );
+    
+    enrichWebview(panel, context, folderUri);
 }
 
 function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolderUri: Uri | undefined = undefined) {
@@ -73,8 +88,9 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolde
 
 // Your extension is activated the very first time the command is executed
 export function activate(context: ExtensionContext) {
-    const fileApi = new VSCodeFileApi(context);
-    setFileApi(fileApi);
+    const fileApiImpl = new VSCodeFileApi(context);
+    setFileApi(fileApiImpl);
+    setFileApiImpl(context);
 
     // Register QIP Explorer provider
     const qipProvider = new QipExplorerProvider(context);
@@ -132,19 +148,31 @@ export function activate(context: ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('qip.createChain',
         async () => {
-            await createEmptyChain();
+            const result = await fileApiImpl.createEmptyChain();
+            qipProvider.refresh();
+            if (result) {
+                openWebviewForElement(context, result.folderUri, 'chain');
+            }
         }
     ));
 
     context.subscriptions.push(vscode.commands.registerCommand('qip.createChainParent',
         async () => {
-            await createEmptyChain(true);
+            const result = await fileApiImpl.createEmptyChain(true);
+            qipProvider.refresh();
+            if (result) {
+                openWebviewForElement(context, result.folderUri, 'chain');
+            }
         }
     ));
 
     context.subscriptions.push(vscode.commands.registerCommand('qip.createService',
         async () => {
-            await createEmptyService();
+            const result = await fileApiImpl.createEmptyService();
+            qipProvider.refresh();
+            if (result) {
+                openWebviewForElement(context, result.folderUri, 'service');
+            }
         }
     ));
 
@@ -163,13 +191,13 @@ export function activate(context: ExtensionContext) {
                     // Determine the correct editor based on file type
                     const fileName = item.fileUri.fsPath;
                     let editorType = 'qip.chainFile.editor'; // default
-                    
+
                     if (fileName.endsWith('.service.qip.yaml')) {
                         editorType = 'qip.serviceFile.editor';
                     } else if (fileName.endsWith('.chain.qip.yaml')) {
                         editorType = 'qip.chainFile.editor';
                     }
-                    
+
                     // Open the file with custom editor
                     await vscode.commands.executeCommand('vscode.openWith', item.fileUri, editorType);
                 } catch (error) {
@@ -302,48 +330,10 @@ function getWebviewContent(context: ExtensionContext, webview: Webview) {
   `;
 }
 
-async function createEmptyChain(createInParentDir: boolean = false) {
-    try {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) {
-            vscode.window.showErrorMessage('Open a workspace folder first');
-            return;
-        }
-        const arg = await vscode.window.showInputBox({prompt: 'Enter new chain name'});
 
-        let folderUri = workspaceFolders[0].uri;
-        const chainId = crypto.randomUUID();
-        const chainName = arg || 'New Chain';
-        if (createInParentDir) {
-            folderUri = vscode.Uri.joinPath(folderUri, '..');
-        }
-        folderUri = vscode.Uri.joinPath(folderUri, chainId);
 
-        await vscode.workspace.fs.createDirectory(folderUri);
 
-        const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}.chain.qip.yaml`);
-        const chain = {
-            $schema: 'http://qubership.org/schemas/product/qip/chain',
-            id: chainId,
-            name: chainName,
-            content: {
-                migrations: "[]",
-                elements: [],
-                dependencies: [],
-            }
-        };
-        const bytes = new TextEncoder().encode(yaml.stringify(chain));
 
-        await vscode.workspace.fs.writeFile(chainFileUri, bytes);
-        vscode.window.showInformationMessage(`Chain "${chainName}" created with id ${chainId}`);
-    } catch (err) {
-        vscode.window.showErrorMessage(`Failed: ${err}`);
-    }
-}
-
-async function createEmptyService() {
-    await createEmptyServiceFromModify();
-}
 
 
 
