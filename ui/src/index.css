@@ -168,7 +168,6 @@ button:focus-visible {
           flex-direction: column;
 
           > .ant-table-body {
-            height: 0;
             min-height: 0;
             flex-grow: 1;
             flex-shrink: 1;
@@ -182,8 +181,9 @@ button:focus-visible {
 
 .qip-editor {
   border: solid 1px lightgrey;
-  border-radius: 8px;
+  border-radius: 4px;
   overflow: hidden;
+  margin-top: 8px;
 }
 
 .flex-dragger {

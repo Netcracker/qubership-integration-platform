@@ -505,6 +505,7 @@ export const MappingActionsTextView: React.FC<MappingActionsTextViewProps> = ({
 
   return (
     <Editor
+      height="35vh"
       className="qip-editor"
       value={value}
       language={MAPPER_ACTIONS_LANGUAGE_ID}

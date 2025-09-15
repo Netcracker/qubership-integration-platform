@@ -1,11 +1,9 @@
 import React from "react";
 import { Editor, Monaco } from "@monaco-editor/react";
-import { Flex } from "antd";
 import { editor, IRange, languages, Position } from "monaco-editor";
+import { Flex } from "antd";
 
-class GroovyCompletionProvider
-  implements languages.CompletionItemProvider
-{
+class GroovyCompletionProvider implements languages.CompletionItemProvider {
   constructor() {
     // Do nothing
   }
@@ -68,15 +66,14 @@ class GroovyCompletionProvider
         insertTextRules: languages.CompletionItemInsertTextRule.InsertAsSnippet,
         detail: "Remove message property",
         range,
-      }
+      },
     ];
 
     return { suggestions: suggestions };
   }
 }
 
-const GROOVY_COMPLETION_PROVIDER =
-  new GroovyCompletionProvider();
+const GROOVY_COMPLETION_PROVIDER = new GroovyCompletionProvider();
 
 function configureGroovyLanguage(monaco: Monaco): void {
   const isGroovyLanguageRegistered = monaco.languages
@@ -106,27 +103,36 @@ function configureGroovyLanguage(monaco: Monaco): void {
 export type ScriptProps = React.HTMLAttributes<HTMLElement> & {
   value: string;
   onChange?: (value: string) => void;
+  mode?: "groovy" | "json";
+  readOnly?: boolean;
 };
 
 export const Script: React.FC<ScriptProps> = ({
   value,
   onChange,
+  mode = "groovy",
+  readOnly = false,
   ...props
 }): React.ReactNode => {
   return (
     <Flex vertical {...props}>
       <Editor
+        height="35vh"
         className="qip-editor"
         value={value}
-        language={"groovy"}
+        language={mode}
         onMount={(_editor, monaco) => {
           configureGroovyLanguage(monaco);
         }}
         onChange={(value) => {
-          onChange?.(value ?? "");
+          if (!readOnly) {
+            onChange?.(value ?? "");
+          }
         }}
         options={{
           fixedOverflowWidgets: true,
+          readOnly: readOnly,
+          scrollBeyondLastLine: false,
         }}
       />
     </Flex>

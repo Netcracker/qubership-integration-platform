@@ -28,6 +28,10 @@ import {
 } from "./ChainElementModificationConstants.ts";
 import { ChainGraphNode } from "../../graph/nodes/ChainGraphNodeTypes.ts";
 import AnyOfAsSingleSelectField from "./field/AnyOfAsSingleSelectField.tsx";
+import MappingField from "./field/MappingField.tsx";
+import CustomArrayField from "./field/CustomArrayField.tsx";
+import ScriptField from "./field/ScriptField.tsx";
+import JsonField from "./field/JsonField.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -41,6 +45,10 @@ type TabField = {
   tab: string;
   path: string[];
   schema: JSONSchema7;
+};
+
+export type FormContext = {
+  operationId?: string;
 };
 
 function constructTitle(name: string, type?: string): string {
@@ -71,7 +79,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const notificationService = useNotificationService();
   const [title, setTitle] = useState(constructTitle(`${node.data.label}`));
   const [schema, setSchema] = useState<JSONSchema7>({});
-  const formDataRef = useRef({});
+  const formDataRef = useRef<Record<string, unknown>>({});
 
   const [activeKey, setActiveKey] = useState<string>();
 
@@ -357,7 +365,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
   return (
     <Modal
-      width={"80vw"}
       open
       title={title}
       onCancel={handleClose}
@@ -379,7 +386,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         </Button>,
       ]}
       classNames={{
+        footer: styles["modal-footer"],
         content: styles["modal"],
+        body: styles["modal-body"],
       }}
     >
       {schema && activeKey && (
@@ -387,7 +396,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           <Tabs
             activeKey={activeKey}
             onChange={handleTabChange}
-            type="card"
+            className={"flex-tabs"}
             items={uniqueTabs.map((tab) => ({ key: tab, label: tab }))}
           />
           <Form
@@ -400,6 +409,13 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               allOf: "populateDefaults",
               mergeDefaultsIntoFormData: "useFormDataIfPresent",
             }}
+            formContext={
+              {
+                operationId: (
+                  formDataRef.current.properties as Record<string, unknown>
+                ).integrationOperationId,
+              } as FormContext
+            }
             templates={{
               ObjectFieldTemplate: CustomObjectFieldTemplate,
               ErrorListTemplate,
@@ -408,6 +424,10 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               oneOfAsSingleInputField: OneOfAsSingleInputField,
               anyOfAsSingleSelectField: AnyOfAsSingleSelectField,
               patternPropertiesField: PatternPropertiesField,
+              mappingField: MappingField,
+              customArrayField: CustomArrayField,
+              scriptField: ScriptField,
+              jsonField: JsonField,
             }}
             widgets={widgets}
             onChange={(e) => {

@@ -7,6 +7,7 @@ import {
   RightOutlined,
   DownOutlined,
 } from "@ant-design/icons";
+import styles from "./PatternPropertiesField.module.css";
 
 const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
   formData = {},
@@ -44,52 +45,18 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
     onChange(updated);
   };
 
-  const headerStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    marginBottom: 8,
-  };
-  const tableStyle: React.CSSProperties = {
-    width: "100%",
-    borderCollapse: "collapse",
-  };
-  const thStyle: React.CSSProperties = {
-    textAlign: "left",
-    borderBottom: "1px solid #ddd",
-    padding: "8px 4px",
-    fontWeight: 500,
-  };
-  const tdStyle: React.CSSProperties = {
-    borderBottom: "1px solid #eee",
-    padding: "4px",
-  };
-  const badgeStyle: React.CSSProperties = {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
-    background: "#e6eef8",
-    color: "#0b66ff",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 12,
-  };
-
-  const leftHeaderStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  };
-
   return (
     <div>
-      <div style={headerStyle}>
-        <div style={leftHeaderStyle} onClick={() => setCollapsed((s) => !s)}>
-          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className={styles.header}>
+        <div
+          className={styles.leftHeader}
+          onClick={() => setCollapsed((s) => !s)}
+        >
+          <span className={styles.iconWrapper}>
             {collapsed ? <RightOutlined /> : <DownOutlined />}
           </span>
           <span>{schema?.title || uiSchema?.["ui:title"] || "Items"}</span>
-          <span style={badgeStyle}>{rowCount}</span>
+          <span className={styles.badge}>{rowCount}</span>
         </div>
 
         <div>
@@ -105,22 +72,22 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
       </div>
       {!collapsed &&
         (rowCount === 0 ? (
-          <div style={{ fontWeight: 600 }}>
+          <div className={styles.noEntries}>
             No entries. Click <b>+</b> to add.
           </div>
         ) : (
-          <table style={tableStyle}>
+          <table className={styles.table}>
             <thead>
               <tr>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Value</th>
-                <th style={thStyle}></th>
+                <th className={styles.th}>Name</th>
+                <th className={styles.th}>Value</th>
+                <th className={styles.th}></th>
               </tr>
             </thead>
             <tbody>
               {Object.entries(formData).map(([key, value], idx) => (
                 <tr key={idx}>
-                  <td style={tdStyle}>
+                  <td className={styles.td}>
                     <Input
                       value={key}
                       onChange={(e) => handleKeyChange(key, e.target.value)}
@@ -128,7 +95,7 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
                       placeholder="Name"
                     />
                   </td>
-                  <td style={tdStyle}>
+                  <td className={styles.td}>
                     <Input
                       value={value}
                       onChange={(e) => handleValueChange(key, e.target.value)}
@@ -136,14 +103,14 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
                       placeholder="Value"
                     />
                   </td>
-                  <td style={tdStyle}>
+                  <td className={styles.td}>
                     <Button
                       size="small"
                       type="text"
                       icon={<DeleteOutlined />}
                       onClick={() => handleDelete(key)}
                       disabled={disabled || readonly}
-                      style={{ fontSize: 16, height: "32px", width: "32px" }}
+                      className={styles.deleteBtn}
                     />
                   </td>
                 </tr>

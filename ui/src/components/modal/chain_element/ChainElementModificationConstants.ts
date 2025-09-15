@@ -1,5 +1,4 @@
 import { UiSchema } from "@rjsf/utils";
-import styles from "./ChainElementModification.module.css";
 
 export const INITIAL_UI_SCHEMA: UiSchema = {
   "ui:submitButtonOptions": {
@@ -33,8 +32,10 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
         "ui:widget": "hidden",
       },
       script: {
-        "ui:widget": "textarea",
-        "ui:classNames": styles["custom-textarea"],
+        "ui:field": "scriptField",
+      },
+      mappingDescription: {
+        "ui:field": "mappingField",
       },
     },
     invalidURI: {
@@ -60,8 +61,10 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
         "ui:widget": "hidden",
       },
       script: {
-        "ui:widget": "textarea",
-        "ui:classNames": styles["custom-textarea"],
+        "ui:field": "scriptField",
+      },
+      mappingDescription: {
+        "ui:field": "mappingField",
       },
     },
     exportFileExtension: {
@@ -73,25 +76,57 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     propertiesFilename: {
       "ui:widget": "hidden",
     },
+    errorThrowing: {
+      "ui:widget": "hidden",
+    },
+    authorizationConfiguration: {
+      type: {
+        "ui:widget": "hidden",
+      },
+    },
+    before: {
+      type: {
+        "ui:widget": "hidden",
+      },
+      exportFileExtension: {
+        "ui:widget": "hidden",
+      },
+      propertiesToExportInSeparateFile: {
+        "ui:widget": "hidden",
+      },
+      propertiesFilename: {
+        "ui:widget": "hidden",
+      },
+      script: {
+        "ui:field": "scriptField",
+      },
+      mappingDescription: {
+        "ui:field": "mappingField",
+      },
+    },
+    after: {
+      "ui:field": "customArrayField",
+    },
+    afterValidation: {
+      "ui:field": "customArrayField",
+    },
     validationSchema: {
-      "ui:widget": "textarea",
-      "ui:classNames": styles["custom-textarea"],
+      "ui:field": "jsonField",
     },
     roles: {
       "ui:widget": "customSelectWidget",
     },
     script: {
-      "ui:widget": "textarea",
-      "ui:classNames": styles["custom-textarea"],
+      "ui:field": "scriptField",
+    },
+    mappingDescription: {
+      "ui:field": "mappingField",
     },
     allowedContentTypes: {
       "ui:widget": "customSelectWidget",
     },
     httpMethodRestrict: {
       "ui:widget": "stringAsMultipleSelectWidget",
-    },
-    abacResource: {
-      "ui:tab": "Access Control",
     },
     replyTo: {
       "ui:widget": "customSelectWidget",
@@ -170,6 +205,18 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:fieldReplacesAnyOrOneOf": true,
       "ui:field": "anyOfAsSingleSelectField",
     },
+    retryCount: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+    retryDelay: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+    maxLoopIteration: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
   },
   id: { "ui:widget": "hidden" },
   elementType: { "ui:widget": "hidden" },
@@ -177,6 +224,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
   folder: { "ui:widget": "hidden" },
   propertiesFilename: { "ui:widget": "hidden" },
   swimlaneId: { "ui:widget": "hidden" },
+  children: { "ui:widget": "hidden" },
 };
 
 export const pathToTabMap: Record<string, string> = {
@@ -216,13 +264,19 @@ export const pathToTabMap: Record<string, string> = {
     "Idempotency",
   "properties.idempotency.chainTriggerParameters.chainCallTimeout":
     "Idempotency",
+  "properties.before": "Prepare Request",
+  "properties.after": "Handle Response",
+  "properties.afterValidation": "Validation",
 };
 
 export const desiredTabOrder = [
   "Endpoint",
+  "Prepare Request",
   "Authorization",
+  "Validation",
   "Validate Request",
   "Handle Validation Failure",
+  "Handle Response",
   "Failure Response Mapping",
   "Access Control",
   "Parameters",
