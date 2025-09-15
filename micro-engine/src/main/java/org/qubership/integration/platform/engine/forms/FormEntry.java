@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.engine.forms;
 
 import lombok.Data;
-import org.springframework.http.MediaType;
+import jakarta.ws.rs.core.MediaType;
 
 @Data
 public class FormEntry {

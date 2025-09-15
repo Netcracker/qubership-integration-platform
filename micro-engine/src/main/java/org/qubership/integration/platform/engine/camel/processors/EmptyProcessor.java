@@ -18,14 +18,14 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 /**
  * Used for 'split' element after transform stub due to error:
  * <br/><code>java.lang.NullPointerException: Cannot invoke
  * "org.apache.camel.CamelContext.getCamelContextExtension()" because "this.camelContext" is null</code>
  */
-@Component
+@ApplicationScoped
 public class EmptyProcessor implements Processor {
 
     @Override

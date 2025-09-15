@@ -17,11 +17,13 @@
 package org.qubership.integration.platform.engine.camel.history;
 
 
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 
 import java.util.function.Predicate;
 
-@Component("camelMessageHistoryFilter")
+@ApplicationScoped
+@Named("camelMessageHistoryFilter")
 public class CamelMessageHistoryFilter implements Predicate<FilteringMessageHistoryFactory.FilteringEntity> {
     private static final String HTTP_TRIGGER_PROCESSOR = "ref:httpTriggerProcessor";
 

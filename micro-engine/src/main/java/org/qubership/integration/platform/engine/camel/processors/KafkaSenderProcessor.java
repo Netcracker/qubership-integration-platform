@@ -19,9 +19,9 @@ package org.qubership.integration.platform.engine.camel.processors;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.http.HttpHeaders;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
-@Component
+@ApplicationScoped
 public class KafkaSenderProcessor implements Processor {
 
     @Override

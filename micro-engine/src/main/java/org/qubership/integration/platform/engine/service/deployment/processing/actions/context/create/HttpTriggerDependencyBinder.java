@@ -17,24 +17,24 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
 import io.micrometer.common.KeyValues;
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletTagsProvider;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import static org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.ChainElementTypeHelper.isHttpTriggerElement;
 
-@Component
+@ApplicationScoped
 @OnAfterDeploymentContextCreated
 public class HttpTriggerDependencyBinder extends ElementProcessingAction {
     private final MetricTagsHelper metricTagsHelper;
 
-    @Autowired
+    @Inject
     public HttpTriggerDependencyBinder(MetricTagsHelper metricTagsHelper) {
         this.metricTagsHelper = metricTagsHelper;
     }
@@ -46,7 +46,7 @@ public class HttpTriggerDependencyBinder extends ElementProcessingAction {
 
     @Override
     public void apply(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties elementProperties,
         DeploymentInfo deploymentInfo
     ) {

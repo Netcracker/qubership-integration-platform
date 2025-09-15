@@ -16,15 +16,16 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
-import kotlin.text.Charsets;
 import org.apache.http.client.utils.URLEncodedUtils;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.qubership.integration.platform.engine.util.AtlasMapUtils.getQueryParameters;
 
 public class QipJsonAtlasModuleOptionsDecoder {
     public static QipJsonAtlasModuleOptions decode(String uri) {
         QipJsonAtlasModuleOptions options = new QipJsonAtlasModuleOptions();
-        for (var nameValuePair : URLEncodedUtils.parse(getQueryParameters(uri), Charsets.UTF_8)) {
+        for (var nameValuePair : URLEncodedUtils.parse(getQueryParameters(uri), StandardCharsets.UTF_8)) {
             switch (nameValuePair.getName()) {
                 case "serializeTargetDocument" ->
                         options.setSerializeTargetDocument(Boolean.parseBoolean(nameValuePair.getValue()));

@@ -18,19 +18,20 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Processor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Optional;
 
 @Slf4j
-@Component("securityProcessor")
+@ApplicationScoped
+@Named("securityProcessor")
 public class SecurityProcessorProxy extends OptionalProcessorProxy {
 
-    @Autowired
+    @Inject
     public SecurityProcessorProxy(
-        @Qualifier("securityProcessorImpl") Optional<Processor> processor
+        @Named("securityProcessorImpl") Optional<Processor> processor
     ) {
         super(processor);
     }

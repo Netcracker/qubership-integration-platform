@@ -16,8 +16,9 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
+import io.quarkus.arc.lookup.LookupIfProperty;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.errors.AuthorizationException;
@@ -31,9 +32,8 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.HashSet;
 import java.util.List;
@@ -42,18 +42,18 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
-@Component
-@ConditionalOnProperty(
+@ApplicationScoped
+@LookupIfProperty(
     name = "qip.camel.component.kafka.predeploy-check-enabled",
-    havingValue = "true",
-    matchIfMissing = true
+    stringValue = "true",
+    lookupIfMissing = true
 )
 @OnBeforeDeploymentContextCreated
 public class KafkaTopicAndConnectionCheckAction extends ElementProcessingAction {
     private final VariablesService variablesService;
     private final PredeployCheckKafkaConfiguration predeployCheckKafkaConfiguration;
 
-    @Autowired
+    @Inject
     public KafkaTopicAndConnectionCheckAction(
         VariablesService variablesService,
         PredeployCheckKafkaConfiguration predeployCheckKafkaConfiguration
@@ -71,7 +71,7 @@ public class KafkaTopicAndConnectionCheckAction extends ElementProcessingAction 
 
     @Override
     public void apply(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties elementProperties,
         DeploymentInfo deploymentInfo
     ) {

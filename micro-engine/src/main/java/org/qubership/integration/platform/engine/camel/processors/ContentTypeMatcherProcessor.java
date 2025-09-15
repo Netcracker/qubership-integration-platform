@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,7 +36,7 @@ import java.util.List;
  * </ul>
  */
 @Slf4j
-@Component
+@ApplicationScoped
 public class ContentTypeMatcherProcessor implements Processor {
 
     private static final String CONTENT_TYPE_DOES_NOT_MATCH_ERROR_MESSAGE = "Expected content type {} does not match actual content type {}. ";

@@ -30,9 +30,9 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.ws.rs.core.HttpHeaders;
 import org.springframework.util.MimeType;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ import java.util.regex.Pattern;
  * and set them as environment variables at camel context
  */
 @Slf4j
-@Component
+@ApplicationScoped
 public class HttpTriggerProcessor implements Processor {
 
     private static final Pattern URI_REGEXP = Pattern.compile("(\\/?\\{?[^\\/]*}?\\/?)");
@@ -57,7 +57,7 @@ public class HttpTriggerProcessor implements Processor {
 
     private final JsonMessageValidator validator;
 
-    @Autowired
+    @Inject
     public HttpTriggerProcessor(CorrelationIdSetter correlationIdSetter, JsonMessageValidator validator) {
         this.correlationIdSetter = correlationIdSetter;
         this.validator = validator;

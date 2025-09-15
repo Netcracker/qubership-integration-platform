@@ -21,8 +21,8 @@ import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.service.contextstorage.ContextStorageService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 import java.util.Map;
@@ -32,7 +32,7 @@ import static org.qubership.integration.platform.engine.camel.CorrelationIdSette
 
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class ContextStorageProcessor implements Processor {
 
     enum Operation {
@@ -62,7 +62,7 @@ public class ContextStorageProcessor implements Processor {
     private final ContextStorageService contextStorageService;
 
 
-    @Autowired
+    @Inject
     public ContextStorageProcessor(
             ContextStorageService contextStorageService
     ) {

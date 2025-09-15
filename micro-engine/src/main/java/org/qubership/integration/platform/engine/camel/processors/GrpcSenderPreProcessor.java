@@ -22,15 +22,15 @@ import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.util.GrpcProcessorUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
-@Component
+@ApplicationScoped
 public class GrpcSenderPreProcessor implements Processor {
 
     private final JsonFormat.Parser grpcParser;
 
-    @Autowired
+    @Inject
     public GrpcSenderPreProcessor(JsonFormat.Parser grpcParser) {
         this.grpcParser = grpcParser;
     }

@@ -287,3 +287,111 @@ kubernetes:
   variables-secret:
     name: ${app.prefix}-secured-variables-v2
     label: ${app.prefix}-variable-type
+
+quarkus:
+  http:
+    host: 0.0.0.0
+    port: 8080
+  rest-client:
+    runtime-catalog:
+      url: ${RUNTIME_CATALOG_SERVICE_URL:http://runtime-catalog:8080}
+      scope: jakarta.inject.Singleton
+      connect-timeout: 300000
+      read-timeout: 300000
+    consul:
+      url: ${CONSUL_URL:http://consul:8500}
+      scope: jakarta.inject.Singleton
+      connect-timeout: 25000
+      read-timeout: 25000
+  consul-config:
+    url: ${CONSUL_URL:http://consul:8500}
+    prefix: config/${NAMESPACE}
+    agent:
+      token: ${CONSUL_ADMIN_TOKEN}
+  datasource:
+    checkpoints:
+      idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
+      db-kind: postgresql
+      active: true
+      username: ${POSTGRES_USER:postgres}
+      password: ${POSTGRES_PASSWORD:postgres}
+      jdbc:
+        driver: org.postgresql.Driver
+        url: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_checkpoints_db?reWriteBatchedInserts=true
+        min-size: ${PG_MIN_IDLE:0}
+        max-size: ${PG_MAX_POOL_SIZE:30}
+        leak-detection-interval: ${PG_LEAK_DETECTION_INTERVAL:30000}
+    quartz:
+      idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
+      # TODO
+      db-kind: postgresql
+      active: true
+      username: ${POSTGRES_USER:postgres}
+      password: ${POSTGRES_PASSWORD:postgres}
+      jdbc:
+        driver: org.postgresql.Driver
+        url: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_qrtz_db
+        min-size: ${PG_MIN_IDLE:0}
+        max-size: ${PG_MAX_POOL_SIZE:30}
+        leak-detection-interval: ${PG_LEAK_DETECTION_INTERVAL:30000}
+  flyway:
+    enabled: true
+    checkpoints:
+      schemas: engine
+      default-schema: engine
+      locations: 'classpath:db/migration/postgresql/static'
+      baseline-on-migrate: true
+      create-schemas: true
+      out-of-order: true
+      ignore-migration-patterns: '*:future,*:missing'
+      validate-on-migrate: true
+    quartz:
+      schemas: engine
+      default-schema: engine
+      locations: 'classpath:db/migration/postgresql/configs'
+      baseline-on-migrate: true
+      create-schemas: true
+      out-of-order: true
+      ignore-migration-patterns: '*:future,*:missing'
+  hibernate-orm:
+    checkpoints:
+      datasource: checkpoints
+      dialect: PostgreSQLDialect
+      packages: org.qubership.integration.platform.engine.persistence.shared.entity
+      physical-naming-strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
+      database:
+        generation:
+          create-schemas: false
+        default-schema: engine
+        start-offline: true # disable connection during init
+      jdbc:
+        timezone: UTC
+        statement-batch-size: 30
+      unsupported-properties:
+        "hibernate.order_inserts": true
+        "hibernate.order_updates": true
+        "hibernate.jdbc.lob.non_contextual_creation": true
+    quartz:
+      datasource: checkpoints
+      dialect: PostgreSQLDialect
+      packages: org.qubership.integration.platform.engine.persistence.configs.entity
+      physical-naming-strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
+      database:
+        generation:
+          create-schemas: false
+        default-schema: engine
+        start-offline: true # disable connection during init
+      jdbc:
+        timezone: UTC
+        statement-batch-size: 30
+      unsupported-properties:
+        "hibernate.order_inserts": true
+        "hibernate.order_updates": true
+        "hibernate.jdbc.lob.non_contextual_creation": true
+  smallrye-openapi:
+    enable: true
+  camel:
+    servlet:
+      servlet-name: CamelServlet
+      servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
+      url-patterns: /routes/*

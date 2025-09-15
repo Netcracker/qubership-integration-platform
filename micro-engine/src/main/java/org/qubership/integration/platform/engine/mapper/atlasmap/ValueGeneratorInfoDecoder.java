@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.engine.mapper.atlasmap;
 
-import kotlin.text.Charsets;
 import org.apache.http.client.utils.URLEncodedUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,7 +28,7 @@ public class ValueGeneratorInfoDecoder {
     public static ValueGeneratorInfo decode(String uri) {
         String name = null;
         List<String> parameters = new ArrayList<>();
-        for (var nameValuePair : URLEncodedUtils.parse(getQueryParameters(uri), Charsets.UTF_8)) {
+        for (var nameValuePair : URLEncodedUtils.parse(getQueryParameters(uri), StandardCharsets.UTF_8)) {
             switch (nameValuePair.getName()) {
                 case "name" -> name = nameValuePair.getValue();
                 case "parameter" -> parameters.add(nameValuePair.getValue());

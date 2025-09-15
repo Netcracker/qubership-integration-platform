@@ -18,8 +18,8 @@ package org.qubership.integration.platform.engine.service.deployment.processing.
 
 import io.micrometer.core.instrument.binder.httpcomponents.hc5.MicrometerHttpClientInterceptor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.CamelContext;
 import org.apache.camel.component.http.HttpClientConfigurer;
-import org.apache.camel.spring.SpringCamelContext;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpResponse;
@@ -33,8 +33,8 @@ import org.qubership.integration.platform.engine.service.deployment.processing.E
 import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.testing.TestingService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.net.URISyntaxException;
 import java.util.Optional;
@@ -42,14 +42,14 @@ import java.util.Optional;
 import static org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.ChainElementTypeHelper.isHttpTriggerElement;
 
 @Slf4j
-@Component
+@ApplicationScoped
 @OnAfterDeploymentContextCreated
 public class HttpSenderDependencyBinder extends ElementProcessingAction {
     private final MetricsStore metricsStore;
     private final MetricTagsHelper metricTagsHelper;
     private final Optional<TestingService> testingService;
 
-    @Autowired
+    @Inject
     public HttpSenderDependencyBinder(
         MetricsStore metricsStore,
         MetricTagsHelper metricTagsHelper,
@@ -67,7 +67,7 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
 
     @Override
     public void apply(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties elementProperties,
         DeploymentInfo deploymentInfo
     ) {

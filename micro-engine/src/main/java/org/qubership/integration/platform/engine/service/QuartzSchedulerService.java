@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.CamelContext;
 import org.apache.camel.Consumer;
 import org.apache.camel.Endpoint;
 import org.apache.camel.Route;
@@ -25,12 +26,11 @@ import org.apache.camel.component.file.remote.SftpEndpoint;
 import org.apache.camel.component.quartz.QuartzEndpoint;
 import org.apache.camel.pollconsumer.quartz.QuartzScheduledPollConsumerScheduler;
 import org.apache.camel.spi.ScheduledPollConsumerScheduler;
-import org.apache.camel.spring.SpringCamelContext;
 import org.quartz.*;
 import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
 import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerProxy;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -38,12 +38,12 @@ import java.util.Collections;
 import java.util.List;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class QuartzSchedulerService {
 
     private final StdSchedulerFactoryProxy schedulerFactoryProxy;
 
-    @Autowired
+    @Inject
     public QuartzSchedulerService(StdSchedulerFactoryProxy schedulerFactoryProxy) {
         this.schedulerFactoryProxy = schedulerFactoryProxy;
     }
@@ -62,7 +62,7 @@ public class QuartzSchedulerService {
         }
     }
 
-    public void removeSchedulerJobsFromContext(SpringCamelContext context) {
+    public void removeSchedulerJobsFromContext(CamelContext context) {
         try {
             getFactory().getScheduler().deleteJobs(getSchedulerJobsFromContext(context));
         } catch (SchedulerException e) {
@@ -70,7 +70,7 @@ public class QuartzSchedulerService {
         }
     }
 
-    public void removeSchedulerJobsFromContexts(List<SpringCamelContext> contexts) {
+    public void removeSchedulerJobsFromContexts(List<CamelContext> contexts) {
         try {
             log.debug("Remove camel scheduler jobs from contexts");
             if (!contexts.isEmpty()) {
@@ -81,14 +81,14 @@ public class QuartzSchedulerService {
         }
     }
 
-    public List<JobKey> getSchedulerJobsFromContext(SpringCamelContext context) {
+    public List<JobKey> getSchedulerJobsFromContext(CamelContext context) {
         return getSchedulerJobsFromContexts(Collections.singletonList(context));
     }
 
-    public List<JobKey> getSchedulerJobsFromContexts(List<SpringCamelContext> contexts) {
+    public List<JobKey> getSchedulerJobsFromContexts(List<CamelContext> contexts) {
         List<JobKey> jobs = new ArrayList<>();
         log.debug("Get camel scheduler jobs from contexts");
-        for (SpringCamelContext context : contexts) {
+        for (CamelContext context : contexts) {
             for (Endpoint endpoint : context.getEndpoints()) {
                 if (endpoint instanceof QuartzEndpoint quartzEndpoint) {
                     TriggerKey triggerKey = quartzEndpoint.getTriggerKey();

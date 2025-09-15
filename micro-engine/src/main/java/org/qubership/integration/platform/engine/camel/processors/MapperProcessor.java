@@ -33,13 +33,13 @@ import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringEscapeUtils;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.mapper.atlasmap.CustomAtlasContext;
 import org.qubership.integration.platform.engine.mapper.atlasmap.ValidationResult;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -60,7 +60,7 @@ import static java.util.Objects.nonNull;
 @Slf4j
 @Getter
 @Setter
-@Component
+@ApplicationScoped
 public class MapperProcessor implements Processor {
 
     private static final String CAMEL_EXCHANGE_PROPERTY = "camelExchangeProperty";
@@ -76,11 +76,11 @@ public class MapperProcessor implements Processor {
     private final DefaultAtlasContextFactory factory;
     private final ObjectMapper objectMapper;
 
-    @Value("${qip.mapper.cache-enabled}")
-    private boolean cacheEnabled;
+    @ConfigProperty(name = "qip.mapper.cache-enabled")
+    boolean cacheEnabled;
 
-    @Autowired
-    public MapperProcessor(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public MapperProcessor(@Named("jsonMapper") ObjectMapper objectMapper) {
         DefaultAtlasFunctionResolver.getInstance(); // To fix time when function factories are loaded
         this.factory = DefaultAtlasContextFactory.getInstance();
         this.objectMapper = objectMapper;

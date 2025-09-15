@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
-import org.qubership.integration.platform.engine.configuration.ApplicationAutoConfiguration;
+import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
@@ -33,28 +33,28 @@ import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
 import org.qubership.integration.platform.engine.util.SimpleHttpUriUtils;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.net.MalformedURLException;
 import java.util.List;
 
 import static java.util.Objects.nonNull;
 
-@Component
+@ApplicationScoped
 @ConditionalOnBean(ControlPlaneService.class)
 @OnBeforeDeploymentContextCreated
 public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingAction {
     private final VariablesService variablesService;
     private final ControlPlaneService controlPlaneService;
-    private final ApplicationAutoConfiguration applicationConfiguration;
+    private final ApplicationConfiguration applicationConfiguration;
 
-    @Autowired
+    @Inject
     public RegisterRoutesInControlPlaneAction(
         VariablesService variablesService,
         ControlPlaneService controlPlaneService,
-        ApplicationAutoConfiguration applicationConfiguration
+        ApplicationConfiguration applicationConfiguration
     ) {
         this.variablesService = variablesService;
         this.controlPlaneService = controlPlaneService;
@@ -63,7 +63,7 @@ public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingA
 
     @Override
     public void execute(
-        SpringCamelContext context,
+        CamelContext context,
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {

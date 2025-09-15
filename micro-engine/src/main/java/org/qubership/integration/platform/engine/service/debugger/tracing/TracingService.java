@@ -27,8 +27,8 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.slf4j.MDC;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,13 +36,13 @@ import java.util.Map;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.TRACING_CUSTOM_TAGS;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class TracingService {
     public static final String X_REQUEST_ID = "X-Request-Id";
 
     private final TracingConfiguration tracingConfiguration;
 
-    @Autowired
+    @Inject
     public TracingService(TracingConfiguration tracingConfiguration) {
         this.tracingConfiguration = tracingConfiguration;
     }

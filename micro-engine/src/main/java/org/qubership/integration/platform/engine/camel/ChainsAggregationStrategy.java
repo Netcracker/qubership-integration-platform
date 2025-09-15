@@ -21,6 +21,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.AggregationStrategy;
 import org.apache.camel.Exchange;
@@ -28,9 +31,6 @@ import org.apache.camel.ExchangeExtension;
 import org.apache.camel.Message;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,14 +39,15 @@ import java.util.Map;
 import static org.qubership.integration.platform.engine.util.ExchangeUtils.isCommonOrSystemVariableMap;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class ChainsAggregationStrategy implements AggregationStrategy {
     private static final String SPLIT_MAIN_BRANCH_TYPE = "main";
     private static final String CAMEL_HTTP_RESPONSE_CODE_VALUE = "200";
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public ChainsAggregationStrategy(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+
+    @Inject
+    public ChainsAggregationStrategy(@Named("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

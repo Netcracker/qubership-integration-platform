@@ -19,16 +19,16 @@ package org.qubership.integration.platform.engine.camel.processors;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.camel.CorrelationIdSetter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 
-@Component
+@ApplicationScoped
 public class CorrelationIdReceiverProcessor implements Processor {
 
     private final CorrelationIdSetter correlationIdSetter;
 
-    @Autowired
+    @Inject
     public CorrelationIdReceiverProcessor(CorrelationIdSetter correlationIdSetter) {
         this.correlationIdSetter = correlationIdSetter;
     }

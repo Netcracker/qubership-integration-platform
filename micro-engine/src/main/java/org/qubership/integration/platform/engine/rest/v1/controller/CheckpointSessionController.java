@@ -16,79 +16,130 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.extensions.Extension;
-import io.swagger.v3.oas.annotations.extensions.ExtensionProperty;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.eclipse.microprofile.openapi.annotations.extensions.Extension;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.jboss.resteasy.reactive.RestResponse;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
 import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import jakarta.inject.Inject;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.*;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
 @Slf4j
-@RestController
-@RequestMapping(value = "/v1/engine/chains/{chainId}",
-    produces = MediaType.APPLICATION_JSON_VALUE)
-@CrossOrigin(origins = "*")
+@Path("/v1/engine/chains/{chainId}")
+@Produces(MediaType.APPLICATION_JSON)
+// TODO Enable CORS with origins *
+//@CrossOrigin(origins = "*")
 @Tag(name = "checkpoint-session-controller", description = "Checkpoint Session Controller")
 public class CheckpointSessionController {
     private final CheckpointSessionService checkpointSessionService;
     private final SessionInfoMapper sessionInfoMapper;
 
-    @Autowired
+    @Inject
     public CheckpointSessionController(CheckpointSessionService checkpointSessionService,
                                        SessionInfoMapper sessionInfoMapper) {
         this.checkpointSessionService = checkpointSessionService;
         this.sessionInfoMapper = sessionInfoMapper;
     }
 
-    @PostMapping("/sessions/{sessionId}/retry")
-    @Operation(description = "Execute chain retry from saved latest non-failed checkpoint", extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}))
-    public ResponseEntity<Void> retryFromLastCheckpoint(
-        @PathVariable @Parameter(description = "Chain id") String chainId,
-        @PathVariable @Parameter(description = "Session id") String sessionId,
-        @RequestHeader(required = false, defaultValue = "") @Parameter(description = "If passed, Authorization header will be replaced with this value") String authorization,
-        @RequestHeader(required = false, defaultValue = "false") @Parameter(description = "Enable TraceMe header, which will force session to be logged") boolean traceMe,
-        @RequestBody(required = false) @Parameter(description = "If passed, request body will be replaced with this value") String body
+    @POST
+    @Path("/sessions/{sessionId}/retry")
+    @Operation(
+            description = "Execute chain retry from saved latest non-failed checkpoint",
+            extensions = {@Extension(name = "x-api-kind", value = "bwc")}
+    )
+    public RestResponse<Void> retryFromLastCheckpoint(
+            @PathParam("chainId")
+            @Parameter(description = "Chain id")
+            String chainId,
+
+            @PathParam("sessionId")
+            @Parameter(description = "Session id")
+            String sessionId,
+
+            @HeaderParam("authorization")
+            @DefaultValue("")
+            @Parameter(description = "If passed, Authorization header will be replaced with this value")
+            String authorization,
+
+            @HeaderParam("traceMe")
+            @DefaultValue("false")
+            @Parameter(description = "Enable TraceMe header, which will force session to be logged")
+            boolean traceMe,
+
+            @Parameter(description = "If passed, request body will be replaced with this value")
+            String body
     ) {
         log.info("Request to retry session {}", sessionId);
         checkpointSessionService.retryFromLastCheckpoint(chainId, sessionId, body, toAuthSupplier(authorization), traceMe);
-        return ResponseEntity.accepted().build();
+        return RestResponse.accepted();
     }
 
-    @PostMapping("/sessions/{sessionId}/checkpoint-elements/{checkpointElementId}/retry")
-    @Operation(description = "Execute chain retry from specified non-failed checkpoint", extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}))
-    public ResponseEntity<Void> retryFromCheckpoint(
-        @PathVariable @Parameter(description = "Chain id") String chainId,
-        @PathVariable @Parameter(description = "Session id") String sessionId,
-        @PathVariable @Parameter(description = "Checkpoint element id (could be found on chain graph in checkpoint element itself)") String checkpointElementId,
-        @RequestHeader(required = false, defaultValue = "") @Parameter(description = "If passed, Authorization header will be replaced with this value") String authorization,
-        @RequestHeader(required = false, defaultValue = "false") @Parameter(description = "Enable TraceMe header, which will force session to be logged") boolean traceMe,
-        @RequestBody(required = false) @Parameter(description = "If passed, request body will be replaced with this value") String body
+    @POST
+    @Path("/sessions/{sessionId}/checkpoint-elements/{checkpointElementId}/retry")
+    @Operation(
+            description = "Execute chain retry from specified non-failed checkpoint",
+            extensions = {@Extension(name = "x-api-kind", value = "bwc")}
+    )
+    public RestResponse<Void> retryFromCheckpoint(
+            @PathParam("chainId")
+            @Parameter(description = "Chain id")
+            String chainId,
+
+            @PathParam("sessionId")
+            @Parameter(description = "Session id") String sessionId,
+
+            @PathParam("checkpointElementId")
+            @Parameter(description = "Checkpoint element id (could be found on chain graph in checkpoint element itself)")
+            String checkpointElementId,
+
+            @HeaderParam("authorization")
+            @DefaultValue("")
+            @Parameter(description = "If passed, Authorization header will be replaced with this value")
+            String authorization,
+
+            @HeaderParam("traceMe")
+            @DefaultValue("false")
+            @Parameter(description = "Enable TraceMe header, which will force session to be logged")
+            boolean traceMe,
+
+            @Parameter(description = "If passed, request body will be replaced with this value")
+            String body
     ) {
         log.info("Request to retry session {} from checkpoint {}", sessionId, checkpointElementId);
         checkpointSessionService.retryFromCheckpoint(chainId, sessionId, checkpointElementId, body, toAuthSupplier(authorization), traceMe);
-        return ResponseEntity.accepted().build();
+        return RestResponse.accepted();
     }
 
     @Transactional("checkpointTransactionManager")
-    @GetMapping("/sessions/failed")
-    @Operation(description = "List all failed sessions with available checkpoints for specified chain", extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}))
-    public ResponseEntity<List<CheckpointSessionDTO>> getFailedChainSessionsInfo(@PathVariable @Parameter(description = "Chain id") String chainId) {
-        return ResponseEntity.ok(
-            sessionInfoMapper.asDTO(checkpointSessionService.findAllFailedChainSessionsInfo(chainId)));
+    @GET
+    @Path("/sessions/failed")
+    @Operation(
+            description = "List all failed sessions with available checkpoints for specified chain",
+            extensions = {@Extension(name = "x-api-kind", value = "bwc")}
+    )
+    public RestResponse<List<CheckpointSessionDTO>> getFailedChainSessionsInfo(
+            @PathParam("chainId")
+            @Parameter(description = "Chain id")
+            String chainId
+    ) {
+        Collection<SessionInfo> sessions = checkpointSessionService.findAllFailedChainSessionsInfo(chainId);
+        List<CheckpointSessionDTO> dtos = new ArrayList<>();
+        return RestResponse.ok(dtos);
     }
 
     private static @NotNull Supplier<Pair<String, String>> toAuthSupplier(String authorization) {

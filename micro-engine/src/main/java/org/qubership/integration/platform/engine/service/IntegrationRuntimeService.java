@@ -18,16 +18,18 @@ package org.qubership.integration.platform.engine.service;
 
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
+import org.apache.camel.CamelContext;
 import org.apache.camel.component.jackson.JacksonConstants;
+import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.impl.engine.DefaultManagementStrategy;
 import org.apache.camel.impl.engine.DefaultStreamCachingStrategy;
 import org.apache.camel.model.*;
 import org.apache.camel.model.language.ExpressionDefinition;
 import org.apache.camel.observation.MicrometerObservationTracer;
+import org.apache.camel.quarkus.core.FastCamelContext;
 import org.apache.camel.reifier.ProcessorReifier;
 import org.apache.camel.spi.ClassResolver;
 import org.apache.camel.spi.MessageHistoryFactory;
-import org.apache.camel.spring.SpringCamelContext;
 import org.apache.camel.tracing.Tracer;
 import org.apache.commons.lang3.tuple.Pair;
 import org.codehaus.groovy.control.CompilationFailedException;
@@ -70,14 +72,14 @@ import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 import org.springframework.beans.factory.ObjectFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.ByteArrayInputStream;
 import java.net.URISyntaxException;
@@ -96,7 +98,7 @@ import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 import static org.apache.camel.xml.jaxb.JaxbHelper.loadRoutesDefinition;
 
-@Service
+@ApplicationScoped
 public class IntegrationRuntimeService implements ApplicationContextAware {
     @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger log = ExtendedErrorLoggerFactory.getLogger(IntegrationRuntimeService.class);
@@ -138,7 +140,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
     private final int streamCachingBufferSize;
 
-    @Autowired
+    @Inject
     public IntegrationRuntimeService(ServerConfiguration serverConfiguration,
         QuartzSchedulerService quartzSchedulerService,
         TracingConfiguration tracingConfiguration,
@@ -150,7 +152,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         Optional<XmlConfigurationPreProcessor> xmlPreProcessor,
         VariablesService variablesService,
         EngineStateReporter engineStateReporter,
-        @Qualifier("deploymentExecutor") Executor deploymentExecutor,
+        @Named("deploymentExecutor") Executor deploymentExecutor,
         CamelDebuggerPropertiesService propertiesService,
         @Value("${qip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
         Predicate<FilteringEntity> camelMessageHistoryFilter,
@@ -159,7 +161,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         FormDataConverter formDataConverter,
         SecurityAccessPolicyConverter securityAccessPolicyConverter,
         ObjectFactory<CamelDebugger> camelDebuggerFactory,
-        @Qualifier("camelObservationTracer") ObjectFactory<MicrometerObservationTracer> tracerFactory
+        @Named("camelObservationTracer") ObjectFactory<MicrometerObservationTracer> tracerFactory
 
     ) {
         this.serverConfiguration = serverConfiguration;
@@ -421,7 +423,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             .properties(configuration.getProperties())
             .build());
 
-        SpringCamelContext context = getCache().getContexts().get(deploymentId);
+        DefaultCamelContext context = getCache().getContexts().get(deploymentId);
         if (context != null) {
             if (log.isDebugEnabled()) {
                 log.debug("Context for deployment {} already exists", deploymentId);
@@ -433,7 +435,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         context = buildContext(deploymentInfo, configuration, configurationXml);
         getCache().getContexts().put(deploymentId, context);
 
-        List<Pair<DeploymentInfo, SpringCamelContext>> contextsToStop = getContextsRelatedToDeployment(
+        List<Pair<DeploymentInfo, DefaultCamelContext>> contextsToStop = getContextsRelatedToDeployment(
             deployment,
             state -> !state.getDeploymentInfo().getDeploymentId()
                 .equals(deployment.getDeploymentInfo().getDeploymentId())
@@ -447,7 +449,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             throw e;
         }
 
-        contextsToStop.stream().forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
+        contextsToStop.forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
 
         quartzSchedulerService.commitScheduledJobs();
         if (log.isDebugEnabled()) {
@@ -499,7 +501,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     ) {
         Iterator<Map.Entry<String, EngineDeployment>> iterator = getCache().getDeployments()
             .entrySet().iterator();
-        List<Pair<DeploymentInfo, SpringCamelContext>> contextsToRemove = new ArrayList<>();
+        List<Pair<DeploymentInfo, CamelContext>> contextsToRemove = new ArrayList<>();
         while (iterator.hasNext()) {
             Map.Entry<String, EngineDeployment> entry = iterator.next();
 
@@ -508,7 +510,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                     && statusPredicate.test(entry.getValue().getStatus())
                     && !depInfo.getDeploymentId().equals(deployment.getDeploymentInfo().getDeploymentId())) {
 
-                SpringCamelContext toRemoveContext = getCache().getContexts()
+                CamelContext toRemoveContext = getCache().getContexts()
                     .remove(entry.getKey());
                 if (toRemoveContext != null) {
                     contextsToRemove.add(Pair.of(depInfo, toRemoveContext));
@@ -523,11 +525,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             }
         }
 
-        contextsToRemove.stream().filter(p -> p.getRight().isRunning())
+        contextsToRemove.stream().filter(p -> isRunning(p.getRight()))
             .forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
     }
 
-    private List<Pair<DeploymentInfo, SpringCamelContext>> getContextsRelatedToDeployment(
+    private List<Pair<DeploymentInfo, DefaultCamelContext>> getContextsRelatedToDeployment(
         DeploymentUpdate deployment,
         Predicate<EngineDeployment> filter
     ) {
@@ -541,12 +543,12 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             .toList();
     }
 
-    private SpringCamelContext buildContext(
+    private DefaultCamelContext buildContext(
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration,
         String configurationXml
     ) throws Exception {
-        SpringCamelContext context = new SpringCamelContext(applicationContext);
+        DefaultCamelContext context = new FastCamelContext("", null, null); // FIXME [migration to quarkus]
 
         context.getTypeConverterRegistry().addTypeConverter(
             FormData.class,
@@ -568,7 +570,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
         context.setClassResolver(getClassResolver(context, deploymentConfiguration));
 
-        context.setApplicationContext(applicationContext);
+        // FIXME [migration to quarkus]
+        // context.setApplicationContext(applicationContext);
 
         String deploymentId = deploymentInfo.getDeploymentId();
         context.setManagementName("camel-context_" + deploymentId); // use repeatable after restart context name
@@ -595,7 +598,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     }
 
     private ClassResolver getClassResolver(
-        SpringCamelContext context,
+        CamelContext context,
         DeploymentConfiguration deploymentConfiguration
     ) {
         Collection<String> systemModelIds = deploymentConfiguration.getProperties().stream()
@@ -611,7 +614,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         return new QipCustomClassResolver(classLoader);
     }
 
-    private void startContext(SpringCamelContext context) {
+    private void startContext(CamelContext context) {
         if (tracingConfiguration.isTracingEnabled()) {
             Tracer tracer = tracerFactory.getObject();
             tracer.init(context);
@@ -620,7 +623,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         context.start();
     }
 
-    private void configureMessageHistoryFactory(SpringCamelContext context) {
+    private void configureMessageHistoryFactory(CamelContext context) {
         context.setMessageHistory(true);
         MessageHistoryFactory defaultFactory = context.getMessageHistoryFactory();
         FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(
@@ -631,7 +634,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     /**
      * Upload routes to a new context from provided configuration
      */
-    private void loadRoutes(SpringCamelContext context, String xmlConfiguration) throws Exception {
+    private void loadRoutes(DefaultCamelContext context, String xmlConfiguration) throws Exception {
         if (log.isDebugEnabled()) {
             log.debug("Loading routes from: \n{}", xmlConfiguration);
         }
@@ -697,7 +700,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
     private DeploymentStatus stop(DeploymentInfo deploymentInfo) {
         String deploymentId = deploymentInfo.getDeploymentId();
-        SpringCamelContext context = getCache().getContexts().remove(deploymentId);
+        CamelContext context = getCache().getContexts().remove(deploymentId);
         if (nonNull(context)) {
             log.debug("Removing context for deployment: {}", deploymentInfo.getDeploymentId());
         }
@@ -705,12 +708,12 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         return DeploymentStatus.REMOVED;
     }
 
-    private void stopDeploymentContext(SpringCamelContext context, DeploymentInfo deploymentInfo) {
+    private void stopDeploymentContext(CamelContext context, DeploymentInfo deploymentInfo) {
         deploymentProcessingService.processStopContext(context, deploymentInfo, null);
         if (nonNull(context)) {
             quartzSchedulerService.removeSchedulerJobsFromContexts(
                 Collections.singletonList(context));
-            if (context.isRunning()) {
+            if (isRunning(context)) {
                 log.debug("Stopping context for deployment: {}", deploymentInfo.getDeploymentId());
                 context.stop();
             }
@@ -779,5 +782,9 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
     public void resumeAllSchedulers() {
         runInProcessLock(quartzSchedulerService::resumeAllSchedulers);
+    }
+
+    private static boolean isRunning(CamelContext camelContext) {
+        return !camelContext.isStopping() && !camelContext.isStopped();
     }
 }

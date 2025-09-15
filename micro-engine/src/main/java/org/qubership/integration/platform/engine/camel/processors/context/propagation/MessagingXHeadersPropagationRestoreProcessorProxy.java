@@ -19,19 +19,20 @@ package org.qubership.integration.platform.engine.camel.processors.context.propa
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.camel.processors.OptionalProcessorProxy;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Optional;
 
 @Slf4j
-@Component("messagingXHeadersPropagationRestoreProcessor")
+@ApplicationScoped
+@Named("messagingXHeadersPropagationRestoreProcessor")
 public class MessagingXHeadersPropagationRestoreProcessorProxy extends OptionalProcessorProxy {
 
-    @Autowired
+    @Inject
     public MessagingXHeadersPropagationRestoreProcessorProxy(
-        @Qualifier("messagingXHeadersPropagationRestoreImpl") Optional<Processor> processor
+        @Named("messagingXHeadersPropagationRestoreImpl") Optional<Processor> processor
     ) {
         super(processor);
     }

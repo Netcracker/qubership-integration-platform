@@ -6,18 +6,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.camel.idempotency.IdempotencyRecordData;
 import org.qubership.integration.platform.engine.camel.idempotency.IdempotencyRecordStatus;
 import org.qubership.integration.platform.engine.persistence.shared.repository.IdempotencyRecordRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
-@Service
+@ApplicationScoped
 public class IdempotencyRecordService {
     private final ObjectMapper objectMapper;
     private final IdempotencyRecordRepository idempotencyRecordRepository;
 
-    @Autowired
+    @Inject
     public IdempotencyRecordService(
             ObjectMapper objectMapper,
             IdempotencyRecordRepository idempotencyRecordRepository

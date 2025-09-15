@@ -21,11 +21,11 @@ import org.apache.camel.Message;
 import org.apache.camel.Processor;
 import org.apache.camel.util.UnsafeUriCharactersEncoder;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.net.URI;
 
-@Component
+@ApplicationScoped
 public class HttpSenderProcessor implements Processor {
     private static final String DEFAULT_PROTOCOL = "http";
 

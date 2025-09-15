@@ -23,21 +23,34 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rabbitmq.client.LongString;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Named;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.jdbc.PgArray;
 import org.qubership.integration.platform.engine.camel.components.rabbitmq.serializers.LongStringSerializer;
 import org.qubership.integration.platform.engine.camel.processors.serializers.PgArraySerializer;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-@Configuration
+@ApplicationScoped
 public class MapperConfiguration {
-    @Bean(name = {"objectMapper", "jsonMapper"})
+    @Produces
+    @Named("jsonMapper")
+    @ApplicationScoped
+    public ObjectMapper jsonMapper() {
+        return buildObjectMapper();
+    }
+
+    @Produces
+    @Named("objectMapper")
+    @ApplicationScoped
     public ObjectMapper objectMapper() {
         return buildObjectMapper();
     }
 
-    @Bean("checkpointMapper")
+
+    @Produces
+    @Named("checkpointMapper")
+    @ApplicationScoped
     public ObjectMapper checkpointMapper() {
         ObjectMapper mapper = buildObjectMapper();
         mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);

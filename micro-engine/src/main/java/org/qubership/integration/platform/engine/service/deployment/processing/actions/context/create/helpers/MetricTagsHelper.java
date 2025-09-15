@@ -23,8 +23,8 @@ import org.qubership.integration.platform.engine.configuration.ServerConfigurati
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,11 +32,11 @@ import java.util.Collection;
 
 import static org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore.*;
 
-@Component
+@ApplicationScoped
 public class MetricTagsHelper {
     public final ServerConfiguration serverConfiguration;
 
-    @Autowired
+    @Inject
     public MetricTagsHelper(ServerConfiguration serverConfiguration) {
         this.serverConfiguration = serverConfiguration;
     }

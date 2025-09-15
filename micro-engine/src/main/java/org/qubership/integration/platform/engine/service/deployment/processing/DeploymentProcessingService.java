@@ -17,25 +17,25 @@
 package org.qubership.integration.platform.engine.service.deployment.processing;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnStopDeploymentContext;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collection;
 
 @Slf4j
-@Service
+@ApplicationScoped
 public class DeploymentProcessingService {
     private final Collection<DeploymentProcessingAction> beforeContextCreatedActions;
     private final Collection<DeploymentProcessingAction> afterContextCreatedActions;
     private final Collection<DeploymentProcessingAction> stopContextActions;
 
-    @Autowired
+    @Inject
     public DeploymentProcessingService(
         @OnBeforeDeploymentContextCreated Collection<DeploymentProcessingAction> beforeContextCreatedActions,
         @OnAfterDeploymentContextCreated Collection<DeploymentProcessingAction> afterContextCreatedActions,
@@ -56,7 +56,7 @@ public class DeploymentProcessingService {
     }
 
     public void processAfterContextCreated(
-        SpringCamelContext context,
+        CamelContext context,
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {
@@ -66,7 +66,7 @@ public class DeploymentProcessingService {
     }
 
     public void processStopContext(
-        SpringCamelContext context,
+        CamelContext context,
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {
@@ -77,7 +77,7 @@ public class DeploymentProcessingService {
 
     private void executeActions(
         Collection<DeploymentProcessingAction> actions,
-        SpringCamelContext context,
+        CamelContext context,
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {
@@ -86,7 +86,7 @@ public class DeploymentProcessingService {
 
     private void executeAction(
         DeploymentProcessingAction action,
-        SpringCamelContext context,
+        CamelContext context,
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {

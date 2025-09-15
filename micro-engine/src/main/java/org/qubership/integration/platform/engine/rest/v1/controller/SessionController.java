@@ -16,38 +16,34 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.ws.rs.*;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import org.jboss.resteasy.reactive.RestResponse;
+import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
 import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.core.MediaType;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 @Slf4j
-@RestController
-@RequestMapping(
-        value = "/v1/engine/sessions",
-        produces = MediaType.APPLICATION_JSON_VALUE
-)
+@Path("/v1/engine/sessions")
+@Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "session-controller", description = "Session Controller")
 public class SessionController {
     private final CheckpointSessionService checkpointSessionService;
     private final SessionInfoMapper sessionInfoMapper;
 
-    @Autowired
+    @Inject
     public SessionController(
             CheckpointSessionService checkpointSessionService,
             SessionInfoMapper sessionInfoMapper
@@ -56,11 +52,19 @@ public class SessionController {
         this.sessionInfoMapper = sessionInfoMapper;
     }
 
-    @GetMapping()
+    @GET
     @Transactional("checkpointTransactionManager")
     @Operation(description = "List all sessions with available checkpoints by their ids")
-    public ResponseEntity<List<CheckpointSessionDTO>> findSessions(@RequestParam(required = false) @Parameter(description = "List of the session ids separated by comma") List<String> ids) {
-        return ResponseEntity.ok(checkpointSessionService.findSessions(Optional.ofNullable(ids).orElse(Collections.emptyList()))
-                .stream().map(sessionInfoMapper::asDTO).toList());
+    public RestResponse<List<CheckpointSessionDTO>> findSessions(
+            @QueryParam("ids")
+            @DefaultValue("")
+            @Parameter(description = "List of the session ids separated by comma")
+            List<String> ids
+    ) {
+        // TODO [migration to quarkus] check that ids can be null otherwise use ids directly
+        List<String> identifiers = Optional.ofNullable(ids).orElse(Collections.emptyList());
+        Collection<SessionInfo> sessions = checkpointSessionService.findSessions(identifiers);
+        List<CheckpointSessionDTO> DTOs = sessions.stream().map(sessionInfoMapper::asDTO).toList();
+        return RestResponse.ok(DTOs);
     }
 }

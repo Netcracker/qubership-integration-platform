@@ -19,9 +19,9 @@ package org.qubership.integration.platform.engine.camel.processors.session;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
-@Component
+@ApplicationScoped
 public class SessionWarningStatusProcessor implements Processor {
 
     @Override

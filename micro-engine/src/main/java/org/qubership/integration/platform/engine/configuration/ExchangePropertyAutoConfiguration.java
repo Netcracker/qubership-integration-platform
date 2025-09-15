@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
+import io.quarkus.arc.DefaultBean;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
 import org.qubership.integration.platform.engine.service.ExchangePropertyService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-@Configuration
+@ApplicationScoped
 public class ExchangePropertyAutoConfiguration {
-    @Bean
-    @ConditionalOnMissingBean(ExchangePropertyService.class)
+    @Produces
+    @DefaultBean
     public ExchangePropertyService defaultExchangePropertyService() {
         return exchange -> {};
     }

@@ -17,9 +17,9 @@
 package org.qubership.integration.platform.engine.util;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
-@Component
+@ApplicationScoped
 public class DevModeUtil {
     @Value("${spring.profiles.active}")
     private String activeProfile;

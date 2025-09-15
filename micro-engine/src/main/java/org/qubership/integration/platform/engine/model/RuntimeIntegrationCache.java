@@ -20,7 +20,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.impl.DefaultCamelContext;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentUpdate;
 
@@ -39,7 +39,7 @@ public class RuntimeIntegrationCache {
     @Getter(AccessLevel.NONE)
     private final ConcurrentMap<String, Lock> chainLocks = new ConcurrentHashMap<>(); // <chainId, lock>
 
-    private final ConcurrentMap<String, SpringCamelContext> contexts = new ConcurrentHashMap<>(); // <deploymentId, context>
+    private final ConcurrentMap<String, DefaultCamelContext> contexts = new ConcurrentHashMap<>(); // <deploymentId, context>
     private final ConcurrentMap<String, EngineDeployment> deployments = new ConcurrentHashMap<>(); // <deploymentId, deployment>
 
     @Getter(AccessLevel.NONE)

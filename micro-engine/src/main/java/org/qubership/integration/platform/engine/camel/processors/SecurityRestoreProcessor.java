@@ -21,10 +21,10 @@ import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.http.HttpHeaders;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class SecurityRestoreProcessor implements Processor {
     @Override
     public void process(Exchange exchange) {

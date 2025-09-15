@@ -24,13 +24,13 @@ import org.qubership.integration.platform.engine.errorhandling.ResponseValidatio
 import org.qubership.integration.platform.engine.errorhandling.ValidationException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 
 /**
  * Processor perform JSON response body validation by scheme defined in system specification
  */
-@Component
+@ApplicationScoped
 public class ResponseValidationProcessor implements Processor {
 
     private final JsonMessageValidator validator;

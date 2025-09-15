@@ -17,11 +17,11 @@
 package org.qubership.integration.platform.engine.configuration;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -36,11 +36,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
-@Configuration
+@ApplicationScoped
 public class TruststoreConfiguration {
-    public final String storeFilePath;
-    public final String storePassword;
-    public final String certsLocation;
+    private final String storeFilePath;
+    private final String storePassword;
+    private final String certsLocation;
 
     private static final String JAVA_HOME_PROPERTY = "java.home";
 
@@ -51,10 +51,12 @@ public class TruststoreConfiguration {
     private static final String JAVA_DEFAULT_TRUSTSTORE = "/lib/security/cacerts";
     private static final String JAVA_DEFAULT_TRUSTSTORE_PASSWORD = "changeit";
 
-    @Autowired
-    public TruststoreConfiguration(@Value("${qip.local-truststore.store.path}") String storeFilePath,
-                                   @Value("${qip.local-truststore.store.password}") String storePassword,
-                                   @Value("${qip.local-truststore.certs.location}") String certsLocation) {
+    @Inject
+    public TruststoreConfiguration(
+            @ConfigProperty(name = "qip.local-truststore.store.path") String storeFilePath,
+            @ConfigProperty(name = "qip.local-truststore.store.password") String storePassword,
+            @ConfigProperty(name = "qip.local-truststore.certs.location") String certsLocation
+    ) {
         this.storeFilePath = storeFilePath;
         this.storePassword = storePassword;
         this.certsLocation = certsLocation;

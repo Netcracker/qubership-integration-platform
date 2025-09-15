@@ -22,10 +22,10 @@ import org.apache.camel.http.common.HttpConsumer;
 import org.apache.camel.http.common.HttpRegistry;
 import org.apache.camel.http.common.HttpRegistryProvider;
 import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class GatewayHttpRegistry implements HttpRegistry {
 
     private final HttpRegistry httpRegistry;

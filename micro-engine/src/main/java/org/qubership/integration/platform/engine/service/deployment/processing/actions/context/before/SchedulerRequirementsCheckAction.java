@@ -17,34 +17,34 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import javax.sql.DataSource;
 
 @Slf4j
-@Component
+@ApplicationScoped
 @OnBeforeDeploymentContextCreated
 public class SchedulerRequirementsCheckAction implements DeploymentProcessingAction {
     private final DataSource qrtzDataSource;
 
-    @Autowired
+    @Inject
     public SchedulerRequirementsCheckAction(
-        @Qualifier("qrtzDataSource") DataSource qrtzDataSource
+        @Named("qrtzDataSource") DataSource qrtzDataSource
     ) {
         this.qrtzDataSource = qrtzDataSource;
     }
 
     @Override
     public void execute(
-        SpringCamelContext context,
+        CamelContext context,
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {
@@ -52,7 +52,7 @@ public class SchedulerRequirementsCheckAction implements DeploymentProcessingAct
             checkSchedulerRequirements();
         }
     }
-    
+
     private void checkSchedulerRequirements() {
         if (!isSchedulerDatabaseReady()) {
             log.warn("Failed to obtain DB connection for scheduler");

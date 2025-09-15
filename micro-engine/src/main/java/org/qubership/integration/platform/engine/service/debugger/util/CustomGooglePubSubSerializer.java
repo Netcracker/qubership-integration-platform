@@ -18,13 +18,13 @@ package org.qubership.integration.platform.engine.service.debugger.util;
 
 import org.apache.camel.component.google.pubsub.serializer.GooglePubsubSerializer;
 import org.apache.camel.converter.stream.InputStreamCache;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 
-@Component
+@ApplicationScoped
 public class CustomGooglePubSubSerializer implements GooglePubsubSerializer {
 
     @Override

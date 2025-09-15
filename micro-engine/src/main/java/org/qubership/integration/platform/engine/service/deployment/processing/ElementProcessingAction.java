@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.engine.service.deployment.processing;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
@@ -30,7 +30,7 @@ import java.util.Optional;
 public abstract class ElementProcessingAction implements DeploymentProcessingAction {
     @Override
     public void execute(
-        SpringCamelContext context,
+        CamelContext context,
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {
@@ -42,7 +42,7 @@ public abstract class ElementProcessingAction implements DeploymentProcessingAct
     }
 
     private void processElement(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties elementProperties,
         DeploymentInfo deploymentInfo
     ) {
@@ -55,12 +55,12 @@ public abstract class ElementProcessingAction implements DeploymentProcessingAct
         } finally {
             MDC.remove(ChainProperties.ELEMENT_ID);
         }
-    } 
+    }
 
     public abstract boolean applicableTo(ElementProperties properties);
 
     public abstract void apply(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties properties,
         DeploymentInfo deploymentInfo
     );

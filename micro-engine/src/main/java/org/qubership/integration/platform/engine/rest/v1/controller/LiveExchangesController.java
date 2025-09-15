@@ -16,55 +16,64 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import org.jboss.resteasy.reactive.RestResponse;
 import org.qubership.integration.platform.engine.rest.v1.dto.LiveExchangeDTO;
 import org.qubership.integration.platform.engine.service.LiveExchangesService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import jakarta.inject.Inject;
 import org.springframework.util.CollectionUtils;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @Slf4j
-@RestController
-@Validated
-@RequestMapping(
-        value = "/v1/engine/live-exchanges",
-        produces = MediaType.APPLICATION_JSON_VALUE
-)
+@Path("/v1/engine/live-exchanges")
+@Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "live-exchanges-controller", description = "Live Exchanges Controller")
 public class LiveExchangesController {
     private final LiveExchangesService liveExchangesService;
 
-    @Autowired
+    @Inject
     public LiveExchangesController(LiveExchangesService liveExchangesService) {
         this.liveExchangesService = liveExchangesService;
     }
 
-    @GetMapping
+    @GET
     @Operation(description = "Get top N running exchanges ordered by execution time DESC")
-    public ResponseEntity<List<LiveExchangeDTO>> getLiveExchanges(
-            @RequestParam(required = false, defaultValue = "10") @Positive @Parameter(description = "Amount of exchanges to view") Integer limit) {
+    public RestResponse<List<LiveExchangeDTO>> getLiveExchanges(
+            @QueryParam("limit")
+            @DefaultValue("10")
+            @Positive
+            @Parameter(description = "Amount of exchanges to view") Integer limit
+    ) {
         List<LiveExchangeDTO> result = liveExchangesService.getTopLiveExchanges(limit);
         if (CollectionUtils.isEmpty(result)) {
-            return ResponseEntity.noContent().build();
+            return RestResponse.noContent();
         }
-        return ResponseEntity.ok(result);
+        return RestResponse.ok(result);
     }
 
-    @DeleteMapping("/{deploymentId}/{exchangeId}")
+    @DELETE
+    @Path("/{deploymentId}/{exchangeId}")
     @Operation(description = "Try to kill specified exchange")
-    public ResponseEntity<Void> killExchange(@PathVariable @NotBlank @Parameter(description = "Deployment ID") String deploymentId,
-                                             @PathVariable @NotBlank @Parameter(description = "Exchange ID") String exchangeId) {
+    public RestResponse<Void> killExchange(
+            @PathParam("deploymentId")
+            @NotBlank
+            @Parameter(description = "Deployment ID")
+            String deploymentId,
+
+            @PathParam("exchangeId")
+            @NotBlank
+            @Parameter(description = "Exchange ID")
+            String exchangeId
+    ) {
         liveExchangesService.killLiveExchangeById(deploymentId, exchangeId);
-        return ResponseEntity.accepted().build();
+        return RestResponse.accepted();
     }
 }

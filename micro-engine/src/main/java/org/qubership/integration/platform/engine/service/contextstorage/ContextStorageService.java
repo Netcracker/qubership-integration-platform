@@ -22,9 +22,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.errorhandling.ContextStorageException;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ContextSystemRecords;
-import org.qubership.integration.platform.engine.persistence.shared.repository.ContextStorageRespository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.qubership.integration.platform.engine.persistence.shared.repository.ContextStorageRepository;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -32,16 +32,16 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Service
+@ApplicationScoped
 public class ContextStorageService {
 
     private static final String CONTEXT = "context";
-    private final ContextStorageRespository contextStorageRepository;
+    private final ContextStorageRepository contextStorageRepository;
 
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public ContextStorageService(ContextStorageRespository contextStorageRepository, ObjectMapper objectMapper) {
+    @Inject
+    public ContextStorageService(ContextStorageRepository contextStorageRepository, ObjectMapper objectMapper) {
         this.contextStorageRepository = contextStorageRepository;
         this.objectMapper = objectMapper;
     }

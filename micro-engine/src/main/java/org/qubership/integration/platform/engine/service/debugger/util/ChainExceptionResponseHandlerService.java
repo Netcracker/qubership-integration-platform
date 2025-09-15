@@ -23,8 +23,8 @@ import org.qubership.integration.platform.engine.camel.components.servlet.except
 import org.qubership.integration.platform.engine.camel.components.servlet.exception.annotations.ChainExceptionHandler;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -33,12 +33,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class ChainExceptionResponseHandlerService {
 
     private final ChainGlobalExceptionHandler chainGlobalExceptionHandler;
 
-    @Autowired
+    @Inject
     public ChainExceptionResponseHandlerService(ChainGlobalExceptionHandler chainGlobalExceptionHandler) {
         this.chainGlobalExceptionHandler = chainGlobalExceptionHandler;
     }

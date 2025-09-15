@@ -17,9 +17,9 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
 import io.micrometer.core.instrument.Tag;
+import org.apache.camel.CamelContext;
 import org.apache.camel.component.kafka.DefaultKafkaClientFactory;
 import org.apache.camel.component.kafka.KafkaClientFactory;
-import org.apache.camel.spring.SpringCamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.camel.components.kafka.TaggedMetricsKafkaClientFactory;
 import org.qubership.integration.platform.engine.model.ChainElementType;
@@ -31,17 +31,17 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collection;
 
 import static org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore.MAAS_CLASSIFIER;
 import static org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.ChainElementTypeHelper.isServiceCallOrAsyncApiTrigger;
 
-@Component
+@ApplicationScoped
 @Order(KafkaElementDependencyBinder.ORDER)
 @OnAfterDeploymentContextCreated
 public class KafkaElementDependencyBinder extends ElementProcessingAction {
@@ -50,7 +50,7 @@ public class KafkaElementDependencyBinder extends ElementProcessingAction {
     private final MetricsStore metricsStore;
     private final MetricTagsHelper metricTagsHelper;
 
-    @Autowired
+    @Inject
     public KafkaElementDependencyBinder(
         MetricsStore metricsStore,
         MetricTagsHelper metricTagsHelper
@@ -58,7 +58,7 @@ public class KafkaElementDependencyBinder extends ElementProcessingAction {
         this.metricsStore = metricsStore;
         this.metricTagsHelper = metricTagsHelper;
     }
-    
+
     @Override
     public boolean applicableTo(ElementProperties properties) {
         String elementType = properties.getProperties().get(ChainProperties.ELEMENT_TYPE);
@@ -71,7 +71,7 @@ public class KafkaElementDependencyBinder extends ElementProcessingAction {
 
     @Override
     public void apply(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties properties,
         DeploymentInfo deploymentInfo
     ) {

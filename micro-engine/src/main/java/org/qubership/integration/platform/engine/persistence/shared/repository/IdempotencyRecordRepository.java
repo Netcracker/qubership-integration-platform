@@ -1,30 +1,44 @@
 package org.qubership.integration.platform.engine.persistence.shared.repository;
 
+import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.qubership.integration.platform.engine.persistence.shared.entity.IdempotencyRecord;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
 
-public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRecord, String> {
-    @Query(
-            nativeQuery = true,
-            value = """
-                select
-                    count(r) > 0
-                from
-                    engine.idempotency_records r
-                where
-                    r.key = :key
-                    and r.expires_at >= now()
-            """
-    )
-    boolean existsByKeyAndNotExpired(String key);
+@ApplicationScoped
+public class IdempotencyRecordRepository implements PanacheRepositoryBase<IdempotencyRecord, String> {
+    @Inject
+    EntityManager em;
 
-    @Modifying
-    @Query(
-            nativeQuery = true,
-            value = """
-                insert into
+    public boolean existsByKeyAndNotExpired(String key) {
+        String sql = """
+            select
+                count(r) > 0
+            from
+                engine.idempotency_records r
+            where
+                r.key = :key
+                and r.expires_at >= now()
+        """;
+        Query query = em.createNativeQuery(sql);
+        query.setParameter("key", key);
+        Object result = query.getSingleResult();
+        if (result instanceof Boolean b) {
+            return b;
+        } else if (result instanceof Number n) {
+            return n.intValue() == 1;
+        } else {
+            throw new IllegalStateException(
+                    "Unexpected result type for boolean native query: "
+                            + result.getClass().getName());
+        }
+    }
+
+    public int insertIfNotExistsOrUpdateIfExpired(String key, String data, int ttl) {
+        String sql = """
+            insert into
                     engine.idempotency_records as r
                         (key, data, created_at, expires_at)
                 values (
@@ -40,29 +54,32 @@ public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRe
                         expires_at = now() + make_interval(secs => :ttl)
                     where
                         r.expires_at < now()
-            """
-    )
-    int insertIfNotExistsOrUpdateIfExpired(String key, String data, int ttl);
+        """;
+        Query query = em.createNativeQuery(sql, IdempotencyRecord.class);
+        query.setParameter("key", key);
+        query.setParameter("data", data);
+        query.setParameter("ttl", ttl);
+        return query.executeUpdate();
+    }
 
-    @Modifying
-    @Query(
-            nativeQuery = true,
-            value = """
-                delete from engine.idempotency_records r where r.expires_at < now()
-            """
-    )
-    void deleteExpired();
+    public int deleteExpired() {
+        String sql = """
+            delete from engine.idempotency_records r where r.expires_at < now()
+        """;
+        Query query = em.createNativeQuery(sql, IdempotencyRecord.class);
+        return query.executeUpdate();
+    }
 
-    @Modifying
-    @Query(
-            nativeQuery = true,
-            value = """
-                delete from
+    public int deleteByKeyAndNotExpired(String key) {
+        String sql = """
+            delete from
                     engine.idempotency_records r
                 where
                     r.key = :key
                     and r.expires_at >= now()
-            """
-    )
-    int deleteByKeyAndNotExpired(String key);
+        """;
+        Query query = em.createNativeQuery(sql, IdempotencyRecord.class);
+        query.setParameter("key", key);
+        return query.executeUpdate();
+    }
 }

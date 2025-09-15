@@ -17,10 +17,10 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
 import jakarta.jms.ConnectionFactory;
+import org.apache.camel.CamelContext;
 import org.apache.camel.component.jms.JmsComponent;
 import org.apache.camel.component.jms.JmsConfiguration;
 import org.apache.camel.spi.ThreadPoolProfile;
-import org.apache.camel.spring.SpringCamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecureThreadFactory;
 import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecurityBean;
@@ -33,27 +33,27 @@ import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.jms.support.destination.JndiDestinationResolver;
 import org.springframework.jndi.JndiObjectFactoryBean;
 import org.springframework.jndi.JndiTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Map;
 import java.util.Properties;
 import javax.naming.Context;
 import javax.naming.NamingException;
 
-@Component
+@ApplicationScoped
 @OnAfterDeploymentContextCreated
 public class JmsElementDependencyBinder extends ElementProcessingAction {
     private final VariablesService variablesService;
     private final ObjectProvider<WeblogicSecurityBean> wlSecurityBeanProvider;
     private final ObjectProvider<WeblogicSecurityInterceptStrategy> wlSecurityInterceptStrategyProvider;
     private final ObjectProvider<WeblogicSecureThreadFactory> wlSecureThreadFactoryProvider;
-    
-    @Autowired
+
+    @Inject
     public JmsElementDependencyBinder(
         VariablesService variablesService,
         ObjectProvider<WeblogicSecurityBean> wlSecurityBeanProvider,
@@ -76,7 +76,7 @@ public class JmsElementDependencyBinder extends ElementProcessingAction {
 
     @Override
     public void apply(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties elementProperties,
         DeploymentInfo deploymentInfo
     ) {

@@ -16,33 +16,32 @@
 
 package org.qubership.integration.platform.engine.configuration.web;
 
-import org.eclipse.jetty.client.HttpClient;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.reactive.ClientHttpConnector;
-import org.springframework.http.client.reactive.JettyClientHttpConnector;
-import org.springframework.util.unit.DataSize;
-import org.springframework.web.reactive.function.client.WebClient;
+import io.vertx.core.http.HttpClientOptions;
+import io.vertx.ext.web.client.WebClientOptions;
+import io.vertx.mutiny.core.Vertx;
+import io.vertx.mutiny.core.http.HttpClient;
+import io.vertx.mutiny.ext.web.client.WebClient;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-@Configuration
+@ApplicationScoped
 public class WebClientConfiguration {
 
-    @Bean
-    public HttpClient httpClient(@Value("${server.max-http-request-header-size}") DataSize maxHttpHeaderSize) {
-        HttpClient client = new HttpClient();
-        int bufferSize = Long.valueOf(maxHttpHeaderSize.toBytes()).intValue();
-        client.setRequestBufferSize(bufferSize);
-        return client;
+    @Produces
+    public HttpClient httpClient(
+            @ConfigProperty(name = "server.max-http-request-header-size") int maxHttpHeaderSize
+    ) {
+        HttpClientOptions options = new HttpClientOptions();
+        options.setMaxHeaderSize(maxHttpHeaderSize);
+        return Vertx.vertx().createHttpClient(options);
     }
 
-    @Bean
-    public ClientHttpConnector clientHttpConnector(HttpClient httpClient) {
-        return new JettyClientHttpConnector(httpClient);
-    }
-
-    @Bean
-    public WebClient localhostWebclient(ClientHttpConnector clientHttpConnector) {
-        return WebClient.builder().clientConnector(clientHttpConnector).baseUrl("http://localhost:8080").build();
+    @Produces
+    public WebClient localhostWebclient(HttpClient httpClient) {
+        WebClientOptions options = new WebClientOptions()
+                .setDefaultHost("localhost")
+                .setDefaultPort(8080);
+        return WebClient.wrap(httpClient, options);
     }
 }

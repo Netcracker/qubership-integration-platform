@@ -19,25 +19,25 @@ package org.qubership.integration.platform.engine.security;
 import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.util.DevModeUtil;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.security.access.AccessDecisionVoter;
 import org.springframework.security.access.ConfigAttribute;
 import org.springframework.security.access.vote.RoleVoter;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collection;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
-@Component
+@ApplicationScoped
 public class ExchangeRolesVoter implements AccessDecisionVoter<Exchange> {
 
     private final RoleVoter roleVoter;
     private final DevModeUtil devModeUtil;
 
-    @Autowired
+    @Inject
     public ExchangeRolesVoter(RoleVoter roleVoter, DevModeUtil devModeUtil) {
         this.roleVoter = roleVoter;
         this.devModeUtil = devModeUtil;

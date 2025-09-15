@@ -26,19 +26,19 @@ import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomEndpoint;
 import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
 import org.qubership.integration.platform.engine.registry.GatewayHttpRegistry;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.http.server.observation.DefaultServerRequestObservationConvention;
 import org.springframework.http.server.observation.ServerRequestObservationContext;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import static java.util.Objects.isNull;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class CamelServletObservationConvention extends DefaultServerRequestObservationConvention {
     private final GatewayHttpRegistry httpRegistry;
 
-    @Autowired
+    @Inject
     public CamelServletObservationConvention(GatewayHttpRegistry httpRegistry) {
         this.httpRegistry = httpRegistry;
     }
@@ -48,11 +48,11 @@ public class CamelServletObservationConvention extends DefaultServerRequestObser
         KeyValues values = super.getLowCardinalityKeyValues(context);
 
         if (context.getCarrier().getHttpServletMapping().getServletName().equals(
-            CamelServletConfiguration.CAMEL_SERVLET_NAME)) {
+                CamelServletConfiguration.CAMEL_SERVLET_NAME)) {
             CamelServlet camelServlet = (CamelServlet) httpRegistry.getCamelServlet(
-                CamelServletConfiguration.CAMEL_SERVLET_NAME);
+                    CamelServletConfiguration.CAMEL_SERVLET_NAME);
             HttpConsumer consumer = camelServlet.getServletResolveConsumerStrategy()
-                .resolve(context.getCarrier(), camelServlet.getConsumers());
+                    .resolve(context.getCarrier(), camelServlet.getConsumers());
             if (!isNull(consumer)) {
                 HttpCommonEndpoint endpoint = consumer.getEndpoint();
 

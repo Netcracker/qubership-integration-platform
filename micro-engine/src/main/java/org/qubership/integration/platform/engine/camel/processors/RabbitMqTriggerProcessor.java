@@ -26,16 +26,16 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
 import org.springframework.amqp.core.AcknowledgeMode;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.IOException;
 
-@Component
+@ApplicationScoped
 public class RabbitMqTriggerProcessor implements Processor {
     private final JsonMessageValidator validator;
 
-    @Autowired
+    @Inject
     public RabbitMqTriggerProcessor(JsonMessageValidator jsonMessageValidator) {
         this.validator = jsonMessageValidator;
     }

@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.debugger;
 
+import jakarta.enterprise.context.Dependent;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -56,10 +57,7 @@ import org.qubership.integration.platform.engine.service.debugger.tracing.Tracin
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -72,8 +70,7 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 import static org.qubership.integration.platform.engine.util.CheckpointUtils.*;
 
 @Slf4j
-@Component
-@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
+@Dependent
 public class CamelDebugger extends DefaultDebugger {
 
     private final ServerConfiguration serverConfiguration;
@@ -92,7 +89,7 @@ public class CamelDebugger extends DefaultDebugger {
     @Getter
     private String deploymentId;
 
-    @Autowired
+    @Inject
     public CamelDebugger(
             ServerConfiguration serverConfiguration,
             TracingService tracingService,

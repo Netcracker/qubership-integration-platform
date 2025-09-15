@@ -17,13 +17,13 @@
 package org.qubership.integration.platform.engine.configuration;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.engine.util.EngineDomainUtils;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -31,9 +31,9 @@ import java.net.UnknownHostException;
 @Slf4j
 @Getter
 @Setter
-@Configuration
+@ApplicationScoped
 public class ServerConfiguration {
-    private final ApplicationAutoConfiguration applicationConfiguration;
+    private final ApplicationConfiguration applicationConfiguration;
 
     private String host;
 
@@ -42,7 +42,7 @@ public class ServerConfiguration {
 
     private final String domain;
 
-    public ServerConfiguration(ApplicationAutoConfiguration applicationConfiguration,
+    public ServerConfiguration(ApplicationConfiguration applicationConfiguration,
                                EngineDomainUtils engineDomainUtils) {
         this.applicationConfiguration = applicationConfiguration;
         this.domain = engineDomainUtils.extractEngineDomain(applicationConfiguration.getMicroserviceName());

@@ -21,8 +21,8 @@ import groovy.lang.GroovyShell;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.language.groovy.GroovyShellFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -30,11 +30,11 @@ import java.util.Optional;
 import static java.util.Objects.isNull;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class ExternalLibraryGroovyShellFactory implements GroovyShellFactory {
     private final Optional<ExternalLibraryService> externalLibraryService;
 
-    @Autowired
+    @Inject
     public ExternalLibraryGroovyShellFactory(Optional<ExternalLibraryService> externalLibraryService) {
         this.externalLibraryService = externalLibraryService;
     }

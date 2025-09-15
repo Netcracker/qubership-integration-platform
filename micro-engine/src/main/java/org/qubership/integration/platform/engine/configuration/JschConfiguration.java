@@ -18,9 +18,9 @@ package org.qubership.integration.platform.engine.configuration;
 
 import com.jcraft.jsch.JSch;
 import jakarta.annotation.PostConstruct;
-import org.springframework.context.annotation.Configuration;
+import jakarta.enterprise.context.ApplicationScoped;
 
-@Configuration
+@ApplicationScoped
 public class JschConfiguration {
     @PostConstruct
     public void init() {

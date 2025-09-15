@@ -21,15 +21,15 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.spi.InflightRepository;
-import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTerminatedException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.rest.v1.dto.LiveExchangeDTO;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
-import org.springframework.stereotype.Service;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@Service
+@ApplicationScoped
 public class LiveExchangesService {
 
     private static final Comparator<InflightExchangeHolder> EXCHANGE_COMPARATOR =
@@ -63,9 +63,9 @@ public class LiveExchangesService {
         MinMaxPriorityQueue<InflightExchangeHolder> inflightExchanges = MinMaxPriorityQueue
                 .orderedBy(EXCHANGE_COMPARATOR).maximumSize(amount).create();
 
-        for (Map.Entry<String, SpringCamelContext> entry : integrationRuntimeService.getCache().getContexts().entrySet()) {
+        for (Map.Entry<String, CamelContext> entry : integrationRuntimeService.getCache().getContexts().entrySet()) {
             String deploymentId = entry.getKey();
-            SpringCamelContext context = entry.getValue();
+            CamelContext context = entry.getValue();
             List<InflightExchangeHolder> exchangeHolders = context.getInflightRepository().browse(amount, true).stream()
                     .map(ex -> new InflightExchangeHolder(ex, deploymentId)).toList();
             inflightExchanges.addAll(exchangeHolders);
@@ -96,7 +96,7 @@ public class LiveExchangesService {
     }
 
     public void killLiveExchangeById(String deploymentId, String exchangeId) {
-        SpringCamelContext context = integrationRuntimeService.getCache().getContexts().get(deploymentId);
+        CamelContext context = integrationRuntimeService.getCache().getContexts().get(deploymentId);
         if (context == null) {
             throw new EntityNotFoundException("No deployment found for id " + deploymentId);
         }

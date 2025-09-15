@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.engine.util;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
-@Component
+@ApplicationScoped
 public class EngineDomainUtils {
 
     @Value("${spring.application.default_integration_domain_name}")
@@ -29,7 +29,7 @@ public class EngineDomainUtils {
     @Value("${spring.application.default_integration_domain_microservice_name}")
     private String defaultEngineMicroserviceName;
 
-    @Autowired
+    @Inject
     public EngineDomainUtils() {
     }
 

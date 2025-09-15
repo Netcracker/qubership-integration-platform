@@ -35,10 +35,10 @@ import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -50,7 +50,7 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties.REUSE_ORIGINAL_ID;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class SessionsService {
 
     private final PayloadExtractor extractor;
@@ -62,7 +62,7 @@ public class SessionsService {
     @Value("${qip.sessions.sampler.probabilistic}")
     private double samplerProbabilistic;
 
-    @Autowired
+    @Inject
     public SessionsService(PayloadExtractor extractor, OpenSearchWriter writer) {
         this.extractor = extractor;
         this.writer = writer;

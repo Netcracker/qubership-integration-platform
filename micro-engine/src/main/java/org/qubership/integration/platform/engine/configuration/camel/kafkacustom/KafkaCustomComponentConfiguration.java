@@ -22,7 +22,7 @@ import org.apache.camel.spi.ComponentCustomizer;
 import org.apache.camel.spring.boot.ComponentConfigurationProperties;
 import org.apache.camel.spring.boot.util.ConditionalOnHierarchicalProperties;
 import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomComponent;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,7 +37,7 @@ public class KafkaCustomComponentConfiguration {
 
     private final KafkaComponentConfiguration configuration;
 
-    @Autowired
+    @Inject
     public KafkaCustomComponentConfiguration(KafkaComponentConfiguration configuration) {
         this.configuration = configuration;
     }

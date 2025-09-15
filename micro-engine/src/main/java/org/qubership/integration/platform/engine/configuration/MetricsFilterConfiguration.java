@@ -19,22 +19,24 @@ package org.qubership.integration.platform.engine.configuration;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.config.MeterFilter;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Configuration
+@ApplicationScoped
 public class MetricsFilterConfiguration {
-
-    @Bean
+    @Produces
     public MeterFilter meterFilter() {
         return new MeterFilter() {
             @Override
-            public Meter.Id map(Meter.Id id) {
+            public Meter.@NotNull Id map(Meter.@NotNull Id id) {
                 if (id.getName().startsWith("kafka")) {
-                    List<Tag> tags = id.getTags().stream().filter(t -> !("client.id".equals(t.getKey()) || "node.id".equals(t.getKey()))).collect(Collectors.toList());
+                    List<Tag> tags = id.getTags().stream()
+                            .filter(t -> !("client.id".equals(t.getKey()) || "node.id".equals(t.getKey())))
+                            .collect(Collectors.toList());
                     return id.replaceTags(tags);
                 }
                 return id;

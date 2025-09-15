@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.inject.Inject;
+import jakarta.ws.rs.ext.MessageBodyWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Expression;
@@ -27,11 +29,11 @@ import org.qubership.integration.platform.engine.forms.FormData;
 import org.qubership.integration.platform.engine.forms.FormEntry;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
+import jakarta.ws.rs.core.HttpHeaders;
 import org.springframework.http.HttpOutputMessage;
-import org.springframework.http.MediaType;
+import jakarta.ws.rs.core.MediaType;
 import org.springframework.http.converter.FormHttpMessageConverter;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
@@ -41,9 +43,11 @@ import java.io.OutputStream;
 
 import static java.util.Objects.isNull;
 
-@Component
+@ApplicationScoped
 @Slf4j
 public class FormBuilderProcessor implements Processor {
+    @Inject
+    SimpleLanguage simpleLanguage;
 
     private interface FormEntryBuilder {
         Object build(Exchange exchange, FormEntry entry) throws IOException;
@@ -131,10 +135,8 @@ public class FormBuilderProcessor implements Processor {
     }
 
     private Object evaluate(Exchange exchange, String expressionString) throws IOException {
-        try (SimpleLanguage simpleLanguage = new SimpleLanguage()) {
-            simpleLanguage.setCamelContext(exchange.getContext());
-            Expression expression = simpleLanguage.createExpression(expressionString);
-            return expression.evaluate(exchange, Object.class);
-        }
+        simpleLanguage.setCamelContext(exchange.getContext());
+        Expression expression = simpleLanguage.createExpression(expressionString);
+        return expression.evaluate(exchange, Object.class);
     }
 }

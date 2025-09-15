@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.engine.configuration;
 
 import org.jetbrains.annotations.NotNull;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -39,7 +39,7 @@ public class MicroserviceRestTemplateAutoConfiguration {
 
     private final Duration defaultRestTemplateTimeout;
 
-    @Autowired
+    @Inject
     public MicroserviceRestTemplateAutoConfiguration(@Value("${qip.restclient.timeout}") long restTemplateTimeout) {
         defaultRestTemplateTimeout = Duration.ofMillis(restTemplateTimeout);
     }

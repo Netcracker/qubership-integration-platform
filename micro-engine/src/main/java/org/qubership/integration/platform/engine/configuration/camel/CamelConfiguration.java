@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.engine.configuration.camel;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
 import org.apache.camel.CamelContext;
 import org.apache.camel.spring.boot.CamelContextConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-@Configuration
+@ApplicationScoped
 public class CamelConfiguration {
 
-    @Bean
+    @Produces
     public CamelContextConfiguration camelContextConfiguration() {
         return new CamelContextConfiguration() {
             @Override

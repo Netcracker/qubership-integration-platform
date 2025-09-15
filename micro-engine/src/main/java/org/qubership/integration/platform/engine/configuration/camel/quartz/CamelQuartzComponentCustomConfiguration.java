@@ -17,39 +17,30 @@
 package org.qubership.integration.platform.engine.configuration.camel.quartz;
 
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.quartz.QuartzComponent;
-import org.apache.camel.component.quartz.springboot.QuartzComponentConfiguration;
 import org.apache.camel.spi.ComponentCustomizer;
-import org.apache.camel.spring.boot.ComponentConfigurationProperties;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.service.QuartzSchedulerService;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import java.util.Map;
 
 @Slf4j
-@Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({ComponentConfigurationProperties.class,
-    QuartzComponentConfiguration.class})
+@ApplicationScoped
 public class CamelQuartzComponentCustomConfiguration {
-
     public static final String THREAD_POOL_COUNT_PROP = "org.quartz.threadPool.threadCount";
 
-    private final QuartzSchedulerService quartzSchedulerService;
+    @Inject
+    QuartzSchedulerService quartzSchedulerService;
 
-    @Value("${qip.camel.component.quartz.thread-pool-count}")
-    private String threadPoolCount;
+    @ConfigProperty(name = "qip.camel.component.quartz.thread-pool-count")
+    String threadPoolCount;
 
-    @Autowired
-    public CamelQuartzComponentCustomConfiguration(QuartzSchedulerService quartzSchedulerService) {
-        this.quartzSchedulerService = quartzSchedulerService;
-    }
-
-    @Bean
+    @Produces
     public ComponentCustomizer quartzComponentCustomizer() {
         return ComponentCustomizer.builder(QuartzComponent.class)
             .build((component) -> {
@@ -57,6 +48,7 @@ public class CamelQuartzComponentCustomConfiguration {
                 component.setScheduler(quartzSchedulerService.getFactory().getScheduler());
                 component.setPrefixInstanceName(false);
                 component.setEnableJmx(false);
+                // TODO [migration to quarkus] check thread pool configuration is set properly
                 component.setProperties(Map.of(THREAD_POOL_COUNT_PROP, threadPoolCount));
                 log.debug("Configure quartz component via component customizer: {}", component);
             });

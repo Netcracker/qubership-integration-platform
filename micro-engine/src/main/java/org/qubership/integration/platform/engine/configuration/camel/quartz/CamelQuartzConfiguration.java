@@ -24,8 +24,8 @@ import org.quartz.utils.PoolingConnectionProvider;
 import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.springframework.beans.factory.BeanInitializationException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -51,9 +51,9 @@ public class CamelQuartzConfiguration {
     @Value("${qip.camel.component.quartz.thread-pool-count}")
     private String threadPoolCount;
 
-    @Autowired
+    @Inject
     public CamelQuartzConfiguration(ServerConfiguration serverConfiguration,
-                                    @Qualifier("qrtzDataSource") DataSource qrtzDataSource,
+                                    @Named("qrtzDataSource") DataSource qrtzDataSource,
                                     @Value("${spring.jpa.properties.hibernate.default_schema}") String defaultSchemaName) {
         this.serverConfiguration = serverConfiguration;
         CamelQuartzConfiguration.qrtzDataSource = qrtzDataSource;
@@ -62,7 +62,7 @@ public class CamelQuartzConfiguration {
 
     @Bean("schedulerFactoryProxy")
     public StdSchedulerFactoryProxy schedulerFactoryProxy(
-        @Qualifier("camelQuartzPropertiesCustomizer") Consumer<Properties> propCustomizer
+        @Named("camelQuartzPropertiesCustomizer") Consumer<Properties> propCustomizer
     ) throws SchedulerException {
         log.debug("Create stdSchedulerFactoryProxy");
         return new StdSchedulerFactoryProxy(camelQuartzProperties(propCustomizer));

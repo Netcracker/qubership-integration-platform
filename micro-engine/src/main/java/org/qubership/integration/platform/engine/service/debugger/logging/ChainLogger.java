@@ -43,16 +43,15 @@ import org.qubership.integration.platform.engine.util.IdentifierUtils;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class ChainLogger {
     @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger chainLogger = ExtendedErrorLoggerFactory.getLogger(ChainLogger.class);
@@ -63,8 +62,8 @@ public class ChainLogger {
     private final TracingService tracingService;
     private final Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider;
 
-    @Autowired
-    public ChainLogger(@Lazy TracingService tracingService,
+    @Inject
+    public ChainLogger(TracingService tracingService,
         Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider) {
         this.tracingService = tracingService;
         this.originatingBusinessIdProvider = originatingBusinessIdProvider;

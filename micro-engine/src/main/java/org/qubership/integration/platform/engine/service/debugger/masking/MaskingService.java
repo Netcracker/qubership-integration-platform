@@ -22,17 +22,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import jakarta.ws.rs.NotSupportedException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.errorhandling.LoggingMaskingException;
 import org.qubership.integration.platform.engine.model.SessionElementProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.springframework.util.MimeType;
 import org.springframework.util.MimeTypeUtils;
-import org.springframework.web.reactive.function.UnsupportedMediaTypeException;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -55,7 +55,7 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class MaskingService {
     private static final MimeType SOAP_XML_CONTENT_TYPE = MimeType.valueOf("application/soap+xml");
     private static final MimeType JSON_PATCH_JSON_CONTENT_TYPE = MimeType.valueOf("application/json-patch+json");
@@ -63,15 +63,15 @@ public class MaskingService {
 
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public MaskingService(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public MaskingService(@Named("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
     public String maskFields(String target, Set<String> fields, MimeType contentType)
-        throws LoggingMaskingException, UnsupportedMediaTypeException {
+        throws LoggingMaskingException, NotSupportedException {
         if (contentType == null) {
-            throw new UnsupportedMediaTypeException(
+            throw new NotSupportedException(
                 "Content type is empty, failed to mask fields in payload");
         }
 
@@ -107,7 +107,7 @@ public class MaskingService {
             }
         }
 
-        throw new UnsupportedMediaTypeException(
+        throw new NotSupportedException(
             "Content type " + contentType.toString() + " not supported for masking");
     }
 

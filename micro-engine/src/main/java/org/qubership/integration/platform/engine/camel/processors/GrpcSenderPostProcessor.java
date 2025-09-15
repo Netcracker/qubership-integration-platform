@@ -25,23 +25,23 @@ import com.google.protobuf.util.JsonFormat;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 
 
-@Component
+@ApplicationScoped
 public class GrpcSenderPostProcessor implements Processor {
 
     private final JsonFormat.Printer grpcPrinter;
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public GrpcSenderPostProcessor(JsonFormat.Printer grpcPrinter, @Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public GrpcSenderPostProcessor(JsonFormat.Printer grpcPrinter, @Named("jsonMapper") ObjectMapper objectMapper) {
         this.grpcPrinter = grpcPrinter;
         this.objectMapper = objectMapper;
     }

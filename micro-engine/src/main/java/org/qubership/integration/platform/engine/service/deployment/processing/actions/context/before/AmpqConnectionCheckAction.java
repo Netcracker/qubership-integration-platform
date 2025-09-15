@@ -19,8 +19,9 @@ package org.qubership.integration.platform.engine.service.deployment.processing.
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import io.quarkus.arc.lookup.LookupIfProperty;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.model.ChainElementType;
@@ -33,25 +34,24 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.IOException;
 import java.util.Map;
 
 @Slf4j
-@Component
-@ConditionalOnProperty(
+@ApplicationScoped
+@LookupIfProperty(
     name = "qip.camel.component.rabbitmq.predeploy-check-enabled",
-    havingValue = "true",
-    matchIfMissing = true
+    stringValue = "true",
+    lookupIfMissing = true
 )
 @OnBeforeDeploymentContextCreated
 public class AmpqConnectionCheckAction extends ElementProcessingAction {
     private final VariablesService variablesService;
 
-    @Autowired
+    @Inject
     public AmpqConnectionCheckAction(
         VariablesService variablesService
     ) {
@@ -78,7 +78,7 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
 
     @Override
     public void apply(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties elementProperties,
         DeploymentInfo deploymentInfo
     ) {

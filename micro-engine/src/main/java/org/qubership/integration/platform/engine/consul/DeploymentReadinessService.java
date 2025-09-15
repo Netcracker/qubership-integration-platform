@@ -16,17 +16,18 @@
 
 package org.qubership.integration.platform.engine.consul;
 
+import io.quarkus.arc.All;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.engine.configuration.DeploymentReadinessAutoConfiguration;
+import org.qubership.integration.platform.engine.configuration.DeploymentReadinessProvider;
 import org.qubership.integration.platform.engine.events.UpdateEvent;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Map;
 import java.util.Map.Entry;
@@ -36,13 +37,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class DeploymentReadinessService {
     public static final int CONSUMER_STARTUP_CHECK_DELAY_MILLIS = 20 * 1000;
 
     // <event_class, is_consumed>
     private final ConcurrentMap<Class<? extends UpdateEvent>, Boolean> receivedEvents;
-    
+
     @Getter
     private boolean readyForDeploy = false;
 
@@ -50,12 +51,14 @@ public class DeploymentReadinessService {
     @Setter
     private boolean initialized = false;
 
-    @Autowired
+    @Inject
     public DeploymentReadinessService(
-        @Qualifier(DeploymentReadinessAutoConfiguration.DEPLOYMENT_READINESS_EVENTS_BEAN) Set<Class<? extends UpdateEvent>> events
+        @Named(DeploymentReadinessProvider.DEPLOYMENT_READINESS_EVENTS_BEAN)
+        @All
+        Set<Class<? extends UpdateEvent>> events
     ) {
         if (log.isDebugEnabled()) {
-            String eventClassNames = events.stream().map(Class::getSimpleName).collect(Collectors.joining(", ")); 
+            String eventClassNames = events.stream().map(Class::getSimpleName).collect(Collectors.joining(", "));
             log.debug("Required events to start deployments processing: {}", eventClassNames);
         }
         receivedEvents = new ConcurrentHashMap<>(events.stream().collect(Collectors.toMap(event -> event, event -> false)));

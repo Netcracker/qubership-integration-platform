@@ -29,10 +29,10 @@ import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEv
 import org.qubership.integration.platform.engine.events.SecuredVariablesUpdatedEvent;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,7 +44,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class VariablesService {
     private final String kubeSecretV2Name;
     private final Pair<String, String> kubeSecretsLabel;
@@ -68,7 +68,7 @@ public class VariablesService {
     private boolean isInitialSecuredEvent = true;
     private boolean isInitialCommonEvent = true;
 
-    @Autowired
+    @Inject
     public VariablesService(ApplicationEventPublisher applicationEventPublisher,
                             KubeOperator operator,
                             NamespaceProvider namespaceProvider,

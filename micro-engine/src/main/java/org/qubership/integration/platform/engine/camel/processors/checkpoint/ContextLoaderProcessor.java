@@ -33,9 +33,9 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Sessi
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.CheckpointUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -43,16 +43,16 @@ import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class ContextLoaderProcessor implements Processor {
     private final CheckpointSessionService checkpointSessionService;
     private final ObjectMapper checkpointMapper;
     private final Optional<ContextOperationsWrapper> contextOperations;
 
-    @Autowired
+    @Inject
     public ContextLoaderProcessor(
             CheckpointSessionService checkpointSessionService,
-            @Qualifier("checkpointMapper") ObjectMapper checkpointMapper,
+            @Named("checkpointMapper") ObjectMapper checkpointMapper,
             Optional<ContextOperationsWrapper> contextOperations
     ) {
         this.checkpointSessionService = checkpointSessionService;

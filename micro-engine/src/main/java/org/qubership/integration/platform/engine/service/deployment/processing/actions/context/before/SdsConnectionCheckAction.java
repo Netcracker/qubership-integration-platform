@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -26,22 +26,22 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.SdsService;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @Slf4j
-@Component
+@ApplicationScoped
 @ConditionalOnBean(SdsService.class)
 @OnBeforeDeploymentContextCreated
 public class SdsConnectionCheckAction extends ElementProcessingAction {
     private final SdsService sdsService;
 
-    @Autowired
+    @Inject
     public SdsConnectionCheckAction(SdsService sdsService) {
         this.sdsService = sdsService;
     }
-    
+
     @Override
     public boolean applicableTo(ElementProperties properties) {
         ChainElementType chainElementType = ChainElementType.fromString(
@@ -51,7 +51,7 @@ public class SdsConnectionCheckAction extends ElementProcessingAction {
 
     @Override
     public void apply(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties properties,
         DeploymentInfo deploymentInfo
     ) {

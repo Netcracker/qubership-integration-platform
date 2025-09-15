@@ -17,30 +17,25 @@
 package org.qubership.integration.platform.engine.healthcheck;
 
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.health.HealthCheck;
+import org.eclipse.microprofile.health.HealthCheckResponse;
+import org.eclipse.microprofile.health.Readiness;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuate.availability.ReadinessStateHealthIndicator;
-import org.springframework.boot.availability.ApplicationAvailability;
-import org.springframework.boot.availability.AvailabilityState;
-import org.springframework.boot.availability.ReadinessState;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @Slf4j
-@Component
-public class DeploymentsHealthIndicator extends ReadinessStateHealthIndicator {
+@Readiness
+@ApplicationScoped
+public class DeploymentsHealthIndicator implements HealthCheck {
 
-    private final DeploymentReadinessService deploymentReadinessService;
-
-    @Autowired
-    public DeploymentsHealthIndicator(DeploymentReadinessService deploymentReadinessService, ApplicationAvailability availability) {
-        super(availability);
-        this.deploymentReadinessService = deploymentReadinessService;
-    }
+    @Inject
+    DeploymentReadinessService deploymentReadinessService;
 
     @Override
-    protected AvailabilityState getState(ApplicationAvailability applicationAvailability) {
+    public HealthCheckResponse call() {
         return deploymentReadinessService.isInitialized()
-                ? super.getState(applicationAvailability)
-                : ReadinessState.REFUSING_TRAFFIC;
+                ? HealthCheckResponse.up("Ready to process deployments.")
+                : HealthCheckResponse.down("At least one required event was not received to start deployments processing.");
     }
 }

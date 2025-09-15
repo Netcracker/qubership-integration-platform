@@ -16,53 +16,20 @@
 
 package org.qubership.integration.platform.engine.configuration.camel;
 
-import jakarta.servlet.Servlet;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spi.ComponentCustomizer;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
-import org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomComponent;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
-import org.springframework.boot.web.embedded.tomcat.TomcatConnectorCustomizer;
-import org.springframework.boot.web.servlet.ServletRegistrationBean;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import java.util.Optional;
 
-import static org.apache.tomcat.util.buf.EncodedSolidusHandling.PASS_THROUGH;
-
 @Slf4j
-@Configuration
+@ApplicationScoped
 public class CamelServletConfiguration {
-
-    public static final String CAMEL_SERVLET_NAME = "CamelServlet";
-    public static final String CAMEL_ROUTES_PREFIX = "/routes";
-    private static final String CAMEL_SERVLET_MAPPING = CAMEL_ROUTES_PREFIX + "/*";
-
-    /**
-     * Alternative - camel autoconfig
-     * {@link org.apache.camel.component.servlet.springboot.ServletMappingAutoConfiguration}
-     */
-    @Bean
-    public ServletRegistrationBean<Servlet> camelServlet() {
-        if (log.isDebugEnabled()) {
-            log.debug("Registration of camel servlet");
-        }
-        var mapping = new ServletRegistrationBean<>();
-        mapping.setName(CAMEL_SERVLET_NAME);
-        mapping.addUrlMappings(CAMEL_SERVLET_MAPPING);
-        mapping.setServlet(new CustomCamelHttpTransportServlet());
-
-        return mapping;
-    }
-
-    @Bean
-    public TomcatConnectorCustomizer connectorCustomizer() {
-        return connector -> connector.setEncodedSolidusHandling(PASS_THROUGH.getValue());
-    }
-
-    @Bean
+    @Produces
     public ComponentCustomizer servletCustomComponentCustomizer(
         Optional<ContextPropsProvider> contextPropsProvider
     ) {

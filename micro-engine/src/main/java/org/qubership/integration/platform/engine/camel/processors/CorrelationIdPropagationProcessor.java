@@ -21,9 +21,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,13 +31,13 @@ import java.util.Map;
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.*;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class CorrelationIdPropagationProcessor implements Processor {
 
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public CorrelationIdPropagationProcessor(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public CorrelationIdPropagationProcessor(@Named("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
@@ -62,4 +62,3 @@ public class CorrelationIdPropagationProcessor implements Processor {
         }
     }
 }
-

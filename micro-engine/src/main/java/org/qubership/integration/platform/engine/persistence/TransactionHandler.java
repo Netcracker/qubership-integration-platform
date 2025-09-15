@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.engine.persistence;
 
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-@Component
+@ApplicationScoped
 public class TransactionHandler {
 
     @Transactional(value = "checkpointTransactionManager", propagation = Propagation.REQUIRED)

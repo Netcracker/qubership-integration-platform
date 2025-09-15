@@ -37,8 +37,8 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.debugger.sessions.SessionsService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -50,7 +50,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Component
+@ApplicationScoped
 @Slf4j
 public class ChainFinishProcessor implements Processor {
 
@@ -63,7 +63,7 @@ public class ChainFinishProcessor implements Processor {
     private final PayloadExtractor payloadExtractor;
     private final ConcurrentHashMap<String, Long> syncDurationMap = new ConcurrentHashMap<>();
 
-    @Autowired
+    @Inject
     public ChainFinishProcessor(MetricsService metricsService,
                                 CamelDebuggerPropertiesService propertiesService,
                                 SessionsService sessionsService,

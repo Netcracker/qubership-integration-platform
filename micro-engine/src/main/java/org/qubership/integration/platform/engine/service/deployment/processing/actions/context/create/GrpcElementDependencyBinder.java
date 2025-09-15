@@ -21,7 +21,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.binder.grpc.MetricCollectingClientInterceptor;
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
@@ -30,18 +30,18 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.function.UnaryOperator;
 
-@Component
+@ApplicationScoped
 @OnAfterDeploymentContextCreated
 public class GrpcElementDependencyBinder extends ElementProcessingAction {
     private final MetricsStore metricsStore;
     private final MetricTagsHelper metricTagsHelper;
 
-    @Autowired
+    @Inject
     public GrpcElementDependencyBinder(
         MetricsStore metricsStore,
         MetricTagsHelper metricTagsHelper
@@ -61,7 +61,7 @@ public class GrpcElementDependencyBinder extends ElementProcessingAction {
 
     @Override
     public void apply(
-        SpringCamelContext context,
+        CamelContext context,
         ElementProperties properties,
         DeploymentInfo deploymentInfo
     ) {

@@ -24,20 +24,20 @@ import org.apache.camel.NoTypeConversionAvailableException;
 import org.apache.camel.TypeConversionException;
 import org.apache.camel.TypeConverter;
 import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 
-@Component
+@ApplicationScoped
 public class SecurityAccessPolicyConverter implements TypeConverter {
     private static final TypeReference<List<String>> STRING_LIST_TYPE_REFERENCE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public SecurityAccessPolicyConverter(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public SecurityAccessPolicyConverter(@Named("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

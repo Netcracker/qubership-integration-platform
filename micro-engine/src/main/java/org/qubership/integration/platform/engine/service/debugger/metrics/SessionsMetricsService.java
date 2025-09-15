@@ -141,18 +141,7 @@ public class SessionsMetricsService {
     @Scheduled(fixedDelay = SCHEDULER_INTERVAL)
     public void processCheckpointSizeMetrics() {
         try {
-            List<ChainDataAllocationSize> chainCheckpointSizes = new ArrayList<>();
-            List<Object[]> checkpointSizeResult = checkpointRepository.findAllChainCheckpointSize();
-            checkpointSizeResult.forEach(row -> {
-                        ChainDataAllocationSize chainCheckpointSize = ChainDataAllocationSize.builder()
-                                .chainId((String) row[0])
-                                .chainName((String) row[1])
-                                .allocatedSize(Long.parseLong(row[2].toString()))
-                                .build();
-
-                        chainCheckpointSizes.add(chainCheckpointSize);
-                    }
-            );
+            List<ChainDataAllocationSize> chainCheckpointSizes = checkpointRepository.findAllChainCheckpointSize();
             metricsStore.processChainCheckpointsSize(chainCheckpointSizes);
         } catch (Exception e) {
             throw new EngineRuntimeException(UNABLE_TO_RETRIEVE_CHECKPOINTS_METRICS_ERROR_MESSAGE, e);

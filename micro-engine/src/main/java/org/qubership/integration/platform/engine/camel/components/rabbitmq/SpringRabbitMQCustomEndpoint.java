@@ -27,7 +27,6 @@ import org.apache.camel.spi.UriEndpoint;
 import org.apache.camel.spi.UriParam;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
-import org.springframework.boot.autoconfigure.amqp.RabbitConnectionDetails.Address;
 import org.springframework.util.Assert;
 
 import java.security.KeyManagementException;
@@ -49,6 +48,7 @@ import javax.net.ssl.TrustManager;
     headersClass = SpringRabbitMQConstants.class
 )
 public class SpringRabbitMQCustomEndpoint extends SpringRabbitMQEndpoint {
+    private record Address(String host, int port) {}
 
     // connection params for connection factory builder that removed in spring-rabbit
     @UriParam(label = "common")

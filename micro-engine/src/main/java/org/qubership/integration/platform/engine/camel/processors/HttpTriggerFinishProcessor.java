@@ -30,15 +30,15 @@ import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerP
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class HttpTriggerFinishProcessor implements Processor {
 
     private final CamelDebuggerPropertiesService propertiesService;
@@ -46,7 +46,7 @@ public class HttpTriggerFinishProcessor implements Processor {
     private final ChainLogger chainLogger;
     private final MetricsService metricsService;
 
-    @Autowired
+    @Inject
     public HttpTriggerFinishProcessor(CamelDebuggerPropertiesService propertiesService,
                                       PayloadExtractor payloadExtractor,
                                       ChainLogger chainLogger,

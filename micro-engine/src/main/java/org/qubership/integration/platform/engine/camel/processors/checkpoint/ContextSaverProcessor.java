@@ -28,9 +28,9 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Prope
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
@@ -42,17 +42,17 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class ContextSaverProcessor implements Processor {
 
     private final CheckpointSessionService checkpointSessionService;
     private final ObjectMapper checkpointMapper;
     private final Optional<ContextOperationsWrapper> contextOperations;
 
-    @Autowired
+    @Inject
     public ContextSaverProcessor(
             CheckpointSessionService checkpointSessionService,
-            @Qualifier("checkpointMapper") ObjectMapper checkpointMapper,
+            @Named("checkpointMapper") ObjectMapper checkpointMapper,
             Optional<ContextOperationsWrapper> contextOperations
     ) {
         this.checkpointSessionService = checkpointSessionService;

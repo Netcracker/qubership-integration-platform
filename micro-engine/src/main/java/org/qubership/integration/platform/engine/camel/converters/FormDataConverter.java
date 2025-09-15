@@ -25,20 +25,20 @@ import org.apache.camel.TypeConversionException;
 import org.apache.camel.TypeConverter;
 import org.qubership.integration.platform.engine.forms.FormData;
 import org.qubership.integration.platform.engine.forms.FormEntry;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 
-@Component
+@ApplicationScoped
 public class FormDataConverter implements TypeConverter {
     private static final TypeReference<List<FormEntry>> FORM_ENTRY_LIST_TYPE_REFERENCE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public FormDataConverter(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public FormDataConverter(@Named("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
-import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
@@ -25,27 +25,27 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.SdsService;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 import java.util.Map;
 
-@Component
+@ApplicationScoped
 @ConditionalOnBean(SdsService.class)
 @OnAfterDeploymentContextCreated
 public class SdsSchedulerJobsRegistrar implements DeploymentProcessingAction {
     private final SdsService sdsService;
 
-    @Autowired
+    @Inject
     public SdsSchedulerJobsRegistrar(SdsService sdsService) {
         this.sdsService = sdsService;
     }
 
     @Override
     public void execute(
-        SpringCamelContext context,
+        CamelContext context,
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {
@@ -54,7 +54,7 @@ public class SdsSchedulerJobsRegistrar implements DeploymentProcessingAction {
             .filter(SdsSchedulerJobsRegistrar::isSdsTrigger)
             .map(ElementProperties::getProperties)
             .toList();
-        sdsService.registerSchedulerJobs(context, deploymentInfo, sdsElementsProperties);    
+        sdsService.registerSchedulerJobs(context, deploymentInfo, sdsElementsProperties);
     }
 
     private static boolean isSdsTrigger(ElementProperties elementProperties) {

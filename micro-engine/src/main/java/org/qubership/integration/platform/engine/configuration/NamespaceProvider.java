@@ -16,18 +16,18 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.Getter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-@Configuration
+@ApplicationScoped
 @Getter
 public class NamespaceProvider {
     private final String namespace;
 
-    @Autowired
-    public NamespaceProvider(@Value("${spring.application.namespace}") String namespace) {
+    @Inject
+    public NamespaceProvider(@ConfigProperty(name = "spring.application.namespace") String namespace) {
         this.namespace = namespace;
     }
 }

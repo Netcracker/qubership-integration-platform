@@ -28,18 +28,18 @@ import org.apache.camel.http.common.DefaultHttpBinding;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import jakarta.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.List;
 
-@Component
+@ApplicationScoped
 @Slf4j
 public class HandlingHttpBinding extends DefaultHttpBinding {
-    @Autowired    
+    @Inject
     public HandlingHttpBinding(ServletCustomFilterStrategy servletCustomFilterStrategy) {
         super();
         setHeaderFilterStrategy(servletCustomFilterStrategy);

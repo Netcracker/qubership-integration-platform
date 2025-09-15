@@ -31,10 +31,10 @@ import org.qubership.integration.platform.engine.model.opensearch.QueueElement;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.annotation.Nullable;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class OpenSearchWriter implements Runnable {
 
     private final int queueMaxSizeBytes;
@@ -89,14 +89,14 @@ public class OpenSearchWriter implements Runnable {
     private static final int RETRY_COUNT_ON_WRITE_ERROR = 5;
     private static final double REPEATED_ELEMENTS_RATIO = 2.2; // element objects in the queue can be repeated
 
-    @Autowired
+    @Inject
     public OpenSearchWriter(@Value("${qip.sessions.queue.capacity}") int sessionBufferCapacity,
                             @Value("${qip.sessions.queue.max-size-mb}") int queueMaxSizeMb,
                             @Value("${qip.sessions.bulk-request.max-size-kb}") int bulkRequestMaxSizeKb,
                             @Value("${qip.sessions.bulk-request.payload-size-threshold-kb}") int bulkRequestPayloadSizeThresholdKb,
                             @Value("${qip.sessions.bulk-request.elements-count-threshold}") int bulkRequestElementsCountThreshold,
                             OpenSearchClientSupplier openSearchClientSupplier,
-                            @Qualifier("jsonMapper") ObjectMapper mapper) {
+                            @Named("jsonMapper") ObjectMapper mapper) {
         sessionElementsQueue = new LinkedBlockingQueue<>(sessionBufferCapacity);
         this.queueMaxSizeBytes = (int) (queueMaxSizeMb * 1024 * 1024 * REPEATED_ELEMENTS_RATIO);
 

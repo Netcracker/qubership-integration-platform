@@ -26,9 +26,9 @@ import org.qubership.integration.platform.engine.configuration.ServerConfigurati
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.inject.Inject;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Stores metrics
  */
 @Slf4j
-@Component
+@ApplicationScoped
 public class MetricsStore {
     private static final String SESSION_TIMER_NAME = "sessions.duration.timer";
     private static final String SESSIONS_COUNTER_NAME = "sessions.counter";
@@ -132,7 +132,7 @@ public class MetricsStore {
 
     private final ServerConfiguration serverConfiguration;
 
-    @Autowired
+    @Inject
     public MetricsStore(ServerConfiguration serverConfiguration, MeterRegistry meterRegistry,
                         @Value("${app.prefix}") String appPrefix) {
         this.serverConfiguration = serverConfiguration;
