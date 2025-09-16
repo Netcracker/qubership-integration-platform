@@ -52,9 +52,7 @@ export class VSCodeFileApi implements FileApi {
 
     async readFile(parameters: any, propertiesFilename: string): Promise<string> {
         const mainFolderUri = parameters as Uri;
-        console.log("read property file", propertiesFilename);
         const fileUri = vscode.Uri.joinPath(mainFolderUri, propertiesFilename);
-        console.log("property file uri", fileUri);
         let fileContent;
         try {
             fileContent = await this.readFileContent(fileUri);
@@ -65,7 +63,6 @@ export class VSCodeFileApi implements FileApi {
             throw error;
         }
         const textFile = new TextDecoder('utf-8').decode(fileContent);
-        console.log("property file", textFile);
         return textFile;
     }
 
@@ -100,13 +97,11 @@ export class VSCodeFileApi implements FileApi {
     }
 
     async removeFile(mainFolderUri: Uri, propertyFilename: string): Promise<void> {
-        console.log("removing property file", propertyFilename);
         const fileUri = vscode.Uri.joinPath(mainFolderUri, propertyFilename);
-        console.log("property file uri", fileUri);
         try {
             await this.deleteFile(fileUri);
         } catch (error) {
-            console.log("Error deleting property file", fileUri);
+            console.error("Error deleting property file", fileUri);
         }
 
         return;
@@ -179,19 +174,11 @@ export class VSCodeFileApi implements FileApi {
     }
 
     async writeServiceFile(fileUri: Uri, serviceData: any): Promise<void> {
-        console.log('writeServiceFile: Starting write for fileUri:', fileUri);
-        console.log('writeServiceFile: Service object to write:', serviceData);
-
         const yamlString = yaml.stringify(serviceData);
-        console.log('writeServiceFile: Generated YAML string:', yamlString);
-
         const bytes = new TextEncoder().encode(yamlString);
-        console.log('writeServiceFile: Encoded bytes length:', bytes.length);
 
         try {
-            console.log('writeServiceFile: Attempting to write file...');
             await this.writeFile(fileUri, bytes);
-            console.log('writeServiceFile: File written successfully');
             vscode.window.showInformationMessage('Service has been updated!');
         } catch (err) {
             console.error('writeServiceFile: Error writing file:', err);
@@ -227,6 +214,8 @@ export class VSCodeFileApi implements FileApi {
 
     // File operations
     async writeFile(fileUri: Uri, data: Uint8Array): Promise<void> {
+        const parentDir = vscode.Uri.joinPath(fileUri, '..');
+        await createDirectory(parentDir);
         await vscode.workspace.fs.writeFile(fileUri, data);
     }
 
@@ -235,7 +224,17 @@ export class VSCodeFileApi implements FileApi {
     }
 
     async deleteFile(fileUri: Uri): Promise<void> {
-        await vscode.workspace.fs.delete(fileUri);
+        const fileStat = await vscode.workspace.fs.stat(fileUri);
+        if (fileStat.type === vscode.FileType.Directory) {
+            const entries = await vscode.workspace.fs.readDirectory(fileUri);
+            if (entries.length === 0) {
+                await vscode.workspace.fs.delete(fileUri);
+            } else {
+                throw new Error(`Directory ${fileUri.fsPath} is not empty`);
+            }
+        } else {
+            await vscode.workspace.fs.delete(fileUri);
+        }
     }
 
 
@@ -352,14 +351,10 @@ export class VSCodeFileApi implements FileApi {
                 }
             };
 
-            // Create service folder with serviceId as name
+            // Create service file (folder will be created automatically)
             const serviceFolderUri = vscode.Uri.joinPath(workspaceFolders[0].uri, serviceId);
-            await createDirectory(serviceFolderUri);
-
-            // Create service file
             const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
-            const bytes = new TextEncoder().encode(yaml.stringify(service));
-            await this.writeFile(serviceFileUri, bytes);
+            await this.writeServiceFile(serviceFileUri, service);
 
             vscode.window.showInformationMessage(`Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${serviceId}`);
             return { folderUri: serviceFolderUri, serviceId };
@@ -419,18 +414,5 @@ export async function createDirectory(dirUri: Uri): Promise<void> {
 }
 
 
-export async function deleteFileOrDirectory(fileUri: Uri): Promise<void> {
-    const fileStat = await vscode.workspace.fs.stat(fileUri);
-    if (fileStat.type === vscode.FileType.Directory) {
-        const entries = await vscode.workspace.fs.readDirectory(fileUri);
-        if (entries.length === 0) {
-            await vscode.workspace.fs.delete(fileUri);
-        } else {
-            throw new Error(`Directory ${fileUri.fsPath} is not empty`);
-        }
-    } else {
-        await vscode.workspace.fs.delete(fileUri);
-    }
-}
 
 

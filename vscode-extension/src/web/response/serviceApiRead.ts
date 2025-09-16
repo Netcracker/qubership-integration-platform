@@ -118,7 +118,7 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
                     specifications: specifications, 
                     synchronization: parsed.content.synchronization || false,
                     parentId: parsed.content.parentId,
-                    
+                    labels: parsed.labels || [],
                     systemId: parsed.content.parentId
                 };
                 result.push(group);
@@ -159,7 +159,7 @@ export async function getSpecificationModel(mainFolderUri: Uri, serviceId: strin
                     content: parsed.content.content || "",
                     deprecated: parsed.content.deprecated || false,
                     parentId: parsed.content.parentId,
-                    
+                    labels: parsed.labels || [],
                     specificationGroupId: parsed.content.parentId,
                     source: parsed.content.content || "",
                     systemId: serviceId,

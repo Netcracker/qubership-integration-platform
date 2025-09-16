@@ -15,13 +15,6 @@ export class SpecificationImportApiHandler {
     }
 
     async handleImportSpecificationGroup(request: ImportSpecificationGroupRequest): Promise<ImportSpecificationResult> {
-        console.log(`[SpecificationImportApiHandler] Handling import specification group request`);
-        console.log(`[SpecificationImportApiHandler] Request details:`, {
-            systemId: request.systemId,
-            name: request.name,
-            filesCount: request.files?.length || 0
-        });
-        
         try {
             const result = await this.service.importSpecificationGroup(request);
             console.log(`[SpecificationImportApiHandler] Import completed successfully:`, {
