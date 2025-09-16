@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as yaml from 'yaml';
 import { fileApi } from './response/file/fileApiProvider';
-import { VSCodeFileApi } from './response/file/fileApiImpl';
+import { readDirectory } from './response/file/fileApiImpl';
 
 export interface QipExplorerItem {
     id: string;
@@ -119,8 +119,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
 
     private async findChainFilesRecursively(folderUri: vscode.Uri, chains: QipExplorerItem[]): Promise<void> {
         try {
-            const fileApiImpl = new VSCodeFileApi(this.context);
-            const entries = await fileApiImpl.readDirectory(folderUri);
+            const entries = await readDirectory(folderUri);
             
             for (const [name, type] of entries) {
                 if (type === vscode.FileType.File && name.endsWith('.chain.qip.yaml')) {
@@ -191,8 +190,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
 
     private async findServiceFilesRecursively(folderUri: vscode.Uri, services: QipExplorerItem[]): Promise<void> {
         try {
-            const fileApiImpl = new VSCodeFileApi(this.context);
-            const entries = await fileApiImpl.readDirectory(folderUri);
+            const entries = await readDirectory(folderUri);
             
             for (const [name, type] of entries) {
                 if (type === vscode.FileType.File && name.endsWith('.service.qip.yaml')) {
@@ -294,10 +292,4 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
         return children.sort((a, b) => a.label.localeCompare(b.label));
     }
 
-}
-
-export function refreshQipExplorer(): void {
-    if (globalQipExplorerProvider) {
-        globalQipExplorerProvider.refresh();
-    }
 }

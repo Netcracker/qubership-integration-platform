@@ -13,6 +13,7 @@ import { SpecificationGroupService } from "./SpecificationGroupService";
 import { SpecificationProcessorService } from "./SpecificationProcessorService";
 import { EnvironmentService, EnvironmentRequest } from "./EnvironmentService";
 import { fileApi } from "../response/file/fileApiProvider";
+import { createDirectory } from "../response/file/fileApiImpl";
 import { GraphQLSpecificationParser } from "./parsers/GraphQLSpecificationParser";
 import { ProtoSpecificationParser } from "./parsers/ProtoSpecificationParser";
 import { OpenApiSpecificationParser } from "./parsers/OpenApiSpecificationParser";
@@ -439,8 +440,8 @@ export class SpecificationImportService {
             const sourceFolder = Uri.joinPath(resourcesFolder, sourceFolderName);
 
             // Create directories
-            await vscode.workspace.fs.createDirectory(resourcesFolder);
-            await vscode.workspace.fs.createDirectory(sourceFolder);
+            await createDirectory(resourcesFolder);
+            await createDirectory(sourceFolder);
 
             // Copy file
             const targetFileUri = Uri.joinPath(sourceFolder, sourceFile.name);

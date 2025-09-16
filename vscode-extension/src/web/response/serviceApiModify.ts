@@ -13,6 +13,7 @@ import {EMPTY_USER} from "./chainApiUtils";
 import vscode, {ExtensionContext, Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";
 import { refreshQipExplorer } from "../extension";
+import { createDirectory, deleteFileOrDirectory, readDirectory } from "./file/fileApiImpl";
 
 export async function updateService(mainFolderUri: Uri, serviceId: string, serviceRequest: Partial<IntegrationSystem>): Promise<IntegrationSystem> {
     console.log('updateService: Starting update for serviceId:', serviceId);
@@ -114,7 +115,7 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
 
         // Create service folder with serviceId as name
         const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
-        await vscode.workspace.fs.createDirectory(serviceFolderUri);
+        await createDirectory(serviceFolderUri);
         console.log('createService: Created service folder:', serviceFolderUri);
 
         // Create service file inside the service folder
@@ -447,22 +448,19 @@ async function deleteSourceFilesFromSpecificationSources(mainFolderUri: Uri, spe
                 console.log(`[deleteSourceFilesFromSpecificationSources] Full file path: ${sourceFileUri.fsPath}`);
 
                 try {
-                    const fileStat = await vscode.workspace.fs.stat(sourceFileUri);
-                    console.log(`[deleteSourceFilesFromSpecificationSources] File stat for ${source.name}:`, fileStat);
+                    await deleteFileOrDirectory(sourceFileUri);
+                    console.log(`[deleteSourceFilesFromSpecificationSources] Successfully deleted file: ${source.name}`);
 
-                    if (fileStat.type === vscode.FileType.File) {
-                        await fileApi.deleteFile(sourceFileUri);
-                        console.log(`[deleteSourceFilesFromSpecificationSources] Successfully deleted file: ${source.name}`);
-
-                        const folderPath = relativePath.split('/')[0];
-                        if (folderPath && !foldersToCheck.includes(folderPath)) {
-                            foldersToCheck.push(folderPath);
-                        }
-                    } else {
-                        console.log(`[deleteSourceFilesFromSpecificationSources] File ${source.name} is not a regular file, type:`, fileStat.type);
+                    const folderPath = relativePath.split('/')[0];
+                    if (folderPath && !foldersToCheck.includes(folderPath)) {
+                        foldersToCheck.push(folderPath);
                     }
                 } catch (error) {
-                    console.log(`[deleteSourceFilesFromSpecificationSources] Source file ${source.name} not found:`, error);
+                    if (error instanceof Error && error.message.includes('not empty')) {
+                        console.log(`[deleteSourceFilesFromSpecificationSources] File ${source.name} is a directory, skipping`);
+                    } else {
+                        console.log(`[deleteSourceFilesFromSpecificationSources] Source file ${source.name} not found:`, error);
+                    }
                 }
             } else {
                 console.log(`[deleteSourceFilesFromSpecificationSources] File path ${filePath} does not start with 'resources/'`);
@@ -476,19 +474,14 @@ async function deleteSourceFilesFromSpecificationSources(mainFolderUri: Uri, spe
     for (const folderName of foldersToCheck) {
         try {
             const folderUri = vscode.Uri.joinPath(mainFolderUri, 'resources', folderName);
-            const folderStat = await vscode.workspace.fs.stat(folderUri);
-
-            if (folderStat.type === vscode.FileType.Directory) {
-                const entries = await vscode.workspace.fs.readDirectory(folderUri);
-                if (entries.length === 0) {
-                    await vscode.workspace.fs.delete(folderUri);
-                    console.log(`[deleteSourceFilesFromSpecificationSources] Deleted empty folder: ${folderName}`);
-                } else {
-                    console.log(`[deleteSourceFilesFromSpecificationSources] Folder ${folderName} not empty, keeping it`);
-                }
-            }
+            await deleteFileOrDirectory(folderUri);
+            console.log(`[deleteSourceFilesFromSpecificationSources] Deleted empty folder: ${folderName}`);
         } catch (error) {
-            console.log(`[deleteSourceFilesFromSpecificationSources] Error checking folder ${folderName}:`, error);
+            if (error instanceof Error && error.message.includes('not empty')) {
+                console.log(`[deleteSourceFilesFromSpecificationSources] Folder ${folderName} not empty, keeping it`);
+            } else {
+                console.log(`[deleteSourceFilesFromSpecificationSources] Error checking folder ${folderName}:`, error);
+            }
         }
     }
 }

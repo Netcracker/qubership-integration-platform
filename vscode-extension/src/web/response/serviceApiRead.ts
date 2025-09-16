@@ -1,17 +1,10 @@
 import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo} from "./apiTypes";
 import * as yaml from 'yaml';
-import {ExtensionContext, FileType, Uri} from "vscode";
+import {FileType, Uri} from "vscode";
 import {EMPTY_USER} from "./chainApiUtils";
 import {fileApi} from "./file/fileApiProvider";
-import {VSCodeFileApi} from "./file/fileApiImpl";
 
 const vscode = require('vscode');
-
-let fileApiImpl: VSCodeFileApi | null = null;
-
-export function setFileApiImpl(context: ExtensionContext) {
-    fileApiImpl = new VSCodeFileApi(context);
-}
 
 export async function getCurrentServiceId(mainFolderUri: Uri): Promise<string> {
     const service: any = await getMainService(mainFolderUri);
@@ -21,51 +14,19 @@ export async function getCurrentServiceId(mainFolderUri: Uri): Promise<string> {
 
 export async function getMainServiceFileUri(mainFolderUri: Uri) {
     if (mainFolderUri) {
-        if (!fileApiImpl) {
-            throw new Error('FileApiImpl not configured');
-        }
-        let entries = await fileApiImpl.readDirectory(mainFolderUri);
-
-        if (!entries || !Array.isArray(entries)) {
-            console.error(`Failed to read directory contents`);
-            throw Error("Failed to read directory contents");
-        }
-
-        const files = entries.filter(([, type]: [string, FileType]) => type === 1)
-            .filter(([name]: [string, FileType]) => name.endsWith('.service.qip.yaml'))
-            .map(([name]: [string, FileType]) => name);
-        if (files.length !== 1) {
+        const serviceFile = await fileApi.getMainService(mainFolderUri);
+        if (!serviceFile) {
             console.error(`Single *.service.qip.yaml file not found in the current directory`);
             vscode.window.showWarningMessage("*.service.qip.yaml file not found in the current directory");
             throw Error("Single *.service.qip.yaml file not found in the current directory");
         }
-        return vscode.Uri.joinPath(mainFolderUri, files[0]);
+        return vscode.Uri.joinPath(mainFolderUri, `${serviceFile.id}.service.qip.yaml`);
     }
     return undefined;
 }
 
 export async function getMainService(mainFolderUri: Uri): Promise<any> {
-    const fileUri = await getMainServiceFileUri(mainFolderUri);
-    if (!fileUri) {
-        throw Error("No main service file");
-    }
-
-    try {
-        console.log('fileUri', fileUri);
-        const fileContent = await fileApi.readFileContent(fileUri);
-        const text = new TextDecoder('utf-8').decode(fileContent);
-        console.log('text', text);
-        const parsed = yaml.parse(text);
-
-        if (parsed && parsed.name) {
-            return parsed;
-        } else {
-            throw Error(`Service file ${fileUri} does not contain valid service data (missing name property)`);
-        }
-    } catch (e) {
-        console.error(`Service file ${fileUri} can't be parsed from QIP Extension API`, e);
-        throw e; // Re-throw the error to prevent undefined return
-    }
+    return await fileApi.getMainService(mainFolderUri);
 }
 
 export async function getService(mainFolderUri: Uri, serviceId: string): Promise<IntegrationSystem> {
@@ -132,15 +93,7 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
         throw Error("ServiceId mismatch");
     }
 
-    if (!fileApiImpl) {
-        throw new Error('FileApiImpl not configured');
-    }
-    const entries = await fileApiImpl.readDirectory(mainFolderUri);
-    
-        const specGroupFiles = entries.filter(([, type]: [string, FileType]) => type === 1)
-            .filter(([name]: [string, FileType]) => name.endsWith('.specification-group.qip.yaml'))
-            .map(([name]: [string, FileType]) => name);
-
+    const specGroupFiles = await fileApi.findSpecificationGroupFiles(mainFolderUri);
     const result: SpecificationGroup[] = [];
     
     for (const fileName of specGroupFiles) {
@@ -179,16 +132,7 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
 }
 
 export async function getSpecificationModel(mainFolderUri: Uri, serviceId: string, groupId: string): Promise<Specification[]> {
-    
-    if (!fileApiImpl) {
-        throw new Error('FileApiImpl not configured');
-    }
-    const entries = await fileApiImpl.readDirectory(mainFolderUri);
-    
-    const specFiles = entries.filter(([, type]: [string, FileType]) => type === 1)
-        .filter(([name]: [string, FileType]) => name.endsWith('.specification.qip.yaml'))
-        .map(([name]: [string, FileType]) => name);
-
+    const specFiles = await fileApi.findSpecificationFiles(mainFolderUri);
     const result: Specification[] = [];
     
     for (const fileName of specFiles) {
@@ -232,14 +176,7 @@ export async function getSpecificationModel(mainFolderUri: Uri, serviceId: strin
 }
 
 export async function getOperationInfo(mainFolderUri: Uri, operationId: string): Promise<OperationInfo> {
-    
-    if (!fileApiImpl) {
-        throw new Error('FileApiImpl not configured');
-    }
-    const entries = await fileApiImpl.readDirectory(mainFolderUri);
-    const specFiles = entries.filter(([, type]: [string, FileType]) => type === 1)
-        .filter(([name]: [string, FileType]) => name.endsWith('.specification.qip.yaml'))
-        .map(([name]: [string, FileType]) => name);
+    const specFiles = await fileApi.findSpecificationFiles(mainFolderUri);
 
     for (const fileName of specFiles) {
         try {

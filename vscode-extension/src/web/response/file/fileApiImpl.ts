@@ -16,12 +16,12 @@ export class VSCodeFileApi implements FileApi {
 
     private async getMainChainFileUri(mainFolderUri: Uri): Promise<Uri> {
         if (mainFolderUri) {
-            let entries = await vscode.workspace.fs.readDirectory(mainFolderUri);
+            let entries = await readDirectory(mainFolderUri);
 
             const files = entries
-                .filter(([, type]: [string, FileType]) => type === 1)
-                .filter(([name]: [string]) => name.endsWith('.chain.qip.yaml'))
-                .map(([name]: [string]) => name);
+                .filter(([, type]: [string, number]) => type === 1)
+                .filter(([name]: [string, number]) => name.endsWith('.chain.qip.yaml'))
+                .map(([name]: [string, number]) => name);
             if (files.length !== 1) {
                 console.error(`Single *.chain.qip.yaml file not found in the current directory`);
                 vscode.window.showWarningMessage("*.chain.qip.yaml file not found in the current directory");
@@ -36,7 +36,7 @@ export class VSCodeFileApi implements FileApi {
         const mainFolderUri = parameters as Uri;
         const fileUri = await this.getMainChainFileUri(mainFolderUri);
         try {
-            const fileContent = await vscode.workspace.fs.readFile(fileUri);
+            const fileContent = await this.readFileContent(fileUri);
             const text = new TextDecoder('utf-8').decode(fileContent);
             const parsed = yaml.parse(text);
 
@@ -57,7 +57,7 @@ export class VSCodeFileApi implements FileApi {
         console.log("property file uri", fileUri);
         let fileContent;
         try {
-            fileContent = await vscode.workspace.fs.readFile(fileUri);
+            fileContent = await this.readFileContent(fileUri);
         } catch (error) {
             if (!propertiesFilename.includes(RESOURCES_FOLDER)) {
                 return await this.readFile(mainFolderUri, RESOURCES_FOLDER + '/' + propertiesFilename);
@@ -71,7 +71,7 @@ export class VSCodeFileApi implements FileApi {
 
     async getLibrary(): Promise<LibraryData> {
         const fileUri = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'library.json');
-        const content = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(fileUri));
+        const content = new TextDecoder('utf-8').decode(await this.readFileContent(fileUri));
         return JSON.parse(content);
     }
 
@@ -79,7 +79,7 @@ export class VSCodeFileApi implements FileApi {
         const mainFolderUri = parameters as Uri;
         const bytes = new TextEncoder().encode(propertyData);
         try {
-            await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(mainFolderUri, RESOURCES_FOLDER, propertyFilename), bytes);
+            await this.writeFile(vscode.Uri.joinPath(mainFolderUri, RESOURCES_FOLDER, propertyFilename), bytes);
             vscode.window.showInformationMessage('Property file has been updated!');
         } catch (err) {
             vscode.window.showErrorMessage('Failed to write file: ' + err);
@@ -91,7 +91,7 @@ export class VSCodeFileApi implements FileApi {
         const mainFolderUri = parameters as Uri;
         const bytes = new TextEncoder().encode(yaml.stringify(chainData));
         try {
-            await vscode.workspace.fs.writeFile(await this.getMainChainFileUri(mainFolderUri), bytes);
+            await this.writeFile(await this.getMainChainFileUri(mainFolderUri), bytes);
             vscode.window.showInformationMessage('Chain has been updated!');
         } catch (err) {
             vscode.window.showErrorMessage('Failed to write file: ' + err);
@@ -104,7 +104,7 @@ export class VSCodeFileApi implements FileApi {
         const fileUri = vscode.Uri.joinPath(mainFolderUri, propertyFilename);
         console.log("property file uri", fileUri);
         try {
-            await vscode.workspace.fs.delete(fileUri);
+            await this.deleteFile(fileUri);
         } catch (error) {
             console.log("Error deleting property file", fileUri);
         }
@@ -116,16 +116,16 @@ export class VSCodeFileApi implements FileApi {
     // Service-related methods
     private async getMainServiceFileUri(mainFolderUri: Uri): Promise<Uri> {
         if (mainFolderUri) {
-            let entries = await vscode.workspace.fs.readDirectory(mainFolderUri);
+            let entries = await readDirectory(mainFolderUri);
 
             if (!entries || !Array.isArray(entries)) {
                 console.error(`Failed to read directory contents`);
                 throw Error("Failed to read directory contents");
             }
 
-            const files = entries.filter(([, type]: [string, FileType]) => type === 1)
-                .filter(([name]: [string]) => name.endsWith('.service.qip.yaml'))
-                .map(([name]: [string]) => name);
+            const files = entries.filter(([, type]: [string, number]) => type === 1)
+                .filter(([name]: [string, number]) => name.endsWith('.service.qip.yaml'))
+                .map(([name]: [string, number]) => name);
             if (files.length !== 1) {
                 console.error(`Single *.service.qip.yaml file not found in the current directory`);
                 vscode.window.showWarningMessage("*.service.qip.yaml file not found in the current directory");
@@ -140,7 +140,7 @@ export class VSCodeFileApi implements FileApi {
         const mainFolderUri = parameters as Uri;
         const fileUri = await this.getMainServiceFileUri(mainFolderUri);
         try {
-            const fileContent = await vscode.workspace.fs.readFile(fileUri);
+            const fileContent = await this.readFileContent(fileUri);
             const text = new TextDecoder('utf-8').decode(fileContent);
             const parsed = yaml.parse(text);
 
@@ -158,7 +158,7 @@ export class VSCodeFileApi implements FileApi {
         const serviceFolderUri = parameters as Uri;
         const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
         try {
-            const fileContent = await vscode.workspace.fs.readFile(serviceFileUri);
+            const fileContent = await this.readFileContent(serviceFileUri);
             const text = new TextDecoder('utf-8').decode(fileContent);
             const parsed = yaml.parse(text);
 
@@ -181,16 +181,16 @@ export class VSCodeFileApi implements FileApi {
     async writeServiceFile(fileUri: Uri, serviceData: any): Promise<void> {
         console.log('writeServiceFile: Starting write for fileUri:', fileUri);
         console.log('writeServiceFile: Service object to write:', serviceData);
-        
+
         const yamlString = yaml.stringify(serviceData);
         console.log('writeServiceFile: Generated YAML string:', yamlString);
-        
+
         const bytes = new TextEncoder().encode(yamlString);
         console.log('writeServiceFile: Encoded bytes length:', bytes.length);
-        
+
         try {
             console.log('writeServiceFile: Attempting to write file...');
-            await vscode.workspace.fs.writeFile(fileUri, bytes);
+            await this.writeFile(fileUri, bytes);
             console.log('writeServiceFile: File written successfully');
             vscode.window.showInformationMessage('Service has been updated!');
         } catch (err) {
@@ -203,7 +203,7 @@ export class VSCodeFileApi implements FileApi {
     async createServiceDirectory(parameters: any, serviceId: string): Promise<Uri> {
         const mainFolderUri = parameters as Uri;
         const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
-        await vscode.workspace.fs.createDirectory(serviceFolderUri);
+        await createDirectory(serviceFolderUri);
         return serviceFolderUri;
     }
 
@@ -211,17 +211,17 @@ export class VSCodeFileApi implements FileApi {
     // Directory operations
     async readDirectory(parameters: any): Promise<[string, number][]> {
         const mainFolderUri = parameters as Uri;
-        return await vscode.workspace.fs.readDirectory(mainFolderUri);
+        return await readDirectory(mainFolderUri);
     }
 
     async createDirectory(parameters: any, dirName: string): Promise<void> {
         const mainFolderUri = parameters as Uri;
         const dirUri = vscode.Uri.joinPath(mainFolderUri, dirName);
-        await vscode.workspace.fs.createDirectory(dirUri);
+        await createDirectory(dirUri);
     }
 
     async createDirectoryByUri(dirUri: Uri): Promise<void> {
-        await vscode.workspace.fs.createDirectory(dirUri);
+        await createDirectory(dirUri);
     }
 
 
@@ -239,14 +239,14 @@ export class VSCodeFileApi implements FileApi {
     }
 
 
-    async createEmptyChain(createInParentDir: boolean = false): Promise<{folderUri: Uri, chainId: string} | null> {
+    async createEmptyChain(createInParentDir: boolean = false): Promise<{ folderUri: Uri, chainId: string } | null> {
         try {
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders) {
                 vscode.window.showErrorMessage('Open a workspace folder first');
                 return null;
             }
-            const arg = await vscode.window.showInputBox({prompt: 'Enter new chain name'});
+            const arg = await vscode.window.showInputBox({ prompt: 'Enter new chain name' });
 
             let folderUri = workspaceFolders[0].uri;
             const chainId = crypto.randomUUID();
@@ -256,7 +256,7 @@ export class VSCodeFileApi implements FileApi {
             }
             folderUri = vscode.Uri.joinPath(folderUri, chainId);
 
-            await vscode.workspace.fs.createDirectory(folderUri);
+            await createDirectory(folderUri);
 
             const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}.chain.qip.yaml`);
             const chain = {
@@ -271,7 +271,7 @@ export class VSCodeFileApi implements FileApi {
             };
             const bytes = new TextEncoder().encode(yaml.stringify(chain));
 
-            await vscode.workspace.fs.writeFile(chainFileUri, bytes);
+            await this.writeFile(chainFileUri, bytes);
             vscode.window.showInformationMessage(`Chain "${chainName}" created with id ${chainId}`);
             return { folderUri, chainId };
         } catch (err) {
@@ -280,7 +280,7 @@ export class VSCodeFileApi implements FileApi {
         }
     }
 
-    async createEmptyService(): Promise<{folderUri: Uri, serviceId: string} | null> {
+    async createEmptyService(): Promise<{ folderUri: Uri, serviceId: string } | null> {
         try {
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders) {
@@ -338,8 +338,8 @@ export class VSCodeFileApi implements FileApi {
                 content: {
                     createdWhen: Date.now(),
                     modifiedWhen: Date.now(),
-                    createdBy: {...EMPTY_USER},
-                    modifiedBy: {...EMPTY_USER},
+                    createdBy: { ...EMPTY_USER },
+                    modifiedBy: { ...EMPTY_USER },
                     description: serviceDescription?.trim() || "",
                     activeEnvironmentId: "",
                     integrationSystemType: serviceType.value,
@@ -354,12 +354,12 @@ export class VSCodeFileApi implements FileApi {
 
             // Create service folder with serviceId as name
             const serviceFolderUri = vscode.Uri.joinPath(workspaceFolders[0].uri, serviceId);
-            await vscode.workspace.fs.createDirectory(serviceFolderUri);
+            await createDirectory(serviceFolderUri);
 
             // Create service file
             const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
             const bytes = new TextEncoder().encode(yaml.stringify(service));
-            await vscode.workspace.fs.writeFile(serviceFileUri, bytes);
+            await this.writeFile(serviceFileUri, bytes);
 
             vscode.window.showInformationMessage(`Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${serviceId}`);
             return { folderUri: serviceFolderUri, serviceId };
@@ -372,10 +372,10 @@ export class VSCodeFileApi implements FileApi {
     async getFileType(mainFolderUri: Uri): Promise<string> {
         try {
             const entries = await this.readDirectoryInternal(mainFolderUri);
-            
-            const hasChainFile = entries.some(([name]: [string, FileType]) => 
+
+            const hasChainFile = entries.some(([name]: [string, number]) =>
                 name.endsWith('.chain.qip.yaml'));
-            const hasServiceFile = entries.some(([name]: [string, FileType]) => 
+            const hasServiceFile = entries.some(([name]: [string, number]) =>
                 name.endsWith('.service.qip.yaml'));
 
             if (hasServiceFile) {
@@ -390,24 +390,47 @@ export class VSCodeFileApi implements FileApi {
         }
     }
 
-    private async readDirectoryInternal(mainFolderUri: Uri): Promise<[string, FileType][]> {
-        return await vscode.workspace.fs.readDirectory(mainFolderUri);
+    private async readDirectoryInternal(mainFolderUri: Uri): Promise<[string, number][]> {
+        return await readDirectory(mainFolderUri);
     }
 
     async findSpecificationGroupFiles(mainFolderUri: Uri): Promise<string[]> {
         const entries = await this.readDirectoryInternal(mainFolderUri);
-        return entries.filter(([name, type]: [string, FileType]) => type === 1)
-            .filter(([name]: [string, FileType]) => name.endsWith('.specification-group.qip.yaml'))
-            .map(([name]: [string, FileType]) => name);
+        return entries.filter(([name, type]: [string, number]) => type === 1)
+            .filter(([name]: [string, number]) => name.endsWith('.specification-group.qip.yaml'))
+            .map(([name]: [string, number]) => name);
     }
 
     async findSpecificationFiles(mainFolderUri: Uri): Promise<string[]> {
         const entries = await this.readDirectoryInternal(mainFolderUri);
-        return entries.filter(([name, type]: [string, FileType]) => type === 1)
-            .filter(([name]: [string, FileType]) => name.endsWith('.specification.qip.yaml'))
-            .map(([name]: [string, FileType]) => name);
+        return entries.filter(([name, type]: [string, number]) => type === 1)
+            .filter(([name]: [string, number]) => name.endsWith('.specification.qip.yaml'))
+            .map(([name]: [string, number]) => name);
     }
 
+}
+
+export async function readDirectory(mainFolderUri: Uri): Promise<[string, number][]> {
+    return await vscode.workspace.fs.readDirectory(mainFolderUri);
+}
+
+export async function createDirectory(dirUri: Uri): Promise<void> {
+    return await vscode.workspace.fs.createDirectory(dirUri);
+}
+
+
+export async function deleteFileOrDirectory(fileUri: Uri): Promise<void> {
+    const fileStat = await vscode.workspace.fs.stat(fileUri);
+    if (fileStat.type === vscode.FileType.Directory) {
+        const entries = await vscode.workspace.fs.readDirectory(fileUri);
+        if (entries.length === 0) {
+            await vscode.workspace.fs.delete(fileUri);
+        } else {
+            throw new Error(`Directory ${fileUri.fsPath} is not empty`);
+        }
+    } else {
+        await vscode.workspace.fs.delete(fileUri);
+    }
 }
 
 

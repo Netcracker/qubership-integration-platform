@@ -12,9 +12,7 @@ import {VSCodeMessage, VSCodeResponse} from "./response/apiTypes";
 import * as path from "path";
 import { setFileApi } from "./response/file/fileApiProvider";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
-import { setFileApiImpl } from "./response/serviceApiRead";
 import { QipExplorerProvider } from "./qipExplorer";
-import * as yaml from "yaml";
 
 let globalQipProvider: QipExplorerProvider | null = null;
 
@@ -90,7 +88,6 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolde
 export function activate(context: ExtensionContext) {
     const fileApiImpl = new VSCodeFileApi(context);
     setFileApi(fileApiImpl);
-    setFileApiImpl(context);
 
     // Register QIP Explorer provider
     const qipProvider = new QipExplorerProvider(context);
