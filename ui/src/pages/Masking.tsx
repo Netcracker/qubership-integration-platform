@@ -20,6 +20,7 @@ import {
   getTimestampColumnFilterFn,
   TimestampColumnFilterDropdown,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
+import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 
 export const Masking: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -132,6 +133,7 @@ export const Masking: React.FC = () => {
       onFilter: getTextColumnFilterFn(
         (snapshot) => snapshot.createdBy.username,
       ),
+      hidden: isVsCode,
     },
     {
       title: "Created At",
@@ -141,6 +143,7 @@ export const Masking: React.FC = () => {
       sorter: (a, b) => a.createdWhen - b.createdWhen,
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.createdWhen),
+      hidden: isVsCode,
     },
     {
       title: "Modified By",
@@ -153,6 +156,7 @@ export const Masking: React.FC = () => {
       onFilter: getTextColumnFilterFn(
         (snapshot) => snapshot.modifiedBy.username,
       ),
+      hidden: isVsCode,
     },
     {
       title: "Modified At",
@@ -162,6 +166,7 @@ export const Masking: React.FC = () => {
       sorter: (a, b) => a.modifiedWhen - b.modifiedWhen,
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.modifiedWhen),
+      hidden: isVsCode,
     },
   ];
 
