@@ -88,7 +88,7 @@ export const useChainGraph = (chainId?: string) => {
   }, []);
 
   const clearHighlight = useCallback(() => {
-    setNodes((curr) => applyHighlight(curr)); // сброс .highlight
+    setNodes((curr) => applyHighlight(curr)); // drop .highlight
   }, [setNodes]);
 
   const clearDragVisuals = useCallback(() => {
