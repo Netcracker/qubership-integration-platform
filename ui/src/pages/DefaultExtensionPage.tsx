@@ -1,7 +1,9 @@
 import { useNavigate } from "react-router";
-import { STARTUP_EVENT, VSCodeResponse } from "../api/rest/vscodeExtensionApi.ts";
+import { NAVIGATE_EVENT, STARTUP_EVENT, VSCodeExtensionApi, VSCodeResponse } from "../api/rest/vscodeExtensionApi.ts";
 import React from "react";
 import { Result } from "antd";
+import { configureAppExtension } from "../appConfig.ts";
+import { api } from "../api/api.ts";
 
 const DefaultExtensionPage: React.FC = () => {
   const navigate = useNavigate();
@@ -11,6 +13,14 @@ const DefaultExtensionPage: React.FC = () => {
     const { type, payload } = message;
     if (type == STARTUP_EVENT && payload) {
       console.log('Received startup message from vscode extension', message)
+      configureAppExtension(payload);
+
+      if (api instanceof VSCodeExtensionApi) {
+        void api.sendMessageToExtension(NAVIGATE_EVENT);
+      }
+    }
+    if (type == NAVIGATE_EVENT && payload) {
+      console.log('Received navigate message from vscode extension', message)
       void navigate(payload);
     }
   });

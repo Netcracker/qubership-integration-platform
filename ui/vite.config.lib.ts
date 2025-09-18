@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import sassDts from 'vite-plugin-sass-dts';
 import dts from "vite-plugin-dts";
-import peerDepsExternal from "rollup-plugin-peer-deps-external";
+import * as path from "node:path";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -13,20 +13,27 @@ export default defineConfig({
             entryRoot: 'src',
             outDir: 'dist-lib/types',
             insertTypesEntry: true
-        }),
-        {
-            ...peerDepsExternal(),
-            enforce: "pre",
-        },
+        })
     ],
     build: {
         outDir: 'dist-lib',
         emptyOutDir: true,
-        lib: {
-            entry: 'src/index.ts',
-            name: 'QIP-UI',
-            formats: ['es', 'cjs'],
-            fileName: (format) => `index.${format}.js`,
+        minify: true,
+        sourcemap: false,
+      rollupOptions: {
+        input: path.resolve(__dirname, 'src/main.tsx'),
+        external: [],
+        output: {
+          format: 'es',
+          entryFileNames: 'index.es.js',
+          inlineDynamicImports: true,
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name?.endsWith('.css')) {
+              return 'qip-ui.css';
+            }
+            return assetInfo.name || '[name].[ext]';
+          },
         },
+      }
     },
 });

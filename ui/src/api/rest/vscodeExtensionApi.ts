@@ -49,7 +49,8 @@ import {
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
 
-export const STARTUP_EVENT = "navigate";
+export const NAVIGATE_EVENT = "navigate";
+export const STARTUP_EVENT = "startup";
 export const isVsCode = window.location.protocol === "vscode-webview:";
 
 export class VSCodeExtensionApi implements Api {
@@ -270,8 +271,7 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method generateApiSpecification not implemented.");
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getServices = async (modelType: string, withSpec: boolean): Promise<IntegrationSystem[]> => {
+  getServices = async (): Promise<IntegrationSystem[]> => {
     return <IntegrationSystem[]>(
       (await this.sendMessageToExtension("getServices")).payload
     );

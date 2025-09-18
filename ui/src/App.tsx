@@ -27,13 +27,10 @@ import Services from "./pages/Services.tsx";
 import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
 import AdminTools from "./pages/AdminTools.tsx";
 import { Masking } from "./pages/Masking.tsx";
-import { AppProps, setAppName } from "./appConfig.ts";
 
 const { Header } = Layout;
 
-const App = ({ appName = undefined }: AppProps) => {
-  setAppName(appName);
-
+const App = () => {
   return (
     <Layout className={styles.layout}>
       <EventNotification>

@@ -8,7 +8,7 @@ import { isVsCode } from "./api/rest/vscodeExtensionApi.ts";
 import AppExtension from "./AppExtension.tsx";
 
 if (isVsCode) {
-  createRoot(document.getElementById("root") as HTMLElement).render(
+  createRoot(document.getElementById("app-root") as HTMLElement).render(
     <StrictMode>
       <AppExtension />
     </StrictMode>,

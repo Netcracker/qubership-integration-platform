@@ -12,14 +12,12 @@ import { MemoryRouter } from "react-router-dom";
 import DefaultExtensionPage from "./pages/DefaultExtensionPage.tsx";
 import { NotImplemented } from "./pages/NotImplemented.tsx";
 import { Masking } from "./pages/Masking.tsx";
-import { AppProps, setAppName } from "./appConfig.ts";
 import { STARTUP_EVENT, VSCodeExtensionApi } from "./api/rest/vscodeExtensionApi.ts";
 import { api } from "./api/api.ts";
 
 import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
 
-const AppExtension = ({ appName = undefined }: AppProps) => {
-  setAppName(appName);
+const AppExtension = () => {
   if (api instanceof VSCodeExtensionApi) {
     void api.sendMessageToExtension(STARTUP_EVENT);
   }
