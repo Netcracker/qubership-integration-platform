@@ -142,7 +142,7 @@ export const useChainGraph = (chainId?: string) => {
         const expanded = expandWithParent(parentIds, nodesRef.current);
         structureChangedParentIdsRef.current = Array.from(new Set(expanded));
       } else {
-        structureChangedParentIdsRef.current = null; // полная перестройка
+        structureChangedParentIdsRef.current = null; // full rebuild
       }
       clearHighlight();
     },
