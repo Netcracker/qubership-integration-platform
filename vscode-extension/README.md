@@ -1,5 +1,7 @@
 # qubership-integration-vscode-extension
 It is repository to store code for VSCode extention example as alternative for fully functional [UI](https://github.com/Netcracker/qubership-integration-ui/) but to work locally with export files.
+To run configuratuons you still need the other part of [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform).
+
 
 Click [here](https://github.com/Netcracker/qubership-repo-template/generate) to create your copy of this repository.
 
