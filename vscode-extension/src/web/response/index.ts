@@ -1,4 +1,3 @@
-export * from './apiTypes'
 export * from './apiRouter'
 export * from './chainApiRead'
 export * from './chainApiModify'
