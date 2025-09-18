@@ -186,7 +186,7 @@ export const useChainGraph = (chainId?: string) => {
 
       const withToggle = attachToggle(arrangedNodes);
       const visibleNodes = reapplyNodesVisibility(withToggle);
-      const withCounts = setNestedUnitCounts(visibleNodes); // ✅ обновляем счётчики
+      const withCounts = setNestedUnitCounts(visibleNodes);
       const orderedVisibleNodes = sortParentsBeforeChildren(withCounts);
       const visibleEdges = reapplyEdgesVisibility(withToggle, edges);
 

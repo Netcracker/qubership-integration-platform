@@ -18,8 +18,7 @@ export function UnitNode({
   return (
     <div
       style={{
-        background: "#fff",
-        border: selected ? "2px solid #000" : "1px solid #000",
+        border: selected ? "2px solid #000" : undefined,
         borderRadius: 5,
         width: "100%",
         height: "100%",

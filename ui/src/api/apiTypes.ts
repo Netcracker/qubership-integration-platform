@@ -108,7 +108,7 @@ export type LibraryElement = {
   title: string;
   description: string;
   folder: string;
-  colorType: string;
+  colorType: ElementColorType;
   descriptionFormatter: string;
   type: string;
   inputEnabled: boolean;
@@ -150,6 +150,14 @@ export enum LibraryElementQuantity {
 export enum LibraryInputQuantity {
   ONE = "one",
   ANY = "any",
+}
+
+export enum ElementColorType {
+  TRIGGER = 'trigger',
+  COMPOSITE_TRIGGER = 'composite-trigger',
+  SENDER = 'sender',
+  CHAIN_CALL = 'chain-call',
+  UNSUPPORTED = 'unsupported'
 }
 
 export type ElementWithChainName  = BaseEntity &  {

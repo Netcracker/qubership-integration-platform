@@ -1,4 +1,4 @@
-import { Element, LibraryElement } from "../api/apiTypes.ts";
+import { Element, ElementColorType, LibraryElement } from "../api/apiTypes.ts";
 import { Edge, Node, Position, XYPosition } from "@xyflow/react";
 import { ElkDirection } from "../hooks/graph/useElkDirection.tsx";
 import {
@@ -76,7 +76,33 @@ export function getNodeFromElement(
     ...(element.parentElementId && {
       parentId: element.parentElementId,
     }),
+    style: {
+      backgroundColor: getElementColor(libraryElement),
+      borderRadius: 5,
+      fontWeight: 500,
+    },
   };
+}
+
+function getElementColor(libraryElement: LibraryElement | undefined): string {
+  if (!libraryElement) {
+    return '#fff3bf';
+  }
+
+  switch (libraryElement.colorType) {
+    case ElementColorType.SENDER:
+      return "#d0ebff";
+    case ElementColorType.TRIGGER:
+      return "#c5f6fa";
+    case ElementColorType.CHAIN_CALL:
+      return "#f0deff";
+    case ElementColorType.COMPOSITE_TRIGGER:
+      return "#c5f6fa";
+    case ElementColorType.UNSUPPORTED:
+      return "#edf1f5";
+  }
+
+  return "#fff3bf";
 }
 
 export function collectChildren(

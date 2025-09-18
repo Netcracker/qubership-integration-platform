@@ -40,7 +40,7 @@ export function ContainerNode({
     <div
       style={{
         background: "#fff",
-        border: selected ? "2px solid #000" : "1px solid #000",
+        border: selected ? "2px solid #FFB02E" : "1px solid #FFB02E",
         borderRadius: 5,
         width: "100%",
         height: "100%",
@@ -54,8 +54,8 @@ export function ContainerNode({
           position: "relative",
           padding: "4px 10px 8px 10px",
           paddingRight: actionsWidth ? actionsWidth + 8 : 32,
-          background: "#f5f5f5",
-          borderBottom: "1px solid #ddd",
+          background: "#fff",
+          borderBottom: "1px solid #fff",
           fontWeight: "bold",
           fontSize: 12,
           lineHeight: 1.2,
@@ -98,8 +98,8 @@ export function ContainerNode({
               count={data.unitCount}
               status="default"
               size="small"
-              color="#000000"
-              style={{ display: "inline-flex" }}
+              color="#fff3bf"
+              style={{ display: "inline-flex", color: "black" }}
             />
           )}
 
