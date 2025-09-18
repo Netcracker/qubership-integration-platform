@@ -1,5 +1,5 @@
 import { ExtensionContext, Uri } from "vscode";
-import { IntegrationSystem, IntegrationSystemType, SystemRequest, Environment } from "../response/apiTypes";
+import { IntegrationSystem, IntegrationSystemType, SystemRequest, Environment } from "@netcracker/qip-ui";
 import { fileApi } from "../response/file/fileApiProvider";
 import { EMPTY_USER } from "../response/chainApiUtils";
 
@@ -81,7 +81,7 @@ export class SystemManagementService {
         try {
             const systems = await this.getAllSystems();
             const systemIndex = systems.findIndex(system => system.id === systemId);
-            
+
             if (systemIndex === -1) {
                 console.warn(`System not found: ${systemId}`);
                 return null;
@@ -112,7 +112,7 @@ export class SystemManagementService {
         try {
             const systems = await this.getAllSystems();
             const systemIndex = systems.findIndex(system => system.id === systemId);
-            
+
             if (systemIndex === -1) {
                 console.warn(`System not found: ${systemId}`);
                 return false;
@@ -141,7 +141,7 @@ export class SystemManagementService {
 
             const systems = await this.getAllSystems();
             const systemIndex = systems.findIndex(system => system.id === systemId);
-            
+
             if (systemIndex !== -1) {
                 systems[systemIndex].activeEnvironmentId = environmentId;
                 await this.saveSystems(systems);
@@ -160,7 +160,7 @@ export class SystemManagementService {
     async getSystemsByProtocol(protocol: string): Promise<IntegrationSystem[]> {
         try {
             const systems = await this.getAllSystems();
-            return systems.filter(system => 
+            return systems.filter(system =>
                 system.protocol.toLowerCase() === protocol.toLowerCase()
             );
         } catch (error) {
@@ -189,7 +189,7 @@ export class SystemManagementService {
         try {
             const systems = await this.getAllSystems();
             const lowerQuery = query.toLowerCase();
-            return systems.filter(system => 
+            return systems.filter(system =>
                 system.name.toLowerCase().includes(lowerQuery) ||
                 system.description.toLowerCase().includes(lowerQuery)
             );
@@ -281,7 +281,7 @@ export class SystemManagementService {
                 systems,
                 lastUpdated: Date.now()
             };
-            
+
             const systemsFileUri = Uri.joinPath(baseFolder, 'systems.yaml');
             const yaml = require('yaml');
             const yamlContent = yaml.stringify(systemsData);

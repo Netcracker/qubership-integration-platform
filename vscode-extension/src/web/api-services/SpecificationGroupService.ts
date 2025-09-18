@@ -1,5 +1,5 @@
 import { ExtensionContext, Uri } from "vscode";
-import { SpecificationGroup, IntegrationSystem } from "../response/apiTypes";
+import { SpecificationGroup, IntegrationSystem } from "@netcracker/qip-ui";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
 
@@ -29,13 +29,13 @@ export class SpecificationGroupService {
 
             // Look for specification group file in root directory
             const groupFile = Uri.joinPath(baseFolder, `${groupId}.specification-group.qip.yaml`);
-            
+
             try {
                 const content = await fileApi.readFileContent(groupFile);
                 const yamlContent = new TextDecoder().decode(content);
                 const yaml = require('yaml');
                 const parsed = yaml.parse(yamlContent);
-                
+
                 const specificationGroup: SpecificationGroup = {
                     id: parsed.id,
                     name: parsed.name,
@@ -86,7 +86,7 @@ export class SpecificationGroupService {
         if (protocol) {
             system.protocol = protocol;
         }
-            
+
         return specificationGroup;
     }
 
@@ -102,7 +102,7 @@ export class SpecificationGroupService {
                 mainFolder: this.mainFolder?.fsPath,
                 baseFolder: baseFolder?.fsPath
             });
-            
+
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
@@ -110,7 +110,7 @@ export class SpecificationGroupService {
             // Save specification group file in root directory
             const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}.specification-group.qip.yaml`);
             console.log(`[SpecificationGroupService] Group file path:`, groupFile.fsPath);
-            
+
             const yaml = require('yaml');
             const yamlContent = yaml.stringify({
                 $schema: "http://qubership.org/schemas/product/qip/specification-group",

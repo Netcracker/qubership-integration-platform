@@ -2,7 +2,7 @@ import { EMPTY_USER } from "../response/chainApiUtils";
 
 export class QipSpecificationGenerator {
     private static readonly HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options'];
-    
+
     /**
      * Creates QIP specification from OpenAPI 3.0 or Swagger 2.0
      */
@@ -23,11 +23,11 @@ export class QipSpecificationGenerator {
 
         const operations: any[] = [];
         const specId = this.generateId();
-        
+
         if (processedSpec.paths) {
             for (const [path, pathItem] of Object.entries(processedSpec.paths)) {
                 const pathItemObj = pathItem as any;
-                
+
                 for (const [method, operation] of Object.entries(pathItemObj)) {
                     if (this.HTTP_METHODS.includes(method.toLowerCase())) {
                         const operationObj = operation as any;
@@ -71,7 +71,7 @@ export class QipSpecificationGenerator {
      */
     private static createQipOperation(operation: any, method: string, path: string, openApiSpec: any, specId: string): any {
         const operationId = operation.operationId || this.generateOperationId(method, path);
-        
+
         return {
             id: `${specId}-${operationId}`,
             name: operationId,
@@ -92,11 +92,11 @@ export class QipSpecificationGenerator {
      */
     private static reorderSpecificationFields(operation: any): any {
         const orderedSpec: any = {};
-        
+
         // Field order as in backend
         const fieldOrder = [
             'tags',
-            'summary', 
+            'summary',
             'security',
             'responses',
             'operationId',
@@ -106,7 +106,7 @@ export class QipSpecificationGenerator {
             'parameters',
             'deprecated'
         ];
-        
+
         // Add fields in correct order
         for (const field of fieldOrder) {
             if (operation[field] !== undefined) {
@@ -118,7 +118,7 @@ export class QipSpecificationGenerator {
                 }
             }
         }
-        
+
         // Add remaining fields not in the list
         for (const key in operation) {
             if (!fieldOrder.includes(key) && operation[key] !== undefined) {
@@ -148,17 +148,17 @@ export class QipSpecificationGenerator {
             in: param.in,
             name: param.name
         };
-        
+
         // If there's a schema, use it, otherwise create from type/format
         if (param.schema) {
             paramObj.schema = param.schema;
         } else if (param.type) {
             paramObj.schema = this.createSchemaFromType(param);
         }
-        
+
         paramObj.required = param.required;
         paramObj.description = param.description;
-        
+
         return paramObj;
     }
 
@@ -170,7 +170,7 @@ export class QipSpecificationGenerator {
             type: param.type,
             format: param.format
         };
-        
+
         // Add additional properties to schema if they exist
         const additionalProps = ['minimum', 'maximum', 'minLength', 'maxLength', 'pattern', 'enum'];
         for (const prop of additionalProps) {
@@ -178,7 +178,7 @@ export class QipSpecificationGenerator {
                 schema[prop] = param[prop];
             }
         }
-        
+
         return schema;
     }
 
@@ -187,22 +187,22 @@ export class QipSpecificationGenerator {
      */
     private static createRequestSchema(operation: any, openApiSpec: any): any {
         const requestSchema: any = {};
-        
+
         // Handle parameters (only path, query, header parameters)
         if (operation.parameters && operation.parameters.length > 0) {
-            const nonBodyParams = operation.parameters.filter((param: any) => 
+            const nonBodyParams = operation.parameters.filter((param: any) =>
                 param.in && ['path', 'query', 'header'].includes(param.in)
             );
             if (nonBodyParams.length > 0) {
                 requestSchema.parameters = nonBodyParams.map((param: any) => this.processParameter(param));
             }
         }
-        
+
         // Handle requestBody (OpenAPI 3.0)
         if (operation.requestBody && operation.requestBody.content) {
             // Sort content types for consistent order
             const sortedContentTypes = Object.keys(operation.requestBody.content).sort();
-            
+
             for (const contentType of sortedContentTypes) {
                 const content = operation.requestBody.content[contentType] as any;
                 if (content.schema) {
@@ -211,7 +211,7 @@ export class QipSpecificationGenerator {
                 }
             }
         }
-        
+
         return requestSchema;
     }
 
@@ -220,7 +220,7 @@ export class QipSpecificationGenerator {
      */
     private static createResponseSchemas(operation: any, openApiSpec: any): any {
         const responseSchemas: any = {};
-        
+
         if (operation.responses) {
             // Sort status codes for consistent order
             const sortedStatusCodes = Object.keys(operation.responses).sort((a, b) => {
@@ -233,15 +233,15 @@ export class QipSpecificationGenerator {
                 }
                 return parseInt(a) - parseInt(b);
             });
-            
+
             for (const statusCode of sortedStatusCodes) {
                 const response = operation.responses[statusCode] as any;
                 responseSchemas[statusCode] = {};
-                
+
                 if (response.content) {
                     // Sort content types for consistent order
                     const sortedContentTypes = Object.keys(response.content).sort();
-                    
+
                     for (const contentType of sortedContentTypes) {
                         const content = response.content[contentType] as any;
                         if (content.schema) {
@@ -252,7 +252,7 @@ export class QipSpecificationGenerator {
                 }
             }
         }
-        
+
         return responseSchemas;
     }
 
@@ -263,28 +263,28 @@ export class QipSpecificationGenerator {
         if (!schema) {
             return {};
         }
-        
+
         // If it's a reference, resolve it and extract schema name
         if (schema.$ref) {
             const resolvedSchema = this.resolveRef(schema.$ref, openApiSpec);
             const refSchemaName = this.extractSchemaNameFromRef(schema.$ref);
             return this.expandSchema(resolvedSchema, openApiSpec, refSchemaName);
         }
-        
+
         // Create full JSON Schema (only for root schemas)
         const expandedSchema = {
             $id: `http://system.catalog/schemas/#/components/schemas/${schemaName || schema.title || 'Schema'}`,
             $schema: "http://json-schema.org/draft-07/schema#",
             ...schema
         };
-        
+
         // Fix required array format
         if (expandedSchema.required && Array.isArray(expandedSchema.required)) {
-            expandedSchema.required = expandedSchema.required.map((item: any) => 
+            expandedSchema.required = expandedSchema.required.map((item: any) =>
                 typeof item === 'string' ? `${item}` : item
             );
         }
-        
+
         // Recursively expand nested schemas (without adding $id and $schema)
         if (schema.properties) {
             expandedSchema.properties = {};
@@ -292,28 +292,28 @@ export class QipSpecificationGenerator {
                 expandedSchema.properties[key] = this.expandSchemaNested(prop, openApiSpec);
             }
         }
-        
+
         if (schema.items) {
             expandedSchema.items = this.expandSchemaNested(schema.items, openApiSpec);
         }
-        
+
         if (schema.allOf) {
             expandedSchema.allOf = schema.allOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
         }
-        
+
         if (schema.anyOf) {
             expandedSchema.anyOf = schema.anyOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
         }
-        
+
         if (schema.oneOf) {
             expandedSchema.oneOf = schema.oneOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
         }
-        
+
         // Add definitions only if they are referenced in the schema
         const referencedSchemas = this.findReferencedSchemas(schema, openApiSpec);
         if (referencedSchemas.size > 0) {
             expandedSchema.definitions = {};
-            
+
             // Add definitions for Swagger 2.0
             if (openApiSpec.definitions) {
                 for (const [name, def] of Object.entries(openApiSpec.definitions)) {
@@ -322,7 +322,7 @@ export class QipSpecificationGenerator {
                     }
                 }
             }
-            
+
             // Add components/schemas for OpenAPI 3.0
             if (openApiSpec.components && openApiSpec.components.schemas) {
                 for (const [name, def] of Object.entries(openApiSpec.components.schemas)) {
@@ -332,7 +332,7 @@ export class QipSpecificationGenerator {
                 }
             }
         }
-        
+
         return expandedSchema;
     }
 
@@ -343,16 +343,16 @@ export class QipSpecificationGenerator {
         if (!schema) {
             return {};
         }
-        
+
         // If it's a reference, resolve it
         if (schema.$ref) {
             const resolvedSchema = this.resolveRef(schema.$ref, openApiSpec);
             return this.expandSchemaNested(resolvedSchema, openApiSpec);
         }
-        
+
         // Create schema without $id and $schema for nested elements
         const expandedSchema = { ...schema };
-        
+
         // Recursively expand nested schemas
         if (schema.properties) {
             expandedSchema.properties = {};
@@ -360,23 +360,23 @@ export class QipSpecificationGenerator {
                 expandedSchema.properties[key] = this.expandSchemaNested(prop, openApiSpec);
             }
         }
-        
+
         if (schema.items) {
             expandedSchema.items = this.expandSchemaNested(schema.items, openApiSpec);
         }
-        
+
         if (schema.allOf) {
             expandedSchema.allOf = schema.allOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
         }
-        
+
         if (schema.anyOf) {
             expandedSchema.anyOf = schema.anyOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
         }
-        
+
         if (schema.oneOf) {
             expandedSchema.oneOf = schema.oneOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
         }
-        
+
         return expandedSchema;
     }
 
@@ -387,13 +387,13 @@ export class QipSpecificationGenerator {
         if (!ref.startsWith('#/')) {
             return undefined;
         }
-        
+
         const path = ref.substring(2).split('/');
         // For components/schemas/SchemaName, return SchemaName
         if (path.length >= 3 && path[0] === 'components' && path[1] === 'schemas') {
             return path[2];
         }
-        
+
         return undefined;
     }
 
@@ -402,12 +402,12 @@ export class QipSpecificationGenerator {
      */
     private static findReferencedSchemas(schema: any, openApiSpec: any): Set<string> {
         const referenced = new Set<string>();
-        
+
         const findRefs = (obj: any) => {
             if (!obj || typeof obj !== 'object') {
                 return;
             }
-            
+
             if (obj.$ref && typeof obj.$ref === 'string') {
                 const ref = obj.$ref;
                 if (ref.startsWith('#/definitions/')) {
@@ -418,7 +418,7 @@ export class QipSpecificationGenerator {
                     referenced.add(schemaName);
                 }
             }
-            
+
             // Recursively search in all properties
             for (const key in obj) {
                 if (obj[key] && typeof obj[key] === 'object') {
@@ -426,7 +426,7 @@ export class QipSpecificationGenerator {
                 }
             }
         };
-        
+
         findRefs(schema);
         return referenced;
     }
@@ -438,10 +438,10 @@ export class QipSpecificationGenerator {
         if (!ref.startsWith('#/')) {
             return {};
         }
-        
+
         const path = ref.substring(2).split('/');
         let current = openApiSpec;
-        
+
         for (const segment of path) {
             if (current && typeof current === 'object' && segment in current) {
                 current = current[segment];
@@ -449,7 +449,7 @@ export class QipSpecificationGenerator {
                 return {};
             }
         }
-        
+
         return current || {};
     }
 
@@ -475,7 +475,7 @@ export class QipSpecificationGenerator {
     static createQipSpecificationFromSoap(wsdlData: any, fileName: string): any {
         const operations: any[] = [];
         const specId = this.generateId();
-        
+
         if (wsdlData.portType && wsdlData.portType.operations) {
             for (const operationName of wsdlData.portType.operations) {
                 const operation = {
@@ -555,7 +555,7 @@ export class QipSpecificationGenerator {
     static createQipSpecificationFromProto(protoData: any, fileName: string): any {
         const operations: any[] = [];
         const specId = this.generateId();
-        
+
         for (const service of protoData.services) {
             for (const method of service.methods) {
                 const operation = {
@@ -635,7 +635,7 @@ export class QipSpecificationGenerator {
     static createQipSpecificationFromGraphQL(graphqlData: any, fileName: string): any {
         const operations: any[] = [];
         const specId = this.generateId();
-        
+
         // Create operations from queries
         for (const query of graphqlData.queries) {
             const operation = {
@@ -688,7 +688,7 @@ export class QipSpecificationGenerator {
             };
             operations.push(operation);
         }
-        
+
         // Create operations from mutations
         for (const mutation of graphqlData.mutations) {
             const operation = {
@@ -741,7 +741,7 @@ export class QipSpecificationGenerator {
             };
             operations.push(operation);
         }
-        
+
         // Create operations from subscriptions
         for (const subscription of graphqlData.subscriptions) {
             const operation = {
@@ -829,7 +829,7 @@ export class QipSpecificationGenerator {
     static createQipSpecificationFromAsyncApi(asyncApiData: any, fileName: string): any {
         const operations: any[] = [];
         const specId = this.generateId();
-        
+
         if (asyncApiData.channels) {
             Object.entries(asyncApiData.channels).forEach(([channelName, channel]: [string, any]) => {
                 // Publish operations
@@ -978,13 +978,13 @@ export class QipSpecificationGenerator {
         if (swagger2Spec.paths) {
             for (const [path, pathItem] of Object.entries(swagger2Spec.paths)) {
                 const openApiPathItem: any = {};
-                
+
                 for (const [method, operation] of Object.entries(pathItem as any)) {
                     if (this.HTTP_METHODS.includes(method.toLowerCase())) {
                         openApiPathItem[method] = this.convertSwagger2Operation(operation as any, swagger2Spec);
                     }
                 }
-                
+
                 (openApi3Spec.paths as any)[path] = openApiPathItem;
             }
         }
@@ -1063,16 +1063,16 @@ export class QipSpecificationGenerator {
     private static convertParametersToRequestBody(operation: any, openApiOperation: any): void {
         const bodyParams = operation.parameters.filter((p: any) => p.in === 'body');
         const formParams = operation.parameters.filter((p: any) => p.in === 'formData');
-        const nonBodyParams = operation.parameters.filter((p: any) => 
+        const nonBodyParams = operation.parameters.filter((p: any) =>
             p.in !== 'body' && p.in !== 'formData'
         );
-        
+
         if (bodyParams.length > 0) {
             this.convertBodyParameters(bodyParams, openApiOperation);
         } else if (formParams.length > 0) {
             this.convertFormParameters(formParams, openApiOperation);
         }
-        
+
         // Keep only non-body parameters
         openApiOperation.parameters = nonBodyParams;
     }
@@ -1086,7 +1086,7 @@ export class QipSpecificationGenerator {
         if (bodySchema && bodySchema.$ref && bodySchema.$ref.startsWith('#/definitions/')) {
             bodySchema.$ref = bodySchema.$ref.replace('#/definitions/', '#/components/schemas/');
         }
-        
+
         openApiOperation.requestBody = {
             content: {
                 'application/json': {
@@ -1099,7 +1099,7 @@ export class QipSpecificationGenerator {
             required: bodyParams[0].required || false,
             description: bodyParams[0].description || "Request body"
         };
-        
+
         // Add x-codegen-request-body-name
         openApiOperation['x-codegen-request-body-name'] = 'body';
     }
@@ -1113,20 +1113,20 @@ export class QipSpecificationGenerator {
             properties: {},
             required: []
         };
-        
+
         formParams.forEach((param: any) => {
             const propSchema: any = {
                 type: param.type === 'file' ? 'string' : param.type,
                 description: param.description
             };
-            
+
             // Add format for file types
             if (param.type === 'file') {
                 propSchema.format = 'binary';
             } else if (param.format) {
                 propSchema.format = param.format;
             }
-            
+
             // Handle array types
             if (param.type === 'array') {
                 propSchema.type = 'array';
@@ -1137,12 +1137,12 @@ export class QipSpecificationGenerator {
                     propSchema.collectionFormat = param.collectionFormat;
                 }
             }
-            
+
             // Handle enum values
             if (param.enum && param.enum.length > 0) {
                 propSchema.enum = param.enum;
             }
-            
+
             // Handle minimum/maximum values
             if (param.minimum !== undefined) {
                 propSchema.minimum = param.minimum;
@@ -1150,23 +1150,23 @@ export class QipSpecificationGenerator {
             if (param.maximum !== undefined) {
                 propSchema.maximum = param.maximum;
             }
-            
+
             (formSchema.properties as any)[param.name] = propSchema;
-            
+
             if (param.required) {
                 (formSchema.required as any[]).push(param.name);
             }
         });
-        
+
         // Determine content type based on file parameters presence
         const hasFileParams = formParams.some((param: any) => param.type === 'file');
         const contentType = hasFileParams ? 'multipart/form-data' : 'application/x-www-form-urlencoded';
-        
+
         // Remove empty required array
         if (formSchema.required.length === 0) {
             delete (formSchema as any).required;
         }
-        
+
         openApiOperation.requestBody = {
             content: {
                 [contentType]: {
@@ -1185,22 +1185,22 @@ export class QipSpecificationGenerator {
         if (!schema || typeof schema !== 'object') {
             return;
         }
-        
+
         // Convert #/definitions to #/components/schemas for OpenAPI 3.0
         if (schema.$ref && schema.$ref.startsWith('#/definitions/')) {
             schema.$ref = schema.$ref.replace('#/definitions/', '#/components/schemas/');
         }
-        
+
         // Convert #/parameters to #/components/parameters for OpenAPI 3.0
         if (schema.$ref && schema.$ref.startsWith('#/parameters/')) {
             schema.$ref = schema.$ref.replace('#/parameters/', '#/components/parameters/');
         }
-        
+
         // Convert #/responses to #/components/responses for OpenAPI 3.0
         if (schema.$ref && schema.$ref.startsWith('#/responses/')) {
             schema.$ref = schema.$ref.replace('#/responses/', '#/components/responses/');
         }
-        
+
         // Recursively process nested objects
         for (const key in schema) {
             if (schema[key] && typeof schema[key] === 'object') {
@@ -1216,7 +1216,7 @@ export class QipSpecificationGenerator {
         if (!securityDefinitions) {
             return {};
         }
-        
+
         const securitySchemes: any = {};
         for (const [name, scheme] of Object.entries(securityDefinitions)) {
             const schemeObj = scheme as any;

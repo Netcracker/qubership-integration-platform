@@ -33,7 +33,7 @@ export class AsyncApiSpecificationParser {
     static async parseAsyncApiContent(content: string): Promise<AsyncApiData> {
         try {
             let specData: any;
-            
+
             // Try JSON first
             try {
                 specData = JSON.parse(content);
@@ -42,11 +42,11 @@ export class AsyncApiSpecificationParser {
                 const yaml = require('yaml');
                 specData = yaml.parse(content);
             }
-            
+
             if (!specData.asyncapi) {
                 throw new Error('Not a valid AsyncAPI specification');
             }
-            
+
             return specData as AsyncApiData;
         } catch (error) {
             throw error;
@@ -58,7 +58,7 @@ export class AsyncApiSpecificationParser {
      */
     static createOperationsFromAsyncApi(asyncApiData: AsyncApiData, specificationId: string): any[] {
         const operations: any[] = [];
-        
+
         if (!asyncApiData.channels) {
             return operations;
         }

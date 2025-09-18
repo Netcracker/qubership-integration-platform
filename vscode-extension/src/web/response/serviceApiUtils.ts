@@ -1,8 +1,8 @@
-import vscode, { ExtensionContext } from "vscode";
-import { getCurrentServiceId } from "./serviceApiRead";
-import { createService } from "./serviceApiModify";
-import { SpecificationImportApiHandler } from "../api-services/SpecificationImportApiHandler";
-import { SerializedFile } from "../api-services/importApiTypes";
+import vscode, {ExtensionContext} from "vscode";
+import {getCurrentServiceId} from "./serviceApiRead";
+import {createService} from "./serviceApiModify";
+import {SpecificationImportApiHandler} from "../api-services/SpecificationImportApiHandler";
+import {SerializedFile} from "../api-services/importApiTypes";
 
 export async function getServiceUri(mainFolderUri: vscode.Uri): Promise<string> {
     const result = `/services/systems/${await getCurrentServiceId(mainFolderUri)}/parameters`;
@@ -50,4 +50,10 @@ export async function handleCreateService(context: ExtensionContext | undefined,
         throw new Error('ExtensionContext is required for createService operation');
     }
     return await createService(context, mainFolderUri, payload);
+}
+
+export enum QipFileType {
+    CHAIN = "CHAIN",
+    SERVICE = "SERVICE",
+    UNKNOWN = "UNKNOWN"
 }

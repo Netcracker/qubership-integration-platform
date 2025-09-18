@@ -16,12 +16,12 @@ export interface WsdlData {
 }
 
 export class SoapSpecificationParser {
-    
+
     /**
      * Parse WSDL content and extract operations
      */
     static async parseWsdlContent(content: string): Promise<WsdlData> {
-        
+
         const wsdlData: WsdlData = {
             type: 'WSDL'
         };
@@ -80,7 +80,7 @@ export class SoapSpecificationParser {
      */
     static createOperationsFromWsdl(wsdlData: WsdlData, specificationId: string): any[] {
         const operations: any[] = [];
-        
+
         if (wsdlData.portType && wsdlData.portType.operations) {
             for (const operationName of wsdlData.portType.operations) {
                 const operation = {
@@ -161,11 +161,11 @@ export class SoapSpecificationParser {
                         }
                     }
                 };
-                
+
                 operations.push(operation);
             }
         }
-        
+
         return operations;
     }
 

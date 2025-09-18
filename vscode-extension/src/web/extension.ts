@@ -8,11 +8,11 @@ import {
     WebviewPanel
 } from "vscode";
 import {getApiResponse} from "./response/apiRouter";
-import {VSCodeMessage, VSCodeResponse} from "./response/apiTypes";
 import * as path from "path";
 import { setFileApi } from "./response/file/fileApiProvider";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import { QipExplorerProvider } from "./qipExplorer";
+import {VSCodeMessage, VSCodeResponse, AppExtensionProps} from "@netcracker/qip-ui";
 
 let globalQipProvider: QipExplorerProvider | null = null;
 
@@ -53,14 +53,14 @@ function openWebviewForElement(context: ExtensionContext, folderUri: Uri, elemen
             enableCommandUris: true
         }
     );
-    
+
     enrichWebview(panel, context, folderUri);
 }
 
 function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolderUri: Uri | undefined = undefined) {
     type VSCodeMessageWrapper = {
         command: string;
-        data: VSCodeMessage;
+        data: VSCodeMessage<any>;
     };
 
     panel.webview.html = getWebviewContent(context, panel.webview);
@@ -69,16 +69,19 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolde
         // Handle the mock response
         console.log('QIP Extension API Request:', message);
 
-        const response: VSCodeResponse = {
+        const response: VSCodeResponse<any> = {
             requestId: message.data.requestId,
             type: message.data.type,
         };
+
         try {
             response.payload = await getApiResponse(message.data, mainFolderUri, context);
             console.log('QIP Extension API Response:', response);
         } catch (e) {
             console.error("Failed to fetch data for QIP Extension API", e);
-            response.error = e;
+            if (e instanceof Error) {
+                response.error = e;
+            }
         }
         panel.webview.postMessage(response);
     });
@@ -302,15 +305,28 @@ export function deactivate() {}
 
 function getWebviewContent(context: ExtensionContext, webview: Webview) {
 
-  // Dynamically load the JS and CSS files with the unique hashes
-  const jsFileUri = vscode.Uri.joinPath(context.extensionUri, 'media', 'index.js');
-  const cssFileUri = vscode.Uri.joinPath(context.extensionUri, 'media', 'index.css');
+  // Dynamically load the JS and CSS files
+    const jsFileUri = vscode.Uri.joinPath(
+        context.extensionUri,
+        'node_modules',
+        '@netcracker',
+        'qip-ui',
+        'dist-lib',
+        'index.es.js'
+    );
+    const cssFileUri = vscode.Uri.joinPath(
+        context.extensionUri,
+        'node_modules',
+        '@netcracker',
+        'qip-ui',
+        'dist-lib',
+        'qip-ui.css'
+    );
+    const jsUri = webview.asWebviewUri(jsFileUri);
+    const cssUri = webview.asWebviewUri(cssFileUri);
 
-  const jsUri = webview.asWebviewUri(jsFileUri);
-  const cssUri = webview.asWebviewUri(cssFileUri);
-
-  // Return the HTML content for the webview
-  return `
+    // Return the HTML content for the webview
+    return `
     <!DOCTYPE html>
     <html lang="en">
       <head>
@@ -321,7 +337,7 @@ function getWebviewContent(context: ExtensionContext, webview: Webview) {
 		<script type="module" crossorigin src="${jsUri}"></script>
       </head>
       <body>
-        <div id="root"></div>
+        <div id="app-root"></div>
       </body>
     </html>
   `;

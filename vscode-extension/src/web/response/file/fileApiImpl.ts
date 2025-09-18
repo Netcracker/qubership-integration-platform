@@ -1,8 +1,9 @@
 import {FileApi} from './fileApi';
-import {ExtensionContext, FileType, Uri} from 'vscode';
+import {ExtensionContext, Uri} from 'vscode';
 import * as yaml from 'yaml';
-import {LibraryData, QipFileType} from "../apiTypes";
-import { EMPTY_USER } from '../chainApiUtils';
+import {LibraryData} from "@netcracker/qip-ui";
+import {EMPTY_USER} from "../chainApiUtils";
+import {QipFileType} from "../serviceApiUtils";
 
 const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';

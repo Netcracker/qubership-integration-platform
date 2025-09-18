@@ -1,6 +1,6 @@
 import vscode, {Uri} from "vscode";
 import {getCurrentChainId} from "./chainApiRead";
-import {Element} from "./apiTypes";
+import {Element} from "@netcracker/qip-ui";
 
 export async function getChainUri(mainFolderUri: vscode.Uri): Promise<string> {
     const result = `/chains/${await getCurrentChainId(mainFolderUri)}/graph`;
@@ -66,3 +66,10 @@ export const EMPTY_USER = {
     id: "",
     username: ""
 };
+
+//TODO WA for exporting only types in UI
+export enum ChainCommitRequestAction {
+    NONE = "NONE",
+    SNAPSHOT = "SNAPSHOT",
+    DEPLOY = "DEPLOY",
+}

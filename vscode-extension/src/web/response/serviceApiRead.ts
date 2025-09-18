@@ -1,6 +1,6 @@
-import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo} from "./apiTypes";
+import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo} from "@netcracker/qip-ui";
 import * as yaml from 'yaml';
-import {FileType, Uri} from "vscode";
+import {Uri} from "vscode";
 import {EMPTY_USER} from "./chainApiUtils";
 import {fileApi} from "./file/fileApiProvider";
 
@@ -35,7 +35,7 @@ export async function getService(mainFolderUri: Uri, serviceId: string): Promise
         console.error(`ServiceId mismatch`);
         throw Error("ServiceId mismatch");
     }
-    
+
     return {
         id: service.id,
         name: service.name,
@@ -87,7 +87,7 @@ function parseEnvironments(environments: any[]): Environment[] {
 
 export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string): Promise<SpecificationGroup[]> {
     const service: any = await getMainService(mainFolderUri);
-    
+
     if (service.id !== serviceId) {
         console.error(`ServiceId mismatch: expected ${serviceId}, got ${service.id}`);
         throw Error("ServiceId mismatch");
@@ -95,7 +95,7 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
 
     const specGroupFiles = await fileApi.findSpecificationGroupFiles(mainFolderUri);
     const result: SpecificationGroup[] = [];
-    
+
     for (const fileName of specGroupFiles) {
         try {
             const fileUri = vscode.Uri.joinPath(mainFolderUri, fileName);
@@ -104,9 +104,9 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
             const parsed = yaml.parse(text);
 
             if (parsed && parsed.content && parsed.content.parentId === serviceId) {
-                
+
                 const specifications = await getSpecificationModel(mainFolderUri, serviceId, parsed.id);
-                
+
                 const group = {
                     id: parsed.id,
                     name: parsed.name,
@@ -115,7 +115,7 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
                     modifiedBy: parsed.content.modifiedBy || {...EMPTY_USER},
                     createdWhen: parsed.content.createdWhen || 0,
                     modifiedWhen: parsed.content.modifiedWhen || 0,
-                    specifications: specifications, 
+                    specifications: specifications,
                     synchronization: parsed.content.synchronization || false,
                     parentId: parsed.content.parentId,
                     labels: parsed.labels || [],
@@ -134,7 +134,7 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
 export async function getSpecificationModel(mainFolderUri: Uri, serviceId: string, groupId: string): Promise<Specification[]> {
     const specFiles = await fileApi.findSpecificationFiles(mainFolderUri);
     const result: Specification[] = [];
-    
+
     for (const fileName of specFiles) {
         try {
             const fileUri = vscode.Uri.joinPath(mainFolderUri, fileName);
@@ -143,9 +143,9 @@ export async function getSpecificationModel(mainFolderUri: Uri, serviceId: strin
             const parsed = yaml.parse(text);
 
             if (parsed && parsed.content && parsed.content.parentId === groupId) {
-                
+
                 const operations = parseOperations(parsed.content.operations, parsed.id);
-                
+
                 const spec = {
                     id: parsed.id,
                     name: parsed.name,
@@ -206,7 +206,7 @@ export async function getOperationInfo(mainFolderUri: Uri, operationId: string):
 
 function parseOperations(operations: any[], modelId: string): SystemOperation[] {
     const result: SystemOperation[] = [];
-    
+
     if (operations && Array.isArray(operations)) {
         for (const op of operations) {
             const operation = {
@@ -216,12 +216,12 @@ function parseOperations(operations: any[], modelId: string): SystemOperation[] 
                 method: op.method || "",
                 path: op.path || "",
                 modelId: modelId,
-                chains: [] 
+                chains: []
             };
             result.push(operation);
         }
     }
-    
+
     return result;
 }
 
@@ -231,6 +231,6 @@ export async function getServices(mainFolderUri: Uri): Promise<IntegrationSystem
     if (!service) {
         return [];
     }
-    
+
     return [await getService(mainFolderUri, service.id)];
 }
