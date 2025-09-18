@@ -3,7 +3,6 @@ id: "f0c20909-e7ff-4d25-a336-69ee25daef93"
 name: "New Chain"
 description: ""
 modifiedWhen: 1677575186094
-maskingEnabled: false
 elements:
   - id: "042b8105-f152-4f8f-9d85-cdab0b1adcf8"
     name: "Split Element Kafka Sender"

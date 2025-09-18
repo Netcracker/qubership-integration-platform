@@ -3,7 +3,6 @@ id: "f0c20909-e7ff-4d25-a336-69ee25daef93"
 name: "New Chain"
 description: ""
 modifiedWhen: 1677575186094
-maskingEnabled: false
 elements:
   - id: "0f3aebb0-1279-4609-8030-a3e93b5df62c"
     name: "HTTP Trigger"

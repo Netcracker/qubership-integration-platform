@@ -30,7 +30,6 @@ public class ChainExternalContentEntity {
     private String lastImportHash;
 
     private List<String> labels;
-    private boolean maskingEnabled;
 
     @Builder.Default
     private Set<MaskedFieldExternalEntity> maskedFields = new HashSet<>();

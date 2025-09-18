@@ -3,7 +3,6 @@ id: "e96e7c5a-753a-4931-91fc-73bf9abc32a3"
 name: "New Chain"
 description: ""
 modifiedWhen: 1682600564542
-maskingEnabled: false
 elements:
   - id: "1ab6f6ff-75a2-400a-be8b-474113a0efb7"
     name: "Script #3"

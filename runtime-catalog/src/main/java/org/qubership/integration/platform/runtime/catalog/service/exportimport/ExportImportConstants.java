@@ -95,7 +95,6 @@ public class ExportImportConstants {
     public static final String FILE_NAME_PROPERTY = "propertiesFilename";
     public static final String PROPERTIES = "properties";
     public static final String CHILDREN = "children";
-    public static final String MASKING_ENABLED = "maskingEnabled";
     public static final String DEFAULT_SWIMLANE_ID = "default-swimlane-id";
     public static final String REUSE_SWIMLANE_ID = "reuse-swimlane-id";
     public static final String MASKED_FIELDS = "maskedFields";

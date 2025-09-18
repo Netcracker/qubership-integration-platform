@@ -2,7 +2,6 @@ id: "f0c20909-e7ff-4d25-a336-69ee25daef93"
 name: "New Chain"
 description: "Chain for testing"
 modifiedWhen: 1682496062845
-maskingEnabled: false
 elements:
   - id: "9cc24a02-cc35-4689-87a4-9d3cc3010500"
     name: "Catch"
