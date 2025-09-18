@@ -1,4 +1,4 @@
-import {LibraryData} from '../apiTypes';
+import {LibraryData} from "@netcracker/qip-ui";
 import {FileApi} from './fileApi';
 import {Uri} from 'vscode';
 

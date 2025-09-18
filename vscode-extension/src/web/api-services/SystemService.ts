@@ -1,5 +1,5 @@
 import { ExtensionContext, Uri, FileType } from "vscode";
-import { IntegrationSystem } from "../response/apiTypes";
+import { IntegrationSystem } from "@netcracker/qip-ui";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { EMPTY_USER } from "../response/chainApiUtils";
@@ -69,7 +69,7 @@ export class SystemService {
                 service.content.protocol = protocol;
                 service.content.modifiedWhen = Date.now();
                 service.content.modifiedBy = {...EMPTY_USER};
-                
+
                 const serviceFileUri = await this.getMainServiceFileUri(baseFolder);
                 if (serviceFileUri) {
                     const yaml = require('yaml');

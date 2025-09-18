@@ -6,7 +6,7 @@ import {
     SerializedFile,
     ApiSpecificationType,
 } from "./importApiTypes";
-import { SpecificationGroup, Specification, IntegrationSystem } from "../response/apiTypes";
+import { SpecificationGroup, Specification, IntegrationSystem } from "@netcracker/qip-ui";
 import { ImportProgressTracker } from "./importProgressTracker";
 import { SystemService } from "./SystemService";
 import { SpecificationGroupService } from "./SpecificationGroupService";
@@ -44,7 +44,7 @@ export class SpecificationImportService {
     async importSpecificationGroup(request: ImportSpecificationGroupRequest): Promise<ImportSpecificationResult> {
         const importId = crypto.randomUUID();
         const startTime = Date.now();
-        
+
         try {
             const validationResult = await this.validateImportRequest(request);
             if (!validationResult.isValid) {
@@ -64,18 +64,18 @@ export class SpecificationImportService {
             );
 
             this.progressTracker.startImportSession(importId, specificationGroup.id);
-            
+
             await this.specificationProcessorService.processSpecificationFiles(
-                specificationGroup, 
-                extractedFiles, 
+                specificationGroup,
+                extractedFiles,
                 request.systemId
             );
 
             await this.saveSpecificationFiles(request.systemId, specificationGroup, extractedFiles);
-            
+
             try {
                 await this.specificationGroupService.saveSpecificationGroupFile(
-                    request.systemId, 
+                    request.systemId,
                     specificationGroup
                 );
             } catch (error) {
@@ -89,9 +89,9 @@ export class SpecificationImportService {
 
             try {
                 await this.createEnvironmentForSpecificationGroup(
-                    system, 
-                    specificationGroup, 
-                    request.systemId, 
+                    system,
+                    specificationGroup,
+                    request.systemId,
                     extractedFiles
                 );
             } catch (error) {
@@ -104,7 +104,7 @@ export class SpecificationImportService {
                 done: true
             };
 
-            
+
             this.progressTracker.completeImportSession(importId, result);
 
             return result;
@@ -129,7 +129,7 @@ export class SpecificationImportService {
     async importSpecification(specificationGroupId: string, files: SerializedFile[], systemId: string): Promise<ImportSpecificationResult> {
         const importId = crypto.randomUUID();
         const startTime = Date.now();
-        
+
         try {
             const specificationGroup = await this.specificationGroupService.getSpecificationGroupById(specificationGroupId, systemId);
             if (!specificationGroup) {
@@ -140,8 +140,8 @@ export class SpecificationImportService {
 
             const extractedFiles = await this.convertSerializedFilesToFiles(files);
             await this.specificationProcessorService.processSpecificationFiles(
-                specificationGroup, 
-                extractedFiles, 
+                specificationGroup,
+                extractedFiles,
                 systemId
             );
 
@@ -160,7 +160,7 @@ export class SpecificationImportService {
 
         } catch (error) {
             console.log(`[SpecificationImportService] Specification import failed:`, error);
-            
+
             const result: ImportSpecificationResult = {
                 id: importId,
                 specificationGroupId: specificationGroupId,
@@ -223,7 +223,7 @@ export class SpecificationImportService {
      */
     private async convertSerializedFilesToFiles(serializedFiles: SerializedFile[]): Promise<File[]> {
         const files: File[] = [];
-        
+
         for (let index = 0; index < serializedFiles.length; index++) {
             const serializedFile = serializedFiles[index];
 
@@ -323,17 +323,17 @@ export class SpecificationImportService {
         if (specData.type === 'WSDL') {
             return SoapSpecificationParser.extractAddressFromWsdlData(specData);
         }
-        
+
         // For Swagger 2.0 and OpenAPI 3.x
         if (specData.swagger || specData.openapi) {
             return OpenApiSpecificationParser.extractAddressFromOpenApiData(specData);
         }
-        
+
         // For AsyncAPI
         if (specData.asyncapi) {
             return AsyncApiSpecificationParser.extractAddressFromAsyncApiData(specData);
         }
-        
+
         return null;
     }
 
@@ -341,8 +341,8 @@ export class SpecificationImportService {
      * Save specification files and copy source files
      */
     private async saveSpecificationFiles(
-        systemId: string, 
-        specificationGroup: SpecificationGroup, 
+        systemId: string,
+        specificationGroup: SpecificationGroup,
         extractedFiles: File[]
     ): Promise<void> {
         try {
@@ -365,7 +365,7 @@ export class SpecificationImportService {
                 // Create specification file with operations using existing architecture
                 const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}.specification.qip.yaml`;
                 const specFileUri = Uri.joinPath(baseFolder, specFileName);
-                
+
                 // Create QIP specification using operations from SpecificationProcessorService
                 const qipSpecification = {
                     $schema: "http://qubership.org/schemas/product/qip/specification",
@@ -394,7 +394,7 @@ export class SpecificationImportService {
                         mainSource: file === sourceFile
                     })))
                 };
-                
+
                 console.log(`[SpecificationImportService] Created QIP specification with ${qipSpecification.content.operations?.length || 0} operations`);
 
                 const yaml = require('yaml');
@@ -405,7 +405,7 @@ export class SpecificationImportService {
 
                 // Copy source file and additional files to resources folder
                 await this.copySourceFileToResources(baseFolder, systemId, specificationGroup.name, specification.version, sourceFile);
-                
+
                 // Copy additional files (like XSD for SOAP)
                 if (extractedFiles.length > 1) {
                     const additionalFiles = extractedFiles.filter(f => f !== sourceFile);
@@ -442,7 +442,7 @@ export class SpecificationImportService {
             const targetFileUri = Uri.joinPath(sourceFolder, sourceFile.name);
             const fileContent = await this.readFileContent(sourceFile);
             const bytes = new TextEncoder().encode(fileContent || '');
-            
+
             await fileApi.writeFile(targetFileUri, bytes);
             console.log(`[SpecificationImportService] Copied source file: ${sourceFile.name} to ${sourceFolderName}/`);
         } catch (error) {
@@ -499,7 +499,7 @@ export class SpecificationImportService {
             // Extract address from specification data or use default
             let address: string;
             const specData = await this.extractSpecificationData(files);
-            
+
             if (specData) {
                 const extractedAddress = this.extractAddressFromSwaggerData(specData);
                 if (extractedAddress) {
@@ -510,7 +510,7 @@ export class SpecificationImportService {
             } else {
                 address = this.getDefaultAddressForProtocol(system.protocol);
             }
-            
+
             // Determine environment name
             let environmentName = `Environment for ${specificationGroup.name}`;
             if (system.protocol === 'SOAP' && specData && specData.service && specData.service.portName) {
@@ -528,13 +528,13 @@ export class SpecificationImportService {
 
             // Create environment using EnvironmentService
             const environment = await this.environmentService.createEnvironment(environmentRequest);
-            
+
             console.log(`[SpecificationImportService] Environment created successfully:`, {
                 id: environment.id,
                 name: environment.name,
                 address: environment.address
             });
-            
+
         } catch (error) {
             console.log(`[SpecificationImportService] Error creating environment:`, error);
             // Don't throw error to avoid breaking the import process

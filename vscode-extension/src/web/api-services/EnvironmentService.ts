@@ -1,5 +1,5 @@
 import { ExtensionContext, Uri } from "vscode";
-import { Environment, IntegrationSystem } from "../response/apiTypes";
+import { Environment, IntegrationSystem } from "@netcracker/qip-ui";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
 
@@ -57,7 +57,7 @@ export class EnvironmentService {
      */
     async createEnvironment(request: EnvironmentRequest): Promise<Environment> {
         try {
-            
+
             const environment: Environment = {
                 id: crypto.randomUUID(),
                 name: request.name,
@@ -72,12 +72,12 @@ export class EnvironmentService {
                 modifiedBy: { ...EMPTY_USER}
             };
 
-            
+
             const system = await this.getSystemById(request.systemId);
             if (!system) {
                 throw new Error(`System not found: ${request.systemId}`);
             }
-            
+
 
             // Initialize environments array if it doesn't exist
             if (!system.content) {
@@ -105,8 +105,8 @@ export class EnvironmentService {
      * Update an existing environment
      */
     async updateEnvironment(
-        systemId: string, 
-        environmentId: string, 
+        systemId: string,
+        environmentId: string,
         updates: Partial<EnvironmentRequest>
     ): Promise<Environment | null> {
         try {
@@ -163,8 +163,8 @@ export class EnvironmentService {
 
             // If the deleted environment was active, set another environment as active
             if (system.content.activeEnvironmentId === environmentId) {
-                system.content.activeEnvironmentId = system.content.environments.length > 0 
-                    ? system.content.environments[0].id 
+                system.content.activeEnvironmentId = system.content.environments.length > 0
+                    ? system.content.environments[0].id
                     : '';
             }
 
@@ -272,7 +272,7 @@ export class EnvironmentService {
         try {
             const environments = await this.getEnvironmentsForSystem(systemId);
             const system = await this.getSystemById(systemId);
-            
+
             const stats = {
                 total: environments.length,
                 active: system?.content?.activeEnvironmentId || null,
@@ -324,7 +324,7 @@ export class EnvironmentService {
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
-            
+
             // Use writeMainService to save the system data
             await fileApi.writeMainService(baseFolder, system);
         } catch (error) {

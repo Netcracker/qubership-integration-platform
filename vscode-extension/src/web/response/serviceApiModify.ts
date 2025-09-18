@@ -6,9 +6,9 @@ import {
     SystemRequest,
     EnvironmentRequest,
     IntegrationSystemType
-} from "./apiTypes";
+} from "@netcracker/qip-ui";
 import * as yaml from 'yaml';
-import {getService, getMainService, getMainServiceFileUri} from "./serviceApiRead";
+import {getService, getMainService} from "./serviceApiRead";
 import {EMPTY_USER} from "./chainApiUtils";
 import vscode, {ExtensionContext, Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";

@@ -1,5 +1,6 @@
 {
   "name": "@netcracker/qip-vscode-extension",
+  "publisher": "qubership",
   "displayName": "QIP VS Code Extension",
   "description": "Qubership Integration Platform - Visual Studio Code Extension",
   "version": "0.0.1",
@@ -132,7 +133,13 @@
           "group": "1_modification"
         }
       ]
-    }
+    },
+    "webviewAssets": [
+      {
+        "path": "node_modules/@netcracker/qip-ui/dist-lib",
+        "type": "resource"
+      }
+    ]
   },
   "scripts": {
     "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
@@ -156,6 +163,7 @@
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
     "@vscode/test-web": "^0.0.69",
+    "@netcracker/qip-schemas": "0.2.6",
     "assert": "^2.1.0",
     "eslint": "^9.25.1",
     "mocha": "^11.1.0",
@@ -168,6 +176,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "@netcracker/qip-ui": "0.0.0-dev.20250918074118",
     "@apidevtools/swagger-parser": "^12.0.0",
     "@asyncapi/parser": "^3.4.0",
     "@types/js-yaml": "^4.0.9",

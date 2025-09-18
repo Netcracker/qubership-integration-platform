@@ -1,5 +1,5 @@
 import {Uri} from "vscode";
-import {LibraryData} from "../apiTypes";
+import {LibraryData} from "@netcracker/qip-ui";
 
 export interface FileApi {
 
@@ -23,7 +23,7 @@ export interface FileApi {
     writeMainService(parameters: any, serviceData: any): Promise<void>;
 
     writeServiceFile(fileUri: Uri, serviceData: any): Promise<void>;
-    
+
     findSpecificationGroupFiles(mainFolderUri: Uri): Promise<string[]>;
 
     findSpecificationFiles(mainFolderUri: Uri): Promise<string[]>;

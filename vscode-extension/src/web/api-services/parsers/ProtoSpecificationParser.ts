@@ -33,12 +33,12 @@ export interface ProtoField {
 }
 
 export class ProtoSpecificationParser {
-    
+
     /**
      * Parse Proto content and extract services and methods
      */
     static async parseProtoContent(content: string): Promise<ProtoData> {
-        
+
         const protoData: ProtoData = {
             type: 'PROTO',
             package: '',
@@ -58,7 +58,7 @@ export class ProtoSpecificationParser {
         for (const match of serviceMatches) {
             const serviceName = match[1];
             const serviceContent = match[2];
-            
+
             const service: ProtoService = {
                 name: serviceName,
                 methods: []
@@ -70,19 +70,19 @@ export class ProtoSpecificationParser {
                 const methodName = methodMatch[1];
                 const inputType = methodMatch[2].trim();
                 const outputType = methodMatch[3].trim();
-                
+
                 // Clean up type names
                 const cleanInputType = inputType.replace(/[()]/g, '').trim();
                 const cleanOutputType = outputType.replace(/[()]/g, '').trim();
-                
+
                 // Extract comment before method
                 const methodStartIndex = methodMatch.index!;
                 const beforeMethod = serviceContent.substring(0, methodStartIndex);
-                
+
                 // Find comment directly before this RPC method
                 const lines = beforeMethod.split('\n');
                 let comment = '';
-                
+
                 // Find last comment before method
                 for (let i = lines.length - 1; i >= 0; i--) {
                     const line = lines[i].trim();
@@ -98,7 +98,7 @@ export class ProtoSpecificationParser {
                         break;
                     }
                 }
-                
+
                 service.methods.push({
                     name: methodName,
                     input: cleanInputType,
@@ -115,7 +115,7 @@ export class ProtoSpecificationParser {
         for (const match of messageMatches) {
             const messageName = match[1];
             const messageContent = match[2];
-            
+
             const message: ProtoMessage = {
                 name: messageName,
                 fields: []
@@ -150,7 +150,7 @@ export class ProtoSpecificationParser {
     static createOperationsFromProto(protoData: ProtoData, specificationId: string): any[] {
         const operations: any[] = [];
 
-        
+
         for (const service of protoData.services) {
             for (const method of service.methods) {
                 const operation = {
@@ -242,11 +242,11 @@ export class ProtoSpecificationParser {
                         }
                     }
                 };
-                
+
                 operations.push(operation);
             }
         }
-        
+
         return operations;
     }
 }

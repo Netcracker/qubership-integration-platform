@@ -9,7 +9,7 @@ import {
     LibraryElementQuantity,
     LibraryInputQuantity, MaskedField,
     PatchElementRequest
-} from "./apiTypes";
+} from "@netcracker/qip-ui";
 import {
     getChain,
     getDependencyId,

@@ -1,11 +1,11 @@
 import { ExtensionContext, Uri } from "vscode";
-import { SpecificationGroup, Specification } from "../response/apiTypes";
+import { SpecificationGroup, Specification } from "@netcracker/qip-ui";
 import { ApiSpecificationType } from "./importApiTypes";
 import { SerializedFile } from "./importApiTypes";
-import { 
-    SoapSpecificationParser, 
-    ProtoSpecificationParser, 
-    GraphQLSpecificationParser, 
+import {
+    SoapSpecificationParser,
+    ProtoSpecificationParser,
+    GraphQLSpecificationParser,
     OpenApiSpecificationParser,
     AsyncApiSpecificationParser
 } from "./parsers";
@@ -25,8 +25,8 @@ export class SpecificationProcessorService {
      * Process specification files
      */
     async processSpecificationFiles(
-        specificationGroup: SpecificationGroup, 
-        files: File[], 
+        specificationGroup: SpecificationGroup,
+        files: File[],
         systemId?: string
     ): Promise<void> {
 
@@ -106,14 +106,14 @@ export class SpecificationProcessorService {
             } else if (fileName.includes('wsdl') || fileExtension === '.wsdl' || fileExtension === '.xml') {
                 return ApiSpecificationType.SOAP;
             }
-            
+
             // If file name doesn't give clear indication, check content for JSON/YAML files
             if (fileExtension === '.json' || fileExtension === '.yaml' || fileExtension === '.yml') {
                 // For now, default to HTTP for JSON/YAML files without clear naming
                 // Content-based detection will be handled in the calling method
                 return ApiSpecificationType.HTTP;
             }
-            
+
             return null;
         } catch (error) {
             return null;
@@ -172,7 +172,7 @@ export class SpecificationProcessorService {
      * Extract address from swagger data
      */
     private extractAddressFromSwaggerData(specData: any): string | null {
-        
+
         // For SOAP/WSDL files
         if (specData.type === 'WSDL') {
             if (specData.service && specData.service.address) {
@@ -183,20 +183,20 @@ export class SpecificationProcessorService {
                 return address;
             }
         }
-        
+
         // For Swagger 2.0
         if (specData.swagger) {
             const host = specData.host;
             const basePath = specData.basePath || '';
             const schemes = specData.schemes || ['https'];
             const scheme = schemes[0];
-            
+
             if (host) {
                 const address = `${scheme}://${host}${basePath}`;
                 return address;
             }
         }
-        
+
         // For OpenAPI 3.x
         if (specData.openapi) {
             const servers = specData.servers;
@@ -205,7 +205,7 @@ export class SpecificationProcessorService {
                 return address;
             }
         }
-        
+
         // For AsyncAPI
         if (specData.asyncapi) {
             // Check servers first (priority over x-protocol)
@@ -218,14 +218,14 @@ export class SpecificationProcessorService {
                     return address;
                 }
             }
-            
+
             // Check x-protocol if no servers
             if (specData['x-protocol']) {
                 const protocol = specData['x-protocol'];
                 return protocol;
             }
         }
-        
+
         return null;
     }
 
@@ -244,57 +244,57 @@ export class SpecificationProcessorService {
             // If not found in filename, try to extract from content
             if (file.text) {
                 const content = await file.text();
-                
+
                 // Try to parse as JSON
                 try {
                     const json = JSON.parse(content);
-                    
+
                     // For Swagger 2.0
                     if (json.swagger && json.info && json.info.version) {
                         return json.info.version;
                     }
-                    
+
                     // For OpenAPI 3.x
                     if (json.openapi && json.info && json.info.version) {
                         return json.info.version;
                     }
-                    
+
                     // For AsyncAPI
                     if (json.asyncapi && json.info && json.info.version) {
                         return json.info.version;
                     }
-                    
+
                 } catch (jsonError) {
                     // If not JSON, try as YAML
                     try {
                         const yaml = require('yaml');
                         const yamlData = yaml.parse(content);
-                        
+
                         // For AsyncAPI YAML
                         if (yamlData.asyncapi && yamlData.info && yamlData.info.version) {
                             return yamlData.info.version;
                         }
-                        
+
                         // For OpenAPI YAML
                         if (yamlData.openapi && yamlData.info && yamlData.info.version) {
                             return yamlData.info.version;
                         }
-                        
+
                         // For Swagger YAML
                         if (yamlData.swagger && yamlData.info && yamlData.info.version) {
                             return yamlData.info.version;
                         }
-                        
+
                     } catch (yamlError) {
                         console.log('Error parsing file content as both JSON and YAML for version extraction:', { jsonError, yamlError });
                     }
                 }
             }
-            
+
         } catch (error) {
             console.log('Error reading file content for version extraction:', error);
         }
-    
+
         // Fallback to default version
         return '1.0.0';
     }
@@ -303,8 +303,8 @@ export class SpecificationProcessorService {
      * Create operations from file based on specification type
      */
     private async createOperationsFromFile(
-        file: File, 
-        specificationType: ApiSpecificationType, 
+        file: File,
+        specificationType: ApiSpecificationType,
         specificationId: string
     ): Promise<any[]> {
         try {
@@ -328,7 +328,7 @@ export class SpecificationProcessorService {
                             // Keep original type if parsing fails
                         }
                     }
-                    
+
                     if (parsedContent && parsedContent.asyncapi) {
                         actualSpecificationType = ApiSpecificationType.ASYNC;
                     }
@@ -341,24 +341,24 @@ export class SpecificationProcessorService {
                 case ApiSpecificationType.SOAP:
                     const wsdlData = await SoapSpecificationParser.parseWsdlContent(content);
                     return SoapSpecificationParser.createOperationsFromWsdl(wsdlData, specificationId);
-                
+
                 case ApiSpecificationType.GRPC:
                     const protoData = await ProtoSpecificationParser.parseProtoContent(content);
                     return ProtoSpecificationParser.createOperationsFromProto(protoData, specificationId);
-                
+
                 case ApiSpecificationType.GRAPHQL:
                     const graphqlData = await GraphQLSpecificationParser.parseGraphQLContent(content);
                     return GraphQLSpecificationParser.createOperationsFromGraphQL(graphqlData, specificationId);
-                
+
                 case ApiSpecificationType.HTTP:
                     // For OpenAPI, use OpenApiSpecificationParser directly
                     const openApiData = await OpenApiSpecificationParser.parseOpenApiContent(content);
                     return OpenApiSpecificationParser.createOperationsFromOpenApi(openApiData, specificationId);
-                
+
                 case ApiSpecificationType.ASYNC:
                     const asyncApiData = await AsyncApiSpecificationParser.parseAsyncApiContent(content);
                     return AsyncApiSpecificationParser.createOperationsFromAsyncApi(asyncApiData, specificationId);
-                
+
                 default:
                     return [];
             }

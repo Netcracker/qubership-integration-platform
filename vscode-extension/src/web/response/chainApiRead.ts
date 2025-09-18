@@ -1,6 +1,6 @@
-import {Chain, ChainCommitRequestAction, Dependency, Element, LibraryData, LibraryElement, MaskedField, MaskedFields} from "./apiTypes";
+import {Chain, Dependency, Element, LibraryData, LibraryElement, MaskedField, MaskedFields} from "@netcracker/qip-ui";
 import {Uri} from "vscode";
-import {EMPTY_USER, findElementById, getElementChildren} from "./chainApiUtils";
+import {ChainCommitRequestAction, EMPTY_USER, findElementById, getElementChildren} from "./chainApiUtils";
 import {fileApi} from "./file/fileApiProvider";
 
 

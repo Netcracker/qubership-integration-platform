@@ -27,12 +27,12 @@ export interface GraphQLField {
 }
 
 export class GraphQLSpecificationParser {
-    
+
     /**
      * Parse GraphQL content and extract operations
      */
     static async parseGraphQLContent(content: string): Promise<GraphQLData> {
-        
+
         const graphqlData: GraphQLData = {
             type: 'GRAPHQL',
             schema: '',
@@ -48,12 +48,12 @@ export class GraphQLSpecificationParser {
         for (const match of typeMatches) {
             const typeName = match[1];
             const typeContent = match[2];
-            
+
             // Skip standard GraphQL types
             if (['Query', 'Mutation', 'Subscription'].includes(typeName)) {
                 continue;
             }
-            
+
             const type: GraphQLType = {
                 name: typeName,
                 fields: []
@@ -64,7 +64,7 @@ export class GraphQLSpecificationParser {
             for (const fieldMatch of fieldMatches) {
                 const fieldName = fieldMatch[1];
                 const fieldType = fieldMatch[2];
-                
+
                 type.fields.push({
                     name: fieldName,
                     type: fieldType
@@ -78,7 +78,7 @@ export class GraphQLSpecificationParser {
         const queryMatches = content.matchAll(/type\s+Query\s*{([\s\S]*?)}/g);
         for (const match of queryMatches) {
             const queryContent = match[1];
-            
+
             // Parse each line separately
             const lines = queryContent.split('\n');
             for (const line of lines) {
@@ -90,7 +90,7 @@ export class GraphQLSpecificationParser {
                         const queryName = fieldMatch[1];
                         const args = fieldMatch[2] || '';
                         const returnType = fieldMatch[3];
-                        
+
                         // Check for duplicates
                         if (queryName && returnType && !graphqlData.queries.some(q => q.name === queryName)) {
                             graphqlData.queries.push({
@@ -108,7 +108,7 @@ export class GraphQLSpecificationParser {
         const mutationMatches = content.matchAll(/type\s+Mutation\s*{([\s\S]*?)}/g);
         for (const match of mutationMatches) {
             const mutationContent = match[1];
-            
+
             // Parse each line separately
             const lines = mutationContent.split('\n');
             for (const line of lines) {
@@ -120,7 +120,7 @@ export class GraphQLSpecificationParser {
                         const mutationName = fieldMatch[1];
                         const args = fieldMatch[2] || '';
                         const returnType = fieldMatch[3];
-                        
+
                         // Check for duplicates
                         if (mutationName && returnType && !graphqlData.mutations.some(m => m.name === mutationName)) {
                             graphqlData.mutations.push({
@@ -138,7 +138,7 @@ export class GraphQLSpecificationParser {
         const subscriptionMatches = content.matchAll(/type\s+Subscription\s*{([\s\S]*?)}/g);
         for (const match of subscriptionMatches) {
             const subscriptionContent = match[1];
-            
+
             // Parse each line separately
             const lines = subscriptionContent.split('\n');
             for (const line of lines) {
@@ -150,7 +150,7 @@ export class GraphQLSpecificationParser {
                         const subscriptionName = fieldMatch[1];
                         const args = fieldMatch[2] || '';
                         const returnType = fieldMatch[3];
-                        
+
                         // Check for duplicates
                         if (subscriptionName && returnType && !graphqlData.subscriptions.some(s => s.name === subscriptionName)) {
                             graphqlData.subscriptions.push({
@@ -178,7 +178,7 @@ export class GraphQLSpecificationParser {
      */
     static createOperationsFromGraphQL(graphqlData: GraphQLData, specificationId: string): any[] {
         const operations: any[] = [];
-    
+
         // Create operations from queries
         for (const query of graphqlData.queries) {
             const operation = {
@@ -196,10 +196,10 @@ export class GraphQLSpecificationParser {
                     operation: query.arguments ? `${query.name}(${query.arguments}): ${query.returnType}` : `${query.name}: ${query.returnType}`
                 }
             };
-            
+
             operations.push(operation);
         }
-        
+
         // Create operations from mutations
         for (const mutation of graphqlData.mutations) {
             const operation = {
@@ -217,10 +217,10 @@ export class GraphQLSpecificationParser {
                     operation: mutation.arguments ? `${mutation.name}(${mutation.arguments}): ${mutation.returnType}` : `${mutation.name}: ${mutation.returnType}`
                 }
             };
-            
+
             operations.push(operation);
         }
-        
+
         // Create operations from subscriptions
         for (const subscription of graphqlData.subscriptions) {
             const operation = {
@@ -238,10 +238,10 @@ export class GraphQLSpecificationParser {
                     operation: subscription.arguments ? `${subscription.name}(${subscription.arguments}): ${subscription.returnType}` : `${subscription.name}: ${subscription.returnType}`
                 }
             };
-            
+
             operations.push(operation);
         }
-        
+
         return operations;
     }
 }

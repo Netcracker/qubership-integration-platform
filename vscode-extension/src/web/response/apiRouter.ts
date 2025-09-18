@@ -1,5 +1,3 @@
-import {Element, VSCodeMessage, IntegrationSystem, Environment, SpecificationGroup, Specification, FolderItem, FolderItemType, QipFileType} from "./apiTypes";
-import {SerializedFile} from "../api-services/importApiTypes";
 import vscode, {ExtensionContext, Uri} from "vscode";
 import {
     createConnection,
@@ -15,56 +13,54 @@ import {
 import {
     getChain,
     getConnections,
-    getCurrentChainId,
     getElements,
     getLibrary,
     getLibraryElementByType,
     getMaskedFields
 } from "./chainApiRead";
 import {
-    getService,
-    getCurrentServiceId,
-    getEnvironments,
     getApiSpecifications,
-    getSpecificationModel,
+    getEnvironments,
+    getOperationInfo,
+    getService,
     getServices,
-    getOperationInfo
+    getSpecificationModel
 } from "./serviceApiRead";
 import {
-    updateService,
-    createService,
-    updateEnvironment,
     createEnvironment,
     deleteEnvironment,
-    updateApiSpecificationGroup,
-    updateSpecificationModel,
-    deprecateModel,
     deleteSpecificationGroup,
-    deleteSpecificationModel
+    deleteSpecificationModel,
+    deprecateModel,
+    updateApiSpecificationGroup,
+    updateEnvironment,
+    updateService,
+    updateSpecificationModel
 } from "./serviceApiModify";
-import { fileApi } from "./file/fileApiProvider";
+import {fileApi} from "./file/fileApiProvider";
+import {getChainFolderUri, getChainUri,} from "./chainApiUtils";
 import {
-    getChainUri,
-    getChainFolderUri,
-} from "./chainApiUtils";
-import {
-    getServiceUri,
-    getServiceSpecificationsUri,
     getServiceOperationsUri,
-    handleImportSpecificationGroup,
-    handleImportSpecification,
+    getServiceSpecificationsUri,
+    getServiceUri,
+    handleCreateService,
     handleGetImportSpecificationResult,
-    handleCreateService
+    handleImportSpecification,
+    handleImportSpecificationGroup,
+    QipFileType
 } from "./serviceApiUtils";
+import {VSCodeMessage, AppExtensionProps} from "@netcracker/qip-ui";
 
 let lastWebviewPath: string | undefined = undefined;
 
-export async function getApiResponse(message: VSCodeMessage, openedDocumentFolderUri: Uri | undefined, context?: ExtensionContext): Promise<any> {
+
+export async function getApiResponse(message: VSCodeMessage<any>, openedDocumentFolderUri: Uri | undefined, context?: ExtensionContext): Promise<any> {
     const mainFolder: Uri = getChainFolderUri(openedDocumentFolderUri);
 
     switch (message.type) {
+        case 'startup': return getExtensionConfiguration();
         case 'navigate':
-            if (message.payload && message.payload.path) {
+            if (message.payload?.path) {
                 if (lastWebviewPath === message.payload.path) {
                     return;
                 }
@@ -125,17 +121,21 @@ export async function getApiResponse(message: VSCodeMessage, openedDocumentFolde
     }
 }
 
+function getExtensionConfiguration(): AppExtensionProps {
+    return {
+        appName: "qip"
+    };
+}
+
 export async function getNavigateUri(mainFolderUri: vscode.Uri): Promise<string> {
     try {
         const fileType = await fileApi.getFileType(mainFolderUri);
 
         switch (fileType) {
             case QipFileType.SERVICE:
-                const serviceUri = await getServiceUri(mainFolderUri);
-                return serviceUri;
+                return await getServiceUri(mainFolderUri);
             case QipFileType.CHAIN:
-                const chainUri = await getChainUri(mainFolderUri);
-                return chainUri;
+                return await getChainUri(mainFolderUri);
             case QipFileType.UNKNOWN:
             default:
                 return "/services";
