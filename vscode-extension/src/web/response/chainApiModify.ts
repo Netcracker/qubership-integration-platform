@@ -7,10 +7,17 @@ import {
     Element,
     LibraryElementProperty,
     LibraryElementQuantity,
-    LibraryInputQuantity,
+    LibraryInputQuantity, MaskedField,
     PatchElementRequest
 } from "./apiTypes";
-import {getChain, getDependencyId, getElement, getLibraryElementByType, getMainChain} from "./chainApiRead";
+import {
+    getChain,
+    getDependencyId,
+    getElement,
+    getLibraryElementByType,
+    getMainChain,
+    getMaskedField, parseMaskedField
+} from "./chainApiRead";
 import {EMPTY_USER, findElementById, getElementChildren} from "./chainApiUtils";
 import {Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";
@@ -28,6 +35,8 @@ export async function updateChain(mainFolderUri: Uri, chainId: string, chainRequ
     chain.content.businessDescription = chainRequest.businessDescription !== undefined ? chainRequest.businessDescription : chain.content.businessDescription;
     chain.content.assumptions = chainRequest.assumptions !== undefined ? chainRequest.assumptions : chain.content.assumptions;
     chain.content.outOfScope = chainRequest.outOfScope !== undefined ? chainRequest.outOfScope : chain.content.outOfScope;
+    chain.content.deployments = chainRequest.deployments !== undefined ? chainRequest.deployments : chain.content.deployments;
+    chain.content.deployAction = chainRequest.deployAction !== undefined ? chainRequest.deployAction : chain.content.deployAction;
 
     await fileApi.writeMainChain(mainFolderUri, chain);
 
@@ -66,7 +75,7 @@ async function checkRestrictions(element: any, elements:any[]) {
                 if (amount === LibraryElementQuantity.ONE || amount === LibraryElementQuantity.ONE_OR_ZERO) {
                     const actualAmount = parentElement.children?.filter((e: { type: string; }) => e.type === element.type).length;
 
-                    if (actualAmount == undefined || actualAmount > 1 || (actualAmount === 0 && amount === LibraryElementQuantity.ONE)) {
+                    if (actualAmount === undefined || actualAmount > 1 || (actualAmount === 0 && amount === LibraryElementQuantity.ONE)) {
                         console.error(`Incorrect amount of element type for parent element`);
                         throw Error("Incorrect amount of element type for parent element");
                     }
@@ -311,8 +320,9 @@ function findAndRemoveElementById(
     elements: Element[] | undefined,
     elementId: string
 ): Element | undefined {
-    if (!elements) return undefined;
-
+    if (!elements) {
+        return undefined;
+    }
     const index = elements.findIndex(e => e.id === elementId);
     if (index !== -1) {
         return elements.splice(index, 1)[0];
@@ -495,4 +505,58 @@ export async function deleteConnections(mainFolderUri: Uri, chainId: string, con
             ...removedConnections
         ]
     };
+}
+
+export async function deleteMaskedFields(mainFolderUri: Uri, chainId: string, maskedFieldIds: string[]): Promise<void> {
+    const chain: any = await getMainChain(mainFolderUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    for (const maskedFieldId of maskedFieldIds) {
+        let index = chain.content.maskedFields?.findIndex((mf: any) => mf.id === maskedFieldId);
+        if (index) {
+            chain.content.maskedFields.splice(index, 1);
+        }
+    }
+
+    await fileApi.writeMainChain(mainFolderUri, chain);
+}
+
+export async function updateMaskedField(mainFolderUri: Uri, id: string, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
+    const chain: any = await getMainChain(mainFolderUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+    let maskedField = getMaskedField(chain, id);
+
+    maskedField.name = changes.name;
+
+    await fileApi.writeMainChain(mainFolderUri, chain);
+
+    return parseMaskedField(chain, id);
+}
+
+export async function createMaskedField(mainFolderUri: Uri, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
+    const chain: any = await getMainChain(mainFolderUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    if (!chain.content.maskedFields) {
+        chain.content.maskedFields = [];
+    }
+
+    const id = crypto.randomUUID();;
+    chain.content.maskedFields.push({
+        id: id,
+        name: changes.name,
+    });
+
+    await fileApi.writeMainChain(mainFolderUri, chain);
+
+    return parseMaskedField(chain, id);
 }

@@ -28,6 +28,12 @@ export enum FolderItemType {
   CHAIN = "CHAIN",
 }
 
+export enum QipFileType {
+  CHAIN = "CHAIN",
+  SERVICE = "SERVICE",
+  UNKNOWN = "UNKNOWN"
+}
+
 export type FolderUpdateRequest = {
   name: string;
   description: string;
@@ -46,6 +52,7 @@ export type Chain = BaseEntity & {
   elements: Element[];
   dependencies: Dependency[];
   deployments: Deployment[];
+  deployAction?: ChainCommitRequestAction;
   labels: EntityLabel[];
   defaultSwimlaneId: string;
   reuseSwimlaneId: string;
@@ -717,3 +724,84 @@ export type VSCodeResponse = {
   payload?: any;
   error?: any;
 };
+
+export enum IntegrationSystemType {
+  EXTERNAL = "EXTERNAL",
+  INTERNAL = "INTERNAL",
+  IMPLEMENTED = "IMPLEMENTED",
+}
+
+export type IntegrationSystem = BaseEntity & {
+  activeEnvironmentId: string;
+  integrationSystemType: IntegrationSystemType;
+  protocol: string;
+  extendedProtocol: string;
+  specification: string;
+  labels: EntityLabel[];
+  environments?: Environment[];
+};
+
+export type Environment = BaseEntity & {
+  address: string;
+  sourceType: string;
+  properties: Record<string, string>;
+  labels: EntityLabel[];
+};
+
+export type SpecificationGroup = BaseEntity & {
+  specifications: Specification[];
+  synchronization: boolean;
+  parentId: string;
+  systemId?: string;
+};
+
+export type Specification = BaseEntity & {
+  version: string;
+  format: string;
+  content: string;
+  deprecated: boolean;
+  parentId: string;
+  operations?: SystemOperation[];
+  systemId?: string;
+  specificationGroupId?: string;
+  source?: string;
+  sourceFiles?: string[];
+  protocol?: string;
+  metadata?: Record<string, any>;
+};
+
+export type SystemRequest = {
+  name: string;
+  description?: string;
+  type: IntegrationSystemType;
+  protocol?: string;
+  extendedProtocol?: string;
+  specification?: string;
+  labels?: EntityLabel[];
+};
+
+export type EnvironmentRequest = {
+  name: string;
+  description?: string;
+  address: string;
+  sourceType: string;
+  properties?: Record<string, string>;
+  labels?: EntityLabel[];
+};
+
+export interface SystemOperation {
+  id: string;
+  name: string;
+  description?: string;
+  method: string;
+  path: string;
+  modelId: string;
+  chains: BaseEntity[];
+}
+
+export interface OperationInfo {
+  id: string;
+  specification: unknown;
+  requestSchema: Record<string, unknown>;
+  responseSchemas: Record<string, unknown>;
+}

@@ -1,7 +1,6 @@
 import {Uri} from "vscode";
 import {LibraryData} from "../apiTypes";
 
-
 export interface FileApi {
 
     getMainChain(parameters: any): Promise<any>;
@@ -15,4 +14,27 @@ export interface FileApi {
     writeMainChain(parameters: any, chainData: any): Promise<void>;
 
     removeFile(mainFolderUri: Uri, propertyFilename: string): Promise<void>;
+
+    // Service-related methods
+    getMainService(parameters: any): Promise<any>;
+
+    getService(parameters: any, serviceId: string): Promise<any>;
+
+    writeMainService(parameters: any, serviceData: any): Promise<void>;
+
+    writeServiceFile(fileUri: Uri, serviceData: any): Promise<void>;
+    
+    findSpecificationGroupFiles(mainFolderUri: Uri): Promise<string[]>;
+
+    findSpecificationFiles(mainFolderUri: Uri): Promise<string[]>;
+
+
+    // File operations
+    writeFile(fileUri: Uri, data: Uint8Array): Promise<void>;
+
+    readFileContent(fileUri: Uri): Promise<Uint8Array>;
+
+    deleteFile(fileUri: Uri): Promise<void>;
+
+    getFileType(mainFolderUri: Uri): Promise<string>;
 }
