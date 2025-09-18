@@ -73,3 +73,14 @@ export enum ChainCommitRequestAction {
     SNAPSHOT = "SNAPSHOT",
     DEPLOY = "DEPLOY",
 }
+
+export enum LibraryElementQuantity {
+    ONE = "one",
+    ONE_OR_ZERO = "one-or-zero",
+    ONE_OR_MANY = "one-or-many",
+}
+
+export enum LibraryInputQuantity {
+    ONE = "one",
+    ANY = "any",
+}

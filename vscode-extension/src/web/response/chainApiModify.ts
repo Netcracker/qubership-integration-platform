@@ -6,8 +6,7 @@ import {
     Dependency,
     Element,
     LibraryElementProperty,
-    LibraryElementQuantity,
-    LibraryInputQuantity, MaskedField,
+    MaskedField,
     PatchElementRequest
 } from "@netcracker/qip-ui";
 import {
@@ -18,7 +17,13 @@ import {
     getMainChain,
     getMaskedField, parseMaskedField
 } from "./chainApiRead";
-import {EMPTY_USER, findElementById, getElementChildren} from "./chainApiUtils";
+import {
+    EMPTY_USER,
+    findElementById,
+    getElementChildren,
+    LibraryElementQuantity,
+    LibraryInputQuantity
+} from "./chainApiUtils";
 import {Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";
 
