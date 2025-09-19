@@ -2,11 +2,11 @@ package org.qubership.integration.platform.engine.consul;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
 import io.vertx.ext.consul.KeyValueOptions;
 import io.vertx.mutiny.ext.consul.ConsulClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
@@ -44,7 +44,7 @@ public class EngineStateService {
     ServerConfiguration serverConfiguration;
 
     @Inject
-    @Named("jsonMapper")
+    @Identifier("jsonMapper")
     ObjectMapper objectMapper;
 
     public void updateState(EngineState state) {

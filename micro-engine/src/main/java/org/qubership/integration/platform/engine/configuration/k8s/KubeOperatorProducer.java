@@ -22,9 +22,9 @@ import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.TokenFileAuthentication;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
-import jakarta.inject.Inject;
 
 import java.io.IOException;
 import java.nio.file.Files;

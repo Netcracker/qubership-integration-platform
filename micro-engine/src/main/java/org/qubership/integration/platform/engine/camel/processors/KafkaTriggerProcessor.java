@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 
 @ApplicationScoped

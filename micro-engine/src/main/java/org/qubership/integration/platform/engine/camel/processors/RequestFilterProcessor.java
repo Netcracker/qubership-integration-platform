@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Map;
 

@@ -16,23 +16,24 @@
 
 package org.qubership.integration.platform.engine.service;
 
+import io.vertx.mutiny.core.eventbus.EventBus;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.text.StringEscapeUtils;
 import org.apache.commons.text.StringSubstitutor;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.configuration.NamespaceProvider;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEvent;
 import org.qubership.integration.platform.engine.events.SecuredVariablesUpdatedEvent;
+import org.qubership.integration.platform.engine.events.UpdateEvent;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import jakarta.inject.Inject;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,7 +55,7 @@ public class VariablesService {
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
-    private final ApplicationEventPublisher applicationEventPublisher;
+    private final EventBus eventBus;
     private final KubeOperator operator;
     private final NamespaceProvider namespaceProvider;
 
@@ -69,12 +70,14 @@ public class VariablesService {
     private boolean isInitialCommonEvent = true;
 
     @Inject
-    public VariablesService(ApplicationEventPublisher applicationEventPublisher,
-                            KubeOperator operator,
-                            NamespaceProvider namespaceProvider,
-                            @Value("${kubernetes.variables-secret.label}") String kubeSecretsLabel,
-                            @Value("${kubernetes.variables-secret.name}") String kubeSecretV2Name) {
-        this.applicationEventPublisher = applicationEventPublisher;
+    public VariablesService(
+            EventBus eventBus,
+            KubeOperator operator,
+            NamespaceProvider namespaceProvider,
+            @ConfigProperty(name = "kubernetes.variables-secret.label") String kubeSecretsLabel,
+            @ConfigProperty(name = "kubernetes.variables-secret.name") String kubeSecretV2Name
+    ) {
+        this.eventBus = eventBus;
         this.operator = operator;
         this.namespaceProvider = namespaceProvider;
         this.kubeSecretV2Name = kubeSecretV2Name;
@@ -129,7 +132,8 @@ public class VariablesService {
     public void refreshSecuredVariables() {
         securedVariables = pollSecuredVariables();
         mergeVariables();
-        applicationEventPublisher.publishEvent(new SecuredVariablesUpdatedEvent(this, isInitialSecuredEvent));
+        eventBus.publish(UpdateEvent.EVENT_ADDRESS,
+                new SecuredVariablesUpdatedEvent(this, isInitialSecuredEvent));
         if (isInitialSecuredEvent) {
             isInitialSecuredEvent = false;
         }
@@ -140,7 +144,8 @@ public class VariablesService {
         this.commonVariables = variables;
 
         mergeVariables();
-        applicationEventPublisher.publishEvent(new CommonVariablesUpdatedEvent(this, isInitialCommonEvent));
+        eventBus.publish(UpdateEvent.EVENT_ADDRESS,
+                new CommonVariablesUpdatedEvent(this, isInitialCommonEvent));
         if (isInitialCommonEvent) {
             isInitialCommonEvent = false;
         }

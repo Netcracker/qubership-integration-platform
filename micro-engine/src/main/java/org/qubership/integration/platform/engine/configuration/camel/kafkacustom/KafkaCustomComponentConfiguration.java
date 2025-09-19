@@ -16,42 +16,36 @@
 
 package org.qubership.integration.platform.engine.configuration.camel.kafkacustom;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
 import org.apache.camel.component.kafka.KafkaConfiguration;
-import org.apache.camel.component.kafka.springboot.KafkaComponentConfiguration;
 import org.apache.camel.spi.ComponentCustomizer;
-import org.apache.camel.spring.boot.ComponentConfigurationProperties;
-import org.apache.camel.spring.boot.util.ConditionalOnHierarchicalProperties;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomComponent;
-import jakarta.inject.Inject;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-@Configuration
-@EnableConfigurationProperties({
-    ComponentConfigurationProperties.class,
-    KafkaComponentConfiguration.class
-})
-@ConditionalOnHierarchicalProperties({"camel.component", "camel.component.kafka"})
+
+@ApplicationScoped
 public class KafkaCustomComponentConfiguration {
+    @ConfigProperty(name = "camel.component.kafka.ssl-truststore-location")
+    String sslTruststoreLocation;
 
-    private final KafkaComponentConfiguration configuration;
+    @ConfigProperty(name = "camel.component.kafka.ssl-truststore-password")
+    String sslTruststorePassword;
 
-    @Inject
-    public KafkaCustomComponentConfiguration(KafkaComponentConfiguration configuration) {
-        this.configuration = configuration;
-    }
+    @ConfigProperty(name = "camel.component.kafka.ssl-truststore-type")
+    String sslTruststoreType;
 
-    @Bean
+    @Produces
+    @ApplicationScoped
     public ComponentCustomizer kafkaCustomComponentCustomizer() {
         return ComponentCustomizer.builder(KafkaCustomComponent.class)
             .build((component) -> {
                 KafkaConfiguration config = component.getConfiguration();
 
                 // copy only necessary properties
-                config.setSslTruststoreLocation(configuration.getSslTruststoreLocation());
-                config.setSslTruststorePassword(configuration.getSslTruststorePassword());
-                config.setSslTruststoreType(configuration.getSslTruststoreType());
+                config.setSslTruststoreLocation(sslTruststoreLocation);
+                config.setSslTruststorePassword(sslTruststorePassword);
+                config.setSslTruststoreType(sslTruststoreType);
             });
     }
 }

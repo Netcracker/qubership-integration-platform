@@ -19,36 +19,29 @@ package org.qubership.integration.platform.engine.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
-import io.smallrye.mutiny.Uni;
-import io.vertx.mutiny.core.buffer.Buffer;
-import io.vertx.mutiny.ext.web.client.HttpRequest;
-import io.vertx.mutiny.ext.web.client.HttpResponse;
-import io.vertx.mutiny.ext.web.client.WebClient;
-import io.vertx.uritemplate.UriTemplate;
-import io.vertx.uritemplate.Variables;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHeaders;
-import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.persistence.shared.repository.SessionInfoRepository;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.enterprise.context.ApplicationScoped;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
-
-import static org.qubership.integration.platform.engine.util.CheckpointUtils.CHECKPOINT_RETRY_PATH_TEMPLATE;
 
 @Slf4j
 @ApplicationScoped
@@ -56,19 +49,19 @@ public class CheckpointSessionService {
 
     private final SessionInfoRepository sessionInfoRepository;
     private final CheckpointRepository checkpointRepository;
-    private final WebClient localhostWebclient;
+    private final CheckpointRestService checkpointRestService;
     private final ObjectMapper jsonMapper;
 
     @Inject
     public CheckpointSessionService(
             SessionInfoRepository sessionInfoRepository,
             CheckpointRepository checkpointRepository,
-            @Named("localhostWebclient") WebClient localhostWebclient,
-            @Named("jsonMapper") ObjectMapper jsonMapper
+            @RestClient CheckpointRestService checkpointRestService,
+            @Identifier("jsonMapper") ObjectMapper jsonMapper
     ) {
         this.sessionInfoRepository = sessionInfoRepository;
         this.checkpointRepository = checkpointRepository;
-        this.localhostWebclient = localhostWebclient;
+        this.checkpointRestService = checkpointRestService;
         this.jsonMapper = jsonMapper;
     }
 
@@ -103,28 +96,26 @@ public class CheckpointSessionService {
         retryFromCheckpointAsync(checkpoint, body, authHeaderProvider, traceMe);
     }
 
-    private void retryFromCheckpointAsync(Checkpoint checkpoint,
-                                          String body,
-                                          Supplier<Pair<String, String>> authHeaderProvider,
-                                          boolean traceMe) {
-        Variables variables = Variables.variables()
-                .set("checkpointChainId", checkpoint.getSession().getChainId())
-                .set("checkpointSessionId", checkpoint.getSession().getId())
-                .set("checkpointElementId", checkpoint.getCheckpointElementId());
-        String uri = UriTemplate.of(CamelServletConfiguration.CAMEL_ROUTES_PREFIX + CHECKPOINT_RETRY_PATH_TEMPLATE)
-                .expandToString(variables);
-        HttpRequest<Buffer> request = localhostWebclient.post(uri);
+    private void retryFromCheckpointAsync(
+            Checkpoint checkpoint,
+            String body,
+            Supplier<Pair<String, String>> authHeaderProvider,
+            boolean traceMe
+    ) {
+        Map<String, String> headers = new HashMap<>();
         Pair<String, String> authPair = authHeaderProvider.get();
         if (authPair != null) {
-            request.putHeader(authPair.getKey(), authPair.getValue());
+            headers.put(authPair.getKey(), authPair.getValue());
         }
-        request.putHeader(Headers.TRACE_ME, String.valueOf(traceMe));
-        request.putHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
-
-        Uni<HttpResponse<Buffer>> response = StringUtils.isNotEmpty(body)
-                ? request.sendBuffer(Buffer.buffer(body))
-                : request.send();
-        response.subscribe().with(
+        headers.put(Headers.TRACE_ME, String.valueOf(traceMe));
+        headers.put(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
+        checkpointRestService.retryCheckpoint(
+                checkpoint.getSession().getChainId(),
+                checkpoint.getSession().getId(),
+                checkpoint.getCheckpointElementId(),
+                headers,
+                StringUtils.isNotEmpty(body) ? Optional.of(body) : Optional.empty()
+        ).subscribe().with(
                 rsp -> {},
                 failure -> {
                     log.error("Failed to trigger checkpoint: {}", failure.getMessage());

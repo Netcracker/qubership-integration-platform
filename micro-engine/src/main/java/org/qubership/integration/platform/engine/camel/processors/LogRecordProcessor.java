@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -27,8 +29,6 @@ import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.slf4j.MDC;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.HashMap;
 import java.util.Map;

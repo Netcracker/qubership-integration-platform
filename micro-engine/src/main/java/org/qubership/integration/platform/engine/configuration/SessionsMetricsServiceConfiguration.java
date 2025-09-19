@@ -17,25 +17,24 @@
 package org.qubership.integration.platform.engine.configuration;
 
 
+import io.quarkus.arc.lookup.LookupIfProperty;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
 import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
 import org.qubership.integration.platform.engine.service.debugger.metrics.SessionsMetricsService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableScheduling;
 
-@Configuration
-@EnableScheduling
+@ApplicationScoped
 public class SessionsMetricsServiceConfiguration {
 
-    @Bean
-    @ConditionalOnProperty(value = "qip.metrics.enabled", havingValue = "true")
-    public SessionsMetricsService getMetricsService(MetricsStore metricsStore,
-                                                    OpenSearchClientSupplier openSearchClientSupplier,
-                                                    CheckpointRepository checkpointRepository) {
-
+    @Produces
+    @LookupIfProperty(name = "qip.metrics.enabled", stringValue = "true")
+    public SessionsMetricsService getMetricsService(
+            MetricsStore metricsStore,
+            OpenSearchClientSupplier openSearchClientSupplier,
+            CheckpointRepository checkpointRepository
+    ) {
         return new SessionsMetricsService(metricsStore, openSearchClientSupplier, checkpointRepository);
     }
 }

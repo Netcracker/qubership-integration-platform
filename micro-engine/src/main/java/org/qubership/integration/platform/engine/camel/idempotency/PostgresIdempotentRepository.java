@@ -1,14 +1,14 @@
 package org.qubership.integration.platform.engine.camel.idempotency;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.api.management.ManagedOperation;
 import org.apache.camel.spi.IdempotentRepository;
 import org.apache.camel.support.service.ServiceSupport;
 import org.qubership.integration.platform.engine.service.IdempotencyRecordService;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.SYSTEM_PROPERTY_PREFIX;
 

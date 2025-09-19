@@ -8,7 +8,6 @@ import io.vertx.mutiny.ext.consul.ConsulClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.engine.events.ConsulSessionCreatedEvent;
 
 import java.util.UUID;
 
@@ -20,7 +19,7 @@ import static java.util.Objects.nonNull;
 public class ConsulSessionService {
     public static final String CREATE_SESSION_EVENT = "consul-session-created";
 
-    private static final String SESSION_RENEW_INTERVAL = "30";
+    private static final String SESSION_RENEW_INTERVAL = "30s";
     private static final String SESSION_PREFIX = "qip-engine-session-";
     private static final SessionBehavior SESSION_BEHAVIOR = SessionBehavior.DELETE;
     private static final long SESSION_TTL = 60;

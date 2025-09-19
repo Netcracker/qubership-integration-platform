@@ -19,16 +19,16 @@ package org.qubership.integration.platform.engine.service.debugger.metrics;
 import com.google.common.collect.Maps;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.binder.BaseUnits;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
-import jakarta.inject.Inject;
-import org.springframework.beans.factory.annotation.Value;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -82,20 +82,20 @@ public class MetricsStore {
 
     private static final int CHAINS_DEPLOYMENTS_NUMBER = 1;
 
-    @Value("${qip.metrics.prometheus.init.delay}")
-    private long lagDelay;
+    @ConfigProperty(name = "qip.metrics.prometheus.init.delay")
+    long lagDelay;
 
     @Getter
-    @Value("${qip.metrics.enabled}")
-    private boolean metricsEnabled;
+    @ConfigProperty(name = "qip.metrics.enabled")
+    boolean metricsEnabled;
 
     @Getter
-    @Value("${qip.metrics.http-payload-metrics.enabled}")
-    private boolean httpPayloadMetricsEnabled;
+    @ConfigProperty(name = "qip.metrics.http-payload-metrics.enabled")
+    boolean httpPayloadMetricsEnabled;
 
     @Getter
-    @Value("${qip.metrics.http-payload-metrics.buckets}")
-    private double[] httpPayloadMetricsBuckets;
+    @ConfigProperty(name = "qip.metrics.http-payload-metrics.buckets")
+    double[] httpPayloadMetricsBuckets;
 
     @Getter
     private final MeterRegistry meterRegistry;
@@ -133,8 +133,11 @@ public class MetricsStore {
     private final ServerConfiguration serverConfiguration;
 
     @Inject
-    public MetricsStore(ServerConfiguration serverConfiguration, MeterRegistry meterRegistry,
-                        @Value("${app.prefix}") String appPrefix) {
+    public MetricsStore(
+            ServerConfiguration serverConfiguration,
+            MeterRegistry meterRegistry,
+            @ConfigProperty(name = "app.prefix") String appPrefix
+    ) {
         this.serverConfiguration = serverConfiguration;
         this.meterRegistry = meterRegistry;
         this.sessionExecutionTime = Maps.newConcurrentMap();

@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.engine.service;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Consumer;
@@ -29,8 +31,6 @@ import org.apache.camel.spi.ScheduledPollConsumerScheduler;
 import org.quartz.*;
 import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
 import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerProxy;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;

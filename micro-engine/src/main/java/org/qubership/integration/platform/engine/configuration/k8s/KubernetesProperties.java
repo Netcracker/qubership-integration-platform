@@ -18,6 +18,7 @@ public interface KubernetesProperties {
 
     interface ClusterProperties {
         String uri();
+
         String namespace();
 
         @WithName("token")
@@ -27,11 +28,13 @@ public interface KubernetesProperties {
 
     interface ServiceAccountProperties {
         String tokenFilePath();
+
         String cert();
     }
 
     interface VariablesSecretProperties {
         String name();
+
         String label();
     }
 }

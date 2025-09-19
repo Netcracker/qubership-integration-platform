@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.engine.camel;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.kafka.serde.KafkaHeaderDeserializer;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.UnsupportedEncodingException;
 

@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
-import jakarta.enterprise.context.ApplicationScoped;
 
 /**
  * Used for 'split' element after transform stub due to error:

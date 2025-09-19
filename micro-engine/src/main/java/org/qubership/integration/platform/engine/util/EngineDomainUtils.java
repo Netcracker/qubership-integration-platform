@@ -16,18 +16,18 @@
 
 package org.qubership.integration.platform.engine.util;
 
-import jakarta.inject.Inject;
-import org.springframework.beans.factory.annotation.Value;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped
 public class EngineDomainUtils {
 
-    @Value("${spring.application.default_integration_domain_name}")
-    private String engineDefaultDomain;
+    @ConfigProperty(name = "spring.application.default_integration_domain_name")
+    String engineDefaultDomain;
 
-    @Value("${spring.application.default_integration_domain_microservice_name}")
-    private String defaultEngineMicroserviceName;
+    @ConfigProperty(name = "spring.application.default_integration_domain_microservice_name")
+    String defaultEngineMicroserviceName;
 
     @Inject
     public EngineDomainUtils() {

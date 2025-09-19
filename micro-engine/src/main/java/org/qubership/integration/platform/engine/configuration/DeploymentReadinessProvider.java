@@ -36,12 +36,12 @@ public class DeploymentReadinessProvider {
     @Produces
     @Named(DEPLOYMENT_READINESS_EVENTS_BEAN)
     @DefaultBean
-    Set<Class<? extends UpdateEvent>> deploymentReadinessEvents(DevModeUtil devModeUtil) {
+    EventClassesContainerWrapper deploymentReadinessEvents(DevModeUtil devModeUtil) {
         Set<Class<? extends UpdateEvent>> events = new HashSet<>();
         events.add(CommonVariablesUpdatedEvent.class);
         if (!devModeUtil.isDevMode()) {
             events.add(SecuredVariablesUpdatedEvent.class);
         }
-        return Collections.unmodifiableSet(events);
+        return new EventClassesContainerWrapper(Collections.unmodifiableSet(events));
     }
 }

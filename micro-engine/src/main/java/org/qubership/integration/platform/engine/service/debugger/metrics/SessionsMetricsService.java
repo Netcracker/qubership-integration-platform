@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.debugger.metrics;
 
+import io.quarkus.scheduler.Scheduled;
 import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.opensearch._types.InlineScript;
@@ -32,7 +33,6 @@ import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupp
 import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import java.util.Map;
 @Slf4j
 public class SessionsMetricsService {
 
-    private static final long SCHEDULER_INTERVAL = 60000;
+    private static final String SCHEDULER_INTERVAL = "60s";
     private static final String UNABLE_TO_RETRIEVE_SESSION_METRICS_ERROR_MESSAGE = "Unable to retrieve session metrics from opensearch";
     private static final String UNABLE_TO_RETRIEVE_CHECKPOINTS_METRICS_ERROR_MESSAGE = "Unable to retrieve checkpoints metrics from postgres";
 
@@ -67,7 +67,7 @@ public class SessionsMetricsService {
     }
 
 
-    @Scheduled(fixedDelay = SCHEDULER_INTERVAL)
+    @Scheduled(every = SCHEDULER_INTERVAL, concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void processSessionsSizeMetrics() {
 
         ScriptedMetricAggregation sizeMetricAgg = AggregationBuilders.scriptedMetric()
@@ -138,7 +138,7 @@ public class SessionsMetricsService {
         }
     }
 
-    @Scheduled(fixedDelay = SCHEDULER_INTERVAL)
+    @Scheduled(every = SCHEDULER_INTERVAL, concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void processCheckpointSizeMetrics() {
         try {
             List<ChainDataAllocationSize> chainCheckpointSizes = checkpointRepository.findAllChainCheckpointSize();

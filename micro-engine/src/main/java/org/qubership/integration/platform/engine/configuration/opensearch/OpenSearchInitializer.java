@@ -17,7 +17,9 @@
 package org.qubership.integration.platform.engine.configuration.opensearch;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -45,8 +47,6 @@ import org.qubership.integration.platform.engine.opensearch.ism.rest.PolicyRespo
 import org.qubership.integration.platform.engine.opensearch.ism.rest.RequestHelper;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
-import jakarta.inject.Named;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -67,7 +67,7 @@ public class OpenSearchInitializer {
     OpenSearchProperties properties;
 
     @Inject
-    @Named("jsonMapper")
+    @Identifier("jsonMapper")
     ObjectMapper jsonMapper;
 
     @Inject

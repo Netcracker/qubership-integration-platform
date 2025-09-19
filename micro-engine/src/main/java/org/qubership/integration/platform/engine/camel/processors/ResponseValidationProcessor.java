@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
@@ -24,7 +25,6 @@ import org.qubership.integration.platform.engine.errorhandling.ResponseValidatio
 import org.qubership.integration.platform.engine.errorhandling.ValidationException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
-import jakarta.enterprise.context.ApplicationScoped;
 
 
 /**

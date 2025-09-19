@@ -17,9 +17,9 @@
 package org.qubership.integration.platform.engine.camel;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.commons.lang3.StringUtils;
@@ -43,7 +43,7 @@ public class CorrelationIdSetter {
     private final ObjectMapper objectMapper;
 
     @Inject
-    public CorrelationIdSetter(@Named("jsonMapper") ObjectMapper objectMapper) {
+    public CorrelationIdSetter(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

@@ -16,23 +16,23 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
+import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.extensions.Extension;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.resteasy.reactive.RestResponse;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
 import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
-import jakarta.inject.Inject;
 import org.springframework.transaction.annotation.Transactional;
-import org.eclipse.microprofile.openapi.annotations.Operation;
-import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
+import io.quarkus.arc.properties.IfBuildProperty;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -33,9 +36,6 @@ import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
 import org.qubership.integration.platform.engine.util.SimpleHttpUriUtils;
-import jakarta.inject.Inject;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.net.MalformedURLException;
 import java.util.List;
@@ -43,7 +43,7 @@ import java.util.List;
 import static java.util.Objects.nonNull;
 
 @ApplicationScoped
-@ConditionalOnBean(ControlPlaneService.class)
+@IfBuildProperty(name = "qip.control-plane.enabled", stringValue = "true")
 @OnBeforeDeploymentContextCreated
 public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingAction {
     private final VariablesService variablesService;

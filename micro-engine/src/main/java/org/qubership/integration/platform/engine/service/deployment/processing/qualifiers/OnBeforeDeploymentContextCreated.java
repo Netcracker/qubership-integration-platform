@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.qualifiers;
 
-import jakarta.inject.Named;
+import jakarta.inject.Qualifier;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -29,6 +29,6 @@ import java.lang.annotation.Target;
     ElementType.TYPE,
     ElementType.PARAMETER})
 @Retention(RetentionPolicy.RUNTIME)
-@Named
+@Qualifier
 public @interface OnBeforeDeploymentContextCreated {
 }

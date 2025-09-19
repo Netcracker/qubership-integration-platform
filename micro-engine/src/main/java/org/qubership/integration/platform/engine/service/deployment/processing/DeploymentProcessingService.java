@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing;
 
+import io.quarkus.arc.All;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
@@ -23,23 +26,22 @@ import org.qubership.integration.platform.engine.model.deployment.update.Deploym
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnStopDeploymentContext;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collection;
+import java.util.List;
 
 @Slf4j
 @ApplicationScoped
 public class DeploymentProcessingService {
-    private final Collection<DeploymentProcessingAction> beforeContextCreatedActions;
-    private final Collection<DeploymentProcessingAction> afterContextCreatedActions;
-    private final Collection<DeploymentProcessingAction> stopContextActions;
+    private final List<DeploymentProcessingAction> beforeContextCreatedActions;
+    private final List<DeploymentProcessingAction> afterContextCreatedActions;
+    private final List<DeploymentProcessingAction> stopContextActions;
 
     @Inject
     public DeploymentProcessingService(
-        @OnBeforeDeploymentContextCreated Collection<DeploymentProcessingAction> beforeContextCreatedActions,
-        @OnAfterDeploymentContextCreated Collection<DeploymentProcessingAction> afterContextCreatedActions,
-        @OnStopDeploymentContext Collection<DeploymentProcessingAction> stopContextActions
+        @All @OnBeforeDeploymentContextCreated List<DeploymentProcessingAction> beforeContextCreatedActions,
+        @All @OnAfterDeploymentContextCreated List<DeploymentProcessingAction> afterContextCreatedActions,
+        @All @OnStopDeploymentContext List<DeploymentProcessingAction> stopContextActions
     ) {
         this.beforeContextCreatedActions = beforeContextCreatedActions;
         this.afterContextCreatedActions = afterContextCreatedActions;

@@ -188,6 +188,7 @@ camel:
 
 qip:
   camel:
+    routes-prefix: /routes
     stream-caching:
       enabled: true # enable exchange payload spooling
       buffer:
@@ -215,7 +216,6 @@ qip:
       protocol: ${OPENSEARCH_PROTOCOL:http}
       user-name: ${OPENSEARCH_USERNAME:}
       password: ${OPENSEARCH_PASSWORD:}
-      connection-timeout: ${OPENSEARCH_CONNECTION_TIMEOUT:5000}
       prefix: ${OPENSEARCH_PREFIX:}
     write:
       batch:
@@ -293,6 +293,9 @@ quarkus:
     host: 0.0.0.0
     port: 8080
   rest-client:
+    checkpoints:
+      url: "http://localhost:8080${qip.camel.routes-prefix}"
+      scope: jakarta.inject.Singleton
     runtime-catalog:
       url: ${RUNTIME_CATALOG_SERVICE_URL:http://runtime-catalog:8080}
       scope: jakarta.inject.Singleton
@@ -304,9 +307,10 @@ quarkus:
       connect-timeout: 25000
       read-timeout: 25000
   consul-config:
-    url: ${CONSUL_URL:http://consul:8500}
     prefix: config/${NAMESPACE}
     agent:
+      host-port: ${CONSUL_URL:consul:8500}
+      use-https: false
       token: ${CONSUL_ADMIN_TOKEN}
   datasource:
     checkpoints:
@@ -323,7 +327,6 @@ quarkus:
         leak-detection-interval: ${PG_LEAK_DETECTION_INTERVAL:30000}
     quartz:
       idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
-      # TODO
       db-kind: postgresql
       active: true
       username: ${POSTGRES_USER:postgres}
@@ -356,7 +359,7 @@ quarkus:
   hibernate-orm:
     checkpoints:
       datasource: checkpoints
-      dialect: PostgreSQLDialect
+      dialect: org.hibernate.dialect.PostgreSQLDialect
       packages: org.qubership.integration.platform.engine.persistence.shared.entity
       physical-naming-strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
       database:
@@ -373,7 +376,7 @@ quarkus:
         "hibernate.jdbc.lob.non_contextual_creation": true
     quartz:
       datasource: checkpoints
-      dialect: PostgreSQLDialect
+      dialect: org.hibernate.dialect.PostgreSQLDialect
       packages: org.qubership.integration.platform.engine.persistence.configs.entity
       physical-naming-strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
       database:
@@ -394,4 +397,5 @@ quarkus:
     servlet:
       servlet-name: CamelServlet
       servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
-      url-patterns: /routes/*
+      url-patterns:
+        - "${qip.camel.routes-prefix}/*"

@@ -17,6 +17,8 @@
 package org.qubership.integration.platform.engine.service.debugger;
 
 import jakarta.enterprise.context.Dependent;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -57,7 +59,7 @@ import org.qubership.integration.platform.engine.service.debugger.tracing.Tracin
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
-import jakarta.inject.Inject;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -96,12 +98,12 @@ public class CamelDebugger extends DefaultDebugger {
             CheckpointSessionService checkpointSessionService,
             MetricsService metricsService,
             ChainLogger chainLogger,
-            Optional<SessionsKafkaReportingService> sessionsKafkaReportingService,
+            Instance<SessionsKafkaReportingService> sessionsKafkaReportingService,
             SessionsService sessionsService,
             PayloadExtractor payloadExtractor,
             VariablesService variablesService,
             CamelDebuggerPropertiesService propertiesService,
-            Optional<CamelExchangeContextPropagation> exchangeContextPropagation,
+            Instance<CamelExchangeContextPropagation> exchangeContextPropagation,
             ExchangePropertyService exchangePropertyService
     ) {
         this.serverConfiguration = serverConfiguration;
@@ -109,12 +111,12 @@ public class CamelDebugger extends DefaultDebugger {
         this.checkpointSessionService = checkpointSessionService;
         this.metricsService = metricsService;
         this.chainLogger = chainLogger;
-        this.sessionsKafkaReportingService = sessionsKafkaReportingService;
+        this.sessionsKafkaReportingService = InjectUtil.injectOptional(sessionsKafkaReportingService);
         this.sessionsService = sessionsService;
         this.payloadExtractor = payloadExtractor;
         this.variablesService = variablesService;
         this.propertiesService = propertiesService;
-        this.exchangeContextPropagation = exchangeContextPropagation;
+        this.exchangeContextPropagation = InjectUtil.injectOptional(exchangeContextPropagation);
         this.exchangePropertyService = exchangePropertyService;
     }
 

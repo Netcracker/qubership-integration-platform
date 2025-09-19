@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.engine.service.debugger.tracing;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.tracing.ActiveSpanManager;
@@ -27,8 +29,6 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.slf4j.MDC;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.HashMap;
 import java.util.Map;

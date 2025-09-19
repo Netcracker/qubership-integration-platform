@@ -47,4 +47,8 @@ public class ContextStorageRepository implements PanacheRepositoryBase<ContextSy
     List<ContextSystemRecords> findAllByExpiresAtBefore(Timestamp expiresAt) {
         return list("expiresAt < ?1", expiresAt);
     }
+
+    public void deleteByIds(List<String> ids) {
+        delete("id in (?1)", ids);
+    }
 }

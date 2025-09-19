@@ -19,14 +19,14 @@ package org.qubership.integration.platform.engine.camel.converters;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.camel.Exchange;
 import org.apache.camel.NoTypeConversionAvailableException;
 import org.apache.camel.TypeConversionException;
 import org.apache.camel.TypeConverter;
 import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 
@@ -37,7 +37,7 @@ public class SecurityAccessPolicyConverter implements TypeConverter {
     private final ObjectMapper objectMapper;
 
     @Inject
-    public SecurityAccessPolicyConverter(@Named("jsonMapper") ObjectMapper objectMapper) {
+    public SecurityAccessPolicyConverter(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

@@ -17,6 +17,9 @@
 package org.qubership.integration.platform.engine.scheduler;
 
 import io.quarkus.scheduler.Scheduled;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -32,13 +35,11 @@ import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.contextstorage.ContextStorageService;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryService;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
@@ -76,7 +77,7 @@ public class TasksScheduler {
     DeploymentsUpdateService deploymentsUpdateService;
 
     @Inject
-    Optional<ExternalLibraryService> externalLibraryService;
+    Instance<ExternalLibraryService> externalLibraryService;
 
     @Inject
     CamelDebuggerPropertiesService debuggerPropertiesService;
@@ -87,7 +88,7 @@ public class TasksScheduler {
     @Inject
     ContextStorageService contextStorageService;
 
-    @Scheduled(every = "2500ms", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "PT2.5S", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void refreshCommonVariables() {
         try {
             commonVariablesUpdateGetter.checkForUpdates(changes -> {
@@ -102,7 +103,7 @@ public class TasksScheduler {
         }
     }
 
-    @Scheduled(every = "5000ms", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "5s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void refreshSecuredVariables() {
         variableService.refreshSecuredVariables();
     }
@@ -126,7 +127,7 @@ public class TasksScheduler {
         log.info("Scheduled context record cleanup completed");
     }
 
-    @Scheduled(every = "2500ms", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "PT2.5S", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void checkDeploymentUpdates() {
         if (!deploymentReadinessService.isReadyForDeploy()) {
             return;
@@ -154,9 +155,9 @@ public class TasksScheduler {
         }
     }
 
-    @Scheduled(every = "2500ms", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "PT2.5S", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void checkLibrariesUpdates() {
-        externalLibraryService.ifPresent(libraryService -> {
+        InjectUtil.injectOptional(externalLibraryService).ifPresent(libraryService -> {
             try {
                 librariesUpdateGetter.checkForUpdates(libraryService::updateSystemModelLibraries);
             } catch (KVNotFoundException e) {
@@ -167,7 +168,7 @@ public class TasksScheduler {
         });
     }
 
-    @Scheduled(every = "1000ms", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "1s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void checkRuntimeDeploymentProperties() {
         try {
             chainRuntimePropertiesUpdateGetter.checkForUpdates(

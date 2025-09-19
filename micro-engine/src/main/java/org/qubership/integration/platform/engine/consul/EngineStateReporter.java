@@ -16,19 +16,19 @@
 
 package org.qubership.integration.platform.engine.consul;
 
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 @Slf4j
-@ApplicationScoped
+@Singleton
 public class EngineStateReporter extends Thread {
     public static final int REPORT_RETRY_DELAY = 5000;
     public static final int QUEUE_CAPACITY = 128;

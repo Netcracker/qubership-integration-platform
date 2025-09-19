@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.engine.healthcheck;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.health.HealthCheck;
 import org.eclipse.microprofile.health.HealthCheckResponse;
 import org.eclipse.microprofile.health.Readiness;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 @Slf4j
 @Readiness

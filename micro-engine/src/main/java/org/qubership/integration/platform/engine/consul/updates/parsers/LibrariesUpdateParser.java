@@ -3,10 +3,10 @@ package org.qubership.integration.platform.engine.consul.updates.parsers;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
 import io.vertx.ext.consul.KeyValue;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.inject.Named;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.model.kafka.systemmodel.CompiledLibraryUpdate;
 
@@ -17,7 +17,7 @@ import java.util.function.Function;
 @ApplicationScoped
 public class LibrariesUpdateParser implements Function<List<KeyValue>, List<CompiledLibraryUpdate>> {
     @Inject
-    @Named("jsonMapper")
+    @Identifier("jsonMapper")
     ObjectMapper objectMapper;
 
     @Override

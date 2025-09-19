@@ -17,8 +17,8 @@
 package org.qubership.integration.platform.engine.configuration;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import lombok.Getter;
 import jakarta.inject.Inject;
+import lombok.Getter;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped

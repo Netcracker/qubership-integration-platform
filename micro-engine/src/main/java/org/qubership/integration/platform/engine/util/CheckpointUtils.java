@@ -16,10 +16,11 @@
 
 package org.qubership.integration.platform.engine.util;
 
+import io.undertow.util.PathTemplateMatch;
+import io.undertow.util.PathTemplateMatcher;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.web.util.UriTemplate;
 
 import java.util.Map;
 
@@ -41,8 +42,11 @@ public class CheckpointUtils {
     }
 
     public static CheckpointInfo extractTriggeredCheckpointInfo(Exchange exchange) {
-        Map<String, String> pathVariables = new UriTemplate(CHECKPOINT_RETRY_PATH_TEMPLATE)
-                .match(exchange.getMessage().getHeader(HTTP_PATH, "", String.class));
+        PathTemplateMatcher<Object> matcher = new PathTemplateMatcher<>();
+        matcher.add(CHECKPOINT_RETRY_PATH_TEMPLATE, null);
+        String path = exchange.getMessage().getHeader(HTTP_PATH, "", String.class);
+        PathTemplateMatch matchResult = matcher.match(path);
+        Map<String, String> pathVariables = matchResult.getParameters();
 
         String chainId = pathVariables.get(CHECKPOINT_CHAIN_ID_PATH_VAR);
         String sessionId = pathVariables.get(CHECKPOINT_SESSION_ID_PATH_VAR);

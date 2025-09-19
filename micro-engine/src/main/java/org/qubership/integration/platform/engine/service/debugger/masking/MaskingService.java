@@ -22,17 +22,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.NotSupportedException;
+import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.errorhandling.LoggingMaskingException;
 import org.qubership.integration.platform.engine.model.SessionElementProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.enterprise.context.ApplicationScoped;
-import org.springframework.util.MimeType;
-import org.springframework.util.MimeTypeUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -57,26 +56,26 @@ import javax.xml.transform.stream.StreamResult;
 @Slf4j
 @ApplicationScoped
 public class MaskingService {
-    private static final MimeType SOAP_XML_CONTENT_TYPE = MimeType.valueOf("application/soap+xml");
-    private static final MimeType JSON_PATCH_JSON_CONTENT_TYPE = MimeType.valueOf("application/json-patch+json");
-    private static final MimeType X_WWW_FORM_URLENCODED_CONTENT_TYPE = MimeType.valueOf("application/x-www-form-urlencoded");
+    private static final MediaType SOAP_XML_CONTENT_TYPE = MediaType.valueOf("application/soap+xml");
+    private static final MediaType JSON_PATCH_JSON_CONTENT_TYPE = MediaType.valueOf("application/json-patch+json");
+    private static final MediaType X_WWW_FORM_URLENCODED_CONTENT_TYPE = MediaType.valueOf("application/x-www-form-urlencoded");
 
     private final ObjectMapper objectMapper;
 
     @Inject
-    public MaskingService(@Named("jsonMapper") ObjectMapper objectMapper) {
+    public MaskingService(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
-    public String maskFields(String target, Set<String> fields, MimeType contentType)
+    public String maskFields(String target, Set<String> fields, MediaType contentType)
         throws LoggingMaskingException, NotSupportedException {
         if (contentType == null) {
             throw new NotSupportedException(
                 "Content type is empty, failed to mask fields in payload");
         }
 
-        if (MimeTypeUtils.APPLICATION_JSON.equalsTypeAndSubtype(contentType)
-                || JSON_PATCH_JSON_CONTENT_TYPE.equalsTypeAndSubtype(contentType)
+        if (MediaType.APPLICATION_JSON_TYPE.isCompatible(contentType)
+                || JSON_PATCH_JSON_CONTENT_TYPE.isCompatible(contentType)
         ) {
             try {
                 return maskJSON(target, fields);
@@ -86,9 +85,9 @@ public class MaskingService {
             }
         }
 
-        if (MimeTypeUtils.APPLICATION_XML.equalsTypeAndSubtype(contentType)
-                || MimeTypeUtils.TEXT_XML.equalsTypeAndSubtype(contentType)
-                || SOAP_XML_CONTENT_TYPE.equalsTypeAndSubtype(contentType)
+        if (MediaType.APPLICATION_XML_TYPE.isCompatible(contentType)
+                || MediaType.TEXT_XML_TYPE.isCompatible(contentType)
+                || SOAP_XML_CONTENT_TYPE.isCompatible(contentType)
         ) {
             try {
                 return maskXML(target, fields);
@@ -98,7 +97,7 @@ public class MaskingService {
             }
         }
 
-        if (X_WWW_FORM_URLENCODED_CONTENT_TYPE.equalsTypeAndSubtype(contentType)) {
+        if (X_WWW_FORM_URLENCODED_CONTENT_TYPE.isCompatible(contentType)) {
             try {
                 return maskXwwwUrlencoded(target, fields);
             }  catch (Exception e) {
@@ -108,7 +107,7 @@ public class MaskingService {
         }
 
         throw new NotSupportedException(
-            "Content type " + contentType.toString() + " not supported for masking");
+            "Content type " + contentType + " not supported for masking");
     }
 
     public void maskFields(Map<String, String> target, Set<String> maskedFields) {

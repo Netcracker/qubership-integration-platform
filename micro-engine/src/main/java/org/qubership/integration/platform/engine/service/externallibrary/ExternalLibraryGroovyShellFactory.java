@@ -18,11 +18,13 @@ package org.qubership.integration.platform.engine.service.externallibrary;
 
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyShell;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.language.groovy.GroovyShellFactory;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -35,8 +37,8 @@ public class ExternalLibraryGroovyShellFactory implements GroovyShellFactory {
     private final Optional<ExternalLibraryService> externalLibraryService;
 
     @Inject
-    public ExternalLibraryGroovyShellFactory(Optional<ExternalLibraryService> externalLibraryService) {
-        this.externalLibraryService = externalLibraryService;
+    public ExternalLibraryGroovyShellFactory(Instance<ExternalLibraryService> externalLibraryService) {
+        this.externalLibraryService = InjectUtil.injectOptional(externalLibraryService);
     }
 
     @Override

@@ -17,19 +17,20 @@
 package org.qubership.integration.platform.engine.service;
 
 import com.google.common.collect.MinMaxPriorityQueue;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
+import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.spi.InflightRepository;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTerminatedException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.rest.v1.dto.LiveExchangeDTO;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -63,7 +64,7 @@ public class LiveExchangesService {
         MinMaxPriorityQueue<InflightExchangeHolder> inflightExchanges = MinMaxPriorityQueue
                 .orderedBy(EXCHANGE_COMPARATOR).maximumSize(amount).create();
 
-        for (Map.Entry<String, CamelContext> entry : integrationRuntimeService.getCache().getContexts().entrySet()) {
+        for (Map.Entry<String, DefaultCamelContext> entry : integrationRuntimeService.getCache().getContexts().entrySet()) {
             String deploymentId = entry.getKey();
             CamelContext context = entry.getValue();
             List<InflightExchangeHolder> exchangeHolders = context.getInflightRepository().browse(amount, true).stream()

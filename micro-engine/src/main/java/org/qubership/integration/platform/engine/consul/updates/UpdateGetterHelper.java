@@ -66,9 +66,9 @@ public class UpdateGetterHelper<T> {
             return Optional.of(value);
         } catch (Exception e) {
             throw new RuntimeException(
-                    "Failed to parse response, target key in consul " +
-                            "has invalid value format or value count: " +
-                            kvList.getList(), e);
+                    "Failed to parse response, target key in consul "
+                            + "has invalid value format or value count: "
+                            + kvList.getList(), e);
         }
     }
 

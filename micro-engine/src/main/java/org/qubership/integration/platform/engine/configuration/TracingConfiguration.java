@@ -18,50 +18,33 @@ package org.qubership.integration.platform.engine.configuration;
 
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.context.Dependent;
+import jakarta.enterprise.inject.Instance;
+import jakarta.enterprise.inject.Produces;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.observation.MicrometerObservationTracer;
-import org.apache.camel.observation.starter.ObservationAutoConfiguration;
-import org.apache.camel.observation.starter.ObservationConfigurationProperties;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.service.debugger.tracing.MicrometerObservationTaggedTracer;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Scope;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 @Slf4j
-@Configuration
-@EnableConfigurationProperties(ObservationConfigurationProperties.class)
+@ApplicationScoped
 public class TracingConfiguration {
-
     @Getter
-    @Value("${management.tracing.enabled}")
-    private boolean tracingEnabled;
+    @ConfigProperty(name = "management.tracing.enabled")
+    boolean tracingEnabled;
 
-    /**
-     * Based on {@link ObservationAutoConfiguration}
-     */
-    @Bean(initMethod = "", destroyMethod = "")
-    @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
+    @Produces
+    @Dependent
     MicrometerObservationTracer camelObservationTracer(
-        ObservationConfigurationProperties config,
-        ObjectProvider<Tracer> tracer,
-        ObjectProvider<ObservationRegistry> observationRegistry
+        Instance<Tracer> tracer,
+        Instance<ObservationRegistry> observationRegistry
     ) {
         MicrometerObservationTaggedTracer micrometerObservationTracer = new MicrometerObservationTaggedTracer();
-        tracer.ifAvailable(micrometerObservationTracer::setTracer);
-        observationRegistry.ifAvailable(micrometerObservationTracer::setObservationRegistry);
-
-        if (config.getExcludePatterns() != null) {
-            micrometerObservationTracer.setExcludePatterns(config.getExcludePatterns());
-        }
-        if (config.getEncoding() != null) {
-            micrometerObservationTracer.setEncoding(config.getEncoding());
-        }
-
+        InjectUtil.injectOptional(tracer).ifPresent(micrometerObservationTracer::setTracer);
+        InjectUtil.injectOptional(observationRegistry).ifPresent(micrometerObservationTracer::setObservationRegistry);
         return micrometerObservationTracer;
     }
 }

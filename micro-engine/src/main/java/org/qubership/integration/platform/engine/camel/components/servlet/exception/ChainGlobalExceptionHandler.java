@@ -18,7 +18,11 @@ package org.qubership.integration.platform.engine.camel.components.servlet.excep
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
 import org.apache.camel.CamelAuthorizationException;
 import org.apache.camel.Exchange;
 import org.apache.camel.component.http.HttpConstants;
@@ -34,10 +38,6 @@ import org.qubership.integration.platform.engine.errorhandling.ValidationExcepti
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCodeException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.MediaType;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
@@ -50,7 +50,7 @@ public class ChainGlobalExceptionHandler {
     private final ObjectMapper jsonMapper;
 
     @Inject
-    public ChainGlobalExceptionHandler(@Named("jsonMapper") ObjectMapper jsonMapper) {
+    public ChainGlobalExceptionHandler(@Identifier("jsonMapper") ObjectMapper jsonMapper) {
         this.jsonMapper = jsonMapper;
     }
 
@@ -132,7 +132,7 @@ public class ChainGlobalExceptionHandler {
 
     private void makeExceptionResponseInExchange(Exchange exchange, ErrorCode errorCode, Map<String, String> extraParameters) throws IOException {
         exchange.getMessage().removeHeaders("*");
-        exchange.getMessage().setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+        exchange.getMessage().setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
         exchange.getMessage().setHeader(HttpConstants.HTTP_RESPONSE_CODE, errorCode.getHttpErrorCode());
         ErrorCodeException codeException = new ErrorCodeException(errorCode, extraParameters);
         exchange.getMessage().setBody(jsonMapper.writeValueAsString(codeException.buildResponseObject()));

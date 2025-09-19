@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.engine.service.debugger;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collections;
 import java.util.Map;

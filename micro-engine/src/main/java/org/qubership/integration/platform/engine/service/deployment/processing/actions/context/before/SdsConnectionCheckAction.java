@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
+import io.quarkus.arc.properties.IfBuildProperty;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
@@ -26,13 +29,10 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.SdsService;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
-import jakarta.inject.Inject;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import jakarta.enterprise.context.ApplicationScoped;
 
 @Slf4j
 @ApplicationScoped
-@ConditionalOnBean(SdsService.class)
+@IfBuildProperty(name = "qip.sds.enabled", stringValue = "true")
 @OnBeforeDeploymentContextCreated
 public class SdsConnectionCheckAction extends ElementProcessingAction {
     private final SdsService sdsService;

@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
+import jakarta.inject.Inject;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.ws.rs.*;
@@ -27,10 +28,10 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.resteasy.reactive.RestResponse;
 import org.qubership.integration.platform.engine.rest.v1.dto.LiveExchangeDTO;
 import org.qubership.integration.platform.engine.service.LiveExchangesService;
-import jakarta.inject.Inject;
-import org.springframework.util.CollectionUtils;
 
 import java.util.List;
+
+import static java.util.Objects.isNull;
 
 @Slf4j
 @Path("/v1/engine/live-exchanges")
@@ -53,7 +54,7 @@ public class LiveExchangesController {
             @Parameter(description = "Amount of exchanges to view") Integer limit
     ) {
         List<LiveExchangeDTO> result = liveExchangesService.getTopLiveExchanges(limit);
-        if (CollectionUtils.isEmpty(result)) {
+        if (isNull(result) || result.isEmpty()) {
             return RestResponse.noContent();
         }
         return RestResponse.ok(result);

@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.persistence.shared.repository;
 
+import io.quarkus.hibernate.orm.PersistenceUnit;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -30,6 +31,7 @@ import java.util.Optional;
 @ApplicationScoped
 public class SessionInfoRepository implements PanacheRepositoryBase<SessionInfo, String> {
     @Inject
+    @PersistenceUnit("checkpoints")
     EntityManager em;
 
     public List<SessionInfo> findAllById(List<String> ids) {

@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.language.simple.SimpleLanguage;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 import java.util.Map;

@@ -16,10 +16,13 @@
 
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.Session;
@@ -35,10 +38,7 @@ import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
-import jakarta.inject.Inject;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -59,7 +59,7 @@ public class SessionsService {
 
     private final Random random = new Random();
 
-    @Value("${qip.sessions.sampler.probabilistic}")
+    @ConfigProperty(name = "qip.sessions.sampler.probabilistic")
     private double samplerProbabilistic;
 
     @Inject

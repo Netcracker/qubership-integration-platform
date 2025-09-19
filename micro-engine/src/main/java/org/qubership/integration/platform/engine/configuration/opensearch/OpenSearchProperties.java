@@ -9,8 +9,11 @@ import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeV
 @ConfigMapping(prefix = "qip.opensearch")
 public interface OpenSearchProperties {
     ClientProperties client();
+
     WriteProperties write();
+
     IndexProperties index();
+
     RolloverProperties rollover();
 
     interface ClientProperties {
@@ -31,20 +34,19 @@ public interface OpenSearchProperties {
         @WithDefault("")
         String password();
 
-        @WithDefault("5000")
-        Integer connectTimeout();
-
         @WithDefault("")
         String prefix();
     }
 
     interface WriteProperties {
         BatchProperties batch();
+
         RetryProperties retry();
     }
 
     interface BatchProperties {
         @WithDefault("100")
+
         Integer count();
     }
 

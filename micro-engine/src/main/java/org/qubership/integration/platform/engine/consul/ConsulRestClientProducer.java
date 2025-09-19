@@ -11,10 +11,10 @@ import java.net.URI;
 
 @ApplicationScoped
 public class ConsulRestClientProducer {
-    @ConfigProperty(name="consul.url")
+    @ConfigProperty(name = "consul.url")
     URI uri;
 
-    @ConfigProperty(name="consul.token")
+    @ConfigProperty(name = "consul.token")
     String token;
 
     @Produces

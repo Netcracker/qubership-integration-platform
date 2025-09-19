@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.engine.service.debugger.util;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.camel.component.google.pubsub.serializer.GooglePubsubSerializer;
 import org.apache.camel.converter.stream.InputStreamCache;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

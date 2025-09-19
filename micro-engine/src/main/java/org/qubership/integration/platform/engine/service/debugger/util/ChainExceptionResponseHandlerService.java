@@ -16,15 +16,14 @@
 
 package org.qubership.integration.platform.engine.service.debugger.util;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.camel.components.servlet.exception.ChainGlobalExceptionHandler;
 import org.qubership.integration.platform.engine.camel.components.servlet.exception.annotations.ChainExceptionHandler;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -48,7 +47,7 @@ public class ChainExceptionResponseHandlerService {
         method.invoke(chainGlobalExceptionHandler, exception, exchange, ErrorCode.match(exception), getAdditionalExtraParams(exchange));
     }
 
-    private Method getExceptionMethod(@NotNull Throwable exception) {
+    private Method getExceptionMethod(Throwable exception) {
         Method[] methods = ChainGlobalExceptionHandler.class.getDeclaredMethods();
         Method defaultMethod = null;
         for (Method method : methods) {

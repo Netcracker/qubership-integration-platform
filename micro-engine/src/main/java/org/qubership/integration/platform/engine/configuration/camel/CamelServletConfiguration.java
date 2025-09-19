@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.configuration.camel;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spi.ComponentCustomizer;
@@ -24,14 +25,12 @@ import org.qubership.integration.platform.engine.camel.components.context.propag
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomComponent;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
 
-import java.util.Optional;
-
 @Slf4j
 @ApplicationScoped
 public class CamelServletConfiguration {
     @Produces
     public ComponentCustomizer servletCustomComponentCustomizer(
-        Optional<ContextPropsProvider> contextPropsProvider
+        Instance<ContextPropsProvider> contextPropsProvider
     ) {
         return ComponentCustomizer.builder(ServletCustomComponent.class)
             .build((component) -> {

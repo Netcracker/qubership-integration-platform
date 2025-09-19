@@ -17,6 +17,9 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
 import io.micrometer.core.instrument.binder.httpcomponents.hc5.MicrometerHttpClientInterceptor;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.apache.camel.component.http.HttpClientConfigurer;
@@ -33,8 +36,7 @@ import org.qubership.integration.platform.engine.service.deployment.processing.E
 import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.testing.TestingService;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.net.URISyntaxException;
 import java.util.Optional;
@@ -53,11 +55,11 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
     public HttpSenderDependencyBinder(
         MetricsStore metricsStore,
         MetricTagsHelper metricTagsHelper,
-        Optional<TestingService> testingService
+        Instance<TestingService> testingService
     ) {
         this.metricsStore = metricsStore;
         this.metricTagsHelper = metricTagsHelper;
-        this.testingService = testingService;
+        this.testingService = InjectUtil.injectOptional(testingService);
     }
 
     @Override

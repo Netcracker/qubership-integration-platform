@@ -18,12 +18,12 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,7 +37,7 @@ public class CorrelationIdPropagationProcessor implements Processor {
     private final ObjectMapper objectMapper;
 
     @Inject
-    public CorrelationIdPropagationProcessor(@Named("jsonMapper") ObjectMapper objectMapper) {
+    public CorrelationIdPropagationProcessor(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

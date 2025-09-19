@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.camel.CorrelationIdSetter;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 
 @ApplicationScoped

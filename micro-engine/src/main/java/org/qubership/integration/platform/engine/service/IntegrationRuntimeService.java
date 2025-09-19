@@ -18,6 +18,12 @@ package org.qubership.integration.platform.engine.service;
 
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
+import io.quarkus.vertx.ConsumeEvent;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.enterprise.inject.spi.CDI;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.CamelContext;
 import org.apache.camel.component.jackson.JacksonConstants;
 import org.apache.camel.impl.DefaultCamelContext;
@@ -33,7 +39,7 @@ import org.apache.camel.spi.MessageHistoryFactory;
 import org.apache.camel.tracing.Tracer;
 import org.apache.commons.lang3.tuple.Pair;
 import org.codehaus.groovy.control.CompilationFailedException;
-import org.jetbrains.annotations.NotNull;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.camel.CustomResilienceReifier;
 import org.qubership.integration.platform.engine.camel.QipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.context.propagation.constant.BusinessIds;
@@ -48,7 +54,6 @@ import org.qubership.integration.platform.engine.consul.EngineStateReporter;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
-import org.qubership.integration.platform.engine.events.ConsulSessionCreatedEvent;
 import org.qubership.integration.platform.engine.forms.FormData;
 import org.qubership.integration.platform.engine.model.RuntimeIntegrationCache;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -68,18 +73,10 @@ import org.qubership.integration.platform.engine.service.externallibrary.Externa
 import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryService;
 import org.qubership.integration.platform.engine.service.externallibrary.GroovyLanguageWithResettableCache;
 import org.qubership.integration.platform.engine.service.xmlpreprocessor.XmlConfigurationPreProcessor;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
-import org.springframework.beans.factory.ObjectFactory;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.ByteArrayInputStream;
 import java.net.URISyntaxException;
@@ -97,9 +94,10 @@ import java.util.stream.Collectors;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 import static org.apache.camel.xml.jaxb.JaxbHelper.loadRoutesDefinition;
+import static org.qubership.integration.platform.engine.consul.ConsulSessionService.CREATE_SESSION_EVENT;
 
 @ApplicationScoped
-public class IntegrationRuntimeService implements ApplicationContextAware {
+public class IntegrationRuntimeService {
     @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger log = ExtendedErrorLoggerFactory.getLogger(IntegrationRuntimeService.class);
 
@@ -123,10 +121,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private final ReadWriteLock processLock = new ReentrantReadWriteLock();
     private final DeploymentProcessingService deploymentProcessingService;
     private final Executor deploymentExecutor;
-    private final ObjectFactory<CamelDebugger> camelDebuggerFactory;
-    private final ObjectFactory<MicrometerObservationTracer> tracerFactory;
-
-    private ApplicationContext applicationContext;
 
     static {
         ProcessorReifier.registerReifier(StepDefinition.class, CustomStepReifier::new);
@@ -135,7 +129,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                 (CircuitBreakerDefinition) definition));
     }
 
-    @Value("${qip.camel.stream-caching.enabled}")
     private boolean enableStreamCaching;
 
     private final int streamCachingBufferSize;
@@ -147,22 +140,20 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         ExternalLibraryGroovyShellFactory groovyShellFactory,
         GroovyLanguageWithResettableCache groovyLanguage,
         MetricsStore metricsStore,
-        Optional<ExternalLibraryService> externalLibraryService,
-        Optional<MaasService> maasService,
-        Optional<XmlConfigurationPreProcessor> xmlPreProcessor,
+        Instance<ExternalLibraryService> externalLibraryService,
+        Instance<MaasService> maasService,
+        Instance<XmlConfigurationPreProcessor> xmlPreProcessor,
         VariablesService variablesService,
         EngineStateReporter engineStateReporter,
         @Named("deploymentExecutor") Executor deploymentExecutor,
         CamelDebuggerPropertiesService propertiesService,
-        @Value("${qip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
+        @ConfigProperty(name = "qip.camel.stream-caching.buffer.size-kb") int streamCachingBufferSizeKb,
         Predicate<FilteringEntity> camelMessageHistoryFilter,
         DeploymentReadinessService deploymentReadinessService,
         DeploymentProcessingService deploymentProcessingService,
         FormDataConverter formDataConverter,
         SecurityAccessPolicyConverter securityAccessPolicyConverter,
-        ObjectFactory<CamelDebugger> camelDebuggerFactory,
-        @Named("camelObservationTracer") ObjectFactory<MicrometerObservationTracer> tracerFactory
-
+        @ConfigProperty(name = "qip.camel.stream-caching.enabled") boolean enableStreamCaching
     ) {
         this.serverConfiguration = serverConfiguration;
         this.quartzSchedulerService = quartzSchedulerService;
@@ -170,9 +161,9 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         this.groovyShellFactory = groovyShellFactory;
         this.groovyLanguage = groovyLanguage;
         this.metricsStore = metricsStore;
-        this.externalLibraryService = externalLibraryService;
-        this.maasService = maasService;
-        this.xmlPreProcessor = xmlPreProcessor;
+        this.externalLibraryService = InjectUtil.injectOptional(externalLibraryService);
+        this.maasService = InjectUtil.injectOptional(maasService);
+        this.xmlPreProcessor = InjectUtil.injectOptional(xmlPreProcessor);
         this.variablesService = variablesService;
         this.engineStateReporter = engineStateReporter;
         this.deploymentExecutor = deploymentExecutor;
@@ -183,18 +174,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         this.deploymentProcessingService = deploymentProcessingService;
         this.formDataConverter = formDataConverter;
         this.securityAccessPolicyConverter = securityAccessPolicyConverter;
-        this.camelDebuggerFactory = camelDebuggerFactory;
-        this.tracerFactory = tracerFactory;
+        this.enableStreamCaching = enableStreamCaching;
     }
 
-    @Override
-    public void setApplicationContext(@NotNull ApplicationContext applicationContext) {
-        this.applicationContext = applicationContext;
-    }
-
-    @Async
-    @EventListener
-    public void onExternalLibrariesUpdated(ConsulSessionCreatedEvent event) {
+    @ConsumeEvent(CREATE_SESSION_EVENT)
+    public void onExternalLibrariesUpdated(String sessionId) {
         // if consul session (re)create - force update engine state
         updateEngineState();
     }
@@ -577,7 +561,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         context.setManagementName("camel-context_" + deploymentId); // use repeatable after restart context name
         context.setManagementStrategy(new DefaultManagementStrategy(context));
 
-        CamelDebugger debugger = camelDebuggerFactory.getObject();
+        // TODO [migration to quarkus] check that every time a new instance of CamelDebugger is injected
+        CamelDebugger debugger = CDI.current().select(CamelDebugger.class).getHandle().get();
         debugger.setDeploymentId(deploymentId);
         context.setDebugger(debugger);
         context.setDebugging(true);
@@ -616,7 +601,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
     private void startContext(CamelContext context) {
         if (tracingConfiguration.isTracingEnabled()) {
-            Tracer tracer = tracerFactory.getObject();
+            // TODO [migration to quarkus] check that every time a new instance of Tracer is injected
+            Tracer tracer = CDI.current().select(MicrometerObservationTracer.class).getHandle().get();
             tracer.init(context);
         }
 

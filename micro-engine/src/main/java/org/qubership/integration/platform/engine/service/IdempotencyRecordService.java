@@ -2,13 +2,14 @@ package org.qubership.integration.platform.engine.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.scheduler.Scheduled;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.camel.idempotency.IdempotencyRecordData;
 import org.qubership.integration.platform.engine.camel.idempotency.IdempotencyRecordStatus;
 import org.qubership.integration.platform.engine.persistence.shared.repository.IdempotencyRecordRepository;
-import jakarta.inject.Inject;
-import org.springframework.scheduling.annotation.Scheduled;
-import jakarta.enterprise.context.ApplicationScoped;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
@@ -19,7 +20,7 @@ public class IdempotencyRecordService {
 
     @Inject
     public IdempotencyRecordService(
-            ObjectMapper objectMapper,
+            @Identifier("jsonMapper") ObjectMapper objectMapper,
             IdempotencyRecordRepository idempotencyRecordRepository
     ) {
         this.objectMapper = objectMapper;

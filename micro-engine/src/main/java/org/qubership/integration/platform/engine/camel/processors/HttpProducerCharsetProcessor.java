@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.camel.Exchange;
 import org.apache.camel.ExchangePropertyKey;
 import org.apache.camel.Processor;
@@ -23,7 +24,6 @@ import org.apache.camel.component.http.HttpProducer;
 import org.apache.camel.support.ExchangeHelper;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.entity.ContentType;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.nio.charset.Charset;
 

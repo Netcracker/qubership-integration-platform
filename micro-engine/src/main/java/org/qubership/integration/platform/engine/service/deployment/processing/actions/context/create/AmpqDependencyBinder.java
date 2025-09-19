@@ -19,6 +19,8 @@ package org.qubership.integration.platform.engine.service.deployment.processing.
 import com.rabbitmq.client.MetricsCollector;
 import com.rabbitmq.client.impl.MicrometerMetricsCollector;
 import io.micrometer.core.instrument.Tag;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.camel.components.rabbitmq.NoOpMetricsCollector;
@@ -31,8 +33,6 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collection;
 

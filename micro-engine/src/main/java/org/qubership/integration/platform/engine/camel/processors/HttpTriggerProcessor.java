@@ -16,6 +16,10 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -30,10 +34,6 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.ws.rs.core.HttpHeaders;
-import org.springframework.util.MimeType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -143,9 +143,9 @@ public class HttpTriggerProcessor implements Processor {
         String[] allowedContentTypes =
             exchange.getProperty(Properties.ALLOWED_CONTENT_TYPES_PROP, String[].class);
         if (allowedContentTypes != null && allowedContentTypes.length > 0) {
-            MimeType messageMimeType;
+            MediaType messageMediaType;
             try {
-                messageMimeType = PayloadExtractor.extractContentType(exchange);
+                messageMediaType = PayloadExtractor.extractContentType(exchange);
             } catch (Exception e) {
                 throw new ValidationException(
                     "Unsupported content type: '" + exchange.getMessage().getHeaders().getOrDefault(
@@ -153,20 +153,20 @@ public class HttpTriggerProcessor implements Processor {
             }
 
             for (String allowedType : allowedContentTypes) {
-                MimeType allowedMimeType;
+                MediaType allowedMimeType;
                 try {
-                    allowedMimeType = MimeType.valueOf(allowedType);
+                    allowedMimeType = MediaType.valueOf(allowedType);
                 } catch (Exception e) {
                     throw new RuntimeException(
                         "Unsupported content type found in validation list: '" + allowedType + "', please fix it");
                 }
-                if (messageMimeType != null && messageMimeType.equalsTypeAndSubtype(allowedMimeType)) {
+                if (messageMediaType != null && messageMediaType.isCompatible(allowedMimeType)) {
                     return;
                 }
             }
 
             throw new ValidationException(
-                "Unsupported content type: '" + messageMimeType + "'");
+                "Unsupported content type: '" + messageMediaType + "'");
         }
     }
 

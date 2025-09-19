@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.engine.service;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.engine.catalog.RuntimeCatalogService;
@@ -23,8 +25,6 @@ import org.qubership.integration.platform.engine.configuration.ServerConfigurati
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentsUpdate;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;

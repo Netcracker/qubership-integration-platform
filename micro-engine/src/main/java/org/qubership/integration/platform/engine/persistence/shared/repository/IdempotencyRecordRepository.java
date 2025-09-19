@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.persistence.shared.repository;
 
+import io.quarkus.hibernate.orm.PersistenceUnit;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -10,6 +11,7 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Idemp
 @ApplicationScoped
 public class IdempotencyRecordRepository implements PanacheRepositoryBase<IdempotencyRecord, String> {
     @Inject
+    @PersistenceUnit("checkpoints")
     EntityManager em;
 
     public boolean existsByKeyAndNotExpired(String key) {

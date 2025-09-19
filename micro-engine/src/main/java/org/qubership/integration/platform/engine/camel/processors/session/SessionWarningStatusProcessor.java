@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.engine.camel.processors.session;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
-import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class SessionWarningStatusProcessor implements Processor {

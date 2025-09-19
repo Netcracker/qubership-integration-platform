@@ -29,7 +29,7 @@
         <lombok.version>1.18.38</lombok.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
-        <commons-lang3.version>3.14.0</commons-lang3.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-text.version>1.11.0</commons-text.version>
         <protobuf-java.version>3.25.1</protobuf-java.version>
         <json-schema-validator.version>1.0.87</json-schema-validator.version>
@@ -41,6 +41,7 @@
         <reflections.version>0.10.2</reflections.version>
         <quarkus.logback.version>1.1.2</quarkus.logback.version>
         <logback-gelf.version>5.0.1</logback-gelf.version>
+        <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
@@ -74,7 +75,6 @@
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
-                <optional>true</optional>
             </dependency>
 
             <dependency>
@@ -170,6 +170,12 @@
             </dependency>
 
             <dependency>
+                <groupId>io.hypersistence</groupId>
+                <artifactId>hypersistence-utils-hibernate-63</artifactId>
+                <version>${hypersistence-utils-hibernate.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.reflections</groupId>
                 <artifactId>reflections</artifactId>
                 <version>${reflections.version}</version>
@@ -204,7 +210,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
@@ -232,6 +238,11 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java-util</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.hypersistence</groupId>
+            <artifactId>hypersistence-utils-hibernate-63</artifactId>
         </dependency>
 
         <dependency>
@@ -498,7 +509,7 @@
                             <goal>build</goal>
                             <goal>generate-code</goal>
                             <goal>generate-code-tests</goal>
-                            <goal>native-image-agent</goal>
+<!--                            <goal>native-image-agent</goal>-->
                         </goals>
                     </execution>
                 </executions>
@@ -507,12 +518,6 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${compiler-plugin.version}</version>
                 <configuration>
-                    <!-- FIXME error limit is increased during migration to Quarkus and need to be removed afterwards. -->
-                    <compilerArgs>
-                        <arg>-Xmaxerrs</arg>
-                        <arg>10000</arg> <!-- Set your desired error limit here -->
-                    </compilerArgs>
-
                     <parameters>true</parameters>
                     <annotationProcessorPaths>
                         <path>
@@ -632,6 +637,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.6.0</version>
                 <dependencies>
                     <dependency>
                         <groupId>com.puppycrawl.tools</groupId>

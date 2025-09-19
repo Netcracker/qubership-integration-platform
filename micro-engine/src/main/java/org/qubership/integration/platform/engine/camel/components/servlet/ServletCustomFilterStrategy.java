@@ -16,11 +16,13 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import org.apache.camel.Exchange;
 import org.apache.camel.http.common.HttpHeaderFilterStrategy;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.util.Collection;
 import java.util.List;
@@ -39,8 +41,8 @@ public class ServletCustomFilterStrategy extends HttpHeaderFilterStrategy {
     private final Optional<ContextPropsProvider> contextPropsProvider;
 
     @Inject
-    public ServletCustomFilterStrategy(Optional<ContextPropsProvider> contextPropsProvider) {
-        this.contextPropsProvider = contextPropsProvider;
+    public ServletCustomFilterStrategy(Instance<ContextPropsProvider> contextPropsProvider) {
+        this.contextPropsProvider = InjectUtil.injectOptional(contextPropsProvider);
         this.getOutFilter().addAll(FILTERED_HEADERS);
     }
 

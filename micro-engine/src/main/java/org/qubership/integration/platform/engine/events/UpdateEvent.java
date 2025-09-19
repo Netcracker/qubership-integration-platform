@@ -16,18 +16,17 @@
 
 package org.qubership.integration.platform.engine.events;
 
-import org.springframework.context.ApplicationEvent;
+import lombok.Getter;
 
-public class UpdateEvent extends ApplicationEvent {
+@Getter
+public class UpdateEvent {
+    public static final String EVENT_ADDRESS = "update-event";
+
+    private final Object source;
     private final boolean initialUpdate;
 
     public UpdateEvent(Object source, boolean initialUpdate) {
-        super(source);
+        this.source = source;
         this.initialUpdate = initialUpdate;
     }
-
-    public boolean isInitialUpdate() {
-        return initialUpdate;
-    }
-
 }

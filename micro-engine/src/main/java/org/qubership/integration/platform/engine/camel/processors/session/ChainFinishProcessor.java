@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.camel.processors.session;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -37,8 +40,7 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.debugger.sessions.SessionsService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -67,14 +69,14 @@ public class ChainFinishProcessor implements Processor {
     public ChainFinishProcessor(MetricsService metricsService,
                                 CamelDebuggerPropertiesService propertiesService,
                                 SessionsService sessionsService,
-                                Optional<SessionsKafkaReportingService> sessionsKafkaReportingService,
-                                Optional<SdsService> sdsService,
+                                Instance<SessionsKafkaReportingService> sessionsKafkaReportingService,
+                                Instance<SdsService> sdsService,
                                 ChainLogger chainLogger, PayloadExtractor payloadExtractor) {
         this.metricsService = metricsService;
         this.propertiesService = propertiesService;
         this.sessionsService = sessionsService;
-        this.sessionsKafkaReportingService = sessionsKafkaReportingService;
-        this.sdsService = sdsService;
+        this.sessionsKafkaReportingService = InjectUtil.injectOptional(sessionsKafkaReportingService);
+        this.sdsService = InjectUtil.injectOptional(sdsService);
         this.chainLogger = chainLogger;
         this.payloadExtractor = payloadExtractor;
     }

@@ -23,9 +23,9 @@ import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.errorhandling.ValidationException;
 
@@ -41,7 +41,7 @@ public class JsonMessageValidator {
     private final ObjectMapper objectMapper;
 
     @Inject
-    public JsonMessageValidator(@Named("jsonMapper") ObjectMapper objectMapper) {
+    public JsonMessageValidator(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

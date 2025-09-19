@@ -17,6 +17,8 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
 import io.micrometer.core.instrument.Tag;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
 import org.apache.camel.component.kafka.DefaultKafkaClientFactory;
 import org.apache.camel.component.kafka.KafkaClientFactory;
@@ -31,10 +33,8 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import jakarta.inject.Inject;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Collection;
 

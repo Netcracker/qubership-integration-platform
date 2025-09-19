@@ -16,16 +16,17 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCodePrefix;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
 
 @Slf4j
-@Configuration
+@ApplicationScoped
 public class PropertiesConfiguration {
-
-    public PropertiesConfiguration(@Value("${app.prefix}") String appPrefix) {
+    @PostConstruct
+    public void postConstruct(@ConfigProperty(name = "app.prefix") String appPrefix) {
         ErrorCodePrefix.setCodePrefix(appPrefix.toUpperCase());
     }
 }

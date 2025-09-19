@@ -19,13 +19,12 @@ package org.qubership.integration.platform.engine.configuration.camel.quartz;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.quartz.QuartzComponent;
 import org.apache.camel.spi.ComponentCustomizer;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.service.QuartzSchedulerService;
-import jakarta.inject.Inject;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Map;
 

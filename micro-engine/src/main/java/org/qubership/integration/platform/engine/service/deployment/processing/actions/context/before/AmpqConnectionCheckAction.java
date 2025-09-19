@@ -20,6 +20,8 @@ import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import io.quarkus.arc.lookup.LookupIfProperty;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.apache.commons.lang3.StringUtils;
@@ -34,8 +36,6 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,9 +43,9 @@ import java.util.Map;
 @Slf4j
 @ApplicationScoped
 @LookupIfProperty(
-    name = "qip.camel.component.rabbitmq.predeploy-check-enabled",
-    stringValue = "true",
-    lookupIfMissing = true
+        name = "qip.camel.component.rabbitmq.predeploy-check-enabled",
+        stringValue = "true",
+        lookupIfMissing = true
 )
 @OnBeforeDeploymentContextCreated
 public class AmpqConnectionCheckAction extends ElementProcessingAction {
@@ -53,7 +53,7 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
 
     @Inject
     public AmpqConnectionCheckAction(
-        VariablesService variablesService
+            VariablesService variablesService
     ) {
         this.variablesService = variablesService;
     }
@@ -67,20 +67,20 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
         String operationProtocolType = getProp(props, ChainProperties.OPERATION_PROTOCOL_TYPE_PROP);
 
         return ChainElementType.isAmqpAsyncElement(chainElementType)
-            && (equalsIgnoreCase(ConnectionSourceType.MAAS, connectionSourceType)
-                    || equalsIgnoreCase(EnvironmentSourceType.MAAS_BY_CLASSIFIER, connectionSourceType))
-            && (!(
+                && (equalsIgnoreCase(ConnectionSourceType.MAAS, connectionSourceType)
+                || equalsIgnoreCase(EnvironmentSourceType.MAAS_BY_CLASSIFIER, connectionSourceType))
+                && (!(
                 (equalsIgnoreCase(ChainElementType.ASYNCAPI_TRIGGER, chainElementType.name())
                         || equalsIgnoreCase(ChainElementType.SERVICE_CALL, chainElementType.name()))
-                && !ChainProperties.OPERATION_PROTOCOL_TYPE_AMQP.equals(operationProtocolType)
-            ));
+                        && !ChainProperties.OPERATION_PROTOCOL_TYPE_AMQP.equals(operationProtocolType)
+        ));
     }
 
     @Override
     public void apply(
-        CamelContext context,
-        ElementProperties elementProperties,
-        DeploymentInfo deploymentInfo
+            CamelContext context,
+            ElementProperties elementProperties,
+            DeploymentInfo deploymentInfo
     ) {
         ChainElementType chainElementType = ChainElementType.fromString(
                 elementProperties.getProperties().get(ChainProperties.ELEMENT_TYPE));
@@ -88,7 +88,7 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
             Map<String, String> props = elementProperties.getProperties();
 
             boolean isProducerElement = ChainElementType.isAmqpProducerElement(
-                chainElementType);
+                    chainElementType);
 
             String exchange = getProp(props, ElementOptions.EXCHANGE);
             String queues = getProp(props, ElementOptions.QUEUES);
@@ -100,11 +100,11 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
 
             if (StringUtils.isBlank(exchange) || StringUtils.isBlank(addresses)) {
                 throw new IllegalArgumentException(
-                    "AMQP mandatory parameters are missing, check configuration");
+                        "AMQP mandatory parameters are missing, check configuration");
             }
             if (!addresses.matches("^[\\w.,:\\-_]+$")) {
                 throw new IllegalArgumentException(
-                    "AMQP addresses has invalid format, check configuration");
+                        "AMQP addresses has invalid format, check configuration");
             }
 
             ConnectionFactory factory = new ConnectionFactory();
@@ -134,12 +134,12 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
                     }
                 } catch (IOException e) {
                     throw new DeploymentRetriableException(
-                        "AMQP " + (isProducerElement ? ("exchange " + exchange) : ("queue(s) " + queues))
-                                + " not found, check configuration");
+                            "AMQP " + (isProducerElement ? ("exchange " + exchange) : ("queue(s) " + queues))
+                                    + " not found, check configuration");
                 }
             } catch (IOException e) {
                 throw new DeploymentRetriableException(
-                    "Connection configuration is invalid or broker is unavailable", e);
+                        "Connection configuration is invalid or broker is unavailable", e);
             }
         } catch (IllegalArgumentException e) {
             log.error("AMQP predeploy check is failed", e);
@@ -149,10 +149,10 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
             throw e;
         } catch (Exception e) {
             log.warn(
-                "Failed to check amqp connection for deployment: {}, element: {}",
-                deploymentInfo.getDeploymentId(),
-                elementProperties.getElementId(),
-                e
+                    "Failed to check amqp connection for deployment: {}, element: {}",
+                    deploymentInfo.getDeploymentId(),
+                    elementProperties.getElementId(),
+                    e
             );
         }
     }

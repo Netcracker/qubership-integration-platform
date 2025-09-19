@@ -17,6 +17,9 @@
 package org.qubership.integration.platform.engine.service.debugger.logging;
 
 import com.networknt.schema.utils.StringUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelException;
 import org.apache.camel.Exchange;
@@ -40,11 +43,10 @@ import org.qubership.integration.platform.engine.service.debugger.tracing.Tracin
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 import org.slf4j.MDC;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Map;
 import java.util.Optional;
@@ -63,10 +65,12 @@ public class ChainLogger {
     private final Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider;
 
     @Inject
-    public ChainLogger(TracingService tracingService,
-        Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider) {
+    public ChainLogger(
+            TracingService tracingService,
+            Instance<OriginatingBusinessIdProvider> originatingBusinessIdProvider
+    ) {
         this.tracingService = tracingService;
-        this.originatingBusinessIdProvider = originatingBusinessIdProvider;
+        this.originatingBusinessIdProvider = InjectUtil.injectOptional(originatingBusinessIdProvider);
     }
 
     public static void updateMDCProperty(String key, String value) {

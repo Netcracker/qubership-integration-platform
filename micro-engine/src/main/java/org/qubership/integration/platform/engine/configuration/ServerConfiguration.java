@@ -18,12 +18,13 @@ package org.qubership.integration.platform.engine.configuration;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.engine.util.EngineDomainUtils;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -34,18 +35,19 @@ import java.net.UnknownHostException;
 @ApplicationScoped
 public class ServerConfiguration {
     private final ApplicationConfiguration applicationConfiguration;
-
     private String host;
-
-    @Value("${server.port}")
-    private int port;
-
+    private final int port;
     private final String domain;
 
-    public ServerConfiguration(ApplicationConfiguration applicationConfiguration,
-                               EngineDomainUtils engineDomainUtils) {
+    @Inject
+    public ServerConfiguration(
+            ApplicationConfiguration applicationConfiguration,
+            EngineDomainUtils engineDomainUtils,
+            @ConfigProperty(name = "server.port") int port
+    ) {
         this.applicationConfiguration = applicationConfiguration;
         this.domain = engineDomainUtils.extractEngineDomain(applicationConfiguration.getMicroserviceName());
+        this.port = port;
     }
 
     @PostConstruct

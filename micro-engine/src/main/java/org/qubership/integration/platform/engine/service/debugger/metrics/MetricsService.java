@@ -17,6 +17,9 @@
 package org.qubership.integration.platform.engine.service.debugger.metrics;
 
 import io.micrometer.core.instrument.DistributionSummary;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.core.HttpHeaders;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
@@ -27,9 +30,6 @@ import org.qubership.integration.platform.engine.model.constants.CamelNames;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
-import jakarta.inject.Inject;
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Map;
 

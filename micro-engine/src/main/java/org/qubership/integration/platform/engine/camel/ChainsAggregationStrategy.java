@@ -21,9 +21,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.AggregationStrategy;
 import org.apache.camel.Exchange;
@@ -47,7 +47,7 @@ public class ChainsAggregationStrategy implements AggregationStrategy {
 
 
     @Inject
-    public ChainsAggregationStrategy(@Named("jsonMapper") ObjectMapper objectMapper) {
+    public ChainsAggregationStrategy(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

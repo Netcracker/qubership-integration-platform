@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.http.HttpHeaders;
-import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class KafkaSenderProcessor implements Processor {

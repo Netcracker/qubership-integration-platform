@@ -26,6 +26,9 @@ import io.atlasmap.core.DefaultAtlasContextFactory;
 import io.atlasmap.core.DefaultAtlasFunctionResolver;
 import io.atlasmap.json.v2.JsonDataSource;
 import io.atlasmap.v2.*;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -37,9 +40,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.mapper.atlasmap.CustomAtlasContext;
 import org.qubership.integration.platform.engine.mapper.atlasmap.ValidationResult;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -80,7 +80,7 @@ public class MapperProcessor implements Processor {
     boolean cacheEnabled;
 
     @Inject
-    public MapperProcessor(@Named("jsonMapper") ObjectMapper objectMapper) {
+    public MapperProcessor(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         DefaultAtlasFunctionResolver.getInstance(); // To fix time when function factories are loaded
         this.factory = DefaultAtlasContextFactory.getInstance();
         this.objectMapper = objectMapper;

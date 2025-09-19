@@ -16,7 +16,9 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
+import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -26,8 +28,6 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Sessi
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
 import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
-import jakarta.inject.Inject;
-import jakarta.ws.rs.core.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
@@ -64,7 +64,7 @@ public class SessionController {
         // TODO [migration to quarkus] check that ids can be null otherwise use ids directly
         List<String> identifiers = Optional.ofNullable(ids).orElse(Collections.emptyList());
         Collection<SessionInfo> sessions = checkpointSessionService.findSessions(identifiers);
-        List<CheckpointSessionDTO> DTOs = sessions.stream().map(sessionInfoMapper::asDTO).toList();
-        return RestResponse.ok(DTOs);
+        List<CheckpointSessionDTO> dtos = sessions.stream().map(sessionInfoMapper::asDTO).toList();
+        return RestResponse.ok(dtos);
     }
 }

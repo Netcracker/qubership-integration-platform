@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.engine.registry;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.http.common.DefaultHttpRegistry;
 import org.apache.camel.http.common.HttpConsumer;
 import org.apache.camel.http.common.HttpRegistry;
 import org.apache.camel.http.common.HttpRegistryProvider;
-import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
-import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @Slf4j
 @ApplicationScoped
@@ -30,9 +30,10 @@ public class GatewayHttpRegistry implements HttpRegistry {
 
     private final HttpRegistry httpRegistry;
 
-    public GatewayHttpRegistry() {
-        this.httpRegistry = DefaultHttpRegistry.getHttpRegistry(
-            CamelServletConfiguration.CAMEL_SERVLET_NAME);
+    public GatewayHttpRegistry(
+            @ConfigProperty(name = "camel.servlet.servlet-name") String servletName
+    ) {
+        this.httpRegistry = DefaultHttpRegistry.getHttpRegistry(servletName);
     }
 
     @Override

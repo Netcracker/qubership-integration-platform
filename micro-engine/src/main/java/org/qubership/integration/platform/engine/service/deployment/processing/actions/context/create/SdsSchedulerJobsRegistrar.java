@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
+import io.quarkus.arc.properties.IfBuildProperty;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -25,15 +28,12 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.SdsService;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import jakarta.inject.Inject;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 import java.util.Map;
 
 @ApplicationScoped
-@ConditionalOnBean(SdsService.class)
+@IfBuildProperty(name = "qip.sds.enabled", stringValue = "true")
 @OnAfterDeploymentContextCreated
 public class SdsSchedulerJobsRegistrar implements DeploymentProcessingAction {
     private final SdsService sdsService;

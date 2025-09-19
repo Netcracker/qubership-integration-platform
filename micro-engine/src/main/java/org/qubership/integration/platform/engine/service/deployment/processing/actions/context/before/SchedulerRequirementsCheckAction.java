@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
@@ -23,9 +26,6 @@ import org.qubership.integration.platform.engine.model.deployment.update.Deploym
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import javax.sql.DataSource;
 
@@ -37,7 +37,7 @@ public class SchedulerRequirementsCheckAction implements DeploymentProcessingAct
 
     @Inject
     public SchedulerRequirementsCheckAction(
-        @Named("qrtzDataSource") DataSource qrtzDataSource
+        @Named("quartz") DataSource qrtzDataSource
     ) {
         this.qrtzDataSource = qrtzDataSource;
     }

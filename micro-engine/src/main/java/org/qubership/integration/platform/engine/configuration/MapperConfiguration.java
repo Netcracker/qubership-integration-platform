@@ -23,9 +23,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rabbitmq.client.LongString;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
-import jakarta.inject.Named;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.jdbc.PgArray;
 import org.qubership.integration.platform.engine.camel.components.rabbitmq.serializers.LongStringSerializer;
@@ -34,14 +34,14 @@ import org.qubership.integration.platform.engine.camel.processors.serializers.Pg
 @ApplicationScoped
 public class MapperConfiguration {
     @Produces
-    @Named("jsonMapper")
+    @Identifier("jsonMapper")
     @ApplicationScoped
     public ObjectMapper jsonMapper() {
         return buildObjectMapper();
     }
 
     @Produces
-    @Named("objectMapper")
+    @Identifier("objectMapper")
     @ApplicationScoped
     public ObjectMapper objectMapper() {
         return buildObjectMapper();
@@ -49,7 +49,7 @@ public class MapperConfiguration {
 
 
     @Produces
-    @Named("checkpointMapper")
+    @Identifier("checkpointMapper")
     @ApplicationScoped
     public ObjectMapper checkpointMapper() {
         ObjectMapper mapper = buildObjectMapper();

@@ -18,6 +18,10 @@ package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import groovy.lang.GroovyObject;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -28,9 +32,7 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Prope
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
@@ -52,12 +54,12 @@ public class ContextSaverProcessor implements Processor {
     @Inject
     public ContextSaverProcessor(
             CheckpointSessionService checkpointSessionService,
-            @Named("checkpointMapper") ObjectMapper checkpointMapper,
-            Optional<ContextOperationsWrapper> contextOperations
+            @Identifier("checkpointMapper") ObjectMapper checkpointMapper,
+            Instance<ContextOperationsWrapper> contextOperations
     ) {
         this.checkpointSessionService = checkpointSessionService;
         this.checkpointMapper = checkpointMapper;
-        this.contextOperations = contextOperations;
+        this.contextOperations = InjectUtil.injectOptional(contextOperations);
     }
 
     @Override

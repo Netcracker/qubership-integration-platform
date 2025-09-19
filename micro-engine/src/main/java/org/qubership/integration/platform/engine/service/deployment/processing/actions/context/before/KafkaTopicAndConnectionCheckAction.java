@@ -17,6 +17,8 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
 import io.quarkus.arc.lookup.LookupIfProperty;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -32,8 +34,6 @@ import org.qubership.integration.platform.engine.model.deployment.update.Element
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
-import jakarta.inject.Inject;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.HashSet;
 import java.util.List;

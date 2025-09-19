@@ -16,25 +16,24 @@
 
 package org.qubership.integration.platform.engine.camel.processors.context.propagation;
 
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.camel.processors.OptionalProcessorProxy;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.enterprise.context.ApplicationScoped;
-
-import java.util.Optional;
-
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 @Slf4j
-@ApplicationScoped
+@Singleton
 @Named("contextPropagationProcessor")
 public class ContextPropagationProcessorProxy extends OptionalProcessorProxy {
 
     @Inject
     public ContextPropagationProcessorProxy(
-        @Named("contextPropagationProcessorImpl") Optional<Processor> processor
+        @Named("contextPropagationProcessorImpl") Instance<Processor> processor
     ) {
-        super(processor);
+        super(InjectUtil.injectOptional(processor));
     }
 }
