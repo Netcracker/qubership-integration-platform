@@ -5,7 +5,7 @@ import {
     createMaskedField,
     deleteConnections,
     deleteElements,
-    deleteMaskedFields,
+    deleteMaskedFields, transferElement,
     updateChain,
     updateElement,
     updateMaskedField
@@ -78,6 +78,7 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
         case 'getLibraryElementByType': return await getLibraryElementByType(message.payload);
         case 'updateElement': return await updateElement(mainFolder, message.payload.chainId, message.payload.elementId, message.payload.elementRequest);
         case 'createElement': return await createElement(mainFolder, message.payload.chainId, message.payload.elementRequest);
+        case 'transferElement': return await transferElement(mainFolder, message.payload.chainId, message.payload.transferElementRequest);
         case 'deleteElements': return await deleteElements(mainFolder, message.payload.chainId, message.payload.elementIds);
         case 'createConnection': return await createConnection(mainFolder, message.payload.chainId, message.payload.connectionRequest);
         case 'deleteConnections': return await deleteConnections(mainFolder, message.payload.chainId, message.payload.connectionIds);

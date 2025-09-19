@@ -263,11 +263,7 @@ export class VSCodeFileApi implements FileApi {
                 $schema: 'http://qubership.org/schemas/product/qip/chain',
                 id: chainId,
                 name: chainName,
-                content: {
-                    migrations: "[]",
-                    elements: [],
-                    dependencies: [],
-                }
+                content: { }
             };
             const bytes = new TextEncoder().encode(yaml.stringify(chain));
 

@@ -7,7 +7,8 @@ import {
     Element,
     LibraryElementProperty,
     MaskedField,
-    PatchElementRequest
+    PatchElementRequest,
+    TransferElementRequest
 } from "@netcracker/qip-ui";
 import {
     getChain,
@@ -154,6 +155,65 @@ export async function updateElement(mainFolderUri: Uri, chainId: string, element
     };
 }
 
+export async function transferElement(mainFolderUri: Uri, chainId: string, elementRequest: TransferElementRequest): Promise<ActionDifference> {
+    const chain: any = await getMainChain(mainFolderUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    for (const elementId of elementRequest.elements) {
+        const element = findAndRemoveElementById(chain.content.elements, elementId);
+        if (!element) {
+            console.error(`ElementId not found`);
+            throw Error("ElementId not found");
+        }
+
+        chain.content.dependencies?.forEach( dependency => {
+            if (dependency.from === elementId || dependency.to === elementId) {
+                if (!elementRequest.elements.includes(dependency.from) || !elementRequest.elements.includes(dependency.to)) {
+                    console.error(`Element ${elementId} not found has outside dependencies`);
+                    throw Error(`Element ${elementId} not found has outside dependencies`);
+                }
+            }
+        });
+
+        let parentElement = undefined;
+        if (elementRequest.parentId) {
+            parentElement = findElementById(chain.content.elements, elementRequest.parentId);
+            if (!parentElement) {
+                console.error(`Parent ElementId not found`);
+                throw Error("Parent ElementId not found");
+            }
+        }
+
+        element.parentElementId = elementRequest.parentId;
+        if (parentElement) {
+            if (!parentElement.element.children?.length) {
+                parentElement.element.children = [];
+            }
+            parentElement.element.children.push(element);
+        } else {
+            chain.content.elements.push(element);
+        }
+
+        await checkRestrictions(element, chain.content.elements);
+
+    }
+
+    await fileApi.writeMainChain(mainFolderUri, chain);
+
+    const updatedElements: Element[] = [];
+    for (const elementId of elementRequest.elements) {
+        updatedElements.push(await getElement(mainFolderUri, chainId, elementId));
+    }
+
+    return {
+         updatedElements: updatedElements
+    };
+}
+
+
 function getOrCreatePropertyFilename(type: string, propertyNames: string[], exportFileExtension: any, id: string) {
     let prefix: string;
     if (type.startsWith('mapper')) {
@@ -259,6 +319,9 @@ export async function createElement(mainFolderUri: Uri, chainId: string, element
 
     const element = await getDefaultElementByType(chainId, elementRequest);
 
+    if (!chain.content.elements) {
+        chain.content.elements = [];
+    }
     if (!insertElement(chain.content.elements, element)) {
         chain.content.elements.push(element);
     }
@@ -466,6 +529,9 @@ export async function createConnection(mainFolderUri: Uri, chainId: string, conn
         to: connectionRequest.to,
     };
 
+    if (!chain.content.dependencies) {
+        chain.content.dependencies = [];
+    }
     chain.content.dependencies.push(newDependency);
 
     await fileApi.writeMainChain(mainFolderUri, chain);
