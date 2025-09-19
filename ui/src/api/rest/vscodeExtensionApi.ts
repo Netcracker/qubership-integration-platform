@@ -44,7 +44,7 @@ import {
   SystemRequest,
   UsedService,
   Element,
-  MaskedFields
+  MaskedFields, TransferElementRequest
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
@@ -137,6 +137,18 @@ export class VSCodeExtensionApi implements Api {
         chainId,
         elementId,
         elementRequest,
+      })
+    ).payload;
+  };
+
+  transferElement = async (
+    transferElementRequest: TransferElementRequest,
+    chainId: string,
+  ): Promise<ActionDifference> => {
+    return <ActionDifference>(
+      await this.sendMessageToExtension("transferElement", {
+        chainId,
+        transferElementRequest
       })
     ).payload;
   };
@@ -663,10 +675,6 @@ export class VSCodeExtensionApi implements Api {
   }
   moveFolder(): Promise<FolderItem> {
     throw new Error("Method moveFolder not implemented.");
-  }
-
-  transferElement(): Promise<ActionDifference> {
-    throw new Error("Method transferElement not implemented.");
   }
 }
 
