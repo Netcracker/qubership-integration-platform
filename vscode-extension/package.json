@@ -1,9 +1,14 @@
 {
-  "name": "qip-visual-studio-extension",
+  "name": "@netcracker/qip-vscode-extension",
   "publisher": "qubership",
-  "displayName": "qip-visual-studio-extension",
-  "description": "",
+  "displayName": "QIP VS Code Extension",
+  "description": "Qubership Integration Platform - Visual Studio Code Extension",
   "version": "0.0.1",
+  "main": "dist/node/index.js",
+  "types": "dist/web/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -138,7 +143,10 @@
   },
   "scripts": {
     "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
+    "test-on-ci": "vscode-test-web --browserType=chromium --headless --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
     "pretest": "npm run compile-web",
+    "prepublishOnly": "rimraf dist && npm run compile-web",
+    "postpublish": "rimraf dist",
     "vscode:prepublish": "npm run package-web",
     "compile-web": "webpack",
     "watch-web": "webpack --watch",
@@ -161,6 +169,7 @@
     "mocha": "^11.1.0",
     "path": "^0.12.7",
     "process": "^0.11.10",
+    "rimraf": "^6.0.1",
     "ts-loader": "^9.5.2",
     "typescript": "^5.8.3",
     "webpack": "^5.99.7",
