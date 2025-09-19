@@ -72,8 +72,6 @@ definitions:
       migrations:
         type: string
         title: Migrations
-    required:
-      - migrations
   WithParent:
     type: object
     title: Entity content with Parent
