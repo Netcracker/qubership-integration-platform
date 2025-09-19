@@ -68,4 +68,31 @@ const webExtensionConfig = {
 	},
 };
 
-module.exports = [ webExtensionConfig ];
+/** @type WebpackConfig */
+const nodeLibraryConfig = {
+    mode: 'none',
+    target: 'node', // build for Node.js environment
+    entry: './src/web/index.ts',
+    output: {
+        filename: 'index.js',
+        path: path.join(__dirname, './dist/node'),
+        libraryTarget: 'commonjs2'
+    },
+    resolve: {
+        extensions: ['.ts', '.js']
+    },
+    module: {
+        rules: [{
+            test: /\.ts$/,
+            exclude: /node_modules/,
+            use: [{
+                loader: 'ts-loader'
+            }]
+        }]
+    },
+    externals: {
+        'vscode': 'commonjs vscode'
+    }
+};
+
+module.exports = [ webExtensionConfig, nodeLibraryConfig ];
