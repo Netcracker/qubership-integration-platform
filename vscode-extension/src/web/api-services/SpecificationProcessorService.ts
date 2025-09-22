@@ -1,7 +1,6 @@
 import { ExtensionContext, Uri } from "vscode";
-import { SpecificationGroup, Specification } from "@netcracker/qip-ui";
+import { SpecificationGroup, Specification } from "./servicesTypes";
 import { ApiSpecificationType } from "./importApiTypes";
-import { SerializedFile } from "./importApiTypes";
 import {
     SoapSpecificationParser,
     ProtoSpecificationParser,

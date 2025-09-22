@@ -1,5 +1,5 @@
 import { ExtensionContext, Uri } from "vscode";
-import { IntegrationSystem, IntegrationSystemType, SystemRequest, Environment } from "@netcracker/qip-ui";
+import { IntegrationSystem, IntegrationSystemType, SystemRequest, Environment } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { EMPTY_USER } from "../response/chainApiUtils";
 
@@ -191,7 +191,7 @@ export class SystemManagementService {
             const lowerQuery = query.toLowerCase();
             return systems.filter(system =>
                 system.name.toLowerCase().includes(lowerQuery) ||
-                system.description.toLowerCase().includes(lowerQuery)
+                (system.description && system.description.toLowerCase().includes(lowerQuery))
             );
         } catch (error) {
             console.error(`Failed to search systems with query "${query}":`, error);

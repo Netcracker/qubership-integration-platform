@@ -201,7 +201,7 @@ async function parseElement(mainFolderUri: Uri, element: any, chainId: string, p
         description: element.description,
         parentElementId: parentId,
         children: children,
-    };
+    } as Element;
 }
 
 async function parseElements(mainFolderUri: Uri, elements: any[], chainId: string): Promise<Element[]> {

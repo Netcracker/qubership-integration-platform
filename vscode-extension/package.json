@@ -53,10 +53,6 @@
         "title": "Open File"
       },
       {
-        "command": "qip.createChain",
-        "title": "Create Chain"
-      },
-      {
         "command": "qip.deleteService",
         "title": "Delete Service"
       },

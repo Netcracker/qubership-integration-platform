@@ -1,4 +1,4 @@
-import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo} from "@netcracker/qip-ui";
+import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo} from "../api-services/servicesTypes";
 import * as yaml from 'yaml';
 import {Uri} from "vscode";
 import {EMPTY_USER} from "./chainApiUtils";

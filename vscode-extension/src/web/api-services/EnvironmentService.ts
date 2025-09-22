@@ -1,5 +1,5 @@
 import { ExtensionContext, Uri } from "vscode";
-import { Environment, IntegrationSystem } from "@netcracker/qip-ui";
+import { Environment, IntegrationSystem } from "./servicesTypes";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
 
@@ -63,7 +63,8 @@ export class EnvironmentService {
                 name: request.name,
                 address: request.address,
                 description: request.description || '',
-                sourceType: 'manual',
+                sourceType: 'MANUAL' as any,
+                systemId: request.systemId,
                 properties: {},
                 labels: [],
                 createdWhen: Date.now(),

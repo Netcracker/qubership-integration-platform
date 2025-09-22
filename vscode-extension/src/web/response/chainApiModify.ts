@@ -132,7 +132,7 @@ export async function updateElement(mainFolderUri: Uri, chainId: string, element
 
     element.name = elementRequest.name;
     element.description = elementRequest.description;
-    element.properties = elementRequest.properties;
+    (element as any).properties = elementRequest.properties;
     element.parentElementId = elementRequest.parentElementId;
     if (parentElement) {
         if (!parentElement.element.children?.length) {
@@ -169,7 +169,7 @@ export async function transferElement(mainFolderUri: Uri, chainId: string, eleme
             throw Error("ElementId not found");
         }
 
-        chain.content.dependencies?.forEach( dependency => {
+        chain.content.dependencies?.forEach( (dependency: Dependency) => {
             if (dependency.from === elementId || dependency.to === elementId) {
                 if (!elementRequest.elements.includes(dependency.from) || !elementRequest.elements.includes(dependency.to)) {
                     console.error(`Element ${elementId} not found has outside dependencies`);
@@ -187,7 +187,7 @@ export async function transferElement(mainFolderUri: Uri, chainId: string, eleme
             }
         }
 
-        element.parentElementId = elementRequest.parentId;
+        element.parentElementId = elementRequest.parentId || undefined;
         if (parentElement) {
             if (!parentElement.element.children?.length) {
                 parentElement.element.children = [];
@@ -305,7 +305,7 @@ async function getDefaultElementByType(chainId: string, elementRequest: CreateEl
         type: elementRequest.type,
         children: children,
         parentElementId: elementRequest.parentElementId
-    };
+    } as Element;
 
     return element;
 }

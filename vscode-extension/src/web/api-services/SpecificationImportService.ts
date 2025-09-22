@@ -6,7 +6,7 @@ import {
     SerializedFile,
     ApiSpecificationType,
 } from "./importApiTypes";
-import { SpecificationGroup, Specification, IntegrationSystem } from "@netcracker/qip-ui";
+import { SpecificationGroup, Specification, IntegrationSystem } from "./servicesTypes";
 import { ImportProgressTracker } from "./importProgressTracker";
 import { SystemService } from "./SystemService";
 import { SpecificationGroupService } from "./SpecificationGroupService";
@@ -395,7 +395,7 @@ export class SpecificationImportService {
                     })))
                 };
 
-                console.log(`[SpecificationImportService] Created QIP specification with ${qipSpecification.content.operations?.length || 0} operations`);
+                console.log(`[SpecificationImportService] Created QIP specification with ${Array.isArray(qipSpecification.content.operations) ? qipSpecification.content.operations.length : 0} operations`);
 
                 const yaml = require('yaml');
                 const yamlContent = yaml.stringify(qipSpecification);

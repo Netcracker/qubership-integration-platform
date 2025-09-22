@@ -6,7 +6,7 @@ import {
     SystemRequest,
     EnvironmentRequest,
     IntegrationSystemType
-} from "@netcracker/qip-ui";
+} from "../api-services/servicesTypes";
 import * as yaml from 'yaml';
 import {getService, getMainService} from "./serviceApiRead";
 import {EMPTY_USER} from "./chainApiUtils";

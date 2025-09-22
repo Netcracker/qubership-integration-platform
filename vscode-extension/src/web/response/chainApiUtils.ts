@@ -1,6 +1,6 @@
 import vscode, {Uri} from "vscode";
 import {getCurrentChainId} from "./chainApiRead";
-import {Element} from "@netcracker/qip-ui";
+import {Element, User} from "@netcracker/qip-ui";
 
 export async function getChainUri(mainFolderUri: vscode.Uri): Promise<string> {
     const result = `/chains/${await getCurrentChainId(mainFolderUri)}/graph`;
@@ -62,7 +62,7 @@ export function getElementChildren(children: any[] | undefined): any[] {
     return result;
 }
 
-export const EMPTY_USER = {
+export const EMPTY_USER: User = {
     id: "",
     username: ""
 };

@@ -1,5 +1,5 @@
 import { ExtensionContext, Uri, FileType } from "vscode";
-import { IntegrationSystem } from "@netcracker/qip-ui";
+import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { EMPTY_USER } from "../response/chainApiUtils";

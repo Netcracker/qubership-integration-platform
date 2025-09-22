@@ -1,5 +1,5 @@
 import { ExtensionContext, Uri } from "vscode";
-import { SpecificationGroup, IntegrationSystem } from "@netcracker/qip-ui";
+import { SpecificationGroup, IntegrationSystem } from "./servicesTypes";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
 
@@ -73,8 +73,7 @@ export class SpecificationGroupService {
         const specificationGroup: SpecificationGroup = {
             id: groupId,
             name: name,
-            description: system.description || '',
-            parentId: system.id,
+            systemId: system.id, // Store systemId for UI compatibility
             createdWhen: now,
             createdBy: {...EMPTY_USER},
             modifiedWhen: now,
@@ -122,7 +121,7 @@ export class SpecificationGroupService {
                     createdBy: specificationGroup.createdBy,
                     modifiedBy: specificationGroup.modifiedBy,
                     synchronization: specificationGroup.synchronization || false,
-                    parentId: specificationGroup.parentId
+                    parentId: specificationGroup.systemId // Store systemId as parentId in file for compatibility
                 }
             });
 
