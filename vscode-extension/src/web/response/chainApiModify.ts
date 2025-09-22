@@ -478,7 +478,7 @@ export async function deleteElements(mainFolderUri: Uri, chainId: string, elemen
 }
 
 async function deleteDependenciesForElement(elementId: string, dependencies: Dependency[]) {
-    dependencies.forEach( (dependency, index) => {
+    dependencies?.forEach( (dependency, index) => {
         if (dependency.from === elementId || dependency.to === elementId) {
             dependencies.splice(index,1);
         }
