@@ -53,9 +53,11 @@ public class KubeOperator {
         devmode = null;
     }
 
-    public KubeOperator(ApiClient client,
-        String namespace,
-        Boolean devmode) {
+    public KubeOperator(
+            ApiClient client,
+            String namespace,
+            Boolean devmode
+    ) {
 
         coreApi = new CoreV1Api();
         coreApi.setApiClient(client);
