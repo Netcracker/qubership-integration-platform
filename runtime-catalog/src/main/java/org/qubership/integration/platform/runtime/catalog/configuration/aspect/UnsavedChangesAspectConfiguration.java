@@ -26,6 +26,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.migration.MigratedChain;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
@@ -38,10 +39,12 @@ import java.util.Optional;
 public class UnsavedChangesAspectConfiguration {
 
     private final ChainRepository chainRepository;
+    private final ChainService chainService;
 
     @Autowired
-    public UnsavedChangesAspectConfiguration(ChainRepository chainRepository) {
+    public UnsavedChangesAspectConfiguration(ChainRepository chainRepository, ChainService chainService) {
         this.chainRepository = chainRepository;
+        this.chainService = chainService;
     }
 
     @Pointcut("@annotation(org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification)")
@@ -105,11 +108,7 @@ public class UnsavedChangesAspectConfiguration {
 
         if (chainId != null && markUnsavedChanges) {
             Chain chain = chainRepository.getReferenceById(chainId);
-            if (!chain.isUnsavedChanges()) {
-                chain.setLastImportHash("0");
-                chain.setUnsavedChanges(true);
-                chainRepository.save(chain);
-            }
+            chainService.markChainAsUnsaved(chain);
         }
     }
 
