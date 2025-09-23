@@ -43,8 +43,7 @@ public class CommonVariablesUpdateParser implements Function<List<KeyValue>, Map
             return Optional.empty();
         }
         String key = split[split.length - 1];
-        String decodedValue = DecodeUtil.decodeValue(kv.getValue());
-        String value = StringUtils.isBlank(decodedValue) ? "" : decodedValue;
+        String value = StringUtils.isBlank(kv.getValue()) ? "" : kv.getValue();
         return Optional.of(Pair.of(key, value));
     }
 

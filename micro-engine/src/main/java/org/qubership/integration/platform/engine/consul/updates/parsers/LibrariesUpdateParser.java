@@ -27,12 +27,11 @@ public class LibrariesUpdateParser implements Function<List<KeyValue>, List<Comp
             case 1 -> {
                 try {
                     String value = entries.getFirst().getValue();
-                    String decodedValue = DecodeUtil.decodeValue(value);
-                    yield StringUtils.isBlank(decodedValue)
+                    yield StringUtils.isBlank(value)
                             ? Collections.emptyList()
                             : objectMapper.readValue(
-                            decodedValue,
-                            new TypeReference<>() {});
+                                value,
+                                new TypeReference<>() {});
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
                 }

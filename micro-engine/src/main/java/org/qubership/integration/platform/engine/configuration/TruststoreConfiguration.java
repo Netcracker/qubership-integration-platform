@@ -32,6 +32,7 @@ import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -54,11 +55,11 @@ public class TruststoreConfiguration {
     @Inject
     public TruststoreConfiguration(
             @ConfigProperty(name = "qip.local-truststore.store.path") String storeFilePath,
-            @ConfigProperty(name = "qip.local-truststore.store.password") String storePassword,
+            @ConfigProperty(name = "qip.local-truststore.store.password") Optional<String> storePassword,
             @ConfigProperty(name = "qip.local-truststore.certs.location") String certsLocation
     ) {
         this.storeFilePath = storeFilePath;
-        this.storePassword = storePassword;
+        this.storePassword = storePassword.orElse("");
         this.certsLocation = certsLocation;
     }
 

@@ -32,7 +32,6 @@ import org.apache.camel.impl.engine.DefaultStreamCachingStrategy;
 import org.apache.camel.model.*;
 import org.apache.camel.model.language.ExpressionDefinition;
 import org.apache.camel.observation.MicrometerObservationTracer;
-import org.apache.camel.quarkus.core.FastCamelContext;
 import org.apache.camel.reifier.ProcessorReifier;
 import org.apache.camel.spi.ClassResolver;
 import org.apache.camel.spi.MessageHistoryFactory;
@@ -532,7 +531,9 @@ public class IntegrationRuntimeService {
         DeploymentConfiguration deploymentConfiguration,
         String configurationXml
     ) throws Exception {
-        DefaultCamelContext context = new FastCamelContext("", null, null); // FIXME [migration to quarkus]
+        // FIXME [migration to quarkus]
+        // DefaultCamelContext context = new DefaultCamelContext();
+        DefaultCamelContext context = (DefaultCamelContext) CDI.current().select(CamelContext.class).get();
 
         context.getTypeConverterRegistry().addTypeConverter(
             FormData.class,
@@ -564,8 +565,8 @@ public class IntegrationRuntimeService {
         // TODO [migration to quarkus] check that every time a new instance of CamelDebugger is injected
         CamelDebugger debugger = CDI.current().select(CamelDebugger.class).getHandle().get();
         debugger.setDeploymentId(deploymentId);
-        context.setDebugger(debugger);
-        context.setDebugging(true);
+        //context.setDebugger(debugger);
+        //context.setDebugging(true);
 
         configureMessageHistoryFactory(context);
 

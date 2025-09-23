@@ -20,6 +20,7 @@ package org.qubership.integration.platform.engine.configuration;
 import io.quarkus.arc.lookup.LookupIfProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
@@ -27,6 +28,8 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Sessio
 
 @ApplicationScoped
 public class SessionsMetricsServiceConfiguration {
+    @ConfigProperty(name = "qip.opensearch.index.elements.name")
+    String indexName;
 
     @Produces
     @LookupIfProperty(name = "qip.metrics.enabled", stringValue = "true")
@@ -35,6 +38,11 @@ public class SessionsMetricsServiceConfiguration {
             OpenSearchClientSupplier openSearchClientSupplier,
             CheckpointRepository checkpointRepository
     ) {
-        return new SessionsMetricsService(metricsStore, openSearchClientSupplier, checkpointRepository);
+        return new SessionsMetricsService(
+                indexName,
+                metricsStore,
+                openSearchClientSupplier,
+                checkpointRepository
+        );
     }
 }

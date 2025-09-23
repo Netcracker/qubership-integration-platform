@@ -23,6 +23,7 @@ import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
 import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -35,7 +36,6 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Check
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.persistence.shared.repository.SessionInfoRepository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -65,7 +65,7 @@ public class CheckpointSessionService {
         this.jsonMapper = jsonMapper;
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void retryFromLastCheckpoint(String chainId, String sessionId, String body,
         Supplier<Pair<String, String>> authHeaderProvider, boolean traceMe) {
 
@@ -78,7 +78,7 @@ public class CheckpointSessionService {
         retryFromCheckpointAsync(lastCheckpoint, body, authHeaderProvider, traceMe);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void retryFromCheckpoint(
         String chainId,
         String sessionId,
@@ -132,7 +132,7 @@ public class CheckpointSessionService {
         }
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public Checkpoint findLastCheckpoint(String chainId, String sessionId) {
         List<Checkpoint> checkpoints = checkpointRepository
                 .findAllBySessionChainIdAndSessionId(
@@ -143,20 +143,20 @@ public class CheckpointSessionService {
         return (checkpoints == null || checkpoints.isEmpty()) ? null : checkpoints.getFirst();
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public List<SessionInfo> findAllFailedChainSessionsInfo(String chainId) {
         List<SessionInfo> allByChainIdAndExecutionStatus = sessionInfoRepository.findAllByChainIdAndExecutionStatus(
             chainId, ExecutionStatus.COMPLETED_WITH_ERRORS);
         return allByChainIdAndExecutionStatus;
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public SessionInfo saveSession(SessionInfo sessionInfo) {
         sessionInfoRepository.persistAndFlush(sessionInfo); // Calling flush to generate entity ID, if needed
         return sessionInfo;
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void saveAndAssignCheckpoint(Checkpoint checkpoint, String sessionId) {
         SessionInfo sessionInfo = findSession(sessionId);
         if (sessionInfo == null) {
@@ -166,23 +166,23 @@ public class CheckpointSessionService {
         sessionInfo.assignCheckpoint(checkpoint);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public Checkpoint findCheckpoint(String sessionId, String chainId, String checkpointElementId) {
         return checkpointRepository.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId(
             sessionId, chainId, checkpointElementId);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public SessionInfo findSession(String sessionId) {
         return sessionInfoRepository.findByIdOptional(sessionId).orElse(null);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public List<SessionInfo> findSessions(List<String> sessionIds) {
         return sessionInfoRepository.findAllById(sessionIds);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void updateSessionParent(String sessionId, String parentId) {
         SessionInfo sessionInfo = sessionInfoRepository.findByIdOptional(sessionId)
                 .orElseThrow(EntityNotFoundException::new);
@@ -191,7 +191,7 @@ public class CheckpointSessionService {
         sessionInfo.setParentSession(parentSessionInfo);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public Optional<SessionInfo> findOriginalSessionInfo(String sessionId) {
         return sessionInfoRepository.findOriginalSessionInfo(sessionId);
     }
@@ -199,7 +199,7 @@ public class CheckpointSessionService {
     /**
      * Remove all related checkpoint recursively
      */
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void removeAllRelatedCheckpoints(String sessionId, boolean isRootSession) {
         if (isRootSession) {
             // do not execute complex query if possible
@@ -209,7 +209,7 @@ public class CheckpointSessionService {
         }
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void deleteOldRecordsByInterval(String checkpointsInterval) {
         sessionInfoRepository.deleteOldRecordsByInterval(checkpointsInterval);
     }

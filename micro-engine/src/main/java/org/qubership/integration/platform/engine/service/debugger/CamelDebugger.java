@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.debugger;
 
+import io.quarkus.arc.Unremovable;
 import jakarta.enterprise.context.Dependent;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
@@ -73,6 +74,7 @@ import static org.qubership.integration.platform.engine.util.CheckpointUtils.*;
 
 @Slf4j
 @Dependent
+@Unremovable
 public class CamelDebugger extends DefaultDebugger {
 
     private final ServerConfiguration serverConfiguration;

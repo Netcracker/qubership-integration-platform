@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
 
 @Slf4j
 @ApplicationScoped
@@ -34,10 +34,12 @@ public class DeploymentThreadPoolConfiguration {
             @ConfigProperty(name = "qip.deployments.thread-pool.core-size", defaultValue = "3") int corePoolSize,
             @ConfigProperty(name = "qip.deployments.thread-pool.max-size", defaultValue = "3") int maxPoolSize
     ) {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(corePoolSize);
-        executor.setMaxPoolSize(maxPoolSize);
         log.debug("Deployment task executor thread pool size: core = {}, max = {}", corePoolSize, maxPoolSize);
+        ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("deployment-%d")
+                .build();
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(corePoolSize, threadFactory);
+        executor.setMaximumPoolSize(maxPoolSize);
         return executor;
     }
 }

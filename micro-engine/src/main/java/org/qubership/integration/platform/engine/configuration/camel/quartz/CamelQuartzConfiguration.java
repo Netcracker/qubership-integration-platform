@@ -16,56 +16,50 @@
 
 package org.qubership.integration.platform.engine.configuration.camel.quartz;
 
-//import com.zaxxer.hikari.HikariDataSource;
 import io.quarkus.arc.DefaultBean;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.quartz.SchedulerException;
-import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
-//import org.quartz.SchedulerException;
-//import org.quartz.impl.StdSchedulerFactory;
+import org.quartz.impl.StdSchedulerFactory;
 //import org.quartz.utils.PoolingConnectionProvider;
-//import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
-//import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
-//import org.springframework.beans.factory.BeanInitializationException;
-//import jakarta.inject.Inject;
-//import jakarta.inject.Named;
-//import org.springframework.beans.factory.annotation.Value;
-//import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-//import org.springframework.context.annotation.Bean;
-//import org.springframework.context.annotation.Configuration;
+import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
+import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 
 import java.util.Properties;
 import java.util.function.Consumer;
-//import javax.sql.DataSource;
 
 @Slf4j
 @ApplicationScoped
 public class CamelQuartzConfiguration {
+
+    @Inject
+    ServerConfiguration serverConfiguration;
+
+    @ConfigProperty(name = "quarkus.datasource.quartz.jdbc.driver")
+    String driver;
+
+    @ConfigProperty(name = "quarkus.datasource.quartz.jdbc.url")
+    String jdbcUrl;
+
+    @ConfigProperty(name = "quarkus.datasource.quartz.username")
+    String username;
+
+    @ConfigProperty(name = "quarkus.datasource.quartz.password")
+    String password;
+
+    @ConfigProperty(name = "quarkus.hibernate-orm.quartz.database.default-schema")
+    String schema;
+
+    @ConfigProperty(name = "qip.camel.component.quartz.thread-pool-count")
+    String threadPoolCount;
+
     // TODO [migration to quarkus]
-    //    public static final String DATASOURCE_NAME_PREFIX = "camelQuartzDatasource";
-    //    private static final String DEV_DB_SCHEMA = "engine";
-    //
-    //    private static DataSource qrtzDataSource;
-    //
-    //    private final String qrtzSchemaName;
-    //
-    //    private final ServerConfiguration serverConfiguration;
-    //
-    //    @Value("${qip.camel.component.quartz.thread-pool-count}")
-    //    private String threadPoolCount;
-    //
-    //    @Inject
-    //    public CamelQuartzConfiguration(ServerConfiguration serverConfiguration,
-    //                                    @Named("qrtzDataSource") DataSource qrtzDataSource,
-    //                                    @Value("${spring.jpa.properties.hibernate.default_schema}") String defaultSchemaName) {
-    //        this.serverConfiguration = serverConfiguration;
-    //        CamelQuartzConfiguration.qrtzDataSource = qrtzDataSource;
-    //        this.qrtzSchemaName = defaultSchemaName;
-    //    }
-    //
+    public static final String DATASOURCE_NAME = "camelQuartzDatasource";
+
     @Produces
     @Named("schedulerFactoryProxy")
     public StdSchedulerFactoryProxy schedulerFactoryProxy(
@@ -79,82 +73,61 @@ public class CamelQuartzConfiguration {
     @Named("camelQuartzPropertiesCustomizer")
     @DefaultBean
     Consumer<Properties> camelQuartzPropertiesCustomizer() {
-        return props -> {}; // FIXME this::addDevDataSource;
+        return this::addDevDataSource;
     }
 
-    //    public static String getPropDataSourcePrefix() {
-    //        String datasourceName = DATASOURCE_NAME_PREFIX;
-    //        String propDatasourcePrefix =
-    //            StdSchedulerFactory.PROP_DATASOURCE_PREFIX + "." + datasourceName + ".";
-    //        return propDatasourcePrefix;
-    //    }
-    //
+    public static String getPropDataSourcePrefix() {
+        return StdSchedulerFactory.PROP_DATASOURCE_PREFIX + "." + DATASOURCE_NAME + ".";
+    }
+
     public Properties camelQuartzProperties(Consumer<Properties> propCustomizer) {
         Properties properties = new Properties();
 
         propCustomizer.accept(properties);
-        //
-        //        // scheduler
-        //        properties.setProperty(StdSchedulerFactory.PROP_SCHED_INSTANCE_NAME,
-        //            "engine-" + serverConfiguration.getDomain());
-        //        properties.setProperty(StdSchedulerFactory.PROP_SCHED_INSTANCE_ID, "AUTO");
-        //        properties.setProperty(StdSchedulerFactory.PROP_SCHED_JOB_FACTORY_CLASS,
-        //            "org.quartz.simpl.SimpleJobFactory");
-        //
-        //        // JobStore
-        //        properties.setProperty(StdSchedulerFactory.PROP_JOB_STORE_CLASS,
-        //            "org.quartz.impl.jdbcjobstore.JobStoreTX");
-        //        properties.setProperty("org.quartz.jobStore.driverDelegateClass",
-        //            "org.quartz.impl.jdbcjobstore.PostgreSQLDelegate");
-        //
-        //        String datasourceName = DATASOURCE_NAME_PREFIX;
-        //        properties.setProperty("org.quartz.jobStore.dataSource", datasourceName);
-        //        properties.setProperty("org.quartz.jobStore.tablePrefix", qrtzSchemaName + ".QRTZ_");
-        //        properties.setProperty("org.quartz.jobStore.isClustered", "true");
-        //        properties.setProperty("org.quartz.jobStore.misfireThreshold", "15000");
-        //
-        //        // thread pool
-        //        properties.setProperty("org.quartz.threadPool.class", "org.quartz.simpl.SimpleThreadPool");
-        //        properties.setProperty("org.quartz.threadPool.threadCount", threadPoolCount);
-        //
-        //        // other
-        //        properties.setProperty("org.quartz.scheduler.skipUpdateCheck", "true");
+
+        // scheduler
+        properties.setProperty(StdSchedulerFactory.PROP_SCHED_INSTANCE_NAME,
+            "engine-" + serverConfiguration.getDomain());
+        properties.setProperty(StdSchedulerFactory.PROP_SCHED_INSTANCE_ID, "AUTO");
+        properties.setProperty(StdSchedulerFactory.PROP_SCHED_JOB_FACTORY_CLASS,
+            "org.quartz.simpl.SimpleJobFactory");
+
+        // JobStore
+        properties.setProperty(StdSchedulerFactory.PROP_JOB_STORE_CLASS,
+            "org.quartz.impl.jdbcjobstore.JobStoreTX");
+        properties.setProperty("org.quartz.jobStore.driverDelegateClass",
+            "org.quartz.impl.jdbcjobstore.PostgreSQLDelegate");
+
+        properties.setProperty("org.quartz.jobStore.dataSource", DATASOURCE_NAME);
+        properties.setProperty("org.quartz.jobStore.tablePrefix", schema + ".QRTZ_");
+        properties.setProperty("org.quartz.jobStore.isClustered", "true");
+        properties.setProperty("org.quartz.jobStore.misfireThreshold", "15000");
+
+        // thread pool
+        properties.setProperty("org.quartz.threadPool.class", "org.quartz.simpl.SimpleThreadPool");
+        properties.setProperty("org.quartz.threadPool.threadCount", threadPoolCount);
+
+        // other
+        properties.setProperty("org.quartz.scheduler.skipUpdateCheck", "true");
+
+        properties.setProperty(StdSchedulerFactory.PROP_CONNECTION_PROVIDER_CLASS, "io.quarkus.quartz.runtime.QuarkusQuartzConnectionPoolProvider");
 
         return properties;
     }
 
-    //    private void addDevDataSource(Properties properties) {
-    //        if (qrtzDataSource instanceof HikariDataSource dataSource) {
-    //            String propDatasourcePrefix = getPropDataSourcePrefix();
-    //            String url = dataSource.getJdbcUrl() + "?currentSchema=" + DEV_DB_SCHEMA;
-    //            String username = dataSource.getUsername();
-    //            String password = dataSource.getPassword();
-    //
-    //            properties.setProperty(propDatasourcePrefix + PoolingConnectionProvider.DB_DRIVER,
-    //                "org.postgresql.Driver");
-    //            properties.setProperty(propDatasourcePrefix + PoolingConnectionProvider.DB_URL, url);
-    //            properties.setProperty(propDatasourcePrefix + PoolingConnectionProvider.DB_USER,
-    //                username);
-    //            properties.setProperty(propDatasourcePrefix + PoolingConnectionProvider.DB_PASSWORD,
-    //                password);
-    //            properties.setProperty(
-    //                propDatasourcePrefix + PoolingConnectionProvider.DB_MAX_CONNECTIONS, "12");
-    //        } else {
-    //            log.error("Failed to get database parameters for CamelQuartzConfiguration."
-    //                    + " DataSource instance is not HikariDataSource,"
-    //                    + " camel quartz scheduler may be not work properly!");
-    //            throw new BeanInitializationException("Failed to create CamelQuartzConfiguration bean");
-    //        }
-    //    }
-    //
-    //    /**
-    //     * Can be used only for SchedulerDatasourceConnectionProvider
-    //     */
-    //    public static DataSource getDataSource() {
-    //        if (qrtzDataSource != null) {
-    //            return qrtzDataSource;
-    //        } else {
-    //            throw new RuntimeException("DataSource not available now!");
-    //        }
-    //    }
+    private void addDevDataSource(Properties properties) {
+        /*
+        String propDatasourcePrefix = getPropDataSourcePrefix();
+        properties.setProperty(propDatasourcePrefix + PoolingConnectionProvider.DB_DRIVER,
+            driver);
+        properties.setProperty(propDatasourcePrefix + PoolingConnectionProvider.DB_URL, jdbcUrl);
+        properties.setProperty(propDatasourcePrefix + PoolingConnectionProvider.DB_USER,
+            username);
+        properties.setProperty(propDatasourcePrefix + PoolingConnectionProvider.DB_PASSWORD,
+            password);
+        properties.setProperty(
+            propDatasourcePrefix + PoolingConnectionProvider.DB_MAX_CONNECTIONS, "12");
+
+         */
+    }
 }

@@ -33,6 +33,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static java.util.Objects.nonNull;
+
 @Slf4j
 public class KubeOperator {
 
@@ -115,6 +117,6 @@ public class KubeOperator {
     }
 
     public Boolean isDevmode() {
-        return devmode;
+        return nonNull(devmode) && devmode;
     }
 }

@@ -41,10 +41,9 @@ public class ChainRuntimePropertiesUpdateParser implements Function<List<KeyValu
                                 + kv.getKey());
             }
 
-            String decodedValue = DecodeUtil.decodeValue(kv.getValue());
             try {
                 DeploymentRuntimeProperties properties = objectMapper.readValue(
-                        decodedValue, DeploymentRuntimeProperties.class);
+                        kv.getValue(), DeploymentRuntimeProperties.class);
                 result.put(chainId, properties);
             } catch (Exception e) {
                 log.warn("Failed to deserialize runtime properties update for chain: {}, error: {}",

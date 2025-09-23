@@ -6,6 +6,8 @@ import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
 import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeValue;
 
+import java.util.Optional;
+
 @ConfigMapping(prefix = "qip.opensearch")
 public interface OpenSearchProperties {
     ClientProperties client();
@@ -28,14 +30,11 @@ public interface OpenSearchProperties {
         @WithDefault("http")
         String protocol();
 
-        @WithDefault("")
-        String userName();
+        Optional<String> userName();
 
-        @WithDefault("")
-        String password();
+        Optional<String> password();
 
-        @WithDefault("")
-        String prefix();
+        Optional<String> prefix();
     }
 
     interface WriteProperties {
@@ -80,8 +79,7 @@ public interface OpenSearchProperties {
         TimeValue minIndexAge();
 
         @WithName("min_index_size")
-        @WithDefault("")
-        String minIndexSize();
+        Optional<String> minIndexSize();
 
         @WithName("min_rollover_age_to_delete")
         @WithDefault("14d")

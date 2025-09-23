@@ -366,14 +366,14 @@ public class OpenSearchInitializer {
                             .build())
                     .build());
         }
-        if (StringUtils.isNotBlank(properties.rollover().minIndexSize())) {
+        properties.rollover().minIndexSize().ifPresent(minIndexSize ->
             transitions.add(Transition.builder()
                     .stateName("delete")
                     .conditions(Conditions.builder()
-                            .minSize(properties.rollover().minIndexSize())
+                            .minSize(minIndexSize)
                             .build())
-                    .build());
-        }
+                    .build())
+        );
         return Policy.builder()
                 .policyId(policyId)
                 .description("QIP old index rollover policy.")
@@ -406,8 +406,7 @@ public class OpenSearchInitializer {
                                 .actions(Collections.singletonList(
                                         RolloverAction.builder()
                                                 .minIndexAge(properties.rollover().minIndexAge())
-                                                .minSize(StringUtils.isNotBlank(properties.rollover().minIndexSize())
-                                                        ? properties.rollover().minIndexSize() : null)
+                                                .minSize(properties.rollover().minIndexSize().orElse(null))
                                                 .build()
                                 ))
                                 .transitions(Collections.singletonList(

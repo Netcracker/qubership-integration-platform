@@ -122,19 +122,21 @@ public class QuartzSchedulerService {
         return jobs;
     }
 
-    public void commitScheduledJobs() {
+    public synchronized void commitScheduledJobs() {
         try {
             log.debug("Commit camel scheduler jobs");
-            ((StdSchedulerProxy) getFactory().getScheduler()).commitScheduledJobs();
+            StdSchedulerProxy scheduler = (StdSchedulerProxy) getFactory().getScheduler();
+            scheduler.commitScheduledJobs();
         } catch (SchedulerException e) {
             log.error("Failed to commit scheduled jobs", e);
         }
     }
 
-    public void resetSchedulersProxy() {
+    public synchronized void resetSchedulersProxy() {
         try {
             log.debug("Reset camel scheduler proxy");
-            ((StdSchedulerProxy) getFactory().getScheduler()).clearDelayedJobs();
+            StdSchedulerProxy scheduler = (StdSchedulerProxy) getFactory().getScheduler();
+            scheduler.clearDelayedJobs();
         } catch (SchedulerException e) {
             log.error("Failed to reset scheduler proxy", e);
         }
@@ -143,7 +145,7 @@ public class QuartzSchedulerService {
     /**
      * Suspend all schedulers on separate instance
      */
-    public void suspendAllSchedulers() {
+    public synchronized void suspendAllSchedulers() {
         try {
             log.info("Suspend camel quartz scheduler");
             ((StdSchedulerProxy) getFactory()).suspendScheduler();

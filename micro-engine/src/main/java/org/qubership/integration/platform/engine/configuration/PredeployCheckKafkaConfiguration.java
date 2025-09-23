@@ -28,6 +28,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @ApplicationScoped
@@ -40,7 +41,7 @@ public class PredeployCheckKafkaConfiguration {
     String truststoreLocation;
 
     @ConfigProperty(name = "qip.local-truststore.store.password")
-    String truststorePassword;
+    Optional<String> truststorePassword;
 
     public Map<String, Object> createValidationKafkaAdminConfig(String brokers,
         String securityProtocol,
@@ -62,7 +63,7 @@ public class PredeployCheckKafkaConfiguration {
         config.put(CommonClientConfigs.DEFAULT_API_TIMEOUT_MS_CONFIG, 5000);
 
         config.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, truststoreLocation);
-        config.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, truststorePassword);
+        config.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, truststorePassword.orElse(""));
         config.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "JKS");
 
         return config;

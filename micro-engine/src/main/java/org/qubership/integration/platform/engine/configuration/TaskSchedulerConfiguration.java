@@ -16,19 +16,22 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
-import org.springframework.scheduling.TaskScheduler;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 @ApplicationScoped
 public class TaskSchedulerConfiguration {
 
     @Produces
-    public TaskScheduler taskScheduler() {
-        ThreadPoolTaskScheduler threadPoolTaskScheduler = new ThreadPoolTaskScheduler();
-        threadPoolTaskScheduler.setPoolSize(5);
-        threadPoolTaskScheduler.setThreadNamePrefix("TaskScheduler");
-        return threadPoolTaskScheduler;
+    public Executor taskScheduler() {
+        ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("TaskScheduler-%d")
+                .build();
+        return Executors.newFixedThreadPool(5, threadFactory);
     }
 }

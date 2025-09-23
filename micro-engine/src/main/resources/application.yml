@@ -175,10 +175,10 @@ camel:
       ssl-truststore-location: ${qip.local-truststore.store.path}
       ssl-truststore-password: ${qip.local-truststore.store.password}
       ssl-truststore-type: JKS
-    metrics:
-      metric-registry: io.micrometer.prometheus.PrometheusMeterRegistry
-    servlet:
-      http-registry: '#gatewayHttpRegistry'
+#    metrics:
+#      metric-registry: io.micrometer.prometheus.PrometheusMeterRegistry
+#    servlet:
+#      http-registry: '#gatewayHttpRegistry'
   servlet:
     mapping:
       enabled: false
@@ -262,7 +262,7 @@ qip:
   local-truststore:
     store:
       path: /tmp/truststore/defaulttruststore.jks
-      password: ''
+      password: ""
     certs:
       location: :/tmp/cert/${SSL_SECRET:defaultsslcertificate}
   production-mode:
@@ -348,6 +348,7 @@ quarkus:
       out-of-order: true
       ignore-migration-patterns: '*:future,*:missing'
       validate-on-migrate: true
+      active: true
     quartz:
       schemas: engine
       default-schema: engine
@@ -356,6 +357,7 @@ quarkus:
       create-schemas: true
       out-of-order: true
       ignore-migration-patterns: '*:future,*:missing'
+      active: true
   hibernate-orm:
     checkpoints:
       datasource: checkpoints
@@ -399,3 +401,10 @@ quarkus:
       servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
       url-patterns:
         - "${qip.camel.routes-prefix}/*"
+  quartz:
+    clustered: true
+    store-type: jdbc-tx
+    datasource: quartz
+    table-prefix: engine.QRTZ_
+    misfire-threshold: 15S
+    thread-count: 10

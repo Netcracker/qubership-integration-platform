@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +29,6 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Sessi
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
 import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -53,7 +53,7 @@ public class SessionController {
     }
 
     @GET
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     @Operation(description = "List all sessions with available checkpoints by their ids")
     public RestResponse<List<CheckpointSessionDTO>> findSessions(
             @QueryParam("ids")

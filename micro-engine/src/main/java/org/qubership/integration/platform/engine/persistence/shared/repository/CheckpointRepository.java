@@ -59,14 +59,17 @@ public class CheckpointRepository implements PanacheRepositoryBase<Checkpoint, S
         String sql = """
         SELECT si.chain_id AS chain_id,
                        si.chain_name AS chain_name,
-                       SUM( octet_length(chpt.id)
+                       COALESCE(
+                        SUM( octet_length(chpt.id)
                            + octet_length(chpt.session_id)
                            + octet_length(chpt.checkpoint_element_id)
                            + octet_length(chpt.headers)
                            + 4                         --oid fixed size
                            + length(lo_get(chpt.body)) --actual body size from pg_large_objects
                            + 8                         --timestamp fixed size
-                           + octet_length(chpt.context_data) ) AS raw_data_size
+                           + octet_length(chpt.context_data)
+                        ), 0
+                       ) AS raw_data_size
                 FROM engine.checkpoints chpt LEFT JOIN engine.sessions_info si ON chpt.session_id = si.id
                 GROUP BY si.chain_id, si.chain_name;
         """;

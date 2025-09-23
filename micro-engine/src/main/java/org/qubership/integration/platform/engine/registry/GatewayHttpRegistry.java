@@ -31,7 +31,7 @@ public class GatewayHttpRegistry implements HttpRegistry {
     private final HttpRegistry httpRegistry;
 
     public GatewayHttpRegistry(
-            @ConfigProperty(name = "camel.servlet.servlet-name") String servletName
+            @ConfigProperty(name = "quarkus.camel.servlet.servlet-name") String servletName
     ) {
         this.httpRegistry = DefaultHttpRegistry.getHttpRegistry(servletName);
     }

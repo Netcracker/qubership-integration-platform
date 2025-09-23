@@ -60,7 +60,7 @@ public class SessionsService {
     private final Random random = new Random();
 
     @ConfigProperty(name = "qip.sessions.sampler.probabilistic")
-    private double samplerProbabilistic;
+    double samplerProbabilistic;
 
     @Inject
     public SessionsService(PayloadExtractor extractor, OpenSearchWriter writer) {

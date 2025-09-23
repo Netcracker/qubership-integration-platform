@@ -42,7 +42,7 @@ public class CamelServletObservationConvention /*extends DefaultServerRequestObs
 
     @Inject
     public CamelServletObservationConvention(
-            @ConfigProperty(name = "camel.servlet.servlet-name") String servletName,
+            @ConfigProperty(name = "quarkus.camel.servlet.servlet-name") String servletName,
             @ConfigProperty(name = "qip.camel.routes-prefix") String routesPrefix,
             GatewayHttpRegistry httpRegistry
     ) {

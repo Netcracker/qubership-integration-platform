@@ -41,14 +41,17 @@ public class OpenSearchClientSupplierProducer {
     @DefaultBean
     @ApplicationScoped
     public OpenSearchClientSupplier openSearchClientSupplier() {
-        return new DefaultOpenSearchClientSupplier(createOpenSearchClient(), properties.client().prefix());
+        return new DefaultOpenSearchClientSupplier(
+                createOpenSearchClient(),
+                properties.client().prefix().orElse("")
+        );
     }
 
     private OpenSearchClient createOpenSearchClient() {
         AuthScope authScope = new AuthScope(null, null, -1, null, null);
         Credentials credentials = new UsernamePasswordCredentials(
-                properties.client().userName(),
-                properties.client().password().toCharArray());
+                properties.client().userName().orElse(""),
+                properties.client().password().orElse("").toCharArray());
         HttpHost httpHost = new HttpHost(
                 properties.client().protocol(),
                 properties.client().host(),

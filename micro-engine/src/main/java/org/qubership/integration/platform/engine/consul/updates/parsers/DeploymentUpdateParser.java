@@ -15,10 +15,9 @@ public class DeploymentUpdateParser implements Function<List<KeyValue>, Long> {
             case 0 -> 0L;
             case 1 -> {
                 String value = entries.getFirst().getValue();
-                String decodedValue = DecodeUtil.decodeValue(value);
-                yield StringUtils.isBlank(decodedValue)
+                yield StringUtils.isBlank(value)
                         ? 0L
-                        : Long.parseLong(decodedValue);
+                        : Long.parseLong(value);
             }
             default -> throw new RuntimeException(
                     "Invalid number of deployment update entries: "

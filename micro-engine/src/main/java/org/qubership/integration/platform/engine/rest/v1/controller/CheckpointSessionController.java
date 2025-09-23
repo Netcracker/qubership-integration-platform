@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
@@ -32,9 +33,7 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Sessi
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
 import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
@@ -50,8 +49,10 @@ public class CheckpointSessionController {
     private final SessionInfoMapper sessionInfoMapper;
 
     @Inject
-    public CheckpointSessionController(CheckpointSessionService checkpointSessionService,
-                                       SessionInfoMapper sessionInfoMapper) {
+    public CheckpointSessionController(
+            CheckpointSessionService checkpointSessionService,
+            SessionInfoMapper sessionInfoMapper
+    ) {
         this.checkpointSessionService = checkpointSessionService;
         this.sessionInfoMapper = sessionInfoMapper;
     }
@@ -125,20 +126,20 @@ public class CheckpointSessionController {
         return RestResponse.accepted();
     }
 
-    @Transactional("checkpointTransactionManager")
     @GET
     @Path("/sessions/failed")
     @Operation(
             description = "List all failed sessions with available checkpoints for specified chain",
             extensions = {@Extension(name = "x-api-kind", value = "bwc")}
     )
+    @Transactional
     public RestResponse<List<CheckpointSessionDTO>> getFailedChainSessionsInfo(
             @PathParam("chainId")
             @Parameter(description = "Chain id")
             String chainId
     ) {
         Collection<SessionInfo> sessions = checkpointSessionService.findAllFailedChainSessionsInfo(chainId);
-        List<CheckpointSessionDTO> dtos = new ArrayList<>();
+        List<CheckpointSessionDTO> dtos = sessions.stream().map(sessionInfoMapper::asDTO).toList();
         return RestResponse.ok(dtos);
     }
 
