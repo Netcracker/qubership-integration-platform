@@ -158,7 +158,7 @@ consul:
   url: ${CONSUL_URL:http://consul:8500}
   token: ${CONSUL_ADMIN_TOKEN}
   keys:
-    prefix: /config/${NAMESPACE}
+    prefix: config/${NAMESPACE}
     engine-config-root: /${app.prefix}-engine-configurations
     deployments-update: /deployments-update
     libraries-update: /libraries-update

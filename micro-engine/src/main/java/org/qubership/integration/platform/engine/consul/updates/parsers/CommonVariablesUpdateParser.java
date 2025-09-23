@@ -1,10 +1,7 @@
 package org.qubership.integration.platform.engine.consul.updates.parsers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.smallrye.common.annotation.Identifier;
 import io.vertx.ext.consul.KeyValue;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -21,10 +18,6 @@ import java.util.stream.Collectors;
 public class CommonVariablesUpdateParser implements Function<List<KeyValue>, Map<String, String>> {
     @ConfigProperty(name = "consul.keys.prefix")
     String keyPrefix;
-
-    @Inject
-    @Identifier("jsonMapper")
-    ObjectMapper objectMapper;
 
     @Override
     public Map<String, String> apply(List<KeyValue> entries) {
