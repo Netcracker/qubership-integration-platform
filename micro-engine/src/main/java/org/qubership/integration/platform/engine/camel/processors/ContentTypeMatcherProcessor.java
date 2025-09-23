@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -37,6 +38,7 @@ import java.util.List;
  */
 @Slf4j
 @ApplicationScoped
+@Named("contentTypeMatcherProcessor")
 public class ContentTypeMatcherProcessor implements Processor {
 
     private static final String CONTENT_TYPE_DOES_NOT_MATCH_ERROR_MESSAGE = "Expected content type {} does not match actual content type {}. ";

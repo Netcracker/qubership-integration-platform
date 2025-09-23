@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
@@ -27,6 +28,7 @@ import org.qubership.integration.platform.engine.util.ExchangeUtils;
 
 
 @ApplicationScoped
+@Named("kafkaTriggerProcessor")
 public class KafkaTriggerProcessor implements Processor {
 
     private final JsonMessageValidator validator;

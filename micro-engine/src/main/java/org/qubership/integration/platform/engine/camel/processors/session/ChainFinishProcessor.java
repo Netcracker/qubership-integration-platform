@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.camel.processors.session;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -54,6 +55,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @ApplicationScoped
 @Slf4j
+@Named("chainFinishProcessor")
 public class ChainFinishProcessor implements Processor {
 
     private final MetricsService metricsService;

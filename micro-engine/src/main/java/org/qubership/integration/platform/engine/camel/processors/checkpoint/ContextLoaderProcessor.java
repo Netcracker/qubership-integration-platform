@@ -22,6 +22,7 @@ import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -46,6 +47,7 @@ import java.util.Optional;
 
 @Slf4j
 @ApplicationScoped
+@Named("contextLoaderProcessor")
 public class ContextLoaderProcessor implements Processor {
     private final CheckpointSessionService checkpointSessionService;
     private final ObjectMapper checkpointMapper;

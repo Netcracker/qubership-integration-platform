@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.language.simple.SimpleLanguage;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 @ApplicationScoped
+@Named("headerModificationProcessor")
 public class HeaderModificationProcessor implements Processor {
 
     private final SimpleLanguage simpleInterpreter;

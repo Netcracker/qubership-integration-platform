@@ -17,10 +17,12 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 
 @ApplicationScoped
+@Named("sftpTriggerProcessor")
 public class SftpTriggerProcessor implements Processor {
     @Override
     public void process(Exchange exchange) throws Exception {

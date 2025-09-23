@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -24,6 +25,7 @@ import org.apache.camel.http.base.HttpOperationFailedException;
 
 @Slf4j
 @ApplicationScoped
+@Named("setCaughtHttpExceptionContextProcessor")
 public class SetCaughtHttpExceptionContextProcessor implements Processor {
     @Override
     public void process(Exchange exchange) throws Exception {

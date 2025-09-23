@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 
@@ -26,6 +27,7 @@ import org.apache.camel.Processor;
  * "org.apache.camel.CamelContext.getCamelContextExtension()" because "this.camelContext" is null</code>
  */
 @ApplicationScoped
+@Named("emptyProcessor")
 public class EmptyProcessor implements Processor {
 
     @Override

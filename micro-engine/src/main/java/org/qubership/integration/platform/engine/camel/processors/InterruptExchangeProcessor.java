@@ -17,12 +17,14 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 
 @Slf4j
 @ApplicationScoped
+@Named("interruptExchangeProcessor")
 public class InterruptExchangeProcessor implements Processor {
 
     @Override

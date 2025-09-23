@@ -20,6 +20,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 //import jakarta.ws.rs.core.HttpHeaders;
 //import jakarta.ws.rs.core.MediaType;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 //import org.apache.camel.Expression;
@@ -44,6 +45,7 @@ import java.io.IOException;
 
 @ApplicationScoped
 @Slf4j
+@Named("formBuilderProcessor")
 public class FormBuilderProcessor implements Processor {
     @Inject
     SimpleLanguage simpleLanguage;

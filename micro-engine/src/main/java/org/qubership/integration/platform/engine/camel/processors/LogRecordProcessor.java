@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -36,6 +37,7 @@ import java.util.Optional;
 
 @Slf4j
 @ApplicationScoped
+@Named("logRecordProcessor")
 public class LogRecordProcessor implements Processor {
     enum LogLevel {
         ERROR,

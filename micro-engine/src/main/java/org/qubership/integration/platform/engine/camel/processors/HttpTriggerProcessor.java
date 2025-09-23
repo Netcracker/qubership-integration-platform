@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +47,7 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @ApplicationScoped
+@Named("httpTriggerProcessor")
 public class HttpTriggerProcessor implements Processor {
 
     private static final Pattern URI_REGEXP = Pattern.compile("(\\/?\\{?[^\\/]*}?\\/?)");

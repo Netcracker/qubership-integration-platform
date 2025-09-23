@@ -27,14 +27,17 @@ import jakarta.inject.Named;
 import org.apache.camel.CamelContext;
 import org.apache.camel.component.jackson.JacksonConstants;
 import org.apache.camel.impl.DefaultCamelContext;
-import org.apache.camel.impl.engine.DefaultManagementStrategy;
 import org.apache.camel.impl.engine.DefaultStreamCachingStrategy;
+import org.apache.camel.management.DefaultManagementAgent;
+import org.apache.camel.management.JmxManagementStrategy;
 import org.apache.camel.model.*;
 import org.apache.camel.model.language.ExpressionDefinition;
 import org.apache.camel.observation.MicrometerObservationTracer;
 import org.apache.camel.reifier.ProcessorReifier;
 import org.apache.camel.spi.ClassResolver;
 import org.apache.camel.spi.MessageHistoryFactory;
+import org.apache.camel.spi.Registry;
+import org.apache.camel.support.DefaultRegistry;
 import org.apache.camel.tracing.Tracer;
 import org.apache.commons.lang3.tuple.Pair;
 import org.codehaus.groovy.control.CompilationFailedException;
@@ -532,8 +535,9 @@ public class IntegrationRuntimeService {
         String configurationXml
     ) throws Exception {
         // FIXME [migration to quarkus]
-        // DefaultCamelContext context = new DefaultCamelContext();
-        DefaultCamelContext context = (DefaultCamelContext) CDI.current().select(CamelContext.class).get();
+        Registry registry = new DefaultRegistry(CDI.current().select(Registry.class).get());
+        DefaultCamelContext context = new DefaultCamelContext(registry);
+        //DefaultCamelContext context = (DefaultCamelContext) CDI.current().select(CamelContext.class).get();
 
         context.getTypeConverterRegistry().addTypeConverter(
             FormData.class,
@@ -555,18 +559,15 @@ public class IntegrationRuntimeService {
 
         context.setClassResolver(getClassResolver(context, deploymentConfiguration));
 
-        // FIXME [migration to quarkus]
-        // context.setApplicationContext(applicationContext);
-
         String deploymentId = deploymentInfo.getDeploymentId();
         context.setManagementName("camel-context_" + deploymentId); // use repeatable after restart context name
-        context.setManagementStrategy(new DefaultManagementStrategy(context));
+        context.setManagementStrategy(new JmxManagementStrategy(context, new DefaultManagementAgent(context)));
 
         // TODO [migration to quarkus] check that every time a new instance of CamelDebugger is injected
         CamelDebugger debugger = CDI.current().select(CamelDebugger.class).getHandle().get();
         debugger.setDeploymentId(deploymentId);
-        //context.setDebugger(debugger);
-        //context.setDebugging(true);
+        context.setDebugger(debugger);
+        context.setDebugging(true);
 
         configureMessageHistoryFactory(context);
 

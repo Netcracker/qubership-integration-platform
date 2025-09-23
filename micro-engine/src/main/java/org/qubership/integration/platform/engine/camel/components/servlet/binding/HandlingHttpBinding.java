@@ -22,6 +22,7 @@ import com.arakelian.json.JsonReader;
 import com.arakelian.json.JsonWriter;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -38,6 +39,7 @@ import java.util.List;
 
 @ApplicationScoped
 @Slf4j
+@Named("handlingHttpBinding")
 public class HandlingHttpBinding extends DefaultHttpBinding {
     @Inject
     public HandlingHttpBinding(ServletCustomFilterStrategy servletCustomFilterStrategy) {

@@ -25,6 +25,7 @@ import com.google.protobuf.util.JsonFormat;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import org.apache.camel.Exchange;
@@ -35,6 +36,7 @@ import java.util.List;
 
 
 @ApplicationScoped
+@Named("grpcSenderPostProcessor")
 public class GrpcSenderPostProcessor implements Processor {
 
     private final JsonFormat.Printer grpcPrinter;

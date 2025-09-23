@@ -29,6 +29,7 @@ import io.atlasmap.v2.*;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +62,7 @@ import static java.util.Objects.nonNull;
 @Getter
 @Setter
 @ApplicationScoped
+@Named("mapperProcessor")
 public class MapperProcessor implements Processor {
 
     private static final String CAMEL_EXCHANGE_PROPERTY = "camelExchangeProperty";

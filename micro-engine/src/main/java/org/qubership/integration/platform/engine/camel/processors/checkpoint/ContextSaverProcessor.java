@@ -22,6 +22,7 @@ import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
+@Named("contextSaverProcessor")
 public class ContextSaverProcessor implements Processor {
 
     private final CheckpointSessionService checkpointSessionService;

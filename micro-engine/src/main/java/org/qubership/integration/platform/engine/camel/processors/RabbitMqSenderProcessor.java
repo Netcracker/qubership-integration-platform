@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.camel.processors;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.http.HttpHeaders;
@@ -28,6 +29,7 @@ import org.qubership.integration.platform.engine.util.InjectUtil;
 import java.util.Optional;
 
 @ApplicationScoped
+@Named("rabbitMqSenderProcessor")
 public class RabbitMqSenderProcessor implements Processor {
     private final Optional<RabbitContextPropagationWrapper> contextPropagationWrapper;
 

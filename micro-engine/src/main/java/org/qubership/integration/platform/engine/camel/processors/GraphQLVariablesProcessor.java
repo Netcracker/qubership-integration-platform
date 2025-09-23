@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.util.json.JsonObject;
@@ -28,6 +29,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 
 @ApplicationScoped
+@Named("graphQLVariablesProcessor")
 public class GraphQLVariablesProcessor implements Processor {
     private final ObjectMapper objectMapper;
 

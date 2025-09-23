@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -32,6 +33,7 @@ import static org.qubership.integration.platform.engine.camel.CorrelationIdSette
 
 @Slf4j
 @ApplicationScoped
+@Named("correlationIdPropagationProcessor")
 public class CorrelationIdPropagationProcessor implements Processor {
 
     private final ObjectMapper objectMapper;

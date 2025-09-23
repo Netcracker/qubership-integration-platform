@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.camel.processors;
 import com.rabbitmq.client.Channel;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.component.springrabbit.SpringRabbitMQConstants;
@@ -32,6 +33,7 @@ import org.springframework.amqp.core.AcknowledgeMode;
 import java.io.IOException;
 
 @ApplicationScoped
+@Named("rabbitMqTriggerProcessor")
 public class RabbitMqTriggerProcessor implements Processor {
     private final JsonMessageValidator validator;
 

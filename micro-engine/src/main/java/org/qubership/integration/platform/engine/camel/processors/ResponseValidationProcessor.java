@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
@@ -31,6 +32,7 @@ import org.qubership.integration.platform.engine.service.debugger.util.MessageHe
  * Processor perform JSON response body validation by scheme defined in system specification
  */
 @ApplicationScoped
+@Named("responseValidationProcessor")
 public class ResponseValidationProcessor implements Processor {
 
     private final JsonMessageValidator validator;

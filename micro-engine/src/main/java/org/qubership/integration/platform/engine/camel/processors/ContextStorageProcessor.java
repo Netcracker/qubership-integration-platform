@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -33,6 +34,7 @@ import static org.qubership.integration.platform.engine.camel.CorrelationIdSette
 
 @Slf4j
 @ApplicationScoped
+@Named("contextStorageProcessor")
 public class ContextStorageProcessor implements Processor {
 
     enum Operation {

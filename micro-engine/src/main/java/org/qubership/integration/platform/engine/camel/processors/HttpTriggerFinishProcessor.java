@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.MessageHistory;
@@ -39,6 +40,7 @@ import java.util.Set;
 
 @Slf4j
 @ApplicationScoped
+@Named("httpTriggerFinishProcessor")
 public class HttpTriggerFinishProcessor implements Processor {
 
     private final CamelDebuggerPropertiesService propertiesService;
