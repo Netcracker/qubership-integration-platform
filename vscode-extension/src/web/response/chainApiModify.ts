@@ -378,7 +378,16 @@ function getDefaultTypedProperties(propertiesData: LibraryElementProperty[]): an
     const result: any = {};
     for (const property of propertiesData) {
         if (property.default) {
-            result[property.name] = property.default;
+            let defaultValue: any = String(property.default);
+            switch (property.type) {
+                case 'boolean':
+                    defaultValue = defaultValue === 'true';
+                    break;
+                case 'number':
+                    defaultValue = parseFloat(defaultValue);
+                    break;
+            } 
+            result[property.name] = defaultValue;
         }
     }
     return result;
