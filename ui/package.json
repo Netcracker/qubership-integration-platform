@@ -7,7 +7,8 @@
   "types": "./dist-lib/types/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist-lib/index.es.js"
+      "import": "./dist-lib/index.es.js",
+      "types": "./dist-lib/types/index.d.ts"
     }
   },
   "files": [
