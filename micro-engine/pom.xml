@@ -39,8 +39,6 @@
         <opensearch.version>2.14.0</opensearch.version>
         <kubernetes-client-java.version>19.0.2</kubernetes-client-java.version>
         <reflections.version>0.10.2</reflections.version>
-        <quarkus.logback.version>1.1.2</quarkus.logback.version>
-        <logback-gelf.version>5.0.1</logback-gelf.version>
         <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
 
         <skipITs>true</skipITs>
@@ -182,12 +180,6 @@
             </dependency>
 
             <dependency>
-                <groupId>de.siegmar</groupId>
-                <artifactId>logback-gelf</artifactId>
-                <version>${logback-gelf.version}</version>
-            </dependency>
-
-            <dependency>
                 <groupId>org.apache.camel</groupId>
                 <artifactId>camel-resilience4j</artifactId>
                 <version>${camel.version}</version>
@@ -196,12 +188,6 @@
                 <groupId>org.apache.camel</groupId>
                 <artifactId>camel-observation</artifactId>
                 <version>${camel.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>io.quarkiverse.logging.logback</groupId>
-                <artifactId>quarkus-logging-logback</artifactId>
-                <version>${quarkus.logback.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -282,11 +268,6 @@
             <artifactId>quarkus-smallrye-health</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.quarkiverse.logging.logback</groupId>
-            <artifactId>quarkus-logging-logback</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-hibernate-orm</artifactId>
         </dependency>
@@ -346,13 +327,13 @@
         </dependency>
 
         <dependency>
-            <groupId>de.siegmar</groupId>
-            <artifactId>logback-gelf</artifactId>
+            <groupId>io.kubernetes</groupId>
+            <artifactId>client-java</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>io.kubernetes</groupId>
-            <artifactId>client-java</artifactId>
+            <groupId>org.jboss.slf4j</groupId>
+            <artifactId>slf4j-jboss-logmanager</artifactId>
         </dependency>
 
         <dependency>

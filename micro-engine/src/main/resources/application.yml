@@ -94,11 +94,6 @@ management:
       export:
         enabled: false
 
-logging:
-  level:
-    root: ${ROOT_LOG_LEVEL:INFO}
-  config: classpath:logback-spring.xml
-
 db:
   flyway:
     checkpoints-datasource:
@@ -289,6 +284,15 @@ kubernetes:
     label: ${app.prefix}-variable-type
 
 quarkus:
+  log:
+    level: INFO
+    console:
+      level: INFO
+      format: "[%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-7p] [request_id=%-15X{requestId:--}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{X-B3-TraceId:--}] [spanId=%-16X{X-B3-SpanId:--}] [method=%-30.30M]  - %m%n"
+      filter: camel-job-filter
+    category:
+      "org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger":
+        level: INFO
   http:
     host: 0.0.0.0
     port: 8080
