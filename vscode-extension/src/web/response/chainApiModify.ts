@@ -64,7 +64,7 @@ async function checkRestrictions(element: any, elements:any[]) {
             const libraryParentData = await getLibraryElementByType(parentElement.type);
 
             if (libraryData.parentRestriction?.length > 0) {
-                if (libraryData.parentRestriction.find(type => type === parentElement.type)?.length === 0) {
+                if (!libraryData.parentRestriction.find(type => type === parentElement.type)) {
                     console.error(`Invalid parent type for element`);
                     throw Error("Invalid parent type for element");
                 }
@@ -87,6 +87,11 @@ async function checkRestrictions(element: any, elements:any[]) {
                     }
                 }
             }
+        }
+    } else {
+        if (libraryData.parentRestriction?.length > 0) {
+            console.error(`Invalid parent type for element`);
+            throw Error("Invalid parent type for element");
         }
     }
 
@@ -386,7 +391,7 @@ function getDefaultTypedProperties(propertiesData: LibraryElementProperty[]): an
                 case 'number':
                     defaultValue = parseFloat(defaultValue);
                     break;
-            } 
+            }
             result[property.name] = defaultValue;
         }
     }
