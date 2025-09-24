@@ -353,6 +353,7 @@ quarkus:
       ignore-migration-patterns: '*:future,*:missing'
       validate-on-migrate: true
       active: true
+      migrate-at-start: true
     quartz:
       schemas: engine
       default-schema: engine
@@ -362,6 +363,7 @@ quarkus:
       out-of-order: true
       ignore-migration-patterns: '*:future,*:missing'
       active: true
+      migrate-at-start: true
   hibernate-orm:
     checkpoints:
       datasource: checkpoints
