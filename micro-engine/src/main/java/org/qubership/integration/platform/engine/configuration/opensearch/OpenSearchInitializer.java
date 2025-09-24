@@ -18,7 +18,6 @@ package org.qubership.integration.platform.engine.configuration.opensearch;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.common.annotation.Identifier;
-import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -70,16 +69,13 @@ public class OpenSearchInitializer {
     @Identifier("jsonMapper")
     ObjectMapper jsonMapper;
 
-    @Inject
-    OpenSearchClientSupplier clientSupplier;
-
-    @PostConstruct
-    public void initialize() {
+    public void initialize(OpenSearchClientSupplier clientSupplier) {
         log.info("Update opensearch template and indexes");
-        updateTemplateAndIndexes(clientSupplier.getClient());
+        updateTemplateAndIndexes(clientSupplier);
     }
 
-    private void updateTemplateAndIndexes(OpenSearchClient client) {
+    private void updateTemplateAndIndexes(OpenSearchClientSupplier clientSupplier) {
+        OpenSearchClient client = clientSupplier.getClient();
         String packageRoot = IntegrationEngineApplication.class.getPackage().getName();
         Set<Class<?>> indexClasses = new Reflections(
             new ConfigurationBuilder().forPackages(packageRoot))

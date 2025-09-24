@@ -27,7 +27,7 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.debugger.metrics.SessionsMetricsService;
 
 @ApplicationScoped
-public class SessionsMetricsServiceConfiguration {
+public class SessionsMetricsServiceProducer {
     @ConfigProperty(name = "qip.opensearch.index.elements.name")
     String indexName;
 

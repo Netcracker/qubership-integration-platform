@@ -40,11 +40,15 @@ public class OpenSearchClientSupplierProducer {
     @Produces
     @DefaultBean
     @ApplicationScoped
-    public OpenSearchClientSupplier openSearchClientSupplier() {
-        return new DefaultOpenSearchClientSupplier(
+    public OpenSearchClientSupplier openSearchClientSupplier(
+            OpenSearchInitializer openSearchInitializer
+    ) {
+        OpenSearchClientSupplier clientSupplier = new DefaultOpenSearchClientSupplier(
                 createOpenSearchClient(),
                 properties.client().prefix().orElse("")
         );
+        openSearchInitializer.initialize(clientSupplier);
+        return clientSupplier;
     }
 
     private OpenSearchClient createOpenSearchClient() {
