@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.AggregationStrategy;
 import org.apache.camel.Exchange;
@@ -40,6 +41,7 @@ import static org.qubership.integration.platform.engine.util.ExchangeUtils.isCom
 
 @Slf4j
 @ApplicationScoped
+@Named("chainsAggregationStrategy")
 public class ChainsAggregationStrategy implements AggregationStrategy {
     private static final String SPLIT_MAIN_BRANCH_TYPE = "main";
     private static final String CAMEL_HTTP_RESPONSE_CODE_VALUE = "200";
