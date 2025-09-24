@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.camel.scheduler;
 import io.quarkus.logging.LoggingFilter;
 import org.jboss.logmanager.Level;
 
+import java.util.Optional;
 import java.util.logging.Filter;
 import java.util.logging.LogRecord;
 
@@ -30,9 +31,10 @@ public class CamelJobLogFilter implements Filter {
                 && record.getLoggerName().equals("org.apache.camel.component.quartz.CamelJob")
                 || record.getLevel().equals(Level.INFO)
                 && record.getLoggerName().equals("org.quartz.core.JobRunShell"))
-                && record.getThrown() != null
-                && record.getThrown().getMessage() != null
-                && record.getThrown().getMessage().startsWith("No CamelContext could be found with name");
+                && Optional.ofNullable(record.getThrown())
+                    .map(Throwable::getMessage)
+                    .map(message -> message.startsWith("No CamelContext could be found with name"))
+                    .orElse(false);
         return !shouldBeFiltered;
     }
 }
