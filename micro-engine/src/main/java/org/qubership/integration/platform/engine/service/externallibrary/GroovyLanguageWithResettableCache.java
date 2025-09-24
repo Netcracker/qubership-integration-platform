@@ -72,8 +72,8 @@ public class GroovyLanguageWithResettableCache extends GroovyLanguage {
     }
 
     @ConsumeEvent(UpdateEvent.EVENT_ADDRESS)
-    public void onExternalLibrariesUpdated(ExternalLibrariesUpdatedEvent event) {
-        if (!event.isInitialUpdate()) {
+    public void onExternalLibrariesUpdated(UpdateEvent event) {
+        if (!event.isInitialUpdate() && event instanceof ExternalLibrariesUpdatedEvent) {
             resetScriptCache();
         }
     }
