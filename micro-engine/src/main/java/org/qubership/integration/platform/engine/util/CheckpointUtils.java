@@ -22,7 +22,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.apache.camel.Exchange.HTTP_PATH;
 
@@ -46,7 +48,9 @@ public class CheckpointUtils {
         matcher.add(CHECKPOINT_RETRY_PATH_TEMPLATE, null);
         String path = exchange.getMessage().getHeader(HTTP_PATH, "", String.class);
         PathTemplateMatch matchResult = matcher.match(path);
-        Map<String, String> pathVariables = matchResult.getParameters();
+        Map<String, String> pathVariables = Optional.ofNullable(matchResult)
+                .map(PathTemplateMatch::getParameters)
+                .orElse(Collections.emptyMap());
 
         String chainId = pathVariables.get(CHECKPOINT_CHAIN_ID_PATH_VAR);
         String sessionId = pathVariables.get(CHECKPOINT_SESSION_ID_PATH_VAR);
