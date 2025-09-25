@@ -196,7 +196,7 @@ qip:
       rabbitmq:
         predeploy-check-enabled: ${CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED:true}
   deployments:
-    retry-delay: 30000
+    retry-delay: 30s
     thread-pool:
       core-size: 3
       max-size: 3
