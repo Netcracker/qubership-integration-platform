@@ -1,7 +1,7 @@
 import {FileApi} from './fileApi';
-import {ExtensionContext, Uri} from 'vscode';
+import {ExtensionContext, Uri, WorkspaceFolder} from 'vscode';
 import * as yaml from 'yaml';
-import {LibraryData} from "@netcracker/qip-ui";
+import {Chain, LibraryData} from "@netcracker/qip-ui";
 import {EMPTY_USER} from "../chainApiUtils";
 import {QipFileType} from "../serviceApiUtils";
 
@@ -13,6 +13,10 @@ export class VSCodeFileApi implements FileApi {
 
     constructor(context: ExtensionContext) {
         this.context = context;
+    }
+
+    getRootDirectory(): Uri {
+        return vscode.workspace.workspaceFolders[0].uri;
     }
 
     private async getParentDirectoryUri(uri: Uri): Promise<Uri> {
@@ -57,6 +61,56 @@ export class VSCodeFileApi implements FileApi {
         return vscode.Uri.joinPath(baseUri, files[0]);
     }
 
+    async findAndBuildChainsRecursively(folderUri: Uri, chainBuilder: (chainContent: any) => Partial<Chain> | undefined, result: Partial<Chain>[]): Promise<void> {
+        const entries = await readDirectory(folderUri);
+
+        for (const [name, type] of entries) {
+            if (type === vscode.FileType.File && name.endsWith('.chain.qip.yaml')) {
+                const fileUri = vscode.Uri.joinPath(folderUri, name);
+
+                const chainYaml = await this.parseFile(fileUri);
+                const chain = chainBuilder(chainYaml);
+                if (chain) {
+                    result.push(chain);
+                }
+            } else if (type === vscode.FileType.Directory) {
+                const subFolderUri = vscode.Uri.joinPath(folderUri, name);
+                await this.findAndBuildChainsRecursively(subFolderUri, chainBuilder, result);
+            }
+        }
+    }
+
+    async findChainRecursively(folderUri: Uri, chainId: string): Promise<any> {
+        const result: any[] = [];
+
+        await this.findChainsRecursively(folderUri, chainId, result);
+
+        if (result.length === 0) {
+            throw Error(`Chain with id=${chainId} is not found under the directory ${folderUri}`);
+        } else if (result.length > 1) {
+            throw Error(`Multiple chains with id=${chainId} found under the directory ${folderUri}`);
+        } else {
+            return result[0];
+        }
+    }
+
+    private async findChainsRecursively(folderUri: Uri, chainId: string, result: any[]): Promise<void> {
+        const entries = await readDirectory(folderUri);
+
+        for (const [name, type] of entries) {
+            if (type === vscode.FileType.File && name.endsWith('.chain.qip.yaml')) {
+                const fileUri = vscode.Uri.joinPath(folderUri, name);
+                const chainYaml = await this.parseFile(fileUri);
+                if (chainYaml.id === chainId) {
+                    result.push(chainYaml);
+                }
+            } else if (type === vscode.FileType.Directory) {
+                const subFolderUri = vscode.Uri.joinPath(folderUri, name);
+                await this.findChainsRecursively(subFolderUri, chainId, result);
+            }
+        }
+    }
+
     async getMainChain(parameters: any): Promise<any> {
         const baseUri = parameters as Uri;
         const fileUri = await this.getMainChainFileUri(baseUri);
@@ -90,6 +144,17 @@ export class VSCodeFileApi implements FileApi {
         }
         const textFile = new TextDecoder('utf-8').decode(fileContent);
         return textFile;
+    }
+
+    async parseFile(fileUri: Uri): Promise<any> {
+        try {
+            const content = await this.readFileContent(fileUri);
+            const yamlContent = new TextDecoder('utf-8').decode(content);
+            return yaml.parse(yamlContent);
+        } catch (e) {
+            console.error(`Unable to parse file: ${fileUri}`, e);
+            throw e;
+        }
     }
 
     async getLibrary(): Promise<LibraryData> {

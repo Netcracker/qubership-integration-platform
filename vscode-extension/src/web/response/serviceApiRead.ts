@@ -1,8 +1,9 @@
 import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo} from "../api-services/servicesTypes";
 import * as yaml from 'yaml';
-import {Uri} from "vscode";
+import {Uri, WorkspaceFolder} from "vscode";
 import {EMPTY_USER} from "./chainApiUtils";
 import {fileApi} from "./file/fileApiProvider";
+import { Chain } from "@netcracker/qip-ui";
 
 const vscode = require('vscode');
 
@@ -99,6 +100,7 @@ export async function getApiSpecifications(serviceFileUri: Uri, serviceId: strin
             if (parsed && parsed.content && parsed.content.parentId === serviceId) {
 
                 const specifications = await getSpecificationModel(serviceFileUri, serviceId, parsed.id);
+                const chains = await getChainsUsingSpecificationGroup(serviceId, parsed.id);
 
                 const group = {
                     id: parsed.id,
@@ -112,7 +114,8 @@ export async function getApiSpecifications(serviceFileUri: Uri, serviceId: strin
                     synchronization: parsed.content.synchronization || false,
                     parentId: parsed.content.parentId,
                     labels: parsed.labels || [],
-                    systemId: parsed.content.parentId
+                    systemId: parsed.content.parentId,
+                    chains: chains
                 };
                 result.push(group);
             }
@@ -139,6 +142,7 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
             if (parsed && parsed.content && parsed.content.parentId === groupId) {
 
                 const operations = parseOperations(parsed.content.operations, parsed.id);
+                const chains = await getChainsUsingSpecification(serviceId, parsed.id);
 
                 const spec = {
                     id: parsed.id,
@@ -157,7 +161,8 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
                     specificationGroupId: parsed.content.parentId,
                     source: parsed.content.content || "",
                     systemId: serviceId,
-                    operations: operations
+                    operations: operations,
+                    chains: chains
                 };
                 result.push(spec);
             }
@@ -216,6 +221,44 @@ function parseOperations(operations: any[], modelId: string): SystemOperation[] 
             result.push(operation);
         }
     }
+
+    return result;
+}
+
+async function getChainsUsingSpecificationGroup(serviceId: string, groupId: string): Promise<Partial<Chain>[]> {
+    const result: Partial<Chain>[] = [];
+
+    await fileApi.findAndBuildChainsRecursively(fileApi.getRootDirectory(), (chainYaml: any): Partial<Chain> | undefined => {
+        if (chainYaml.content.elements) {
+            for (const element of chainYaml.content.elements) {
+                if (element?.properties?.integrationSystemId === serviceId &&
+                    element?.properties?.integrationSpecificationGroupId === groupId) {
+                        return {id: chainYaml.id, name: chainYaml.name};
+                    }
+            }
+        }
+        return undefined;
+
+    }, result);
+
+    return result;
+}
+
+async function getChainsUsingSpecification(serviceId: string, specificationId: string): Promise<Partial<Chain>[]> {
+    const result: Partial<Chain>[] = [];
+
+    await fileApi.findAndBuildChainsRecursively(fileApi.getRootDirectory(), (chainYaml: any): Partial<Chain> | undefined => {
+        if (chainYaml.content.elements) {
+            for (const element of chainYaml.content.elements) {
+                if (element?.properties?.integrationSystemId === serviceId &&
+                    element?.properties?.integrationSpecificationId === specificationId) {
+                        return {id: chainYaml.id, name: chainYaml.name};
+                    }
+            }
+        }
+        return undefined;
+
+    }, result);
 
     return result;
 }
