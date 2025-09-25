@@ -58,7 +58,7 @@ public class CamelQuartzConfiguration {
     String threadPoolCount;
 
     // TODO [migration to quarkus]
-    public static final String DATASOURCE_NAME = "camelQuartzDatasource";
+    public static final String DATASOURCE_NAME = "quartz";
 
     @Produces
     @Named("schedulerFactoryProxy")
