@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.configuration.opensearch;
 
 import io.quarkus.arc.DefaultBean;
+import io.quarkus.runtime.Startup;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
@@ -40,6 +41,7 @@ public class OpenSearchClientSupplierProducer {
     @Produces
     @DefaultBean
     @ApplicationScoped
+    @Startup
     public OpenSearchClientSupplier openSearchClientSupplier(
             OpenSearchInitializer openSearchInitializer
     ) {
