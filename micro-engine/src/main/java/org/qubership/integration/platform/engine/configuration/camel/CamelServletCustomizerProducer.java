@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.configuration.camel;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spi.ComponentCustomizer;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
@@ -27,8 +28,9 @@ import org.qubership.integration.platform.engine.camel.components.servlet.Servle
 
 @Slf4j
 @ApplicationScoped
-public class CamelServletConfiguration {
+public class CamelServletCustomizerProducer {
     @Produces
+    @Named("servletCustomComponentCustomizer")
     public ComponentCustomizer servletCustomComponentCustomizer(
         Instance<ContextPropsProvider> contextPropsProvider
     ) {

@@ -18,25 +18,29 @@ package org.qubership.integration.platform.engine.configuration.camel.kafkacusto
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Named;
 import org.apache.camel.component.kafka.KafkaConfiguration;
 import org.apache.camel.spi.ComponentCustomizer;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomComponent;
 
+import java.util.Optional;
+
 
 @ApplicationScoped
-public class KafkaCustomComponentConfiguration {
+public class KafkaCustomComponentCustomizerProducer {
     @ConfigProperty(name = "camel.component.kafka.ssl-truststore-location")
     String sslTruststoreLocation;
 
     @ConfigProperty(name = "camel.component.kafka.ssl-truststore-password")
-    String sslTruststorePassword;
+    Optional<String> sslTruststorePassword;
 
     @ConfigProperty(name = "camel.component.kafka.ssl-truststore-type")
     String sslTruststoreType;
 
     @Produces
     @ApplicationScoped
+    @Named("kafkaCustomComponentCustomizer")
     public ComponentCustomizer kafkaCustomComponentCustomizer() {
         return ComponentCustomizer.builder(KafkaCustomComponent.class)
             .build((component) -> {
@@ -44,7 +48,7 @@ public class KafkaCustomComponentConfiguration {
 
                 // copy only necessary properties
                 config.setSslTruststoreLocation(sslTruststoreLocation);
-                config.setSslTruststorePassword(sslTruststorePassword);
+                config.setSslTruststorePassword(sslTruststorePassword.orElse(""));
                 config.setSslTruststoreType(sslTruststoreType);
             });
     }

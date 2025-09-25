@@ -20,6 +20,7 @@ package org.qubership.integration.platform.engine.configuration.camel.quartz;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.quartz.QuartzComponent;
 import org.apache.camel.spi.ComponentCustomizer;
@@ -30,7 +31,7 @@ import java.util.Map;
 
 @Slf4j
 @ApplicationScoped
-public class CamelQuartzComponentCustomConfiguration {
+public class CamelQuartzComponentCustomizerProducer {
     public static final String THREAD_POOL_COUNT_PROP = "org.quartz.threadPool.threadCount";
 
     @Inject
@@ -40,6 +41,7 @@ public class CamelQuartzComponentCustomConfiguration {
     String threadPoolCount;
 
     @Produces
+    @Named("quartzComponentCustomizer")
     public ComponentCustomizer quartzComponentCustomizer() {
         return ComponentCustomizer.builder(QuartzComponent.class)
             .build((component) -> {
