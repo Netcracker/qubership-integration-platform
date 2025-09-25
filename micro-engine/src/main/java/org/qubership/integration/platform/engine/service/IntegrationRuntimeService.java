@@ -534,10 +534,8 @@ public class IntegrationRuntimeService {
         DeploymentConfiguration deploymentConfiguration,
         String configurationXml
     ) throws Exception {
-        // FIXME [migration to quarkus]
         Registry registry = new DefaultRegistry(CDI.current().select(Registry.class).get());
         DefaultCamelContext context = new DefaultCamelContext(registry);
-        //DefaultCamelContext context = (DefaultCamelContext) CDI.current().select(CamelContext.class).get();
 
         context.getTypeConverterRegistry().addTypeConverter(
             FormData.class,
@@ -563,7 +561,7 @@ public class IntegrationRuntimeService {
         context.setManagementName("camel-context_" + deploymentId); // use repeatable after restart context name
         context.setManagementStrategy(new JmxManagementStrategy(context, new DefaultManagementAgent(context)));
 
-        // TODO [migration to quarkus] check that every time a new instance of CamelDebugger is injected
+        // Every time a new instance of CamelDebugger is injected
         CamelDebugger debugger = CDI.current().select(CamelDebugger.class).getHandle().get();
         debugger.setDeploymentId(deploymentId);
         context.setDebugger(debugger);
