@@ -13,12 +13,8 @@ content:
       after:
       - code: "UserSignedUp"
         label: "UserSignedUp"
-        schema:
-          $id: "http://system.catalog/schemas/UserSignedUp"
-          $schema: "http://json-schema.org/draft-07/schema#"
-          definitions: {}
-      asyncValidationSchema: "{\"$id\":\"http://system.catalog/schemas/UserSignedUp\"\
-        ,\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"definitions\":{}}"
+        schema: "{\"$id\":\"http://system.catalog/schemas/UserSignedUp\"\
+          ,\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"definitions\":{}}"
       idempotency:
         enabled: true
         keyExpiry: 300

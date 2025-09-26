@@ -20,9 +20,6 @@ properties:
         title: Request validation schemas
         items:
           $ref: "#/definitions/RequestValidation"
-      asyncValidationSchema:
-        type: string
-        title: Response validation schema
       requestFilterHeaderAllowlist:
         title: Filtered headers list
         $ref: "http://qubership.org/schemas/product/qip/element/properties/headers.schema.yaml"
@@ -76,7 +73,7 @@ definitions:
       label:
         type: string
       schema:
-        $ref: "http://json-schema.org/draft-07/schema"
+        type: string
     additionalProperties: false
     required:
       - code

@@ -20,7 +20,7 @@ content:
         code: "200"
         type: "responseValidation"
         label: "200-application/json"
-        scheme: "{\n\t\"$id\": \"http://system.catalog/schemas/#/components/schemas/Pet\"\
+        schema: "{\n\t\"$id\": \"http://system.catalog/schemas/#/components/schemas/Pet\"\
           ,\n\t\"type\": \"array\",\n\t\"items\": {\n\t\t\"type\": \"object\",\n\t\
           \t\"required\": [\n\t\t\t\"name\",\n\t\t\t\"photoUrls\"\n\t\t],\n\t\t\"\
           properties\": {\n\t\t\t\"id\": {\n\t\t\t\t\"type\": \"integer\",\n\t\t\t\
