@@ -77,7 +77,7 @@ public class KafkaElementDependencyBinder extends ElementProcessingAction {
     ) {
         String elementId = properties.getElementId();
         DefaultKafkaClientFactory defaultFactory = new DefaultKafkaClientFactory();
-        Collection<Tag> tags = metricTagsHelper.buildMetricTagsLegacy(deploymentInfo, properties, deploymentInfo.getChainName());
+        Collection<Tag> tags = metricTagsHelper.buildMetricTags(deploymentInfo, properties, deploymentInfo.getChainName());
 
         String maasClassifier = properties.getProperties().get(ElementOptions.MAAS_DEPLOYMENT_CLASSIFIER_PROP);
         if (!StringUtils.isEmpty(maasClassifier)) {

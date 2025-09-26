@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers;
 
-import io.micrometer.common.KeyValue;
-import io.micrometer.common.KeyValues;
 import io.micrometer.core.instrument.Tag;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -34,14 +32,14 @@ import static org.qubership.integration.platform.engine.service.debugger.metrics
 
 @ApplicationScoped
 public class MetricTagsHelper {
-    public final ServerConfiguration serverConfiguration;
+    private final ServerConfiguration serverConfiguration;
 
     @Inject
     public MetricTagsHelper(ServerConfiguration serverConfiguration) {
         this.serverConfiguration = serverConfiguration;
     }
 
-    public Collection<Tag> buildMetricTagsLegacy(
+    public Collection<Tag> buildMetricTags(
         DeploymentInfo deploymentInfo,
         ElementProperties elementProperties,
         String chainName
@@ -54,20 +52,5 @@ public class MetricTagsHelper {
                 ChainProperties.ELEMENT_NAME)),
             Tag.of(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain()))
         );
-    }
-
-    public KeyValues buildMetricTags(
-        DeploymentInfo deploymentInfo,
-        ElementProperties elementProperties,
-        String chainName
-    ) {
-        return KeyValues.of(
-            KeyValue.of(CHAIN_ID_TAG, deploymentInfo.getChainId()),
-            KeyValue.of(CHAIN_NAME_TAG, chainName),
-            KeyValue.of(ELEMENT_ID_TAG, elementProperties.getProperties().get(
-                ChainProperties.ELEMENT_ID)),
-            KeyValue.of(ELEMENT_NAME_TAG, elementProperties.getProperties().get(
-                ChainProperties.ELEMENT_NAME)),
-            KeyValue.of(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain()));
     }
 }

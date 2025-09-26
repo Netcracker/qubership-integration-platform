@@ -16,19 +16,20 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
-import io.micrometer.common.KeyValues;
+import io.micrometer.core.instrument.Tag;
 
+import java.util.Collection;
 import java.util.function.Supplier;
 
-public class ServletTagsProvider implements Supplier<KeyValues> {
-    private final KeyValues tags;
+public class ServletTagsProvider implements Supplier<Collection<Tag>> {
+    private final Collection<Tag> tags;
 
-    public ServletTagsProvider(KeyValues tags) {
+    public ServletTagsProvider(Collection<Tag> tags) {
         this.tags = tags;
     }
 
     @Override
-    public KeyValues get() {
+    public Collection<Tag> get() {
         return tags;
     }
 }

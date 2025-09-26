@@ -70,7 +70,7 @@ public class AmpqDependencyBinder extends ElementProcessingAction {
         ElementProperties properties,
         DeploymentInfo deploymentInfo
     ) {
-        Collection<Tag> tags = metricTagsHelper.buildMetricTagsLegacy(deploymentInfo, properties,
+        Collection<Tag> tags = metricTagsHelper.buildMetricTags(deploymentInfo, properties,
                 deploymentInfo.getChainName());
 
         String maasClassifier = properties.getProperties()

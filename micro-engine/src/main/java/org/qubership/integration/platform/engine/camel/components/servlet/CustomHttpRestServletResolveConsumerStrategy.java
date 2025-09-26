@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.http.common.HttpConsumer;
@@ -23,24 +24,27 @@ import org.apache.camel.http.common.HttpRestConsumerPath;
 import org.apache.camel.http.common.HttpRestServletResolveConsumerStrategy;
 import org.apache.camel.support.RestConsumerContextPathMatcher;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Slf4j
+@ApplicationScoped
 public class CustomHttpRestServletResolveConsumerStrategy extends HttpRestServletResolveConsumerStrategy {
 
     @Override
     protected HttpConsumer doResolve(HttpServletRequest request, String method, Map<String, HttpConsumer> consumers) {
-        String path = request.getPathInfo();
+        return resolvePath(request.getPathInfo(), method, consumers);
+    }
+
+    public HttpConsumer resolvePath(String path, String method, Map<String, HttpConsumer> consumers) {
         if (path == null) {
             return null;
         }
 
-        List<RestConsumerContextPathMatcher.ConsumerPath<HttpConsumer>> consumerPaths = new ArrayList<>();
-        for (final Map.Entry<String, HttpConsumer> entry : consumers.entrySet()) {
-            consumerPaths.add(new HttpRestConsumerPath(entry.getValue()));
-        }
+        List<RestConsumerContextPathMatcher.ConsumerPath<HttpConsumer>> consumerPaths = consumers.values()
+                .stream()
+                .<RestConsumerContextPathMatcher.ConsumerPath<HttpConsumer>>map(HttpRestConsumerPath::new)
+                .toList();
 
         RestConsumerContextPathMatcher.ConsumerPath<HttpConsumer> best
                 = RestConsumerContextPathCustomMatcher.matchBestPath(method, path, consumerPaths);

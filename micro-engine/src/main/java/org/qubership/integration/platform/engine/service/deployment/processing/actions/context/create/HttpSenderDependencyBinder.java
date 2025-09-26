@@ -88,7 +88,7 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
                             return "";
                         }
                     },
-                    metricTagsHelper.buildMetricTagsLegacy(deploymentInfo, elementProperties,
+                    metricTagsHelper.buildMetricTags(deploymentInfo, elementProperties,
                         deploymentInfo.getChainName()),
                     true
                 );

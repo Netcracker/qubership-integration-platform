@@ -66,7 +66,7 @@ public class GrpcElementDependencyBinder extends ElementProcessingAction {
         DeploymentInfo deploymentInfo
     ) {
         if (metricsStore.isMetricsEnabled()) {
-            Iterable<Tag> tags = metricTagsHelper.buildMetricTagsLegacy(deploymentInfo, properties,
+            Iterable<Tag> tags = metricTagsHelper.buildMetricTags(deploymentInfo, properties,
                     deploymentInfo.getChainName());
             UnaryOperator<Counter.Builder> counterCustomizer = counter -> counter.tags(tags);
             UnaryOperator<Timer.Builder> timerCustomizer = timer -> timer.tags(tags);

@@ -172,8 +172,8 @@ camel:
       ssl-truststore-type: JKS
 #    metrics:
 #      metric-registry: io.micrometer.prometheus.PrometheusMeterRegistry
-#    servlet:
-#      http-registry: '#gatewayHttpRegistry'
+    servlet:
+      http-registry: '#gatewayHttpRegistry'
   servlet:
     mapping:
       enabled: false

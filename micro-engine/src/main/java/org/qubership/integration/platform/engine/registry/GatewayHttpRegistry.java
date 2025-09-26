@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.registry;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.http.common.DefaultHttpRegistry;
 import org.apache.camel.http.common.HttpConsumer;
@@ -26,6 +27,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @Slf4j
 @ApplicationScoped
+@Named("gatewayHttpRegistry")
 public class GatewayHttpRegistry implements HttpRegistry {
 
     private final HttpRegistry httpRegistry;
