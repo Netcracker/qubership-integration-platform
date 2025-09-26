@@ -25,6 +25,7 @@ import jakarta.enterprise.inject.spi.CDI;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import org.apache.camel.CamelContext;
+import org.apache.camel.Component;
 import org.apache.camel.component.jackson.JacksonConstants;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.impl.engine.DefaultStreamCachingStrategy;
@@ -49,6 +50,7 @@ import org.qubership.integration.platform.engine.camel.converters.FormDataConver
 import org.qubership.integration.platform.engine.camel.converters.SecurityAccessPolicyConverter;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory.FilteringEntity;
+import org.qubership.integration.platform.engine.camel.registry.FilteringRegistry;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
@@ -534,7 +536,24 @@ public class IntegrationRuntimeService {
         DeploymentConfiguration deploymentConfiguration,
         String configurationXml
     ) throws Exception {
-        Registry registry = new DefaultRegistry(CDI.current().select(Registry.class).get());
+        Registry registry = new DefaultRegistry(
+            // Camel components contain a reference to a context.
+            // Since a unique context instance is created for every
+            // integration chain we can't use singleton component beans
+            // that are provided by existing registry bean configured
+            // by Quarkus.
+            // We are filtering out this singleton component beans in order to
+            // enforce Camel to create unique component instances for every
+            // created context via DefaultComponentResolver that uses component
+            // definitions in META-INF/services/org/apache/camel/component.
+            new FilteringRegistry(
+                CDI.current().select(Registry.class).get(),
+                obj -> {
+                    boolean isCamelComponent = nonNull(obj)
+                            && Component.class.isAssignableFrom(obj.getClass());
+                    return !isCamelComponent;
+                })
+        );
         DefaultCamelContext context = new DefaultCamelContext(registry);
 
         context.getTypeConverterRegistry().addTypeConverter(
