@@ -18,30 +18,32 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-//import jakarta.ws.rs.core.HttpHeaders;
-//import jakarta.ws.rs.core.MediaType;
 import jakarta.inject.Named;
+import jakarta.mail.BodyPart;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.InternetHeaders;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMultipart;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.MultivaluedMap;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
-//import org.apache.camel.Expression;
-//import org.apache.camel.Message;
+import org.apache.camel.Expression;
 import org.apache.camel.Processor;
 import org.apache.camel.language.simple.SimpleLanguage;
-//import org.apache.logging.log4j.util.Strings;
-//import org.qubership.integration.platform.engine.forms.FormData;
+import org.apache.commons.lang3.StringUtils;
+import org.jboss.resteasy.reactive.common.providers.serialisers.MapAsFormUrlEncodedProvider;
+import org.qubership.integration.platform.engine.forms.FormData;
 import org.qubership.integration.platform.engine.forms.FormEntry;
-//import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-//import org.springframework.http.HttpEntity;
-//import org.springframework.http.HttpOutputMessage;
-//import org.springframework.http.converter.FormHttpMessageConverter;
-//import org.springframework.util.LinkedMultiValueMap;
-//import org.springframework.util.MultiValueMap;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 
-//import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-//import java.io.OutputStream;
+import java.util.function.BiConsumer;
 
-//import static java.util.Objects.isNull;
+import static java.util.Objects.isNull;
 
 @ApplicationScoped
 @Slf4j
@@ -50,95 +52,95 @@ public class FormBuilderProcessor implements Processor {
     @Inject
     SimpleLanguage simpleLanguage;
 
-    private interface FormEntryBuilder {
-        Object build(Exchange exchange, FormEntry entry) throws IOException;
-    }
-
     @Override
     public void process(Exchange exchange) throws Exception {
-        // FIXME [migration to quartus]
-        //        String bodyMimeType = exchange.getProperty(Properties.BODY_MIME_TYPE, String.class);
-        //        if (Strings.isBlank(bodyMimeType)) {
-        //            log.error("Body MIME type is blank.");
-        //            return;
-        //        }
-        //
-        //        FormData formData = exchange.getProperty(Properties.BODY_FORM_DATA, FormData.class);
-        //        if (isNull(formData)) {
-        //            log.error("Form data is null.");
-        //            return;
-        //        }
-        //
-        //        MediaType contentType = MediaType.valueOf(bodyMimeType);
-        //        FormEntryBuilder formEntryBuilder = getFormEntryBuilder(contentType);
-        //        MultiValueMap<String, Object> form = buildForm(exchange, formData, formEntryBuilder);
-        //        writeForm(exchange, contentType, form);
+        String bodyMimeType = exchange.getProperty(CamelConstants.Properties.BODY_MIME_TYPE, String.class);
+        if (StringUtils.isBlank(bodyMimeType)) {
+            log.error("Body MIME type is blank.");
+            return;
+        }
+
+        FormData formData = exchange.getProperty(CamelConstants.Properties.BODY_FORM_DATA, FormData.class);
+        if (isNull(formData)) {
+            log.error("Form data is null.");
+            return;
+        }
+
+        MediaType contentType = MediaType.valueOf(bodyMimeType);
+        BiConsumer<Exchange, FormData> handler = getFormHandler(contentType);
+        handler.accept(exchange, formData);
     }
 
-    //    private MultiValueMap<String, Object> buildForm(
-    //            Exchange exchange,
-    //            FormData formData,
-    //            FormEntryBuilder entryBuilder
-    //    ) throws IOException {
-    //        MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
-    //        for (FormEntry entry : formData.getEntries()) {
-    //            Object formEntry = entryBuilder.build(exchange, entry);
-    //            form.add(entry.getName(), formEntry);
-    //        }
-    //        return form;
-    //    }
-    //
-    //    private FormEntryBuilder getFormEntryBuilder(MediaType formType) {
-    //        return isMultipart(formType) ? this::buildHttpEntity : this::buildGenericEntity;
-    //    }
-    //
-    //    private boolean isMultipart(MediaType formType) {
-    //        return formType.getType().equalsIgnoreCase("multipart");
-    //    }
-    //
-    //    private Object buildGenericEntity(Exchange exchange, FormEntry entry) throws IOException {
-    //        return evaluate(exchange, entry.getValue());
-    //    }
-    //
-    //    private HttpEntity<?> buildHttpEntity(Exchange exchange, FormEntry entry) throws IOException {
-    //        HttpHeaders headers = new HttpHeaders();
-    //        Object value = evaluate(exchange, entry.getValue());
-    //        if (value instanceof HttpEntity) {
-    //            headers.addAll(((HttpEntity<?>) value).getHeaders());
-    //        }
-    //        headers.setContentType(entry.getMimeType());
-    //        String fileName = String.valueOf(evaluate(exchange, entry.getFileName()));
-    //        if (Strings.isNotBlank(fileName)) {
-    //            headers.setContentDispositionFormData(entry.getName(), fileName);
-    //        }
-    //        Object body = (value instanceof HttpEntity) ? ((HttpEntity<?>) value).getBody() : value;
-    //        return new HttpEntity<>(body, headers);
-    //    }
-    //
-    //    private void writeForm(Exchange exchange, MediaType contentType, MultiValueMap<String, Object> form)
-    //            throws IOException {
-    //        FormHttpMessageConverter converter = new FormHttpMessageConverter();
-    //        HttpHeaders headers = new HttpHeaders();
-    //        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    //        converter.write(form, contentType, new HttpOutputMessage() {
-    //            @Override
-    //            public OutputStream getBody() throws IOException {
-    //                return outputStream;
-    //            }
-    //
-    //            @Override
-    //            public HttpHeaders getHeaders() {
-    //                return headers;
-    //            }
-    //        });
-    //        Message message = exchange.getMessage();
-    //        headers.forEach((name, values) -> values.forEach(value -> message.setHeader(name, value)));
-    //        message.setBody(outputStream.toByteArray());
-    //    }
-    //
-    //    private Object evaluate(Exchange exchange, String expressionString) throws IOException {
-    //        simpleLanguage.setCamelContext(exchange.getContext());
-    //        Expression expression = simpleLanguage.createExpression(expressionString);
-    //        return expression.evaluate(exchange, Object.class);
-    //    }
+    private BiConsumer<Exchange, FormData> getFormHandler(MediaType contentType) {
+        if (MediaType.MULTIPART_FORM_DATA_TYPE.equals(contentType)) {
+            return this::handleMultipartForm;
+        } else if (MediaType.APPLICATION_FORM_URLENCODED_TYPE.equals(contentType)) {
+            return this::handleUrlEncodedForm;
+        } else {
+            throw new IllegalArgumentException("Unsupported form content type: " + contentType);
+        }
+    }
+
+    private void handleMultipartForm(
+            Exchange exchange,
+            FormData formData
+    ) {
+        try {
+            MimeMultipart multipart = new MimeMultipart(MediaType.MULTIPART_FORM_DATA_TYPE.getSubtype());
+            for (FormEntry entry : formData.getEntries()) {
+                BodyPart bodyPart = toBodyPart(exchange, entry);
+                multipart.addBodyPart(bodyPart);
+            }
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            multipart.writeTo(outputStream);
+
+            exchange.getMessage().setHeader(HttpHeaders.CONTENT_TYPE, multipart.getContentType());
+            exchange.getMessage().setBody(outputStream.toByteArray());
+        } catch (MessagingException | IOException e) {
+            throw new RuntimeException("Failed to build multipart form data", e);
+        }
+    }
+
+    private BodyPart toBodyPart(Exchange exchange, FormEntry formEntry) throws MessagingException {
+        String fileName = String.valueOf(evaluate(exchange, formEntry.getFileName()));
+
+        Object value = evaluate(exchange, formEntry.getValue());
+        byte[] data = exchange.getContext().getTypeConverter().convertTo(byte[].class, value);
+
+        InternetHeaders headers = new InternetHeaders();
+        headers.addHeader(HttpHeaders.CONTENT_TYPE, formEntry.getMimeType().toString());
+        headers.addHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(data.length));
+
+        var part = new MimeBodyPart(headers, data);
+        part.setFileName(fileName);
+        part.setDisposition(String.format("form_data; name=%s", formEntry.getName()));
+
+        return part;
+    }
+
+    private void handleUrlEncodedForm(Exchange exchange, FormData formData) {
+        try {
+            MultivaluedMap<String, Object> map = new MultivaluedHashMap<>();
+            formData.getEntries().forEach(entry -> {
+                Object value = evaluate(exchange, entry.getValue());
+                map.add(entry.getName(), value);
+            });
+            MapAsFormUrlEncodedProvider provider = new MapAsFormUrlEncodedProvider();
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            provider.writeTo(map, null, null, null,
+                    MediaType.APPLICATION_FORM_URLENCODED_TYPE, null, outputStream);
+            exchange.getMessage().setBody(outputStream.toByteArray());
+            exchange.getMessage().setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_TYPE);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to build urlencoded form data", e);
+        }
+    }
+
+    private Object evaluate(Exchange exchange, String expressionString) {
+        simpleLanguage.setCamelContext(exchange.getContext());
+        Expression expression = simpleLanguage.createExpression(expressionString);
+        return expression.evaluate(exchange, Object.class);
+    }
 }
