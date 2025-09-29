@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
 import io.micrometer.core.instrument.Tag;
+import jakarta.annotation.Priority;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
@@ -33,8 +34,6 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 
 import java.util.Collection;
 
@@ -42,10 +41,10 @@ import static org.qubership.integration.platform.engine.service.debugger.metrics
 import static org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.ChainElementTypeHelper.isServiceCallOrAsyncApiTrigger;
 
 @ApplicationScoped
-@Order(KafkaElementDependencyBinder.ORDER)
+@Priority(KafkaElementDependencyBinder.ORDER)
 @OnAfterDeploymentContextCreated
 public class KafkaElementDependencyBinder extends ElementProcessingAction {
-    public static final int ORDER = Ordered.HIGHEST_PRECEDENCE;
+    public static final int ORDER = 0;
 
     private final MetricsStore metricsStore;
     private final MetricTagsHelper metricTagsHelper;
