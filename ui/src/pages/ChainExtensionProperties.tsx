@@ -13,7 +13,7 @@ export const loadChainExtensionPropertiesToForm = (
     target.domain =
       (source.chain.deployments?.length ?? 0 > 0)
         ? source.chain.deployments[0].domain
-        : undefined;
+        : "default";
     target.deployAction = source.chain.deployAction;
   }
 };
@@ -49,8 +49,8 @@ export const ChainExtensionProperties: React.FC<Props> = (props) => {
 
     return (
       <span>
-        <Form.Item label="Domain" name="domain">
-          <Input defaultValue="default" />
+        <Form.Item label="Domain" name="domain" rules={[{ required: true }]}>
+          <Input />
         </Form.Item>
         <Form.Item label="Deploy Action" name="deployAction">
           {/* eslint-disable-next-line react/prop-types */}
