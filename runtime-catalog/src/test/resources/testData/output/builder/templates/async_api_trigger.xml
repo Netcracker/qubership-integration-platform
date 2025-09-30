@@ -1,8 +1,5 @@
 <route>
     <from uri="kafka-custom:install-base-service-expired-product-instances?brokers=#{cpq-kafka-address}&amp;securityProtocol=#{cpq-kafka-security-protocol}&amp;saslMechanism=#{cpq-kafka-sasl-mechanism}&amp;saslJaasConfig=#{cpq-kafka-sasl-jaas-config}&amp;headerDeserializer=#kafkaHeaderStringDeserializer&amp;reconnectBackoffMaxMs=30000&amp;kafkaClientFactory=#5e5cecb4-b800-4a20-b91f-231134da0dc0-v2"/>
-    <setProperty name="internalProperty_asyncValidationSchema">
-        <constant></constant>
-    </setProperty>
     <step id="5e5cecb4-b800-4a20-b91f-231134da0dc0">
         <process ref="kafkaTriggerProcessor"/>
     </step>
