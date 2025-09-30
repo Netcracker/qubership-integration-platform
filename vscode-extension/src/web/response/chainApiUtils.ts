@@ -62,6 +62,16 @@ export function getElementChildren(children: any[] | undefined): any[] {
     return result;
 }
 
+export function replaceElementPlaceholders(properties: any, chainId: string, elementId: string) {
+    for (let property in properties) {
+        if (typeof(properties[property]) === 'string') {
+            properties[property] = properties[property]
+                .replace(ChainElementPlaceholders.CHAIN_ID_PLACEHOLDER, chainId)
+                .replace(ChainElementPlaceholders.CREATED_ELEMENT_ID_PLACEHOLDER, elementId);
+        }
+    }
+}
+
 export const EMPTY_USER: User = {
     id: "",
     username: ""
@@ -83,4 +93,9 @@ export enum LibraryElementQuantity {
 export enum LibraryInputQuantity {
     ONE = "one",
     ANY = "any",
+}
+
+export enum ChainElementPlaceholders {
+    CREATED_ELEMENT_ID_PLACEHOLDER = "%%{created-element-id-placeholder}",
+    CHAIN_ID_PLACEHOLDER = "%%{chain-id-placeholder}",
 }

@@ -23,7 +23,8 @@ import {
     findElementById,
     getElementChildren,
     LibraryElementQuantity,
-    LibraryInputQuantity
+    LibraryInputQuantity,
+    replaceElementPlaceholders
 } from "./chainApiUtils";
 import {Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";
@@ -311,6 +312,10 @@ async function getDefaultElementByType(chainId: string, elementRequest: CreateEl
         children: children,
         parentElementId: elementRequest.parentElementId
     } as Element;
+
+    if (element.type === 'checkpoint' || element.type === 'chain-trigger-2') {
+        replaceElementPlaceholders(element.properties, chainId, elementId);
+    }
 
     return element;
 }
