@@ -29,8 +29,8 @@ public class ApplicationConfiguration {
     private final String cloudServiceName;
 
     public ApplicationConfiguration(
-            @ConfigProperty(name = "spring.application.cloud_service_name") String cloudServiceName,
-            @ConfigProperty(name = "spring.application.name") String microserviceName
+            @ConfigProperty(name = "application.cloud_service_name") String cloudServiceName,
+            @ConfigProperty(name = "application.name") String microserviceName
     ) {
         this.microserviceName = microserviceName;
         this.cloudServiceName = cloudServiceName;

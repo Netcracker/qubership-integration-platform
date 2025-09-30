@@ -23,10 +23,10 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 @ApplicationScoped
 public class EngineDomainUtils {
 
-    @ConfigProperty(name = "spring.application.default_integration_domain_name")
+    @ConfigProperty(name = "application.default_integration_domain_name")
     String engineDefaultDomain;
 
-    @ConfigProperty(name = "spring.application.default_integration_domain_microservice_name")
+    @ConfigProperty(name = "application.default_integration_domain_microservice_name")
     String defaultEngineMicroserviceName;
 
     @Inject

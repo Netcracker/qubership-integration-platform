@@ -43,7 +43,7 @@ public class ServerConfiguration {
     public ServerConfiguration(
             ApplicationConfiguration applicationConfiguration,
             EngineDomainUtils engineDomainUtils,
-            @ConfigProperty(name = "server.port") int port
+            @ConfigProperty(name = "quarkus.http.port") int port
     ) {
         this.applicationConfiguration = applicationConfiguration;
         this.domain = engineDomainUtils.extractEngineDomain(applicationConfiguration.getMicroserviceName());

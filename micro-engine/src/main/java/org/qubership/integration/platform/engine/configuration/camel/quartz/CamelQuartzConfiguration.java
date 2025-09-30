@@ -25,7 +25,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.quartz.SchedulerException;
 import org.quartz.impl.StdSchedulerFactory;
-//import org.quartz.utils.PoolingConnectionProvider;
 import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 

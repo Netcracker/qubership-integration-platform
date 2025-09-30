@@ -136,7 +136,7 @@ public class MetricsStore {
     public MetricsStore(
             ServerConfiguration serverConfiguration,
             MeterRegistry meterRegistry,
-            @ConfigProperty(name = "app.prefix") String appPrefix
+            @ConfigProperty(name = "application.prefix") String appPrefix
     ) {
         this.serverConfiguration = serverConfiguration;
         this.meterRegistry = meterRegistry;

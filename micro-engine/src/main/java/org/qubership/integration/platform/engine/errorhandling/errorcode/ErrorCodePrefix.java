@@ -20,7 +20,7 @@ import org.eclipse.microprofile.config.ConfigProvider;
 
 public class ErrorCodePrefix {
     private static final String CODE_PREFIX = ConfigProvider.getConfig()
-            .getValue("app.prefix", String.class)
+            .getValue("application.prefix", String.class)
             .toUpperCase();
 
     private ErrorCodePrefix() {

@@ -27,7 +27,7 @@ public class NamespaceProvider {
     private final String namespace;
 
     @Inject
-    public NamespaceProvider(@ConfigProperty(name = "spring.application.namespace") String namespace) {
+    public NamespaceProvider(@ConfigProperty(name = "application.namespace") String namespace) {
         this.namespace = namespace;
     }
 }
