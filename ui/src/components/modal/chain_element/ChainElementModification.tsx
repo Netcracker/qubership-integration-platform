@@ -49,6 +49,8 @@ type TabField = {
 
 export type FormContext = {
   operationId?: string;
+  integrationOperationProtocolType?: string;
+  elementType?: string;
 };
 
 function constructTitle(name: string, type?: string): string {
@@ -414,6 +416,10 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
                 operationId: (
                   formDataRef.current.properties as Record<string, unknown>
                 ).integrationOperationId,
+                integrationOperationProtocolType: (
+                  formDataRef.current.properties as Record<string, unknown>
+                ).integrationOperationId,
+                elementType: node.data.elementType,
               } as FormContext
             }
             templates={{

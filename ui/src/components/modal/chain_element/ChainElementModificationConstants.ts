@@ -155,6 +155,12 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     businessIdentifiers: {
       "ui:field": "patternPropertiesField",
     },
+    requestFilterHeaderAllowlist: {
+      "ui:field": "patternPropertiesField",
+    },
+    integrationOperationAsyncProperties: {
+      "ui:field": "patternPropertiesField",
+    },
     idempotency: {
       keyExpiry: {
         "ui:fieldReplacesAnyOrOneOf": true,
@@ -162,6 +168,10 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       },
     },
     connectTimeout: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+    reconnectDelay: {
       "ui:fieldReplacesAnyOrOneOf": true,
       "ui:field": "oneOfAsSingleInputField",
     },
@@ -238,6 +248,7 @@ export const pathToTabMap: Record<string, string> = {
   "properties.httpMethodRestrict": "Endpoint",
   "properties.systemType": "Endpoint",
   "properties.integrationOperationProtocolType": "Endpoint",
+  "properties.integrationOperationAsyncProperties": "Endpoint",
   "properties.handleValidationAction": "Handle Validation Failure",
   "properties.handlerContainer": "Handle Validation Failure",
   "properties.handlerContainer.script": "Handle Validation Failure",
@@ -267,6 +278,7 @@ export const pathToTabMap: Record<string, string> = {
   "properties.before": "Prepare Request",
   "properties.after": "Handle Response",
   "properties.afterValidation": "Validation",
+  "properties.requestFilterHeaderAllowlist": "Filer Request",
 };
 
 export const desiredTabOrder = [
@@ -279,6 +291,7 @@ export const desiredTabOrder = [
   "Handle Response",
   "Failure Response Mapping",
   "Access Control",
+  "Filer Request",
   "Parameters",
   "Idempotency",
 ];

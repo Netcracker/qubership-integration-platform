@@ -1,7 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { FieldProps } from "@rjsf/utils";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button, Select, List } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { MappingDescription } from "../../../../mapper/model/model.ts";
 import { MappingUtil } from "../../../../mapper/util/mapping.ts";
 import { Mapping } from "../../../mapper/Mapping.tsx";
@@ -9,24 +7,27 @@ import { api } from "../../../../api/api.ts";
 import { Script } from "../../../Script.tsx";
 import { FormContext } from "../ChainElementModification.tsx";
 import styles from "./CustomArrayField.module.css";
+import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 
-type AfterValidation = {
-  id: string;
-  code: string;
-  type: "responseValidation";
-  label: string;
-  scheme: string;
-  wildcard: boolean;
-  contentType: string;
-};
-
-type HandleResponse = {
+type BaseItem = {
   id: string;
   code: string;
   type: string;
   label: string;
   wildcard: boolean;
+  script?: string;
+  mappingDescription?: MappingDescription;
 };
+
+export type AfterValidation = BaseItem & {
+  type: "responseValidation";
+  schema: string;
+  contentType: string;
+};
+
+export type HandleResponse = BaseItem;
+
+type ArrayItem = AfterValidation | HandleResponse;
 
 const actionOptions = [
   { value: "none", label: "None" },
@@ -43,7 +44,16 @@ const defaultCodeOptions = [
   { value: "Default" },
 ];
 
-const CustomArrayField: React.FC<FieldProps<[]>> = ({
+type Props = {
+  name?: string;
+  formData?: ArrayItem[];
+  onChange: (data: ArrayItem[]) => void;
+  disabled?: boolean;
+  readonly?: boolean;
+  formContext?: FormContext;
+};
+
+const CustomArrayField: React.FC<Props> = ({
   name,
   formData = [],
   onChange,
@@ -55,8 +65,18 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
     formData.length > 0 ? 0 : null,
   );
 
+  const readOnlyMode = useMemo(() => {
+    if (formContext?.elementType === "async-api-trigger") {
+      return true;
+    }
+
+    return name === "afterValidation";
+  }, [name, formContext]);
+
   const [availableCodes, setAvailableCodes] = useState<{ value: string }[]>(
-    name === "afterValidation" ? [] : defaultCodeOptions,
+    readOnlyMode || formContext?.integrationOperationProtocolType !== "http"
+      ? []
+      : defaultCodeOptions,
   );
 
   const [selectedCode, setSelectedCode] = useState<string | undefined>();
@@ -64,7 +84,7 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
     Record<string, AfterValidation>
   >({});
 
-  const operationId = (formContext as FormContext).operationId;
+  const operationId = formContext?.operationId;
 
   useEffect(() => {
     let cancelled = false;
@@ -76,7 +96,7 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
         if (cancelled) return;
 
         const responseSchemas = operationInfo?.responseSchemas || {};
-        if (name === "afterValidation") {
+        if (readOnlyMode) {
           setValidationSchemas(
             Object.entries(responseSchemas).reduce(
               (acc, [code, mediaTypes]) => {
@@ -88,7 +108,7 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
                       code,
                       type: "responseValidation",
                       label: id,
-                      scheme: JSON.stringify(schema, null, 2),
+                      schema: JSON.stringify(schema, null, 2),
                       wildcard: false,
                       contentType,
                     };
@@ -100,7 +120,7 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
             ),
           );
 
-          const usedIds = formData.map((f) => f.id as string);
+          const usedIds = formData.map((f) => f.id);
 
           setAvailableCodes(
             Object.keys(validationSchemas)
@@ -134,11 +154,10 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
 
   const handleAdd = () => {
     if (!selectedCode) return;
-    const exists = formData.some((f) => f.code === selectedCode);
-    if (exists) return;
+    if (formData.some((f) => f.code === selectedCode)) return;
 
     let newItem;
-    if (name === "afterValidation") {
+    if (readOnlyMode) {
       newItem = {
         code: validationSchemas[selectedCode].code,
         id: selectedCode,
@@ -146,7 +165,7 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
         type: "responseValidation",
         wildcard: false,
         contentType: validationSchemas[selectedCode].contentType,
-        scheme: validationSchemas[selectedCode].scheme,
+        schema: validationSchemas[selectedCode].schema,
       } as AfterValidation;
     } else {
       newItem = {
@@ -157,6 +176,7 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
         wildcard: false,
       } as HandleResponse;
     }
+
     const newArray = [...formData, newItem];
     onChange(newArray);
     setSelectedIndex(newArray.length - 1);
@@ -170,15 +190,13 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
     setAvailableCodes([
       ...availableCodes,
       {
-        value:
-          name === "afterValidation"
-            ? (formData[index].id as string)
-            : (formData[index].code as string),
+        value: readOnlyMode ? formData[index].id : formData[index].code,
       },
     ]);
     const newArray = [...formData];
     newArray.splice(index, 1);
     onChange(newArray);
+
     if (selectedIndex === index) {
       setSelectedIndex(newArray.length > 0 ? 0 : null);
     } else if ((selectedIndex ?? 0) > index) {
@@ -252,12 +270,12 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
       <div className={styles.rightColumn}>
         {selectedIndex != null && formData[selectedIndex] && (
           <>
-            {name !== "afterValidation" && (
+            {!readOnlyMode && (
               <>
                 <div className={styles.sectionTitle}>Action</div>
                 <Select
                   style={{ marginBottom: 8 }}
-                  value={formData[selectedIndex].type as string}
+                  value={formData[selectedIndex].type}
                   onChange={(value) => {
                     onChange(
                       formData.map((item, i) =>
@@ -275,7 +293,7 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
               <div>
                 <div className={styles.sectionTitle}>Script</div>
                 <Script
-                  value={String(formData[selectedIndex].script)}
+                  value={formData[selectedIndex].script ?? ""}
                   onChange={(value) => {
                     formData[selectedIndex].script = value;
                     onChange(formData);
@@ -283,37 +301,37 @@ const CustomArrayField: React.FC<FieldProps<[]>> = ({
                 />
               </div>
             )}
-            {formData[selectedIndex].type === "responseValidation" && (
+            {readOnlyMode && (
               <div>
-                <div className={styles.sectionTitle}>Scheme</div>
+                <div className={styles.sectionTitle}>Schema</div>
                 <Script
-                  value={formData[selectedIndex].scheme as string}
+                  value={
+                    (formData[selectedIndex] as AfterValidation).schema ?? ""
+                  }
                   readOnly={true}
                   mode={"json"}
                 />
               </div>
             )}
-            {formData[selectedIndex].type === "mapper-2" &&
-              name !== "afterValidation" && (
-                <div>
-                  <div className={styles.sectionTitle}>Mapper</div>
-                  <Mapping
-                    elementId={"mapping"}
-                    mapping={
-                      formData[selectedIndex].mappingDescription &&
-                      typeof formData[selectedIndex].mappingDescription ===
-                        "object"
-                        ? (formData[selectedIndex]
-                            .mappingDescription as MappingDescription)
-                        : MappingUtil.emptyMapping()
-                    }
-                    onChange={(value) => {
-                      formData[selectedIndex].mappingDescription = value;
-                      onChange(formData);
-                    }}
-                  />
-                </div>
-              )}
+            {formData[selectedIndex].type === "mapper-2" && !readOnlyMode && (
+              <div>
+                <div className={styles.sectionTitle}>Mapper</div>
+                <Mapping
+                  elementId={"mapping"}
+                  mapping={
+                    formData[selectedIndex].mappingDescription &&
+                    typeof formData[selectedIndex].mappingDescription ===
+                      "object"
+                      ? formData[selectedIndex].mappingDescription
+                      : MappingUtil.emptyMapping()
+                  }
+                  onChange={(value) => {
+                    formData[selectedIndex].mappingDescription = value;
+                    onChange(formData);
+                  }}
+                />
+              </div>
+            )}
           </>
         )}
       </div>
