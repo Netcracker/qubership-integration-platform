@@ -16,9 +16,8 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import jakarta.annotation.PostConstruct;
+import io.quarkus.runtime.Startup;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -39,9 +38,14 @@ import java.util.stream.Stream;
 @Slf4j
 @ApplicationScoped
 public class TruststoreConfiguration {
-    private final String storeFilePath;
-    private final String storePassword;
-    private final String certsLocation;
+    @ConfigProperty(name = "qip.local-truststore.store.path")
+    String storeFilePath;
+
+    @ConfigProperty(name = "qip.local-truststore.store.password")
+    Optional<String> storePassword;
+
+    @ConfigProperty(name = "qip.local-truststore.certs.location")
+    String certsLocation;
 
     private static final String JAVA_HOME_PROPERTY = "java.home";
 
@@ -52,18 +56,7 @@ public class TruststoreConfiguration {
     private static final String JAVA_DEFAULT_TRUSTSTORE = "/lib/security/cacerts";
     private static final String JAVA_DEFAULT_TRUSTSTORE_PASSWORD = "changeit";
 
-    @Inject
-    public TruststoreConfiguration(
-            @ConfigProperty(name = "qip.local-truststore.store.path") String storeFilePath,
-            @ConfigProperty(name = "qip.local-truststore.store.password") Optional<String> storePassword,
-            @ConfigProperty(name = "qip.local-truststore.certs.location") String certsLocation
-    ) {
-        this.storeFilePath = storeFilePath;
-        this.storePassword = storePassword.orElse("");
-        this.certsLocation = certsLocation;
-    }
-
-    @PostConstruct
+    @Startup
     public void buildTruststore() {
         try {
             KeyStore keyStore = getDefaultTrustStore();
@@ -103,7 +96,7 @@ public class TruststoreConfiguration {
                 storeFile.getParentFile().mkdirs();
             }
             try (FileOutputStream fos = new FileOutputStream(storeFile, false)) {
-                keyStore.store(fos, storePassword.toCharArray());
+                keyStore.store(fos, storePassword.orElse("").toCharArray());
             }
         } catch (Exception e) {
             log.error("Failed to load trusted certificates from volume", e);
