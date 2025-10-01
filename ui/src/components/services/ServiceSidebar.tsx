@@ -1,25 +1,21 @@
-import {
-  CloudOutlined,
-  ClusterOutlined,
-  GlobalOutlined,
-} from "@ant-design/icons";
 import { Menu } from "antd";
 import { useLocation } from "react-router-dom";
+import { Icon } from "../../IconProvider.tsx";
 
 const menuItems = [
   {
     key: "#external",
-    icon: <GlobalOutlined/>,
+    icon: <Icon name="global" />,
     label: "External",
   },
   {
     key: "#internal",
-    icon: <CloudOutlined />,
+    icon: <Icon name="cloud" />,
     label: "Inner Cloud",
   },
   {
     key: "#implemented",
-    icon: <ClusterOutlined />,
+    icon: <Icon name="cluster" />,
     label: "Implemented",
   },
 ];

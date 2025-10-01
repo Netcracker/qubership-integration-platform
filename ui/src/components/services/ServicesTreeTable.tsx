@@ -13,7 +13,6 @@ import {
   IntegrationSystemType,
 } from "../../api/apiTypes.ts";
 import { useNavigate } from 'react-router-dom';
-import { SettingOutlined, MoreOutlined, EditOutlined, DeleteOutlined, PlusSquareOutlined, MinusSquareOutlined, GlobalOutlined, InboxOutlined, FileTextOutlined, CloudDownloadOutlined, CloudOutlined, ClusterOutlined } from '@ant-design/icons';
 import { ColumnsFilter } from '../table/ColumnsFilter';
 import { OperationInfoModal } from './OperationInfoModal';
 import { api } from '../../api/api';
@@ -22,6 +21,7 @@ import type { SpecificationGroup, Specification, SystemOperation } from '../../a
 import { InlineEdit } from '../InlineEdit';
 import { LabelsEdit } from '../table/LabelsEdit';
 import { ChainColumn } from './ChainColumn';
+import { Icon } from "../../IconProvider.tsx";
 
 export type ServiceEntity = IntegrationSystem | SpecificationGroup | Specification | SystemOperation;
 
@@ -97,20 +97,20 @@ function getIcon(record: ServiceEntity): React.JSX.Element | null {
   if (isIntegrationSystem(record)) {
     switch (record.type) {
       case IntegrationSystemType.EXTERNAL:
-        return <GlobalOutlined style={iconStyle} />;
+        return <Icon name="global" style={iconStyle} />;
       case IntegrationSystemType.INTERNAL:
-        return <CloudOutlined style={iconStyle} />;
+        return <Icon name="cloud" style={iconStyle} />;
       case IntegrationSystemType.IMPLEMENTED:
-        return <ClusterOutlined style={iconStyle} />;
+        return <Icon name="cluster" style={iconStyle} />;
       default:
-        return <GlobalOutlined style={iconStyle} />;
+        return <Icon name="global" style={iconStyle} />;
     }
   }
   if (isSpecificationGroup(record)) {
-    return <InboxOutlined style={iconStyle} />;
+    return <Icon name="inbox" style={iconStyle}/>
   }
   if (isSpecification(record)) {
-    return <FileTextOutlined style={iconStyle} />;
+    return <Icon name="fileText" style={iconStyle} />;
   }
   return null;
 }
@@ -413,7 +413,7 @@ function ActionMenu<T>({ record, actions }: { record: T; actions: ActionConfig<T
       trigger={["click"]}
       placement="bottomRight"
     >
-      <Button type="text" icon={<MoreOutlined />} />
+      <Button type="text" icon={<Icon name="more" />} />
     </Dropdown>
   );
 }
@@ -455,13 +455,13 @@ export function getServiceActions({
       {
         key: 'edit',
         label: 'Edit',
-        icon: <EditOutlined />,
+        icon: <Icon name="edit" />,
         onClick: onEdit,
       },
       {
         key: 'delete',
         label: 'Delete',
-        icon: <DeleteOutlined />,
+        icon: <Icon name="delete" />,
         onClick: onDelete,
         confirm: {
           title: 'Are you sure you want to delete this service?',
@@ -472,13 +472,13 @@ export function getServiceActions({
       {
         key: 'expandAll',
         label: 'Expand All',
-        icon: <PlusSquareOutlined />,
+        icon: <Icon name="columnHeight" />,
         onClick: onExpandAll,
       },
       {
         key: 'collapseAll',
         label: 'Collapse All',
-        icon: <MinusSquareOutlined />,
+        icon: <Icon name="verticalAlignMiddle" />,
         onClick: onCollapseAll,
       },
     ];
@@ -486,7 +486,7 @@ export function getServiceActions({
       actions.push({
         key: 'export',
         label: 'Export',
-        icon: <CloudDownloadOutlined />,
+        icon: <Icon name="cloudDownload" />,
         onClick: (rec) => onExportSelected([rec]),
       });
     }
@@ -554,7 +554,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
       )}
       trigger={['click']}
     >
-      <Button icon={<SettingOutlined />}/>
+      <Button icon={<Icon name="settings" />}/>
     </Dropdown>
   );
 

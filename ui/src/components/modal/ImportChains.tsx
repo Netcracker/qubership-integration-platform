@@ -31,7 +31,6 @@ import {
   UploadFile,
 } from "antd";
 import Dragger from "antd/es/upload/Dragger";
-import { DownOutlined, InboxOutlined } from "@ant-design/icons";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { api } from "../../api/api.ts";
 import { TableProps } from "antd/lib/table";
@@ -41,6 +40,7 @@ import { SelectEdit } from "../table/SelectEdit.tsx";
 import Checkbox from "antd/lib/checkbox";
 import { ImportStatus } from "../labels/ImportStatus.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import { Icon } from "../../IconProvider.tsx";
 
 type ImportChainsProps = {
   onSuccess?: () => void;
@@ -376,7 +376,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                 },
               }}
             >
-              <DownOutlined />
+              <Icon name="down" />
             </Dropdown>
           </Space>
         ),
@@ -616,7 +616,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
               onChange={(info) => setFileList(info.fileList)}
             >
               <p className="ant-upload-drag-icon">
-                <InboxOutlined />
+                <Icon name="inbox" />
               </p>
               <p className="ant-upload-text">
                 Click or drag file to this area to upload

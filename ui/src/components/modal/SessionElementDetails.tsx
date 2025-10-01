@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Session, SessionElement } from "../../api/apiTypes.ts";
 import { Button, Flex, message, Modal, Tabs, TabsProps, Tag } from "antd";
-import { LeftOutlined, LinkOutlined, RightOutlined } from "@ant-design/icons";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
 import { SessionStatus } from "../sessions/SessionStatus.tsx";
@@ -13,6 +12,7 @@ import {
 import { copyToClipboard } from "../../misc/clipboard-util.ts";
 import { SessionElementBodyChangesView } from "../sessions/SessionElementBodyChangesView.tsx";
 import { traverseElementsDepthFirst } from "../../misc/tree-utils.ts";
+import { Icon } from "../../IconProvider.tsx";
 
 type SessionElementDetailsProps = {
   session: Session;
@@ -210,7 +210,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
       title={
         <>
           <span style={{ marginRight: 8 }}>{element?.elementName}</span>
-          <LinkOutlined
+          <Icon name="link"
             onClick={() =>
               window.open(
                 `/chains/${session.chainId}/graph/${element?.chainElementId}`,
@@ -235,7 +235,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
                 !element || !elementOrderMap.get(element.elementId)?.previous
               }
               iconPosition="start"
-              icon={<LeftOutlined />}
+              icon={<Icon name="left" />}
               onClick={() =>
                 setElement(
                   elementOrderMap.get(element?.elementId ?? "")?.previous,
@@ -249,7 +249,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
                 !element || !elementOrderMap.get(element.elementId)?.next
               }
               iconPosition="end"
-              icon={<RightOutlined />}
+              icon={<Icon name="right" />}
               onClick={() =>
                 setElement(elementOrderMap.get(element?.elementId ?? "")?.next)
               }

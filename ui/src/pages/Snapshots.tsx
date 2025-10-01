@@ -3,13 +3,6 @@ import { Button, Dropdown, FloatButton, Modal, Table } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import { useNavigate } from "react-router";
-import {
-  DeleteOutlined,
-  FileTextOutlined,
-  MoreOutlined,
-  PlusOutlined,
-  RollbackOutlined,
-} from "@ant-design/icons";
 import { TableProps } from "antd/lib/table";
 import { DiagramMode, EntityLabel, Snapshot } from "../api/apiTypes.ts";
 import { formatTimestamp } from "../misc/format-utils.ts";
@@ -34,6 +27,7 @@ import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
 import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
+import { Icon } from "../IconProvider.tsx";
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -271,19 +265,19 @@ export const Snapshots: React.FC = () => {
               items: [
                 {
                   key: "delete",
-                  icon: <DeleteOutlined />,
+                  icon: <Icon name="delete" />,
                   label: "Delete",
                   onClick: () => deleteSnapshotWithConfirmation(snapshot),
                 },
                 {
                   key: "revert",
-                  icon: <RollbackOutlined />,
+                  icon: <Icon name="rollback" />,
                   label: "Revert to",
                   onClick: () => revertToSnapshotWithConfirmation(snapshot),
                 },
                 {
                   key: "showXml",
-                  icon: <FileTextOutlined />,
+                  icon: <Icon name="fileText" />,
                   label: "Show XML",
                   onClick: () => showSnapshotXml(snapshot),
                 },
@@ -298,7 +292,7 @@ export const Snapshots: React.FC = () => {
             trigger={["click"]}
             placement="bottomRight"
           >
-            <Button size="small" type="text" icon={<MoreOutlined />} />
+            <Button size="small" type="text" icon={<Icon name="more" />} />
           </Dropdown>
         </>
       ),
@@ -329,7 +323,7 @@ export const Snapshots: React.FC = () => {
         style={{ height: "100%" }}
         scroll={{ y: "" }}
       />
-      <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+      <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
         <FloatButton
           tooltip={{ title: "Compare selected snapshots", placement: "left" }}
           icon={<>⇄</>}
@@ -337,12 +331,12 @@ export const Snapshots: React.FC = () => {
         />
         <FloatButton
           tooltip={{ title: "Delete selected snapshots", placement: "left" }}
-          icon={<DeleteOutlined />}
+          icon={<Icon name="delete" />}
           onClick={onDeleteBtnClick}
         />
         <FloatButton
           tooltip={{ title: "Create snapshot", placement: "left" }}
-          icon={<PlusOutlined />}
+          icon={<Icon name="plus" />}
           onClick={onCreateBtnClick}
         />
       </FloatButtonGroup>

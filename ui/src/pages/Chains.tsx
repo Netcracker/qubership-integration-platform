@@ -10,20 +10,6 @@ import {
   Table,
 } from "antd";
 import { useNavigate, useSearchParams } from "react-router";
-import {
-  CarryOutOutlined,
-  CloudDownloadOutlined,
-  CloudUploadOutlined,
-  DeleteOutlined,
-  FileAddOutlined,
-  FileOutlined,
-  FolderAddOutlined,
-  FolderOutlined,
-  HomeOutlined,
-  MoreOutlined,
-  SendOutlined,
-  SettingOutlined,
-} from "@ant-design/icons";
 import { useModalsContext } from "../Modals.tsx";
 import {
   CatalogItemType,
@@ -64,6 +50,7 @@ import { FilterButton } from "../components/table/filter/FilterButton.tsx";
 import { FilterItemState } from "../components/table/filter/FilterItem.tsx";
 import { GenerateDdsModal } from "../components/modal/GenerateDdsModal.tsx";
 import { DdsPreview } from "../components/modal/DdsPreview.tsx";
+import { Icon } from "../IconProvider.tsx";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -123,7 +110,7 @@ function buildPathItems(path: FolderItem[]): BreadcrumbProps["items"] {
   return [
     {
       href: "/chains",
-      title: <HomeOutlined />,
+      title: <Icon name="home" />,
     },
     ...items,
   ];
@@ -787,9 +774,9 @@ const Chains = () => {
       render: (_, item) => (
         <Flex vertical={false} gap={4}>
           {item.itemType === CatalogItemType.FOLDER ? (
-            <FolderOutlined />
+            <Icon name="folder" />
           ) : (
-            <FileOutlined />
+            <Icon name="file" />
           )}
           <a
             onClick={(event) => {
@@ -910,7 +897,7 @@ const Chains = () => {
             trigger={["click"]}
             placement="bottomRight"
           >
-            <Button size="small" type="text" icon={<MoreOutlined />} />
+            <Button size="small" type="text" icon={<Icon name="more" />} />
           </Dropdown>
         </>
       ),
@@ -955,7 +942,7 @@ const Chains = () => {
               onDeselect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
             }}
           >
-            <Button icon={<SettingOutlined />} />
+            <Button icon={<Icon name="settings" />} />
           </Dropdown>
           <FilterButton count={filterItemStates.length} onClick={addFilter} />
         </Flex>
@@ -982,15 +969,15 @@ const Chains = () => {
             },
           }}
         />
-        <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+        <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
           <FloatButton
             tooltip={{ title: "Deploy selected chains", placement: "left" }}
-            icon={<SendOutlined />}
+            icon={<Icon name="send" />}
             // onClick={onDeployBtnClick}
           />
           <FloatButton
             tooltip={{ title: "Paste", placement: "left" }}
-            icon={<CarryOutOutlined />}
+            icon={<Icon name="carryOut" />}
             onClick={() => void pasteItem(getFolderId())}
           />
           <FloatButton
@@ -1000,12 +987,12 @@ const Chains = () => {
           />
           <FloatButton
             tooltip={{ title: "Import chains", placement: "left" }}
-            icon={<CloudUploadOutlined />}
+            icon={<Icon name="cloudUpload" />}
             onClick={onImportBtnClick}
           />
           <FloatButton
             tooltip={{ title: "Export selected chains", placement: "left" }}
-            icon={<CloudDownloadOutlined />}
+            icon={<Icon name="cloudDownload" />}
             onClick={onExportBtnClick}
           />
           <FloatButton
@@ -1013,17 +1000,17 @@ const Chains = () => {
               title: "Delete selected chains and folders",
               placement: "left",
             }}
-            icon={<DeleteOutlined />}
+            icon={<Icon name="delete" />}
             onClick={onDeleteBtnClick}
           />
           <FloatButton
             tooltip={{ title: "Create folder", placement: "left" }}
-            icon={<FolderAddOutlined />}
+            icon={<Icon name="folderAdd" />}
             onClick={() => onCreateFolderBtnClick(getFolderId())}
           />
           <FloatButton
             tooltip={{ title: "Create chain", placement: "left" }}
-            icon={<FileAddOutlined />}
+            icon={<Icon name="fileAdd" />}
             onClick={() => onCreateChainBtnClick(getFolderId())}
           />
         </FloatButtonGroup>

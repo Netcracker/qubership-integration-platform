@@ -2,7 +2,6 @@ import React from "react";
 import { FloatButton, Table, Tooltip } from "antd";
 import { useDeployments } from "../hooks/useDeployments.tsx";
 import { useParams } from "react-router";
-import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { TableProps } from "antd/lib/table";
 import { CreateDeploymentRequest, Deployment } from "../api/apiTypes.ts";
 import { DeploymentRuntimeStates } from "../components/deployment_runtime_states/DeploymentRuntimeStates.tsx";
@@ -13,6 +12,7 @@ import { DeploymentCreate } from "../components/modal/DeploymentCreate.tsx";
 import { api } from "../api/api.ts";
 import { LongActionButton } from "../components/LongActionButton.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
+import { Icon } from "../IconProvider.tsx";
 
 export const Deployments: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -68,7 +68,7 @@ export const Deployments: React.FC = () => {
         <Tooltip title="Delete deployment" placement="topRight">
           <LongActionButton
             size="small"
-            icon={<DeleteOutlined />}
+            icon={<Icon name="delete" />}
             type="text"
             onSubmit={async () => deleteDeployment(deployment)}
           />
@@ -114,7 +114,7 @@ export const Deployments: React.FC = () => {
         scroll={{ y: "" }}
       />
       <FloatButton
-        icon={<PlusOutlined />}
+        icon={<Icon name="plus" />}
         tooltip={{ title: "Create deployment", placement: "left" }}
         onClick={() =>
           showModal({

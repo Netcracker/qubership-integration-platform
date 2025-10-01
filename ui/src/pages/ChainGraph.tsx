@@ -19,7 +19,6 @@ import React, {
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
 import { Flex, FloatButton } from "antd";
-import { MoreOutlined, SendOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router";
 import { useParams } from "react-router-dom";
 import { CustomControls } from "../components/graph/CustomControls.tsx";
@@ -42,6 +41,7 @@ import {
   ChainGraphNodeData,
   nodeTypes,
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
+import { Icon } from "../IconProvider.tsx";
 
 const ChainGraphInner: React.FC = () => {
   const { chainId, elementId } = useParams<string>();
@@ -227,7 +227,7 @@ const ChainGraphInner: React.FC = () => {
           </ReactFlow>
         </ElkDirectionContextProvider>
       </div>
-      <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+      <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
         <FloatButton
           icon={<>⭾</>}
           tooltip={{
@@ -237,7 +237,7 @@ const ChainGraphInner: React.FC = () => {
           onClick={openSequenceDiagram}
         />
         <FloatButton
-          icon={<SendOutlined />}
+          icon={<Icon name="send" />}
           tooltip={{
             title: "Save and deploy",
             placement: "left",

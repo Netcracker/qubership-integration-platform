@@ -1,13 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { Table, Input, Button, Popconfirm, TableProps } from "antd";
 import type { InputRef } from "antd";
-import {
-  EditOutlined,
-  DeleteOutlined,
-  CheckOutlined,
-  CloseOutlined,
-  FileTextOutlined,
-} from "@ant-design/icons";
 import { ResizableProps } from "react-resizable";
 import "react-resizable/css/styles.css";
 import "./Resizable.css";
@@ -20,6 +13,7 @@ import {
 import type { FilterDropdownProps } from "antd/lib/table/interface";
 import { Variable } from "../../../api/admin-tools/variables/types";
 import { ResizableTitle } from "../../ResizableTitle.tsx";
+import { Icon } from "../../../IconProvider.tsx";
 
 interface VariablesTableProps {
   variables: Variable[];
@@ -182,12 +176,12 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
               />
               <div className={styles["editing-buttons"]}>
                 <Button
-                  icon={<CheckOutlined />}
+                  icon={<Icon name="check" />}
                   type="text"
                   onClick={() => onConfirmEdit(record.key, editingValue)}
                 />
                 <Button
-                  icon={<CloseOutlined />}
+                  icon={<Icon name="close" />}
                   type="text"
                   onClick={onCancelEditing}
                 />
@@ -226,7 +220,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
               />
               <div className={styles["editing-buttons"]}>
                 <Button
-                  icon={<CheckOutlined />}
+                  icon={<Icon name="check" />}
                   type="text"
                   onClick={() => {
                     if (
@@ -239,7 +233,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
                   }}
                 />
                 <Button
-                  icon={<CloseOutlined />}
+                  icon={<Icon name="close" />}
                   type="text"
                   onClick={onCancelEditing}
                 />
@@ -259,11 +253,11 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
                 : `${record.value.split("\n")[0]}${record.value.includes("\n") || record.value.length > 40 ? "..." : ""}`}
             </div>
             {record.value.includes("\n") && (
-              <FileTextOutlined
+              <Icon name="fileText"
                 className={`${styles["inline-icon"]} ${styles["multiline-icon"]}`}
               />
             )}
-            <EditOutlined
+            <Icon name="edit"
               className={styles["inline-icon"]}
             />
           </div>
@@ -283,7 +277,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
             onConfirm={() => onDelete(record.key)}
           >
             <Button
-              icon={<DeleteOutlined />}
+              icon={<Icon name="delete" />}
               size="small"
               type="text"
               className={styles["delete-button"]}

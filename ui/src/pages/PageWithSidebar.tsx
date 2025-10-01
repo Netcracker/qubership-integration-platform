@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Divider, Layout } from "antd";
 import { AnimatePresence, motion } from "framer-motion";
 import styles from "./PageWithSidebar.module.css";
-import { DoubleLeftOutlined, DoubleRightOutlined } from "@ant-design/icons";
+import { Icon } from "../IconProvider.tsx";
 
 const { Sider, Content } = Layout;
 
@@ -49,9 +49,9 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
             onClick={() => setCollapsed(!collapsed)}
           >
             {collapsed ? (
-              <DoubleRightOutlined />
+              <Icon name="doubleRight" />
             ) : (
-              <DoubleLeftOutlined />
+              <Icon name="doubleLeft" />
             )}
           </div>
         </div>

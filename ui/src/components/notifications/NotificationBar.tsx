@@ -1,11 +1,11 @@
 import { Badge, Button, Drawer, List } from "antd";
-import { BellOutlined } from "@ant-design/icons";
 import React, { useState } from "react";
 import {
   NotificationItem,
   useNotificationLog,
 } from "./contexts/NotificationLogContext.tsx";
 import { NotificationBarElement } from "./NotificationBarElement.tsx";
+import { Icon } from "../../IconProvider.tsx";
 
 export const NotificationBar: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -33,7 +33,7 @@ export const NotificationBar: React.FC = () => {
       <Button
         type="text"
         style={{ fontSize: "18px" }}
-        icon={<BellOutlined />}
+        icon={<Icon name="bell" />}
         onClick={showDrawer}
       />
       <Drawer

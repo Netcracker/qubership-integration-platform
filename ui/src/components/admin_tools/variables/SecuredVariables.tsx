@@ -12,13 +12,6 @@ import {
   FloatButton,
   Tooltip,
 } from "antd";
-import {
-  PlusOutlined,
-  DeleteOutlined,
-  LockOutlined,
-  MoreOutlined,
-  CloudDownloadOutlined,
-} from "@ant-design/icons";
 import commonStyles from "../CommonStyle.module.css";
 import styles from "./SecuredVariables.module.css";
 import VariablesTable from "./VariablesTable";
@@ -32,6 +25,7 @@ import { useNotificationService } from "../../../hooks/useNotificationService.ts
 import { ResizeCallbackData } from "react-resizable";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { LongActionButton } from "../../LongActionButton.tsx";
+import { Icon } from "../../../IconProvider.tsx";
 
 const { Title } = Typography;
 
@@ -342,7 +336,7 @@ export const SecuredVariables: React.FC = () => {
     <Flex vertical className={commonStyles["container"]}>
       <Flex vertical={false}>
         <Title level={4} className={commonStyles["title"]}>
-          <LockOutlined className={commonStyles["icon"]} />
+          <Icon name="lock" className={commonStyles["icon"]} />
           Secured Variables
         </Title>
       </Flex>
@@ -406,13 +400,13 @@ export const SecuredVariables: React.FC = () => {
                     <LongActionButton
                       size="small"
                       type="text"
-                      icon={<CloudDownloadOutlined />}
+                      icon={<Icon name="cloudDownload" />}
                       onSubmit={async () => exportHelmChart(secret)}
                     />
                   </Tooltip>
                   <Tooltip placement="topRight" title="Add variable">
                     <Button
-                      icon={<PlusOutlined />}
+                      icon={<Icon name="plus" />}
                       size="small"
                       type="text"
                       onClick={() =>
@@ -438,13 +432,13 @@ export const SecuredVariables: React.FC = () => {
         sticky
         scroll={{ y: "" }}
       />
-      <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+      <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
         <FloatButton
           tooltip={{
             title: "Delete selected variables",
             placement: "left",
           }}
-          icon={<DeleteOutlined />}
+          icon={<Icon name="delete" />}
           onClick={() => {
             if (!hasSelected) return;
             Modal.confirm({
@@ -456,7 +450,7 @@ export const SecuredVariables: React.FC = () => {
         />
         <FloatButton
           tooltip={{ title: "Add secret", placement: "left" }}
-          icon={<PlusOutlined />}
+          icon={<Icon name="plus" />}
           onClick={() => setCreateModalVisible(true)}
         />
       </FloatButtonGroup>

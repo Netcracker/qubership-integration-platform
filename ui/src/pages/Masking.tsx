@@ -2,11 +2,10 @@ import { FloatButton, Table } from "antd";
 
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { MaskedField } from "../api/apiTypes";
 import { useParams } from "react-router";
 import { api } from "../api/api.ts";
-import { DeleteOutlined, MoreOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   getTextColumnFilterFn,
   TextColumnFilterDropdown,
@@ -21,6 +20,7 @@ import {
   TimestampColumnFilterDropdown,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
+import { Icon } from "../IconProvider.tsx";
 
 export const Masking: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -203,18 +203,18 @@ export const Masking: React.FC = () => {
         style={{ height: "100%" }}
         scroll={{ y: "" }}
       />
-      <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+      <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
         <FloatButton
           tooltip={{
             title: "Delete selected masked fields",
             placement: "left",
           }}
-          icon={<DeleteOutlined />}
+          icon={<Icon name="delete" />}
           onClick={() => void onDeleteBtnClick()}
         />
         <FloatButton
           tooltip={{ title: "Add new masked field", placement: "left" }}
-          icon={<PlusOutlined />}
+          icon={<Icon name="plus" />}
           onClick={() => void onCreateBtnClick()}
         />
       </FloatButtonGroup>

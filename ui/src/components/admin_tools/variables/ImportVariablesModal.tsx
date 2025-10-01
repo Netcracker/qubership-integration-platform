@@ -1,12 +1,12 @@
 import { Modal, Upload, Table, Button, message, Flex } from "antd";
-import { InboxOutlined } from "@ant-design/icons";
 import type { RcFile } from "antd/es/upload";
-import { useState } from "react";
+import React, { useState } from "react";
 
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { VariableImportPreview } from "../../../api/apiTypes.ts";
+import { Icon } from "../../../IconProvider.tsx";
 
 interface Props {
   onSuccess?: () => void;
@@ -116,7 +116,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
           showUploadList={file ? { showRemoveIcon: true } : false}
         >
           <p className="ant-upload-drag-icon">
-            <InboxOutlined />
+            <Icon name="inbox" />
           </p>
           <p className="ant-upload-text">Drag a YAML file or click to choose</p>
         </Upload.Dragger>

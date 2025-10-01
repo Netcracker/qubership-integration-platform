@@ -1,11 +1,11 @@
 import { Button, Col, Flex, Modal, Row } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { formatTimestamp } from "../../misc/format-utils.ts";
-import { DownloadOutlined, CopyOutlined } from "@ant-design/icons";
 import styles from "./ErrorDetails.module.css";
 import React from "react";
 import { downloadFile } from "../../misc/download-utils.ts";
 import { copyToClipboard } from "../../misc/clipboard-util.ts";
+import { Icon } from "../../IconProvider.tsx";
 
 type ErrorDetailsProps = {
   service: string;
@@ -47,7 +47,7 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
       footer={[
         <Button
           key="download"
-          icon={<DownloadOutlined />}
+          icon={<Icon name="download" />}
           type="text"
           onClick={downloadErrorDetails}
         >
@@ -55,7 +55,7 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
         </Button>,
         <Button
           key="copy"
-          icon={<CopyOutlined />}
+          icon={<Icon name="copy" />}
           type="text"
           onClick={() => void copyToClipboard(getErrorDetailsText())}
         >

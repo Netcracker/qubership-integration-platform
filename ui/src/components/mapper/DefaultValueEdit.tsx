@@ -1,10 +1,10 @@
 import { TextValueEdit } from "../table/TextValueEdit.tsx";
-import { DeleteOutlined } from "@ant-design/icons";
 import { Form } from "antd";
 import { SelectEdit } from "../table/SelectEdit.tsx";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
 import { NumberValueEdit } from "../table/NumberValueEdit.tsx";
 import React from "react";
+import { Icon } from "../../IconProvider.tsx";
 
 type DefaultValueEditProps = {
   name: string;
@@ -24,7 +24,7 @@ export const DefaultValueEdit: React.FC<DefaultValueEditProps> = ({
       inputProps={{
         allowClear: true,
         addonAfter: (
-          <DeleteOutlined
+          <Icon name="delete"
             onClick={() => {
               form.setFieldValue(name, undefined);
               form.submit();

@@ -79,8 +79,8 @@ import {
 import { TransformationInfoCard } from "./TransformationInfo.tsx";
 import { TRANSFORMATIONS } from "../../mapper/model/transformations.ts";
 import { ElementReferencesList } from "./ElementReferencesList.tsx";
-import { DeleteOutlined } from "@ant-design/icons";
 import { traverseElementsDepthFirst } from "../../misc/tree-utils.ts";
+import { Icon } from "../../IconProvider.tsx";
 
 const MAPPER_DND_REFERENCE_MEDIA_TYPE = "mapper/reference-json";
 const DRAG_POINT_ID = "drag-point";
@@ -1383,7 +1383,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
                 {
                   label: "Delete",
                   key: "delete",
-                  icon: <DeleteOutlined />,
+                  icon: <Icon name="delete" />,
                   onClick: () => {
                     deleteSelectedConnections();
                   },

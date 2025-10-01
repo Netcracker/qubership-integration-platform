@@ -1,4 +1,3 @@
-import { DeleteOutlined, PlusCircleOutlined } from "@ant-design/icons";
 import {
   Button,
   Flex,
@@ -17,6 +16,7 @@ import { Editor, Monaco } from "@monaco-editor/react";
 import { editor, languages, MarkerSeverity } from "monaco-editor";
 import { isParseError } from "../../../../mapper/actions-text/parser.ts";
 import { LocationRange } from "pegjs";
+import { Icon } from "../../../../IconProvider.tsx";
 
 const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
 
@@ -142,14 +142,14 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
         <Flex wrap="wrap" vertical={false} gap={8}>
           <Button
             size="small"
-            icon={<PlusCircleOutlined />}
+            icon={<Icon name="plusCircle" />}
             onClick={() => addRecord()}
           >
             Add rule
           </Button>
           <Button
             size="small"
-            icon={<DeleteOutlined />}
+            icon={<Icon name="delete" />}
             onClick={() => clearRecords()}
           >
             Clear rules
@@ -224,7 +224,7 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
                 return (
                   <Button
                     type="text"
-                    icon={<DeleteOutlined />}
+                    icon={<Icon name="delete" />}
                     onClick={() => deleteRecord(index)}
                   />
                 );

@@ -1,63 +1,53 @@
-import {
-  AppstoreOutlined,
-  FileTextOutlined,
-  LockOutlined,
-  SettingOutlined,
-  TableOutlined,
-  UserOutlined,
-  CloudUploadOutlined,
-  AuditOutlined,
-  CodeOutlined,
-} from "@ant-design/icons";
 import { Menu } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Icon } from "../../IconProvider.tsx";
 
 const menuItems = [
   {
     key: "/admintools/domains",
-    icon: <AppstoreOutlined />,
+    icon: <Icon name="appstore" />,
     label: "Domains",
   },
   {
     key: "variables",
-    icon: <CodeOutlined />,
+    icon: <Icon name="code" />,
     label: "Variables",
     children: [
       {
         key: "/admintools/variables/common",
-        icon: <TableOutlined />,
+        icon: <Icon name="table" />,
         label: "Common",
       },
       {
         key: "/admintools/variables/secured",
-        icon: <LockOutlined />,
+        icon: <Icon name="lock" />,
         label: "Secured",
       },
     ],
   },
   {
     key: "/admintools/audit",
-    icon: <AuditOutlined />,
+    icon: <Icon name="audit" />,
     label: "Audit",
   },
   {
     key: "/admintools/import-instructions",
-    icon: <CloudUploadOutlined />,
+    icon: <Icon name="cloudUpload" />,
     label: "Import Instructions",
   },
   {
     key: "/admintools/sessions",
-    icon: <UserOutlined />,
+    icon: <Icon name="user" />,
     label: "Sessions",
   },
   {
     key: "/admintools/roles",
-    icon: <SettingOutlined />,
+    icon: <Icon name="settings" />,
     label: "Roles",
   },
   {
     key: "/admintools/design-templates",
-    icon: <FileTextOutlined />,
+    icon: <Icon name="fileText" />,
     label: "Design Templates",
   },
 ];
