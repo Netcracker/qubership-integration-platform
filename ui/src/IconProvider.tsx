@@ -73,7 +73,7 @@ import {
   VerticalAlignMiddleOutlined,
 } from "@ant-design/icons";
 
-type IconSet = {
+export type IconSet = {
   [iconName: string]: React.ComponentType<AntdIconProps>;
 };
 
