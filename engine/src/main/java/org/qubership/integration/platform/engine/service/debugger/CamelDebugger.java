@@ -54,6 +54,7 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.debugger.sessions.SessionsService;
 import org.qubership.integration.platform.engine.service.debugger.tracing.TracingService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
+import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -191,15 +192,15 @@ public class CamelDebugger extends DefaultDebugger {
             if ((sessionShouldBeLogged && SessionsLoggingLevel.hasPayload(sessionLevel, isElementForSessionsLevel))
                     || logLoggingLevel.isInfoLevel()) {
                 headersForLogging = payloadExtractor.extractHeadersForLogging(exchange,
-                        dbgProperties.getMaskedFields(),
+                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                         dbgProperties.getRuntimeProperties(exchange)
                                 .isMaskingEnabled());
                 bodyForLogging = payloadExtractor.extractBodyForLogging(exchange,
-                        dbgProperties.getMaskedFields(),
+                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                         dbgProperties.getRuntimeProperties(exchange)
                                 .isMaskingEnabled());
                 exchangePropertiesForLogging = payloadExtractor.extractExchangePropertiesForLogging(
-                        exchange, dbgProperties.getMaskedFields(),
+                        exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                         dbgProperties.getRuntimeProperties(exchange)
                                 .isMaskingEnabled());
             }
@@ -228,7 +229,7 @@ public class CamelDebugger extends DefaultDebugger {
                                     sessionElementId, nodeId,
                                     bodyForLogging, headersForLogging,
                                     payloadExtractor.extractContextForLogging(
-                                            dbgProperties.getMaskedFields(),
+                                            MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                                             dbgProperties.getRuntimeProperties(exchange)
                                                     .isMaskingEnabled()),
                                     exchangePropertiesForLogging);
@@ -294,13 +295,13 @@ public class CamelDebugger extends DefaultDebugger {
                     || logLoggingLevel.isInfoLevel()
                     || DebuggerUtils.isFailedOperation(exchange)) {
                 headersForLogging = payloadExtractor.extractHeadersForLogging(exchange,
-                        dbgProperties.getMaskedFields(), dbgProperties.getRuntimeProperties(exchange)
+                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
                                 .isMaskingEnabled());
                 bodyForLogging = payloadExtractor.extractBodyForLogging(exchange,
-                        dbgProperties.getMaskedFields(), dbgProperties.getRuntimeProperties(exchange)
+                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
                                 .isMaskingEnabled());
                 exchangePropertiesForLogging = payloadExtractor.extractExchangePropertiesForLogging(
-                        exchange, dbgProperties.getMaskedFields(),
+                        exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                         dbgProperties.getRuntimeProperties(exchange)
                                 .isMaskingEnabled());
             }
@@ -329,7 +330,7 @@ public class CamelDebugger extends DefaultDebugger {
                                 sessionElementId,
                                 bodyForLogging, headersForLogging,
                                 payloadExtractor.extractContextForLogging(
-                                        dbgProperties.getMaskedFields(),
+                                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                                         dbgProperties.getRuntimeProperties(exchange)
                                                 .isMaskingEnabled()),
                                 exchangePropertiesForLogging);
@@ -359,7 +360,8 @@ public class CamelDebugger extends DefaultDebugger {
         DebuggerUtils.initInternalExchangeVariables(exchange);
         variablesService.injectVariablesToExchangeProperties(exchange.getProperties());
         exchangeStarted(exchange, dbgProperties);
-
+        // Propagate masked fields if not already present
+        MaskedFieldUtils.addMaskedFields(exchange, dbgProperties.getMaskedFields());
         if (tracingService.isTracingEnabled()) {
             // tracing context doesn't present at this point,
             // only store custom tags to camel property
@@ -532,7 +534,7 @@ public class CamelDebugger extends DefaultDebugger {
                                 sessionElementId);
                     }
                     sessionsService.logSessionElementAfter(exchange, null, sessionId, sessionElementId,
-                            dbgProperties.getMaskedFields(),
+                            MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                             dbgProperties.getRuntimeProperties(exchange)
                                     .isMaskingEnabled());
                 }
@@ -574,18 +576,18 @@ public class CamelDebugger extends DefaultDebugger {
                     if (logLoggingLevel.isInfoLevel()) {
                         Map<String, String> headersForLogging =
                                 payloadExtractor.extractHeadersForLogging(exchange,
-                                        dbgProperties.getMaskedFields(),
+                                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                                         dbgProperties.getRuntimeProperties(exchange)
                                                 .isMaskingEnabled());
                         String bodyForLogging = (String) DebuggerUtils.chooseLogPayload(exchange,
                                 payloadExtractor.extractBodyForLogging(exchange,
-                                        dbgProperties.getMaskedFields(),
+                                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                                         dbgProperties.getRuntimeProperties(exchange)
                                                 .isMaskingEnabled()),
                                 dbgProperties);
                         Map<String, SessionElementProperty> exchangePropertiesForLogging =
                                 payloadExtractor.extractExchangePropertiesForLogging(exchange,
-                                        dbgProperties.getMaskedFields(),
+                                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                                         dbgProperties.getRuntimeProperties(exchange)
                                                 .isMaskingEnabled());
 
@@ -729,7 +731,7 @@ public class CamelDebugger extends DefaultDebugger {
                 dbgProperties, sessionId,
                 sessionElementId, nodeId,
                 bodyForLogging, headersForLogging,
-                payloadExtractor.extractContextForLogging(dbgProperties.getMaskedFields(),
+                payloadExtractor.extractContextForLogging(MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                         dbgProperties.getRuntimeProperties(exchange)
                                 .isMaskingEnabled()),
                 exchangePropertiesForLogging);

@@ -156,6 +156,7 @@ public final class CamelConstants {
         public static final String CHAIN_TIMED_OUT = INTERNAL_PROPERTY_PREFIX + "chainSessionTimedOut";
         public static final String CHAIN_TIME_OUT_AFTER = INTERNAL_PROPERTY_PREFIX + "chainSessionTimeoutAfter";
 
+        public static final String MASKED_FIELDS_PROPERTY = INTERNAL_PROPERTY_PREFIX + "maskedFields";
         public static final String HTTP_TRIGGER_STEP_ID =  "httpTriggerStepId";
 
         public static final String SERVICE_CALL_RETRY_COUNT = "retryCount";
