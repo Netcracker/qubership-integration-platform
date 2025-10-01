@@ -159,7 +159,7 @@
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
     "@vscode/test-web": "^0.0.69",
-    "@netcracker/qip-schemas": "0.2.6",
+    "@netcracker/qip-schemas": "0.2.8",
     "assert": "^2.1.0",
     "eslint": "^9.25.1",
     "mocha": "^11.1.0",
@@ -172,7 +172,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@netcracker/qip-ui": "0.0.0-dev.20250929143248",
+    "@netcracker/qip-ui": "0.0.0-dev.20251001063613",
     "@apidevtools/swagger-parser": "^12.0.0",
     "@asyncapi/parser": "^3.4.0",
     "@types/js-yaml": "^4.0.9",
