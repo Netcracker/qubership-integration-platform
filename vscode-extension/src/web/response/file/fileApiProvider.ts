@@ -47,10 +47,19 @@ let current: FileApi = {
     getFileType: async () => {
         throw new Error('FileApi not configured');
     },
-    findSpecificationGroupFiles: async () => {
+    getSpecificationGroupFiles: async () => {
         throw new Error('FileApi not configured');
     },
-    findSpecificationFiles: async () => {
+    getSpecificationFiles: async () => {
+        throw new Error('FileApi not configured');
+    },
+    getResourcesPath: async () => {
+        throw new Error('FileApi not configured');
+    },
+    getWorkspaceRoot: async () => {
+        throw new Error('FileApi not configured');
+    },
+    getServiceIdFromFileUri: async () => {
         throw new Error('FileApi not configured');
     },
 };
@@ -68,15 +77,18 @@ export const fileApi: FileApi = {
     writeMainChain: async (parameters: any, chainData: any): Promise<void> => current.writeMainChain(parameters, chainData),
     removeFile: async (mainFolderUri, propertyFilename: string): Promise<void> => current.removeFile(mainFolderUri, propertyFilename),
     // Service-related methods
-    getMainService: async (parameters: any): Promise<any> => current.getMainService(parameters),
-    getService: async (parameters: any, serviceId: string): Promise<any> => current.getService(parameters, serviceId),
-    writeMainService: async (parameters: any, serviceData: any): Promise<void> => current.writeMainService(parameters, serviceData),
+    getMainService: async (serviceFileUri: Uri): Promise<any> => current.getMainService(serviceFileUri),
+    getService: async (serviceFileUri: Uri, serviceId: string): Promise<any> => current.getService(serviceFileUri, serviceId),
+    writeMainService: async (serviceFileUri: Uri, serviceData: any): Promise<void> => current.writeMainService(serviceFileUri, serviceData),
     writeServiceFile: async (fileUri: Uri, serviceData: any): Promise<void> => current.writeServiceFile(fileUri, serviceData),
-    findSpecificationGroupFiles: async (mainFolderUri: Uri): Promise<string[]> => current.findSpecificationGroupFiles(mainFolderUri),
-    findSpecificationFiles: async (mainFolderUri: Uri): Promise<string[]> => current.findSpecificationFiles(mainFolderUri),
+    getSpecificationGroupFiles: async (serviceFileUri: Uri): Promise<string[]> => current.getSpecificationGroupFiles(serviceFileUri),
+    getSpecificationFiles: async (serviceFileUri: Uri): Promise<string[]> => current.getSpecificationFiles(serviceFileUri),
+    getResourcesPath: async (serviceFileUri: Uri): Promise<Uri> => current.getResourcesPath(serviceFileUri),
+    getWorkspaceRoot: async (serviceFileUri: Uri): Promise<Uri> => current.getWorkspaceRoot(serviceFileUri),
+    getServiceIdFromFileUri: async (serviceFileUri: Uri): Promise<string> => current.getServiceIdFromFileUri(serviceFileUri),
     // File operations
     writeFile: async (fileUri: Uri, data: Uint8Array): Promise<void> => current.writeFile(fileUri, data),
     readFileContent: async (fileUri: Uri): Promise<Uint8Array> => current.readFileContent(fileUri),
     deleteFile: async (fileUri: Uri): Promise<void> => current.deleteFile(fileUri),
-    getFileType: async (mainFolderUri: Uri): Promise<string> => current.getFileType(mainFolderUri),
+    getFileType: async (fileUri: Uri): Promise<string> => current.getFileType(fileUri),
 };

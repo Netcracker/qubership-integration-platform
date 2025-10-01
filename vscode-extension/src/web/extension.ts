@@ -38,11 +38,11 @@ class ChainFileEditorProvider implements CustomTextEditorProvider {
             enableCommandUris: true
         };
 
-        enrichWebview(panel, this.context, getDocumentDir(document));
+        enrichWebview(panel, this.context, document.uri);
     }
 }
 
-function openWebviewForElement(context: ExtensionContext, folderUri: Uri, elementType: 'chain' | 'service') {
+function openWebviewForElement(context: ExtensionContext, fileUri: Uri, elementType: 'chain' | 'service') {
     const panel = vscode.window.createWebviewPanel(
         'qipWebView', // Identifies the type of the webview
         `QIP ${elementType === 'chain' ? 'Chain' : 'Service'} Editor`, // Title of the panel
@@ -54,10 +54,10 @@ function openWebviewForElement(context: ExtensionContext, folderUri: Uri, elemen
         }
     );
 
-    enrichWebview(panel, context, folderUri);
+    enrichWebview(panel, context, fileUri);
 }
 
-function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolderUri: Uri | undefined = undefined) {
+function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: Uri | undefined = undefined) {
     type VSCodeMessageWrapper = {
         command: string;
         data: VSCodeMessage<any>;
@@ -75,7 +75,7 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, mainFolde
         };
 
         try {
-            response.payload = await getApiResponse(message.data, mainFolderUri, context);
+            response.payload = await getApiResponse(message.data, fileUri, context);
             console.log('QIP Extension API Response:', response);
         } catch (e) {
             console.error("Failed to fetch data for QIP Extension API", e);
@@ -171,7 +171,8 @@ export function activate(context: ExtensionContext) {
             const result = await fileApiImpl.createEmptyService();
             qipProvider.refresh();
             if (result) {
-                openWebviewForElement(context, result.folderUri, 'service');
+                const serviceFileUri = vscode.Uri.joinPath(result.folderUri, `${result.serviceId}.service.qip.yaml`);
+                openWebviewForElement(context, serviceFileUri, 'service');
             }
         }
     ));

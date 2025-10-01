@@ -3,6 +3,7 @@ import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { EMPTY_USER } from "../response/chainApiUtils";
+import { getBaseFolder } from "../response/serviceApiUtils";
 
 const vscode = require('vscode');
 
@@ -23,12 +24,13 @@ export class SystemService {
      */
     async getSystemById(systemId: string): Promise<IntegrationSystem | null> {
         try {
-            const baseFolder = this.mainFolder || this.getBaseFolder();
+            const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
 
-            const service = await getMainService(baseFolder);
+            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}.service.qip.yaml`);
+            const service = await getMainService(serviceFileUri);
             if (service.id === systemId) {
                 return {
                     id: service.id,
@@ -59,24 +61,22 @@ export class SystemService {
      */
     async updateSystemProtocol(systemId: string, protocol: string): Promise<void> {
         try {
-            const baseFolder = this.mainFolder || this.getBaseFolder();
+            const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
 
-            const service = await getMainService(baseFolder);
+            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}.service.qip.yaml`);
+            const service = await getMainService(serviceFileUri);
             if (service.id === systemId) {
                 service.content.protocol = protocol;
                 service.content.modifiedWhen = Date.now();
                 service.content.modifiedBy = {...EMPTY_USER};
 
-                const serviceFileUri = await this.getMainServiceFileUri(baseFolder);
-                if (serviceFileUri) {
-                    const yaml = require('yaml');
-                    const yamlContent = yaml.stringify(service);
-                    const bytes = new TextEncoder().encode(yamlContent);
-                    await fileApi.writeFile(serviceFileUri, bytes);
-                }
+                const yaml = require('yaml');
+                const yamlContent = yaml.stringify(service);
+                const bytes = new TextEncoder().encode(yamlContent);
+                await fileApi.writeFile(serviceFileUri, bytes);
             }
         } catch (error) {
             console.error(`[SystemService] Error updating system protocol:`, error);
@@ -106,12 +106,5 @@ export class SystemService {
             return Uri.joinPath(mainFolderUri, files[0]);
         }
         return undefined;
-    }
-
-    /**
-     * Get base folder
-     */
-    private getBaseFolder(): Uri | undefined {
-        return this.mainFolder || vscode.workspace.workspaceFolders?.[0]?.uri;
     }
 }

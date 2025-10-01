@@ -22,20 +22,20 @@ import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationPars
 export class SpecificationImportService {
     private context: ExtensionContext;
     private progressTracker: ImportProgressTracker;
-    private mainFolder?: Uri;
+    private serviceFileUri?: Uri;
     private systemService: SystemService;
     private specificationGroupService: SpecificationGroupService;
     private specificationProcessorService: SpecificationProcessorService;
     private environmentService: EnvironmentService;
 
-    constructor(context: ExtensionContext, mainFolder?: Uri) {
+    constructor(context: ExtensionContext, serviceFileUri?: Uri) {
         this.context = context;
         this.progressTracker = ImportProgressTracker.getInstance(context);
-        this.mainFolder = mainFolder;
-        this.systemService = new SystemService(context, mainFolder);
-        this.specificationGroupService = new SpecificationGroupService(context, mainFolder);
-        this.specificationProcessorService = new SpecificationProcessorService(context, mainFolder);
-        this.environmentService = new EnvironmentService(context, mainFolder);
+        this.serviceFileUri = serviceFileUri;
+        this.systemService = new SystemService(context, serviceFileUri);
+        this.specificationGroupService = new SpecificationGroupService(context, serviceFileUri);
+        this.specificationProcessorService = new SpecificationProcessorService(context, serviceFileUri);
+        this.environmentService = new EnvironmentService(context, serviceFileUri);
     }
 
     /**
@@ -43,7 +43,6 @@ export class SpecificationImportService {
      */
     async importSpecificationGroup(request: ImportSpecificationGroupRequest): Promise<ImportSpecificationResult> {
         const importId = crypto.randomUUID();
-        const startTime = Date.now();
 
         try {
             const validationResult = await this.validateImportRequest(request);
@@ -128,7 +127,6 @@ export class SpecificationImportService {
      */
     async importSpecification(specificationGroupId: string, files: SerializedFile[], systemId: string): Promise<ImportSpecificationResult> {
         const importId = crypto.randomUUID();
-        const startTime = Date.now();
 
         try {
             const specificationGroup = await this.specificationGroupService.getSpecificationGroupById(specificationGroupId, systemId);
@@ -346,7 +344,7 @@ export class SpecificationImportService {
         extractedFiles: File[]
     ): Promise<void> {
         try {
-            const baseFolder = this.mainFolder || this.getBaseFolder();
+            const baseFolder = await this.getBaseFolder();
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
@@ -466,9 +464,17 @@ export class SpecificationImportService {
     /**
      * Get base folder
      */
-    private getBaseFolder(): Uri | undefined {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        return workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri : undefined;
+    private async getBaseFolder(): Promise<Uri> {
+        if (!this.serviceFileUri) {
+            throw new Error('Service file must be selected');
+        }
+        const type = await fileApi.getFileType(this.serviceFileUri);
+        if (type !== 'SERVICE') {
+            throw new Error('Service file must be selected');
+        }
+        const lastSlashIndex = this.serviceFileUri.path.lastIndexOf('/');
+        const parentPath = lastSlashIndex > 0 ? this.serviceFileUri.path.substring(0, lastSlashIndex) : this.serviceFileUri.path;
+        return this.serviceFileUri.with({ path: parentPath });
     }
 
 

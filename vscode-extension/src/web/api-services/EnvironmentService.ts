@@ -2,6 +2,7 @@ import { ExtensionContext, Uri } from "vscode";
 import { Environment, IntegrationSystem } from "./servicesTypes";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
+import { getBaseFolder } from "../response/serviceApiUtils";
 
 export interface EnvironmentRequest {
     name: string;
@@ -300,13 +301,14 @@ export class EnvironmentService {
      */
     private async getSystemById(systemId: string): Promise<any | null> {
         try {
-            const baseFolder = this.mainFolder || this.context.extensionUri;
+            const baseFolder = await getBaseFolder(this.mainFolder, this.context.extensionUri);
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
 
             // Read main service from workspace and match by id
-            const service = await fileApi.getMainService(baseFolder);
+            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}.service.qip.yaml`);
+            const service = await fileApi.getMainService(serviceFileUri);
             if (service && service.id === systemId) {
                 return service as any; // Service has content structure, not IntegrationSystem
             }
@@ -321,13 +323,14 @@ export class EnvironmentService {
      */
     private async saveSystem(system: IntegrationSystem): Promise<void> {
         try {
-            const baseFolder = this.mainFolder || this.context.extensionUri;
+            const baseFolder = await getBaseFolder(this.mainFolder, this.context.extensionUri);
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
 
             // Use writeMainService to save the system data
-            await fileApi.writeMainService(baseFolder, system);
+            const serviceFileUri = Uri.joinPath(baseFolder, `${system.id}.service.qip.yaml`);
+            await fileApi.writeMainService(serviceFileUri, system);
         } catch (error) {
             throw error;
         }

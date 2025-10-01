@@ -4,14 +4,14 @@ import {ChainCommitRequestAction, EMPTY_USER, findElementById, getElementChildre
 import {fileApi} from "./file/fileApiProvider";
 
 
-export async function getCurrentChainId(mainFolderUri: Uri): Promise<string> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function getCurrentChainId(fileUri: Uri): Promise<string> {
+    const chain: any = await getMainChain(fileUri);
     console.log('getCurrentChainId', chain.id);
     return chain.id;
 }
 
-export async function getMainChain(mainFolderUri: Uri): Promise<any> {
-    return await fileApi.getMainChain(mainFolderUri);
+export async function getMainChain(fileUri: Uri): Promise<any> {
+    return await fileApi.getMainChain(fileUri);
 }
 
 export async function getLibrary(): Promise<LibraryData> {
@@ -69,8 +69,8 @@ export function parseMaskedField(chain: any, id: string): MaskedField {
     };
 }
 
-export async function getMaskedFields(mainFolderUri: Uri, chainId: string): Promise<MaskedFields> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function getMaskedFields(fileUri: Uri, chainId: string): Promise<MaskedFields> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -88,8 +88,8 @@ export async function getMaskedFields(mainFolderUri: Uri, chainId: string): Prom
     };
 }
 
-export async function getConnections(mainFolderUri: Uri, chainId: string): Promise<Dependency[]> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function getConnections(fileUri: Uri, chainId: string): Promise<Dependency[]> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -98,18 +98,18 @@ export async function getConnections(mainFolderUri: Uri, chainId: string): Promi
     return parseDependencies(chain.content.dependencies);
 }
 
-export async function getElements(mainFolderUri: Uri, chainId: string): Promise<Element[]> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function getElements(fileUri: Uri, chainId: string): Promise<Element[]> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    return await parseElements(mainFolderUri, chain.content.elements, chain.id);
+    return await parseElements(fileUri, chain.content.elements, chain.id);
 }
 
-export async function getElement(mainFolderUri: Uri, chainId: string, elementId: string): Promise<Element> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function getElement(fileUri: Uri, chainId: string, elementId: string): Promise<Element> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -121,7 +121,7 @@ export async function getElement(mainFolderUri: Uri, chainId: string, elementId:
         throw Error("ElementId not found");
     }
 
-    return await parseElement(mainFolderUri, element.element, chain.id, element.parentId);
+    return await parseElement(fileUri, element.element, chain.id, element.parentId);
 }
 
 export function getDependencyId(dependency: Dependency) {
@@ -142,12 +142,12 @@ function parseDependencies(dependencies: any[]): Dependency[] {
     return result;
 }
 
-async function parseElement(mainFolderUri: Uri, element: any, chainId: string, parentId: string | undefined = undefined): Promise<Element> {
+async function parseElement(fileUri: Uri, element: any, chainId: string, parentId: string | undefined = undefined): Promise<Element> {
     async function handleServiceCallProperty(beforeAfterBlock: any) {
         if (beforeAfterBlock.type === 'script') {
-            beforeAfterBlock['script'] = await fileApi.readFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
+            beforeAfterBlock['script'] = await fileApi.readFile(fileUri, beforeAfterBlock.propertiesFilename);
         } else if (beforeAfterBlock.type?.startsWith('mapper')) {
-            const properties: any = JSON.parse(await fileApi.readFile(mainFolderUri, beforeAfterBlock.propertiesFilename));
+            const properties: any = JSON.parse(await fileApi.readFile(fileUri, beforeAfterBlock.propertiesFilename));
             for (const key in properties) {
                 beforeAfterBlock[key] = properties[key];
             }
@@ -159,12 +159,12 @@ async function parseElement(mainFolderUri: Uri, element: any, chainId: string, p
             const propertyNames: string[] = element.properties.propertiesToExportInSeparateFile.split(',').map(function (item: string) {
                 return item.trim();
             });
-            const properties: any = JSON.parse(await fileApi.readFile(mainFolderUri, element.properties.propertiesFilename));
+            const properties: any = JSON.parse(await fileApi.readFile(fileUri, element.properties.propertiesFilename));
             for (const propertyName of propertyNames) {
                 element.properties[propertyName] = properties[propertyName];
             }
         } else {
-            element.properties[element.properties.propertiesToExportInSeparateFile] = await fileApi.readFile(mainFolderUri, element.properties.propertiesFilename);
+            element.properties[element.properties.propertiesToExportInSeparateFile] = await fileApi.readFile(fileUri, element.properties.propertiesFilename);
         }
     }
 
@@ -183,7 +183,7 @@ async function parseElement(mainFolderUri: Uri, element: any, chainId: string, p
     if (element.children?.length) {
         children = [];
         for (const child of element.children) {
-            children.push(await parseElement(mainFolderUri, child, chainId, element.id));
+            children.push(await parseElement(fileUri, child, chainId, element.id));
         }
     }
 
@@ -204,12 +204,12 @@ async function parseElement(mainFolderUri: Uri, element: any, chainId: string, p
     } as Element;
 }
 
-async function parseElements(mainFolderUri: Uri, elements: any[], chainId: string): Promise<Element[]> {
+async function parseElements(fileUri: Uri, elements: any[], chainId: string): Promise<Element[]> {
     const result: Element[] = [];
 
     if (elements && elements.length) {
         for (const element of elements) {
-            const parsedElement = await parseElement(mainFolderUri, element, chainId);
+            const parsedElement = await parseElement(fileUri, element, chainId);
             result.push(parsedElement);
             result.push(...getElementChildren(parsedElement.children));
         }
@@ -217,8 +217,8 @@ async function parseElements(mainFolderUri: Uri, elements: any[], chainId: strin
     return result;
 }
 
-export async function getChain(mainFolderUri: Uri, chainId: string): Promise<Chain> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -239,7 +239,7 @@ export async function getChain(mainFolderUri: Uri, chainId: string): Promise<Cha
           ? ChainCommitRequestAction[chain.content.deployAction as keyof typeof ChainCommitRequestAction]
           : undefined,
         description: chain.content.description,
-        elements: await parseElements(mainFolderUri, chain.content.elements, chain.id),
+        elements: await parseElements(fileUri, chain.content.elements, chain.id),
         id: chain.id,
         labels: chain.content.labels ? chain.content.labels : [],
         modifiedBy: {...EMPTY_USER},

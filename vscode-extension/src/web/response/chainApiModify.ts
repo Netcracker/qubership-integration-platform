@@ -29,8 +29,8 @@ import {
 import {Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";
 
-export async function updateChain(mainFolderUri: Uri, chainId: string, chainRequest: Partial<Chain>): Promise<Chain> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function updateChain(fileUri: Uri, chainId: string, chainRequest: Partial<Chain>): Promise<Chain> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -45,9 +45,9 @@ export async function updateChain(mainFolderUri: Uri, chainId: string, chainRequ
     chain.content.deployments = chainRequest.deployments !== undefined ? chainRequest.deployments : chain.content.deployments;
     chain.content.deployAction = chainRequest.deployAction !== undefined ? chainRequest.deployAction : chain.content.deployAction;
 
-    await fileApi.writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(fileUri, chain);
 
-    return await getChain(mainFolderUri, chainId);
+    return await getChain(fileUri, chainId);
 }
 
 async function checkRestrictions(element: any, elements:any[]) {
@@ -114,8 +114,8 @@ async function checkRestrictions(element: any, elements:any[]) {
     // }
 }
 
-export async function updateElement(mainFolderUri: Uri, chainId: string, elementId: string, elementRequest: PatchElementRequest): Promise<ActionDifference> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function updateElement(fileUri: Uri, chainId: string, elementId: string, elementRequest: PatchElementRequest): Promise<ActionDifference> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -151,18 +151,18 @@ export async function updateElement(mainFolderUri: Uri, chainId: string, element
 
     await checkRestrictions(element, chain.content.elements);
 
-    await writeElementProperties(mainFolderUri, element);
-    await fileApi.writeMainChain(mainFolderUri, chain);
+    await writeElementProperties(fileUri, element);
+    await fileApi.writeMainChain(fileUri, chain);
 
     return {
         updatedElements: [
-            await getElement(mainFolderUri, chainId, elementId)
+            await getElement(fileUri, chainId, elementId)
         ]
     };
 }
 
-export async function transferElement(mainFolderUri: Uri, chainId: string, elementRequest: TransferElementRequest): Promise<ActionDifference> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function transferElement(fileUri: Uri, chainId: string, elementRequest: TransferElementRequest): Promise<ActionDifference> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -207,11 +207,11 @@ export async function transferElement(mainFolderUri: Uri, chainId: string, eleme
 
     }
 
-    await fileApi.writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(fileUri, chain);
 
     const updatedElements: Element[] = [];
     for (const elementId of elementRequest.elements) {
-        updatedElements.push(await getElement(mainFolderUri, chainId, elementId));
+        updatedElements.push(await getElement(fileUri, chainId, elementId));
     }
 
     return {
@@ -231,12 +231,12 @@ function getOrCreatePropertyFilename(type: string, propertyNames: string[], expo
     return `${prefix}-${id}.${exportFileExtension}`;
 }
 
-async function writeElementProperties(mainFolderUri: Uri, element: any): Promise<void> {
+async function writeElementProperties(fileUri: Uri, element: any): Promise<void> {
     async function handleServiceCallProperty(beforeAfterBlock: any) {
         const propertiesFilenameId = (beforeAfterBlock.id ? beforeAfterBlock.id + '-' : '') + element.id;
         if (beforeAfterBlock.type === 'script') {
             beforeAfterBlock.propertiesFilename = getOrCreatePropertyFilename(beforeAfterBlock.type, ['script'], 'groovy', propertiesFilenameId);
-            await fileApi.writePropertyFile(mainFolderUri, beforeAfterBlock.propertiesFilename, beforeAfterBlock['script']);
+            await fileApi.writePropertyFile(fileUri, beforeAfterBlock.propertiesFilename, beforeAfterBlock['script']);
             delete beforeAfterBlock['script'];
         } else if (beforeAfterBlock.type?.startsWith('mapper')) {
             if (beforeAfterBlock.type === 'mapper') {
@@ -245,7 +245,7 @@ async function writeElementProperties(mainFolderUri: Uri, element: any): Promise
             }
             beforeAfterBlock.propertiesFilename = getOrCreatePropertyFilename(beforeAfterBlock.type, ['mappingDescription'], 'json', propertiesFilenameId);
             const property: any = JSON.stringify({mappingDescription: beforeAfterBlock['mappingDescription']});
-            await fileApi.writePropertyFile(mainFolderUri, beforeAfterBlock.propertiesFilename, property);
+            await fileApi.writePropertyFile(fileUri, beforeAfterBlock.propertiesFilename, property);
             delete beforeAfterBlock['mappingDescription'];
         }
     }
@@ -260,12 +260,12 @@ async function writeElementProperties(mainFolderUri: Uri, element: any): Promise
             for (const propertyName of propertyNames) {
                 properties[propertyName] = element.properties[propertyName];
             }
-            await fileApi.writePropertyFile(mainFolderUri, element.properties.propertiesFilename, JSON.stringify(properties));
+            await fileApi.writePropertyFile(fileUri, element.properties.propertiesFilename, JSON.stringify(properties));
             for (const propertyName of propertyNames) {
                 delete element.properties[propertyName];
             }
         } else {
-            await fileApi.writePropertyFile(mainFolderUri, element.properties.propertiesFilename, element.properties[element.properties.propertiesToExportInSeparateFile]);
+            await fileApi.writePropertyFile(fileUri, element.properties.propertiesFilename, element.properties[element.properties.propertiesToExportInSeparateFile]);
             delete element.properties[element.properties.propertiesToExportInSeparateFile];
         }
     }
@@ -425,18 +425,18 @@ function findAndRemoveElementById(
     return undefined;
 }
 
-async function deleteElementsPropertyFiles(mainFolderUri: Uri, removedElements: any[]) {
+async function deleteElementsPropertyFiles(fileUri: Uri, removedElements: any[]) {
     async function handleServiceCallProperty(beforeAfterBlock: any) {
         if (beforeAfterBlock.type === 'script') {
-            beforeAfterBlock['script'] = await fileApi.removeFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
+            beforeAfterBlock['script'] = await fileApi.removeFile(fileUri, beforeAfterBlock.propertiesFilename);
         } else if (beforeAfterBlock.type?.startsWith('mapper')) {
-            await fileApi.removeFile(mainFolderUri, beforeAfterBlock.propertiesFilename);
+            await fileApi.removeFile(fileUri, beforeAfterBlock.propertiesFilename);
         }
     }
 
     for (const element of removedElements) {
         if (element.properties?.propertiesToExportInSeparateFile) {
-            await fileApi.removeFile(mainFolderUri, element.properties.propertiesFilename);
+            await fileApi.removeFile(fileUri, element.properties.propertiesFilename);
         }
 
         if (element.type === 'service-call') {
@@ -451,15 +451,15 @@ async function deleteElementsPropertyFiles(mainFolderUri: Uri, removedElements: 
         }
 
         if (element.children?.length) {
-            await deleteElementsPropertyFiles(mainFolderUri, element.children);
+            await deleteElementsPropertyFiles(fileUri, element.children);
         }
     }
 }
 
 
 
-export async function deleteElements(mainFolderUri: Uri, chainId: string, elementIds: string[]): Promise<ActionDifference> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function deleteElements(fileUri: Uri, chainId: string, elementIds: string[]): Promise<ActionDifference> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -488,8 +488,8 @@ export async function deleteElements(mainFolderUri: Uri, chainId: string, elemen
         }
     }
 
-    await fileApi.writeMainChain(mainFolderUri, chain);
-    await deleteElementsPropertyFiles(mainFolderUri, removedElements);
+    await fileApi.writeMainChain(fileUri, chain);
+    await deleteElementsPropertyFiles(fileUri, removedElements);
 
     return {
         removedElements: [...removedElements]
@@ -504,8 +504,8 @@ async function deleteDependenciesForElement(elementId: string, dependencies: Dep
     });
 }
 
-export async function createConnection(mainFolderUri: Uri, chainId: string, connectionRequest: ConnectionRequest): Promise<ActionDifference> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function createConnection(fileUri: Uri, chainId: string, connectionRequest: ConnectionRequest): Promise<ActionDifference> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -553,7 +553,7 @@ export async function createConnection(mainFolderUri: Uri, chainId: string, conn
     }
     chain.content.dependencies.push(newDependency);
 
-    await fileApi.writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(fileUri, chain);
 
     // TODO Change to read dependency from file
     newDependency['id'] = getDependencyId(newDependency);
@@ -564,8 +564,8 @@ export async function createConnection(mainFolderUri: Uri, chainId: string, conn
     };
 }
 
-export async function deleteConnections(mainFolderUri: Uri, chainId: string, connectionIds: string[]): Promise<ActionDifference> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function deleteConnections(fileUri: Uri, chainId: string, connectionIds: string[]): Promise<ActionDifference> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -588,7 +588,7 @@ export async function deleteConnections(mainFolderUri: Uri, chainId: string, con
         removedConnections.push(dependency);
     }
 
-    await fileApi.writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(fileUri, chain);
 
     return {
         removedDependencies: [
@@ -597,8 +597,8 @@ export async function deleteConnections(mainFolderUri: Uri, chainId: string, con
     };
 }
 
-export async function deleteMaskedFields(mainFolderUri: Uri, chainId: string, maskedFieldIds: string[]): Promise<void> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function deleteMaskedFields(fileUri: Uri, chainId: string, maskedFieldIds: string[]): Promise<void> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -611,11 +611,11 @@ export async function deleteMaskedFields(mainFolderUri: Uri, chainId: string, ma
         }
     }
 
-    await fileApi.writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(fileUri, chain);
 }
 
-export async function updateMaskedField(mainFolderUri: Uri, id: string, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function updateMaskedField(fileUri: Uri, id: string, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -624,13 +624,13 @@ export async function updateMaskedField(mainFolderUri: Uri, id: string, chainId:
 
     maskedField.name = changes.name;
 
-    await fileApi.writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(fileUri, chain);
 
     return parseMaskedField(chain, id);
 }
 
-export async function createMaskedField(mainFolderUri: Uri, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
-    const chain: any = await getMainChain(mainFolderUri);
+export async function createMaskedField(fileUri: Uri, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
+    const chain: any = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -646,7 +646,7 @@ export async function createMaskedField(mainFolderUri: Uri, chainId: string, cha
         name: changes.name,
     });
 
-    await fileApi.writeMainChain(mainFolderUri, chain);
+    await fileApi.writeMainChain(fileUri, chain);
 
     return parseMaskedField(chain, id);
 }

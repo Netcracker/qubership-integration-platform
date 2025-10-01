@@ -2,6 +2,7 @@ import { ExtensionContext, Uri } from "vscode";
 import { IntegrationSystem, IntegrationSystemType, SystemRequest, Environment } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { EMPTY_USER } from "../response/chainApiUtils";
+import { getBaseFolder } from "../response/serviceApiUtils";
 
 export class SystemManagementService {
     private context: ExtensionContext;
@@ -17,7 +18,10 @@ export class SystemManagementService {
      */
     async getAllSystems(): Promise<IntegrationSystem[]> {
         try {
-            const baseFolder = this.mainFolder || this.context.extensionUri;
+            const baseFolder = await getBaseFolder(this.mainFolder, this.context.extensionUri);
+            if (!baseFolder) {
+                throw new Error('No base folder available');
+            }
             const systemsFileUri = Uri.joinPath(baseFolder, 'systems.yaml');
             const content = await fileApi.readFileContent(systemsFileUri);
             const yamlContent = new TextDecoder().decode(content);
@@ -276,7 +280,10 @@ export class SystemManagementService {
      */
     private async saveSystems(systems: IntegrationSystem[]): Promise<void> {
         try {
-            const baseFolder = this.mainFolder || this.context.extensionUri;
+            const baseFolder = await getBaseFolder(this.mainFolder, this.context.extensionUri);
+            if (!baseFolder) {
+                throw new Error('No base folder available');
+            }
             const systemsData = {
                 systems,
                 lastUpdated: Date.now()

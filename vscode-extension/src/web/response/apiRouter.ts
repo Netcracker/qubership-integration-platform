@@ -38,7 +38,7 @@ import {
     updateSpecificationModel
 } from "./serviceApiModify";
 import {fileApi} from "./file/fileApiProvider";
-import {getChainFolderUri, getChainUri,} from "./chainApiUtils";
+import {getChainUri,} from "./chainApiUtils";
 import {
     getServiceOperationsUri,
     getServiceSpecificationsUri,
@@ -55,7 +55,17 @@ let lastWebviewPath: string | undefined = undefined;
 
 
 export async function getApiResponse(message: VSCodeMessage<any>, openedDocumentFolderUri: Uri | undefined, context?: ExtensionContext): Promise<any> {
-    const mainFolder: Uri = getChainFolderUri(openedDocumentFolderUri);
+    
+    let fileUri: Uri;
+    if (openedDocumentFolderUri) {
+        fileUri = openedDocumentFolderUri;
+    } else {
+        const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+        if (!workspaceUri) {
+            throw new Error("No workspace folder or opened document found");
+        }
+        fileUri = workspaceUri;
+    }
 
     switch (message.type) {
         case 'startup': return getExtensionConfiguration();
@@ -65,60 +75,60 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
                     return;
                 }
                 lastWebviewPath = message.payload.path;
-                const parsedPath = await parseNavigatePath(message.payload.path, mainFolder);
+                const parsedPath = await parseNavigatePath(message.payload.path, fileUri);
                 return parsedPath;
             } else {
-                return await getNavigateUri(mainFolder);
+                return await getNavigateUri(fileUri);
             }
-        case 'getChain': return await getChain(mainFolder, message.payload);
-        case 'getElements': return await getElements(mainFolder, message.payload);
+        case 'getChain': return await getChain(fileUri, message.payload);
+        case 'getElements': return await getElements(fileUri, message.payload);
         case 'getElementsByType': return [];
-        case 'getConnections': return await getConnections(mainFolder, message.payload);
+        case 'getConnections': return await getConnections(fileUri, message.payload);
         case 'getLibrary': return await getLibrary();
         case 'getLibraryElementByType': return await getLibraryElementByType(message.payload);
-        case 'updateElement': return await updateElement(mainFolder, message.payload.chainId, message.payload.elementId, message.payload.elementRequest);
-        case 'createElement': return await createElement(mainFolder, message.payload.chainId, message.payload.elementRequest);
-        case 'transferElement': return await transferElement(mainFolder, message.payload.chainId, message.payload.transferElementRequest);
-        case 'deleteElements': return await deleteElements(mainFolder, message.payload.chainId, message.payload.elementIds);
-        case 'createConnection': return await createConnection(mainFolder, message.payload.chainId, message.payload.connectionRequest);
-        case 'deleteConnections': return await deleteConnections(mainFolder, message.payload.chainId, message.payload.connectionIds);
-        case 'updateChain': return await updateChain(mainFolder, message.payload.id, message.payload.chain);
-        case 'getMaskedFields': return await getMaskedFields(mainFolder, message.payload);
-        case 'createMaskedField': return await createMaskedField(mainFolder, message.payload.chainId, message.payload.maskedField);
-        case 'deleteMaskedFields': return await deleteMaskedFields(mainFolder, message.payload.chainId, message.payload.maskedFieldIds);
-        case 'updateMaskedField': return await updateMaskedField(mainFolder, message.payload.id, message.payload.chainId, message.payload.maskedField);
+        case 'updateElement': return await updateElement(fileUri, message.payload.chainId, message.payload.elementId, message.payload.elementRequest);
+        case 'createElement': return await createElement(fileUri, message.payload.chainId, message.payload.elementRequest);
+        case 'transferElement': return await transferElement(fileUri, message.payload.chainId, message.payload.transferElementRequest);
+        case 'deleteElements': return await deleteElements(fileUri, message.payload.chainId, message.payload.elementIds);
+        case 'createConnection': return await createConnection(fileUri, message.payload.chainId, message.payload.connectionRequest);
+        case 'deleteConnections': return await deleteConnections(fileUri, message.payload.chainId, message.payload.connectionIds);
+        case 'updateChain': return await updateChain(fileUri, message.payload.id, message.payload.chain);
+        case 'getMaskedFields': return await getMaskedFields(fileUri, message.payload);
+        case 'createMaskedField': return await createMaskedField(fileUri, message.payload.chainId, message.payload.maskedField);
+        case 'deleteMaskedFields': return await deleteMaskedFields(fileUri, message.payload.chainId, message.payload.maskedFieldIds);
+        case 'updateMaskedField': return await updateMaskedField(fileUri, message.payload.id, message.payload.chainId, message.payload.maskedField);
 
 
         // Service operations
-        case 'getService': return await getService(mainFolder, message.payload);
-        case 'getServices': return await getServices(mainFolder);
-        case 'getEnvironments': return await getEnvironments(mainFolder, message.payload);
-        case 'getApiSpecifications': return await getApiSpecifications(mainFolder, message.payload);
-        case 'getSpecificationModel': return await getSpecificationModel(mainFolder, message.payload.serviceId, message.payload.groupId);
-        case 'getOperationInfo': return await getOperationInfo(mainFolder, message.payload);
+        case 'getService': return await getService(fileUri, message.payload);
+        case 'getServices': return await getServices(fileUri);
+        case 'getEnvironments': return await getEnvironments(fileUri, message.payload);
+        case 'getApiSpecifications': return await getApiSpecifications(fileUri, message.payload);
+        case 'getSpecificationModel': return await getSpecificationModel(fileUri, message.payload.serviceId, message.payload.groupId);
+        case 'getOperationInfo': return await getOperationInfo(fileUri, message.payload);
 
         // Service modification operations
-        case 'updateService': return await updateService(mainFolder, message.payload.id, message.payload.service);
-        case 'createService': return await handleCreateService(context, mainFolder, message.payload);
-        case 'updateEnvironment': return await updateEnvironment(mainFolder, message.payload.serviceId, message.payload.environmentId, message.payload.environment);
-        case 'createEnvironment': return await createEnvironment(mainFolder, message.payload.serviceId, message.payload.environment);
-        case 'deleteEnvironment': return await deleteEnvironment(mainFolder, message.payload.serviceId, message.payload.environmentId);
+        case 'updateService': return await updateService(fileUri, message.payload.id, message.payload.service);
+        case 'createService': return await handleCreateService(context, fileUri, message.payload);
+        case 'updateEnvironment': return await updateEnvironment(fileUri, message.payload.serviceId, message.payload.environmentId, message.payload.environment);
+        case 'createEnvironment': return await createEnvironment(fileUri, message.payload.serviceId, message.payload.environment);
+        case 'deleteEnvironment': return await deleteEnvironment(fileUri, message.payload.serviceId, message.payload.environmentId);
 
         // Specification operations
-        case 'updateApiSpecificationGroup': return await updateApiSpecificationGroup(mainFolder, message.payload.id, message.payload.group);
-        case 'updateSpecificationModel': return await updateSpecificationModel(mainFolder, message.payload.id, message.payload.model);
-        case 'deprecateModel': return await deprecateModel(mainFolder, message.payload);
-        case 'deleteSpecificationGroup': return await deleteSpecificationGroup(mainFolder, message.payload);
-        case 'deleteSpecificationModel': return await deleteSpecificationModel(mainFolder, message.payload);
+        case 'updateApiSpecificationGroup': return await updateApiSpecificationGroup(fileUri, message.payload.id, message.payload.group);
+        case 'updateSpecificationModel': return await updateSpecificationModel(fileUri, message.payload.id, message.payload.model);
+        case 'deprecateModel': return await deprecateModel(fileUri, message.payload);
+        case 'deleteSpecificationGroup': return await deleteSpecificationGroup(fileUri, message.payload);
+        case 'deleteSpecificationModel': return await deleteSpecificationModel(fileUri, message.payload);
 
         // Specification import operations
-        case 'importSpecificationGroup': return await handleImportSpecificationGroup(context, mainFolder, message.payload);
-        case 'importSpecification': return await handleImportSpecification(context, mainFolder, message.payload);
-        case 'getImportSpecificationResult': return await handleGetImportSpecificationResult(context, mainFolder, message.payload);
+        case 'importSpecificationGroup': return await handleImportSpecificationGroup(context, fileUri, message.payload);
+        case 'importSpecification': return await handleImportSpecification(context, fileUri, message.payload);
+        case 'getImportSpecificationResult': return await handleGetImportSpecificationResult(context, fileUri, message.payload);
 
         // Navigation operations
-        case 'navigateToSpecifications': return await getServiceSpecificationsUri(mainFolder, message.payload.groupId);
-        case 'navigateToOperations': return await getServiceOperationsUri(mainFolder, message.payload.groupId, message.payload.specId);
+        case 'navigateToSpecifications': return await getServiceSpecificationsUri(fileUri, message.payload.groupId);
+        case 'navigateToOperations': return await getServiceOperationsUri(fileUri, message.payload.groupId, message.payload.specId);
     }
 }
 
@@ -128,15 +138,15 @@ function getExtensionConfiguration(): AppExtensionProps {
     };
 }
 
-export async function getNavigateUri(mainFolderUri: vscode.Uri): Promise<string> {
+export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
     try {
-        const fileType = await fileApi.getFileType(mainFolderUri);
+        const fileType = await fileApi.getFileType(fileUri);
 
         switch (fileType) {
             case QipFileType.SERVICE:
-                return await getServiceUri(mainFolderUri);
+                return await getServiceUri(fileUri);
             case QipFileType.CHAIN:
-                return await getChainUri(mainFolderUri);
+                return await getChainUri(fileUri);
             case QipFileType.UNKNOWN:
             default:
                 return "/services";
@@ -146,7 +156,7 @@ export async function getNavigateUri(mainFolderUri: vscode.Uri): Promise<string>
     }
 }
 
-async function parseNavigatePath(path: string, mainFolderUri: vscode.Uri): Promise<string> {
+async function parseNavigatePath(path: string, fileUri: vscode.Uri): Promise<string> {
 
     if (/^\/services\/systems\/[^/]+\/parameters$/.test(path)) {
       return path;
@@ -169,5 +179,5 @@ async function parseNavigatePath(path: string, mainFolderUri: vscode.Uri): Promi
     if (/^\/chains\/[^/]+\/graph$/.test(path)) {
       return path;
     }
-    return await getNavigateUri(mainFolderUri);
+    return await getNavigateUri(fileUri);
 }

@@ -6,31 +6,22 @@ import {fileApi} from "./file/fileApiProvider";
 
 const vscode = require('vscode');
 
-export async function getCurrentServiceId(mainFolderUri: Uri): Promise<string> {
-    const service: any = await getMainService(mainFolderUri);
+export async function getCurrentServiceId(serviceFileUri: Uri): Promise<string> {
+    const service: any = await getMainService(serviceFileUri);
     console.log('getCurrentServiceId', service.id);
     return service.id;
 }
 
-export async function getMainServiceFileUri(mainFolderUri: Uri) {
-    if (mainFolderUri) {
-        const serviceFile = await fileApi.getMainService(mainFolderUri);
-        if (!serviceFile) {
-            console.error(`Single *.service.qip.yaml file not found in the current directory`);
-            vscode.window.showWarningMessage("*.service.qip.yaml file not found in the current directory");
-            throw Error("Single *.service.qip.yaml file not found in the current directory");
-        }
-        return vscode.Uri.joinPath(mainFolderUri, `${serviceFile.id}.service.qip.yaml`);
-    }
-    return undefined;
+export async function getMainServiceFileUri(serviceFileUri: Uri): Promise<Uri> {
+    return serviceFileUri;
 }
 
-export async function getMainService(mainFolderUri: Uri): Promise<any> {
-    return await fileApi.getMainService(mainFolderUri);
+export async function getMainService(serviceFileUri: Uri): Promise<any> {
+    return await fileApi.getMainService(serviceFileUri);
 }
 
-export async function getService(mainFolderUri: Uri, serviceId: string): Promise<IntegrationSystem> {
-    const service: any = await getMainService(mainFolderUri);
+export async function getService(serviceFileUri: Uri, serviceId: string): Promise<IntegrationSystem> {
+    const service: any = await getMainService(serviceFileUri);
     if (service.id !== serviceId) {
         console.error(`ServiceId mismatch`);
         throw Error("ServiceId mismatch");
@@ -49,12 +40,13 @@ export async function getService(mainFolderUri: Uri, serviceId: string): Promise
         protocol: service.content.protocol || "HTTP",
         extendedProtocol: service.content.extendedProtocol || "",
         specification: service.content.specification || "",
+        environments: service.content.environments || [],
         labels: service.content.labels || []
     };
 }
 
-export async function getEnvironments(mainFolderUri: Uri, serviceId: string): Promise<Environment[]> {
-    const service: any = await getMainService(mainFolderUri);
+export async function getEnvironments(serviceFileUri: Uri, serviceId: string): Promise<Environment[]> {
+    const service: any = await getMainService(serviceFileUri);
     if (service.id !== serviceId) {
         console.error(`ServiceId mismatch`);
         throw Error("ServiceId mismatch");
@@ -85,27 +77,28 @@ function parseEnvironments(environments: any[]): Environment[] {
     return result;
 }
 
-export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string): Promise<SpecificationGroup[]> {
-    const service: any = await getMainService(mainFolderUri);
+export async function getApiSpecifications(serviceFileUri: Uri, serviceId: string): Promise<SpecificationGroup[]> {
+    const service: any = await getMainService(serviceFileUri);
 
     if (service.id !== serviceId) {
         console.error(`ServiceId mismatch: expected ${serviceId}, got ${service.id}`);
         throw Error("ServiceId mismatch");
     }
 
-    const specGroupFiles = await fileApi.findSpecificationGroupFiles(mainFolderUri);
+    const specGroupFiles = await fileApi.getSpecificationGroupFiles(serviceFileUri);
+    const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
     const result: SpecificationGroup[] = [];
 
     for (const fileName of specGroupFiles) {
         try {
-            const fileUri = vscode.Uri.joinPath(mainFolderUri, fileName);
+            const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
             const fileContent = await fileApi.readFileContent(fileUri);
             const text = new TextDecoder('utf-8').decode(fileContent);
             const parsed = yaml.parse(text);
 
             if (parsed && parsed.content && parsed.content.parentId === serviceId) {
 
-                const specifications = await getSpecificationModel(mainFolderUri, serviceId, parsed.id);
+                const specifications = await getSpecificationModel(serviceFileUri, serviceId, parsed.id);
 
                 const group = {
                     id: parsed.id,
@@ -131,13 +124,14 @@ export async function getApiSpecifications(mainFolderUri: Uri, serviceId: string
     return result;
 }
 
-export async function getSpecificationModel(mainFolderUri: Uri, serviceId: string, groupId: string): Promise<Specification[]> {
-    const specFiles = await fileApi.findSpecificationFiles(mainFolderUri);
+export async function getSpecificationModel(serviceFileUri: Uri, serviceId: string, groupId: string): Promise<Specification[]> {
+    const specFiles = await fileApi.getSpecificationFiles(serviceFileUri);
+    const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
     const result: Specification[] = [];
 
     for (const fileName of specFiles) {
         try {
-            const fileUri = vscode.Uri.joinPath(mainFolderUri, fileName);
+            const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
             const fileContent = await fileApi.readFileContent(fileUri);
             const text = new TextDecoder('utf-8').decode(fileContent);
             const parsed = yaml.parse(text);
@@ -175,12 +169,13 @@ export async function getSpecificationModel(mainFolderUri: Uri, serviceId: strin
     return result;
 }
 
-export async function getOperationInfo(mainFolderUri: Uri, operationId: string): Promise<OperationInfo> {
-    const specFiles = await fileApi.findSpecificationFiles(mainFolderUri);
+export async function getOperationInfo(serviceFileUri: Uri, operationId: string): Promise<OperationInfo> {
+    const specFiles = await fileApi.getSpecificationFiles(serviceFileUri);
+    const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
 
     for (const fileName of specFiles) {
         try {
-            const fileUri = vscode.Uri.joinPath(mainFolderUri, fileName);
+            const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
             const fileContent = await fileApi.readFileContent(fileUri);
             const text = new TextDecoder('utf-8').decode(fileContent);
             const parsed = yaml.parse(text);
@@ -225,12 +220,12 @@ function parseOperations(operations: any[], modelId: string): SystemOperation[] 
     return result;
 }
 
-export async function getServices(mainFolderUri: Uri): Promise<IntegrationSystem[]> {
+export async function getServices(serviceFileUri: Uri): Promise<IntegrationSystem[]> {
 
-    const service: any = await getMainService(mainFolderUri);
+    const service: any = await getMainService(serviceFileUri);
     if (!service) {
         return [];
     }
 
-    return [await getService(mainFolderUri, service.id)];
+    return [await getService(serviceFileUri, service.id)];
 }

@@ -16,17 +16,23 @@ export interface FileApi {
     removeFile(mainFolderUri: Uri, propertyFilename: string): Promise<void>;
 
     // Service-related methods
-    getMainService(parameters: any): Promise<any>;
+    getMainService(serviceFileUri: Uri): Promise<any>;
 
-    getService(parameters: any, serviceId: string): Promise<any>;
+    getService(serviceFileUri: Uri, serviceId: string): Promise<any>;
 
-    writeMainService(parameters: any, serviceData: any): Promise<void>;
+    writeMainService(serviceFileUri: Uri, serviceData: any): Promise<void>;
 
     writeServiceFile(fileUri: Uri, serviceData: any): Promise<void>;
 
-    findSpecificationGroupFiles(mainFolderUri: Uri): Promise<string[]>;
+    getSpecificationGroupFiles(serviceFileUri: Uri): Promise<string[]>;
 
-    findSpecificationFiles(mainFolderUri: Uri): Promise<string[]>;
+    getSpecificationFiles(serviceFileUri: Uri): Promise<string[]>;
+
+    getResourcesPath(serviceFileUri: Uri): Promise<Uri>;
+
+    getWorkspaceRoot(serviceFileUri: Uri): Promise<Uri>;
+
+    getServiceIdFromFileUri(serviceFileUri: Uri): Promise<string>;
 
 
     // File operations
@@ -36,5 +42,5 @@ export interface FileApi {
 
     deleteFile(fileUri: Uri): Promise<void>;
 
-    getFileType(mainFolderUri: Uri): Promise<string>;
+    getFileType(fileUri: Uri): Promise<string>;
 }

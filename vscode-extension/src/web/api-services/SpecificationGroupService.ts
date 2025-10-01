@@ -2,6 +2,7 @@ import { ExtensionContext, Uri } from "vscode";
 import { SpecificationGroup, IntegrationSystem } from "./servicesTypes";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
+import { getBaseFolder } from "../response/serviceApiUtils";
 
 const vscode = require('vscode');
 
@@ -22,7 +23,7 @@ export class SpecificationGroupService {
      */
     async getSpecificationGroupById(groupId: string, systemId: string): Promise<SpecificationGroup | null> {
         try {
-            const baseFolder = this.mainFolder || this.getBaseFolder();
+            const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
@@ -94,7 +95,7 @@ export class SpecificationGroupService {
      */
     async saveSpecificationGroupFile(systemId: string, specificationGroup: SpecificationGroup): Promise<void> {
         try {
-            const baseFolder = this.mainFolder || this.getBaseFolder();
+            const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
             console.log(`[SpecificationGroupService] Saving specification group file:`, {
                 systemId,
                 specificationGroupId: specificationGroup.id,
@@ -141,10 +142,4 @@ export class SpecificationGroupService {
         }
     }
 
-    /**
-     * Get base folder
-     */
-    private getBaseFolder(): Uri | undefined {
-        return this.mainFolder || vscode.workspace.workspaceFolders?.[0]?.uri;
-    }
 }

@@ -10,8 +10,8 @@ import { Uri } from "vscode";
 export class SpecificationImportApiHandler {
     private service: SpecificationImportService;
 
-    constructor(context: ExtensionContext, mainFolder?: Uri) {
-        this.service = new SpecificationImportService(context, mainFolder);
+    constructor(context: ExtensionContext, serviceFileUri?: Uri) {
+        this.service = new SpecificationImportService(context, serviceFileUri);
     }
 
     async handleImportSpecificationGroup(request: ImportSpecificationGroupRequest): Promise<ImportSpecificationResult> {

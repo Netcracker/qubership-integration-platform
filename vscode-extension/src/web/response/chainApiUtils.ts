@@ -8,20 +8,6 @@ export async function getChainUri(mainFolderUri: vscode.Uri): Promise<string> {
     return result;
 }
 
-export function getChainFolderUri(openedDocumentFolderUri: Uri | undefined): Uri {
-    if (openedDocumentFolderUri) {
-        return openedDocumentFolderUri;
-    }
-
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (workspaceFolders) {
-        return  workspaceFolders[0].uri;
-    }
-
-    console.error('No workspace folders found');
-    throw Error("No workspace folders found");
-}
-
 export function findElementById(
     elements: any[] | undefined,
     elementId: string,
