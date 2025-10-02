@@ -3,15 +3,15 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.qubership</groupId>
+    <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-engine</artifactId>
     <version>${revision}</version>
     <name>QIP Engine</name>
 
     <properties>
-        <revision>0.2.4</revision>
+        <revision>0.2.5</revision>
 
-        <qip-checkstyle-revision>0.0.2</qip-checkstyle-revision>
+        <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
 
         <generated-sources>target/generated-sources/java</generated-sources>
         <generated-resources>target/generated-sources/resources</generated-resources>
@@ -630,7 +630,7 @@
                         <version>9.3</version>
                     </dependency>
                     <dependency>
-                        <groupId>org.qubership</groupId>
+                        <groupId>org.qubership.integration.platform</groupId>
                         <artifactId>qip-checkstyle</artifactId>
                         <version>${qip-checkstyle-revision}</version>
                     </dependency>

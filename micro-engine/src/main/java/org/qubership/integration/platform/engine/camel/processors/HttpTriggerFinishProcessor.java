@@ -32,6 +32,7 @@ import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
+import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 
 import java.util.Collections;
@@ -101,13 +102,13 @@ public class HttpTriggerFinishProcessor implements Processor {
 
         String bodyForLogging = "<body not logged>";
         String headersForLogging = payloadExtractor.extractHeadersForLogging(exchange,
-                dbgProperties.getMaskedFields(), runtimeProperties.isMaskingEnabled()).toString();
+                MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), runtimeProperties.isMaskingEnabled()).toString();
         String exchangePropertiesForLogging = payloadExtractor.extractExchangePropertiesForLogging(
-                exchange, dbgProperties.getMaskedFields(), runtimeProperties.isMaskingEnabled()).toString();
+                exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), runtimeProperties.isMaskingEnabled()).toString();
 
         if (runtimeProperties.isLogPayloadEnabled()) {     //Deprecated since 24.4
             bodyForLogging = payloadExtractor.extractBodyForLogging(exchange,
-                    dbgProperties.getMaskedFields(), runtimeProperties.isMaskingEnabled());
+                    MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), runtimeProperties.isMaskingEnabled());
         }
 
         if (runtimeProperties.getLogPayload() != null && !runtimeProperties.getLogPayload().isEmpty()) {
@@ -117,7 +118,7 @@ public class HttpTriggerFinishProcessor implements Processor {
             exchangePropertiesForLogging = logPayloadSettings.contains(LogPayload.PROPERTIES) ? exchangePropertiesForLogging : "<properties not logged>";
 
             bodyForLogging = logPayloadSettings.contains(LogPayload.BODY) ? payloadExtractor.extractBodyForLogging(exchange,
-                    dbgProperties.getMaskedFields(), dbgProperties.getRuntimeProperties(exchange)
+                    MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
                             .isMaskingEnabled()) : "<body not logged>";
         }
 

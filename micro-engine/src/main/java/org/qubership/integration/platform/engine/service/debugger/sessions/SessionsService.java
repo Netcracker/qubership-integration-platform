@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.Session;
 import org.qubership.integration.platform.engine.model.SessionElementProperty;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
@@ -36,6 +37,7 @@ import org.qubership.integration.platform.engine.model.opensearch.ExceptionInfo;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
+import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
 import org.springframework.lang.Nullable;
@@ -193,10 +195,10 @@ public class SessionsService {
     ) {
 
         Map<String, SessionElementProperty> propertiesForLogging = extractor.extractExchangePropertiesForLogging(
-            exchange, dbgProperties.getMaskedFields(), dbgProperties.getRuntimeProperties(exchange)
+            exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
                 .isMaskingEnabled());
         Map<String, String> contextHeaders = extractor.extractContextForLogging(
-            dbgProperties.getMaskedFields(), dbgProperties.getRuntimeProperties(exchange)
+                MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
                 .isMaskingEnabled());
 
         SessionElementElastic sessionElement = SessionElementElastic.builder()
@@ -204,12 +206,12 @@ public class SessionsService {
             .elementName(stepId)
             .sessionId(sessionId)
             .started(LocalDateTime.now().toString())
-            .bodyBefore(extractor.extractBodyForLogging(exchange, dbgProperties.getMaskedFields(),
+            .bodyBefore(extractor.extractBodyForLogging(exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                 dbgProperties.getRuntimeProperties(exchange)
                     .isMaskingEnabled()))
             .headersBefore(
                 extractor.convertToJson(
-                    extractor.extractHeadersForLogging(exchange, dbgProperties.getMaskedFields(),
+                    extractor.extractHeadersForLogging(exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                         dbgProperties.getRuntimeProperties(exchange)
                             .isMaskingEnabled())))
             .propertiesBefore(extractor.convertToJson(propertiesForLogging))
