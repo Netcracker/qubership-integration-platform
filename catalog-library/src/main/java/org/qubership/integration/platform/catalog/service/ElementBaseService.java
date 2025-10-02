@@ -23,6 +23,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.repository
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -52,6 +53,16 @@ public class ElementBaseService {
 
     public Optional<ChainElement> findByIdOptional(String id) {
         return elementRepository.findById(id);
+    }
+
+    public List<ChainElement> findBySystemId(String systemId) {
+        return elementRepository.findAll((root, query, builder) -> builder.and(
+                builder.isNotNull(root.get("chain")),
+                builder.equal(builder.function("jsonb_extract_path_text", String.class,
+                                root.<String>get("properties"), builder.literal(CamelOptions.SYSTEM_ID)),
+                        systemId
+                )
+        ));
     }
 
     public void delete(ChainElement element) {

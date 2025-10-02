@@ -16,8 +16,14 @@
 
 package org.qubership.integration.platform.catalog.service;
 
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 public class ChainBaseService {
@@ -40,5 +46,18 @@ public class ChainBaseService {
 
     public boolean isSystemModelUsedByChain(String modelId) {
         return elementBaseService.isSystemModelUsedByElement(modelId);
+    }
+
+    public List<Chain> findBySystemId(String systemId) {
+        List<ChainElement> elements = elementBaseService.findBySystemId(systemId);
+        return getElementsChains(elements);
+    }
+
+    protected List<Chain> getElementsChains(List<ChainElement> elements) {
+        return elements.stream()
+                .map(ChainElement::getChain)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
     }
 }
