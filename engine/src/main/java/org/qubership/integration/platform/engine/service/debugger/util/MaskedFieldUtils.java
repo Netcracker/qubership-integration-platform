@@ -16,9 +16,11 @@
 
 package org.qubership.integration.platform.engine.service.debugger.util;
 
-import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.apache.camel.Exchange;
-import java.util.*;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Utility class for managing masked fields in Camel Exchange properties.
@@ -68,7 +70,9 @@ public class MaskedFieldUtils {
      * @param newFields the fields to add (ignored if null or empty)
      */
     public static void addMaskedFields(Exchange exchange, Set<String> newFields) {
-        if (newFields == null || newFields.isEmpty()) return;
+        if (newFields == null || newFields.isEmpty()) {
+            return;
+        }
         Set<String> existing = getMaskedFields(
                 exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)
         );
