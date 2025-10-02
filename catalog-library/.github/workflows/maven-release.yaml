@@ -87,7 +87,7 @@ jobs:
 
       - name: Update pom.xml
         id: config
-        uses: netcracker/qubership-workflow-hub/actions/pom-updater@main
+        uses: netcracker/qubership-workflow-hub/actions/pom-updater@v1.0.6
         with:
           new_value: ${{ github.event.inputs.version }}
 
