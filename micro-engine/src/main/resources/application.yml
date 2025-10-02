@@ -286,8 +286,9 @@ quarkus:
         endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318
     traces:
       enabled: ${TRACING_ENABLED:false}
-      sampler: traceidratio
-      "sampler.arg": ${TRACING_SAMPLER_PROBABILISTIC:0.01}
+      sampler:
+        name: traceidratio
+        arg: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
     metrics:
       enabled: false
     logs:
