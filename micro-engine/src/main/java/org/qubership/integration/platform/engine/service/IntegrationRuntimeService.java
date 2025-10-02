@@ -539,10 +539,10 @@ public class IntegrationRuntimeService {
         Registry registry = new DefaultRegistry(
             // Camel components contain a reference to a context.
             // Since a unique context instance is created for every
-            // integration chain we can't use singleton component beans
+            // integration chain, we can't use singleton component beans
             // that are provided by existing registry bean configured
             // by Quarkus.
-            // We are filtering out this singleton component beans in order to
+            // We are filtering out these singleton component beans to
             // enforce Camel to create unique component instances for every
             // created context via DefaultComponentResolver that uses component
             // definitions in META-INF/services/org/apache/camel/component.
