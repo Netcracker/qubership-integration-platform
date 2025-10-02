@@ -33,7 +33,7 @@ import org.qubership.integration.platform.engine.util.InjectUtil;
 @ApplicationScoped
 public class TracingConfiguration {
     @Getter
-    @ConfigProperty(name = "management.tracing.enabled")
+    @ConfigProperty(name = "quarkus.otel.traces.enabled")
     boolean tracingEnabled;
 
     @Produces

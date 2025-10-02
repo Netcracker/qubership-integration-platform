@@ -7,23 +7,6 @@ application:
   default_integration_domain_microservice_name: qip-engine # custom param
   default_integration_domain_name: default # custom param
 
-management:
-  opentelemetry:
-    resource-attributes:
-      "service.name": ${application.name}-${NAMESPACE:local}
-  tracing:
-    enabled: ${TRACING_ENABLED:false}
-    propagation:
-      type: B3_MULTI
-    sampling:
-      probability: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
-  otlp:
-    tracing:
-      endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318/v1/traces
-    metrics:
-      export:
-        enabled: false
-
 security:
   role-prefix: 'ROLE_'
 
@@ -292,3 +275,20 @@ quarkus:
     table-prefix: engine.QRTZ_
     misfire-threshold: 15S
     thread-count: 10
+  otel:
+    propagators: b3multi
+    service:
+      name: ${application.name}-${NAMESPACE:local}
+    enabled: true
+    exporter:
+      otlp:
+        protocol: http/protobuf
+        endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318
+    traces:
+      enabled: ${TRACING_ENABLED:false}
+      sampler: traceidratio
+      "sampler.arg": ${TRACING_SAMPLER_PROBABILISTIC:0.01}
+    metrics:
+      enabled: false
+    logs:
+      enabled: false
