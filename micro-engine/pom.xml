@@ -463,17 +463,6 @@
             <groupId>org.apache.camel</groupId>
             <artifactId>camel-observation</artifactId>
         </dependency>
-
-        <!--        <dependency>-->
-        <!--            <groupId>org.apache.camel.quarkus</groupId>-->
-        <!--            <artifactId>camel-quarkus-microprofile-fault-tolerance</artifactId>-->
-        <!--            <version>3.20.2</version>-->
-        <!--        </dependency>-->
-        <!--        <dependency>-->
-        <!--            <groupId>org.apache.camel</groupId>-->
-        <!--            <artifactId>camel-resilience4j</artifactId>-->
-        <!--        </dependency>-->
-
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit5</artifactId>
@@ -494,7 +483,7 @@
                             <goal>build</goal>
                             <goal>generate-code</goal>
                             <goal>generate-code-tests</goal>
-<!--                            <goal>native-image-agent</goal>-->
+                            <!--                            <goal>native-image-agent</goal>-->
                         </goals>
                     </execution>
                 </executions>
@@ -599,8 +588,6 @@
                     </execution>
                 </executions>
             </plugin>
-
-            <!-- https://mvnrepository.com/artifact/org.apache.maven.plugins/maven-javadoc-plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
