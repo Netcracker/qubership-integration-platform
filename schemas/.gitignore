@@ -9,4 +9,5 @@ target
 assets/
 /node_modules/
 /node/
+types/
 

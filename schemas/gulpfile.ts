@@ -1,15 +1,18 @@
 import { SchemaResolver } from "./src/main/scripts/SchemaResolver";
 import { series } from "gulp";
 import { deleteAsync } from "del";
+import { generateTypes } from "./src/main/scripts/generateTypes";
 
-export function clean() {
-    return deleteAsync(["assets/**/*"]);
+export async function clean() {
+    await deleteAsync(["assets/**/*"]);
+    await deleteAsync(["types/**/*"]);
 }
 
 export async function assembly() {
     await clean();
     const resolver = new SchemaResolver();
     await resolver.resolveAllSchemas();
+    await generateTypes();
 }
 
 export const build = series(clean, assembly);
