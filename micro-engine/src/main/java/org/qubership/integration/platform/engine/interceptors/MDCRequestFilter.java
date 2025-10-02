@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.interceptors;
 
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
+import jakarta.ws.rs.ext.Provider;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
 import org.slf4j.MDC;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.util.UUID;
 
 @Slf4j
+@Provider
 public class MDCRequestFilter implements ContainerRequestFilter {
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
