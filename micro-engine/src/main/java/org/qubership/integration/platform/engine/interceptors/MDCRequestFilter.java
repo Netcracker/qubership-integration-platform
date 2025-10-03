@@ -21,25 +21,15 @@ import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.ext.Provider;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
-import org.slf4j.MDC;
 
 import java.io.IOException;
-import java.util.UUID;
 
 @Slf4j
 @Provider
 public class MDCRequestFilter implements ContainerRequestFilter {
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
-        try {
-            String requestId = requestContext.getHeaderString(ContextHeaders.REQUEST_ID_HEADER);
-            if (requestId == null) {
-                requestId = UUID.randomUUID().toString();
-            }
-
-            MDC.put(ContextHeaders.REQUEST_ID, requestId);
-        } catch (Exception e) {
-            log.warn("Failed to process logging properties", e);
-        }
+        String value = requestContext.getHeaderString(ContextHeaders.REQUEST_ID_HEADER);
+        RequestIdHelper.setRequestId(value);
     }
 }
