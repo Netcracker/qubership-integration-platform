@@ -1,4 +1,5 @@
 import { EMPTY_USER } from '../../response/chainApiUtils';
+import { ContentParser } from './ContentParser';
 
 export interface AsyncApiData {
     asyncapi: string;
@@ -31,26 +32,13 @@ export class AsyncApiSpecificationParser {
      * Parse AsyncAPI content
      */
     static async parseAsyncApiContent(content: string): Promise<AsyncApiData> {
-        try {
-            let specData: any;
+        const specData = ContentParser.parseContentWithErrorHandling(content, 'AsyncApiSpecificationParser');
 
-            // Try JSON first
-            try {
-                specData = JSON.parse(content);
-            } catch (jsonError) {
-                // Try YAML
-                const yaml = require('yaml');
-                specData = yaml.parse(content);
-            }
-
-            if (!specData.asyncapi) {
-                throw new Error('Not a valid AsyncAPI specification');
-            }
-
-            return specData as AsyncApiData;
-        } catch (error) {
-            throw error;
+        if (!specData.asyncapi) {
+            throw new Error('Not a valid AsyncAPI specification');
         }
+
+        return specData as AsyncApiData;
     }
 
     /**

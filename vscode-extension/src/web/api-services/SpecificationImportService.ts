@@ -8,10 +8,10 @@ import {
 } from "./importApiTypes";
 import { SpecificationGroup, Specification, IntegrationSystem } from "./servicesTypes";
 import { ImportProgressTracker } from "./importProgressTracker";
-import { SystemService } from "./SystemService";
 import { SpecificationGroupService } from "./SpecificationGroupService";
 import { SpecificationProcessorService } from "./SpecificationProcessorService";
 import { EnvironmentService, EnvironmentRequest } from "./EnvironmentService";
+import { SystemService } from "./SystemService";
 import { fileApi } from "../response/file/fileApiProvider";
 import { GraphQLSpecificationParser } from "./parsers/GraphQLSpecificationParser";
 import { ProtoSpecificationParser } from "./parsers/ProtoSpecificationParser";
@@ -23,19 +23,19 @@ export class SpecificationImportService {
     private context: ExtensionContext;
     private progressTracker: ImportProgressTracker;
     private serviceFileUri?: Uri;
-    private systemService: SystemService;
     private specificationGroupService: SpecificationGroupService;
     private specificationProcessorService: SpecificationProcessorService;
     private environmentService: EnvironmentService;
+    private systemService: SystemService;
 
     constructor(context: ExtensionContext, serviceFileUri?: Uri) {
         this.context = context;
         this.progressTracker = ImportProgressTracker.getInstance(context);
         this.serviceFileUri = serviceFileUri;
-        this.systemService = new SystemService(context, serviceFileUri);
         this.specificationGroupService = new SpecificationGroupService(context, serviceFileUri);
         this.specificationProcessorService = new SpecificationProcessorService(context, serviceFileUri);
         this.environmentService = new EnvironmentService(context, serviceFileUri);
+        this.systemService = new SystemService(context, serviceFileUri);
     }
 
     /**
@@ -83,7 +83,7 @@ export class SpecificationImportService {
             }
 
             if (importingProtocol) {
-                await this.systemService.updateSystemProtocol(request.systemId, importingProtocol);
+                console.log(`[SpecificationImportService] Protocol ${importingProtocol} detected`);
             }
 
             try {

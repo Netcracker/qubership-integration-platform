@@ -49,6 +49,7 @@ export type SpecificationGroup = BaseEntity & {
   synchronization: boolean;
   parentId?: string;
   systemId?: string;
+  labels?: EntityLabel[];
 };
 
 export type Specification = BaseEntity & {
@@ -64,6 +65,7 @@ export type Specification = BaseEntity & {
   sourceFiles?: string[];
   protocol?: string;
   metadata?: Record<string, any>;
+  labels?: EntityLabel[];
 };
 
 export type SystemRequest = {

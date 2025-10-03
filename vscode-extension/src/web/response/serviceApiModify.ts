@@ -13,6 +13,7 @@ import {EMPTY_USER} from "./chainApiUtils";
 import vscode, {ExtensionContext, Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";
 import { refreshQipExplorer } from "../extension";
+import { LabelUtils } from "../api-services/LabelUtils";
 
 export async function updateService(serviceFileUri: Uri, serviceId: string, serviceRequest: Partial<IntegrationSystem>): Promise<IntegrationSystem> {
     const service: any = await getMainService(serviceFileUri);
@@ -29,7 +30,7 @@ export async function updateService(serviceFileUri: Uri, serviceId: string, serv
         service.content.description = serviceRequest.description;
     }
     if (serviceRequest.labels !== undefined) {
-        service.content.labels = serviceRequest.labels;
+        service.content.labels = LabelUtils.fromEntityLabels(serviceRequest.labels);
     }
     if (serviceRequest.integrationSystemType !== undefined) {
         service.content.integrationSystemType = serviceRequest.integrationSystemType;
@@ -76,7 +77,7 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
                 extendedProtocol: serviceRequest.extendedProtocol || "",
                 specification: serviceRequest.specification || "",
                 environments: [],
-                labels: serviceRequest.labels || [],
+                labels: LabelUtils.fromEntityLabels(serviceRequest.labels || []),
                 migrations: []
             }
         };
@@ -99,7 +100,7 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
             extendedProtocol: service.content.extendedProtocol || "",
             specification: service.content.specification || "",
             environments: service.content.environments || [],
-            labels: service.content.labels || []
+            labels: LabelUtils.toEntityLabels(service.content.labels || [])
         };
 
         return result;
@@ -140,7 +141,7 @@ export async function updateEnvironment(serviceFileUri: Uri, serviceId: string, 
         environment.properties = environmentRequest.properties;
     }
     if (environmentRequest.labels !== undefined) {
-        environment.labels = environmentRequest.labels;
+        environment.labels = LabelUtils.fromEntityLabels(environmentRequest.labels);
     }
 
     environment.modifiedWhen = Date.now();
@@ -148,7 +149,10 @@ export async function updateEnvironment(serviceFileUri: Uri, serviceId: string, 
 
     await writeMainService(serviceFileUri, service);
 
-    return environment as Environment;
+    return {
+        ...environment,
+        labels: LabelUtils.toEntityLabels(environment.labels)
+    } as Environment;
 }
 
 export async function createEnvironment(serviceFileUri: Uri, serviceId: string, environmentRequest: EnvironmentRequest): Promise<Environment> {
@@ -170,13 +174,16 @@ export async function createEnvironment(serviceFileUri: Uri, serviceId: string, 
         address: environmentRequest.address,
         sourceType: environmentRequest.sourceType || "MANUAL",
         properties: environmentRequest.properties || {},
-        labels: environmentRequest.labels || []
+        labels: LabelUtils.fromEntityLabels(environmentRequest.labels || [])
     };
 
     service.content.environments.push(environment);
     await writeMainService(serviceFileUri, service);
 
-    return environment;
+    return {
+        ...environment,
+        labels: LabelUtils.toEntityLabels(environment.labels)
+    };
 }
 
 export async function deleteEnvironment(serviceFileUri: Uri, serviceId: string, environmentId: string): Promise<void> {
@@ -216,9 +223,15 @@ export async function updateApiSpecificationGroup(serviceFileUri: Uri, groupId: 
             groupInfo.description = groupRequest.description;
         }
         if ((groupRequest as any).labels !== undefined) {
-            groupInfo.labels = (groupRequest as any).labels;
+            if (!groupInfo.content) {
+                groupInfo.content = {};
+            }
+            groupInfo.content.labels = LabelUtils.fromEntityLabels((groupRequest as any).labels);
         }
 
+        if (!groupInfo.content) {
+            groupInfo.content = {};
+        }
         groupInfo.content.modifiedWhen = Date.now();
         groupInfo.content.modifiedBy = EMPTY_USER;
 
@@ -228,7 +241,10 @@ export async function updateApiSpecificationGroup(serviceFileUri: Uri, groupId: 
         const bytes = new TextEncoder().encode(yamlContent);
         await fileApi.writeFile(groupFileUri, bytes);
 
-        return groupInfo as SpecificationGroup;
+        return {
+            ...groupInfo,
+            labels: LabelUtils.toEntityLabels(groupInfo.content?.labels || [])
+        } as SpecificationGroup;
 
     } catch (error) {
         console.error('updateApiSpecificationGroup: Error:', error);
@@ -248,21 +264,39 @@ export async function updateSpecificationModel(serviceFileUri: Uri, modelId: str
             specificationInfo.description = modelRequest.description;
         }
         if ((modelRequest as any).labels !== undefined) {
-            specificationInfo.labels = (modelRequest as any).labels;
+            if (!specificationInfo.content) {
+                specificationInfo.content = {};
+            }
+            specificationInfo.content.labels = LabelUtils.fromEntityLabels((modelRequest as any).labels);
         }
         if (modelRequest.version !== undefined) {
+            if (!specificationInfo.content) {
+                specificationInfo.content = {};
+            }
             specificationInfo.content.version = modelRequest.version;
         }
         if (modelRequest.format !== undefined) {
+            if (!specificationInfo.content) {
+                specificationInfo.content = {};
+            }
             specificationInfo.content.format = modelRequest.format;
         }
         if (modelRequest.content !== undefined) {
+            if (!specificationInfo.content) {
+                specificationInfo.content = {};
+            }
             specificationInfo.content.content = modelRequest.content;
         }
         if (modelRequest.deprecated !== undefined) {
+            if (!specificationInfo.content) {
+                specificationInfo.content = {};
+            }
             specificationInfo.content.deprecated = modelRequest.deprecated;
         }
 
+        if (!specificationInfo.content) {
+            specificationInfo.content = {};
+        }
         specificationInfo.content.modifiedWhen = Date.now();
         specificationInfo.content.modifiedBy = EMPTY_USER;
 
@@ -272,7 +306,10 @@ export async function updateSpecificationModel(serviceFileUri: Uri, modelId: str
         const bytes = new TextEncoder().encode(yamlContent);
         await fileApi.writeFile(specificationFileUri, bytes);
 
-        return specificationInfo as Specification;
+        return {
+            ...specificationInfo,
+            labels: LabelUtils.toEntityLabels(specificationInfo.content?.labels || [])
+        } as Specification;
 
     } catch (error) {
         console.error('updateSpecificationModel: Error:', error);
@@ -324,8 +361,7 @@ async function getSpecificationFilesByGroup(serviceFileUri: Uri, groupId: string
         try {
             const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const fileContent = await fileApi.readFileContent(fileUri);
-            const text = new TextDecoder().decode(fileContent);
+            const text = await fileApi.readFileContent(fileUri);
             const parsed = yaml.parse(text);
 
             if (parsed.id === groupId) {
@@ -368,8 +404,7 @@ async function findSpecificationFileById(serviceFileUri: Uri, modelId: string): 
         try {
             const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const fileContent = await fileApi.readFileContent(fileUri);
-            const text = new TextDecoder().decode(fileContent);
+            const text = await fileApi.readFileContent(fileUri);
             const parsed = yaml.parse(text);
 
             if (parsed.id === modelId) {
@@ -445,8 +480,7 @@ export async function deleteSpecificationGroup(serviceFileUri: Uri, groupId: str
             try {
                 const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
                 const fileUri = vscode.Uri.joinPath(serviceFolderUri, specFileName);
-                const fileContent = await fileApi.readFileContent(fileUri);
-                const text = new TextDecoder().decode(fileContent);
+                const text = await fileApi.readFileContent(fileUri);
                 const specInfo = yaml.parse(text);
 
                 await deleteSourceFilesFromSpecificationSources(serviceFileUri, specInfo);

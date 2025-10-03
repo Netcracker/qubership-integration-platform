@@ -127,8 +127,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                         const fileUri = vscode.Uri.joinPath(folderUri, name);
                         console.log(`QIP Explorer: Found chain file: ${name}`);
                         const content = await fileApi.readFileContent(fileUri);
-                        const yamlContent = new TextDecoder().decode(content);
-                        const chainData = yaml.parse(yamlContent);
+                        const chainData = yaml.parse(content);
 
                         if (chainData && chainData.content) {
                             const elementsCount = chainData.content.elements?.length || 0;
@@ -198,8 +197,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                         const fileUri = vscode.Uri.joinPath(folderUri, name);
                         console.log(`QIP Explorer: Found service file: ${name}`);
                         const content = await fileApi.readFileContent(fileUri);
-                        const yamlContent = new TextDecoder().decode(content);
-                        const serviceData = yaml.parse(yamlContent);
+                        const serviceData = yaml.parse(content);
 
                         if (serviceData && serviceData.content) {
                             // Format: ${name}-${protocol}-${uuid}
@@ -267,8 +265,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                 }
 
                 const content = await fileApi.readFileContent(fileUri);
-                const yamlContent = new TextDecoder().decode(content);
-                const chainData = yaml.parse(yamlContent);
+                const chainData = yaml.parse(content);
 
                 if (chainData && chainData.content && chainData.content.elements) {
                     for (const element of chainData.content.elements) {

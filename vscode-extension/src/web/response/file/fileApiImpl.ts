@@ -115,8 +115,7 @@ export class VSCodeFileApi implements FileApi {
         const baseUri = parameters as Uri;
         const fileUri = await this.getMainChainFileUri(baseUri);
         try {
-            const fileContent = await this.readFileContent(fileUri);
-            const text = new TextDecoder('utf-8').decode(fileContent);
+            const text = await this.readFileContent(fileUri);
             const parsed = yaml.parse(text);
 
             if (parsed && parsed.name) {
@@ -142,8 +141,7 @@ export class VSCodeFileApi implements FileApi {
             }
             throw error;
         }
-        const textFile = new TextDecoder('utf-8').decode(fileContent);
-        return textFile;
+        return fileContent;
     }
 
     async parseFile(fileUri: Uri): Promise<any> {
@@ -159,7 +157,7 @@ export class VSCodeFileApi implements FileApi {
 
     async getLibrary(): Promise<LibraryData> {
         const fileUri = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'library.json');
-        const content = new TextDecoder('utf-8').decode(await this.readFileContent(fileUri));
+        const content = await this.readFileContent(fileUri);
         return JSON.parse(content);
     }
 
@@ -204,8 +202,7 @@ export class VSCodeFileApi implements FileApi {
     // Service-related methods
     async getMainService(serviceFileUri: Uri): Promise<any> {
         try {
-            const fileContent = await this.readFileContent(serviceFileUri);
-            const text = new TextDecoder('utf-8').decode(fileContent);
+            const text = await this.readFileContent(serviceFileUri);
             const parsed = yaml.parse(text);
 
             if (parsed && parsed.name) {
@@ -220,8 +217,7 @@ export class VSCodeFileApi implements FileApi {
 
     async getService(serviceFileUri: Uri, serviceId: string): Promise<any> {
         try {
-            const fileContent = await this.readFileContent(serviceFileUri);
-            const text = new TextDecoder('utf-8').decode(fileContent);
+            const text = await this.readFileContent(serviceFileUri);
             const parsed = yaml.parse(text);
 
             if (parsed && parsed.id === serviceId) {
@@ -284,8 +280,9 @@ export class VSCodeFileApi implements FileApi {
         await vscode.workspace.fs.writeFile(fileUri, data);
     }
 
-    async readFileContent(fileUri: Uri): Promise<Uint8Array> {
-        return await vscode.workspace.fs.readFile(fileUri);
+    async readFileContent(fileUri: Uri): Promise<string> {
+        const bytes = await vscode.workspace.fs.readFile(fileUri);
+        return new TextDecoder('utf-8').decode(bytes);
     }
 
     async deleteFile(fileUri: Uri): Promise<void> {
@@ -470,36 +467,6 @@ export class VSCodeFileApi implements FileApi {
 
     async getSpecificationFiles(serviceFileUri: Uri): Promise<string[]> {
         return await this.getFilesByExtension(serviceFileUri, '.specification.qip.yaml');
-    }
-
-    async getResourcesPath(serviceFileUri: Uri): Promise<Uri> {
-        const serviceFolderUri = await this.getParentDirectoryUri(serviceFileUri);
-        return vscode.Uri.joinPath(serviceFolderUri, 'resources');
-    }
-
-    async getWorkspaceRoot(serviceFileUri: Uri): Promise<Uri> {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            throw new Error('No workspace folders found');
-        }
-
-        for (const workspaceFolder of workspaceFolders) {
-            const relativePath = vscode.workspace.asRelativePath(serviceFileUri);
-            if (!relativePath.startsWith('..')) {
-                return workspaceFolder.uri;
-            }
-        }
-
-        return workspaceFolders[0].uri;
-    }
-
-    async getServiceIdFromFileUri(serviceFileUri: Uri): Promise<string> {
-        const fileName = serviceFileUri.path.split('/').pop() || '';
-        const match = fileName.match(/^(.+)\.service\.qip\.yaml$/);
-        if (!match) {
-            throw new Error(`Invalid service file name: ${fileName}`);
-        }
-        return match[1];
     }
 
 }

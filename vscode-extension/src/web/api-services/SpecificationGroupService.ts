@@ -3,6 +3,7 @@ import { SpecificationGroup, IntegrationSystem } from "./servicesTypes";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getBaseFolder } from "../response/serviceApiUtils";
+import { YamlFileUtils } from "./YamlFileUtils";
 
 const vscode = require('vscode');
 
@@ -33,9 +34,8 @@ export class SpecificationGroupService {
 
             try {
                 const content = await fileApi.readFileContent(groupFile);
-                const yamlContent = new TextDecoder().decode(content);
                 const yaml = require('yaml');
-                const parsed = yaml.parse(yamlContent);
+                const parsed = yaml.parse(content);
 
                 const specificationGroup: SpecificationGroup = {
                     id: parsed.id,
@@ -111,8 +111,7 @@ export class SpecificationGroupService {
             const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}.specification-group.qip.yaml`);
             console.log(`[SpecificationGroupService] Group file path:`, groupFile.fsPath);
 
-            const yaml = require('yaml');
-            const yamlContent = yaml.stringify({
+            const yamlData = {
                 $schema: "http://qubership.org/schemas/product/qip/specification-group",
                 id: specificationGroup.id,
                 name: specificationGroup.name,
@@ -122,13 +121,12 @@ export class SpecificationGroupService {
                     createdBy: specificationGroup.createdBy,
                     modifiedBy: specificationGroup.modifiedBy,
                     synchronization: specificationGroup.synchronization || false,
-                    parentId: specificationGroup.systemId // Store systemId as parentId in file for compatibility
+                    parentId: systemId
                 }
-            });
+            };
 
-            console.log(`[SpecificationGroupService] YAML content:`, yamlContent);
-            const bytes = new TextEncoder().encode(yamlContent);
-            await fileApi.writeFile(groupFile, bytes);
+            console.log(`[SpecificationGroupService] YAML content:`, yamlData);
+            await YamlFileUtils.saveYamlFile(groupFile, yamlData);
             console.log(`[SpecificationGroupService] Saved specification group file: ${groupFile.fsPath}`);
         } catch (error) {
             console.error(`[SpecificationGroupService] Error saving specification group file:`, {

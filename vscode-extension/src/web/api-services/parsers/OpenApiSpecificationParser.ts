@@ -26,28 +26,15 @@ export interface OpenApiData {
     };
 }
 
+import { ContentParser } from './ContentParser';
+
 export class OpenApiSpecificationParser {
     
     /**
      * Parse OpenAPI/Swagger content and extract operations
      */
     static async parseOpenApiContent(content: string): Promise<OpenApiData> {
-        
-        let specData: any;
-        
-        try {
-            // Try to parse as JSON first
-            specData = JSON.parse(content);
-        } catch (jsonError) {
-            try {
-                // If JSON parsing fails, try YAML
-                const yaml = require('yaml');
-                specData = yaml.parse(content);
-            } catch (yamlError) {
-                console.error('[OpenApiSpecificationParser] Error parsing content as both JSON and YAML:', { jsonError, yamlError });
-                throw new Error('Failed to parse OpenAPI specification: not valid JSON or YAML');
-            }
-        }
+        const specData = ContentParser.parseContentWithErrorHandling(content, 'OpenApiSpecificationParser');
         
         // Validate that it's an OpenAPI/Swagger spec
         if (!specData.openapi && !specData.swagger) {

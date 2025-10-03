@@ -35,17 +35,10 @@ export interface FileApi {
 
     getSpecificationFiles(serviceFileUri: Uri): Promise<string[]>;
 
-    getResourcesPath(serviceFileUri: Uri): Promise<Uri>;
-
-    getWorkspaceRoot(serviceFileUri: Uri): Promise<Uri>;
-
-    getServiceIdFromFileUri(serviceFileUri: Uri): Promise<string>;
-
-
     // File operations
     writeFile(fileUri: Uri, data: Uint8Array): Promise<void>;
 
-    readFileContent(fileUri: Uri): Promise<Uint8Array>;
+    readFileContent(fileUri: Uri): Promise<string>;
 
     deleteFile(fileUri: Uri): Promise<void>;
 

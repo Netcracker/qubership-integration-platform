@@ -1,14 +1,16 @@
-import { ExtensionContext, Uri, FileType } from "vscode";
+import { ExtensionContext, Uri } from "vscode";
 import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { getBaseFolder } from "../response/serviceApiUtils";
+import { LabelUtils } from "./LabelUtils";
 
 const vscode = require('vscode');
 
 /**
  * Service for managing integration systems
+ * Provides functionality for reading and managing systems from files
  */
 export class SystemService {
     private context: ExtensionContext;
@@ -20,15 +22,11 @@ export class SystemService {
     }
 
     /**
-     * Get system by ID
+     * Get system by ID from service file
      */
     async getSystemById(systemId: string): Promise<IntegrationSystem | null> {
         try {
-            const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
-            if (!baseFolder) {
-                throw new Error('No base folder available');
-            }
-
+            const baseFolder = await this.getBaseFolderUri();
             const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}.service.qip.yaml`);
             const service = await getMainService(serviceFileUri);
             if (service.id === systemId) {
@@ -45,7 +43,7 @@ export class SystemService {
                     protocol: service.content.protocol || "HTTP",
                     extendedProtocol: service.content.extendedProtocol || "",
                     specification: service.content.specification || "",
-                    labels: service.content.labels || []
+                    labels: LabelUtils.toEntityLabels(service.content.labels || [])
                 };
             }
             console.log(`[SystemService] System with id ${systemId} not found`);
@@ -57,54 +55,42 @@ export class SystemService {
     }
 
     /**
-     * Update system protocol
+     * Get raw service object by ID (with content structure)
      */
-    async updateSystemProtocol(systemId: string, protocol: string): Promise<void> {
+    async getRawServiceById(systemId: string): Promise<any | null> {
         try {
-            const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
-            if (!baseFolder) {
-                throw new Error('No base folder available');
-            }
-
+            const baseFolder = await this.getBaseFolderUri();
             const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}.service.qip.yaml`);
             const service = await getMainService(serviceFileUri);
-            if (service.id === systemId) {
-                service.content.protocol = protocol;
-                service.content.modifiedWhen = Date.now();
-                service.content.modifiedBy = {...EMPTY_USER};
-
-                const yaml = require('yaml');
-                const yamlContent = yaml.stringify(service);
-                const bytes = new TextEncoder().encode(yamlContent);
-                await fileApi.writeFile(serviceFileUri, bytes);
+            if (service && service.id === systemId) {
+                return service;
             }
+            return null;
         } catch (error) {
-            console.error(`[SystemService] Error updating system protocol:`, error);
-            throw error;
+            console.error(`[SystemService] Error getting raw service ${systemId}:`, error);
+            return null;
         }
     }
 
     /**
-     * Get main service file URI
+     * Get base folder with standardized logic
      */
-    private async getMainServiceFileUri(mainFolderUri: Uri): Promise<Uri | undefined> {
-        if (mainFolderUri) {
-            let entries = await vscode.workspace.fs.readDirectory(mainFolderUri);
-
-            if (!entries || !Array.isArray(entries)) {
-                console.error(`Failed to read directory contents`);
-                throw Error("Failed to read directory contents");
-            }
-
-            const files = entries.filter(([, type]: [string, FileType]) => type === 1)
-                .filter(([name]: [string, FileType]) => name.endsWith('.service.qip.yaml'))
-                .map(([name]: [string, FileType]) => name);
-            if (files.length !== 1) {
-                console.error(`Single *.service.qip.yaml file not found in the current directory`);
-                throw Error("Single *.service.qip.yaml file not found in the current directory");
-            }
-            return Uri.joinPath(mainFolderUri, files[0]);
+    async getBaseFolderUri(): Promise<Uri> {
+        const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
+        if (!baseFolder) {
+            throw new Error('No base folder available');
         }
-        return undefined;
+        return baseFolder;
+    }
+
+    /**
+     * Get base folder with extension context (for services that need it)
+     */
+    async getBaseFolderWithContext(): Promise<Uri> {
+        const baseFolder = await getBaseFolder(this.mainFolder, this.context.extensionUri);
+        if (!baseFolder) {
+            throw new Error('No base folder available');
+        }
+        return baseFolder;
     }
 }

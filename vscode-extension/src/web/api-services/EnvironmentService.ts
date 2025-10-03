@@ -2,7 +2,8 @@ import { ExtensionContext, Uri } from "vscode";
 import { Environment, IntegrationSystem } from "./servicesTypes";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
-import { getBaseFolder } from "../response/serviceApiUtils";
+import { SystemService } from "./SystemService";
+import { LabelUtils } from "./LabelUtils";
 
 export interface EnvironmentRequest {
     name: string;
@@ -17,12 +18,10 @@ export interface EnvironmentRequest {
  * Handles CRUD operations for environments within systems
  */
 export class EnvironmentService {
-    private context: ExtensionContext;
-    private mainFolder?: Uri;
+    private systemService: SystemService;
 
     constructor(context: ExtensionContext, mainFolder?: Uri) {
-        this.context = context;
-        this.mainFolder = mainFolder;
+        this.systemService = new SystemService(context, mainFolder);
     }
 
     /**
@@ -30,7 +29,7 @@ export class EnvironmentService {
      */
     async getEnvironmentsForSystem(systemId: string): Promise<Environment[]> {
         try {
-            const system = await this.getSystemById(systemId);
+            const system = await this.systemService.getRawServiceById(systemId);
             if (!system) {
                 return [];
             }
@@ -67,7 +66,7 @@ export class EnvironmentService {
                 sourceType: 'MANUAL' as any,
                 systemId: request.systemId,
                 properties: {},
-                labels: [],
+                labels: LabelUtils.toEntityLabels([]),
                 createdWhen: Date.now(),
                 createdBy: { ...EMPTY_USER},
                 modifiedWhen: Date.now(),
@@ -75,7 +74,7 @@ export class EnvironmentService {
             };
 
 
-            const system = await this.getSystemById(request.systemId);
+            const system = await this.systemService.getRawServiceById(request.systemId);
             if (!system) {
                 throw new Error(`System not found: ${request.systemId}`);
             }
@@ -112,7 +111,7 @@ export class EnvironmentService {
         updates: Partial<EnvironmentRequest>
     ): Promise<Environment | null> {
         try {
-            const system = await this.getSystemById(systemId);
+            const system = await this.systemService.getRawServiceById(systemId);
             if (!system || !system.content?.environments) {
                 return null;
             }
@@ -150,7 +149,7 @@ export class EnvironmentService {
      */
     async deleteEnvironment(systemId: string, environmentId: string): Promise<boolean> {
         try {
-            const system = await this.getSystemById(systemId);
+            const system = await this.systemService.getRawServiceById(systemId);
             if (!system || !system.content?.environments) {
                 return false;
             }
@@ -183,7 +182,7 @@ export class EnvironmentService {
      */
     async setActiveEnvironment(systemId: string, environmentId: string): Promise<boolean> {
         try {
-            const system = await this.getSystemById(systemId);
+            const system = await this.systemService.getRawServiceById(systemId);
             if (!system) {
                 return false;
             }
@@ -207,7 +206,7 @@ export class EnvironmentService {
      */
     async getActiveEnvironment(systemId: string): Promise<Environment | null> {
         try {
-            const system = await this.getSystemById(systemId);
+            const system = await this.systemService.getRawServiceById(systemId);
             if (!system || !system.content?.activeEnvironmentId) {
                 return null;
             }
@@ -273,7 +272,7 @@ export class EnvironmentService {
     }> {
         try {
             const environments = await this.getEnvironmentsForSystem(systemId);
-            const system = await this.getSystemById(systemId);
+            const system = await this.systemService.getRawServiceById(systemId);
 
             const stats = {
                 total: environments.length,
@@ -296,41 +295,27 @@ export class EnvironmentService {
         }
     }
 
-    /**
-     * Get system by ID (helper method)
-     */
-    private async getSystemById(systemId: string): Promise<any | null> {
-        try {
-            const baseFolder = await getBaseFolder(this.mainFolder, this.context.extensionUri);
-            if (!baseFolder) {
-                throw new Error('No base folder available');
-            }
-
-            // Read main service from workspace and match by id
-            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}.service.qip.yaml`);
-            const service = await fileApi.getMainService(serviceFileUri);
-            if (service && service.id === systemId) {
-                return service as any; // Service has content structure, not IntegrationSystem
-            }
-            return null;
-        } catch (error) {
-            return null;
-        }
-    }
 
     /**
      * Save system data
      */
     private async saveSystem(system: IntegrationSystem): Promise<void> {
         try {
-            const baseFolder = await getBaseFolder(this.mainFolder, this.context.extensionUri);
-            if (!baseFolder) {
-                throw new Error('No base folder available');
-            }
+            const baseFolder = await this.systemService.getBaseFolderWithContext();
+
+            // Convert EntityLabels back to string array for storage
+            const systemForStorage = {
+                ...system,
+                labels: LabelUtils.fromEntityLabels(system.labels),
+                environments: system.environments?.map(env => ({
+                    ...env,
+                    labels: LabelUtils.fromEntityLabels(env.labels)
+                }))
+            };
 
             // Use writeMainService to save the system data
             const serviceFileUri = Uri.joinPath(baseFolder, `${system.id}.service.qip.yaml`);
-            await fileApi.writeMainService(serviceFileUri, system);
+            await fileApi.writeMainService(serviceFileUri, systemForStorage);
         } catch (error) {
             throw error;
         }

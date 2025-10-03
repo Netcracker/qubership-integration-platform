@@ -3,6 +3,7 @@ import * as yaml from 'yaml';
 import {Uri, WorkspaceFolder} from "vscode";
 import {EMPTY_USER} from "./chainApiUtils";
 import {fileApi} from "./file/fileApiProvider";
+import { LabelUtils } from "../api-services/LabelUtils";
 import { Chain } from "@netcracker/qip-ui";
 
 const vscode = require('vscode');
@@ -42,7 +43,7 @@ export async function getService(serviceFileUri: Uri, serviceId: string): Promis
         extendedProtocol: service.content.extendedProtocol || "",
         specification: service.content.specification || "",
         environments: service.content.environments || [],
-        labels: service.content.labels || []
+        labels: LabelUtils.toEntityLabels(service.content.labels || [])
     };
 }
 
@@ -71,7 +72,7 @@ function parseEnvironments(environments: any[]): Environment[] {
                 address: env.address || "",
                 sourceType: env.sourceType || "MANUAL",
                 properties: env.properties || {},
-                labels: env.labels || []
+                labels: LabelUtils.toEntityLabels(env.labels || [])
             });
         }
     }
@@ -93,8 +94,7 @@ export async function getApiSpecifications(serviceFileUri: Uri, serviceId: strin
     for (const fileName of specGroupFiles) {
         try {
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const fileContent = await fileApi.readFileContent(fileUri);
-            const text = new TextDecoder('utf-8').decode(fileContent);
+            const text = await fileApi.readFileContent(fileUri);
             const parsed = yaml.parse(text);
 
             if (parsed && parsed.content && parsed.content.parentId === serviceId) {
@@ -113,9 +113,9 @@ export async function getApiSpecifications(serviceFileUri: Uri, serviceId: strin
                     specifications: specifications,
                     synchronization: parsed.content.synchronization || false,
                     parentId: parsed.content.parentId,
-                    labels: parsed.labels || [],
-                    systemId: parsed.content.parentId,
-                    chains: chains
+                    labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
+                    chains: chains,
+                    systemId: parsed.content.parentId
                 };
                 result.push(group);
             }
@@ -135,8 +135,7 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
     for (const fileName of specFiles) {
         try {
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const fileContent = await fileApi.readFileContent(fileUri);
-            const text = new TextDecoder('utf-8').decode(fileContent);
+            const text = await fileApi.readFileContent(fileUri);
             const parsed = yaml.parse(text);
 
             if (parsed && parsed.content && parsed.content.parentId === groupId) {
@@ -157,7 +156,7 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
                     content: parsed.content.content || "",
                     deprecated: parsed.content.deprecated || false,
                     parentId: parsed.content.parentId,
-                    labels: parsed.labels || [],
+                    labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
                     specificationGroupId: parsed.content.parentId,
                     source: parsed.content.content || "",
                     systemId: serviceId,
@@ -181,8 +180,7 @@ export async function getOperationInfo(serviceFileUri: Uri, operationId: string)
     for (const fileName of specFiles) {
         try {
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const fileContent = await fileApi.readFileContent(fileUri);
-            const text = new TextDecoder('utf-8').decode(fileContent);
+            const text = await fileApi.readFileContent(fileUri);
             const parsed = yaml.parse(text);
 
             if (parsed && parsed.content && parsed.content.operations) {

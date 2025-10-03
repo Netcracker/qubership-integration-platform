@@ -65,15 +65,6 @@ let current: FileApi = {
     getSpecificationFiles: async () => {
         throw new Error('FileApi not configured');
     },
-    getResourcesPath: async () => {
-        throw new Error('FileApi not configured');
-    },
-    getWorkspaceRoot: async () => {
-        throw new Error('FileApi not configured');
-    },
-    getServiceIdFromFileUri: async () => {
-        throw new Error('FileApi not configured');
-    },
 };
 
 export function setFileApi(api: FileApi) {
@@ -99,12 +90,9 @@ export const fileApi: FileApi = {
     writeServiceFile: async (fileUri: Uri, serviceData: any): Promise<void> => current.writeServiceFile(fileUri, serviceData),
     getSpecificationGroupFiles: async (serviceFileUri: Uri): Promise<string[]> => current.getSpecificationGroupFiles(serviceFileUri),
     getSpecificationFiles: async (serviceFileUri: Uri): Promise<string[]> => current.getSpecificationFiles(serviceFileUri),
-    getResourcesPath: async (serviceFileUri: Uri): Promise<Uri> => current.getResourcesPath(serviceFileUri),
-    getWorkspaceRoot: async (serviceFileUri: Uri): Promise<Uri> => current.getWorkspaceRoot(serviceFileUri),
-    getServiceIdFromFileUri: async (serviceFileUri: Uri): Promise<string> => current.getServiceIdFromFileUri(serviceFileUri),
     // File operations
     writeFile: async (fileUri: Uri, data: Uint8Array): Promise<void> => current.writeFile(fileUri, data),
-    readFileContent: async (fileUri: Uri): Promise<Uint8Array> => current.readFileContent(fileUri),
+    readFileContent: async (fileUri: Uri): Promise<string> => current.readFileContent(fileUri),
     deleteFile: async (fileUri: Uri): Promise<void> => current.deleteFile(fileUri),
     getFileType: async (fileUri: Uri): Promise<string> => current.getFileType(fileUri),
 };
