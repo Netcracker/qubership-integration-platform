@@ -23,8 +23,6 @@ import {
     getParsedElementChildren
 } from "./chainApiUtils";
 import {fileApi} from "./file";
-import { readDirectory } from "./file/fileApiImpl";
-const vscode = require('vscode');
 
 
 export async function getCurrentChainId(fileUri: Uri): Promise<string> {
@@ -38,38 +36,7 @@ export async function getMainChain(fileUri: Uri): Promise<ChainSchema> {
 }
 
 export async function getChainFileUri(chainId: string): Promise<Uri> {
-    return await findChainRecursively(fileApi.getRootDirectory(), chainId);
-}
-
-async function findChainRecursively(folderUri: Uri, chainId: string): Promise<Uri> {
-    const result: any[] = [];
-
-    await collectChainsRecursively(folderUri, chainId, result);
-
-    if (result.length === 0) {
-        throw Error(`Chain with id=${chainId} is not found under the directory ${folderUri}`);
-    } else if (result.length > 1) {
-        throw Error(`Multiple chains with id=${chainId} found under the directory ${folderUri}`);
-    } else {
-        return result[0];
-    }
-}
-
-async function collectChainsRecursively(folderUri: Uri, chainId: string, result: Uri[]): Promise<void> {
-    const entries = await readDirectory(folderUri);
-
-    for (const [name, type] of entries) {
-        if (type === vscode.FileType.File && name.endsWith('.chain.qip.yaml')) {
-            const fileUri = vscode.Uri.joinPath(folderUri, name);
-            const chainYaml = await fileApi.parseFile(fileUri);
-            if (chainYaml.id === chainId) {
-                result.push(fileUri);
-            }
-        } else if (type === vscode.FileType.Directory) {
-            const subFolderUri = vscode.Uri.joinPath(folderUri, name);
-            await collectChainsRecursively(subFolderUri, chainId, result);
-        }
-    }
+    return await fileApi.findFileById(chainId, '.chain.qip.yaml');
 }
 
 export async function getLibrary(): Promise<LibraryData> {

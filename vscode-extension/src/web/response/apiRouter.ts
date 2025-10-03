@@ -23,6 +23,7 @@ import {
     getApiSpecifications,
     getEnvironments,
     getOperationInfo,
+    getOperations,
     getService,
     getServices,
     getSpecificationModel
@@ -107,6 +108,7 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
         case 'getEnvironments': return await getEnvironments(fileUri, message.payload);
         case 'getApiSpecifications': return await getApiSpecifications(fileUri, message.payload);
         case 'getSpecificationModel': return await getSpecificationModel(fileUri, message.payload.serviceId, message.payload.groupId);
+        case 'getOperations': return await getOperations(fileUri, message.payload);
         case 'getOperationInfo': return await getOperationInfo(fileUri, message.payload);
 
         // Service modification operations

@@ -4,6 +4,8 @@ import * as yaml from 'yaml';
 import {Chain, LibraryData} from "@netcracker/qip-ui";
 import {EMPTY_USER} from "../chainApiUtils";
 import {QipFileType} from "../serviceApiUtils";
+import { fileApi } from './fileApiProvider';
+import { FileFilter } from '../fileFilteringUtils';
 import {Chain as ChainSchema} from "@netcracker/qip-schemas";
 
 const vscode = require('vscode');
@@ -81,33 +83,48 @@ export class VSCodeFileApi implements FileApi {
         }
     }
 
-    async findChainRecursively(folderUri: Uri, chainId: string): Promise<any> {
-        const result: any[] = [];
+    async findFileById(id: string, extension: string = ".qip.yaml"): Promise<Uri> {
+        return await this.findFile(extension, (fileContent: any) => {return fileContent?.id ===id; });
+    }
 
-        await this.findChainsRecursively(folderUri, chainId, result);
+    async findFile(extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri> {
+        const result: Uri[] = [];
+        const folderUri = this.getRootDirectory();
+
+        await this.collectFiles(folderUri, {extension: extension, predicate: filterPredicate, findFirst: true}, result);
 
         if (result.length === 0) {
-            throw Error(`Chain with id=${chainId} is not found under the directory ${folderUri}`);
-        } else if (result.length > 1) {
-            throw Error(`Multiple chains with id=${chainId} found under the directory ${folderUri}`);
+            throw Error(`Unable to find file with extension: ${extension}`);
         } else {
             return result[0];
         }
     }
 
-    private async findChainsRecursively(folderUri: Uri, chainId: string, result: any[]): Promise<void> {
+    async findFiles(extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri[]> {
+        const result: Uri[] = [];
+        const folderUri = this.getRootDirectory();
+
+        await this.collectFiles(folderUri, {extension: extension, predicate: filterPredicate, findFirst: false}, result);
+
+        return result;
+    }
+
+    private async collectFiles(folderUri: Uri, fileFilter: FileFilter, result: Uri[]): Promise<void> {
         const entries = await readDirectory(folderUri);
 
         for (const [name, type] of entries) {
-            if (type === vscode.FileType.File && name.endsWith('.chain.qip.yaml')) {
+            if (type === vscode.FileType.File && name.endsWith(fileFilter.extension)) {
                 const fileUri = vscode.Uri.joinPath(folderUri, name);
-                const chainYaml = await this.parseFile(fileUri);
-                if (chainYaml.id === chainId) {
-                    result.push(chainYaml);
+                const contentYaml = await this.parseFile(fileUri);
+                if (!fileFilter.predicate || fileFilter.predicate(contentYaml)) {
+                    result.push(fileUri);
+                    if (fileFilter.findFirst) {
+                        return;
+                    }
                 }
             } else if (type === vscode.FileType.Directory) {
                 const subFolderUri = vscode.Uri.joinPath(folderUri, name);
-                await this.findChainsRecursively(subFolderUri, chainId, result);
+                await this.collectFiles(subFolderUri, fileFilter, result);
             }
         }
     }
