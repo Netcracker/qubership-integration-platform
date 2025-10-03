@@ -431,6 +431,10 @@ export class VSCodeExtensionApi implements Api {
     );
   };
 
+  openChainInNewTab = async (chainId: string): Promise<void> => {
+    await this.sendMessageToExtension("openChainInNewTab", chainId);
+  }
+
   navigateToSpecifications = async (groupId: string): Promise<string> => {
     return <string>(
       (await this.sendMessageToExtension("navigateToSpecifications", { groupId })).payload
