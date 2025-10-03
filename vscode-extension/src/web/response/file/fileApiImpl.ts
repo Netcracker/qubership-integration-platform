@@ -147,8 +147,7 @@ export class VSCodeFileApi implements FileApi {
     async parseFile(fileUri: Uri): Promise<any> {
         try {
             const content = await this.readFileContent(fileUri);
-            const yamlContent = new TextDecoder('utf-8').decode(content);
-            return yaml.parse(yamlContent);
+            return yaml.parse(content);
         } catch (e) {
             console.error(`Unable to parse file: ${fileUri}`, e);
             throw e;
