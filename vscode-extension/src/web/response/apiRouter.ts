@@ -12,6 +12,7 @@ import {
 } from "./chainApiModify";
 import {
     getChain,
+    getChainFileUri,
     getConnections,
     getElements,
     getLibrary,
@@ -55,7 +56,7 @@ let lastWebviewPath: string | undefined = undefined;
 
 
 export async function getApiResponse(message: VSCodeMessage<any>, openedDocumentFolderUri: Uri | undefined, context?: ExtensionContext): Promise<any> {
-    
+
     let fileUri: Uri;
     if (openedDocumentFolderUri) {
         fileUri = openedDocumentFolderUri;
@@ -81,6 +82,7 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
                 return await getNavigateUri(fileUri);
             }
         case 'getChain': return await getChain(fileUri, message.payload);
+        case 'openChainInNewTab': return await getChainFileUri(message.payload);
         case 'getElements': return await getElements(fileUri, message.payload);
         case 'getElementsByType': return [];
         case 'getConnections': return await getConnections(fileUri, message.payload);

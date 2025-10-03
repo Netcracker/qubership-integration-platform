@@ -1,12 +1,24 @@
-import {LibraryData} from "@netcracker/qip-ui";
+import {Chain, LibraryData} from "@netcracker/qip-ui";
 import {FileApi} from './fileApi';
 import {Uri} from 'vscode';
 
 let current: FileApi = {
+    getRootDirectory: () => {
+        throw new Error('FileApi not configured');
+    },
     getMainChain: async () => {
         throw new Error('FileApi not configured');
     },
+    findChainRecursively: async () => {
+        throw new Error('FileApi not configured');
+    },
+    findAndBuildChainsRecursively: async () => {
+        throw new Error('FileApi not configured');
+    },
     readFile: async () => {
+        throw new Error('FileApi not configured');
+    },
+    parseFile: async () => {
         throw new Error('FileApi not configured');
     },
     getLibrary: function (): Promise<LibraryData> {
@@ -70,8 +82,12 @@ export function setFileApi(api: FileApi) {
 
 // Delegating facade so existing imports can keep using `fileApi`
 export const fileApi: FileApi = {
+    getRootDirectory: () => current.getRootDirectory(),
     getMainChain: async (parameters: any): Promise<any> => current.getMainChain(parameters),
+    findChainRecursively: async (folderUri: Uri, chainId: string): Promise<any> => current.findChainRecursively(folderUri, chainId),
+    findAndBuildChainsRecursively:  async (folderUri: Uri, chainBuilder: (chainContent: any) => Partial<Chain> | undefined, result: Partial<Chain>[]): Promise<void> => current.findAndBuildChainsRecursively(folderUri, chainBuilder, result),
     readFile: async (parameters: any, propertyFilename: string): Promise<string> => current.readFile(parameters, propertyFilename),
+    parseFile: async (fileUri: Uri): Promise<any> => current.parseFile(fileUri),
     getLibrary: async (): Promise<LibraryData> => current.getLibrary(),
     writePropertyFile: async (parameters: any, propertyFilename: string, propertyData: string): Promise<void> => current.writePropertyFile(parameters, propertyFilename, propertyData),
     writeMainChain: async (parameters: any, chainData: any): Promise<void> => current.writeMainChain(parameters, chainData),

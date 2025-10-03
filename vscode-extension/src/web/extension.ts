@@ -77,6 +77,11 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: 
         try {
             response.payload = await getApiResponse(message.data, fileUri, context);
             console.log('QIP Extension API Response:', response);
+
+            if (message.data.type === "openChainInNewTab") {
+                vscode.commands.executeCommand('vscode.openWith', response.payload, 'qip.chainFile.editor');
+                return;
+            }
         } catch (e) {
             console.error("Failed to fetch data for QIP Extension API", e);
             if (e instanceof Error) {
