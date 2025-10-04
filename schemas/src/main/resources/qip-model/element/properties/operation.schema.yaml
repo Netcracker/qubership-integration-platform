@@ -13,6 +13,7 @@ oneOf:
         $ref: "#/definitions/AsyncMethod"
       integrationOperationAsyncProperties:
         type: object
+        title: Operation parameters
         additionalProperties: true
     required:
       - integrationOperationProtocolType
@@ -26,6 +27,7 @@ oneOf:
         $ref: "#/definitions/AsyncMethod"
       integrationOperationAsyncProperties:
         type: object
+        title: Operation parameters
         additionalProperties: true
     required:
       - integrationOperationProtocolType
