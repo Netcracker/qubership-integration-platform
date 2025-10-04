@@ -4,4 +4,4 @@ export type {
   VSCodeResponse,
 } from "./api/rest/vscodeExtensionApi";
 export type { AppExtensionProps } from "./appConfig";
-export type { IconOverrides, IconName } from "./IconProvider";
+export type { IconOverrides, IconName, IconSource } from "./IconProvider";

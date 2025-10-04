@@ -73,8 +73,13 @@ import {
   VerticalAlignMiddleOutlined,
 } from "@ant-design/icons";
 
+export type IconSource =
+  | React.ComponentType<AntdIconProps>
+  | string
+  | React.ReactElement;
+
 export type IconSet = {
-  [iconName: string]: React.ComponentType<AntdIconProps>;
+  [iconName: string]: IconSource;
 };
 
 const defaultIcons: IconSet = {
@@ -178,7 +183,7 @@ interface IconProps extends Omit<AntdIconProps, "name"> {
 export type IconName = keyof typeof defaultIcons;
 
 export type IconOverrides = {
-  [K in IconName]?: React.ComponentType<AntdIconProps>;
+  [K in IconName]?: IconSource;
 };
 
 export const Icon: React.FC<IconProps> = ({ name, ...props }) => {
@@ -190,5 +195,14 @@ export const Icon: React.FC<IconProps> = ({ name, ...props }) => {
     return null;
   }
 
+  if (React.isValidElement(IconComponent)) {
+    return React.cloneElement(IconComponent, props);
+  }
+
+  if (typeof IconComponent === "string") {
+    return <span {...props} dangerouslySetInnerHTML={{ __html: IconComponent }} />;
+  }
+
+  // @ts-expect-error all cases covered
   return <IconComponent {...props} />;
 };
