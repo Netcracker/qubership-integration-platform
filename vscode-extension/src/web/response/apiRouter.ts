@@ -38,7 +38,7 @@ import {
     updateService,
     updateSpecificationModel
 } from "./serviceApiModify";
-import {fileApi} from "./file/fileApiProvider";
+import {fileApi} from "./file";
 import {getChainUri,} from "./chainApiUtils";
 import {
     getServiceOperationsUri,

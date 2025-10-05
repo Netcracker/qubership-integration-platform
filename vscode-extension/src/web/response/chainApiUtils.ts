@@ -1,6 +1,9 @@
-import vscode, {Uri} from "vscode";
+import vscode from "vscode";
 import {getCurrentChainId} from "./chainApiRead";
-import {Element, User} from "@netcracker/qip-ui";
+import {User, Element} from "@netcracker/qip-ui";
+import {
+    Element as ElementSchema
+} from "@netcracker/qip-schemas";
 
 export async function getChainUri(mainFolderUri: vscode.Uri): Promise<string> {
     const result = `/chains/${await getCurrentChainId(mainFolderUri)}/graph`;
@@ -9,11 +12,11 @@ export async function getChainUri(mainFolderUri: vscode.Uri): Promise<string> {
 }
 
 export function findElementById(
-    elements: any[] | undefined,
+    elements: ElementSchema[] | undefined,
     elementId: string,
     parentId: string | undefined = undefined
 ): {
-    element: any;
+    element: ElementSchema;
     parentId: string | undefined;
 } | undefined {
     if (!elements) {
@@ -25,7 +28,7 @@ export function findElementById(
             return { element, parentId };
         }
 
-        const found = findElementById(element.children, elementId, element.id);
+        const found = findElementById(element.children as ElementSchema[], elementId, element.id);
         if (found) {
             return found;
         }
@@ -34,12 +37,26 @@ export function findElementById(
     return undefined;
 }
 
-export function getElementChildren(children: any[] | undefined): any[] {
+export function getElementChildren(children: ElementSchema[] | undefined): ElementSchema[] {
+    const result: ElementSchema[] = [];
+    if (children?.length) {
+        for (const child of children) {
+            if ((child.children as ElementSchema[])?.length) {
+                result.push(...getElementChildren(child.children as ElementSchema[]));
+            }
+            result.push(child);
+        }
+    }
+
+    return result;
+}
+
+export function getParsedElementChildren(children: Element[] | undefined): Element[] {
     const result: Element[] = [];
     if (children?.length) {
         for (const child of children) {
             if (child.children?.length) {
-                result.push(...getElementChildren(child.children));
+                result.push(...getParsedElementChildren(child.children));
             }
             result.push(child);
         }

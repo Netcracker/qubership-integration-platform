@@ -1,9 +1,10 @@
 import {FileApi} from './fileApi';
-import {ExtensionContext, Uri, WorkspaceFolder} from 'vscode';
+import {ExtensionContext, Uri} from 'vscode';
 import * as yaml from 'yaml';
 import {Chain, LibraryData} from "@netcracker/qip-ui";
 import {EMPTY_USER} from "../chainApiUtils";
 import {QipFileType} from "../serviceApiUtils";
+import {Chain as ChainSchema} from "@netcracker/qip-schemas";
 
 const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';
@@ -111,7 +112,7 @@ export class VSCodeFileApi implements FileApi {
         }
     }
 
-    async getMainChain(parameters: any): Promise<any> {
+    async getMainChain(parameters: any): Promise<ChainSchema> {
         const baseUri = parameters as Uri;
         const fileUri = await this.getMainChainFileUri(baseUri);
         try {
@@ -173,7 +174,7 @@ export class VSCodeFileApi implements FileApi {
         }
     }
 
-    async writeMainChain(parameters: any, chainData: any): Promise<void> {
+    async writeMainChain(parameters: any, chainData: ChainSchema): Promise<void> {
         const baseUri = parameters as Uri;
         const bytes = new TextEncoder().encode(yaml.stringify(chainData));
         try {

@@ -1,18 +1,39 @@
-import {Chain, Dependency, Element, LibraryData, LibraryElement, MaskedField, MaskedFields} from "@netcracker/qip-ui";
+import {
+    Chain,
+    Dependency,
+    Element,
+    EntityLabel,
+    LibraryData,
+    LibraryElement,
+    MaskedField,
+    MaskedFields
+} from "@netcracker/qip-ui";
+import {
+    Chain as ChainSchema,
+    Element as ElementSchema,
+    MapperParameters,
+    ScriptProperties
+} from "@netcracker/qip-schemas";
 import {Uri} from "vscode";
-import {ChainCommitRequestAction, EMPTY_USER, findElementById, getElementChildren} from "./chainApiUtils";
-import {fileApi} from "./file/fileApiProvider";
+import {
+    ChainCommitRequestAction,
+    EMPTY_USER,
+    findElementById,
+    getElementChildren,
+    getParsedElementChildren
+} from "./chainApiUtils";
+import {fileApi} from "./file";
 import { readDirectory } from "./file/fileApiImpl";
 const vscode = require('vscode');
 
 
 export async function getCurrentChainId(fileUri: Uri): Promise<string> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     console.log('getCurrentChainId', chain.id);
     return chain.id;
 }
 
-export async function getMainChain(fileUri: Uri): Promise<any> {
+export async function getMainChain(fileUri: Uri): Promise<ChainSchema> {
     return await fileApi.getMainChain(fileUri);
 }
 
@@ -56,10 +77,14 @@ export async function getLibrary(): Promise<LibraryData> {
 }
 
 export async function getLibraryElementByType(type: string): Promise<LibraryElement> {
-    return findLibraryElementByType(await fileApi.getLibrary(), type);
+    const result = findLibraryElementByType(await fileApi.getLibrary(), type);
+    if (result === null) {
+        throw Error(`Library element not found: ${type}`);
+    }
+    return result;
 }
 
-function findLibraryElementByType(partialLibraryData: any, type: string): any | null {
+function findLibraryElementByType(partialLibraryData: any, type: string): LibraryElement | null {
     if (typeof partialLibraryData !== 'object' || partialLibraryData === null) {
         return null;
     }
@@ -83,7 +108,7 @@ function findLibraryElementByType(partialLibraryData: any, type: string): any | 
     return null;
 }
 
-export function getMaskedField(chain: any, id: string) {
+export function getMaskedField(chain: any, id: string) { // TODO Replace to MaskedFieldSchema type
     let maskedField = chain.content.maskedFields?.find((mf: any) => mf.id === id);
     if (!maskedField) {
         console.error(`Masked Field not found`);
@@ -107,7 +132,7 @@ export function parseMaskedField(chain: any, id: string): MaskedField {
 }
 
 export async function getMaskedFields(fileUri: Uri, chainId: string): Promise<MaskedFields> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -115,7 +140,7 @@ export async function getMaskedFields(fileUri: Uri, chainId: string): Promise<Ma
 
     const fields: MaskedField[] = [];
     if (chain.content.maskedFields) {
-        for (const maskedField of chain.content.maskedFields) {
+        for (const maskedField of chain.content.maskedFields as any[]) { // TODO Replace to MaskedFieldSchema type
             fields.push(parseMaskedField(chain, maskedField.id));
         }
     }
@@ -126,33 +151,33 @@ export async function getMaskedFields(fileUri: Uri, chainId: string): Promise<Ma
 }
 
 export async function getConnections(fileUri: Uri, chainId: string): Promise<Dependency[]> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    return parseDependencies(chain.content.dependencies);
+    return parseDependencies(chain.content.dependencies as any[]); // TODO Replace to MaskedFieldSchema type
 }
 
 export async function getElements(fileUri: Uri, chainId: string): Promise<Element[]> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    return await parseElements(fileUri, chain.content.elements, chain.id);
+    return await parseElements(fileUri, chain.content.elements as ElementSchema[], chain.id);
 }
 
 export async function getElement(fileUri: Uri, chainId: string, elementId: string): Promise<Element> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    const element = findElementById(chain.content.elements, elementId);
+    const element = findElementById(chain.content.elements as ElementSchema[], elementId);
     if (!element) {
         console.error(`ElementId not found`);
         throw Error("ElementId not found");
@@ -179,7 +204,7 @@ function parseDependencies(dependencies: any[]): Dependency[] {
     return result;
 }
 
-async function parseElement(fileUri: Uri, element: any, chainId: string, parentId: string | undefined = undefined): Promise<Element> {
+async function parseElement(fileUri: Uri, element: ElementSchema, chainId: string, parentId: string | undefined = undefined): Promise<Element> {
     async function handleServiceCallProperty(beforeAfterBlock: any) {
         if (beforeAfterBlock.type === 'script') {
             beforeAfterBlock['script'] = await fileApi.readFile(fileUri, beforeAfterBlock.propertiesFilename);
@@ -191,35 +216,39 @@ async function parseElement(fileUri: Uri, element: any, chainId: string, parentI
         }
     }
 
-    if (element.properties?.propertiesToExportInSeparateFile) {
-        if (element.properties.exportFileExtension === 'json') {
-            const propertyNames: string[] = element.properties.propertiesToExportInSeparateFile.split(',').map(function (item: string) {
+    if ((element.properties as ScriptProperties | MapperParameters)?.propertiesToExportInSeparateFile) {
+        const elementProperties = element.properties as ScriptProperties | MapperParameters;
+        if (elementProperties.exportFileExtension === 'json') {
+            const propertyNames: string[] | undefined = elementProperties.propertiesToExportInSeparateFile?.split(',').map(function (item: string) {
                 return item.trim();
             });
-            const properties: any = JSON.parse(await fileApi.readFile(fileUri, element.properties.propertiesFilename));
-            for (const propertyName of propertyNames) {
-                element.properties[propertyName] = properties[propertyName];
+            const properties: any = JSON.parse(await fileApi.readFile(fileUri, elementProperties.propertiesFilename as string));
+            if (propertyNames) {
+                for (const propertyName of propertyNames) {
+                    elementProperties[propertyName] = properties[propertyName];
+                }
             }
         } else {
-            element.properties[element.properties.propertiesToExportInSeparateFile] = await fileApi.readFile(fileUri, element.properties.propertiesFilename);
+            elementProperties[elementProperties.propertiesToExportInSeparateFile as string] = await fileApi.readFile(fileUri, elementProperties.propertiesFilename as string);
         }
     }
 
-    if (element.type === 'service-call') {
-        if (Array.isArray((element.properties.after))) {
-            for (const afterBlock of element.properties.after) {
+    if (element.type as unknown as string === 'service-call') {
+        const elementProperties = element.properties as any; // WA before fix of schemas compilation missing service call properties
+        if (Array.isArray((elementProperties.after))) {
+            for (const afterBlock of elementProperties.after) {
                 await handleServiceCallProperty(afterBlock);
             }
         }
-        if (element.properties.before) {
-            await handleServiceCallProperty(element.properties.before);
+        if (elementProperties.before) {
+            await handleServiceCallProperty(elementProperties.before);
         }
     }
 
     let children: Element[] | undefined = undefined;
-    if (element.children?.length) {
+    if ((element.children as ElementSchema[])?.length) {
         children = [];
-        for (const child of element.children) {
+        for (const child of element.children as ElementSchema[]) {
             children.push(await parseElement(fileUri, child, chainId, element.id));
         }
     }
@@ -227,7 +256,7 @@ async function parseElement(fileUri: Uri, element: any, chainId: string, parentI
     return {
         id: element.id,
         name: element.name,
-        type: element.type,
+        type: element.type as unknown as string,
         properties: element.properties,
         mandatoryChecksPassed: true,
         createdBy: {...EMPTY_USER},
@@ -241,50 +270,53 @@ async function parseElement(fileUri: Uri, element: any, chainId: string, parentI
     } as Element;
 }
 
-async function parseElements(fileUri: Uri, elements: any[], chainId: string): Promise<Element[]> {
+async function parseElements(fileUri: Uri, elements: ElementSchema[], chainId: string): Promise<Element[]> {
     const result: Element[] = [];
 
     if (elements && elements.length) {
         for (const element of elements) {
             const parsedElement = await parseElement(fileUri, element, chainId);
             result.push(parsedElement);
-            result.push(...getElementChildren(parsedElement.children));
+            result.push(...getParsedElementChildren(parsedElement.children));
         }
     }
     return result;
 }
 
 export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
+
+    const labels: EntityLabel[] = chain.content.labels ? chain.content.labels.map(label => ({name: label, technical: false})) : [];
+
     return {
-        assumptions: chain.content.assumptions,
-        businessDescription: chain.content.businessDescription,
+        assumptions: chain.content.assumptions as string,
+        businessDescription: chain.content.businessDescription as string,
         containsDeprecatedContainers: false,
         containsDeprecatedElements: false,
         containsUnsupportedElements: false,
         createdBy: {...EMPTY_USER},
-        createdWhen: chain.content.modifiedWhen,
+        createdWhen: chain.content.modifiedWhen as number,
         currentSnapshot: undefined,
-        defaultSwimlaneId: chain.content.defaultSwimlaneId,
-        dependencies: parseDependencies(chain.content.dependencies),
-        deployments: chain.content.deployments,
+        defaultSwimlaneId: chain.content.defaultSwimlaneId as string,
+        dependencies: parseDependencies(chain.content.dependencies as any[]),
+        deployments: chain.content.deployments as any[],
         deployAction: chain.content.deployAction
           ? ChainCommitRequestAction[chain.content.deployAction as keyof typeof ChainCommitRequestAction]
           : undefined,
-        description: chain.content.description,
-        elements: await parseElements(fileUri, chain.content.elements, chain.id),
+        description: chain.content.description as string,
+        elements: await parseElements(fileUri, chain.content.elements as ElementSchema[], chain.id),
         id: chain.id,
-        labels: chain.content.labels ? chain.content.labels : [],
+        labels: labels,
         modifiedBy: {...EMPTY_USER},
-        modifiedWhen: chain.content.modifiedWhen,
+        modifiedWhen: chain.content.modifiedWhen as number,
         name: chain.name,
         navigationPath: new Map<string, string>([[chain.id, chain.name]]),
-        outOfScope: chain.content.outOfScope,
-        reuseSwimlaneId: chain.content.reuseSwimlaneId,
+        outOfScope: chain.content.outOfScope as string,
+        reuseSwimlaneId: chain.content.reuseSwimlaneId  as string,
         unsavedChanges: false
     };
 }

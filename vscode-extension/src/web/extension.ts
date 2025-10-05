@@ -7,12 +7,12 @@ import {
     Webview,
     WebviewPanel
 } from "vscode";
-import {getApiResponse} from "./response/apiRouter";
+import {getApiResponse} from "./response";
 import * as path from "path";
-import { setFileApi } from "./response/file/fileApiProvider";
+import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import { QipExplorerProvider } from "./qipExplorer";
-import {VSCodeMessage, VSCodeResponse, AppExtensionProps} from "@netcracker/qip-ui";
+import {VSCodeMessage, VSCodeResponse} from "@netcracker/qip-ui";
 
 let globalQipProvider: QipExplorerProvider | null = null;
 
@@ -290,19 +290,6 @@ export function activate(context: ExtensionContext) {
     );
 
     console.log('QIP Extension: QIP Explorer providers registered successfully');
-}
-
-function getDocumentDir(document: TextDocument): Uri {
-    console.log('QIP Extension API Document:', document);
-    const filePath = path.normalize(document.uri.fsPath);
-    console.log('QIP Extension API filePath:', filePath);
-    const sanitizedFilePath = filePath.replace(/\\/g, '/');
-    console.log('QIP Extension API sanitizedFilePath:', sanitizedFilePath);
-    const dirPath = path.dirname(sanitizedFilePath);
-    console.log('QIP Extension API dirPath:', dirPath);
-    const res = vscode.Uri.file(dirPath);
-    console.log('QIP Extension API res:', res);
-    return res;
 }
 
 // This method is called when your extension is deactivated

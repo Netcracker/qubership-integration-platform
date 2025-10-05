@@ -27,18 +27,21 @@ import {
     replaceElementPlaceholders
 } from "./chainApiUtils";
 import {Uri} from "vscode";
-import {fileApi} from "./file/fileApiProvider";
+import {fileApi} from "./file";
+import {Element as ElementSchema, ScriptProperties, MapperParameters, DataType, Chain as ChainSchema} from "@netcracker/qip-schemas";
 
 export async function updateChain(fileUri: Uri, chainId: string, chainRequest: Partial<Chain>): Promise<Chain> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
+    const labels = chainRequest?.labels?.filter(label => !label.technical).map(label => label.name);
+
     chain.name = chainRequest.name !== undefined ? chainRequest.name : chain.name;
     chain.content.description = chainRequest.description !== undefined ? chainRequest.description : chain.content.description;
-    chain.content.labels = chainRequest.labels !== undefined ? chainRequest.labels : chain.content.labels;
+    chain.content.labels = labels !== undefined ? labels : chain.content.labels;
     chain.content.businessDescription = chainRequest.businessDescription !== undefined ? chainRequest.businessDescription : chain.content.businessDescription;
     chain.content.assumptions = chainRequest.assumptions !== undefined ? chainRequest.assumptions : chain.content.assumptions;
     chain.content.outOfScope = chainRequest.outOfScope !== undefined ? chainRequest.outOfScope : chain.content.outOfScope;
@@ -50,8 +53,9 @@ export async function updateChain(fileUri: Uri, chainId: string, chainRequest: P
     return await getChain(fileUri, chainId);
 }
 
-async function checkRestrictions(element: any, elements:any[]) {
-    const libraryData = await getLibraryElementByType(element.type);
+async function checkRestrictions(element: ElementSchema, elements:ElementSchema[]) {
+    const elementType = element.type as unknown as string;
+    const libraryData = await getLibraryElementByType(elementType);
     const parentElementId = findElementById(elements, element.id)?.parentId; // More consistent way instead of parentElementId field
 
     if (parentElementId) {
@@ -62,10 +66,10 @@ async function checkRestrictions(element: any, elements:any[]) {
 
         const parentElement = findElementById(elements, parentElementId)?.element;
         if (parentElement) {
-            const libraryParentData = await getLibraryElementByType(parentElement.type);
+            const libraryParentData = await getLibraryElementByType(parentElement.type as unknown as string);
 
             if (libraryData.parentRestriction?.length > 0) {
-                if (!libraryData.parentRestriction.find(type => type === parentElement.type)) {
+                if (!libraryData.parentRestriction.find(type => type === parentElement.type as unknown as string)) {
                     console.error(`Invalid parent type for element`);
                     throw Error("Invalid parent type for element");
                 }
@@ -73,14 +77,14 @@ async function checkRestrictions(element: any, elements:any[]) {
 
             // Check for allowed children inside parent element
             if (libraryParentData.allowedChildren && Object.keys(libraryParentData.allowedChildren).length > 0) {
-                const amount = libraryParentData.allowedChildren[element.type];
+                const amount = libraryParentData.allowedChildren[elementType];
                 if (!amount) {
                     console.error(`Invalid type for parent element`);
                     throw Error("Invalid type for parent element");
                 }
 
                 if (amount === LibraryElementQuantity.ONE || amount === LibraryElementQuantity.ONE_OR_ZERO) {
-                    const actualAmount = parentElement.children?.filter((e: { type: string; }) => e.type === element.type).length;
+                    const actualAmount = (parentElement.children as ElementSchema[])?.filter((e: ElementSchema) => e.type === element.type).length;
 
                     if (actualAmount === undefined || actualAmount > 1 || (actualAmount === 0 && amount === LibraryElementQuantity.ONE)) {
                         console.error(`Incorrect amount of element type for parent element`);
@@ -100,7 +104,7 @@ async function checkRestrictions(element: any, elements:any[]) {
     if (libraryData.allowedChildren && Object.keys(libraryData.allowedChildren).length > 0) {
         for (const childType in libraryData.allowedChildren) {
             if (libraryData.allowedChildren[childType] === LibraryElementQuantity.ONE || libraryData.allowedChildren[childType] === LibraryElementQuantity.ONE_OR_MANY) {
-                if (!(element.children?.filter((e: { type: string; }) => e.type === childType).length > 0)) {
+                if (!((element.children as ElementSchema[])?.filter((e: ElementSchema) => e.type as unknown as string === childType).length > 0)) {
                     console.error(`Incorrect amount of children elements`);
                     throw Error("Incorrect amount of children elements");
                 }
@@ -115,13 +119,13 @@ async function checkRestrictions(element: any, elements:any[]) {
 }
 
 export async function updateElement(fileUri: Uri, chainId: string, elementId: string, elementRequest: PatchElementRequest): Promise<ActionDifference> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    const element = findAndRemoveElementById(chain.content.elements, elementId);
+    const element = findAndRemoveElementById(chain.content.elements as ElementSchema[], elementId);
     if (!element) {
         console.error(`ElementId not found`);
         throw Error("ElementId not found");
@@ -129,7 +133,7 @@ export async function updateElement(fileUri: Uri, chainId: string, elementId: st
 
     let parentElement = undefined;
     if (elementRequest.parentElementId) {
-        parentElement = findElementById(chain.content.elements, elementRequest.parentElementId);
+        parentElement = findElementById(chain.content.elements as ElementSchema[], elementRequest.parentElementId);
         if (!parentElement) {
             console.error(`Parent ElementId not found`);
             throw Error("Parent ElementId not found");
@@ -141,15 +145,15 @@ export async function updateElement(fileUri: Uri, chainId: string, elementId: st
     (element as any).properties = elementRequest.properties;
     element.parentElementId = elementRequest.parentElementId;
     if (parentElement) {
-        if (!parentElement.element.children?.length) {
+        if (!(parentElement.element.children as ElementSchema[])?.length) {
             parentElement.element.children = [];
         }
-        parentElement.element.children.push(element);
+        (parentElement.element.children as ElementSchema[]).push(element);
     } else {
-        chain.content.elements.push(element);
+        (chain.content.elements as ElementSchema[]).push(element);
     }
 
-    await checkRestrictions(element, chain.content.elements);
+    await checkRestrictions(element, chain.content.elements as ElementSchema[]);
 
     await writeElementProperties(fileUri, element);
     await fileApi.writeMainChain(fileUri, chain);
@@ -162,20 +166,21 @@ export async function updateElement(fileUri: Uri, chainId: string, elementId: st
 }
 
 export async function transferElement(fileUri: Uri, chainId: string, elementRequest: TransferElementRequest): Promise<ActionDifference> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
+    const chainElements = chain.content.elements as ElementSchema[];
     for (const elementId of elementRequest.elements) {
-        const element = findAndRemoveElementById(chain.content.elements, elementId);
+        const element = findAndRemoveElementById(chainElements, elementId);
         if (!element) {
             console.error(`ElementId not found`);
             throw Error("ElementId not found");
         }
 
-        chain.content.dependencies?.forEach( (dependency: Dependency) => {
+        (chain.content.dependencies as [])?.forEach( (dependency: Dependency) => { // TODO change to dependency schema
             if (dependency.from === elementId || dependency.to === elementId) {
                 if (!elementRequest.elements.includes(dependency.from) || !elementRequest.elements.includes(dependency.to)) {
                     console.error(`Element ${elementId} not found has outside dependencies`);
@@ -186,7 +191,7 @@ export async function transferElement(fileUri: Uri, chainId: string, elementRequ
 
         let parentElement = undefined;
         if (elementRequest.parentId) {
-            parentElement = findElementById(chain.content.elements, elementRequest.parentId);
+            parentElement = findElementById(chainElements, elementRequest.parentId);
             if (!parentElement) {
                 console.error(`Parent ElementId not found`);
                 throw Error("Parent ElementId not found");
@@ -195,15 +200,15 @@ export async function transferElement(fileUri: Uri, chainId: string, elementRequ
 
         element.parentElementId = elementRequest.parentId || undefined;
         if (parentElement) {
-            if (!parentElement.element.children?.length) {
+            if (!(parentElement.element.children as ElementSchema[])?.length) {
                 parentElement.element.children = [];
             }
-            parentElement.element.children.push(element);
+            (parentElement.element.children as ElementSchema[]).push(element);
         } else {
-            chain.content.elements.push(element);
+            chainElements.push(element);
         }
 
-        await checkRestrictions(element, chain.content.elements);
+        await checkRestrictions(element, chainElements);
 
     }
 
@@ -220,8 +225,11 @@ export async function transferElement(fileUri: Uri, chainId: string, elementRequ
 }
 
 
-function getOrCreatePropertyFilename(type: string, propertyNames: string[], exportFileExtension: any, id: string) {
+function getOrCreatePropertyFilename(type: string, propertyNames: string[] | undefined, exportFileExtension: string | undefined, id: string) {
     let prefix: string;
+    if (!propertyNames || !exportFileExtension) {
+        throw new Error(`Property names and exportFileExtension should be presented`);
+    }
     if (type.startsWith('mapper')) {
         prefix = propertyNames.length === 1 ? propertyNames[0] : 'mapper';
     } else {
@@ -231,7 +239,7 @@ function getOrCreatePropertyFilename(type: string, propertyNames: string[], expo
     return `${prefix}-${id}.${exportFileExtension}`;
 }
 
-async function writeElementProperties(fileUri: Uri, element: any): Promise<void> {
+async function writeElementProperties(fileUri: Uri, element: ElementSchema): Promise<void> {
     async function handleServiceCallProperty(beforeAfterBlock: any) {
         const propertiesFilenameId = (beforeAfterBlock.id ? beforeAfterBlock.id + '-' : '') + element.id;
         if (beforeAfterBlock.type === 'script') {
@@ -250,43 +258,47 @@ async function writeElementProperties(fileUri: Uri, element: any): Promise<void>
         }
     }
 
-    if (element.properties.propertiesToExportInSeparateFile) {
-        const propertyNames: string[] = element.properties.propertiesToExportInSeparateFile.split(',').map(function (item: string) {
+    const elementType = element.type as unknown as string;
+    if ((element.properties as ScriptProperties | MapperParameters).propertiesToExportInSeparateFile) {
+        const elementProperties = element.properties as ScriptProperties | MapperParameters;
+        const propertyNames: string[] | undefined = elementProperties.propertiesToExportInSeparateFile?.split(',').map(function (item: string) {
             return item.trim();
         });
-        element.properties.propertiesFilename = getOrCreatePropertyFilename(element.type, propertyNames, element.properties.exportFileExtension, element.id);
-        if (element.properties.exportFileExtension === 'json') {
+        elementProperties.propertiesFilename = getOrCreatePropertyFilename(elementType, propertyNames, elementProperties.exportFileExtension, element.id);
+        if (elementProperties.exportFileExtension === 'json' && propertyNames) {
             const properties: any = {};
             for (const propertyName of propertyNames) {
-                properties[propertyName] = element.properties[propertyName];
+                properties[propertyName] = elementProperties[propertyName];
             }
-            await fileApi.writePropertyFile(fileUri, element.properties.propertiesFilename, JSON.stringify(properties));
+            await fileApi.writePropertyFile(fileUri, elementProperties.propertiesFilename, JSON.stringify(properties));
             for (const propertyName of propertyNames) {
-                delete element.properties[propertyName];
+                delete elementProperties[propertyName];
             }
         } else {
-            await fileApi.writePropertyFile(fileUri, element.properties.propertiesFilename, element.properties[element.properties.propertiesToExportInSeparateFile]);
-            delete element.properties[element.properties.propertiesToExportInSeparateFile];
+            await fileApi.writePropertyFile(fileUri, elementProperties.propertiesFilename,
+                elementProperties[elementProperties.propertiesToExportInSeparateFile as string] as string);
+            delete elementProperties[elementProperties.propertiesToExportInSeparateFile as string];
         }
     }
 
-    if (element.type === 'service-call') {
-        if (Array.isArray((element.properties.after))) {
-            for (const afterBlock of element.properties.after) {
+    if (elementType === 'service-call') {
+        const elementProperties = element.properties as any; // WA before fix of schemas compilation missing service call properties
+        if (Array.isArray((elementProperties.after))) {
+            for (const afterBlock of elementProperties.after) {
                 await handleServiceCallProperty(afterBlock);
             }
         }
-        if (element.properties.before) {
-            await handleServiceCallProperty(element.properties.before);
+        if (elementProperties.before) {
+            await handleServiceCallProperty(elementProperties.before);
         }
     }
 }
 
-async function getDefaultElementByType(chainId: string, elementRequest: CreateElementRequest) {
+async function getDefaultElementByType(chainId: string, elementRequest: CreateElementRequest): Promise<ElementSchema> {
     const elementId = crypto.randomUUID();
-    const libraryData = await getLibraryElementByType(elementRequest.type);
+    const libraryData = await getLibraryElementByType(elementRequest.type as unknown as string);
 
-    let children: Element[] | undefined = undefined;
+    let children: ElementSchema[] | undefined = undefined;
     if (libraryData.allowedChildren && Object.keys(libraryData.allowedChildren).length) {
         children = [];
         for (const childType in libraryData.allowedChildren) {
@@ -297,7 +309,7 @@ async function getDefaultElementByType(chainId: string, elementRequest: CreateEl
         }
     }
 
-    const element: Element = {
+    const element: ElementSchema = {
         chainId: chainId,
         createdBy: {...EMPTY_USER},
         createdWhen: 0,
@@ -308,12 +320,12 @@ async function getDefaultElementByType(chainId: string, elementRequest: CreateEl
         modifiedWhen: 0,
         name: libraryData.title,
         properties: await getDefaultPropertiesForElement(libraryData.properties),
-        type: elementRequest.type,
+        type: elementRequest.type as unknown as DataType,
         children: children,
         parentElementId: elementRequest.parentElementId
-    } as Element;
+    };
 
-    if (element.type === 'checkpoint' || element.type === 'chain-trigger-2') {
+    if (elementRequest.type === 'checkpoint' || elementRequest.type === 'chain-trigger-2') {
         replaceElementPlaceholders(element.properties, chainId, elementId);
     }
 
@@ -321,7 +333,7 @@ async function getDefaultElementByType(chainId: string, elementRequest: CreateEl
 }
 
 export async function createElement(mainFolderUri: Uri, chainId: string, elementRequest: CreateElementRequest): Promise<ActionDifference> {
-    const chain: any = await getMainChain(mainFolderUri);
+    const chain = await getMainChain(mainFolderUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -332,11 +344,12 @@ export async function createElement(mainFolderUri: Uri, chainId: string, element
     if (!chain.content.elements) {
         chain.content.elements = [];
     }
-    if (!insertElement(chain.content.elements, element)) {
-        chain.content.elements.push(element);
+    const chainElements = chain.content.elements as ElementSchema[];
+    if (!insertElement(chainElements, element)) {
+        chainElements.push(element);
     }
 
-    await checkRestrictions(element, chain.content.elements);
+    await checkRestrictions(element, chainElements);
 
     await writeElementProperties(mainFolderUri, element);
     await fileApi.writeMainChain(mainFolderUri, chain);
@@ -348,7 +361,7 @@ export async function createElement(mainFolderUri: Uri, chainId: string, element
     };
 }
 
-function insertElement(elements: Element[], newElement: Element): boolean {
+function insertElement(elements: ElementSchema[], newElement: ElementSchema): boolean {
     if (!newElement.parentElementId) {
         // no parent, add to root
         elements.push(newElement);
@@ -360,11 +373,11 @@ function insertElement(elements: Element[], newElement: Element): boolean {
             if (!element.children) {
                 element.children = [];
             }
-            element.children.push(newElement);
+            (element.children as ElementSchema[]).push(newElement);
             return true;
         }
 
-        if (element.children && insertElement(element.children, newElement)) {
+        if (element.children && insertElement((element.children as ElementSchema[]), newElement)) {
             return true; // inserted in nested children
         }
     }
@@ -404,9 +417,9 @@ function getDefaultTypedProperties(propertiesData: LibraryElementProperty[]): an
 }
 
 function findAndRemoveElementById(
-    elements: Element[] | undefined,
+    elements: ElementSchema[] | undefined,
     elementId: string
-): Element | undefined {
+): ElementSchema | undefined {
     if (!elements) {
         return undefined;
     }
@@ -416,7 +429,7 @@ function findAndRemoveElementById(
     }
 
     for (const element of elements) {
-        const found = findAndRemoveElementById(element.children, elementId);
+        const found = findAndRemoveElementById(element.children as ElementSchema[], elementId);
         if (found) {
             return found;
         }
@@ -459,32 +472,33 @@ async function deleteElementsPropertyFiles(fileUri: Uri, removedElements: any[])
 
 
 export async function deleteElements(fileUri: Uri, chainId: string, elementIds: string[]): Promise<ActionDifference> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
     const removedElements: any[] = [];
+    const chainElements = chain.content.elements as ElementSchema[];
     for (const elementId of elementIds) {
-        const parentElementId = findElementById(chain.content.elements, elementId)?.parentId;
-        const element = findAndRemoveElementById(chain.content.elements, elementId);
+        const parentElementId = findElementById(chainElements, elementId)?.parentId;
+        const element = findAndRemoveElementById(chainElements, elementId);
         if (!element) {
             console.error(`ElementId not found`);
             throw Error("ElementId not found");
         }
 
-        for (const childElement of getElementChildren(element.children)) {
-            await deleteDependenciesForElement(childElement.id, chain.content.dependencies);
+        for (const childElement of getElementChildren(element.children as ElementSchema[])) {
+            await deleteDependenciesForElement(childElement.id, chain.content.dependencies as Dependency[]); // TODO change to dependency schema
             removedElements.push(childElement);
         }
 
-        await deleteDependenciesForElement(elementId, chain.content.dependencies);
+        await deleteDependenciesForElement(elementId, chain.content.dependencies as Dependency[]); // TODO change to dependency schema
         removedElements.push(element);
 
-        const parentElement = parentElementId ? findElementById(chain.content.elements, parentElementId)?.element : undefined;
+        const parentElement = parentElementId ? findElementById(chainElements, parentElementId)?.element : undefined;
         if (parentElement) {
-            await checkRestrictions(parentElement, chain.content.elements);
+            await checkRestrictions(parentElement, chainElements);
         }
     }
 
@@ -496,7 +510,7 @@ export async function deleteElements(fileUri: Uri, chainId: string, elementIds: 
     };
 }
 
-async function deleteDependenciesForElement(elementId: string, dependencies: Dependency[]) {
+async function deleteDependenciesForElement(elementId: string, dependencies: Dependency[]) { // TODO change to dependency schema
     dependencies?.forEach( (dependency, index) => {
         if (dependency.from === elementId || dependency.to === elementId) {
             dependencies.splice(index,1);
@@ -505,39 +519,45 @@ async function deleteDependenciesForElement(elementId: string, dependencies: Dep
 }
 
 export async function createConnection(fileUri: Uri, chainId: string, connectionRequest: ConnectionRequest): Promise<ActionDifference> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
-    const elementFrom = findElementById(chain.content.elements, connectionRequest.from)?.element;
+    if (!chain.content.dependencies) {
+        chain.content.dependencies = [];
+    }
+    const chainDependencies = chain.content.dependencies as Dependency[]; // TODO change to dependency schema
+    const chainElements = chain.content.elements as ElementSchema[];
+
+    const elementFrom = findElementById(chainElements, connectionRequest.from)?.element;
     if (!elementFrom) {
         console.error(`ElementId from not found`);
         throw Error("ElementId from not found");
     }
-    const libraryDataFrom = await getLibraryElementByType(elementFrom.type);
+    const libraryDataFrom = await getLibraryElementByType(elementFrom.type as unknown as string);
     if (!libraryDataFrom.outputEnabled) {
         console.error(`Element from does not allow output connections`);
         throw Error("Element from does not allow output connections");
     }
 
-    const elementTo = findElementById(chain.content.elements, connectionRequest.to)?.element;
+    const elementTo = findElementById(chainElements, connectionRequest.to)?.element;
     if (!elementTo) {
         console.error(`ElementId to not found`);
         throw Error("ElementId to not found");
     }
-    const libraryDataTo = await getLibraryElementByType(elementTo.type);
+    const libraryDataTo = await getLibraryElementByType(elementTo.type as unknown as string);
     if (!libraryDataTo.inputEnabled) {
         console.error(`Element to does not allow output connections`);
         throw Error("Element to does not allow output connections");
     }
-    if (libraryDataTo.inputQuantity === LibraryInputQuantity.ONE && chain.content.dependencies?.find((d: Dependency) => d.to === connectionRequest.to)) {
+    if (libraryDataTo.inputQuantity === LibraryInputQuantity.ONE && chainDependencies?.find((d: Dependency) => d.to === connectionRequest.to)) {
         console.error(`Element to does not allow another connections`);
         throw Error("Element to does not allow another connections");
     }
 
-    const dependency: Dependency = chain.content.dependencies?.find((dependency: Dependency) =>
+    const dependency: Dependency | undefined = chainDependencies?.find((dependency: Dependency) =>
         dependency.from === connectionRequest.from && dependency.to === connectionRequest.to);
     if (dependency) {
         console.error(`Connection already exist`);
@@ -548,10 +568,7 @@ export async function createConnection(fileUri: Uri, chainId: string, connection
         to: connectionRequest.to,
     };
 
-    if (!chain.content.dependencies) {
-        chain.content.dependencies = [];
-    }
-    chain.content.dependencies.push(newDependency);
+    chainDependencies.push(newDependency);
 
     await fileApi.writeMainChain(fileUri, chain);
 
@@ -565,7 +582,7 @@ export async function createConnection(fileUri: Uri, chainId: string, connection
 }
 
 export async function deleteConnections(fileUri: Uri, chainId: string, connectionIds: string[]): Promise<ActionDifference> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -574,15 +591,15 @@ export async function deleteConnections(fileUri: Uri, chainId: string, connectio
     const removedConnections: any[] = [];
 
     for (const connectionId of connectionIds) {
-        let dependency: Dependency = chain.content.dependencies?.find((dependency: Dependency) =>
+        let dependency: Dependency | undefined = (chain.content.dependencies as Dependency[])?.find((dependency: Dependency) => // TODO change to dependency schema
             getDependencyId(dependency) === connectionId);
         if (!dependency) {
             console.error(`Connection not found`);
             throw Error("Connection not found");
         }
 
-        let index = chain.content.dependencies.findIndex((d: Dependency) => d === dependency);
-        chain.content.dependencies.splice(index, 1);
+        let index = (chain.content.dependencies as Dependency[]).findIndex((d: Dependency) => d === dependency); // TODO change to dependency schema
+        (chain.content.dependencies as Dependency[]).splice(index, 1);
 
         dependency['id'] = getDependencyId(dependency);
         removedConnections.push(dependency);
@@ -598,16 +615,17 @@ export async function deleteConnections(fileUri: Uri, chainId: string, connectio
 }
 
 export async function deleteMaskedFields(fileUri: Uri, chainId: string, maskedFieldIds: string[]): Promise<void> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
 
+    // TODO change to maskedfield type
     for (const maskedFieldId of maskedFieldIds) {
-        let index = chain.content.maskedFields?.findIndex((mf: any) => mf.id === maskedFieldId);
+        let index = (chain.content.maskedFields as [])?.findIndex((mf: any) => mf.id === maskedFieldId);
         if (index) {
-            chain.content.maskedFields.splice(index, 1);
+            (chain.content.maskedFields as []).splice(index, 1);
         }
     }
 
@@ -615,7 +633,7 @@ export async function deleteMaskedFields(fileUri: Uri, chainId: string, maskedFi
 }
 
 export async function updateMaskedField(fileUri: Uri, id: string, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -630,7 +648,7 @@ export async function updateMaskedField(fileUri: Uri, id: string, chainId: strin
 }
 
 export async function createMaskedField(fileUri: Uri, chainId: string, changes: Partial<MaskedField>): Promise<MaskedField> {
-    const chain: any = await getMainChain(fileUri);
+    const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
@@ -640,7 +658,8 @@ export async function createMaskedField(fileUri: Uri, chainId: string, changes: 
         chain.content.maskedFields = [];
     }
 
-    const id = crypto.randomUUID();;
+    const id = crypto.randomUUID();
+    // @ts-ignore Will be removed when DependencySchema will be introduced
     chain.content.maskedFields.push({
         id: id,
         name: changes.name,

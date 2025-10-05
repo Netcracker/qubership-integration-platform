@@ -1,6 +1,7 @@
 import {Chain, LibraryData} from "@netcracker/qip-ui";
 import {FileApi} from './fileApi';
 import {Uri} from 'vscode';
+import {Chain as ChainSchema} from "@netcracker/qip-schemas";
 
 let current: FileApi = {
     getRootDirectory: () => {
@@ -74,7 +75,7 @@ export function setFileApi(api: FileApi) {
 // Delegating facade so existing imports can keep using `fileApi`
 export const fileApi: FileApi = {
     getRootDirectory: () => current.getRootDirectory(),
-    getMainChain: async (parameters: any): Promise<any> => current.getMainChain(parameters),
+    getMainChain: async (parameters: any): Promise<ChainSchema> => current.getMainChain(parameters),
     findChainRecursively: async (folderUri: Uri, chainId: string): Promise<any> => current.findChainRecursively(folderUri, chainId),
     findAndBuildChainsRecursively:  async (folderUri: Uri, chainBuilder: (chainContent: any) => Partial<Chain> | undefined, result: Partial<Chain>[]): Promise<void> => current.findAndBuildChainsRecursively(folderUri, chainBuilder, result),
     readFile: async (parameters: any, propertyFilename: string): Promise<string> => current.readFile(parameters, propertyFilename),

@@ -1,10 +1,11 @@
 import {Uri} from "vscode";
 import {Chain, LibraryData} from "@netcracker/qip-ui";
+import {Chain as ChainSchema} from "@netcracker/qip-schemas";
 
 export interface FileApi {
     getRootDirectory(): Uri;
 
-    getMainChain(parameters: any): Promise<any>;
+    getMainChain(parameters: any): Promise<ChainSchema>;
 
     findChainRecursively(folderUri: Uri, chainId: string): Promise<any>;
 
