@@ -4,7 +4,6 @@ import { Radio } from "antd";
 import { Environment, EnvironmentSourceType } from "../../api/apiTypes";
 import { useServiceContext, useChainsContext } from "./ServiceParametersPage";
 import { api } from "../../api/api";
-import { DeleteOutlined } from '@ant-design/icons';
 import { EnvironmentParamsModal } from "./EnvironmentParamsModal.tsx";
 import { EnvironmentRequest } from "../../api/apiTypes";
 import type { ColumnsType } from 'antd/es/table';
@@ -12,6 +11,7 @@ import { ChainColumn } from './ChainColumn';
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useLocation } from "react-router-dom";
+import { Icon } from "../../IconProvider.tsx";
 
 interface ServiceEnvironmentsTabProps {
   formatTimestamp: (val: number) => string;
@@ -274,7 +274,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         <Tooltip title="Delete">
           <Button
             type="text"
-            icon={<DeleteOutlined />}
+            icon={<Icon name="delete" />}
             danger
             onClick={() => handleDelete(record.id)}
           />

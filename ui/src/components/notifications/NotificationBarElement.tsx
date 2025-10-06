@@ -1,11 +1,7 @@
 import React from "react";
-import {
-  CloseOutlined,
-  ExclamationCircleOutlined,
-  CloseCircleOutlined,
-} from "@ant-design/icons";
 import { List } from "antd";
 import { NotificationItem } from "./contexts/NotificationLogContext.tsx";
+import { Icon } from "../../IconProvider.tsx";
 
 type NotificationBarElementProps = {
   value: NotificationItem;
@@ -20,11 +16,11 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({
     const style = { fontSize: "18", marginTop: 4 };
     switch (type) {
       case "error":
-        return <CloseCircleOutlined style={{ ...style, color: "#ff4d4f" }} />;
+        return <Icon name="closeCircle" style={{ ...style, color: "#ff4d4f" }} />;
       case "info":
       default:
         return (
-          <ExclamationCircleOutlined style={{ ...style, color: "#1890ff" }} />
+          <Icon name="exclamationCircle" style={{ ...style, color: "#1890ff" }} />
         );
     }
   };
@@ -32,7 +28,7 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({
   return (
     <List.Item
       actions={[
-        <CloseOutlined
+        <Icon name="close"
           key="close"
           style={{ cursor: "pointer" }}
           onClick={() => onRemove(value)}

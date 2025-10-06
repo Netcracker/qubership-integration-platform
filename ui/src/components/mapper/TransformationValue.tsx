@@ -7,9 +7,9 @@ import {
 } from "../../mapper/model/transformations.ts";
 import styles from "./TransformationValue.module.css";
 import { VerificationError } from "../../mapper/verification/model.ts";
-import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
 import { TransformationInfoTooltip } from "./TransformationInfoTooltip.tsx";
+import { Icon } from "../../IconProvider.tsx";
 
 export type TransformationValueProps = {
   transformation?: Transformation;
@@ -67,7 +67,7 @@ export const TransformationValue: React.FC<TransformationValueProps> = ({
             </Flex>
           }
         >
-          <ExclamationCircleOutlined style={{ color: "red" }} />
+          <Icon name="exclamationCircle" style={{ color: "red" }} />
         </Tooltip>
       ) : (
         <></>

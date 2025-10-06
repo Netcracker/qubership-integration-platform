@@ -15,31 +15,6 @@ import { TableProps } from "antd/lib/table";
 import React, { UIEvent, useRef, useState } from "react";
 import { useActionLog } from "../../hooks/useActionLog.tsx";
 import {capitalize, formatSnakeCased, formatTimestamp} from "../../misc/format-utils.ts";
-import {
-  ApartmentOutlined,
-  ApiOutlined,
-  AuditOutlined,
-  CloudDownloadOutlined,
-  CloudOutlined,
-  ClusterOutlined,
-  ContainerOutlined,
-  DeploymentUnitOutlined,
-  EyeInvisibleOutlined,
-  FileDoneOutlined,
-  FileTextOutlined,
-  FileUnknownOutlined,
-  FolderOpenOutlined,
-  GlobalOutlined,
-  MoreOutlined,
-  QuestionOutlined,
-  RadarChartOutlined,
-  RedoOutlined,
-  SaveOutlined,
-  SendOutlined,
-  SettingOutlined,
-  SolutionOutlined,
-  UnorderedListOutlined,
-} from "@ant-design/icons";
 import DateRangePicker from "../modal/DateRangePicker.tsx";
 import { exportActionsLogAsExcel } from "../../misc/log-export-utils.ts";
 import type { FilterDropdownProps } from "antd/lib/table/interface";
@@ -55,6 +30,7 @@ import { makeEnumColumnFilterDropdown } from "../EnumColumnFilterDropdown.tsx";
 import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 import { ResizableTitle } from "../ResizableTitle.tsx";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
+import { Icon } from "../../IconProvider.tsx";
 
 export enum OperationType {
   READ = "read",
@@ -71,33 +47,33 @@ export const OperationTypeColour: { [key: string]: string } = {
 };
 
 export const EntityTypeIconsMap: { [key: string]: React.ReactNode } = {
-  [EntityType.FOLDER]: <FolderOpenOutlined />,
-  [EntityType.CHAIN]: <ApartmentOutlined />,
-  [EntityType.CHAINS]: <ApartmentOutlined />,
-  [EntityType.SNAPSHOT]: <SaveOutlined />,
-  [EntityType.SNAPSHOT_CLEANUP]: <SaveOutlined />,
-  [EntityType.DEPLOYMENT]: <SendOutlined />,
-  [EntityType.ELEMENT]: <SettingOutlined />,
-  [EntityType.MASKED_FIELD]: <EyeInvisibleOutlined />,
-  [EntityType.CHAIN_RUNTIME_PROPERTIES]: <SettingOutlined />,
+  [EntityType.FOLDER]: <Icon name="folder" />,
+  [EntityType.CHAIN]: <Icon name="apartment" />,
+  [EntityType.CHAINS]: <Icon name="apartment" />,
+  [EntityType.SNAPSHOT]: <Icon name="save" />,
+  [EntityType.SNAPSHOT_CLEANUP]: <Icon name="save" />,
+  [EntityType.DEPLOYMENT]: <Icon name="send" />,
+  [EntityType.ELEMENT]: <Icon name="settings" />,
+  [EntityType.MASKED_FIELD]: <Icon name="eyeInvisible" />,
+  [EntityType.CHAIN_RUNTIME_PROPERTIES]: <Icon name="settings" />,
 
-  [EntityType.SERVICE_DISCOVERY]: <RadarChartOutlined />,
-  [EntityType.EXTERNAL_SERVICE]: <GlobalOutlined />,
-  [EntityType.SERVICES]: <GlobalOutlined />,
-  [EntityType.INNER_CLOUD_SERVICE]: <CloudOutlined />,
-  [EntityType.IMPLEMENTED_SERVICE]: <ClusterOutlined />,
-  [EntityType.ENVIRONMENT]: <ApiOutlined />,
-  [EntityType.SPECIFICATION]: <FileDoneOutlined />,
-  [EntityType.SPECIFICATION_GROUP]: <ContainerOutlined />,
+  [EntityType.SERVICE_DISCOVERY]: <Icon name="radarChart" />,
+  [EntityType.EXTERNAL_SERVICE]: <Icon name="global" />,
+  [EntityType.SERVICES]: <Icon name="global" />,
+  [EntityType.INNER_CLOUD_SERVICE]: <Icon name="cloud" />,
+  [EntityType.IMPLEMENTED_SERVICE]: <Icon name="cluster" />,
+  [EntityType.ENVIRONMENT]: <Icon name="api" />,
+  [EntityType.SPECIFICATION]: <Icon name="fileDone" />,
+  [EntityType.SPECIFICATION_GROUP]: <Icon name="group" />,
 
-  [EntityType.SECRET]: <FileUnknownOutlined />,
-  [EntityType.SECURED_VARIABLE]: <UnorderedListOutlined />,
-  [EntityType.COMMON_VARIABLE]: <UnorderedListOutlined />,
-  [EntityType.MAAS_KAFKA]: <DeploymentUnitOutlined />,
-  [EntityType.MAAS_RABBITMQ]: <DeploymentUnitOutlined />,
-  [EntityType.DETAILED_DESIGN_TEMPLATE]: <FileTextOutlined />,
-  [EntityType.IMPORT_INSTRUCTION]: <SolutionOutlined />,
-  [EntityType.IMPORT_INSTRUCTIONS]: <SolutionOutlined />,
+  [EntityType.SECRET]: <Icon name="fileUnknown" />,
+  [EntityType.SECURED_VARIABLE]: <Icon name="unorderedList" />,
+  [EntityType.COMMON_VARIABLE]: <Icon name="unorderedList" />,
+  [EntityType.MAAS_KAFKA]: <Icon name="deploymentUnit" />,
+  [EntityType.MAAS_RABBITMQ]: <Icon name="deploymentUnit" />,
+  [EntityType.DETAILED_DESIGN_TEMPLATE]: <Icon name="fileText" />,
+  [EntityType.IMPORT_INSTRUCTION]: <Icon name="solution" />,
+  [EntityType.IMPORT_INSTRUCTIONS]: <Icon name="solution" />,
 };
 
 export const OperationTypeMap: { [key: string]: OperationType } = {
@@ -476,7 +452,7 @@ export const ActionsLog: React.FC = () => {
   };
 
   const getIconByEntityType = (type: EntityType): React.ReactNode => {
-    const icon = EntityTypeIconsMap[type] ?? <QuestionOutlined />;
+    const icon = EntityTypeIconsMap[type] ?? <Icon name="question" />;
     return React.cloneElement(icon as React.ReactElement, {
       style: { marginRight: 10 },
     });
@@ -520,7 +496,7 @@ export const ActionsLog: React.FC = () => {
               "color var(--transition-duration) var(--transition-easing)",
           }}
         >
-          <AuditOutlined
+          <Icon name="audit"
             style={{
               marginRight: "12px",
               transition:
@@ -540,7 +516,7 @@ export const ActionsLog: React.FC = () => {
               onDeselect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
             }}
           >
-            <Button icon={<SettingOutlined />} />
+            <Button icon={<Icon name="settings" />} />
           </Dropdown>
         </Flex>
       </Flex>
@@ -636,10 +612,10 @@ export const ActionsLog: React.FC = () => {
                 };
               }}
             />
-            <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+            <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
               <FloatButton
                 tooltip={{ title: "Refresh", placement: "left" }}
-                icon={<RedoOutlined />}
+                icon={<Icon name="redo" />}
                 onClick={() => void refresh()}
               />
               {isLoading || isFetching ? (
@@ -652,7 +628,7 @@ export const ActionsLog: React.FC = () => {
                         title: "Export action logs",
                         placement: "left",
                       }}
-                      icon={<CloudDownloadOutlined />}
+                      icon={<Icon name="cloudDownload" />}
                     />
                   }
                   onRangeApply={(from, to) => {

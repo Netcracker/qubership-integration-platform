@@ -11,11 +11,11 @@ import {
 import { SessionStatus } from "../components/sessions/SessionStatus.tsx";
 import { api } from "../api/api.ts";
 import { SessionElementDuration } from "../components/sessions/SessionElementDuration.tsx";
-import { CloudDownloadOutlined, LinkOutlined } from "@ant-design/icons";
 import { useModalsContext } from "../Modals.tsx";
 import { SessionElementDetails } from "../components/modal/SessionElementDetails.tsx";
 import { downloadFile } from "../misc/download-utils.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
+import { Icon } from "../IconProvider.tsx";
 
 function cleanUpChildren(element: SessionElement) {
   if (element.children?.length === 0) {
@@ -94,7 +94,7 @@ export const SessionPage: React.FC = () => {
             {element.elementName}
           </a>
           {session?.chainId && element.chainElementId ? (
-            <LinkOutlined
+            <Icon name="link"
               onClick={() =>
                 window.open(
                   `/chains/${session?.chainId}/graph/${element.chainElementId}`,
@@ -178,7 +178,7 @@ export const SessionPage: React.FC = () => {
       />
       <FloatButton
         tooltip={{ title: "Export session", placement: "left" }}
-        icon={<CloudDownloadOutlined />}
+        icon={<Icon name="cloudDownload" />}
         onClick={() => void onExportBtnClick()}
       />
     </Flex>

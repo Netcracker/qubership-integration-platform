@@ -1,6 +1,7 @@
 export type * from "./api/apiTypes";
 export type {
   VSCodeMessage,
-  VSCodeResponse
+  VSCodeResponse,
 } from "./api/rest/vscodeExtensionApi";
 export type { AppExtensionProps } from "./appConfig";
+export type { IconOverrides, IconName, IconSource } from "./IconProvider";

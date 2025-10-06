@@ -1,12 +1,11 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Modal, Form, Input, Badge, Button, Switch, Select } from "antd";
-import { DeleteOutlined, PlusOutlined, EditOutlined } from '@ant-design/icons';
 import { EntityLabels } from '../labels/EntityLabels';
 import { Environment, EnvironmentRequest } from '../../api/apiTypes';
 import { useServiceContext } from './ServiceParametersPage';
 import { Segmented } from 'antd';
 import { EnvironmentSourceType } from '../../api/apiTypes';
-import { QuestionCircleOutlined } from '@ant-design/icons';
+import { Icon } from "../../IconProvider.tsx";
 
 interface EnvironmentParamsModalProps {
   open: boolean;
@@ -216,7 +215,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
           />
           {(currentSourceType === EnvironmentSourceType.MAAS || currentSourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER) && (
             <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, color: '#888' }}>
-              <QuestionCircleOutlined style={{ marginRight: 8, fontSize: 18 }} />
+              <Icon name="questionCircle" style={{ marginRight: 8, fontSize: 18 }} />
               <span>This type allows the use of the MaaS classifier to obtain connection parameters when creating a chain snapshot.</span>
             </div>
           )}
@@ -254,7 +253,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
               {showProperties && (
                 <>
                   <Button
-                    icon={<PlusOutlined />}
+                    icon={<Icon name="plus" />}
                     size="small"
                     style={{ marginLeft: 16 }}
                     onClick={() => {
@@ -330,14 +329,14 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                               onClick={() => setEditingValueKey(key)}
                             >
                               <span style={{ flex: 1 }}>{value}</span>
-                              {hoverValueKey === key && <EditOutlined style={{ marginLeft: 8, color: '#888' }} />}
+                              {hoverValueKey === key && <Icon name="edit" style={{ marginLeft: 8, color: '#888' }} />}
                             </div>
                           )}
                         </td>
                         <td style={{ ...cellStyle, textAlign: 'center' }}>
                           <Button
                             type="text"
-                            icon={<DeleteOutlined />}
+                            icon={<Icon name="delete" />}
                             danger
                             style={iconBtnStyle}
                             onClick={() => {
@@ -377,7 +376,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                         <td style={{ ...cellStyle, textAlign: 'center' }}>
                           <Button
                             type="text"
-                            icon={<DeleteOutlined />}
+                            icon={<Icon name="delete" />}
                             danger
                             style={iconBtnStyle}
                             onClick={() => {

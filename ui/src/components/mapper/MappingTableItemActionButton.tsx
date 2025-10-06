@@ -11,15 +11,6 @@ import {
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import { ItemType } from "antd/es/menu/interface";
 import { Button, Dropdown, Modal } from "antd";
-import {
-  ClearOutlined,
-  CloudDownloadOutlined,
-  CloudUploadOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  MoreOutlined,
-  PlusCircleOutlined,
-} from "@ant-design/icons";
 import { DataTypes } from "../../mapper/util/types.ts";
 import { ChainContext } from "../../pages/ChainPage.tsx";
 import { LoadSchemaDialog } from "./LoadSchemaDialog.tsx";
@@ -27,6 +18,7 @@ import { XmlNamespace } from "../../mapper/model/metadata.ts";
 import { NamespacesEditDialog } from "./NamespacesEditDialog.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 import { DataType } from "../../mapper/model/model.ts";
+import { Icon } from "../../IconProvider.tsx";
 
 export type MappingTableItemActionButtonProps = {
   elementId: string;
@@ -80,7 +72,7 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "load",
         label: "Load",
-        icon: <CloudUploadOutlined />,
+        icon: <Icon name="cloudUpload" />,
         onClick: () => {
           showModal({
             component: (
@@ -99,7 +91,7 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "edit",
         label: "Edit",
-        icon: <EditOutlined />,
+        icon: <Icon name="edit" />,
         onClick: () => {
           onEdit?.();
         },
@@ -109,7 +101,7 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "export",
         label: "Export",
-        icon: <CloudDownloadOutlined />,
+        icon: <Icon name="cloudDownload" />,
         onClick: () => {
           onExport?.();
         },
@@ -142,7 +134,7 @@ export const MappingTableItemActionButton: React.FC<
         {
           key: "add",
           label: "Add",
-          icon: <PlusCircleOutlined />,
+          icon: <Icon name="plusCircle" />,
           onClick: () => {
             onAdd?.();
           },
@@ -150,7 +142,7 @@ export const MappingTableItemActionButton: React.FC<
         {
           key: "clear",
           label: "Clear",
-          icon: <ClearOutlined />,
+          icon: <Icon name="clear" />,
           onClick: () => {
             Modal.confirm({
               title: "Clear tree",
@@ -165,7 +157,7 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "delete",
         label: "Delete",
-        icon: <DeleteOutlined />,
+        icon: <Icon name="delete" />,
         onClick: () => {
           const title = `Delete ${isConstantItem(item) ? "constant" : "attribute"}`;
           const content = `Are you sure you want to delete this ${isConstantItem(item) ? "constant" : "attribute"} and all related connections?`;
@@ -203,7 +195,7 @@ export const MappingTableItemActionButton: React.FC<
 
   return (
     <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
-      <Button size="small" type="text" icon={<MoreOutlined />} />
+      <Button size="small" type="text" icon={<Icon name="more" />} />
     </Dropdown>
   );
 };

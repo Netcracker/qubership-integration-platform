@@ -1,17 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./Services.module.css";
 import {
-  CloudDownloadOutlined,
-  CloudUploadOutlined,
-  MoreOutlined,
-  PlusOutlined,
-  TableOutlined,
-  CloudOutlined,
-  ClusterOutlined, GlobalOutlined,
-  RightOutlined,
-  DownOutlined,
-} from "@ant-design/icons";
-import {
   FloatButton,
   Typography,
   message,
@@ -45,6 +34,7 @@ import { useModalsContext } from "../../Modals";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useAsyncRequest } from './useAsyncRequest';
 import type { ExpandableConfig } from 'antd/es/table/interface';
+import { Icon } from "../../IconProvider.tsx";
 
 const STORAGE_KEY = "servicesListTable";
 
@@ -168,7 +158,7 @@ export const ServicesListPage: React.FC = () => {
           }}
           style={{ cursor: "pointer", fontSize: 11, color: '#b0b8c4', display: 'inline-flex', alignItems: 'center', verticalAlign: 'sub', marginRight: 6 }}
         >
-          {expanded ? <DownOutlined /> : <RightOutlined />}
+          {expanded ? <Icon name="down" /> : <Icon name="right" />}
         </span>
       ) : null,
   };
@@ -362,10 +352,10 @@ export const ServicesListPage: React.FC = () => {
           <Typography.Title level={4} className={styles["title"]}>
             {(() => {
               switch (tab) {
-                case "external": return <GlobalOutlined className={styles["icon"]} />;
-                case "internal": return <CloudOutlined className={styles["icon"]} />;
-                case "implemented": return <ClusterOutlined className={styles["icon"]} />;
-                default: return <TableOutlined className={styles["icon"]} />;
+                case "external": return <Icon name="global" className={styles["icon"]} />;
+                case "internal": return <Icon name="cloud" className={styles["icon"]} />;
+                case "implemented": return <Icon name="cluster" className={styles["icon"]} />;
+                default: return <Icon name="table" className={styles["icon"]} />;
               }
             })()}
             {(() => {
@@ -389,10 +379,10 @@ export const ServicesListPage: React.FC = () => {
           <servicesTable.Table />
           {error && <div style={{ color: "red" }}>Error: {error}</div>}
 
-          <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+          <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
             <FloatButton
               tooltip={{ title: "Download selected services", placement: "left" }}
-              icon={<CloudDownloadOutlined />}
+              icon={<Icon name="cloudDownload" />}
               onClick={() => {
                 void (async () => {
                   if (selectedRowKeys.length === 0) {
@@ -408,7 +398,7 @@ export const ServicesListPage: React.FC = () => {
             />
             <FloatButton
               tooltip={{ title: "Upload services", placement: "left" }}
-              icon={<CloudUploadOutlined />}
+              icon={<Icon name="cloudUpload" />}
               onClick={() => {
                 showModal({
                   component: <ImportServicesModal onSuccess={() => { void loadServices(); }} />,
@@ -417,7 +407,7 @@ export const ServicesListPage: React.FC = () => {
             />
             <FloatButton
               tooltip={{ title: "Create service", placement: "left" }}
-              icon={<PlusOutlined />}
+              icon={<Icon name="plus" />}
               onClick={() => setCreateModalOpen(true)} />
           </FloatButtonGroup>
         </div>

@@ -17,11 +17,11 @@ import {
   DiagramMode,
   ElementsSequenceDiagrams,
 } from "../../api/apiTypes.ts";
-import { DownOutlined } from "@ant-design/icons";
 import { downloadFile } from "../../misc/download-utils.ts";
 import { MenuInfo } from "rc-menu/lib/interface";
 import mermaid from "mermaid";
 import styles from "./SequenceDiagram.module.css";
+import { Icon } from "../../IconProvider.tsx";
 
 type SequenceDiagramProps = {
   title?: string;
@@ -164,7 +164,7 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
           <Button type="primary">
             <Space>
               Export
-              <DownOutlined />
+              <Icon name="down" />
             </Space>
           </Button>
         </Dropdown>

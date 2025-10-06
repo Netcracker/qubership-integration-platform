@@ -13,9 +13,6 @@ import {
 } from "./ServicesTreeTable";
 import { getActionsColumn } from "./ServicesTreeTable";
 import {  message } from "antd";
-import {  DeleteOutlined, PlusOutlined, ExportOutlined, StopOutlined, DownOutlined, UpOutlined, CloudDownloadOutlined, CloudUploadOutlined,
-  MoreOutlined
-} from "@ant-design/icons";
 import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 import { downloadFile } from '../../misc/download-utils';
 import { prepareFile } from "./utils.tsx";
@@ -26,6 +23,7 @@ import styles from "./Services.module.css";
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { useServiceContext } from "./ServiceParametersPage";
 import { IntegrationSystemType } from "../../api/apiTypes";
+import { Icon } from "../../IconProvider.tsx";
 
 const STORAGE_KEY = "systemParameters";
 
@@ -71,7 +69,7 @@ const getGroupActions = (
     {
       key: expandedRowKeys.includes(group.id) ? 'collapse' : 'expand',
       label: expandedRowKeys.includes(group.id) ? 'Collapse' : 'Expand',
-      icon: expandedRowKeys.includes(group.id) ? <UpOutlined /> : <DownOutlined />,
+      icon: expandedRowKeys.includes(group.id) ? <Icon name="up" /> : <Icon name="down" />,
       onClick: () => {
         setExpandedRowKeys(
           expandedRowKeys.includes(group.id)
@@ -83,7 +81,7 @@ const getGroupActions = (
     {
       key: 'add',
       label: 'Add Specification',
-      icon: <PlusOutlined />,
+      icon: <Icon name="plus" />,
       onClick: () => {
         showModal({
           component: (
@@ -103,7 +101,7 @@ const getGroupActions = (
     {
       key: 'delete',
       label: 'Delete',
-      icon: <DeleteOutlined />,
+      icon: <Icon name="delete" />,
       onClick: async () => {
         try {
           await api.deleteSpecificationGroup(group.id);
@@ -134,7 +132,7 @@ const getSpecActions = (
     {
       key: expandedRowKeys.includes(spec.id) ? 'collapse' : 'expand',
       label: expandedRowKeys.includes(spec.id) ? 'Collapse' : 'Expand',
-      icon: expandedRowKeys.includes(spec.id) ? <UpOutlined /> : <DownOutlined />,
+      icon: expandedRowKeys.includes(spec.id) ? <Icon name="up" /> : <Icon name="down" />,
       onClick: () => {
         setExpandedRowKeys(
           expandedRowKeys.includes(spec.id)
@@ -147,7 +145,7 @@ const getSpecActions = (
       ? [{
           key: 'delete',
           label: 'Delete',
-          icon: <DeleteOutlined />,
+          icon: <Icon name="delete" />,
           onClick: async () => {
             try {
               await api.deleteSpecificationModel(spec.id);
@@ -168,7 +166,7 @@ const getSpecActions = (
       ? [{
           key: 'deprecate',
           label: 'Deprecate',
-          icon: <StopOutlined />,
+          icon: <Icon name="stop" />,
           onClick: async () => {
             try {
               await api.deprecateModel(spec.id);
@@ -188,7 +186,7 @@ const getSpecActions = (
     {
       key: 'export',
       label: 'Export',
-      icon: <ExportOutlined />,
+      icon: <Icon name="export" />,
       onClick: () => handleExportSpecifications([spec], notify),
     },
   ];
@@ -406,10 +404,10 @@ export const ServiceApiSpecsTab: React.FC = () => {
       {!loadingGroups && !errorGroups && currentTable === "groups" && (
         <>
           <serviceGroupsTable.Table />
-          <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+          <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
             <FloatButton
               tooltip={{ title: "Import Specifications", placement: "left" }}
-              icon={<CloudUploadOutlined />}
+              icon={<Icon name="cloudUpload" />}
               onClick={() => {
                 showModal({
                   component: (
@@ -429,7 +427,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
             {!isVsCode && (
               <FloatButton
                 tooltip={{ title: "Export all groups", placement: "left" }}
-                icon={<CloudDownloadOutlined />}
+                icon={<Icon name="cloudDownload" />}
                 onClick={() => {
                   void (async () => {
                     if (!(serviceSpecData ?? []).length) {
@@ -453,10 +451,10 @@ export const ServiceApiSpecsTab: React.FC = () => {
       {currentTable === "specs" && (
         <>
           <modelsTable.Table />
-          <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+          <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
             <FloatButton
               tooltip={{ title: "Import Specification", placement: "left" }}
-              icon={<CloudUploadOutlined />}
+              icon={<Icon name="cloudUpload" />}
               onClick={() => {
                 showModal({
                   component: (
@@ -477,7 +475,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
             {!isVsCode && (
               <FloatButton
                 tooltip={{ title: "Export selected specifications", placement: "left" }}
-                icon={<CloudDownloadOutlined />}
+                icon={<Icon name="cloudDownload" />}
                 onClick={() => {
                   void (async () => {
                     if (selectedSpecRowKeys.length === 0) {
@@ -497,10 +495,10 @@ export const ServiceApiSpecsTab: React.FC = () => {
         <>
           <operationsTable.Table />
           {!isVsCode && (
-            <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+            <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
               <FloatButton
                 tooltip={{ title: "Export", placement: "left" }}
-                icon={<CloudDownloadOutlined />}
+                icon={<Icon name="cloudDownload" />}
                 onClick={() => {
                   void (async () => {
                     try {

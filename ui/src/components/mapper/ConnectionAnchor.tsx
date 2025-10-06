@@ -1,7 +1,7 @@
 import React, { forwardRef, useEffect, useState } from "react";
 import styles from "./ConnectionAnchor.module.css";
 import { Tooltip, TooltipProps } from "antd";
-import { SettingOutlined } from "@ant-design/icons";
+import { Icon } from "../../IconProvider.tsx";
 
 export type ConnectionAnchorProps = React.HTMLAttributes<HTMLElement> & {
   tooltipTitle?: TooltipProps["title"];
@@ -52,7 +52,7 @@ export const ConnectionAnchor = forwardRef<
           onClick={() => onClick?.(connected)}
         >
           {showSettingIcon ? (
-            <SettingOutlined />
+            <Icon name="settings" />
           ) : (
             <div className={styles["inner-circle"]}></div>
           )}

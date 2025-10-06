@@ -1,14 +1,9 @@
 import { useReactFlow } from "@xyflow/react";
-import {
-  PlusOutlined,
-  MinusOutlined,
-  ExpandOutlined,
-  RotateRightOutlined,
-} from "@ant-design/icons";
 
 import styles from "./CustomControls.module.css";
 import { useElkDirectionContext } from "../../pages/ElkDirectionContext.tsx";
 import { Button } from "antd";
+import { Icon } from "../../IconProvider.tsx";
 
 export const CustomControls = () => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
@@ -22,7 +17,7 @@ export const CustomControls = () => {
         type={"text"}
         title="Zoom In"
         onClick={() => void zoomIn()}
-        icon={<PlusOutlined />}
+        icon={<Icon name="plus" />}
       />
       <Button
         className={styles.button}
@@ -30,21 +25,21 @@ export const CustomControls = () => {
         type={"text"}
         title="Zoom Out"
         onClick={() => void zoomOut()}
-        icon={<MinusOutlined />}
+        icon={<Icon name="minus" />}
       />
       <Button
         className={styles.button}
         type={"text"}
         title="Fit View"
         onClick={() => void fitView()}
-        icon={<ExpandOutlined />}
+        icon={<Icon name="expand" />}
       />
       <Button
         className={styles.button}
         type={"text"}
         title="Change Layout Direction"
         onClick={toggleDirection}
-        icon={<RotateRightOutlined />}
+        icon={<Icon name="rotateRight" />}
       />
     </div>
   );

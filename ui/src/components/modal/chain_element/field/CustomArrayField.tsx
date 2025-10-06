@@ -7,7 +7,7 @@ import { api } from "../../../../api/api.ts";
 import { Script } from "../../../Script.tsx";
 import { FormContext } from "../ChainElementModification.tsx";
 import styles from "./CustomArrayField.module.css";
-import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { Icon } from "../../../../IconProvider.tsx";
 
 type BaseItem = {
   id: string;
@@ -217,7 +217,7 @@ const CustomArrayField: React.FC<Props> = ({
           />
           <Button
             type="primary"
-            icon={<PlusOutlined />}
+            icon={<Icon name="plus" />}
             onClick={handleAdd}
             disabled={
               !selectedCode ||
@@ -254,7 +254,7 @@ const CustomArrayField: React.FC<Props> = ({
                   size="small"
                   type="text"
                   danger
-                  icon={<DeleteOutlined />}
+                  icon={<Icon name="delete" />}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDelete(idx);

@@ -1,16 +1,15 @@
 import React, { useState } from "react";
 import { Button, Card, Checkbox, Form, Input, message, Modal, Spin, Tabs, Typography, Upload } from "antd";
-import { InboxOutlined } from "@ant-design/icons";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../ModalContextProvider";
 import { api } from "../../api/api";
 import { getErrorMessage } from "../../misc/error-utils";
 import { useNotificationService } from "../../hooks/useNotificationService";
 import type { ElementWithChainName } from "../../api/apiTypes";
-import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { ApiSpecificationType, ApiSpecificationFormat } from "../../api/apiTypes";
 import styles from "./Services.module.css";
 import { validateFiles } from "./utils";
+import { Icon } from "../../IconProvider.tsx";
 
 const POLLING_INTERVAL = 1200;
 const DEFAULT_EXTERNAL_ROUTES_ONLY = true;
@@ -298,7 +297,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                   fileList={files}
                 >
                   <p className="ant-upload-drag-icon">
-                    <InboxOutlined />
+                    <Icon name="inbox" />
                   </p>
                   <p className="ant-upload-text">
                     Drag one or more specification files or click to choose
@@ -427,7 +426,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       {validationError && (
         <div className={styles.validationErrorContainer}>
           <div className={styles.validationErrorHeader}>
-            <ExclamationCircleOutlined className={styles.validationErrorIcon} />
+            <Icon name="exclamationCircle" className={styles.validationErrorIcon} />
             <span className={styles.validationErrorTitle}>{validationError.message}</span>
           </div>
           <ul className={styles.validationErrorList}>

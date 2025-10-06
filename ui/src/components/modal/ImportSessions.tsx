@@ -1,12 +1,12 @@
 import { Button, Modal, UploadFile } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import React, { useState } from "react";
-import { ExclamationCircleOutlined, InboxOutlined } from "@ant-design/icons";
 import Dragger from "antd/es/upload/Dragger";
 import styles from "./ImportSessions.module.css";
 import { api } from "../../api/api.ts";
 import { Session } from "../../api/apiTypes.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import { Icon } from "../../IconProvider.tsx";
 
 type ImportSessionsProps = {
   onSuccess?: (sessions: Session[]) => void;
@@ -70,13 +70,13 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({
         onChange={(info) => setFileList(info.fileList)}
       >
         <p className="ant-upload-drag-icon">
-          <InboxOutlined />
+          <Icon name="inbox" />
         </p>
         <p className="ant-upload-text">
           Click or drag file to this area to upload
         </p>
         <p className="ant-upload-hint">
-          <ExclamationCircleOutlined style={{ marginRight: 8 }} />
+          <Icon name="exclamationCircle" style={{ marginRight: 8 }} />
           You are about to import outbound session details to the table. Please
           note, that imported sessions are supported via read-only mode and
           references to the chain elements, as well as navigation buttons,

@@ -23,12 +23,6 @@ import {
   TableProps,
 } from "antd";
 import Search from "antd/lib/input/Search";
-import {
-  ClearOutlined,
-  FileMarkdownOutlined,
-  MoreOutlined,
-  SettingOutlined,
-} from "@ant-design/icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   exportAsMarkdown,
@@ -88,6 +82,7 @@ import {
 } from "./TransformationEditDialog.tsx";
 import { useMappingDescription } from "./useMappingDescription.tsx";
 import { MappingTableItemActionButton } from "./MappingTableItemActionButton.tsx";
+import { Icon } from "../../IconProvider.tsx";
 
 export type MappingTableViewProps = Omit<
   React.HTMLAttributes<HTMLElement>,
@@ -1761,14 +1756,14 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                 updateControlsState({ selectedColumns: selectedKeys }),
             }}
           >
-            <Button icon={<SettingOutlined />} />
+            <Button icon={<Icon name="settings" />} />
           </Dropdown>
           <Dropdown
             menu={{
               items: [
                 {
                   key: "saveAsMarkdown",
-                  icon: <FileMarkdownOutlined />,
+                  icon: <Icon name="fileMarkdown" />,
                   label: "Save as markdown",
                   onClick: () => {
                     exportMappingAsMarkdown(mappingDescription);
@@ -1776,7 +1771,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                 },
                 {
                   key: "clearFilters",
-                  icon: <ClearOutlined />,
+                  icon: <Icon name="clear" />,
                   label: "Clear filters",
                   onClick: () => {
                     updateControlsState({ filters: {} });
@@ -1784,7 +1779,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                 },
                 {
                   key: "clearSorts",
-                  icon: <ClearOutlined />,
+                  icon: <Icon name="clear" />,
                   label: "Clear sorters",
                   onClick: () => {
                     updateControlsState({ sorts: {} });
@@ -1795,7 +1790,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
             trigger={["click"]}
             placement="bottomLeft"
           >
-            <Button icon={<MoreOutlined />} />
+            <Button icon={<Icon name="more" />} />
           </Dropdown>
         </Flex>
         <Table<MappingTableItem>

@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Modal, Upload, Table, Button, message, Typography, Tag } from "antd";
-import { InboxOutlined } from "@ant-design/icons";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../ModalContextProvider";
 import { api } from "../../api/api";
@@ -8,6 +7,7 @@ import { ImportSystemResult, SystemImportStatus } from "../../api/apiTypes";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { validateFiles } from "./utils";
+import { Icon } from "../../IconProvider.tsx";
 
 interface Props {
   onSuccess?: () => void;
@@ -110,7 +110,7 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess }) => {
               fileList={files}
             >
               <p className="ant-upload-drag-icon">
-                <InboxOutlined />
+                <Icon name="inbox" />
               </p>
               <p className="ant-upload-text">
                 Drag a Zip file or click to choose

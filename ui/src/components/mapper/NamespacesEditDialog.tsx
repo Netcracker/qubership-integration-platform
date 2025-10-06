@@ -2,9 +2,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider";
 import { XmlNamespace } from "../../mapper/model/metadata";
 import { Button, Flex, message, Modal, Table, TableProps } from "antd";
-import { DeleteOutlined, PlusCircleOutlined } from "@ant-design/icons";
 import { InlineEdit } from "../InlineEdit";
 import { TextValueEdit } from "../table/TextValueEdit";
+import { Icon } from "../../IconProvider.tsx";
 
 export type NamespacesEditDialogProps = {
   namespaces: XmlNamespace[];
@@ -82,14 +82,14 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
           <Flex wrap="wrap" vertical={false} gap={8}>
             <Button
               size="small"
-              icon={<PlusCircleOutlined />}
+              icon={<Icon name="plusCircle" />}
               onClick={() => addRecord()}
             >
               Add rule
             </Button>
             <Button
               size="small"
-              icon={<DeleteOutlined />}
+              icon={<Icon name="delete" />}
               onClick={() => clearRecords()}
             >
               Clear rules
@@ -172,7 +172,7 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
                   return (
                     <Button
                       type="text"
-                      icon={<DeleteOutlined />}
+                      icon={<Icon name="delete" />}
                       onClick={() => deleteRecord(index)}
                     />
                   );

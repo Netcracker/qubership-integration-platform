@@ -6,8 +6,8 @@ import styles from "./Chain.module.css";
 import { createContext, useEffect, useState } from "react";
 import { Chain } from "../api/apiTypes.ts";
 import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
-import { HomeOutlined } from "@ant-design/icons";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
+import { Icon } from "../IconProvider.tsx";
 
 export type ChainContextData = {
   chain: Chain | undefined;
@@ -27,7 +27,7 @@ function buildPathItems(path: Map<string, string>): BreadcrumbProps["items"] {
   return [
     {
       href: "/chains",
-      title: <HomeOutlined />,
+      title: <Icon name="home" />,
     },
     ...items,
   ];

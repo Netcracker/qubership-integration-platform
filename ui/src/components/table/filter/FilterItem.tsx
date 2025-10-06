@@ -1,9 +1,9 @@
-import { CopyOutlined, DeleteOutlined, EllipsisOutlined } from "@ant-design/icons";
 import { Button, Col, Dropdown, Form, MenuProps, Row, Select, SelectProps } from "antd"
 import { ItemType } from "antd/es/menu/interface";
 import { FilterCondition, FilterColumn, FilterConditions, FilterValueType } from "./filter";
 import { useCallback, useEffect, useState } from "react";
 import { FilterValue } from "./value/FilterValue";
+import { Icon } from "../../../IconProvider.tsx";
 
 
 export type FilterItemState = {
@@ -58,11 +58,11 @@ export const FilterItem = (props: FilterItemProps) => {
   const actionItems: ItemType[] = [
     {
       key: 'remove',
-      label: <><DeleteOutlined /> Remove</>,
+      label: <><Icon name="delete" /> Remove</>,
     },
     {
       key: 'duplicate',
-      label: <><CopyOutlined /> Duplicate</>,
+      label: <><Icon name="copy" /> Duplicate</>,
     },
   ];
 
@@ -128,7 +128,7 @@ export const FilterItem = (props: FilterItemProps) => {
     </Col>
     <Col>
       <Dropdown menu={actionProps}>
-        <Button icon={<EllipsisOutlined />} />
+        <Button icon={<Icon name="ellipsis" />} />
       </Dropdown>
     </Col>
   </Row>

@@ -1,13 +1,6 @@
 import React, { UIEvent, useCallback, useEffect, useState } from "react";
 import { Button, Flex, FloatButton, message, Modal, Table } from "antd";
 import { useNavigate, useParams } from "react-router";
-import {
-  CloudDownloadOutlined,
-  CloudUploadOutlined,
-  DeleteOutlined,
-  MoreOutlined,
-  RedoOutlined,
-} from "@ant-design/icons";
 import { TableProps } from "antd/lib/table";
 import {
   Checkpoint,
@@ -51,6 +44,7 @@ import {
 } from "../components/table/TextColumnFilterDropdown.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { parseJson } from "../misc/json-helper.ts";
+import { Icon } from "../IconProvider.tsx";
 
 type SessionTableItem = Session & {
   children?: SessionTableItem[];
@@ -321,7 +315,7 @@ export const Sessions: React.FC = () => {
                 <Button
                   size="small"
                   type="text"
-                  icon={<RedoOutlined />}
+                  icon={<Icon name="redo" />}
                   onClick={() =>
                     void retryFromLastCheckpoint(item.chainId, item.id)
                   }
@@ -547,27 +541,27 @@ export const Sessions: React.FC = () => {
           onScroll={(event) => void onScroll(event)}
           onChange={(_, tableFilters) => setTableFilters(tableFilters)}
         />
-        <FloatButtonGroup trigger="hover" icon={<MoreOutlined />}>
+        <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
           <FloatButton
             tooltip={{ title: "Retry selected sessions", placement: "left" }}
-            icon={<RedoOutlined />}
+            icon={<Icon name="redo" />}
             onClick={() => void onRetryBtnClick()}
           />
           {chainId ? null : (
             <FloatButton
               tooltip={{ title: "Import sessions", placement: "left" }}
-              icon={<CloudUploadOutlined />}
+              icon={<Icon name="cloudUpload" />}
               onClick={onImportBtnClick}
             />
           )}
           <FloatButton
             tooltip={{ title: "Export selected sessions", placement: "left" }}
-            icon={<CloudDownloadOutlined />}
+            icon={<Icon name="cloudDownload" />}
             onClick={() => void onExportBtnClick()}
           />
           <FloatButton
             tooltip={{ title: "Delete selected sessions", placement: "left" }}
-            icon={<DeleteOutlined />}
+            icon={<Icon name="delete" />}
             onClick={onDeleteBtnClick}
           />
         </FloatButtonGroup>

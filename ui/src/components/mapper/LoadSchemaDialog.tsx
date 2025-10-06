@@ -13,7 +13,6 @@ import {
 } from "antd";
 import { useModalContext } from "../../ModalContextProvider";
 import Dragger from "antd/lib/upload/Dragger";
-import { InboxOutlined } from "@ant-design/icons";
 import { Editor } from "@monaco-editor/react";
 import {
   GraphQLOperationInfo,
@@ -38,6 +37,7 @@ import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { capitalize } from "../../misc/format-utils.ts";
 import { exportAsJsonSchema } from "../../mapper/json-schema/json-schema.ts";
 import { api } from "../../api/api.ts";
+import { Icon } from "../../IconProvider.tsx";
 
 function buildGraphQLOperations(schemaText: string, queryText: string) {
   const operations: GraphQLOperationInfo[] = [];
@@ -642,7 +642,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                     beforeUpload={() => false}
                   >
                     <p className="ant-upload-drag-icon">
-                      <InboxOutlined />
+                      <Icon name="inbox" />
                     </p>
                     <p className="ant-upload-text">
                       Click or drag file to this area to upload
