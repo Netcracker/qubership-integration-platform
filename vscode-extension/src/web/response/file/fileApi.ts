@@ -7,7 +7,11 @@ export interface FileApi {
 
     getMainChain(parameters: any): Promise<ChainSchema>;
 
-    findChainRecursively(folderUri: Uri, chainId: string): Promise<any>;
+    findFileById(id: string, extension: string): Promise<Uri>;
+
+    findFile(extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri>;
+
+    findFiles(extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri[]>;
 
     findAndBuildChainsRecursively(folderUri: Uri, chainBuilder: (chainContent: any) => Partial<Chain> | undefined, result: Partial<Chain>[]): Promise<void>;
 

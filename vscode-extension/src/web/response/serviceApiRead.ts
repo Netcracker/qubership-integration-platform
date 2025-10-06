@@ -39,6 +39,7 @@ export async function getService(serviceFileUri: Uri, serviceId: string): Promis
         modifiedWhen: service.content.modifiedWhen || 0,
         activeEnvironmentId: service.content.activeEnvironmentId || "",
         integrationSystemType: service.content.integrationSystemType || "EXTERNAL",
+        type: service.content.integrationSystemType || "EXTERNAL",
         protocol: service.content.protocol || "HTTP",
         extendedProtocol: service.content.extendedProtocol || "",
         specification: service.content.specification || "",
@@ -79,7 +80,9 @@ function parseEnvironments(environments: any[]): Environment[] {
     return result;
 }
 
-export async function getApiSpecifications(serviceFileUri: Uri, serviceId: string): Promise<SpecificationGroup[]> {
+export async function getApiSpecifications(currentFile: Uri, serviceId: string): Promise<SpecificationGroup[]> {
+    const serviceFileUri = currentFile.path.endsWith('.service.qip.yaml')? currentFile : await fileApi.findFileById(serviceId, '.service.qip.yaml');
+
     const service: any = await getMainService(serviceFileUri);
 
     if (service.id !== serviceId) {
@@ -94,8 +97,7 @@ export async function getApiSpecifications(serviceFileUri: Uri, serviceId: strin
     for (const fileName of specGroupFiles) {
         try {
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const text = await fileApi.readFileContent(fileUri);
-            const parsed = yaml.parse(text);
+            const parsed = await fileApi.parseFile(fileUri);
 
             if (parsed && parsed.content && parsed.content.parentId === serviceId) {
 
@@ -135,8 +137,7 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
     for (const fileName of specFiles) {
         try {
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const text = await fileApi.readFileContent(fileUri);
-            const parsed = yaml.parse(text);
+            const parsed = await fileApi.parseFile(fileUri);
 
             if (parsed && parsed.content && parsed.content.parentId === groupId) {
 
@@ -171,6 +172,37 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
     }
 
     return result;
+}
+
+export async function getOperations(serviceFileUri: Uri, modelId: string): Promise<SystemOperation[]> {
+    if (serviceFileUri.path.endsWith('.service.qip.yaml')) {
+        const specFiles = await fileApi.getSpecificationFiles(serviceFileUri);
+        const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
+
+        for (const fileName of specFiles) {
+            try {
+                const specFileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
+                const parsed = await fileApi.parseFile(specFileUri);
+
+                if (parsed && parsed.id === modelId) {
+                    return parseOperations(parsed.content.operations, parsed.id);
+                }
+            } catch (e) {
+                console.error(`Failed to parse specification file ${fileName}`, e);
+            }
+        }
+    } else {
+        const specFileUri = await fileApi.findFileById(modelId, '.specification.qip.yaml');
+        try {
+            const parsed = await fileApi.parseFile(specFileUri);
+
+            return parseOperations(parsed.content.operations, parsed.id);
+        } catch (e) {
+            console.error(`Failed to parse specification file ${specFileUri}`, e);
+        }
+    }
+
+    return [];
 }
 
 export async function getOperationInfo(serviceFileUri: Uri, operationId: string): Promise<OperationInfo> {
@@ -262,11 +294,21 @@ async function getChainsUsingSpecification(serviceId: string, specificationId: s
 }
 
 export async function getServices(serviceFileUri: Uri): Promise<IntegrationSystem[]> {
+    if (serviceFileUri.path.endsWith('.service.qip.yaml')) {
+        const service: any = await getMainService(serviceFileUri);
+        if (!service) {
+            return [];
+        }
 
-    const service: any = await getMainService(serviceFileUri);
-    if (!service) {
-        return [];
+        return [await getService(serviceFileUri, service.id)];
+    } else {
+        const result: IntegrationSystem[] = [];
+        const serviceFiles = await fileApi.findFiles('.service.qip.yaml');
+        for (const serviceFile of serviceFiles) {
+            const service: any = await getMainService(serviceFile);
+            result.push(await getService(serviceFile, service.id));
+        }
+
+        return result;
     }
-
-    return [await getService(serviceFileUri, service.id)];
 }

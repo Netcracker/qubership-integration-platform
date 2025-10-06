@@ -10,7 +10,13 @@ let current: FileApi = {
     getMainChain: async () => {
         throw new Error('FileApi not configured');
     },
-    findChainRecursively: async () => {
+    findFileById: async () => {
+        throw new Error('FileApi not configured');
+    },
+    findFile: async () => {
+        throw new Error('FileApi not configured');
+    },
+    findFiles: async () => {
         throw new Error('FileApi not configured');
     },
     findAndBuildChainsRecursively: async () => {
@@ -76,7 +82,9 @@ export function setFileApi(api: FileApi) {
 export const fileApi: FileApi = {
     getRootDirectory: () => current.getRootDirectory(),
     getMainChain: async (parameters: any): Promise<ChainSchema> => current.getMainChain(parameters),
-    findChainRecursively: async (folderUri: Uri, chainId: string): Promise<any> => current.findChainRecursively(folderUri, chainId),
+    findFileById: async (id: string, extension: string): Promise<Uri> => current.findFileById(id, extension),
+    findFile: async (extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri> => current.findFile(extension, filterPredicate),
+    findFiles: async (extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri[]> => current.findFiles(extension, filterPredicate),
     findAndBuildChainsRecursively:  async (folderUri: Uri, chainBuilder: (chainContent: any) => Partial<Chain> | undefined, result: Partial<Chain>[]): Promise<void> => current.findAndBuildChainsRecursively(folderUri, chainBuilder, result),
     readFile: async (parameters: any, propertyFilename: string): Promise<string> => current.readFile(parameters, propertyFilename),
     parseFile: async (fileUri: Uri): Promise<any> => current.parseFile(fileUri),
