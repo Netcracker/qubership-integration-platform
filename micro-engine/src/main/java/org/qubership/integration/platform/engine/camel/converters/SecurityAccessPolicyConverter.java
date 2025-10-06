@@ -22,16 +22,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.apache.camel.Exchange;
-import org.apache.camel.NoTypeConversionAvailableException;
-import org.apache.camel.TypeConversionException;
-import org.apache.camel.TypeConverter;
+import org.apache.camel.*;
 import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
 
 import java.util.List;
 
 @ApplicationScoped
-public class SecurityAccessPolicyConverter implements TypeConverter {
+@Converter
+public class SecurityAccessPolicyConverter {
     private static final TypeReference<List<String>> STRING_LIST_TYPE_REFERENCE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
@@ -41,53 +39,13 @@ public class SecurityAccessPolicyConverter implements TypeConverter {
         this.objectMapper = objectMapper;
     }
 
-    @Override
-    public boolean allowNull() {
-        return false;
-    }
-
-    @Override
-    public <T> T convertTo(Class<T> type, Object value) throws TypeConversionException {
+    @Converter
+    public QipSecurityAccessPolicy convert(Object value) throws TypeConversionException {
         try {
-            List<String> attributes = objectMapper.readValue(value.toString(), STRING_LIST_TYPE_REFERENCE);
-            return (T) QipSecurityAccessPolicy.fromStrings(attributes);
+            List<String> attributes = objectMapper.readValue(String.valueOf(value), STRING_LIST_TYPE_REFERENCE);
+            return QipSecurityAccessPolicy.fromStrings(attributes);
         } catch (JsonProcessingException exception) {
-            throw new TypeConversionException(value, type, exception);
-        }
-    }
-
-    @Override
-    public <T> T convertTo(Class<T> type, Exchange exchange, Object value) throws TypeConversionException {
-        return convertTo(type, value);
-    }
-
-    @Override
-    public <T> T mandatoryConvertTo(Class<T> type, Object value)
-            throws TypeConversionException, NoTypeConversionAvailableException {
-        return convertTo(type, value);
-    }
-
-    @Override
-    public <T> T mandatoryConvertTo(Class<T> type, Exchange exchange, Object value)
-            throws TypeConversionException, NoTypeConversionAvailableException {
-        return convertTo(type, value);
-    }
-
-    @Override
-    public <T> T tryConvertTo(Class<T> type, Object value) {
-        try {
-            return convertTo(type, value);
-        } catch (TypeConversionException ignored) {
-            return null;
-        }
-    }
-
-    @Override
-    public <T> T tryConvertTo(Class<T> type, Exchange exchange, Object value) {
-        try {
-            return convertTo(type, exchange, value);
-        } catch (TypeConversionException ignored) {
-            return null;
+            throw new TypeConversionException(value, QipSecurityAccessPolicy.class, exception);
         }
     }
 }

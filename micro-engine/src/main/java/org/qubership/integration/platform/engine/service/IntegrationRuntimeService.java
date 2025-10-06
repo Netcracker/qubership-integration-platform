@@ -46,8 +46,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.camel.CustomResilienceReifier;
 import org.qubership.integration.platform.engine.camel.QipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.context.propagation.constant.BusinessIds;
-import org.qubership.integration.platform.engine.camel.converters.FormDataConverter;
-import org.qubership.integration.platform.engine.camel.converters.SecurityAccessPolicyConverter;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory.FilteringEntity;
 import org.qubership.integration.platform.engine.camel.registry.FilteringRegistry;
@@ -58,7 +56,6 @@ import org.qubership.integration.platform.engine.consul.EngineStateReporter;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
-import org.qubership.integration.platform.engine.forms.FormData;
 import org.qubership.integration.platform.engine.model.RuntimeIntegrationCache;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.DeploymentOperation;
@@ -67,7 +64,6 @@ import org.qubership.integration.platform.engine.model.deployment.engine.EngineD
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.*;
-import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
@@ -118,8 +114,6 @@ public class IntegrationRuntimeService {
     private final EngineStateReporter engineStateReporter;
     private final CamelDebuggerPropertiesService propertiesService;
     private final DeploymentReadinessService deploymentReadinessService;
-    private final FormDataConverter formDataConverter;
-    private final SecurityAccessPolicyConverter securityAccessPolicyConverter;
     private final Predicate<FilteringEntity> camelMessageHistoryFilter;
     private final RuntimeIntegrationCache deploymentCache = new RuntimeIntegrationCache();
     private final ReadWriteLock processLock = new ReentrantReadWriteLock();
@@ -136,6 +130,8 @@ public class IntegrationRuntimeService {
     private boolean enableStreamCaching;
 
     private final int streamCachingBufferSize;
+
+    private final CamelContext camelContext;
 
     @Inject
     public IntegrationRuntimeService(ServerConfiguration serverConfiguration,
@@ -155,9 +151,8 @@ public class IntegrationRuntimeService {
         Predicate<FilteringEntity> camelMessageHistoryFilter,
         DeploymentReadinessService deploymentReadinessService,
         DeploymentProcessingService deploymentProcessingService,
-        FormDataConverter formDataConverter,
-        SecurityAccessPolicyConverter securityAccessPolicyConverter,
-        @ConfigProperty(name = "qip.camel.stream-caching.enabled") boolean enableStreamCaching
+        @ConfigProperty(name = "qip.camel.stream-caching.enabled") boolean enableStreamCaching,
+        CamelContext camelContext
     ) {
         this.serverConfiguration = serverConfiguration;
         this.quartzSchedulerService = quartzSchedulerService;
@@ -176,9 +171,8 @@ public class IntegrationRuntimeService {
         this.camelMessageHistoryFilter = camelMessageHistoryFilter;
         this.deploymentReadinessService = deploymentReadinessService;
         this.deploymentProcessingService = deploymentProcessingService;
-        this.formDataConverter = formDataConverter;
-        this.securityAccessPolicyConverter = securityAccessPolicyConverter;
         this.enableStreamCaching = enableStreamCaching;
+        this.camelContext = camelContext;
     }
 
     @ConsumeEvent(CREATE_SESSION_EVENT)
@@ -556,14 +550,8 @@ public class IntegrationRuntimeService {
         );
         DefaultCamelContext context = new DefaultCamelContext(registry);
 
-        context.getTypeConverterRegistry().addTypeConverter(
-            FormData.class,
-            String.class,
-            formDataConverter);
-        context.getTypeConverterRegistry().addTypeConverter(
-            QipSecurityAccessPolicy.class,
-            String.class,
-            securityAccessPolicyConverter);
+        context.setTypeConverterRegistry(camelContext.getTypeConverterRegistry());
+
         context.getGlobalOptions().put(JacksonConstants.ENABLE_TYPE_CONVERTER, "true");
         context.getGlobalOptions().put(JacksonConstants.TYPE_CONVERTER_TO_POJO, "true");
         context.getInflightRepository().setInflightBrowseEnabled(true);
