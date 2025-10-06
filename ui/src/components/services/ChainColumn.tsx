@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Dropdown, Button, Menu } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import { isVsCode, VSCodeExtensionApi } from '../../api/rest/vscodeExtensionApi';
+import { api } from '../../api/api';
 import { Icon } from "../../IconProvider.tsx";
 
 interface Chain {
@@ -21,8 +23,14 @@ export const ChainColumn: React.FC<ChainColumnProps> = ({ chains }) => {
   }
 
   const handleMenuClick = (chainId: string) => {
-    void navigate(`/chains/${chainId}/graph`);
-    setOpen(false);
+    if (isVsCode) {
+      if (api instanceof VSCodeExtensionApi) {
+        void api.openChainInNewTab(chainId);
+      }
+    } else {
+      void navigate(`/chains/${chainId}/graph`);
+      setOpen(false);
+    }
   };
 
   const menu = (
