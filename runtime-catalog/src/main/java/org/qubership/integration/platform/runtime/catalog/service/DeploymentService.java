@@ -479,9 +479,11 @@ public class DeploymentService {
 
     @DeploymentModification
     public void deleteAllByChainId(String chainId) throws DeploymentProcessingException {
-        List<Deployment> deployments = findAllByChainId(chainId);
-        transactionHandler.runInNewTransaction(() -> deploymentRepository.deleteAllByChainId(chainId));
-        deployments.forEach(deployment -> logDeploymentAction(deployment, deployment.getId(), deployment.getChain().getName(), LogOperation.DELETE));
+        transactionHandler.runInNewTransaction(() -> {
+            List<Deployment> deployments = findAllByChainId(chainId);
+            deploymentRepository.deleteAllByChainId(chainId);
+            deployments.forEach(deployment -> logDeploymentAction(deployment, deployment.getId(), deployment.getChain().getName(), LogOperation.DELETE));
+        });
      }
 
     @DeploymentModification
