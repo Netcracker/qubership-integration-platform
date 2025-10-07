@@ -197,6 +197,13 @@ public class SecuredVariableService extends SecretService {
                 throw new SecuredVariablesNotFoundException(SECRET_NOT_FOUND_ERROR_MESSAGE_FORMAT.formatted(secretName));
             }
 
+            variablesNames = variablesNames.stream()
+                    .filter(variableName -> secret.getVariables().containsKey(variableName))
+                    .collect(Collectors.toSet());
+            if (variablesNames.isEmpty()) {
+                return;
+            }
+
             updateVariablesCache(secretName, operator.removeSecretData(secretName, variablesNames));
         } finally {
             lock.unlock();
@@ -224,6 +231,13 @@ public class SecuredVariableService extends SecretService {
                             secretName,
                             new SecuredVariablesNotFoundException(SECRET_NOT_FOUND_ERROR_MESSAGE_FORMAT.formatted(secretName))
                     );
+                    continue;
+                }
+
+                variablesToRemove = variablesToRemove.stream()
+                        .filter(variableName -> secret.getVariables().containsKey(variableName))
+                        .collect(Collectors.toSet());
+                if (variablesToRemove.isEmpty()) {
                     continue;
                 }
 
