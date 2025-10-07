@@ -47,7 +47,7 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>org.qubership</groupId>
+                <groupId>org.qubership.integration.platform</groupId>
                 <artifactId>qip-catalog-library</artifactId>
                 <version>${catalog-library.revision}</version>
             </dependency>
