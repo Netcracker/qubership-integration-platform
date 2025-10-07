@@ -120,44 +120,6 @@ services:
             opensearch:
                 condition: service_healthy
 
-    qip-variables-management:
-        image: ghcr.io/netcracker/qubership-integration-variables-management:latest
-        container_name: qip-variables-management
-        read_only: true
-        ports:
-        - "8094:8080"
-        - "5009:5005"
-        env_file: "qip-dev.env"
-        environment:
-          - KUBERNETES_LOCALDEV=true
-        command: [
-            "/opt/java/openjdk/bin/java",
-            "-Xmx256m",
-            "-XX:MetaspaceSize=192m",
-            "-XX:MaxMetaspaceSize=192m",
-            "-XX:MaxDirectMemorySize=64m",
-            "-XX:+ExitOnOutOfMemoryError",
-            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
-            "-Djava.security.egd=file:/dev/./urandom",
-            "-Dfile.encoding=UTF-8",
-            "-Dspring.profiles.active=development",
-            "-jar",
-            "/app/qip-variables-management.jar"
-        ]
-        healthcheck:
-            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
-            interval: 10s
-            timeout: 15s
-            retries: 15
-            start_period: 30s
-        networks:
-            default:
-                aliases:
-                - variables-management
-        depends_on:
-            postgres:
-                condition: service_healthy
-
     ui-proxy:
       image: nginx:latest
       container_name: ui-proxy
@@ -169,8 +131,6 @@ services:
         qip-runtime-catalog:
           condition: service_started
         qip-sessions-management:
-          condition: service_started
-        qip-variables-management:
           condition: service_started
         qip-engine:
           condition: service_started

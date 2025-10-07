@@ -85,4 +85,5 @@ spec:
           name: qip-runtime-catalog
           ports:
             - containerPort: 8080
+            - containerPort: 5005
       restartPolicy: Always
