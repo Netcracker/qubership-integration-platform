@@ -30,9 +30,7 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.ins
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.exportimport.instructions.GeneralInstructionsMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.DeleteInstructionsRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.ImportInstructionRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.ImportInstructionsSearchRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ImportInstructionRequestMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.springframework.beans.factory.annotation.Autowired;

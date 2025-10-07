@@ -14,28 +14,16 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.consul;
+package org.qubership.integration.platform.runtime.catalog.rest.v2.dto;
 
-
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@SuperBuilder
-public class KeyResponse extends KVResponse {
-    @JsonProperty("LockIndex")
-    private long lockIndex;
+public class VariableUpdateRequest {
 
-    @JsonProperty("Flags")
-    private long flags;
-
-    @JsonProperty("CreateIndex")
-    private long createIndex;
-
-    @JsonProperty("ModifyIndex")
-    private long modifyIndex;
+    private String secretName;
+    private String variableName;
+    private String variableValue;
 }

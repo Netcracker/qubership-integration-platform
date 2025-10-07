@@ -49,7 +49,8 @@ public enum EntityType {
     DETAILED_DESIGN_TEMPLATE,
     IMPORT_INSTRUCTION,
     IMPORT_INSTRUCTIONS,
-    EXCHANGE;
+    EXCHANGE,
+    SECRET;
 
     public static EntityType getSystemType(IntegrationSystem system) {
         return switch (system.getIntegrationSystemType()) {

@@ -14,28 +14,15 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.consul;
+package org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes;
 
+public class KubeApiNotFoundException extends KubeApiException {
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
+    public KubeApiNotFoundException(String errorMessage) {
+        super(errorMessage);
+    }
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@SuperBuilder
-public class KeyResponse extends KVResponse {
-    @JsonProperty("LockIndex")
-    private long lockIndex;
-
-    @JsonProperty("Flags")
-    private long flags;
-
-    @JsonProperty("CreateIndex")
-    private long createIndex;
-
-    @JsonProperty("ModifyIndex")
-    private long modifyIndex;
+    public KubeApiNotFoundException(String errorMessage, Exception originalException) {
+        super(errorMessage, originalException);
+    }
 }

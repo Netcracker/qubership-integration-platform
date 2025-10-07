@@ -14,28 +14,11 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.consul;
+package org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes;
 
+public class SecretAlreadyExists extends KubeApiException {
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
-
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@SuperBuilder
-public class KeyResponse extends KVResponse {
-    @JsonProperty("LockIndex")
-    private long lockIndex;
-
-    @JsonProperty("Flags")
-    private long flags;
-
-    @JsonProperty("CreateIndex")
-    private long createIndex;
-
-    @JsonProperty("ModifyIndex")
-    private long modifyIndex;
+    public SecretAlreadyExists(String message) {
+        super(message);
+    }
 }

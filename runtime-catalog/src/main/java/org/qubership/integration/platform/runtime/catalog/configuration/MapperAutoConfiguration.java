@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,12 +27,15 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter;
 import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.kubernetes.client.openapi.models.V1Secret;
 import io.swagger.v3.core.util.Json;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.codeview.deserializer.CodeviewChainElementDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.codeview.serializer.CodeviewChainElementSerializer;
+import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.KubeSecretSerializer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -124,6 +128,47 @@ public class MapperAutoConfiguration {
         serializeModule.addSerializer(ChainElement.class, new CodeviewChainElementSerializer());
         serializeModule.addDeserializer(ChainElement.class, new CodeviewChainElementDeserializer(objectMapper));
         yamlMapper.registerModule(serializeModule);
+
+        return yamlMapper;
+    }
+
+    @Bean("objectMapperWithSorting")
+    public ObjectMapper objectMapperWithSorting() {
+        ObjectMapper objectMapper = qipPrimaryObjectMapper();
+        objectMapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+
+        return objectMapper;
+    }
+
+    @Bean("variablesYamlMapper")
+    public YAMLMapper variablesYamlMapper(KubeSecretSerializer kubeSecretSerializer) {
+        YAMLMapper yamlMapper = new YAMLMapper();
+        SimpleModule serializeModule = new SimpleModule();
+        serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
+
+        yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        yamlMapper.registerModule(serializeModule);
+        yamlMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
+        yamlMapper.enable(YAMLGenerator.Feature.MINIMIZE_QUOTES);
+        yamlMapper.enable(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES);
+
+        return yamlMapper;
+    }
+
+    @Bean("variablesYamlImportExportMapper")
+    public YAMLMapper variablesYamlImportExportMapper() {
+        final String[] excludedFields = {"createdWhen", "modifiedWhen", "createdBy", "modifiedBy"};
+
+        YAMLMapper yamlMapper = new YAMLMapper();
+        SimpleModule serializeModule = new SimpleModule();
+
+        yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        yamlMapper.registerModule(serializeModule);
+        SimpleFilterProvider simpleFilterProvider = new SimpleFilterProvider().setFailOnUnknownId(false);
+        simpleFilterProvider.addFilter("commonVariableFilter",
+                SimpleBeanPropertyFilter.serializeAllExcept(excludedFields));
+        yamlMapper.setFilterProvider(simpleFilterProvider);
+        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
         return yamlMapper;
     }

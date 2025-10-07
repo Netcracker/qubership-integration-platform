@@ -14,28 +14,15 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.consul;
+package org.qubership.integration.platform.runtime.catalog.exception.exceptions;
 
+public class SecuredVariablesNotFoundException extends CatalogRuntimeException {
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
+    public SecuredVariablesNotFoundException(String message) {
+        super(message);
+    }
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@SuperBuilder
-public class KeyResponse extends KVResponse {
-    @JsonProperty("LockIndex")
-    private long lockIndex;
-
-    @JsonProperty("Flags")
-    private long flags;
-
-    @JsonProperty("CreateIndex")
-    private long createIndex;
-
-    @JsonProperty("ModifyIndex")
-    private long modifyIndex;
+    public SecuredVariablesNotFoundException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

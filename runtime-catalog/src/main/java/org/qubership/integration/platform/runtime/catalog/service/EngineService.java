@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeApiException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.model.MultiConsumer;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.EventActionType;

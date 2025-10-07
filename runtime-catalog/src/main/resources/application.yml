@@ -95,6 +95,8 @@ consul:
     deployments-update: /deployments-update
     engines-state: /engines-state
     libraries-update: /libraries-update
+    common-variables-v1: /common-variables
+    common-variables-v2: /variables/common
 
 management:
   endpoints:
@@ -133,6 +135,9 @@ kubernetes:
   service-account:
     token: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
     cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
+  variables-secret:
+    name: ${app.prefix}-secured-variables-v2
+    label: ${app.prefix}-variable-type
 
 qip:
   actions-log:

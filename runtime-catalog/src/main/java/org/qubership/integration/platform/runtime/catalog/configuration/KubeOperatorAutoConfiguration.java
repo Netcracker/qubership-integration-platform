@@ -20,11 +20,16 @@ import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.util.ClientBuilder;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.TokenFileAuthentication;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.DefaultKubeSecretOperator;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.KubeSecretOperator;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.LocalDevKubeSecretOperator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
@@ -37,6 +42,7 @@ import java.util.Optional;
 @AutoConfiguration
 public class KubeOperatorAutoConfiguration {
     private final String uri;
+    @Getter
     private final String namespace;
     private final String token;
     private final String cert;
@@ -101,4 +107,61 @@ public class KubeOperatorAutoConfiguration {
             return new KubeOperator();
         }
     }
+
+    /**
+     * Inside cluster ApiClient configuration
+     * Uses the service account created during deployment for the microservice
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "false", matchIfMissing = true)
+    public KubeSecretOperator kubeSecretOperator() {
+        try {
+            log.info("Creating KubernetesSecretOperator bean in PROD mode");
+
+            ApiClient client = new ClientBuilder()
+                    .setVerifyingSsl(false)
+                    .setBasePath(uri)
+                    .setCertificateAuthority(Files.readAllBytes(Paths.get(cert)))
+                    .setAuthentication(new TokenFileAuthentication(token))
+                    .build();
+
+            return new DefaultKubeSecretOperator(client, namespace);
+        } catch (Exception e) {
+            log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
+            return new DefaultKubeSecretOperator();
+        }
+    }
+
+    /**
+     * Outside cluster ApiClient configuration
+     * Uses the cluster account token
+     */
+    @Bean
+    @ConditionalOnExpression("${kubernetes.devmode:false} and !${kubernetes.localdev:false}")
+    public KubeSecretOperator kubeSecretOperatorDev() {
+        try {
+            log.info("Creating KubernetesSecretOperator bean in DEV mode");
+
+            ApiClient client = new ClientBuilder()
+                    .setVerifyingSsl(false)
+                    .setBasePath(uri)
+                    .setAuthentication(new AccessTokenAuthentication(token))
+                    .build();
+
+            return new DefaultKubeSecretOperator(client, namespace);
+        } catch (Exception e) {
+            log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
+            return new DefaultKubeSecretOperator();
+        }
+    }
+
+
+    @Bean
+    @ConditionalOnExpression("${kubernetes.devmode:false} and ${kubernetes.localdev:false}")
+    @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "true")
+    public KubeSecretOperator kubeOperatorLocalDev() {
+        log.info("Creating KubernetesSecretOperator for local development mode");
+        return new LocalDevKubeSecretOperator();
+    }
+
 }

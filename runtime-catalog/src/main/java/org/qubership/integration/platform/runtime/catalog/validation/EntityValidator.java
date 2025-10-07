@@ -16,16 +16,19 @@
 
 package org.qubership.integration.platform.runtime.catalog.validation;
 
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
-import jakarta.validation.Validator;
+import jakarta.validation.*;
+import org.qubership.integration.platform.runtime.catalog.validation.constraint.NotStartOrEndWithSpace;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 @Component
 public class EntityValidator {
+    public static final String ENTITY_NAME_REGEXP = "^[-._a-zA-Z0-9]+$";
+    public static final Predicate<String> VARIABLE_NAME_PATTERN_PREDICATE = Pattern.compile(ENTITY_NAME_REGEXP).asMatchPredicate();
 
     private final Validator validator;
 
@@ -40,4 +43,24 @@ public class EntityValidator {
             throw new ConstraintViolationException(constraintViolations);
         }
     }
+
+    public static class NotStartOrEndWithSpaceValidator implements ConstraintValidator<NotStartOrEndWithSpace, String> {
+
+        private boolean optional;
+
+        @Override
+        public void initialize(NotStartOrEndWithSpace constraintAnnotation) {
+            this.optional = constraintAnnotation.optional();
+        }
+
+        @Override
+        public boolean isValid(String value, ConstraintValidatorContext context) {
+            if (value == null || value.isEmpty()) {
+                return optional;
+            }
+
+            return value.length() == value.trim().length();
+        }
+    }
+
 }

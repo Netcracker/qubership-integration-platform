@@ -14,28 +14,26 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.consul;
+package org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes;
 
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.CatalogRuntimeException;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
+public class KubeApiException extends CatalogRuntimeException {
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@SuperBuilder
-public class KeyResponse extends KVResponse {
-    @JsonProperty("LockIndex")
-    private long lockIndex;
+    public KubeApiException() {
+        super();
+    }
 
-    @JsonProperty("Flags")
-    private long flags;
+    public KubeApiException(String message) {
+        super(message);
+    }
 
-    @JsonProperty("CreateIndex")
-    private long createIndex;
+    public KubeApiException(String message, Exception originalException) {
+        super(message, originalException);
+    }
 
-    @JsonProperty("ModifyIndex")
-    private long modifyIndex;
+    public KubeApiException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
 }

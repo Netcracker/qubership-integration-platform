@@ -23,10 +23,13 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsExternalException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsInternalException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsValidationException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.*;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.variables.CommonVariablesImportInstructionsConfig;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.variables.PerformInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.exportimport.instructions.CommonVariablesInstructionsMapper;
@@ -84,6 +87,7 @@ public class ImportInstructionsService {
     private final EntityValidator entityValidator;
     private final ActionsLogService actionsLogService;
     private final ImportInstructionFilterSpecificationBuilder importInstructionFilterSpecificationBuilder;
+    private final ConsulService consulService;
 
     @Autowired
     public ImportInstructionsService(
@@ -100,7 +104,8 @@ public class ImportInstructionsService {
             CommonVariablesInstructionsMapper commonVariablesInstructionsMapper,
             EntityValidator entityValidator,
             ActionsLogService actionsLogService,
-            ImportInstructionFilterSpecificationBuilder importInstructionFilterSpecificationBuilder
+            ImportInstructionFilterSpecificationBuilder importInstructionFilterSpecificationBuilder,
+            ConsulService consulService
     ) {
         this.instructionsFileName = instructionsFileName + ".yaml";
         this.yamlMapper = new YAMLMapper().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
@@ -117,6 +122,7 @@ public class ImportInstructionsService {
         this.entityValidator = entityValidator;
         this.actionsLogService = actionsLogService;
         this.importInstructionFilterSpecificationBuilder = importInstructionFilterSpecificationBuilder;
+        this.consulService = consulService;
     }
 
     public List<ImportInstruction> getAllImportInstructions() {
@@ -366,6 +372,27 @@ public class ImportInstructionsService {
             }
         }
         return new IgnoreResult(serviceIdsToImport, importInstructionResults);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public PerformInstructionsResult performVariableIgnoreInstructions(Set<String> variablesToImport) {
+        ImportInstructionsConfig instructionsConfig = commonVariablesInstructionsMapper.asConfig(importInstructionsRepository.findAll());
+
+        List<ImportInstructionResult> instructionsExecutionResults = new ArrayList<>();
+        Set<String> ignoreSet = instructionsConfig.getIgnore().stream()
+                .filter(ignoreInstruction -> {
+                    if (variablesToImport.contains(ignoreInstruction)) {
+                        instructionsExecutionResults.add(ImportInstructionResult.builder()
+                                .id(ignoreInstruction)
+                                .entityType(ImportEntityType.COMMON_VARIABLE)
+                                .status(ImportInstructionStatus.IGNORED)
+                                .build());
+                        return true;
+                    }
+                    return false;
+                })
+                .collect(Collectors.toSet());
+        return new PerformInstructionsResult(ignoreSet, instructionsExecutionResults);
     }
 
     public List<ImportInstruction> searchImportInstructions(String searchCondition) {
@@ -630,8 +657,67 @@ public class ImportInstructionsService {
         return results;
     }
 
+    private List<ImportInstructionResult> performVariableDeleteInstructions(
+            CommonVariablesImportInstructionsConfig instructionsConfig
+    ) {
+        if (
+                Optional.ofNullable(instructionsConfig.getCommonVariables())
+                        .map(ImportInstructionsConfig::getDelete)
+                        .filter(deleteInstructions -> !deleteInstructions.isEmpty())
+                        .isEmpty()
+        ) {
+            return Collections.emptyList();
+        }
+
+        Map<String, String> existingVariables = consulService.getAllCommonVariables();
+        Set<String> deleteIds = instructionsConfig.getCommonVariables().getDelete();
+        List<String> filteredDeleteIds = deleteIds.stream()
+                .filter(existingVariables::containsKey)
+                .collect(Collectors.toList());
+        ImportInstructionStatus executionStatus;
+        String errorMessage = null;
+        try {
+            consulService.deleteCommonVariables(filteredDeleteIds);
+
+            logCommonVariablesDeleteActions(filteredDeleteIds);
+
+            executionStatus = ImportInstructionStatus.DELETED;
+        } catch (Exception e) {
+            executionStatus = ImportInstructionStatus.ERROR_ON_DELETE;
+            errorMessage = e.getMessage();
+        }
+
+        List<ImportInstructionResult> results = new ArrayList<>();
+        for (String deleteId : deleteIds) {
+            ImportInstructionStatus executionStatusForVariable = filteredDeleteIds.contains(deleteId)
+                    ? executionStatus
+                    : ImportInstructionStatus.NO_ACTION;
+            if (executionStatusForVariable == ImportInstructionStatus.DELETED) {
+                log.info("Variable {} deleted as a part of import exclusion list", deleteId);
+            }
+            results.add(ImportInstructionResult.builder()
+                    .id(deleteId)
+                    .entityType(ImportEntityType.COMMON_VARIABLE)
+                    .status(executionStatusForVariable)
+                    .errorMessage(errorMessage)
+                    .build());
+        }
+
+        return results;
+    }
+
     private void logSingleInstructionAction(String entityName, ImportEntityType importEntityType, LogOperation logOperation) {
         logAction(entityName, importEntityType, EntityType.IMPORT_INSTRUCTION, logOperation);
+    }
+
+    private void logCommonVariablesDeleteActions(Collection<String> variableNames) {
+        variableNames.forEach(variableName -> actionsLogService.logAction(
+                ActionLog.builder()
+                        .entityName(variableName)
+                        .entityType(EntityType.COMMON_VARIABLE)
+                        .operation(LogOperation.DELETE)
+                        .build()
+        ));
     }
 
     private void logAction(

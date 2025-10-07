@@ -14,28 +14,30 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.consul;
+package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable;
 
-
-import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
-import lombok.experimental.SuperBuilder;
 
 @Getter
 @Setter
-@NoArgsConstructor
+@Builder
 @AllArgsConstructor
-@SuperBuilder
-public class KeyResponse extends KVResponse {
-    @JsonProperty("LockIndex")
-    private long lockIndex;
+@NoArgsConstructor
+@Schema(description = "Response object for result of variables import")
+public class ImportVariableDTO {
+    @Schema(description = "Variable name")
+    private String name;
+    @Schema(description = "Variable value")
+    private String value;
 
-    @JsonProperty("Flags")
-    private long flags;
+    private ImportVariableStatus status;
 
-    @JsonProperty("CreateIndex")
-    private long createIndex;
+    @Schema(description = "Error message")
+    private String error;
 
-    @JsonProperty("ModifyIndex")
-    private long modifyIndex;
+    public ImportVariableDTO(String name, String value) {
+        this.name = name;
+        this.value = value;
+    }
 }

@@ -14,20 +14,25 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.exception.exceptions;
+package org.qubership.integration.platform.runtime.catalog.rest.v2.dto;
 
-public class KubeApiException extends CatalogRuntimeException {
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-    public KubeApiException(String message) {
-        super(message);
-    }
+import java.util.Set;
 
-    public KubeApiException(String message, Exception originalException) {
-        super(message, originalException);
-    }
+@Getter
+@Setter
+@NoArgsConstructor
+@Schema(description = "Data containing in a secret")
+public class SecretResponse {
 
-    public KubeApiException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
+    @Schema(description = "Secret name")
+    private String secretName;
+    @Schema(description = "Set of secured variables names")
+    private Set<String> variablesNames;
+    @Schema(description = "Whether this secret is used as a default one")
+    private boolean defaultSecret;
 }

@@ -14,18 +14,21 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.kubernetes;
+package org.qubership.integration.platform.runtime.catalog.model;
 
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.CatalogRuntimeException;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
-public class KubeApiException extends CatalogRuntimeException {
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
-    public KubeApiException(String message) {
-        super(message);
-    }
+@Getter
+@Builder
+@Jacksonized
+public class SecretEntity {
 
-    public KubeApiException(String message, Exception exception) {
-        super(message, exception);
-    }
-
+    private String secretName;
+    @Builder.Default
+    private ConcurrentMap<String, String> variables = new ConcurrentHashMap<>();
 }

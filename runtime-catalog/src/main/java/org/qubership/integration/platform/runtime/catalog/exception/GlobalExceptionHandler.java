@@ -38,7 +38,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.d
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ddsgenerator.TemplateDataBuilderException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ddsgenerator.TemplateDataEscapingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ddsgenerator.TemplateProcessingException;
-import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeApiException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.DiagnosticValidationUnexpectedException;
 import org.qubership.integration.platform.runtime.catalog.service.diagnostic.validations.ValidationAlreadyInProgressUnexpectedException;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 
 @ControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+    private static final String NO_STACKTRACE_AVAILABLE_MESSAGE = "No Stacktrace Available, check the logs for more details";
 
     @ExceptionHandler
     public ResponseEntity<ExceptionDTO> handleGeneralException(Exception exception) {
@@ -258,6 +259,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         return handleGeneralException(exception);
     }
+
+    @ExceptionHandler(EmptyVariableFieldException.class)
+    public ResponseEntity<ExceptionDTO> handleEmptyVariableFieldException(EmptyVariableFieldException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getExceptionDTO(exception));
+    }
+
+    @ExceptionHandler(MalformedVariableNameException.class)
+    public ResponseEntity<ExceptionDTO> handleMalformedVariableNameException(MalformedVariableNameException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getExceptionDTO(exception));
+    }
+
+    @ExceptionHandler(SecuredVariablesException.class)
+    public ResponseEntity<ExceptionDTO> handleSecuredVariablesException(SecuredVariablesException exception) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(getExceptionDTO(exception));
+    }
+
+    @ExceptionHandler(SecuredVariablesNotFoundException.class)
+    public ResponseEntity<ExceptionDTO> handleSecuredVariablesNotFoundException(SecuredVariablesNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(getExceptionDTO(exception));
+    }
+
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(

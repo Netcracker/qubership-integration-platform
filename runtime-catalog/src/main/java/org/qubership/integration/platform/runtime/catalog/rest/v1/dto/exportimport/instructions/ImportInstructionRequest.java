@@ -42,7 +42,7 @@ public class ImportInstructionRequest {
 
     @Schema(description = "The type of entity to which instruction will apply", allowableValues = { "CHAIN", "SERVICE" })
     @NotNull(message = "must not be null")
-    @Pattern(regexp = "CHAIN|SERVICE", message = "must be CHAIN or SERVICE")
+    @Pattern(regexp = "CHAIN|SERVICE|COMMON_VARIABLE|SECRET", message = "must be CHAIN, SERVICE, COMMON_VARIABLE or SECRET")
     private String entityType;
 
     @Schema(description = "Import instruction action", allowableValues = { "IGNORE", "OVERRIDE" })

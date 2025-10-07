@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,10 +31,13 @@ import java.util.Set;
 @Setter
 @SuperBuilder
 @NoArgsConstructor
+@Schema(description = "Entity import instruction config response object")
 public class ImportInstructionsConfig {
 
+    @Schema(description = "List of delete instruction ids")
     @Builder.Default
     private Set<@NotStartOrEndWithSpace(message = "must not be empty and must not start or end with a space") String> delete = new HashSet<>();
+    @Schema(description = "List of ignore instruction ids")
     @Builder.Default
     private Set<@NotStartOrEndWithSpace(message = "must not be empty and must not start or end with a space") String> ignore = new HashSet<>();
 }

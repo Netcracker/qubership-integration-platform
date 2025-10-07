@@ -14,28 +14,18 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.consul;
+package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
-
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@SuperBuilder
-public class KeyResponse extends KVResponse {
-    @JsonProperty("LockIndex")
-    private long lockIndex;
-
-    @JsonProperty("Flags")
-    private long flags;
-
-    @JsonProperty("CreateIndex")
-    private long createIndex;
-
-    @JsonProperty("ModifyIndex")
-    private long modifyIndex;
+@Schema(description = "Status of variable import", type = "string", allowableValues = {
+        "CREATED",
+        "UPDATED",
+        "ERROR",
+})
+public enum ImportVariableStatus {
+    CREATED,
+    UPDATED,
+    ERROR,
+    IGNORED
 }

@@ -26,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 import org.qubership.integration.platform.runtime.catalog.consul.exception.KVNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.consul.exception.RuntimePropertiesException;
 import org.qubership.integration.platform.runtime.catalog.model.compiledlibrary.CompiledLibraryUpdate;
+import org.qubership.integration.platform.runtime.catalog.model.consul.KVResponse;
 import org.qubership.integration.platform.runtime.catalog.model.consul.KeyResponse;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.properties.DeploymentRuntimeProperties;
@@ -35,6 +36,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -67,6 +69,17 @@ public class ConsulService {
 
     @Value("${consul.keys.chains}")
     private String keyChains;
+
+    /**
+     * Use keyCommonVariablesV2
+     */
+    @Deprecated(since = "24.1")
+    @Value("${consul.keys.common-variables-v1}")
+    public String keyCommonVariables;
+
+    // No multitenancy
+    @Value("${consul.keys.common-variables-v2}")
+    private String keyCommonVariablesV2;
 
     private long chainsRuntimePropertiesPreviousIndex = 0;
     private long chainsRuntimePropertiesLastIndex = 0;
@@ -216,6 +229,73 @@ public class ConsulService {
         chainsRuntimePropertiesLastIndex = chainsRuntimePropertiesPreviousIndex;
     }
 
+    public @javax.annotation.Nullable Pair<String, String> getCommonVariable(String key) {
+        try {
+            List<KeyResponse> response = client.getKV(buildCommonVariableKey(key), false);
+            return response.isEmpty() ? null : parseCommonVariable(response.get(0));
+        } catch (KVNotFoundException kvnfe) {
+            return null;
+        }
+    }
+
+    /**
+     * No error handling in case of empty KV
+     */
+    public Map<String, String> getCommonVariables(List<String> variablesNames) {
+        List<KVResponse> response = client.getKVsInTransaction(variablesNames.stream()
+                .map(this::buildCommonVariableKeyForTxn)
+                .toList());
+        return response.stream().map(this::parseCommonVariable)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(Pair::getKey, nullValueRemapping()));
+    }
+
+    /**
+     * Use {@link ConsulService#getAllCommonVariables()}
+     */
+    @Deprecated(since = "24.1")
+    public Map<String, String> getTenantCommonVariablesLegacy(String tenantId) {
+        return getStringStringMapLegacy(keyCommonVariables + "/" + tenantId);
+    }
+
+    public Map<String, String> getAllCommonVariables() {
+        return getStringStringMap(keyCommonVariablesV2);
+    }
+
+    public boolean commonVariablesKvExists() {
+        try {
+            client.getKV(keyPrefix + keyEngineConfigRoot + keyCommonVariablesV2, true);
+            return true;
+        } catch (KVNotFoundException kvnfe) {
+            return false;
+        }
+    }
+
+    public void deleteLegacyVariablesKV() {
+        client.deleteKV(keyPrefix + keyEngineConfigRoot + keyCommonVariables, true);
+    }
+
+    public void deleteCommonVariable(String key) {
+        client.deleteKV(buildCommonVariableKey(key), false);
+    }
+
+    public void deleteCommonVariables(List<String> variablesNames) {
+        client.deleteKVsInTransaction(variablesNames.stream()
+                .map(this::buildCommonVariableKeyForTxn)
+                .toList());
+    }
+
+    public void updateCommonVariable(String key, String value) {
+        client.createOrUpdateKV(buildCommonVariableKey(key), value);
+    }
+
+    public void updateCommonVariables(Map<String, String> variables) {
+        client.createOrUpdateKVsInTransaction(variables.entrySet().stream()
+                .collect(Collectors.toMap(
+                        entry -> buildCommonVariableKeyForTxn(entry.getKey()),
+                        Map.Entry::getValue)));
+    }
+
     private static boolean filterL1NonEmptyPaths(String pathPrefix, String path) {
         String[] split = path.substring(pathPrefix.length()).split("/");
         return split.length == 1 && StringUtils.isNotEmpty(split[0]);
@@ -298,4 +378,61 @@ public class ConsulService {
         }
         return startIndex;
     }
+
+    @NotNull
+    private static Function<Pair<String, String>, String> nullValueRemapping() {
+        return pair -> pair.getValue() == null ? "" : pair.getValue();
+    }
+
+    @NotNull
+    private String buildCommonVariableKey(String key) {
+        return keyPrefix + keyEngineConfigRoot + keyCommonVariablesV2 + "/" + key;
+    }
+
+    @NotNull
+    private String buildCommonVariableKeyForTxn(String key) {
+        return buildCommonVariableKey(key).replaceFirst("^/", "");
+    }
+
+    /**
+     * Get last path word as a key and decode value
+     *
+     * @return key and value
+     */
+    private Pair<String, String> parseCommonVariable(KVResponse k) {
+        String[] split = k.getKey().split("/");
+        return split.length > 0 ? Pair.of(split[split.length - 1], k.getDecodedValue()) : null;
+    }
+
+    /**
+     * Use {@link ConsulService#getStringStringMap(String key)}
+     */
+    @Deprecated(since = "24.1")
+    @NotNull
+    private Map<String, String> getStringStringMapLegacy(String key) {
+        return getStringStringMap(key, this::parseCommonVariable);
+    }
+
+    @NotNull
+    private Map<String, String> getStringStringMap(String key) {
+        return getStringStringMap(key, this::parseCommonVariable);
+    }
+
+    @NotNull
+    private Map<String, String> getStringStringMap(String key, Function<KeyResponse, Pair<String, String>> responseParser) {
+        try {
+            final String keyPrefix = this.keyPrefix + keyEngineConfigRoot + key;
+            List<KeyResponse> responses =
+                    client.getKV(keyPrefix, true);
+
+            return responses.stream()
+                    .filter(keyResponse -> filterL1NonEmptyPaths(keyPrefix, keyResponse.getKey()))
+                    .map(responseParser)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toMap(Pair::getKey, nullValueRemapping()));
+        } catch (KVNotFoundException kvnfe) {
+            return Collections.emptyMap();
+        }
+    }
+
 }
