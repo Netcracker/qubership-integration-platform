@@ -7,7 +7,7 @@ export interface FileApi {
 
     getMainChain(parameters: any): Promise<ChainSchema>;
 
-    findFileById(id: string, extension: string): Promise<Uri>;
+    findFileById(id: string, extension?: string): Promise<Uri>;
 
     findFile(extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri>;
 

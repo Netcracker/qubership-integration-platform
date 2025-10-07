@@ -82,7 +82,7 @@ export function setFileApi(api: FileApi) {
 export const fileApi: FileApi = {
     getRootDirectory: () => current.getRootDirectory(),
     getMainChain: async (parameters: any): Promise<ChainSchema> => current.getMainChain(parameters),
-    findFileById: async (id: string, extension: string): Promise<Uri> => current.findFileById(id, extension),
+    findFileById: async (id: string, extension?: string): Promise<Uri> => current.findFileById(id, extension),
     findFile: async (extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri> => current.findFile(extension, filterPredicate),
     findFiles: async (extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri[]> => current.findFiles(extension, filterPredicate),
     findAndBuildChainsRecursively:  async (folderUri: Uri, chainBuilder: (chainContent: any) => Partial<Chain> | undefined, result: Partial<Chain>[]): Promise<void> => current.findAndBuildChainsRecursively(folderUri, chainBuilder, result),

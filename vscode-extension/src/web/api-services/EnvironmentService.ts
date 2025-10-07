@@ -2,6 +2,7 @@ import { ExtensionContext, Uri } from "vscode";
 import { Environment, IntegrationSystem } from "./servicesTypes";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
+import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { SystemService } from "./SystemService";
 import { LabelUtils } from "./LabelUtils";
 
@@ -299,22 +300,25 @@ export class EnvironmentService {
     /**
      * Save system data
      */
-    private async saveSystem(system: IntegrationSystem): Promise<void> {
+    private async saveSystem(system: any): Promise<void> {
         try {
             const baseFolder = await this.systemService.getBaseFolderWithContext();
 
             // Convert EntityLabels back to string array for storage
             const systemForStorage = {
                 ...system,
-                labels: LabelUtils.fromEntityLabels(system.labels),
-                environments: system.environments?.map(env => ({
-                    ...env,
-                    labels: LabelUtils.fromEntityLabels(env.labels)
-                }))
+                content: {
+                    ...system.content,
+                    labels: system.content?.labels ? LabelUtils.fromEntityLabels(system.content.labels) : [],
+                    environments: system.content?.environments?.map((env: any) => ({
+                        ...env,
+                        labels: env.labels ? LabelUtils.fromEntityLabels(env.labels) : []
+                    })) || []
+                }
             };
 
             // Use writeMainService to save the system data
-            const serviceFileUri = Uri.joinPath(baseFolder, `${system.id}.service.qip.yaml`);
+            const serviceFileUri = Uri.joinPath(baseFolder, `${system.id}${getExtensionsForFile().service}`);
             await fileApi.writeMainService(serviceFileUri, systemForStorage);
         } catch (error) {
             throw error;

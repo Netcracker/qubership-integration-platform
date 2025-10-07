@@ -11,6 +11,7 @@ import {getApiResponse} from "./response";
 import * as path from "path";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
+import { getExtensionsForUri, setCurrentFileContext, extractFilename } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
 import {VSCodeMessage, VSCodeResponse} from "@netcracker/qip-ui";
 
@@ -66,8 +67,11 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: 
     panel.webview.html = getWebviewContent(context, panel.webview);
 
     panel.webview.onDidReceiveMessage(async (message: VSCodeMessageWrapper) => {
-        // Handle the mock response
         console.log('QIP Extension API Request:', message);
+
+        if (fileUri) {
+            setCurrentFileContext(extractFilename(fileUri));
+        }
 
         const response: VSCodeResponse<any> = {
             requestId: message.data.requestId,
@@ -176,7 +180,8 @@ export function activate(context: ExtensionContext) {
             const result = await fileApiImpl.createEmptyService();
             qipProvider.refresh();
             if (result) {
-                const serviceFileUri = vscode.Uri.joinPath(result.folderUri, `${result.serviceId}.service.qip.yaml`);
+                const ext = getExtensionsForUri();
+                const serviceFileUri = vscode.Uri.joinPath(result.folderUri, `${result.serviceId}${ext.service}`);
                 openWebviewForElement(context, serviceFileUri, 'service');
             }
         }
@@ -198,9 +203,10 @@ export function activate(context: ExtensionContext) {
                     const fileName = item.fileUri.fsPath;
                     let editorType = 'qip.chainFile.editor'; // default
 
-                    if (fileName.endsWith('.service.qip.yaml')) {
+                    const fileExtensions = getExtensionsForUri({ path: fileName });
+                    if (fileName.endsWith(fileExtensions.service)) {
                         editorType = 'qip.serviceFile.editor';
-                    } else if (fileName.endsWith('.chain.qip.yaml')) {
+                    } else if (fileName.endsWith(fileExtensions.chain)) {
                         editorType = 'qip.chainFile.editor';
                     }
 

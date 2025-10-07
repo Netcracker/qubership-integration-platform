@@ -23,6 +23,7 @@ import {
     getParsedElementChildren
 } from "./chainApiUtils";
 import {fileApi} from "./file";
+import { getExtensionsForUri } from './file/fileExtensions';
 
 
 export async function getCurrentChainId(fileUri: Uri): Promise<string> {
@@ -35,8 +36,9 @@ export async function getMainChain(fileUri: Uri): Promise<ChainSchema> {
     return await fileApi.getMainChain(fileUri);
 }
 
-export async function getChainFileUri(chainId: string): Promise<Uri> {
-    return await fileApi.findFileById(chainId, '.chain.qip.yaml');
+export async function getChainFileUri(chainId: string, currentFileUri?: Uri): Promise<Uri> {
+    const extensions = getExtensionsForUri(currentFileUri);
+    return await fileApi.findFileById(chainId, extensions.chain);
 }
 
 export async function getLibrary(): Promise<LibraryData> {

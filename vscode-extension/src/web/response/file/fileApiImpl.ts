@@ -4,8 +4,8 @@ import * as yaml from 'yaml';
 import {Chain, LibraryData} from "@netcracker/qip-ui";
 import {EMPTY_USER} from "../chainApiUtils";
 import {QipFileType} from "../serviceApiUtils";
-import { fileApi } from './fileApiProvider';
 import { FileFilter } from '../fileFilteringUtils';
+import { getExtensionsForFile, extractFilename } from './fileExtensions';
 import {Chain as ChainSchema} from "@netcracker/qip-schemas";
 
 const vscode = require('vscode');
@@ -16,6 +16,13 @@ export class VSCodeFileApi implements FileApi {
 
     constructor(context: ExtensionContext) {
         this.context = context;
+    }
+
+    private getExtensionsForContext(currentFileUri?: Uri) {
+        if (currentFileUri) {
+            return getExtensionsForFile(extractFilename(currentFileUri));
+        }
+        return getExtensionsForFile();
     }
 
     getRootDirectory(): Uri {
@@ -55,20 +62,22 @@ export class VSCodeFileApi implements FileApi {
         if (stat.type === vscode.FileType.File) {
             return baseUri;
         }
-        const files = await this.getFilesByExtensionInDirectory(baseUri, '.chain.qip.yaml');
+        const extensions = this.getExtensionsForContext(baseUri);
+        const files = await this.getFilesByExtensionInDirectory(baseUri, extensions.chain);
         if (files.length !== 1) {
-            console.error(`Single *.chain.qip.yaml file not found in the current directory`);
-            vscode.window.showWarningMessage("*.chain.qip.yaml file not found in the current directory");
-            throw Error("Single *.chain.qip.yaml file not found in the current directory");
+            console.error(`Single *${extensions.chain} file not found in the current directory`);
+            vscode.window.showWarningMessage(`*${extensions.chain} file not found in the current directory`);
+            throw Error(`Single *${extensions.chain} file not found in the current directory`);
         }
         return vscode.Uri.joinPath(baseUri, files[0]);
     }
 
     async findAndBuildChainsRecursively(folderUri: Uri, chainBuilder: (chainContent: any) => Partial<Chain> | undefined, result: Partial<Chain>[]): Promise<void> {
         const entries = await readDirectory(folderUri);
+        const extensions = this.getExtensionsForContext(folderUri);
 
         for (const [name, type] of entries) {
-            if (type === vscode.FileType.File && name.endsWith('.chain.qip.yaml')) {
+            if (type === vscode.FileType.File && name.endsWith(extensions.chain)) {
                 const fileUri = vscode.Uri.joinPath(folderUri, name);
 
                 const chainYaml = await this.parseFile(fileUri);
@@ -83,8 +92,28 @@ export class VSCodeFileApi implements FileApi {
         }
     }
 
-    async findFileById(id: string, extension: string = ".qip.yaml"): Promise<Uri> {
-        return await this.findFile(extension, (fileContent: any) => {return fileContent?.id ===id; });
+    async findFileById(id: string, extension?: string): Promise<Uri> {
+        if (extension) {
+            return await this.findFile(extension, (fileContent: any) => {return fileContent?.id === id; });
+        }
+        
+        const extensions = getExtensionsForFile();
+        const typesToTry = [
+            extensions.service,
+            extensions.chain,
+            extensions.specificationGroup,
+            extensions.specification
+        ];
+        
+        for (const ext of typesToTry) {
+            try {
+                return await this.findFile(ext, (fileContent: any) => {return fileContent?.id === id; });
+            } catch (e) {
+                continue;
+            }
+        }
+        
+        throw new Error(`File with id ${id} not found with any known extension`);
     }
 
     async findFile(extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri> {
@@ -336,7 +365,8 @@ export class VSCodeFileApi implements FileApi {
 
             await createDirectory(folderUri);
 
-            const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}.chain.qip.yaml`);
+            const extensions = this.getExtensionsForContext(folderUri);
+            const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}${extensions.chain}`);
             const chain = {
                 $schema: 'http://qubership.org/schemas/product/qip/chain',
                 id: chainId,
@@ -428,7 +458,8 @@ export class VSCodeFileApi implements FileApi {
 
             // Create service file (folder will be created automatically)
             const serviceFolderUri = vscode.Uri.joinPath(workspaceFolders[0].uri, serviceId);
-            const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
+            const extensions = this.getExtensionsForContext(serviceFolderUri);
+            const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}${extensions.service}`);
             await this.writeServiceFile(serviceFileUri, service);
 
             vscode.window.showInformationMessage(`Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${serviceId}`);
@@ -442,12 +473,14 @@ export class VSCodeFileApi implements FileApi {
     async getFileType(fileUri: Uri): Promise<string> {
         try {
             const stat = await vscode.workspace.fs.stat(fileUri);
+            const extensions = this.getExtensionsForContext(fileUri);
+            
             if (stat.type === vscode.FileType.File) {
-                const name = fileUri.path.split('/').pop() || '';
-                if (name.endsWith('.service.qip.yaml')) {
+                const name = extractFilename(fileUri);
+                if (name.endsWith(extensions.service)) {
                     return QipFileType.SERVICE;
                 }
-                if (name.endsWith('.chain.qip.yaml')) {
+                if (name.endsWith(extensions.chain)) {
                     return QipFileType.CHAIN;
                 }
                 return QipFileType.UNKNOWN;
@@ -455,8 +488,8 @@ export class VSCodeFileApi implements FileApi {
 
             // Directory: infer by contents
             const entries = await this.readDirectoryInternal(fileUri);
-            const hasChainFile = entries.some(([name]: [string, number]) => name.endsWith('.chain.qip.yaml'));
-            const hasServiceFile = entries.some(([name]: [string, number]) => name.endsWith('.service.qip.yaml'));
+            const hasChainFile = entries.some(([name]: [string, number]) => name.endsWith(extensions.chain));
+            const hasServiceFile = entries.some(([name]: [string, number]) => name.endsWith(extensions.service));
             if (hasServiceFile) {
                 return QipFileType.SERVICE;
             }
@@ -479,11 +512,13 @@ export class VSCodeFileApi implements FileApi {
     }
 
     async getSpecificationGroupFiles(serviceFileUri: Uri): Promise<string[]> {
-        return await this.getFilesByExtension(serviceFileUri, '.specification-group.qip.yaml');
+        const extensions = this.getExtensionsForContext(serviceFileUri);
+        return await this.getFilesByExtension(serviceFileUri, extensions.specificationGroup);
     }
 
     async getSpecificationFiles(serviceFileUri: Uri): Promise<string[]> {
-        return await this.getFilesByExtension(serviceFileUri, '.specification.qip.yaml');
+        const extensions = this.getExtensionsForContext(serviceFileUri);
+        return await this.getFilesByExtension(serviceFileUri, extensions.specification);
     }
 
 }

@@ -2,8 +2,10 @@ import { ExtensionContext, Uri } from "vscode";
 import { SpecificationGroup, IntegrationSystem } from "./servicesTypes";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
+import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { getBaseFolder } from "../response/serviceApiUtils";
 import { YamlFileUtils } from "./YamlFileUtils";
+import { LabelUtils } from "./LabelUtils";
 
 const vscode = require('vscode');
 
@@ -30,7 +32,8 @@ export class SpecificationGroupService {
             }
 
             // Look for specification group file in root directory
-            const groupFile = Uri.joinPath(baseFolder, `${groupId}.specification-group.qip.yaml`);
+            const ext = getExtensionsForFile();
+            const groupFile = Uri.joinPath(baseFolder, `${groupId}${ext.specificationGroup}`);
 
             try {
                 const content = await fileApi.readFileContent(groupFile);
@@ -108,7 +111,8 @@ export class SpecificationGroupService {
             }
 
             // Save specification group file in root directory
-            const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}.specification-group.qip.yaml`);
+            const ext = getExtensionsForFile();
+            const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}${ext.specificationGroup}`);
             console.log(`[SpecificationGroupService] Group file path:`, groupFile.fsPath);
 
             const yamlData = {
@@ -121,7 +125,8 @@ export class SpecificationGroupService {
                     createdBy: specificationGroup.createdBy,
                     modifiedBy: specificationGroup.modifiedBy,
                     synchronization: specificationGroup.synchronization || false,
-                    parentId: systemId
+                    parentId: systemId,
+                    labels: specificationGroup.labels ? LabelUtils.fromEntityLabels(specificationGroup.labels) : []
                 }
             };
 

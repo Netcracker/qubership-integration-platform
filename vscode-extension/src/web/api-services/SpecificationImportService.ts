@@ -13,11 +13,13 @@ import { SpecificationProcessorService } from "./SpecificationProcessorService";
 import { EnvironmentService, EnvironmentRequest } from "./EnvironmentService";
 import { SystemService } from "./SystemService";
 import { fileApi } from "../response/file/fileApiProvider";
+import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { GraphQLSpecificationParser } from "./parsers/GraphQLSpecificationParser";
 import { ProtoSpecificationParser } from "./parsers/ProtoSpecificationParser";
 import { OpenApiSpecificationParser } from "./parsers/OpenApiSpecificationParser";
 import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationParser";
+import { LabelUtils } from "./LabelUtils";
 
 export class SpecificationImportService {
     private context: ExtensionContext;
@@ -361,7 +363,8 @@ export class SpecificationImportService {
                 }
 
                 // Create specification file with operations using existing architecture
-                const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}.specification.qip.yaml`;
+                const ext = getExtensionsForFile();
+                const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}${ext.specification}`;
                 const specFileUri = Uri.joinPath(baseFolder, specFileName);
 
                 // Create QIP specification using operations from SpecificationProcessorService
@@ -378,7 +381,8 @@ export class SpecificationImportService {
                         version: specification.version,
                         source: "IMPORTED",
                         operations: specification.operations || [],
-                        parentId: specificationGroup.id
+                        parentId: specificationGroup.id,
+                        labels: specification.labels ? LabelUtils.fromEntityLabels(specification.labels) : []
                     },
                     specificationSources: await Promise.all(extractedFiles.map(async (file, index) => ({
                         id: crypto.randomUUID(),

@@ -4,6 +4,7 @@ import {Uri, WorkspaceFolder} from "vscode";
 import {EMPTY_USER} from "./chainApiUtils";
 import {fileApi} from "./file/fileApiProvider";
 import { LabelUtils } from "../api-services/LabelUtils";
+import { getExtensionsForUri } from './file/fileExtensions';
 import { Chain } from "@netcracker/qip-ui";
 
 const vscode = require('vscode');
@@ -81,7 +82,8 @@ function parseEnvironments(environments: any[]): Environment[] {
 }
 
 export async function getApiSpecifications(currentFile: Uri, serviceId: string): Promise<SpecificationGroup[]> {
-    const serviceFileUri = currentFile.path.endsWith('.service.qip.yaml')? currentFile : await fileApi.findFileById(serviceId, '.service.qip.yaml');
+    const ext = getExtensionsForUri(currentFile);
+    const serviceFileUri = currentFile.path.endsWith(ext.service)? currentFile : await fileApi.findFileById(serviceId, ext.service);
 
     const service: any = await getMainService(serviceFileUri);
 
@@ -175,7 +177,8 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
 }
 
 export async function getOperations(serviceFileUri: Uri, modelId: string): Promise<SystemOperation[]> {
-    if (serviceFileUri.path.endsWith('.service.qip.yaml')) {
+    const ext = getExtensionsForUri(serviceFileUri);
+    if (serviceFileUri.path.endsWith(ext.service)) {
         const specFiles = await fileApi.getSpecificationFiles(serviceFileUri);
         const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
 
@@ -192,7 +195,7 @@ export async function getOperations(serviceFileUri: Uri, modelId: string): Promi
             }
         }
     } else {
-        const specFileUri = await fileApi.findFileById(modelId, '.specification.qip.yaml');
+        const specFileUri = await fileApi.findFileById(modelId, ext.specification);
         try {
             const parsed = await fileApi.parseFile(specFileUri);
 
@@ -294,7 +297,8 @@ async function getChainsUsingSpecification(serviceId: string, specificationId: s
 }
 
 export async function getServices(serviceFileUri: Uri): Promise<IntegrationSystem[]> {
-    if (serviceFileUri.path.endsWith('.service.qip.yaml')) {
+    const ext = getExtensionsForUri(serviceFileUri);
+    if (serviceFileUri.path.endsWith(ext.service)) {
         const service: any = await getMainService(serviceFileUri);
         if (!service) {
             return [];
@@ -303,7 +307,7 @@ export async function getServices(serviceFileUri: Uri): Promise<IntegrationSyste
         return [await getService(serviceFileUri, service.id)];
     } else {
         const result: IntegrationSystem[] = [];
-        const serviceFiles = await fileApi.findFiles('.service.qip.yaml');
+        const serviceFiles = await fileApi.findFiles(ext.service);
         for (const serviceFile of serviceFiles) {
             const service: any = await getMainService(serviceFile);
             result.push(await getService(serviceFile, service.id));

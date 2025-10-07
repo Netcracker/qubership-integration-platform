@@ -4,6 +4,7 @@ import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { getBaseFolder } from "../response/serviceApiUtils";
+import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { LabelUtils } from "./LabelUtils";
 
 const vscode = require('vscode');
@@ -27,7 +28,8 @@ export class SystemService {
     async getSystemById(systemId: string): Promise<IntegrationSystem | null> {
         try {
             const baseFolder = await this.getBaseFolderUri();
-            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}.service.qip.yaml`);
+            const ext = getExtensionsForFile();
+            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}${ext.service}`);
             const service = await getMainService(serviceFileUri);
             if (service.id === systemId) {
                 return {
@@ -60,7 +62,7 @@ export class SystemService {
     async getRawServiceById(systemId: string): Promise<any | null> {
         try {
             const baseFolder = await this.getBaseFolderUri();
-            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}.service.qip.yaml`);
+            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}${getExtensionsForFile().service}`);
             const service = await getMainService(serviceFileUri);
             if (service && service.id === systemId) {
                 return service;

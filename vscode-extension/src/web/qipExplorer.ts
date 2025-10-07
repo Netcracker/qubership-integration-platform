@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as yaml from 'yaml';
 import { fileApi } from './response/file/fileApiProvider';
+import { getExtensionsForFile } from './response/file/fileExtensions';
 import { readDirectory } from './response/file/fileApiImpl';
 
 export interface QipExplorerItem {
@@ -121,8 +122,9 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
         try {
             const entries = await readDirectory(folderUri);
             
+            const ext = getExtensionsForFile();
             for (const [name, type] of entries) {
-                if (type === vscode.FileType.File && name.endsWith('.chain.qip.yaml')) {
+                if (type === vscode.FileType.File && name.endsWith(ext.chain)) {
                     try {
                         const fileUri = vscode.Uri.joinPath(folderUri, name);
                         console.log(`QIP Explorer: Found chain file: ${name}`);
@@ -191,8 +193,9 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
         try {
             const entries = await readDirectory(folderUri);
             
+            const ext = getExtensionsForFile();
             for (const [name, type] of entries) {
-                if (type === vscode.FileType.File && name.endsWith('.service.qip.yaml')) {
+                if (type === vscode.FileType.File && name.endsWith(ext.service)) {
                     try {
                         const fileUri = vscode.Uri.joinPath(folderUri, name);
                         console.log(`QIP Explorer: Found service file: ${name}`);

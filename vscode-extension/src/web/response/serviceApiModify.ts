@@ -11,6 +11,7 @@ import * as yaml from 'yaml';
 import {getService, getMainService} from "./serviceApiRead";
 import {EMPTY_USER} from "./chainApiUtils";
 import vscode, {ExtensionContext, Uri} from "vscode";
+import { getExtensionsForFile } from './file/fileExtensions';
 import {fileApi} from "./file/fileApiProvider";
 import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
@@ -83,7 +84,8 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
         };
 
         const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
-        const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}.service.qip.yaml`);
+        const ext = getExtensionsForFile();
+        const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}${ext.service}`);
         await fileApi.writeServiceFile(serviceFileUri, service);
 
         const result: IntegrationSystem = {
