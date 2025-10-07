@@ -33,6 +33,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.Abs
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
@@ -46,6 +47,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imp
 import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportMode;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system.SystemsCommitRequest;
+import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
@@ -101,6 +103,7 @@ public class SystemExportImportService {
     private final ServiceDeserializer serviceDeserializer;
     private final ImportSessionService importProgressService;
     private final ImportInstructionsService importInstructionsService;
+    private final ChainService chainService;
 
     @Value("${qip.export.remove-unused-specifications}")
     private boolean removeUnusedSpecs;
@@ -117,7 +120,8 @@ public class SystemExportImportService {
             ServiceSerializer serviceSerializer,
             ServiceDeserializer serviceDeserializer,
             ImportSessionService importProgressService,
-            ImportInstructionsService importInstructionsService
+            ImportInstructionsService importInstructionsService,
+            ChainService chainService
     ) {
         this.transactionTemplate = transactionTemplate;
         this.yamlMapper = yamlExportImportMapper;
@@ -130,6 +134,7 @@ public class SystemExportImportService {
         this.serviceDeserializer = serviceDeserializer;
         this.importProgressService = importProgressService;
         this.importInstructionsService = importInstructionsService;
+        this.chainService = chainService;
     }
 
     private void removeUnusedSpecifications(IntegrationSystem integrationSystem, List<String> usedSystemModelIds) {
@@ -537,7 +542,10 @@ public class SystemExportImportService {
             if (environment == null && oldEnvironment != null) {
                 environmentService.deleteEnvironment(newSystem.getId(), oldEnvironment.getId());
             } else if (environment != null && oldEnvironment != null) {
+                checkEnvironmentEquality(environment, oldEnvironment);
                 environment.setId(oldEnvironment.getId());
+            } else if (environment != null) {
+                markChainAsUnsaved(environment);
             }
 
             changeDiscoveredSourceLabels(newSystem, false);
@@ -547,6 +555,7 @@ public class SystemExportImportService {
             mergeEnvironmentsById(newSystem, oldSystem);
 
             setActiveEnvironmentId(newSystem, oldSystem, deployLabel, messageHandler);
+            checkActiveEnvironmentEquality(newSystem, oldSystem);
         }
         mergeNonTechnicalServiceLabels(newSystem, oldSystem);
         return mergeSpecificationGroups(newSystem, oldSystem, messageHandler, technicalLabels);
@@ -761,6 +770,40 @@ public class SystemExportImportService {
         String environmentAddress = environment == null ? "" : StringUtils.defaultString(environment.getAddress());
         String oldEnvironmentAddress = oldEnvironment == null ? "" : StringUtils.defaultString(oldEnvironment.getAddress());
         return !environmentAddress.equals(oldEnvironmentAddress);
+    }
+
+    private void checkActiveEnvironmentEquality(IntegrationSystem system, IntegrationSystem oldSystem) {
+        String currentActiveEnv = system.getActiveEnvironmentId();
+        String oldActiveEnv = oldSystem.getActiveEnvironmentId();
+
+        if (!Objects.equals(currentActiveEnv, oldActiveEnv)) {
+            return;
+        }
+
+        Environment currentEnv = findEnvironment(system, currentActiveEnv);
+        Environment oldEnv = findEnvironment(oldSystem, oldActiveEnv);
+
+        if (currentEnv != null && oldEnv != null) {
+            checkEnvironmentEquality(currentEnv, oldEnv);
+        }
+    }
+
+    private Environment findEnvironment(IntegrationSystem system, String envId) {
+        return system.getEnvironments().stream()
+                .filter(e -> Objects.equals(e.getId(), envId))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void checkEnvironmentEquality(Environment newEnvironment, Environment oldEnvironment) {
+        if (!oldEnvironment.equals(newEnvironment)) {
+            markChainAsUnsaved(newEnvironment);
+        }
+    }
+
+    private void markChainAsUnsaved(Environment environment) {
+        List<Chain> chains = chainService.findBySystemId(environment.getSystem().getId());
+        chains.forEach(chainService::markChainAsUnsaved);
     }
 
     private void removeDuplicateLabels(IntegrationSystem system, IntegrationSystem oldSystem) {

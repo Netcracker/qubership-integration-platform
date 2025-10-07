@@ -174,6 +174,14 @@ public class ChainService extends ChainBaseService {
         return optionalChain;
     }
 
+    public void markChainAsUnsaved(Chain chain) {
+        if (!chain.isUnsavedChanges()) {
+            chain.setLastImportHash("0");
+            chain.setUnsavedChanges(true);
+            update(chain);
+        }
+    }
+
     private void logChainAction(Chain chain, LogOperation operation) {
         actionLogger.logAction(ActionLog.builder()
                 .entityType(EntityType.CHAIN)
