@@ -353,8 +353,8 @@ public class ChainImportService {
             String chainId = chainExternalEntity.getId();
             String externalHash = ChainUtils.getChainFilesHash(chainFilesDir, artifactDescriptorVersion);
 
-            if (isSameHash(chainId, externalHash) && validateByHash) {
-                log.warn(CHAINS_HASH_MATCHED_LOG_MESSAGE, chainId);
+            if (validateByHash && isSameHash(chainId, externalHash)) {
+                log.info(CHAINS_HASH_MATCHED_LOG_MESSAGE, chainId);
                 importChainResult = new ImportChainResult();
                 importChainResult.setId(chainId);
                 importChainResult.setName(chainExternalEntity.getName());
@@ -498,6 +498,7 @@ public class ChainImportService {
             counter++;
 
             if (chainResult.getStatus() == ImportEntityStatus.ERROR
+                    || chainResult.getStatus() == ImportEntityStatus.SKIPPED
                     || chainResult.getStatus() == ImportEntityStatus.IGNORED) {
                 continue;
             }

@@ -266,9 +266,12 @@ public class ChainService extends ChainBaseService {
         return chains;
     }
 
-    public void update(Chain chain) {
-        chainRepository.save(chain);
+    @ChainModification
+    public Chain update(Chain chain) {
+        Chain savedChain = chainRepository.save(chain);
+        auditingHandler.markModified(chain);
         logChainAction(chain, LogOperation.UPDATE);
+        return savedChain;
     }
 
     @ChainModification
@@ -522,6 +525,14 @@ public class ChainService extends ChainBaseService {
 
     public long getChainsCount() {
         return chainRepository.count();
+    }
+
+    public void markChainAsUnsaved(Chain chain) {
+        if (!chain.isUnsavedChanges()) {
+            chain.setLastImportHash("0");
+            chain.setUnsavedChanges(true);
+            update(chain);
+        }
     }
 
     private void logChainAction(Chain chain, LogOperation operation) {

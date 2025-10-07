@@ -36,10 +36,6 @@ public class ElementHelperService {
         return null;
     }
 
-    public Optional<ChainElement> findByIdOptional(String id) {
-        return elementRepository.findById(id);
-    }
-
     public boolean isSystemUsedByElement(String systemId) {
         return elementRepository.exists((root, query, builder) -> builder.and(
                 builder.isNotNull(root.get("chain")),

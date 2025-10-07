@@ -37,19 +37,18 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.SystemDeserializationResult;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.remote.SystemCompareAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportMode;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system.SystemsCommitRequest;
-import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
-import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
-import org.qubership.integration.platform.runtime.catalog.service.SystemService;
+import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
@@ -99,6 +98,8 @@ public class SystemExportImportService {
     private final ServiceDeserializer serviceDeserializer;
     private final ImportSessionService importProgressService;
     private final ImportInstructionsService importInstructionsService;
+    private final ElementHelperService elementHelperService;
+    private final ChainService chainService;
 
     @Value("${qip.export.remove-unused-specifications}")
     private boolean removeUnusedSpecs;
@@ -115,7 +116,9 @@ public class SystemExportImportService {
             ServiceSerializer serviceSerializer,
             ServiceDeserializer serviceDeserializer,
             ImportSessionService importProgressService,
-            ImportInstructionsService importInstructionsService
+            ImportInstructionsService importInstructionsService,
+            ElementHelperService elementHelperService,
+            ChainService chainService
     ) {
         this.transactionTemplate = transactionTemplate;
         this.yamlMapper = yamlExportImportMapper;
@@ -128,6 +131,8 @@ public class SystemExportImportService {
         this.serviceDeserializer = serviceDeserializer;
         this.importProgressService = importProgressService;
         this.importInstructionsService = importInstructionsService;
+        this.elementHelperService = elementHelperService;
+        this.chainService = chainService;
     }
 
     private void removeUnusedSpecifications(IntegrationSystem integrationSystem, List<String> usedSystemModelIds) {
@@ -315,10 +320,10 @@ public class SystemExportImportService {
             }
 
             Set<String> servicesToImport = importInstructionsService.performServiceIgnoreInstructions(
-                    extractedSystemFiles.stream()
-                            .map(ExportImportUtils::extractSystemIdFromFileName)
-                            .collect(Collectors.toSet()),
-                    false)
+                            extractedSystemFiles.stream()
+                                    .map(ExportImportUtils::extractSystemIdFromFileName)
+                                    .collect(Collectors.toSet()),
+                            false)
                     .idsToImport();
             for (File singleSystemFile : extractedSystemFiles) {
                 String serviceId = extractSystemIdFromFileName(singleSystemFile);
@@ -371,8 +376,8 @@ public class SystemExportImportService {
 
         IgnoreResult ignoreResult = importInstructionsService.performServiceIgnoreInstructions(
                 systemsFiles.stream()
-                    .map(ExportImportUtils::extractSystemIdFromFileName)
-                    .collect(Collectors.toSet()),
+                        .map(ExportImportUtils::extractSystemIdFromFileName)
+                        .collect(Collectors.toSet()),
                 true
         );
         int total = systemsFiles.size();
@@ -532,7 +537,10 @@ public class SystemExportImportService {
             if (environment == null && oldEnvironment != null) {
                 environmentService.deleteEnvironment(newSystem.getId(), oldEnvironment.getId());
             } else if (environment != null && oldEnvironment != null) {
+                checkEnvironmentEquality(environment, oldEnvironment);
                 environment.setId(oldEnvironment.getId());
+            } else if (environment != null && oldEnvironment == null) {
+                markChainAsUnsaved(environment);
             }
 
             changeDiscoveredSourceLabels(newSystem, false);
@@ -542,6 +550,7 @@ public class SystemExportImportService {
             mergeEnvironmentsById(newSystem, oldSystem);
 
             setActiveEnvironmentId(newSystem, oldSystem, deployLabel, messageHandler);
+            checkActiveEnvironmentEquality(newSystem, oldSystem);
         }
         mergeNonTechnicalServiceLabels(newSystem, oldSystem);
         return mergeSpecificationGroups(newSystem, oldSystem, messageHandler, technicalLabels);
@@ -643,7 +652,7 @@ public class SystemExportImportService {
             newSpecGroup.getSystemModels().removeIf(spec -> {
                 if (oldModelsIdFlatMap.containsKey(spec.getId())) {
                     messageHandler.accept(SPECIFICATION_EXISTS_BY_ID_ERROR_MESSAGE_START + spec.getId()
-                            + SPECIFICATION_EXISTS_ERROR_MESSAGE_END + "It already exists in this service. ");
+                                          + SPECIFICATION_EXISTS_ERROR_MESSAGE_END + "It already exists in this service. ");
                     addUniqueSpecificationLabels(oldModelsIdFlatMap.get(spec.getId()), spec.getLabels());
                     return true;
                 }
@@ -659,11 +668,11 @@ public class SystemExportImportService {
                         // compare sources for a warning message
                         String warnMessage = newSpecGroupModel.isSourcesEquals(
                                 oldSpecGroupModelsNameMap.get(newSpecGroupModel.getName()).getSpecificationSources(), false)
-                                        ? ("It already exists in specification group '" + sameOldSpecGroup.getName() + "'. ")
-                                        : ("Specification with same version and different file(s) content already exists. ");
+                                ? ("It already exists in specification group '" + sameOldSpecGroup.getName() + "'. ")
+                                : ("Specification with same version and different file(s) content already exists. ");
                         messageHandler.accept(SPECIFICATION_EXISTS_ERROR_MESSAGE_START + newSpecGroupModel.getName()
-                                + "' from group '" + newSpecGroupModel.getSpecificationGroup().getName()
-                                + SPECIFICATION_EXISTS_ERROR_MESSAGE_END + warnMessage);
+                                              + "' from group '" + newSpecGroupModel.getSpecificationGroup().getName()
+                                              + SPECIFICATION_EXISTS_ERROR_MESSAGE_END + warnMessage);
                     } else {
                         // spec has a unique name in a group
                         sameOldSpecGroup.addSystemModel(newSpecGroupModel);
@@ -740,8 +749,8 @@ public class SystemExportImportService {
             for (SystemModel systemModel : specificationGroup.getSystemModels()) {
                 SystemModelSource modelSourceType = systemModel.getSource();
                 if (modelSourceType == null
-                        || (SystemModelSource.DISCOVERED.equals(modelSourceType)
-                                && isNotDiscoveredOnThisEnvironment(systemModel, isNewSystem))) {
+                    || (SystemModelSource.DISCOVERED.equals(modelSourceType)
+                        && isNotDiscoveredOnThisEnvironment(systemModel, isNewSystem))) {
                     systemModel.setSource(SystemModelSource.MANUAL);
                 }
             }
@@ -756,6 +765,40 @@ public class SystemExportImportService {
         String environmentAddress = environment == null ? "" : StringUtils.defaultString(environment.getAddress());
         String oldEnvironmentAddress = oldEnvironment == null ? "" : StringUtils.defaultString(oldEnvironment.getAddress());
         return !environmentAddress.equals(oldEnvironmentAddress);
+    }
+
+    private void checkActiveEnvironmentEquality(IntegrationSystem system, IntegrationSystem oldSystem) {
+        String currentActiveEnv = system.getActiveEnvironmentId();
+        String oldActiveEnv = oldSystem.getActiveEnvironmentId();
+
+        if (!Objects.equals(currentActiveEnv, oldActiveEnv)) {
+            return;
+        }
+
+        Environment currentEnv = findEnvironment(system, currentActiveEnv);
+        Environment oldEnv = findEnvironment(oldSystem, oldActiveEnv);
+
+        if (currentEnv != null && oldEnv != null) {
+            checkEnvironmentEquality(currentEnv, oldEnv);
+        }
+    }
+
+    private Environment findEnvironment(IntegrationSystem system, String envId) {
+        return system.getEnvironments().stream()
+                .filter(e -> Objects.equals(e.getId(), envId))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void checkEnvironmentEquality(Environment newEnvironment, Environment oldEnvironment) {
+        if (!oldEnvironment.equals(newEnvironment)) {
+            markChainAsUnsaved(newEnvironment);
+        }
+    }
+
+    private void markChainAsUnsaved(Environment environment) {
+        List<Chain> chains = elementHelperService.findChainBySystemId(environment.getSystem().getId());
+        chains.forEach(chainService::markChainAsUnsaved);
     }
 
     private void removeDuplicateLabels(IntegrationSystem system, IntegrationSystem oldSystem) {
@@ -831,7 +874,7 @@ public class SystemExportImportService {
 
         Timestamp modifiedWhen = Optional.ofNullable(serviceNode.get("context"))
                 .map(node -> node.get("modifiedWhen"))
-                .or(()  -> Optional.ofNullable(serviceNode.get("modifiedWhen")))
+                .or(() -> Optional.ofNullable(serviceNode.get("modifiedWhen")))
                 .map(JsonNode::asLong)
                 .map(Timestamp::new)
                 .orElse(null);
