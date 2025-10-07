@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import groovy.xml.slurpersupport.GPathResult;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -74,7 +75,7 @@ public class ContextLoaderProcessor implements Processor {
                         checkpointInfo.checkpointElementId());
                 throw new EntityNotFoundException(
                         "Can't find checkpoint with session id: " + checkpointInfo.sessionId()
-                                + ", checkpoint id: " + checkpointInfo.checkpointElementId());
+                        + ", checkpoint id: " + checkpointInfo.checkpointElementId());
             }
 
             CheckpointPayloadOptions replaceOptions = parseReplaceOptions(exchange);
@@ -110,7 +111,8 @@ public class ContextLoaderProcessor implements Processor {
         // restore propagation and tracing contexts
         if (contextOperations.isPresent() && StringUtils.isNotEmpty(checkpoint.getContextData())) {
             Map<String, Map<String, Object>> contextData =
-                    checkpointMapper.readValue(checkpoint.getContextData(), new TypeReference<>() {});
+                    checkpointMapper.readValue(checkpoint.getContextData(), new TypeReference<>() {
+                    });
             contextOperations.get().activateWithSerializableContextData(contextData);
         }
 
@@ -130,26 +132,46 @@ public class ContextLoaderProcessor implements Processor {
         }
     }
 
-    void deserializeProperties(Checkpoint checkpoint, Map<String, Object> result) throws IOException {
-
+    void deserializeProperties(Checkpoint checkpoint, Map<String, Object> result) {
         for (Property property : checkpoint.getProperties()) {
-            byte[] value = property.getValue() == null ? property.getDeprecatedValue() : property.getValue();
-            try {
-                Class<?> clazz = Class.forName(property.getType());
-                if (Serializable.class.isAssignableFrom(clazz)) {
-                    result.put(property.getName(), deserializeWithMetadata(value));
-                } else {
-                    result.put(property.getName(), checkpointMapper.readValue(value, clazz));
-                }
-            } catch (ClassNotFoundException e) {
-                try {
-                    result.put(property.getName(), checkpointMapper.readValue(value, new TypeReference<>() {
-                    }));
-                } catch (Exception exception) {
-                    //WA for properties without type after migration
-                    result.put(property.getName(), new String(value));
-                }
+            byte[] value = property.getValue() != null
+                    ? property.getValue()
+                    : property.getDeprecatedValue();
+
+            Object deserialized = deserializeProperty(property, value);
+            result.put(property.getName(), deserialized);
+        }
+    }
+
+    private Object deserializeProperty(Property property, byte[] value) {
+        try {
+            Class<?> clazz = Class.forName(property.getType());
+
+            if (GPathResult.class.isAssignableFrom(clazz)) {
+                String xml = new String(value, StandardCharsets.UTF_8);
+                return new groovy.xml.XmlSlurper().parseText(xml);
             }
+
+            if (Serializable.class.isAssignableFrom(clazz)) {
+                return deserializeWithMetadata(value);
+            }
+
+            return checkpointMapper.readValue(value, clazz);
+
+        } catch (ClassNotFoundException e) {
+            return safeDeserializeWithoutType(value);
+        } catch (Exception e) {
+            //WA for properties without type after migration
+            return new String(value, StandardCharsets.UTF_8);
+        }
+    }
+
+    private Object safeDeserializeWithoutType(byte[] value) {
+        try {
+            return checkpointMapper.readValue(value, new TypeReference<>() {
+            });
+        } catch (Exception e) {
+            return new String(value, StandardCharsets.UTF_8);
         }
     }
 
