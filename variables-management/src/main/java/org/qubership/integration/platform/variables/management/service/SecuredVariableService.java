@@ -152,20 +152,23 @@ public class SecuredVariableService {
             return;
         }
 
-        Set<String> existedVariables;
-
         lock.lock();
         try {
-            existedVariables = secretService.getSecretData(secretName, true).keySet();
+            Set<String> existedVariables = secretService.getSecretData(secretName, true).keySet();
+            variablesNames = variablesNames.stream()
+                    .filter(existedVariables::contains)
+                    .collect(Collectors.toSet());
+            if (variablesNames.isEmpty()) {
+                return;
+            }
+
             secretService.removeEntries(secretName, variablesNames);
         } finally {
             lock.unlock();
         }
 
         if (logOperation) {
-            variablesNames.stream()
-                    .filter(existedVariables::contains)
-                    .forEach(name -> logSecuredVariableAction(name, secretName, LogOperation.DELETE));
+            variablesNames.forEach(name -> logSecuredVariableAction(name, secretName, LogOperation.DELETE));
         }
     }
 
@@ -178,9 +181,15 @@ public class SecuredVariableService {
         try {
             variablesBySecret = secretService.getAllSecretsData();
             variablesPerSecret.forEach((secretName, variablesToRemove) -> {
-                boolean secretExists = variablesBySecret.containsKey(secretName);
-                if (!secretExists) {
+                Map<String, String> secretVariables = variablesBySecret.get(secretName);
+                if (secretVariables == null) {
                     secretUpdateExceptions.put(secretName, SecretNotFoundException.forSecret(secretName));
+                    return;
+                }
+                variablesToRemove = variablesToRemove.stream()
+                        .filter(secretVariables::containsKey)
+                        .collect(Collectors.toSet());
+                if (variablesToRemove.isEmpty()) {
                     return;
                 }
 

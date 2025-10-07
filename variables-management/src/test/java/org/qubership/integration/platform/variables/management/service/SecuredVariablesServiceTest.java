@@ -260,7 +260,7 @@ public class SecuredVariablesServiceTest {
     public void deleteVariablesShouldCallSecretServiceMethodRemoveEntities() {
         Set<String> variables = Set.of("foo", "bla-bla-bla");
         securedVariableService.deleteVariables(DEFAULT_SECRET_NAME, variables, false);
-        verify(secretService, times(1)).removeEntries(eq(DEFAULT_SECRET_NAME), eq(variables));
+        verify(secretService, times(1)).removeEntries(eq(DEFAULT_SECRET_NAME), eq(Set.of("foo")));
     }
 
     @DisplayName("deleteVariables should not log operation when the corresponding flag is unset")
