@@ -92,7 +92,7 @@ jobs:
           new_value: ${{ github.event.inputs.version }}
 
       - name: Commit Changes
-        uses: netcracker/qubership-workflow-hub/actions/commit-and-push@main
+        uses: netcracker/qubership-workflow-hub/actions/commit-and-push@v1.0.6
         with:
           commit_message: "Update pom.xml version to ${{ github.event.inputs.version }}"
 
