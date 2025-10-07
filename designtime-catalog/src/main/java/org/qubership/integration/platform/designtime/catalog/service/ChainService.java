@@ -156,11 +156,6 @@ public class ChainService extends ChainBaseService {
         return getElementsChains(elements);
     }
 
-    public List<Chain> findBySystemId(String systemId) {
-        List<ChainElement> elements = elementService.findBySystemId(systemId);
-        return getElementsChains(elements);
-    }
-
     public Map<String, List<Chain>> findBySystemIdGroupBySpecificationGroup(String systemId) {
         List<ChainElement> elements = elementService.findBySystemId(systemId);
         Map<String, List<ChainElement>> specGroupChainElement = new HashMap<>();
@@ -175,14 +170,6 @@ public class ChainService extends ChainBaseService {
         specGroupChainElement.forEach((key, chainElements) -> specGroupChains.put(key, getElementsChains(chainElements)));
 
         return specGroupChains;
-    }
-
-    private List<Chain> getElementsChains(List<ChainElement> elements) {
-        return elements.stream()
-                .map(ChainElement::getChain)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
     }
 
     public List<Chain> findInRoot(FolderContentFilter filter) {

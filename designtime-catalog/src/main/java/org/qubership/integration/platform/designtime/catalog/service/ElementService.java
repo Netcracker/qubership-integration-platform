@@ -128,16 +128,6 @@ public class ElementService extends ElementBaseService {
         ));
     }
 
-    public List<ChainElement> findBySystemId(String systemId) {
-        return elementRepository.findAll((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
-                builder.equal(builder.function("jsonb_extract_path_text", String.class,
-                                root.<String>get("properties"), builder.literal(CamelOptions.SYSTEM_ID)),
-                        systemId
-                )
-        ));
-    }
-
     public List<ChainElement> findAllByChainId(String chainId) {
         var chain = chainService.findById(chainId);
         return chain.getElements();
