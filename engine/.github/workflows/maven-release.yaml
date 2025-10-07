@@ -56,7 +56,7 @@ jobs:
 
       - name: Check if tag exists
         id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-checker@main
+        uses: netcracker/qubership-workflow-hub/actions/tag-checker@v1.0.6
         with:
           tag: 'v${{ github.event.inputs.version }}'
         env:
@@ -87,18 +87,18 @@ jobs:
 
       - name: Update pom.xml
         id: config
-        uses: netcracker/qubership-workflow-hub/actions/pom-updater@main
+        uses: netcracker/qubership-workflow-hub/actions/pom-updater@v1.0.6
         with:
           new_value: ${{ github.event.inputs.version }}
 
       - name: Commit Changes
-        uses: netcracker/qubership-workflow-hub/actions/commit-and-push@main
+        uses: netcracker/qubership-workflow-hub/actions/commit-and-push@v1.0.6
         with:
           commit_message: "Update pom.xml version to ${{ github.event.inputs.version }}"
 
   mvn-package:
     needs: [update-pom-version]
-    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.6
     with:
       ref: ${{ github.ref }}
       maven-command: "--batch-mode package"
@@ -123,13 +123,13 @@ jobs:
 
   tag:
     needs: [tests]
-    uses: netcracker/qubership-workflow-hub/.github/workflows/tag-creator.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/tag-creator.yml@v1.0.5
     with:
       tag-name: "v${{ github.event.inputs.version }}"
 
   mvn-deploy:
     needs: [update-pom-version, tag]
-    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.6
     with:
       ref: ${{ github.ref }}
       maven-command: ${{ (github.event.inputs.dry-run == 'true' && '--batch-mode package') || '--batch-mode deploy' }}
@@ -166,7 +166,7 @@ jobs:
   docker-build-publish:
     needs: [update-pom-version, tag, check-dockerfile]
     if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
-    uses: netcracker/qubership-workflow-hub/.github/workflows/docker-publish.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/docker-publish.yml@v1.0.6
     with:
       ref: "v${{ github.event.inputs.version }}"
       artifact-id: ${{ needs.update-pom-version.outputs.artifact_id }}
@@ -175,7 +175,7 @@ jobs:
 
   github-release:
     needs: [tag]
-    uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
+    uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@v1.0.6
     with:
       version: ${{ github.event.inputs.version }}
       publish: false
