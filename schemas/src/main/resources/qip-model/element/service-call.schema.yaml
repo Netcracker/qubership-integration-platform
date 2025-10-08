@@ -135,6 +135,13 @@ definitions:
   ExchangeTransformation:
     oneOf:
       - type: object
+        title: None
+        properties:
+          type:
+            anyOf:
+              - const: "none"
+              - not: {}
+      - type: object
         title: Mapper
         allOf:
           - $ref: "http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml#/definitions/MapperParameters"
@@ -152,13 +159,6 @@ definitions:
             const: "script"
         required:
           - type
-      - type: object
-        title: None
-        properties:
-          type:
-            anyOf:
-              - const: "none"
-              - not: { }
   ValidationFailureHandler:
     type: object
     properties:
