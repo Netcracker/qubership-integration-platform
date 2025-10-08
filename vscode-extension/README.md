@@ -1,7 +1,7 @@
 # Qubership Integration VSCode Extension
 
 This is vscode extension based on [Qubership Integration Platform - UI](https://github.com/Netcracker/qubership-integration-ui) 
-project to manipulate chains offline.
+project to manipulate chain configurations offline. To run configurations you still need the other part of [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform).
 
 ## Build
 
@@ -20,5 +20,5 @@ This software is licensed under Apache License Version 2.0. License text is loca
 
 ## Additional Resources
 
-- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — сore deployment
+- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment
   guide.
