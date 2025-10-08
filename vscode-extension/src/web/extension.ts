@@ -334,6 +334,29 @@ function getWebviewContent(context: ExtensionContext, webview: Webview) {
         <title>QIP Offline Chain Editor</title>
         <link href="${cssUri}" rel="stylesheet">
 		<script type="module" crossorigin src="${jsUri}"></script>
+        <style>
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 100% !important;
+            overflow: auto !important;
+          }
+          body {
+            zoom: 0.9;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          #app-root {
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 100% !important;
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+        </style>
       </head>
       <body>
         <div id="app-root"></div>
