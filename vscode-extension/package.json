@@ -1,0 +1,185 @@
+{
+  "name": "@netcracker/qip-vscode-extension",
+  "publisher": "qubership",
+  "displayName": "QIP VS Code Extension",
+  "description": "Qubership Integration Platform - Visual Studio Code Extension",
+  "version": "0.0.1-dev",
+  "main": "dist/node/index.js",
+  "types": "dist/web/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "enabledApiProposals": [
+    "tunnels"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "qip.open",
+    "qip.createChain",
+    "qip.createChainParent",
+    "qip.createService",
+    "qip.openInTextEditor"
+  ],
+  "browser": "./dist/web/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "qip.open",
+        "title": "QIP Modify currently opened chain"
+      },
+      {
+        "command": "qip.createChain",
+        "title": "QIP Create a chain in the current directory"
+      },
+      {
+        "command": "qip.createChainParent",
+        "title": "QIP Create a chain in the parent directory"
+      },
+      {
+        "command": "qip.createService",
+        "title": "QIP Create service"
+      },
+      {
+        "command": "qip.refreshExplorer",
+        "title": "Refresh QIP Explorer"
+      },
+      {
+        "command": "qip.revealInExplorer",
+        "title": "Open File"
+      },
+      {
+        "command": "qip.deleteService",
+        "title": "Delete Service"
+      },
+      {
+        "command": "qip.deleteChain",
+        "title": "Delete Chain"
+      },
+      {
+        "command": "qip.openInTextEditor",
+        "title": "Open in Text Editor"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "qip-main",
+          "name": "QIP",
+          "when": "true"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "qip.chainFile.editor",
+        "displayName": "QIP Chain File Visual Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.chain.qip.yaml"
+          }
+        ]
+      },
+      {
+        "viewType": "qip.serviceFile.editor",
+        "displayName": "QIP Service File Visual Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.service.qip.yaml"
+          }
+        ]
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "qip.refreshExplorer",
+          "when": "view == qip-main",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "qip.createService",
+          "when": "view == qip-main && viewItem == qip-services-category",
+          "group": "inline"
+        },
+        {
+          "command": "qip.createChain",
+          "when": "view == qip-main && viewItem == qip-chains-category",
+          "group": "inline"
+        },
+        {
+          "command": "qip.openInTextEditor",
+          "when": "viewItem == qip-service || viewItem == qip-chain",
+          "group": "1_modification"
+        },
+        {
+          "command": "qip.deleteService",
+          "when": "viewItem == qip-service",
+          "group": "1_modification"
+        },
+        {
+          "command": "qip.deleteChain",
+          "when": "viewItem == qip-chain",
+          "group": "1_modification"
+        }
+      ]
+    },
+    "webviewAssets": [
+      {
+        "path": "node_modules/@netcracker/qip-ui/dist-lib",
+        "type": "resource"
+      }
+    ]
+  },
+  "scripts": {
+    "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
+    "test-on-ci": "vscode-test-web --browserType=chromium --headless --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
+    "pretest": "npm run compile-web",
+    "prepublishOnly": "rimraf dist && npm run compile-web",
+    "postpublish": "rimraf dist",
+    "vscode:prepublish": "npm run package-web",
+    "compile-web": "webpack",
+    "watch-web": "webpack --watch",
+    "package-web": "webpack --mode production --devtool hidden-source-map",
+    "lint": "eslint src",
+    "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. ."
+  },
+  "devDependencies": {
+    "@types/assert": "^1.5.11",
+    "@types/mocha": "^10.0.10",
+    "@types/vscode": "^1.100.0",
+    "@types/webpack-env": "^1.18.8",
+    "@types/yauzl": "^2.10.3",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-web": "^0.0.69",
+    "assert": "^2.1.0",
+    "eslint": "^9.25.1",
+    "mocha": "^11.1.0",
+    "path": "^0.12.7",
+    "process": "^0.11.10",
+    "rimraf": "^6.0.1",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.9.3",
+    "webpack": "^5.99.7",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@netcracker/qip-ui": "0.0.0-dev.20251006141355",
+    "@apidevtools/swagger-parser": "^12.0.0",
+    "@asyncapi/parser": "^3.4.0",
+    "@types/js-yaml": "^4.0.9",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "js-yaml": "^4.1.0",
+    "tar": "^7.4.3",
+    "yaml": "^2.8.1",
+    "yauzl": "^3.2.0"
+  }
+}

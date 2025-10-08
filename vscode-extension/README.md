@@ -1,9 +1,11 @@
-# qubership-integration-vscode-extension
-It is repository to store code for VSCode extention example as alternative for fully functional [UI](https://github.com/Netcracker/qubership-integration-ui/) but to work locally with export files.
-To run configuratuons you still need the other part of [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform).
+# Qubership Integration VSCode Extension
 
+This is vscode extension based on [Qubership Integration Platform - UI](https://github.com/Netcracker/qubership-integration-ui) 
+project to manipulate chain configurations offline. To run configurations you still need the other part of [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform).
 
-Click [here](https://github.com/Netcracker/qubership-repo-template/generate) to create your copy of this repository.
+## Build
+
+This application should be built by Visual Studio Code itself (usually F5 hotkey at opened project in vscode).
 
 ## Contribution
 
@@ -20,5 +22,3 @@ This software is licensed under Apache License Version 2.0. License text is loca
 
 - [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment
   guide.
-
-
