@@ -1,6 +1,7 @@
 
 html {
   background: white;
+  height: 100%;
 }
 
 :root {
@@ -31,6 +32,12 @@ a:hover {
 body {
   margin: 0;
   min-width: 320px;
+  min-height: 100vh;
+  height: 100%;
+}
+
+#root {
+  height: 100%;
   min-height: 100vh;
 }
 
@@ -99,9 +106,9 @@ button:focus-visible {
 .chain-layout {
   all: unset;
   display: flex;
-  height: 100vh;
-  border-radius: 12px; /* ????? */
-  border: black 4px; /* ????? */
+  height: 100%;
+  border-radius: 12px;
+  border: black 4px;
 }
 
 .trigger-node {

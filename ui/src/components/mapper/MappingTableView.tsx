@@ -788,7 +788,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
           render: (_value: unknown, item: MappingTableItem) => {
             return isBodyGroup(item) ? (
               <Space>
-                <span className={styles["group-label"]}>body</span>
+                <span>body</span>
                 {mappingDescription[selectedSchema].body ? (
                   <Select<string>
                     size={"small"}
@@ -815,11 +815,11 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                 )}
               </Space>
             ) : isConstantGroup(item) ? (
-              <span className={styles["group-label"]}>constants</span>
+              <span>constants</span>
             ) : isHeaderGroup(item) ? (
-              <span className={styles["group-label"]}>headers</span>
+              <span>headers</span>
             ) : isPropertyGroup(item) ? (
-              <span className={styles["group-label"]}>properties</span>
+              <span>properties</span>
             ) : isAttributeItem(item) ? (
               readonly ? (
                 item.attribute.name

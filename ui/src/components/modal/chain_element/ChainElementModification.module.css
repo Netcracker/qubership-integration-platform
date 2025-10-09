@@ -4,17 +4,36 @@
     top: 50%;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-footer {
-    position: sticky;
-    bottom: 0;
+    margin-top: auto;
 }
 
 .modal-body {
     overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
 
-    height: 90%;
+.modal-body :global(.rjsf) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.modal-body :global(.ant-form-item-additional) {
+    margin-top: auto !important;
+}
+
+.modal-body :global(#root__description) {
+    font-size: 12px !important;
+    color: #8c8c8c !important;
+    padding-top: 16px !important;
 }
 
 .custom-textarea textarea {

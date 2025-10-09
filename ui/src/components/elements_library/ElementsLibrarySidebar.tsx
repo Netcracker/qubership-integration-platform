@@ -50,13 +50,25 @@ export const ElementsLibrarySidebar = () => {
             label: <DraggableElement element={element} />,
           };
           if (childrenMenuItems.length !== 0) {
-            elementMenuItem.children = childrenMenuItems;
+            elementMenuItem.children = childrenMenuItems.sort((a, b) =>
+              a.key.localeCompare(b.key)
+            );
           }
           folderMap.get(element.folder)!.children!.push(elementMenuItem);
         });
       });
 
-      setItems(Array.from(folderMap.values()));
+      const sortedFolders = Array.from(folderMap.values()).sort((a, b) =>
+        a.key.localeCompare(b.key)
+      );
+
+      sortedFolders.forEach((folder) => {
+        if (folder.children) {
+          folder.children.sort((a, b) => a.key.localeCompare(b.key));
+        }
+      });
+
+      setItems(sortedFolders);
       setLoading(false);
     }
   }, [libraryData, notificationService]);

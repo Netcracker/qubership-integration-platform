@@ -42,10 +42,10 @@ export const Mapping: React.FC<MappingProps> = ({
       className={"flex-tabs"}
       items={[
         {
-          key: "table",
-          label: "Table",
+          key: "graph",
+          label: "Graph",
           children: (
-            <MappingTableView
+            <MappingGraphView
               elementId={elementId}
               mapping={value}
               readonlySource={readonlySource}
@@ -55,10 +55,10 @@ export const Mapping: React.FC<MappingProps> = ({
           ),
         },
         {
-          key: "graph",
-          label: "Graph",
+          key: "table",
+          label: "Table",
           children: (
-            <MappingGraphView
+            <MappingTableView
               elementId={elementId}
               mapping={value}
               readonlySource={readonlySource}

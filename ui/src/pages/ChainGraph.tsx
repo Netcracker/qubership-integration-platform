@@ -42,6 +42,7 @@ import {
   nodeTypes,
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
 import { Icon } from "../IconProvider.tsx";
+import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 
 const ChainGraphInner: React.FC = () => {
   const { chainId, elementId } = useParams<string>();
@@ -219,6 +220,7 @@ const ChainGraphInner: React.FC = () => {
             onNodeDoubleClick={onNodeDoubleClick}
             zoomOnDoubleClick={false}
             deleteKeyCode={["Backspace", "Delete"]}
+            proOptions={{ hideAttribution: true }}
             fitView
           >
             <Background variant={BackgroundVariant.Dots} />
@@ -227,24 +229,26 @@ const ChainGraphInner: React.FC = () => {
           </ReactFlow>
         </ElkDirectionContextProvider>
       </div>
-      <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
-        <FloatButton
-          icon={<>⭾</>}
-          tooltip={{
-            title: "Show sequence diagram",
-            placement: "left",
-          }}
-          onClick={openSequenceDiagram}
-        />
-        <FloatButton
-          icon={<Icon name="send" />}
-          tooltip={{
-            title: "Save and deploy",
-            placement: "left",
-          }}
-          onClick={openSaveAndDeployDialog}
-        />
-      </FloatButtonGroup>
+      {!isVsCode && (
+        <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+          <FloatButton
+            icon={<>⭾</>}
+            tooltip={{
+              title: "Show sequence diagram",
+              placement: "left",
+            }}
+            onClick={openSequenceDiagram}
+          />
+          <FloatButton
+            icon={<Icon name="send" />}
+            tooltip={{
+              title: "Save and deploy",
+              placement: "left",
+            }}
+            onClick={openSaveAndDeployDialog}
+          />
+        </FloatButtonGroup>
+      )}
     </Flex>
   );
 };

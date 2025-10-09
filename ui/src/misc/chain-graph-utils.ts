@@ -86,23 +86,23 @@ export function getNodeFromElement(
 
 function getElementColor(libraryElement: LibraryElement | undefined): string {
   if (!libraryElement) {
-    return '#fff3bf';
+    return '#fdf39d';
   }
 
   switch (libraryElement.colorType) {
     case ElementColorType.SENDER:
-      return "#d0ebff";
+      return "#bddcf2";
     case ElementColorType.TRIGGER:
-      return "#c5f6fa";
+      return "#a5e1d2";
     case ElementColorType.CHAIN_CALL:
-      return "#f0deff";
+      return "#cfc3ef";
     case ElementColorType.COMPOSITE_TRIGGER:
-      return "#c5f6fa";
+      return "#c9e1a5";
     case ElementColorType.UNSUPPORTED:
-      return "#edf1f5";
+      return "#b8b8b8";
+    default:
+      return "#fdf39d";
   }
-
-  return "#fff3bf";
 }
 
 export function collectChildren(

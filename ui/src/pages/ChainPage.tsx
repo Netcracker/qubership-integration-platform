@@ -127,7 +127,7 @@ const ChainPage = () => {
         </Col>
       </Row>
       <Row className={styles.stretched}>
-        <Col span={24}>
+        <Col span={24} className={styles.stretched}>
           <ChainContext.Provider
             value={{
               chain,

@@ -1,10 +1,13 @@
 .group-row {
-
+  background-color: #f5f5f5 !important;
 }
 
-.group-label {
-  text-transform: capitalize;
-  font-weight: bold;
+.group-row:hover {
+  background-color: #f5f5f5 !important;
+}
+
+.group-row.ant-table-row-selected {
+  background-color: #f5f5f5 !important;
 }
 
 .invalid-value {

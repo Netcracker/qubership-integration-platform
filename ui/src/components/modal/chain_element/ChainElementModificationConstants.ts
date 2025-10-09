@@ -85,6 +85,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       },
     },
     before: {
+      "ui:fieldReplacesAnyOrOneOf": true,
       type: {
         "ui:widget": "hidden",
       },
