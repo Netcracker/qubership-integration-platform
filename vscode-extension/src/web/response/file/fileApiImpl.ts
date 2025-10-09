@@ -7,6 +7,7 @@ import {QipFileType} from "../serviceApiUtils";
 import { FileFilter } from '../fileFilteringUtils';
 import { getExtensionsForFile, extractFilename } from './fileExtensions';
 import {Chain as ChainSchema} from "@netcracker/qip-schemas";
+import { ContentParser } from '../../api-services/parsers/ContentParser';
 
 const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';
@@ -96,7 +97,7 @@ export class VSCodeFileApi implements FileApi {
         if (extension) {
             return await this.findFile(extension, (fileContent: any) => {return fileContent?.id === id; });
         }
-        
+
         const extensions = getExtensionsForFile();
         const typesToTry = [
             extensions.service,
@@ -104,7 +105,7 @@ export class VSCodeFileApi implements FileApi {
             extensions.specificationGroup,
             extensions.specification
         ];
-        
+
         for (const ext of typesToTry) {
             try {
                 return await this.findFile(ext, (fileContent: any) => {return fileContent?.id === id; });
@@ -112,7 +113,7 @@ export class VSCodeFileApi implements FileApi {
                 continue;
             }
         }
-        
+
         throw new Error(`File with id ${id} not found with any known extension`);
     }
 
@@ -162,8 +163,7 @@ export class VSCodeFileApi implements FileApi {
         const baseUri = parameters as Uri;
         const fileUri = await this.getMainChainFileUri(baseUri);
         try {
-            const text = await this.readFileContent(fileUri);
-            const parsed = yaml.parse(text);
+            const parsed = await ContentParser.parseContentFromFile(fileUri);
 
             if (parsed && parsed.name) {
                 return parsed;
@@ -193,8 +193,7 @@ export class VSCodeFileApi implements FileApi {
 
     async parseFile(fileUri: Uri): Promise<any> {
         try {
-            const content = await this.readFileContent(fileUri);
-            return yaml.parse(content);
+            return await ContentParser.parseContentFromFile(fileUri);
         } catch (e) {
             console.error(`Unable to parse file: ${fileUri}`, e);
             throw e;
@@ -248,8 +247,7 @@ export class VSCodeFileApi implements FileApi {
     // Service-related methods
     async getMainService(serviceFileUri: Uri): Promise<any> {
         try {
-            const text = await this.readFileContent(serviceFileUri);
-            const parsed = yaml.parse(text);
+            const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
 
             if (parsed && parsed.name) {
                 return parsed;
@@ -263,8 +261,7 @@ export class VSCodeFileApi implements FileApi {
 
     async getService(serviceFileUri: Uri, serviceId: string): Promise<any> {
         try {
-            const text = await this.readFileContent(serviceFileUri);
-            const parsed = yaml.parse(text);
+            const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
 
             if (parsed && parsed.id === serviceId) {
                 return parsed;
@@ -474,7 +471,7 @@ export class VSCodeFileApi implements FileApi {
         try {
             const stat = await vscode.workspace.fs.stat(fileUri);
             const extensions = this.getExtensionsForContext(fileUri);
-            
+
             if (stat.type === vscode.FileType.File) {
                 const name = extractFilename(fileUri);
                 if (name.endsWith(extensions.service)) {

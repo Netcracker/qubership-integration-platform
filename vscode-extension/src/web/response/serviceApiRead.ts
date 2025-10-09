@@ -6,6 +6,7 @@ import {fileApi} from "./file/fileApiProvider";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { getExtensionsForUri } from './file/fileExtensions';
 import { Chain } from "@netcracker/qip-ui";
+import { ContentParser } from "../api-services/parsers/ContentParser";
 
 const vscode = require('vscode');
 
@@ -215,8 +216,7 @@ export async function getOperationInfo(serviceFileUri: Uri, operationId: string)
     for (const fileName of specFiles) {
         try {
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const text = await fileApi.readFileContent(fileUri);
-            const parsed = yaml.parse(text);
+            const parsed = await ContentParser.parseContentFromFile(fileUri);
 
             if (parsed && parsed.content && parsed.content.operations) {
                 const operation = parsed.content.operations.find((op: any) => op.id === operationId);

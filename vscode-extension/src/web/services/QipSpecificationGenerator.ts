@@ -259,16 +259,26 @@ export class QipSpecificationGenerator {
     /**
      * Expands schema, resolving references and creating full JSON Schema
      */
-    private static expandSchema(schema: any, openApiSpec: any, schemaName?: string): any {
+    private static expandSchema(schema: any, openApiSpec: any, schemaName?: string, visited: Set<string> = new Set()): any {
         if (!schema) {
             return {};
         }
 
         // If it's a reference, resolve it and extract schema name
         if (schema.$ref) {
+            // Check for circular references
+            if (visited.has(schema.$ref)) {
+                // Return reference as is to break circular dependency
+                return { $ref: schema.$ref };
+            }
+            
+            // Add current ref to visited set
+            const newVisited = new Set(visited);
+            newVisited.add(schema.$ref);
+            
             const resolvedSchema = this.resolveRef(schema.$ref, openApiSpec);
             const refSchemaName = this.extractSchemaNameFromRef(schema.$ref);
-            return this.expandSchema(resolvedSchema, openApiSpec, refSchemaName);
+            return this.expandSchema(resolvedSchema, openApiSpec, refSchemaName, newVisited);
         }
 
         // Create full JSON Schema (only for root schemas)
@@ -289,24 +299,24 @@ export class QipSpecificationGenerator {
         if (schema.properties) {
             expandedSchema.properties = {};
             for (const [key, prop] of Object.entries(schema.properties)) {
-                expandedSchema.properties[key] = this.expandSchemaNested(prop, openApiSpec);
+                expandedSchema.properties[key] = this.expandSchemaNested(prop, openApiSpec, visited);
             }
         }
 
         if (schema.items) {
-            expandedSchema.items = this.expandSchemaNested(schema.items, openApiSpec);
+            expandedSchema.items = this.expandSchemaNested(schema.items, openApiSpec, visited);
         }
 
         if (schema.allOf) {
-            expandedSchema.allOf = schema.allOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
+            expandedSchema.allOf = schema.allOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
         }
 
         if (schema.anyOf) {
-            expandedSchema.anyOf = schema.anyOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
+            expandedSchema.anyOf = schema.anyOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
         }
 
         if (schema.oneOf) {
-            expandedSchema.oneOf = schema.oneOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
+            expandedSchema.oneOf = schema.oneOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
         }
 
         // Add definitions only if they are referenced in the schema
@@ -318,7 +328,7 @@ export class QipSpecificationGenerator {
             if (openApiSpec.definitions) {
                 for (const [name, def] of Object.entries(openApiSpec.definitions)) {
                     if (referencedSchemas.has(name)) {
-                        expandedSchema.definitions[name] = this.expandSchemaNested(def, openApiSpec);
+                        expandedSchema.definitions[name] = this.expandSchemaNested(def, openApiSpec, visited);
                     }
                 }
             }
@@ -327,7 +337,7 @@ export class QipSpecificationGenerator {
             if (openApiSpec.components && openApiSpec.components.schemas) {
                 for (const [name, def] of Object.entries(openApiSpec.components.schemas)) {
                     if (referencedSchemas.has(name)) {
-                        expandedSchema.definitions[name] = this.expandSchemaNested(def, openApiSpec);
+                        expandedSchema.definitions[name] = this.expandSchemaNested(def, openApiSpec, visited);
                     }
                 }
             }
@@ -339,15 +349,25 @@ export class QipSpecificationGenerator {
     /**
      * Expands nested schemas without adding $id and $schema
      */
-    private static expandSchemaNested(schema: any, openApiSpec: any): any {
+    private static expandSchemaNested(schema: any, openApiSpec: any, visited: Set<string> = new Set()): any {
         if (!schema) {
             return {};
         }
 
         // If it's a reference, resolve it
         if (schema.$ref) {
+            // Check for circular references
+            if (visited.has(schema.$ref)) {
+                // Return reference as is to break circular dependency
+                return { $ref: schema.$ref };
+            }
+            
+            // Add current ref to visited set
+            const newVisited = new Set(visited);
+            newVisited.add(schema.$ref);
+            
             const resolvedSchema = this.resolveRef(schema.$ref, openApiSpec);
-            return this.expandSchemaNested(resolvedSchema, openApiSpec);
+            return this.expandSchemaNested(resolvedSchema, openApiSpec, newVisited);
         }
 
         // Create schema without $id and $schema for nested elements
@@ -357,24 +377,24 @@ export class QipSpecificationGenerator {
         if (schema.properties) {
             expandedSchema.properties = {};
             for (const [key, prop] of Object.entries(schema.properties)) {
-                expandedSchema.properties[key] = this.expandSchemaNested(prop, openApiSpec);
+                expandedSchema.properties[key] = this.expandSchemaNested(prop, openApiSpec, visited);
             }
         }
 
         if (schema.items) {
-            expandedSchema.items = this.expandSchemaNested(schema.items, openApiSpec);
+            expandedSchema.items = this.expandSchemaNested(schema.items, openApiSpec, visited);
         }
 
         if (schema.allOf) {
-            expandedSchema.allOf = schema.allOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
+            expandedSchema.allOf = schema.allOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
         }
 
         if (schema.anyOf) {
-            expandedSchema.anyOf = schema.anyOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
+            expandedSchema.anyOf = schema.anyOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
         }
 
         if (schema.oneOf) {
-            expandedSchema.oneOf = schema.oneOf.map((item: any) => this.expandSchemaNested(item, openApiSpec));
+            expandedSchema.oneOf = schema.oneOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
         }
 
         return expandedSchema;

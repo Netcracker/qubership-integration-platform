@@ -95,4 +95,28 @@ export class SystemService {
         }
         return baseFolder;
     }
+
+    /**
+     * Save system to file
+     */
+    async saveSystem(system: IntegrationSystem): Promise<void> {
+        try {
+            const baseFolder = await this.getBaseFolderUri();
+            const ext = getExtensionsForFile();
+            const serviceFileUri = Uri.joinPath(baseFolder, `${system.id}${ext.service}`);
+            
+            const service = await fileApi.getMainService(serviceFileUri);
+            service.content.protocol = system.protocol;
+            service.content.extendedProtocol = system.extendedProtocol;
+            service.content.specification = system.specification;
+            service.content.modifiedWhen = Date.now();
+            service.content.modifiedBy = { ...EMPTY_USER };
+            
+            await fileApi.writeMainService(serviceFileUri, service);
+            console.log(`[SystemService] Saved system ${system.id}, protocol: ${system.protocol}`);
+        } catch (error) {
+            console.error(`[SystemService] Failed to save system ${system.id}:`, error);
+            throw error;
+        }
+    }
 }

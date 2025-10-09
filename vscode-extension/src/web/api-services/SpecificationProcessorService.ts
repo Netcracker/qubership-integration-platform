@@ -9,6 +9,7 @@ import {
     AsyncApiSpecificationParser
 } from "./parsers";
 import { EMPTY_USER } from "../response/chainApiUtils";
+import { ContentParser } from './parsers/ContentParser';
 
 const vscode = require('vscode');
 
@@ -266,8 +267,7 @@ export class SpecificationProcessorService {
                 } catch (jsonError) {
                     // If not JSON, try as YAML
                     try {
-                        const yaml = require('yaml');
-                        const yamlData = yaml.parse(content);
+                        const yamlData = ContentParser.parseContent(content);
 
                         // For AsyncAPI YAML
                         if (yamlData.asyncapi && yamlData.info && yamlData.info.version) {
@@ -321,8 +321,7 @@ export class SpecificationProcessorService {
                         parsedContent = JSON.parse(content);
                     } catch (jsonError) {
                         try {
-                            const yaml = require('yaml');
-                            parsedContent = yaml.parse(content);
+                            parsedContent = ContentParser.parseContent(content);
                         } catch (yamlError) {
                             // Keep original type if parsing fails
                         }
@@ -362,6 +361,7 @@ export class SpecificationProcessorService {
                     return [];
             }
         } catch (error) {
+            console.error('[SpecificationProcessorService] Failed to create operations:', error);
             return [];
         }
     }

@@ -34,7 +34,10 @@ class ChainFileEditorProvider implements CustomTextEditorProvider {
     ): Promise<void> {
         const webview = panel.webview;
         webview.options = {
-            localResourceRoots: [this.context.extensionUri],
+            localResourceRoots: [
+                this.context.extensionUri,
+                vscode.Uri.joinPath(this.context.extensionUri, 'node_modules')
+            ],
             enableScripts: true,
             enableCommandUris: true
         };
@@ -51,7 +54,10 @@ function openWebviewForElement(context: ExtensionContext, fileUri: Uri, elementT
         {
             enableScripts: true, // Allow JavaScript execution
             retainContextWhenHidden: true, // Keep state when hidden
-            enableCommandUris: true
+            enableCommandUris: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(context.extensionUri, 'node_modules')
+            ]
         }
     );
 
@@ -148,7 +154,10 @@ export function activate(context: ExtensionContext) {
           {
             enableScripts: true, // Allow JavaScript execution
             retainContextWhenHidden: true, // Keep state when hidden
-            enableCommandUris: true
+            enableCommandUris: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(context.extensionUri, 'node_modules')
+            ]
           }
         );
 
@@ -310,16 +319,18 @@ function getWebviewContent(context: ExtensionContext, webview: Webview) {
         'node_modules',
         '@netcracker',
         'qip-ui',
-        'dist-lib',
-        'index.es.js'
+        'dist',
+        'assets',
+        'index.js'
     );
     const cssFileUri = vscode.Uri.joinPath(
         context.extensionUri,
         'node_modules',
         '@netcracker',
         'qip-ui',
-        'dist-lib',
-        'qip-ui.css'
+        'dist',
+        'assets',
+        'index.css'
     );
     const jsUri = webview.asWebviewUri(jsFileUri);
     const cssUri = webview.asWebviewUri(cssFileUri);
