@@ -72,7 +72,7 @@
 
   jobs:
     npm-publish:
-      uses: Netcracker/qubership-workflow-hub/.github/workflows/re-npm-publish.yml@v1.0.7
+      uses: Netcracker/qubership-workflow-hub/.github/workflows/re-npm-publish.yml@8af13ac7ea017b87a8501e9b119a5c86c532a5b2
       with:
         version: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
         scope: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || '@netcracker' }}
