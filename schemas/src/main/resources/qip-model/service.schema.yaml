@@ -3,22 +3,23 @@ $id: http://qubership.org/schemas/product/qip/service.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonTopLevelEntityProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml"
 title: Service
 properties:
   content:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonEntityContent"
-      - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/WithLabels"
-      - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/WithMigrations"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/entity-audit-properties.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/migrations-property.schema.yaml"
     properties:
       activeEnvironmentId:
         type: string
         title: Active environment ID
       integrationSystemType:
         title: Integration system type
-        $ref: "#/definitions/ServiceType"
+        $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
       protocol:
         title: Protocol
         $ref: "#/definitions/Protocol"
@@ -34,11 +35,6 @@ properties:
 required:
   - content
 definitions:
-  ServiceType:
-    enum:
-      - INTERNAL
-      - EXTERNAL
-      - IMPLEMENTED
   Protocol:
     enum:
       - HTTP
@@ -55,10 +51,16 @@ definitions:
   Environment:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonEntityProperties"
-      - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonEntityContent"
-      - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/WithLabels"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/entity-audit-properties.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
     properties:
+      id:
+        type: string
+        title: Identifier
+      name:
+        type: string
+        title: Name
       address:
         type: string
       sourceType:
@@ -67,6 +69,8 @@ definitions:
         type: object
       additionalProperties: true
     required:
+      - id
+      - name
       - sourceType
     if:
       properties:

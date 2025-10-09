@@ -4,7 +4,7 @@ $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/container.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/container-element-properties.schema.yaml"
 title: Circuit Breaker Configuration
 properties:
   type:
@@ -22,7 +22,7 @@ properties:
         default: false
       failureRateThreshold:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Failure rate threshold (%)
         description: >
           Configures the failure rate threshold in percentage.
@@ -33,7 +33,7 @@ properties:
         default: 50
       minimumNumberOfCalls:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Minimum number of calls
         description: >
           Configures the minimum number of calls which are required
@@ -47,7 +47,7 @@ properties:
         default: 100
       permittedNumberOfCallsInHalfOpenState:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Permitted number of calls in half open state
         description: >
           Configures the number of permitted calls when the CircuitBreaker
@@ -55,7 +55,7 @@ properties:
         default: 10
       slidingWindowSize:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Sliding window size
         description: >
           Configures the size of the sliding window which is used to record
@@ -77,7 +77,7 @@ properties:
         default: COUNT_BASED
       slowCallDurationThreshold:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Slow call duration threshold (s)
         description: >
           Configures the duration threshold (seconds) above which calls
@@ -85,7 +85,7 @@ properties:
         default: 60
       slowCallRateThreshold:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Slow call rate threshold (%)
         description: >
           Configures a threshold in percentage. The CircuitBreaker considers
@@ -97,7 +97,7 @@ properties:
         default: 100
       waitDurationInOpenState:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Wait duration in open state (s)
         description: >
           Configures the wait duration (in seconds) which specifies

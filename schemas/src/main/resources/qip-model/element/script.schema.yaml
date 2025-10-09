@@ -11,21 +11,6 @@ properties:
     type: string
     const: script
   properties:
-    $ref: "#/definitions/ScriptProperties"
-definitions:
-  ScriptProperties:
-    type: object
-    properties:
-      exportFileExtension:
-        type: string
-        const: groovy
-      propertiesToExportInSeparateFile:
-        type: string
-        const: script
-      propertiesFilename:
-        $ref: "http://qubership.org/schemas/product/qip/resource-reference.schema.yaml#/definitions/ScriptResourceReference"
-      script:
-        type: string
-        title: Script
+    $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
 required:
   - type

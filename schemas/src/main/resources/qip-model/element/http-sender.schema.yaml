@@ -22,7 +22,7 @@ properties:
         $ref: "#/definitions/HttpMethod"
       connectTimeout:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Connection timeout (ms)
         description: >
           Specifies connection timeout in millis

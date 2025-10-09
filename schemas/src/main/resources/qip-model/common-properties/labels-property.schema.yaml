@@ -1,0 +1,12 @@
+---
+$id: http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Entity content with Labels
+properties:
+  labels:
+    type: array
+    title: Labels
+    items:
+      type: string
+      title: Label

@@ -67,7 +67,7 @@ properties:
           variables when entering passwords.
       connectionTimeout:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Connection timeout (ms)
         description: >
           Connection timeout in millis (default value will be used

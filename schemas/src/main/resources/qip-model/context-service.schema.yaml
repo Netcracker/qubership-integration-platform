@@ -3,14 +3,15 @@ $id: http://qubership.org/schemas/product/qip/context-service.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonTopLevelEntityProperties"
+  - $ref: "http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml"
 title: Context Service
 properties:
   content:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/CommonEntityContent"
-      - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/WithLabels"
-      - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/WithMigrations"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/entity-audit-properties.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/migrations-property.schema.yaml"
 required:
   - content

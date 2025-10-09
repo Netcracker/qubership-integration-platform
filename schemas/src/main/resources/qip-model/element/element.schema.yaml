@@ -2,6 +2,7 @@
 $id: http://qubership.org/schemas/product/qip/element/element.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+title: Chain element
 oneOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/chain-call-2.schema.yaml"
@@ -38,8 +39,7 @@ oneOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/swimlane.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/try-catch-finally-2.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/xslt.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/container-element.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/container.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/context-storage.schema.yaml"
 required:
   - type
-title: Chain element

@@ -4,7 +4,7 @@ $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/container.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/container-element-properties.schema.yaml"
 title: Async Split Element
 properties:
   type:

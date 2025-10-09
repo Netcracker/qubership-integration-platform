@@ -32,7 +32,7 @@ properties:
           ServiceAccount json file.
       maxMessagesPerPoll:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Max messages per poll
         description: >
           The max number of messages to receive from the server

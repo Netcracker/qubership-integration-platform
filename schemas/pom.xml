@@ -34,8 +34,8 @@
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
-        
-        <revision>0.0.11</revision>
+
+        <revision>0.0.12-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
     </properties>

@@ -20,7 +20,7 @@ properties:
     properties:
       timeout:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Timeout
         description: Sets a total timeout specified in millis
         default: 0

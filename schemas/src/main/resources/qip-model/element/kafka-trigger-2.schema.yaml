@@ -22,7 +22,7 @@ properties:
         description: The ID of the group the Producer is assigned to.
       reconnectBackoffMaxMs:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Reconnect delay (ms)
         description: Specifies delay between reconnection in millis.
         default: 30000
@@ -36,7 +36,7 @@ properties:
         default: latest
       consumersCount:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         default: 1
         title: Consumers Count
         description: The number of consumers that connect to kafka server.
@@ -78,7 +78,7 @@ properties:
         description: Value deserializer class
       maxPollIntervalMs:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         default: 300000
         title: Max Poll Interval
         description: >
@@ -90,7 +90,7 @@ properties:
           This "new" consumer will process the whole batch all over again.
       maxPollRecords:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         default: 500
         title: Max Poll Records
         description: >

@@ -37,7 +37,7 @@ properties:
         title: Service ID
       systemType:
         title: Service type
-        $ref: "http://qubership.org/schemas/product/qip/service.schema.yaml#/definitions/ServiceType"
+        $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
       integrationOperationProtocolType:
         title: Operation protocol type
         $ref: "#/definitions/Protocol"
@@ -55,7 +55,7 @@ properties:
       properties:
         reconnectDelay:
           allOf:
-            - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+            - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
           title: Reconnection delay (ms)
           default: 30000
         integrationOperationAsyncProperties:

@@ -30,7 +30,7 @@ definitions:
         default: false
       keyExpiry:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Key expiration time (seconds)
         default: 600
       contextExpression:
@@ -72,7 +72,7 @@ definitions:
         title: Chain trigger
       chainCallTimeout:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Timeout (ms)
         default: 30000
     required:

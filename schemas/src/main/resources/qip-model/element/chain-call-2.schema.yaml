@@ -17,7 +17,7 @@ properties:
         title: Reference to chain trigger
       timeout:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
         title: Timeout (ms)
         default: 30000
 required:

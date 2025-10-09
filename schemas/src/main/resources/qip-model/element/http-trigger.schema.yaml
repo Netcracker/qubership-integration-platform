@@ -18,8 +18,8 @@ properties:
       - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
       - $ref: "#/definitions/AccessControlProperties"
       - oneOf:
-        - $ref: "#/definitions/CustomEndpoint"
-        - $ref: "#/definitions/ImplementedServiceEndpoint"
+          - $ref: "#/definitions/CustomEndpoint"
+          - $ref: "#/definitions/ImplementedServiceEndpoint"
       - $ref: "#/definitions/ValidationFailureHandler"
       - $ref: "#/definitions/ChainFailureHandler"
     properties:
@@ -58,8 +58,8 @@ properties:
           in JSON.
       connectTimeout:
         oneOf:
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/IntegerOrVariablePlaceholder"
-          - $ref: "http://qubership.org/schemas/product/qip/base.schema.yaml#/definitions/SimpleExpression"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/simple-expression.schema.yaml"
         title: Connection timeout (ms)
         description: >
           Specifies connection timeout in millis (default value will be used
@@ -155,7 +155,7 @@ definitions:
         title: Service ID
       systemType:
         title: Service type
-        $ref: "http://qubership.org/schemas/product/qip/service.schema.yaml#/definitions/ServiceType"
+        $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
       integrationOperationMethod:
         type: string
         title: Operation method
@@ -189,7 +189,7 @@ definitions:
             - handlerContainer
           properties:
             handlerContainer:
-              $ref: "http://qubership.org/schemas/product/qip/element/script.schema.yaml#/definitions/ScriptProperties"
+              $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
       - if:
           properties:
             handleValidationAction:
@@ -199,7 +199,7 @@ definitions:
             - handlerContainer
           properties:
             handlerContainer:
-              $ref: "http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml#/definitions/MapperParameters"
+              $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml"
       - if:
           properties:
             handleValidationAction:
@@ -234,7 +234,7 @@ definitions:
             - chainFailureHandlerContainer
           properties:
             chainFailureHandlerContainer:
-              $ref: "http://qubership.org/schemas/product/qip/element/script.schema.yaml#/definitions/ScriptProperties"
+              $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
       - if:
           properties:
             handleChainFailureAction:
@@ -244,7 +244,7 @@ definitions:
             - chainFailureHandlerContainer
           properties:
             chainFailureHandlerContainer:
-              $ref: "http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml#/definitions/MapperParameters"
+              $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml"
       - if:
           properties:
             handleChainFailureAction:

@@ -2,10 +2,16 @@
 $id: http://qubership.org/schemas/product/qip/element/container.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
-title: Container element
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/container-element-properties.schema.yaml"
+title: Container
 properties:
-  children:
-    type: array
-    title: Child elements
-    items:
-      $ref: "http://qubership.org/schemas/product/qip/element/element.schema.yaml"
+  type:
+    type: string
+    const: container
+  properties:
+    type: object
+    additionalProperties: false
+required:
+  - type
