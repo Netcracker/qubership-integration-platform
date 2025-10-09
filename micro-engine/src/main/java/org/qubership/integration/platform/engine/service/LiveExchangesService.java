@@ -16,73 +16,64 @@
 
 package org.qubership.integration.platform.engine.service;
 
-import com.google.common.collect.MinMaxPriorityQueue;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
-import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.spi.InflightRepository;
+import org.qubership.integration.platform.engine.camel.metadata.Metadata;
+import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTerminatedException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.rest.v1.dto.LiveExchangeDTO;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @ApplicationScoped
 public class LiveExchangesService {
-
-    private static final Comparator<InflightExchangeHolder> EXCHANGE_COMPARATOR =
-            Comparator.comparingLong(holder -> holder.getInflightExchange().getDuration() * -1);
-
-    @RequiredArgsConstructor
-    @Getter
-    private static class InflightExchangeHolder {
-        private final InflightRepository.InflightExchange inflightExchange;
-        private final String deploymentId;
-    }
-
-    private final IntegrationRuntimeService integrationRuntimeService;
     private final CamelDebuggerPropertiesService propertiesService;
+    private final CamelContext camelContext;
+    private final MetadataService metadataService;
 
-    public LiveExchangesService(IntegrationRuntimeService integrationRuntimeService, CamelDebuggerPropertiesService propertiesService) {
-        this.integrationRuntimeService = integrationRuntimeService;
+    @Inject
+    public LiveExchangesService(
+            CamelContext camelContext,
+            MetadataService metadataService,
+            CamelDebuggerPropertiesService propertiesService
+    ) {
+        this.camelContext = camelContext;
+        this.metadataService = metadataService;
         this.propertiesService = propertiesService;
     }
 
     public List<LiveExchangeDTO> getTopLiveExchanges(int amount) {
         List<LiveExchangeDTO> result = new ArrayList<>();
-        MinMaxPriorityQueue<InflightExchangeHolder> inflightExchanges = MinMaxPriorityQueue
-                .orderedBy(EXCHANGE_COMPARATOR).maximumSize(amount).create();
 
-        for (Map.Entry<String, DefaultCamelContext> entry : integrationRuntimeService.getCache().getContexts().entrySet()) {
-            String deploymentId = entry.getKey();
-            CamelContext context = entry.getValue();
-            List<InflightExchangeHolder> exchangeHolders = context.getInflightRepository().browse(amount, true).stream()
-                    .map(ex -> new InflightExchangeHolder(ex, deploymentId)).toList();
-            inflightExchanges.addAll(exchangeHolders);
-        }
+        List<InflightRepository.InflightExchange> exchangeHolders = camelContext.getInflightRepository()
+                .browse(amount, true).stream().toList();
 
-        for (InflightExchangeHolder exchangeHolder : inflightExchanges) {
-            Exchange exchange = exchangeHolder.getInflightExchange().getExchange();
+        for (InflightRepository.InflightExchange exchangeHolder : exchangeHolders) {
+            Exchange exchange = exchangeHolder.getExchange();
+            String deploymentId = metadataService.getMetadata(exchange)
+                    .map(Metadata::getDeploymentInfo)
+                    .map(DeploymentInfo::getDeploymentId)
+                    .orElse(null);
             Long sessionStartTime = exchange.getProperty(CamelConstants.Properties.START_TIME_MS, Long.class);
             Long sessionDuration = sessionStartTime == null ? null : System.currentTimeMillis() - sessionStartTime;
             Long exchangeStartTime = exchange.getProperty(CamelConstants.Properties.EXCHANGE_START_TIME_MS, Long.class);
             Long exchangeDuration = exchangeStartTime == null ? null : System.currentTimeMillis() - exchangeStartTime;
-            CamelDebuggerProperties properties = propertiesService.getProperties(exchange, exchangeHolder.getDeploymentId());
+            CamelDebuggerProperties properties = propertiesService.getProperties(exchange);
             String chainId = properties.getDeploymentInfo().getChainId();
             result.add(LiveExchangeDTO.builder()
                         .exchangeId(exchange.getExchangeId())
-                        .deploymentId(exchangeHolder.getDeploymentId())
+                        .deploymentId(deploymentId)
                         .sessionId(exchange.getProperty(CamelConstants.Properties.SESSION_ID, String.class))
                         .chainId(chainId)
                         .sessionStartTime(sessionStartTime)
@@ -97,12 +88,8 @@ public class LiveExchangesService {
     }
 
     public void killLiveExchangeById(String deploymentId, String exchangeId) {
-        CamelContext context = integrationRuntimeService.getCache().getContexts().get(deploymentId);
-        if (context == null) {
-            throw new EntityNotFoundException("No deployment found for id " + deploymentId);
-        }
-
-        Exchange exchange = context.getInflightRepository().browse().stream()
+        Exchange exchange = camelContext.getInflightRepository().browse().stream()
+                // TODO filter by deployment ID
                 .filter(inflightExchange -> exchangeId.equals(inflightExchange.getExchange().getExchangeId()))
                 .findAny().orElseThrow(() -> new EntityNotFoundException("No live exchange found for deployment id " + deploymentId))
                 .getExchange();

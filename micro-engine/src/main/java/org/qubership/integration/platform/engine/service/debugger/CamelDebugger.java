@@ -17,11 +17,9 @@
 package org.qubership.integration.platform.engine.service.debugger;
 
 import io.quarkus.arc.Unremovable;
-import jakarta.enterprise.context.Dependent;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.NamedNode;
@@ -74,7 +72,7 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 import static org.qubership.integration.platform.engine.util.CheckpointUtils.*;
 
 @Slf4j
-@Dependent
+@ApplicationScoped
 @Unremovable
 public class CamelDebugger extends DefaultDebugger {
 
@@ -90,9 +88,6 @@ public class CamelDebugger extends DefaultDebugger {
     private final CamelDebuggerPropertiesService propertiesService;
     private final Optional<CamelExchangeContextPropagation> exchangeContextPropagation;
     private final ExchangePropertyService exchangePropertyService;
-    @Setter
-    @Getter
-    private String deploymentId;
 
     @Inject
     public CamelDebugger(
@@ -753,10 +748,10 @@ public class CamelDebugger extends DefaultDebugger {
     }
 
     public CamelDebuggerProperties getRelatedProperties(Exchange exchange) {
-        return propertiesService.getProperties(exchange, deploymentId);
+        return propertiesService.getProperties(exchange);
     }
 
-    public CamelDebuggerProperties getRelatedProperties() {
+    public CamelDebuggerProperties getRelatedProperties(String deploymentId) {
         return propertiesService.getActualProperties(deploymentId);
     }
 

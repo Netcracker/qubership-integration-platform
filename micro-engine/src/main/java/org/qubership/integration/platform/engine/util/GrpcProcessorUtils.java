@@ -56,6 +56,7 @@ public class GrpcProcessorUtils {
         String servicePackage = GrpcUtils.extractServicePackage(fullServiceName);
         String camelCaseMethodName = GrpcUtils.convertMethod2CamelCase(methodName);
 
+        // FIXME extract element ID from the exchange, get a class resolver from the bean repository, and pass a wrapper around the context that returns this resolver to the constructGrpcImplBaseClass.
         Class<?> grpcServiceClass = GrpcUtils.constructGrpcImplBaseClass(servicePackage, serviceName, exchange.getContext());
         return Arrays.stream(grpcServiceClass.getMethods())
                 .filter(m -> camelCaseMethodName.equals(m.getName()))

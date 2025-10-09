@@ -40,7 +40,6 @@ import org.qubership.integration.platform.engine.util.InjectUtil;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 @Slf4j
 @ApplicationScoped
@@ -161,13 +160,13 @@ public class TasksScheduler {
         try {
             if (firstDeploy) {
                 deploymentsUpdateService.getAndProcess();
-                runtimeService.startAllRoutesOnInit();
+                runtimeService.startSuspendedRoutesOnInit();
                 deploymentReadinessService.setInitialized(true);
             } else {
                 deploymentUpdateGetter.checkForUpdates(changes -> {
                     try {
                         deploymentsUpdateService.getAndProcess();
-                    } catch (ExecutionException | InterruptedException e) {
+                    } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                 });

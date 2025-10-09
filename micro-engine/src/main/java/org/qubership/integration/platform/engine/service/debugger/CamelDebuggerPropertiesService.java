@@ -17,21 +17,25 @@
 package org.qubership.integration.platform.engine.service.debugger;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
+import org.qubership.integration.platform.engine.camel.metadata.Metadata;
+import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @ApplicationScoped
 public class CamelDebuggerPropertiesService {
-
     // <deployment_id, debugger_props(deployment & chain)>
     private final Map<String, AtomicReference<CamelDebuggerProperties>> deployPropertiesCache =
         new ConcurrentHashMap<>();
@@ -39,6 +43,13 @@ public class CamelDebuggerPropertiesService {
     // <chain_id, debugger_props(deployment & chain)>
     private final AtomicReference<Map<String, DeploymentRuntimeProperties>> runtimePropertiesCacheRef =
         new AtomicReference<>(Collections.emptyMap());
+
+    private final MetadataService metadataService;
+
+    @Inject
+    public CamelDebuggerPropertiesService(MetadataService metadataService) {
+        this.metadataService = metadataService;
+    }
 
     public CamelDebuggerProperties getActualProperties(String deploymentId) {
         return getOrCreateDeploymentPair(deploymentId).get();
@@ -49,16 +60,19 @@ public class CamelDebuggerPropertiesService {
             .computeIfAbsent(deploymentId, k -> new AtomicReference<>(null));
     }
 
-    public CamelDebuggerProperties getProperties(Exchange exchange, String deploymentId) {
-        CamelDebuggerProperties deployProperties = getActualProperties(deploymentId);
+    public CamelDebuggerProperties getProperties(Exchange exchange) {
+        Optional<CamelDebuggerProperties> deployProperties = metadataService.getMetadata(exchange)
+                .map(Metadata::getDeploymentInfo)
+                .map(DeploymentInfo::getDeploymentId)
+                .map(this::getActualProperties);
         DeploymentRuntimeProperties runtimeProperties = exchange.getProperty(
             Properties.DEPLOYMENT_RUNTIME_PROPERTIES_MAP_PROP, DeploymentRuntimeProperties.class);
-        if (runtimeProperties == null) {
+        if (runtimeProperties == null && deployProperties.isPresent()) {
             exchange.setProperty(
                 Properties.DEPLOYMENT_RUNTIME_PROPERTIES_MAP_PROP,
-                deployProperties.getActualRuntimeProperties());
+                deployProperties.get().getActualRuntimeProperties());
         }
-        return deployProperties;
+        return deployProperties.orElse(null);
     }
 
     public void mergeWithRuntimeProperties(CamelDebuggerProperties deployProperties) throws RuntimePropertiesException {

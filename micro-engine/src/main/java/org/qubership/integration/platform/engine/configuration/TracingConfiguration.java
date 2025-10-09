@@ -19,9 +19,9 @@ package org.qubership.integration.platform.engine.configuration;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.context.Dependent;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Named;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.observation.MicrometerObservationTracer;
@@ -37,7 +37,8 @@ public class TracingConfiguration {
     boolean tracingEnabled;
 
     @Produces
-    @Dependent
+    @ApplicationScoped
+    @Named("camelObservationTracer")
     MicrometerObservationTracer camelObservationTracer(
         Instance<Tracer> tracer,
         Instance<ObservationRegistry> observationRegistry

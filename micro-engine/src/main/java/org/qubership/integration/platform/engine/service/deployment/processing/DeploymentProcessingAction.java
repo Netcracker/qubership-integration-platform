@@ -17,13 +17,11 @@
 package org.qubership.integration.platform.engine.service.deployment.processing;
 
 import org.apache.camel.CamelContext;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentUpdate;
 
 public interface DeploymentProcessingAction {
     void execute(
         CamelContext context,
-        DeploymentInfo deploymentInfo,
-        DeploymentConfiguration deploymentConfiguration
+        DeploymentUpdate deploymentUpdate
     );
 }

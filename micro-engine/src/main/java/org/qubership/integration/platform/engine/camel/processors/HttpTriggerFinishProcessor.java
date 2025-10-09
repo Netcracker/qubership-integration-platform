@@ -28,7 +28,6 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
 import org.qubership.integration.platform.engine.model.logging.LogPayload;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
@@ -127,7 +126,6 @@ public class HttpTriggerFinishProcessor implements Processor {
     }
 
     private CamelDebuggerProperties getCamelDebuggerProperties(Exchange exchange) {
-        CamelDebugger camelDebugger = ((CamelDebugger) exchange.getContext().getDebugger());
-        return propertiesService.getProperties(exchange, camelDebugger.getDeploymentId());
+        return propertiesService.getProperties(exchange);
     }
 }

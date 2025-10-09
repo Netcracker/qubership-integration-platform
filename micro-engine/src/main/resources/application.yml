@@ -26,6 +26,21 @@ consul:
     enabled: ${DYNAMIC_ENGINE_CONSUL_STATE_ENABLED:false}
 
 camel:
+  trace:
+    enabled: ${TRACING_ENABLED:false}
+  debug:
+    enabled: true
+  main:
+    name: Camel Context
+    autoStartup: false
+    messageHistory: true
+    tracing: ${TRACING_ENABLED:false}
+    streamCachingEnabled: true # enable exchange payload spooling
+    streamCachingBufferSize: 16384
+    globalOptions:
+      CamelJacksonEnableTypeConverter: true
+      CamelJacksonTypeConverterToPojo: true
+      inflightRepositoryBrowseEnabled: true
   component:
     kafka: # new parameters will not be automatically set to 'kafka-custom' element, need to change KafkaCustomComponentConfiguration
       ssl-truststore-location: ${qip.local-truststore.store.path}
@@ -268,6 +283,10 @@ quarkus:
       servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
       url-patterns:
         - "${qip.camel.routes-prefix}/*"
+    debug:
+      enabled: true
+    trace:
+      enabled: ${TRACING_ENABLED:false}
   quartz:
     clustered: true
     store-type: jdbc-tx

@@ -27,7 +27,6 @@ import org.qubership.integration.platform.engine.model.deployment.update.Deploym
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentsUpdate;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 @Slf4j
 @ApplicationScoped
@@ -42,7 +41,7 @@ public class DeploymentsUpdateService {
     @Inject
     RuntimeCatalogService runtimeCatalogService;
 
-    public void getAndProcess() throws ExecutionException, InterruptedException {
+    public void getAndProcess() throws Exception {
         // pull updates from runtime catalog
         List<DeploymentInfo> excludeDeploymentsMap = integrationRuntimeService.buildExcludeDeploymentsMap();
         EngineDeploymentsDTO excluded = EngineDeploymentsDTO.builder()

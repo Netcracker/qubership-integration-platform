@@ -44,6 +44,8 @@ public final class CamelConstants {
     public static final Pattern NAME_STEP_REG_EXP_PATTERN = Pattern.compile(STEP_NAME_ID_PATTERN, Pattern.CASE_INSENSITIVE);
     public static final Pattern CUSTOM_STEP_ID_PATTERN = Pattern.compile(STEP_NAME_ID_PATTERN + UUID_REGEXP_STRING + "$", Pattern.CASE_INSENSITIVE);
 
+    public static final String ROUTE_METADATA_KEY = "metadata";
+
     // exchange headers
     public static final class Headers {
         public static final String CAMEL_HTTP_RESPONSE_CODE = "CamelHttpResponseCode";

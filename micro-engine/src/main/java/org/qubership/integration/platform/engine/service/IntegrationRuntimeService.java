@@ -16,39 +16,16 @@
 
 package org.qubership.integration.platform.engine.service;
 
-import groovy.lang.GroovyShell;
-import groovy.lang.Script;
 import io.quarkus.vertx.ConsumeEvent;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
-import jakarta.enterprise.inject.spi.CDI;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
-import org.apache.camel.CamelContext;
-import org.apache.camel.Component;
-import org.apache.camel.component.jackson.JacksonConstants;
-import org.apache.camel.impl.DefaultCamelContext;
-import org.apache.camel.impl.engine.DefaultStreamCachingStrategy;
-import org.apache.camel.management.DefaultManagementAgent;
-import org.apache.camel.management.JmxManagementStrategy;
 import org.apache.camel.model.*;
-import org.apache.camel.model.language.ExpressionDefinition;
-import org.apache.camel.observation.MicrometerObservationTracer;
 import org.apache.camel.reifier.ProcessorReifier;
-import org.apache.camel.spi.ClassResolver;
-import org.apache.camel.spi.MessageHistoryFactory;
-import org.apache.camel.spi.Registry;
-import org.apache.camel.support.DefaultRegistry;
-import org.apache.camel.tracing.Tracer;
 import org.apache.commons.lang3.tuple.Pair;
-import org.codehaus.groovy.control.CompilationFailedException;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.qubership.integration.platform.engine.camel.CustomResilienceReifier;
-import org.qubership.integration.platform.engine.camel.QipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.context.propagation.constant.BusinessIds;
-import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory;
-import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory.FilteringEntity;
-import org.qubership.integration.platform.engine.camel.registry.FilteringRegistry;
+import org.qubership.integration.platform.engine.camel.reifiers.CustomResilienceReifier;
+import org.qubership.integration.platform.engine.camel.reifiers.CustomStepReifier;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
@@ -56,44 +33,27 @@ import org.qubership.integration.platform.engine.consul.EngineStateReporter;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
-import org.qubership.integration.platform.engine.model.RuntimeIntegrationCache;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.DeploymentOperation;
 import org.qubership.integration.platform.engine.model.deployment.engine.DeploymentStatus;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.*;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
-import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
+import org.qubership.integration.platform.engine.service.deployment.DeploymentLockHelper;
+import org.qubership.integration.platform.engine.service.deployment.DeploymentRetryQueue;
+import org.qubership.integration.platform.engine.service.deployment.DeploymentStateHolder;
+import org.qubership.integration.platform.engine.service.deployment.preprocessor.DeploymentPreprocessorService;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingService;
-import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before.RegisterRoutesInControlPlaneAction;
-import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryGroovyShellFactory;
-import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryService;
-import org.qubership.integration.platform.engine.service.externallibrary.GroovyLanguageWithResettableCache;
-import org.qubership.integration.platform.engine.service.xmlpreprocessor.XmlConfigurationPreProcessor;
-import org.qubership.integration.platform.engine.util.InjectUtil;
 import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 
-import java.io.ByteArrayInputStream;
-import java.net.URISyntaxException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
-import static java.util.Objects.isNull;
-import static java.util.Objects.nonNull;
-import static org.apache.camel.xml.jaxb.JaxbHelper.loadRoutesDefinition;
 import static org.qubership.integration.platform.engine.consul.ConsulSessionService.CREATE_SESSION_EVENT;
 
 @ApplicationScoped
@@ -104,21 +64,14 @@ public class IntegrationRuntimeService {
     private final ServerConfiguration serverConfiguration;
     private final QuartzSchedulerService quartzSchedulerService;
     private final TracingConfiguration tracingConfiguration;
-    private final ExternalLibraryGroovyShellFactory groovyShellFactory;
-    private final GroovyLanguageWithResettableCache groovyLanguage;
-    private final MetricsStore metricsStore;
-    private final Optional<ExternalLibraryService> externalLibraryService;
-    private final Optional<MaasService> maasService;
-    private final Optional<XmlConfigurationPreProcessor> xmlPreProcessor;
-    private final VariablesService variablesService;
     private final EngineStateReporter engineStateReporter;
-    private final CamelDebuggerPropertiesService propertiesService;
     private final DeploymentReadinessService deploymentReadinessService;
-    private final Predicate<FilteringEntity> camelMessageHistoryFilter;
-    private final RuntimeIntegrationCache deploymentCache = new RuntimeIntegrationCache();
-    private final ReadWriteLock processLock = new ReentrantReadWriteLock();
+    private final DeploymentRetryQueue retryQueue = new DeploymentRetryQueue();
+    private final DeploymentLockHelper lockHelper = new DeploymentLockHelper();
+    private final DeploymentStateHolder deploymentStateHolder = new DeploymentStateHolder();
     private final DeploymentProcessingService deploymentProcessingService;
     private final Executor deploymentExecutor;
+    private final DeploymentPreprocessorService deploymentPreprocessorService;
 
     static {
         ProcessorReifier.registerReifier(StepDefinition.class, CustomStepReifier::new);
@@ -127,92 +80,62 @@ public class IntegrationRuntimeService {
                 (CircuitBreakerDefinition) definition));
     }
 
-    private boolean enableStreamCaching;
-
-    private final int streamCachingBufferSize;
-
-    private final CamelContext camelContext;
-
     @Inject
     public IntegrationRuntimeService(ServerConfiguration serverConfiguration,
         QuartzSchedulerService quartzSchedulerService,
         TracingConfiguration tracingConfiguration,
-        ExternalLibraryGroovyShellFactory groovyShellFactory,
-        GroovyLanguageWithResettableCache groovyLanguage,
-        MetricsStore metricsStore,
-        Instance<ExternalLibraryService> externalLibraryService,
-        Instance<MaasService> maasService,
-        Instance<XmlConfigurationPreProcessor> xmlPreProcessor,
-        VariablesService variablesService,
         EngineStateReporter engineStateReporter,
         @Named("deploymentExecutor") Executor deploymentExecutor,
-        CamelDebuggerPropertiesService propertiesService,
-        @ConfigProperty(name = "qip.camel.stream-caching.buffer.size-kb") int streamCachingBufferSizeKb,
-        Predicate<FilteringEntity> camelMessageHistoryFilter,
         DeploymentReadinessService deploymentReadinessService,
         DeploymentProcessingService deploymentProcessingService,
-        @ConfigProperty(name = "qip.camel.stream-caching.enabled") boolean enableStreamCaching,
-        CamelContext camelContext
+        DeploymentPreprocessorService deploymentPreprocessorService
     ) {
         this.serverConfiguration = serverConfiguration;
         this.quartzSchedulerService = quartzSchedulerService;
         this.tracingConfiguration = tracingConfiguration;
-        this.groovyShellFactory = groovyShellFactory;
-        this.groovyLanguage = groovyLanguage;
-        this.metricsStore = metricsStore;
-        this.externalLibraryService = InjectUtil.injectOptional(externalLibraryService);
-        this.maasService = InjectUtil.injectOptional(maasService);
-        this.xmlPreProcessor = InjectUtil.injectOptional(xmlPreProcessor);
-        this.variablesService = variablesService;
         this.engineStateReporter = engineStateReporter;
         this.deploymentExecutor = deploymentExecutor;
-        this.propertiesService = propertiesService;
-        this.streamCachingBufferSize = streamCachingBufferSizeKb * 1024;
-        this.camelMessageHistoryFilter = camelMessageHistoryFilter;
         this.deploymentReadinessService = deploymentReadinessService;
         this.deploymentProcessingService = deploymentProcessingService;
-        this.enableStreamCaching = enableStreamCaching;
-        this.camelContext = camelContext;
+        this.deploymentPreprocessorService = deploymentPreprocessorService;
     }
 
     @ConsumeEvent(CREATE_SESSION_EVENT)
-    public void onExternalLibrariesUpdated(String sessionId) {
+    public void onConsulSessionCreated(String sessionId) throws Exception {
         // if consul session (re)create - force update engine state
-        updateEngineState();
+        notifyEngineState();
     }
 
     // requires completion of all deployment processes
-    public List<DeploymentInfo> buildExcludeDeploymentsMap() {
-        Lock processLock = this.processLock.writeLock();
-        try {
-            processLock.lock();
-            return deploymentCache.getDeployments().values().stream()
-                .map(EngineDeployment::getDeploymentInfo)
-                .toList();
-        } finally {
-            processLock.unlock();
-        }
+    public List<DeploymentInfo> buildExcludeDeploymentsMap() throws Exception {
+        return lockHelper.runWithProcessWriteLock(() ->
+                deploymentStateHolder.values().map(Pair::getKey).toList());
     }
 
     // requires completion of all deployment processes
-    private Map<String, EngineDeployment> buildActualDeploymentsSnapshot() {
-        Lock processLock = this.processLock.writeLock();
-        try {
-            processLock.lock();
-            // copy deployments objects to avoid concurrent modification
-            return deploymentCache.getDeployments().entrySet().stream()
+    private Map<String, EngineDeployment> buildActualDeploymentsSnapshot() throws Exception {
+        return lockHelper.runWithProcessWriteLock(() ->
+                deploymentStateHolder.values()
                 .collect(Collectors.toMap(
-                    Entry::getKey, entry -> entry.getValue().toBuilder().build()));
-        } finally {
-            processLock.unlock();
-        }
+                        entry -> entry.getKey().getDeploymentId(),
+                        entry -> {
+                            DeploymentStateHolder.DeploymentState deploymentState = entry.getValue();
+                            return EngineDeployment.builder()
+                                    .deploymentInfo(entry.getKey().toBuilder()
+                                            .chainStatusCode(deploymentState.getChainStatusCode())
+                                            .build())
+                                    .errorMessage(deploymentState.getErrorMessage())
+                                    .suspended(deploymentState.isSuspended())
+                                    .status(deploymentState.getStatus())
+                                    .build();
+                        })));
     }
 
     /**
      * Start parallel deployments processing, wait for completion and update engine state
      */
     public void processAndUpdateState(DeploymentsUpdate update, boolean retry)
-        throws ExecutionException, InterruptedException {
+            throws Exception {
         List<CompletableFuture<?>> completableFutures = new ArrayList<>();
 
         // <chainId, OrderedCollection<DeploymentUpdate>>
@@ -241,14 +164,18 @@ public class IntegrationRuntimeService {
         CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).get();
 
         // update engine state in consul
-        updateEngineState();
+        notifyEngineState();
     }
 
-    private synchronized void updateEngineState() {
-        engineStateReporter.addStateToQueue(EngineState.builder()
-            .engine(serverConfiguration.getEngineInfo())
-            .deployments(buildActualDeploymentsSnapshot())
-            .build());
+    private synchronized void notifyEngineState() throws Exception {
+        engineStateReporter.addStateToQueue(buildEngineState());
+    }
+
+    private EngineState buildEngineState() throws Exception {
+        return EngineState.builder()
+                .engine(serverConfiguration.getEngineInfo())
+                .deployments(buildActualDeploymentsSnapshot())
+                .build();
     }
 
     /**
@@ -262,31 +189,20 @@ public class IntegrationRuntimeService {
             for (DeploymentUpdate chainDeployment : chainDeployments) {
                 log.info("Start processing deployment {}, operation: {}",
                     chainDeployment.getDeploymentInfo(), operation);
-
-                Lock chainLock = getCache().getLockForChain(
-                    chainDeployment.getDeploymentInfo().getChainId());
-                try {
-                    chainLock.lock();
-                    log.debug("Locked by-chain lock");
-
-                    // update and retry concurrent case: check if retry deployment is still required
-                    // necessary so as not to break the order of deployments
-                    if (!retry || getCache().getDeployments()
-                        .containsKey(chainDeployment.getDeploymentInfo().getDeploymentId())) {
-                        Lock processWeakLock = processLock.readLock();
-                        try {
-                            processWeakLock.lock();
-                            log.debug("Locked process read lock");
-                            processDeploymentUpdate(chainDeployment, operation);
-                        } finally {
-                            processWeakLock.unlock();
-                            log.debug("Unlocked process read lock");
+                lockHelper.runWithChainLock(
+                        chainDeployment.getDeploymentInfo().getChainId(),
+                        () -> {
+                            // update and retry concurrent case: check if retry deployment is still required
+                            // necessary so as not to break the order of deployments
+                            if (!retry || deploymentStateHolder.has(
+                                    chainDeployment.getDeploymentInfo().getDeploymentId())) {
+                                lockHelper.runWithProcessReadLock(() -> {
+                                    log.debug("Locked process read lock");
+                                    processDeploymentUpdate(chainDeployment, operation);
+                                });
+                            }
                         }
-                    }
-                } finally {
-                    chainLock.unlock();
-                    log.debug("Unlocked by-chain lock");
-                }
+                );
                 log.info("Deployment {} processing completed",
                     chainDeployment.getDeploymentInfo().getDeploymentId());
             }
@@ -298,8 +214,8 @@ public class IntegrationRuntimeService {
         String chainId = deployment.getDeploymentInfo().getChainId();
         String snapshotId = deployment.getDeploymentInfo().getSnapshotId();
         String deploymentId = deployment.getDeploymentInfo().getDeploymentId();
-        Throwable exception = null;
-        ErrorCode chainErrorCode = null;
+        Optional<Throwable> exception = Optional.empty();
+        Optional<ErrorCode> errorCode = Optional.empty();
         DeploymentStatus status = DeploymentStatus.FAILED;
 
         try {
@@ -312,58 +228,48 @@ public class IntegrationRuntimeService {
 
             status = processDeployment(deployment, operation);
         } catch (KubeApiException e) {
-            exception = e;
+            exception = Optional.of(e);
         } catch (DeploymentRetriableException e) {
             status = DeploymentStatus.PROCESSING;
-            putInRetryQueue(deployment);
-            exception = e;
-            chainErrorCode = ErrorCode.PREDEPLOY_CHECK_ERROR;
+            log.info("Scheduling deployment for retry {}",
+                    deployment.getDeploymentInfo().getDeploymentId());
+            retryQueue.put(deployment);
+            exception = Optional.of(e);
+            errorCode = Optional.of(ErrorCode.PREDEPLOY_CHECK_ERROR);
         } catch (Throwable e) {
-            exception = e;
-            chainErrorCode = ErrorCode.UNEXPECTED_DEPLOYMENT_ERROR;
-            log.error(chainErrorCode, chainErrorCode.compileMessage(deploymentId), e);
+            ErrorCode code = ErrorCode.UNEXPECTED_DEPLOYMENT_ERROR;
+            log.error(code, code.compileMessage(deploymentId), e);
+            exception = Optional.of(e);
+            errorCode = Optional.of(code);
         } finally {
+            log.info("Status of deployment {} for chain {} is {}", deploymentId, chainId, status);
             try {
-                log.info("Status of deployment {} for chain {} is {}", deploymentId, chainId, status);
                 quartzSchedulerService.resetSchedulersProxy();
                 switch (status) {
                     case DEPLOYED, FAILED, PROCESSING -> {
-                        if (chainErrorCode != null) {
-                            deployment.getDeploymentInfo().setChainStatusCode(chainErrorCode.getCode());
-                        }
-                        var stateBuilder = EngineDeployment.builder()
-                                .deploymentInfo(deployment.getDeploymentInfo())
-                                .status(status);
-
-                        if (isNull(exception)) {
-                            removeOldDeployments(deployment, deploymentStatus -> true);
-                        } else {
-                            stateBuilder.errorMessage(exception.getMessage());
-
-                            log.error(chainErrorCode, "Failed to deploy chain {} with id {}. Deployment: {}",
-                                    deployment.getDeploymentInfo().getChainName(), chainId, deploymentId, exception);
-
-                            removeOldDeployments(
-                                    deployment,
-                                    (deploymentStatus) ->
-                                            deploymentStatus == DeploymentStatus.FAILED
-                                                    || deploymentStatus == DeploymentStatus.PROCESSING);
+                        if (exception.isPresent()) {
+                            log.error(
+                                    errorCode.orElse(null),
+                                    "Failed to deploy chain {} with id {}. Deployment: {}",
+                                    deployment.getDeploymentInfo().getChainName(),
+                                    chainId,
+                                    deploymentId,
+                                    exception.get());
                         }
 
-                        // If Pod is not initialized yet and this is first deploy -
-                        // set corresponding flag and Processing status
-                        if (status == DeploymentStatus.DEPLOYED && isDeploymentsSuspended()) {
-                            stateBuilder.suspended(true);
-                        }
+                        undeploy(isOtherDeploymentForThisChain(deployment.getDeploymentInfo()).and(
+                                exception.map(e -> isFailedOrProcessing())
+                                        .orElse((info, state) -> true)));
 
-                        EngineDeployment deploymentState = stateBuilder.build();
-                        getCache().getDeployments().put(deploymentId, deploymentState);
-                    }
-                    case REMOVED -> {
-                        getCache().getDeployments().remove(deploymentId);
-                        removeRetryingDeployment(deploymentId);
-                        propertiesService.removeDeployProperties(deploymentId);
-                        metricsStore.removeChainsDeployments(deploymentId);
+                        var deploymentState = DeploymentStateHolder.DeploymentState.builder()
+                                .status(status)
+                                // If Pod is not initialized yet and this is first deploy -
+                                // set corresponding flag and Processing status
+                                .suspended(status == DeploymentStatus.DEPLOYED && isDeploymentsSuspended())
+                                .chainStatusCode(errorCode.map(ErrorCode::getCode).orElse(null))
+                                .errorMessage(exception.map(Throwable::getMessage).orElse(null))
+                                .build();
+                        deploymentStateHolder.put(deployment.getDeploymentInfo(), deploymentState);
                     }
                     default -> {
                     }
@@ -387,335 +293,68 @@ public class IntegrationRuntimeService {
     ) throws Exception {
         return switch (operation) {
             case UPDATE -> update(deployment);
-            case STOP -> stop(deployment.getDeploymentInfo());
+            case STOP -> stop(deployment);
         };
     }
 
     private DeploymentStatus update(DeploymentUpdate deployment) throws Exception {
-        DeploymentInfo deploymentInfo = deployment.getDeploymentInfo();
-        String deploymentId = deploymentInfo.getDeploymentId();
-        DeploymentConfiguration configuration = deployment.getConfiguration();
-        String configurationXml = preprocessDeploymentConfigurationXml(configuration);
-
-        deploymentProcessingService.processBeforeContextCreated(deploymentInfo, configuration);
-
-        propertiesService.mergeWithRuntimeProperties(CamelDebuggerProperties.builder()
-            .deploymentInfo(deployment.getDeploymentInfo())
-            .maskedFields(deployment.getMaskedFields())
-            .properties(configuration.getProperties())
-            .build());
-
-        DefaultCamelContext context = getCache().getContexts().get(deploymentId);
-        if (context != null) {
-            if (log.isDebugEnabled()) {
-                log.debug("Context for deployment {} already exists", deploymentId);
-            }
+        DeploymentUpdate preprocessedDeployment = deploymentPreprocessorService.preprocess(deployment);
+        boolean deploymentsSuspended = isDeploymentsSuspended();
+        if (deploymentsSuspended) {
+            log.debug("Deployment {} will be suspended due to pod initialization",
+                    preprocessedDeployment.getDeploymentInfo().getDeploymentId());
         }
-        if (log.isDebugEnabled()) {
-            log.debug("Creating context for deployment {}", deploymentId);
-        }
-        context = buildContext(deploymentInfo, configuration, configurationXml);
-        getCache().getContexts().put(deploymentId, context);
-
-        List<Pair<DeploymentInfo, DefaultCamelContext>> contextsToStop = getContextsRelatedToDeployment(
-            deployment,
-            state -> !state.getDeploymentInfo().getDeploymentId()
-                .equals(deployment.getDeploymentInfo().getDeploymentId())
-        );
-
-        try {
-            startContext(context);
-        } catch (Exception e) {
-            quartzSchedulerService.commitScheduledJobs();
-            deploymentProcessingService.processStopContext(context, deploymentInfo, configuration);
-            throw e;
-        }
-
-        contextsToStop.forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
-
-        quartzSchedulerService.commitScheduledJobs();
-        if (log.isDebugEnabled()) {
-            log.debug("Context for deployment {} has started", deploymentId);
-        }
+        deploymentProcessingService.deploy(preprocessedDeployment, !deploymentsSuspended);
         return DeploymentStatus.DEPLOYED;
     }
 
-    private String preprocessDeploymentConfigurationXml(DeploymentConfiguration configuration) throws URISyntaxException {
-        String configurationXml = configuration.getXml();
-
-        configurationXml = variablesService.injectVariables(configurationXml, true);
-        if (maasService.isPresent()) {
-            configurationXml = maasService.get().resolveDeploymentMaasParameters(configuration, configurationXml);
-        }
-        configurationXml = resolveRouteVariables(configuration.getRoutes(), configurationXml);
-        if (xmlPreProcessor.isPresent()) {
-            configurationXml = xmlPreProcessor.get().process(configurationXml);
-        }
-
-        return configurationXml;
-    }
-
-    private String resolveRouteVariables(List<DeploymentRouteUpdate> routes, String text) {
-        String result = text;
-
-        for (DeploymentRouteUpdate route : routes) {
-            DeploymentRouteUpdate tempRoute =
-                    RegisterRoutesInControlPlaneAction.formatServiceRoutes(route);
-
-            RouteType type = tempRoute.getType();
-            if (nonNull(tempRoute.getVariableName())
-                && (RouteType.EXTERNAL_SENDER == type || RouteType.EXTERNAL_SERVICE == type)) {
-                String variablePlaceholder = String.format("%%%%{%s}", tempRoute.getVariableName());
-                String gatewayPrefix = tempRoute.getGatewayPrefix();
-                result = result.replace(variablePlaceholder,
-                    isNull(gatewayPrefix) ? "" : gatewayPrefix);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Stop and remove same old deployments and contexts
-     */
-    private void removeOldDeployments(
-        DeploymentUpdate deployment,
-        Predicate<DeploymentStatus> statusPredicate
+    private Collection<DeploymentInfo> getDeployments(
+            BiPredicate<DeploymentInfo, DeploymentStateHolder.DeploymentState> predicate
     ) {
-        Iterator<Map.Entry<String, EngineDeployment>> iterator = getCache().getDeployments()
-            .entrySet().iterator();
-        List<Pair<DeploymentInfo, CamelContext>> contextsToRemove = new ArrayList<>();
-        while (iterator.hasNext()) {
-            Map.Entry<String, EngineDeployment> entry = iterator.next();
-
-            DeploymentInfo depInfo = entry.getValue().getDeploymentInfo();
-            if (depInfo.getChainId().equals(deployment.getDeploymentInfo().getChainId())
-                    && statusPredicate.test(entry.getValue().getStatus())
-                    && !depInfo.getDeploymentId().equals(deployment.getDeploymentInfo().getDeploymentId())) {
-
-                CamelContext toRemoveContext = getCache().getContexts()
-                    .remove(entry.getKey());
-                if (toRemoveContext != null) {
-                    contextsToRemove.add(Pair.of(depInfo, toRemoveContext));
-                }
-
-                removeRetryingDeployment(depInfo.getDeploymentId());
-
-                metricsStore.removeChainsDeployments(depInfo.getDeploymentId());
-
-                iterator.remove();
-                propertiesService.removeDeployProperties(entry.getKey());
-            }
-        }
-
-        contextsToRemove.stream().filter(p -> isRunning(p.getRight()))
-            .forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
+        return deploymentStateHolder.values()
+                .filter(entry -> predicate.test(entry.getKey(), entry.getValue()))
+                .map(Entry::getKey)
+                .toList();
     }
 
-    private List<Pair<DeploymentInfo, DefaultCamelContext>> getContextsRelatedToDeployment(
-        DeploymentUpdate deployment,
-        Predicate<EngineDeployment> filter
+    private BiPredicate<DeploymentInfo, DeploymentStateHolder.DeploymentState> isOtherDeploymentForThisChain(
+            DeploymentInfo deploymentInfo
     ) {
-        return getCache().getDeployments().entrySet().stream()
-            .filter(entry -> entry.getValue().getDeploymentInfo().getChainId()
-                .equals(deployment.getDeploymentInfo().getChainId())
-                && filter.test(entry.getValue()))
-            .map(entry -> Pair.of(
-                    entry.getValue().getDeploymentInfo(),
-                    getCache().getContexts().get(entry.getKey())))
-            .toList();
-    }
-
-    private DefaultCamelContext buildContext(
-        DeploymentInfo deploymentInfo,
-        DeploymentConfiguration deploymentConfiguration,
-        String configurationXml
-    ) throws Exception {
-        Registry registry = new DefaultRegistry(
-            // Camel components contain a reference to a context.
-            // Since a unique context instance is created for every
-            // integration chain, we can't use singleton component beans
-            // that are provided by existing registry bean configured
-            // by Quarkus.
-            // We are filtering out these singleton component beans to
-            // enforce Camel to create unique component instances for every
-            // created context via DefaultComponentResolver that uses component
-            // definitions in META-INF/services/org/apache/camel/component.
-            new FilteringRegistry(
-                CDI.current().select(Registry.class).get(),
-                obj -> {
-                    boolean isCamelComponent = nonNull(obj)
-                            && Component.class.isAssignableFrom(obj.getClass());
-                    return !isCamelComponent;
-                })
-        );
-        DefaultCamelContext context = new DefaultCamelContext(registry);
-
-        context.setTypeConverterRegistry(camelContext.getTypeConverterRegistry());
-
-        context.getGlobalOptions().put(JacksonConstants.ENABLE_TYPE_CONVERTER, "true");
-        context.getGlobalOptions().put(JacksonConstants.TYPE_CONVERTER_TO_POJO, "true");
-        context.getInflightRepository().setInflightBrowseEnabled(true);
-
-        boolean deploymentsSuspended = isDeploymentsSuspended();
-        if (deploymentsSuspended) {
-            context.setAutoStartup(false);
-            log.debug("Deployment {} will be suspended due to pod initialization", deploymentInfo.getDeploymentId());
-        }
-
-        context.setClassResolver(getClassResolver(context, deploymentConfiguration));
-
+        String chainId = deploymentInfo.getChainId();
         String deploymentId = deploymentInfo.getDeploymentId();
-        context.setManagementName("camel-context_" + deploymentId); // use repeatable after restart context name
-        context.setManagementStrategy(new JmxManagementStrategy(context, new DefaultManagementAgent(context)));
-
-        // Every time a new instance of CamelDebugger is injected
-        CamelDebugger debugger = CDI.current().select(CamelDebugger.class).getHandle().get();
-        debugger.setDeploymentId(deploymentId);
-        context.setDebugger(debugger);
-        context.setDebugging(true);
-
-        configureMessageHistoryFactory(context);
-
-        context.setStreamCaching(enableStreamCaching);
-        if (enableStreamCaching) {
-            DefaultStreamCachingStrategy streamCachingStrategy = new DefaultStreamCachingStrategy();
-            streamCachingStrategy.setBufferSize(streamCachingBufferSize);
-            context.setStreamCachingStrategy(streamCachingStrategy);
-        }
-
-        deploymentProcessingService.processAfterContextCreated(context, deploymentInfo, deploymentConfiguration);
-
-        this.loadRoutes(context, configurationXml);
-        return context;
+        return (info, state) -> info.getChainId().equals(chainId)
+                && !info.getDeploymentId().equals(deploymentId);
     }
 
-    private ClassResolver getClassResolver(
-        CamelContext context,
-        DeploymentConfiguration deploymentConfiguration
-    ) {
-        Collection<String> systemModelIds = deploymentConfiguration.getProperties().stream()
-            .map(ElementProperties::getProperties)
-            .filter(properties -> ChainProperties.SERVICE_CALL_ELEMENT.equals(properties.get(
-                ChainProperties.ELEMENT_TYPE)))
-            .map(properties -> properties.get(ChainProperties.OPERATION_SPECIFICATION_ID))
-            .filter(Objects::nonNull)
-            .toList();
-        ClassLoader classLoader = externalLibraryService.isPresent()
-                ? externalLibraryService.get().getClassLoaderForSystemModels(systemModelIds, context.getApplicationContextClassLoader())
-                : getClass().getClassLoader();
-        return new QipCustomClassResolver(classLoader);
+    private BiPredicate<DeploymentInfo, DeploymentStateHolder.DeploymentState> isFailedOrProcessing() {
+        return (info, state) ->
+                state.getStatus() == DeploymentStatus.FAILED
+                        || state.getStatus() == DeploymentStatus.PROCESSING;
     }
 
-    private void startContext(CamelContext context) {
-        if (tracingConfiguration.isTracingEnabled()) {
-            // TODO [migration to quarkus] check that every time a new instance of Tracer is injected
-            Tracer tracer = CDI.current().select(MicrometerObservationTracer.class).getHandle().get();
-            tracer.init(context);
-        }
-
-        context.start();
+    private void undeploy(BiPredicate<DeploymentInfo, DeploymentStateHolder.DeploymentState> predicate) {
+        getDeployments(predicate).forEach(this::tryUndeploy);
     }
 
-    private void configureMessageHistoryFactory(CamelContext context) {
-        context.setMessageHistory(true);
-        MessageHistoryFactory defaultFactory = context.getMessageHistoryFactory();
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(
-            camelMessageHistoryFilter, defaultFactory);
-        context.setMessageHistoryFactory(factory);
-    }
-
-    /**
-     * Upload routes to a new context from provided configuration
-     */
-    private void loadRoutes(DefaultCamelContext context, String xmlConfiguration) throws Exception {
-        if (log.isDebugEnabled()) {
-            log.debug("Loading routes from: \n{}", xmlConfiguration);
-        }
-
-        byte[] configurationBytes = xmlConfiguration.getBytes();
-        ByteArrayInputStream configInputStream = new ByteArrayInputStream(configurationBytes);
-        RoutesDefinition routesDefinition = loadRoutesDefinition(context, configInputStream);
-
-        // xml routes must be marked as un-prepared as camel-core
-        // must do special handling for XML DSL
-        for (RouteDefinition route : routesDefinition.getRoutes()) {
-            RouteDefinitionHelper.prepareRoute(context, route);
-            route.markPrepared();
-        }
-        routesDefinition.getRoutes().forEach(RouteDefinition::markUnprepared);
-
-        compileGroovyScripts(routesDefinition);
-
-        context.addRouteDefinitions(routesDefinition.getRoutes());
-    }
-
-    private void compileGroovyScripts(RoutesDefinition routesDefinition) {
-        for (RouteDefinition route : routesDefinition.getRoutes()) {
-            for (ProcessorDefinition<?> processor : route.getOutputs()) {
-                if (!(processor instanceof ExpressionNode)) {
-                    continue;
-                }
-                ExpressionDefinition expression = ((ExpressionNode) processor).getExpression();
-                if (!expression.getLanguage().equals("groovy")) {
-                    continue;
-                }
-
-                log.debug("Compiling groovy script for processor {}", processor.getId());
-                compileGroovyScript(expression);
-            }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void compileGroovyScript(ExpressionDefinition expression) {
+    private void tryUndeploy(DeploymentInfo deploymentInfo) {
         try {
-            String text = expression.getExpression();
-            if (isNull(expression.getTrim()) || Boolean.parseBoolean(expression.getTrim())) {
-                text = text.trim();
-            }
-
-            GroovyShell groovyShell = groovyShellFactory.createGroovyShell(null);
-            Class<Script> scriptClass = groovyShell.getClassLoader().parseClass(text);
-            groovyLanguage.addScriptToCache(text, scriptClass);
-        } catch (CompilationFailedException exception) {
-            if (isClassResolveError(exception)) {
-                throw new DeploymentRetriableException("Failed to compile groovy script.",
-                    exception);
-            } else {
-                throw new RuntimeException("Failed to compile groovy script.", exception);
-            }
+            stop(DeploymentUpdate.builder().deploymentInfo(deploymentInfo).build());
+        } catch (Exception exception) {
+            log.error("Failed to undeploy {}", deploymentInfo.getDeploymentId(), exception);
         }
     }
 
-    private static boolean isClassResolveError(CompilationFailedException exception) {
-        return exception.getMessage().contains("unable to resolve class");
-    }
-
-    private DeploymentStatus stop(DeploymentInfo deploymentInfo) {
-        String deploymentId = deploymentInfo.getDeploymentId();
-        CamelContext context = getCache().getContexts().remove(deploymentId);
-        if (nonNull(context)) {
-            log.debug("Removing context for deployment: {}", deploymentInfo.getDeploymentId());
-        }
-        stopDeploymentContext(context, deploymentInfo);
+    private DeploymentStatus stop(DeploymentUpdate deploymentUpdate) throws Exception {
+        deploymentProcessingService.undeploy(deploymentUpdate);
+        String deploymentId = deploymentUpdate.getDeploymentInfo().getDeploymentId();
+        deploymentStateHolder.remove(deploymentId);
+        retryQueue.remove(deploymentId);
         return DeploymentStatus.REMOVED;
-    }
-
-    private void stopDeploymentContext(CamelContext context, DeploymentInfo deploymentInfo) {
-        deploymentProcessingService.processStopContext(context, deploymentInfo, null);
-        if (nonNull(context)) {
-            quartzSchedulerService.removeSchedulerJobsFromContexts(
-                Collections.singletonList(context));
-            if (isRunning(context)) {
-                log.debug("Stopping context for deployment: {}", deploymentInfo.getDeploymentId());
-                context.stop();
-            }
-        }
     }
 
     public void retryProcessingDeploys() {
         try {
-            Collection<DeploymentUpdate> toRetry = getCache().flushDeploymentsToRetry();
+            Collection<DeploymentUpdate> toRetry = retryQueue.flush();
             if (!toRetry.isEmpty()) {
                 processAndUpdateState(DeploymentsUpdate.builder().update(toRetry).build(), true);
             }
@@ -724,60 +363,35 @@ public class IntegrationRuntimeService {
         }
     }
 
-    private void putInRetryQueue(DeploymentUpdate deploymentUpdate) {
-        log.info("Deployment marked for retry {}",
-            deploymentUpdate.getDeploymentInfo().getDeploymentId());
-        getCache().putToRetryQueue(deploymentUpdate);
-    }
-
-    private void removeRetryingDeployment(String deploymentId) {
-        getCache().removeRetryDeploymentFromQueue(deploymentId);
-    }
-
-    public RuntimeIntegrationCache getCache() {
-        return deploymentCache;
-    }
-
-    public void startAllRoutesOnInit() {
-        getCache().getContexts().forEach((deploymentId, context) -> {
-            EngineDeployment state = getCache().getDeployments().get(deploymentId);
+    public void startSuspendedRoutesOnInit() {
+        var entries = deploymentStateHolder.values()
+                .filter(entry -> entry.getValue().isSuspended())
+                .toList();
+        entries.forEach(entry -> {
+            DeploymentInfo deploymentInfo = entry.getKey();
+            String deploymentId = deploymentInfo.getDeploymentId();
+            var stateBuilder = entry.getValue().toBuilder();
             try {
-                context.startAllRoutes();
-                log.debug("Deployment {} was resumed from suspend", deploymentId);
-            } catch (Exception e) {
-                if (state != null) {
-                    state.setStatus(DeploymentStatus.FAILED);
-                    state.setErrorMessage("Deployment wasn't initialized correctly during pod startup " + e.getMessage());
-                }
+                deploymentProcessingService.startRoutes(deploymentId);
+            } catch (Exception exception) {
                 ErrorCode errorCode = ErrorCode.DEPLOYMENT_START_ERROR;
-                log.error(errorCode, errorCode.compileMessage(deploymentId), e);
+                log.error(errorCode, errorCode.compileMessage(deploymentId), exception);
+                stateBuilder
+                        .status(DeploymentStatus.FAILED)
+                        .errorMessage("Deployment wasn't initialized correctly during pod startup "
+                                + exception.getMessage())
+                        .chainStatusCode(errorCode.getCode());
             } finally {
-                if (state != null) {
-                    state.setSuspended(false);
-                }
+                deploymentStateHolder.put(deploymentInfo, stateBuilder.suspended(false).build());
             }
         });
     }
 
-    private void runInProcessLock(Runnable callback) {
-        Lock lock = this.processLock.writeLock();
-        try {
-            lock.lock();
-            callback.run();
-        } finally {
-            lock.unlock();
-        }
-    }
-
     public void suspendAllSchedulers() {
-        runInProcessLock(quartzSchedulerService::suspendAllSchedulers);
+        lockHelper.runWithProcessWriteLock(quartzSchedulerService::suspendAllSchedulers);
     }
 
     public void resumeAllSchedulers() {
-        runInProcessLock(quartzSchedulerService::resumeAllSchedulers);
-    }
-
-    private static boolean isRunning(CamelContext camelContext) {
-        return !camelContext.isStopping() && !camelContext.isStopped();
+        lockHelper.runWithProcessWriteLock(quartzSchedulerService::resumeAllSchedulers);
     }
 }

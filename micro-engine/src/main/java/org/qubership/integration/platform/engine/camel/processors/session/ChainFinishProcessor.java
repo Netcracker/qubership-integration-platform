@@ -117,8 +117,7 @@ public class ChainFinishProcessor implements Processor {
         // finish session if this is the last thread
         if (sessionActiveThreadCounter == null || sessionActiveThreadCounter.decrementAndGet() <= 0) {
             CamelDebugger camelDebugger = ((CamelDebugger) exchange.getContext().getDebugger());
-            CamelDebuggerProperties dbgProperties = propertiesService.getProperties(exchange,
-                    camelDebugger.getDeploymentId());
+            CamelDebuggerProperties dbgProperties = propertiesService.getProperties(exchange);
 
             ExecutionStatus executionStatus = ExecutionStatus.COMPLETED_NORMALLY;
             for (Entry<Long, ExecutionStatus> entry : threadsStatuses.entrySet()) {

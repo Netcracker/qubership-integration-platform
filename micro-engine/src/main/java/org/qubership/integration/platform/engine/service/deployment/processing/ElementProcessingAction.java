@@ -21,6 +21,7 @@ import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentUpdate;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.slf4j.MDC;
 
@@ -31,14 +32,14 @@ public abstract class ElementProcessingAction implements DeploymentProcessingAct
     @Override
     public void execute(
         CamelContext context,
-        DeploymentInfo deploymentInfo,
-        DeploymentConfiguration deploymentConfiguration
+        DeploymentUpdate deploymentUpdate
     ) {
-        Optional.ofNullable(deploymentConfiguration)
+        Optional.ofNullable(deploymentUpdate.getConfiguration())
             .map(DeploymentConfiguration::getProperties)
             .ifPresent(properties -> properties.stream()
                     .filter(this::applicableTo)
-                    .forEach(elementProperties -> processElement(context, elementProperties, deploymentInfo)));
+                    .forEach(elementProperties -> processElement(
+                            context, elementProperties, deploymentUpdate.getDeploymentInfo())));
     }
 
     private void processElement(
