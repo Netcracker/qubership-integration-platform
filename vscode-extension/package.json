@@ -171,7 +171,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@netcracker/qip-ui": "0.0.1",
+    "@netcracker/qip-ui": "0.0.2",
     "@apidevtools/swagger-parser": "^12.0.0",
     "@asyncapi/parser": "^3.4.0",
     "@types/js-yaml": "^4.0.9",
