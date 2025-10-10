@@ -27,7 +27,6 @@ import org.qubership.integration.platform.engine.camel.context.propagation.const
 import org.qubership.integration.platform.engine.camel.reifiers.CustomResilienceReifier;
 import org.qubership.integration.platform.engine.camel.reifiers.CustomStepReifier;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
-import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
 import org.qubership.integration.platform.engine.consul.EngineStateReporter;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
@@ -63,7 +62,6 @@ public class IntegrationRuntimeService {
 
     private final ServerConfiguration serverConfiguration;
     private final QuartzSchedulerService quartzSchedulerService;
-    private final TracingConfiguration tracingConfiguration;
     private final EngineStateReporter engineStateReporter;
     private final DeploymentReadinessService deploymentReadinessService;
     private final DeploymentRetryQueue retryQueue = new DeploymentRetryQueue();
@@ -83,7 +81,6 @@ public class IntegrationRuntimeService {
     @Inject
     public IntegrationRuntimeService(ServerConfiguration serverConfiguration,
         QuartzSchedulerService quartzSchedulerService,
-        TracingConfiguration tracingConfiguration,
         EngineStateReporter engineStateReporter,
         @Named("deploymentExecutor") Executor deploymentExecutor,
         DeploymentReadinessService deploymentReadinessService,
@@ -92,7 +89,6 @@ public class IntegrationRuntimeService {
     ) {
         this.serverConfiguration = serverConfiguration;
         this.quartzSchedulerService = quartzSchedulerService;
-        this.tracingConfiguration = tracingConfiguration;
         this.engineStateReporter = engineStateReporter;
         this.deploymentExecutor = deploymentExecutor;
         this.deploymentReadinessService = deploymentReadinessService;
