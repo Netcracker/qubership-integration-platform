@@ -21,6 +21,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletTagsProvider;
+import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
@@ -56,6 +57,7 @@ public class HttpTriggerDependencyBinder extends ElementProcessingAction {
             deploymentInfo.getChainName());
         ServletTagsProvider servletTagsProvider = new ServletTagsProvider(tags);
         String elementId = elementProperties.getElementId();
-        context.getRegistry().bind(elementId, ServletTagsProvider.class, servletTagsProvider);
+        RegistryHelper.getRegistry(context, deploymentInfo.getDeploymentId())
+                .bind(elementId, ServletTagsProvider.class, servletTagsProvider);
     }
 }

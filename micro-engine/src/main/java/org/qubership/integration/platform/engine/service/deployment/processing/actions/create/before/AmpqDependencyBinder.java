@@ -24,6 +24,7 @@ import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.camel.components.rabbitmq.NoOpMetricsCollector;
+import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.ElementOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -84,6 +85,7 @@ public class AmpqDependencyBinder extends ElementProcessingAction {
             metricsStore.getMeterRegistry(), "rabbitmq", tags)
             : new NoOpMetricsCollector();
         String elementId = properties.getElementId();
-        context.getRegistry().bind(elementId, MetricsCollector.class, metricsCollector);
+        RegistryHelper.getRegistry(context, deploymentInfo.getDeploymentId())
+                .bind(elementId, MetricsCollector.class, metricsCollector);
     }
 }

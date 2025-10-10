@@ -23,8 +23,10 @@ import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
 import org.apache.camel.component.kafka.DefaultKafkaClientFactory;
 import org.apache.camel.component.kafka.KafkaClientFactory;
+import org.apache.camel.spi.Registry;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.camel.components.kafka.TaggedMetricsKafkaClientFactory;
+import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.ElementOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -90,7 +92,8 @@ public class KafkaElementDependencyBinder extends ElementProcessingAction {
             metricsStore.getMeterRegistry(),
             tags)
             : defaultFactory;
-        context.getRegistry().bind(elementId, KafkaClientFactory.class, kafkaClientFactory);
-        context.getRegistry().bind(elementId + "-v2", KafkaClientFactory.class, kafkaClientFactory);
+        Registry registry = RegistryHelper.getRegistry(context, deploymentInfo.getDeploymentId());
+        registry.bind(elementId, KafkaClientFactory.class, kafkaClientFactory);
+        registry.bind(elementId + "-v2", KafkaClientFactory.class, kafkaClientFactory);
     }
 }

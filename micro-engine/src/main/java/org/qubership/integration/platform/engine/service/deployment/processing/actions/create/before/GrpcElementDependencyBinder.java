@@ -27,6 +27,7 @@ import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
 import org.apache.camel.spi.ClassResolver;
 import org.qubership.integration.platform.engine.camel.QipCustomClassResolver;
+import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
@@ -96,7 +97,7 @@ public class GrpcElementDependencyBinder extends ElementProcessingAction {
         MetricCollectingClientInterceptor metricInterceptor = new MetricCollectingClientInterceptor(
                 metricsStore.getMeterRegistry(), counterCustomizer, timerCustomizer, Status.Code.OK);
         String elementId = properties.getElementId();
-        context.getRegistry().bind(elementId, metricInterceptor);
+        RegistryHelper.getRegistry(context, deploymentInfo.getDeploymentId()).bind(elementId, metricInterceptor);
     }
 
     private void bindClassResolver(
@@ -112,7 +113,7 @@ public class GrpcElementDependencyBinder extends ElementProcessingAction {
                         systemModelIds, context.getApplicationContextClassLoader());
                 ClassResolver classResolver = new QipCustomClassResolver(classLoader);
                 String elementId = properties.getElementId();
-                context.getRegistry().bind(elementId, classResolver);
+                RegistryHelper.getRegistry(context, deploymentInfo.getDeploymentId()).bind(elementId, classResolver);
             }
         });
     }

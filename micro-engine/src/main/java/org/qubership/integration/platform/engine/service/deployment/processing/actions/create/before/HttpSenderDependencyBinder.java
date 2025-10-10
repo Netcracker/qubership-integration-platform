@@ -27,6 +27,7 @@ import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
@@ -117,7 +118,8 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
             clientBuilder.disableAutomaticRetries();
         };
         String elementId = elementProperties.getElementId();
-        context.getRegistry().bind(elementId, HttpClientConfigurer.class, httpClientConfigurer);
+        RegistryHelper.getRegistry(context, deploymentInfo.getDeploymentId())
+                .bind(elementId, HttpClientConfigurer.class, httpClientConfigurer);
     }
 
     private static boolean isHttpChainElement(ElementProperties properties) {
