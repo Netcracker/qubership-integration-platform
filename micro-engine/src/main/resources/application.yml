@@ -34,7 +34,6 @@ camel:
     name: Camel Context
     autoStartup: false
     messageHistory: true
-    tracing: ${TRACING_ENABLED:false}
     streamCachingEnabled: true # enable exchange payload spooling
     streamCachingBufferSize: 16384
     globalOptions:
