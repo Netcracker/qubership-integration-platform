@@ -6,6 +6,7 @@ import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { getBaseFolder } from "../response/serviceApiUtils";
 import { YamlFileUtils } from "./YamlFileUtils";
 import { LabelUtils } from "./LabelUtils";
+import { ContentParser } from './parsers/ContentParser';
 
 const vscode = require('vscode');
 
@@ -36,9 +37,7 @@ export class SpecificationGroupService {
             const groupFile = Uri.joinPath(baseFolder, `${groupId}${ext.specificationGroup}`);
 
             try {
-                const content = await fileApi.readFileContent(groupFile);
-                const yaml = require('yaml');
-                const parsed = yaml.parse(content);
+                const parsed = await ContentParser.parseContentFromFile(groupFile);
 
                 const specificationGroup: SpecificationGroup = {
                     id: parsed.id,
@@ -83,7 +82,8 @@ export class SpecificationGroupService {
             modifiedWhen: now,
             modifiedBy: {...EMPTY_USER},
             specifications: [],
-            synchronization: false
+            synchronization: false,
+            
         };
 
         if (protocol) {

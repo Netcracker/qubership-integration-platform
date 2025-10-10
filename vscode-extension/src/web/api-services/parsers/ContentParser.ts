@@ -1,3 +1,6 @@
+import { Uri } from "vscode";
+import { fileApi } from "../../response/file/fileApiProvider";
+
 /**
  * Utility class for parsing JSON and YAML content
  */
@@ -14,7 +17,7 @@ export class ContentParser {
             try {
                 // If JSON parsing fails, try YAML
                 const yaml = require('yaml');
-                return yaml.parse(content);
+                return yaml.parse(content, { maxAliasCount: -1 });
             } catch (yamlError) {
                 console.error('[ContentParser] Error parsing content as both JSON and YAML:', { jsonError, yamlError });
                 throw new Error('Failed to parse content: not valid JSON or YAML');
@@ -32,5 +35,13 @@ export class ContentParser {
             console.error(`[${parserName}] Error parsing content:`, error);
             throw new Error(`Failed to parse ${parserName} specification: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+    }
+
+    /**
+     * Read file content and parse it as JSON or YAML
+     */
+    static async parseContentFromFile(fileUri: Uri): Promise<any> {
+        const content = await fileApi.readFileContent(fileUri);
+        return this.parseContent(content);
     }
 }

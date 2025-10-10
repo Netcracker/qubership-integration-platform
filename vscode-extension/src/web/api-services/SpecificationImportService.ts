@@ -20,6 +20,7 @@ import { OpenApiSpecificationParser } from "./parsers/OpenApiSpecificationParser
 import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
+import { ContentParser } from './parsers/ContentParser';
 
 export class SpecificationImportService {
     private context: ExtensionContext;
@@ -63,7 +64,7 @@ export class SpecificationImportService {
                 request.name,
                 importingProtocol || undefined
             );
-
+            this.systemService.saveSystem(system);
             this.progressTracker.startImportSession(importId, specificationGroup.id);
 
             await this.specificationProcessorService.processSpecificationFiles(
@@ -400,7 +401,10 @@ export class SpecificationImportService {
                 console.log(`[SpecificationImportService] Created QIP specification with ${Array.isArray(qipSpecification.content.operations) ? qipSpecification.content.operations.length : 0} operations`);
 
                 const yaml = require('yaml');
-                const yamlContent = yaml.stringify(qipSpecification);
+                // Disable anchors to avoid "Excessive alias count" error when parsing large specifications
+                const yamlContent = yaml.stringify(qipSpecification, {
+                    aliasDuplicateObjects: false
+                });
                 const bytes = new TextEncoder().encode(yamlContent);
                 await fileApi.writeFile(specFileUri, bytes);
                 console.log(`[SpecificationImportService] Saved specification file: ${specFileName}`);
@@ -559,14 +563,8 @@ export class SpecificationImportService {
             try {
                 const content = await file.text();
                 if (content) {
-                    // Try JSON first
-                    try {
-                        return JSON.parse(content);
-                    } catch {
-                        // If JSON parsing fails, try YAML
-                        const yaml = require('yaml');
-                        return yaml.parse(content);
-                    }
+                    // Try JSON first, then YAML
+                    return ContentParser.parseContent(content);
                 }
             } catch (error) {
                 console.log(`[SpecificationImportService] Error reading file ${file.name}:`, error);

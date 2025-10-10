@@ -3,6 +3,7 @@ import * as yaml from 'yaml';
 import { fileApi } from './response/file/fileApiProvider';
 import { getExtensionsForFile } from './response/file/fileExtensions';
 import { readDirectory } from './response/file/fileApiImpl';
+import { ContentParser } from './api-services/parsers/ContentParser';
 
 export interface QipExplorerItem {
     id: string;
@@ -128,8 +129,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                     try {
                         const fileUri = vscode.Uri.joinPath(folderUri, name);
                         console.log(`QIP Explorer: Found chain file: ${name}`);
-                        const content = await fileApi.readFileContent(fileUri);
-                        const chainData = yaml.parse(content);
+                        const chainData = await ContentParser.parseContentFromFile(fileUri);
 
                         if (chainData && chainData.content) {
                             const elementsCount = chainData.content.elements?.length || 0;
@@ -199,8 +199,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                     try {
                         const fileUri = vscode.Uri.joinPath(folderUri, name);
                         console.log(`QIP Explorer: Found service file: ${name}`);
-                        const content = await fileApi.readFileContent(fileUri);
-                        const serviceData = yaml.parse(content);
+                        const serviceData = await ContentParser.parseContentFromFile(fileUri);
 
                         if (serviceData && serviceData.content) {
                             // Format: ${name}-${protocol}-${uuid}
@@ -267,8 +266,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                     continue;
                 }
 
-                const content = await fileApi.readFileContent(fileUri);
-                const chainData = yaml.parse(content);
+                const chainData = await ContentParser.parseContentFromFile(fileUri);
 
                 if (chainData && chainData.content && chainData.content.elements) {
                     for (const element of chainData.content.elements) {

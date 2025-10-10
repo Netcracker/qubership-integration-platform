@@ -11,6 +11,7 @@ import * as yaml from 'yaml';
 import {getService, getMainService} from "./serviceApiRead";
 import {EMPTY_USER} from "./chainApiUtils";
 import vscode, {ExtensionContext, Uri} from "vscode";
+import { ContentParser } from '../api-services/parsers/ContentParser';
 import { getExtensionsForFile } from './file/fileExtensions';
 import {fileApi} from "./file/fileApiProvider";
 import { refreshQipExplorer } from "../extension";
@@ -363,8 +364,7 @@ async function getSpecificationFilesByGroup(serviceFileUri: Uri, groupId: string
         try {
             const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const text = await fileApi.readFileContent(fileUri);
-            const parsed = yaml.parse(text);
+            const parsed = await ContentParser.parseContentFromFile(fileUri);
 
             if (parsed.id === groupId) {
                 groupFileToDelete = fileName;
@@ -406,8 +406,7 @@ async function findSpecificationFileById(serviceFileUri: Uri, modelId: string): 
         try {
             const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
             const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-            const text = await fileApi.readFileContent(fileUri);
-            const parsed = yaml.parse(text);
+            const parsed = await ContentParser.parseContentFromFile(fileUri);
 
             if (parsed.id === modelId) {
                 specificationFileToDelete = fileName;
@@ -482,8 +481,7 @@ export async function deleteSpecificationGroup(serviceFileUri: Uri, groupId: str
             try {
                 const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
                 const fileUri = vscode.Uri.joinPath(serviceFolderUri, specFileName);
-                const text = await fileApi.readFileContent(fileUri);
-                const specInfo = yaml.parse(text);
+                const specInfo = await ContentParser.parseContentFromFile(fileUri);
 
                 await deleteSourceFilesFromSpecificationSources(serviceFileUri, specInfo);
             } catch (error) {
