@@ -6,6 +6,7 @@ import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { getBaseFolder } from "../response/serviceApiUtils";
 import { YamlFileUtils } from "./YamlFileUtils";
 import { LabelUtils } from "./LabelUtils";
+import { ProjectConfigService } from "./ProjectConfigService";
 import { ContentParser } from './parsers/ContentParser';
 
 const vscode = require('vscode');
@@ -33,8 +34,8 @@ export class SpecificationGroupService {
             }
 
             // Look for specification group file in root directory
-            const ext = getExtensionsForFile();
-            const groupFile = Uri.joinPath(baseFolder, `${groupId}${ext.specificationGroup}`);
+            const config = ProjectConfigService.getConfig();
+            const groupFile = Uri.joinPath(baseFolder, `${groupId}${config.extensions.specificationGroup}`);
 
             try {
                 const parsed = await ContentParser.parseContentFromFile(groupFile);
@@ -111,12 +112,12 @@ export class SpecificationGroupService {
             }
 
             // Save specification group file in root directory
-            const ext = getExtensionsForFile();
-            const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}${ext.specificationGroup}`);
+            const config = ProjectConfigService.getConfig();
+            const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}${config.extensions.specificationGroup}`);
             console.log(`[SpecificationGroupService] Group file path:`, groupFile.fsPath);
 
             const yamlData = {
-                $schema: "http://qubership.org/schemas/product/qip/specification-group",
+                $schema: config.schemaUrls.specificationGroup,
                 id: specificationGroup.id,
                 name: specificationGroup.name,
                 content: {

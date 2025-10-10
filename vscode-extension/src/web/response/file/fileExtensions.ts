@@ -1,3 +1,6 @@
+import { ProjectConfigService } from '../../api-services/ProjectConfigService';
+import { Uri } from 'vscode';
+
 export type FileExtensionsConfig = {
     appName: string;
     chain: string;
@@ -72,4 +75,37 @@ export function getExtensionsForUri(fileUri?: { path: string }): FileExtensionsC
         return getExtensionsForFile(filename);
     }
     return getExtensionsForFile();
+}
+
+export async function initializeContextFromFile(fileUri: Uri): Promise<void> {
+    const vscode = require('vscode');
+    const filename = extractFilename(fileUri);
+    const appName = extractAppNameFromExtension(filename);
+    
+    const configService = ProjectConfigService.getInstance();
+    const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+    
+    await configService.setCurrentContext(appName, workspaceUri);
+    setCurrentFileContext(filename);
+    
+    const config = configService.getCurrentConfig();
+    memoizedDefaultExtensions = {
+        appName: config.appName,
+        chain: config.extensions.chain,
+        service: config.extensions.service,
+        specificationGroup: config.extensions.specificationGroup,
+        specification: config.extensions.specification
+    };
+}
+
+export function getExtensionsFromConfig(): FileExtensionsConfig {
+    const config = ProjectConfigService.getConfig();
+    
+    return {
+        appName: config.appName,
+        chain: config.extensions.chain,
+        service: config.extensions.service,
+        specificationGroup: config.extensions.specificationGroup,
+        specification: config.extensions.specification
+    };
 }

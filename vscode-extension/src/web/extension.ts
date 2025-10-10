@@ -11,7 +11,7 @@ import {getApiResponse} from "./response";
 import * as path from "path";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
-import { getExtensionsForUri, setCurrentFileContext, extractFilename } from "./response/file/fileExtensions";
+import { getExtensionsForUri, setCurrentFileContext, extractFilename, initializeContextFromFile } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
 import {VSCodeMessage, VSCodeResponse} from "@netcracker/qip-ui";
 
@@ -45,13 +45,14 @@ class ChainFileEditorProvider implements CustomTextEditorProvider {
 
 function openWebviewForElement(context: ExtensionContext, fileUri: Uri, elementType: 'chain' | 'service') {
     const panel = vscode.window.createWebviewPanel(
-        'qipWebView', // Identifies the type of the webview
-        `QIP ${elementType === 'chain' ? 'Chain' : 'Service'} Editor`, // Title of the panel
-        vscode.ViewColumn.One, // Show in the first column
+        'qipWebView',
+        `QIP ${elementType === 'chain' ? 'Chain' : 'Service'} Editor`,
+        vscode.ViewColumn.One,
         {
-            enableScripts: true, // Allow JavaScript execution
-            retainContextWhenHidden: true, // Keep state when hidden
-            enableCommandUris: true
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            enableCommandUris: true,
+            localResourceRoots: [context.extensionUri]
         }
     );
 
@@ -64,15 +65,17 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: 
         data: VSCodeMessage<any>;
     };
 
+    if (fileUri) {
+        try {
+            initializeContextFromFile(fileUri);
+        } catch (error) {
+            console.error('Failed to initialize context from file:', error);
+        }
+    }
+
     panel.webview.html = getWebviewContent(context, panel.webview);
 
     panel.webview.onDidReceiveMessage(async (message: VSCodeMessageWrapper) => {
-        console.log('QIP Extension API Request:', message);
-
-        if (fileUri) {
-            setCurrentFileContext(extractFilename(fileUri));
-        }
-
         const response: VSCodeResponse<any> = {
             requestId: message.data.requestId,
             type: message.data.type,
@@ -80,7 +83,6 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: 
 
         try {
             response.payload = await getApiResponse(message.data, fileUri, context);
-            console.log('QIP Extension API Response:', response);
 
             if (message.data.type === "openChainInNewTab") {
                 vscode.commands.executeCommand('vscode.openWith', response.payload, 'qip.chainFile.editor');
@@ -280,13 +282,11 @@ export function activate(context: ExtensionContext) {
         vscode.commands.registerCommand('qip.openInTextEditor', async (item: any) => {
             if (item && item.fileUri) {
                 try {
-                    // Open file in text editor instead of custom editor
                     const document = await vscode.workspace.openTextDocument(item.fileUri);
                     await vscode.window.showTextDocument(document, {
                         viewColumn: vscode.ViewColumn.Active,
                         preview: false
                     });
-                    console.log(`QIP Explorer: Opened ${item.label} in text editor`);
                 } catch (error) {
                     console.error(`Failed to open file in text editor:`, error);
                     vscode.window.showErrorMessage(`Failed to open file in text editor: ${error}`);
@@ -294,8 +294,6 @@ export function activate(context: ExtensionContext) {
             }
         })
     );
-
-    console.log('QIP Extension: QIP Explorer providers registered successfully');
 }
 
 // This method is called when your extension is deactivated

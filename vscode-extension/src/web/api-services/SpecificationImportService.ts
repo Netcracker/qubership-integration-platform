@@ -21,6 +21,7 @@ import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from './parsers/ContentParser';
+import { ProjectConfigService } from "./ProjectConfigService";
 
 export class SpecificationImportService {
     private context: ExtensionContext;
@@ -364,13 +365,13 @@ export class SpecificationImportService {
                 }
 
                 // Create specification file with operations using existing architecture
-                const ext = getExtensionsForFile();
-                const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}${ext.specification}`;
+                const config = ProjectConfigService.getConfig();
+                const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}${config.extensions.specification}`;
                 const specFileUri = Uri.joinPath(baseFolder, specFileName);
 
                 // Create QIP specification using operations from SpecificationProcessorService
                 const qipSpecification = {
-                    $schema: "http://qubership.org/schemas/product/qip/specification",
+                    $schema: config.schemaUrls.specification,
                     id: specification.id,
                     name: specification.name,
                     content: {

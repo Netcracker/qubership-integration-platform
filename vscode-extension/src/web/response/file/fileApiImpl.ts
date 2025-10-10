@@ -9,6 +9,7 @@ import { getExtensionsForFile, extractFilename } from './fileExtensions';
 import {Chain as ChainSchema} from "@netcracker/qip-schemas";
 import { ContentParser } from '../../api-services/parsers/ContentParser';
 import { ServiceNormalizer } from '../../api-services/ServiceNormalizer';
+import { ProjectConfigService } from '../../api-services/ProjectConfigService';
 
 const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';
@@ -363,10 +364,10 @@ export class VSCodeFileApi implements FileApi {
 
             await createDirectory(folderUri);
 
-            const extensions = this.getExtensionsForContext(folderUri);
-            const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}${extensions.chain}`);
+            const config = ProjectConfigService.getConfig();
+            const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}${config.extensions.chain}`);
             const chain = {
-                $schema: 'http://qubership.org/schemas/product/qip/chain',
+                $schema: config.schemaUrls.chain,
                 id: chainId,
                 name: chainName,
                 content: { }
@@ -433,8 +434,11 @@ export class VSCodeFileApi implements FileApi {
             });
 
             const serviceId = crypto.randomUUID();
+            
+            const config = ProjectConfigService.getConfig();
+            
             const service = {
-                $schema: 'http://qubership.org/schemas/product/qip/service',
+                $schema: config.schemaUrls.service,
                 id: serviceId,
                 name: serviceName.trim(),
                 content: {
@@ -456,8 +460,7 @@ export class VSCodeFileApi implements FileApi {
 
             // Create service file (folder will be created automatically)
             const serviceFolderUri = vscode.Uri.joinPath(workspaceFolders[0].uri, serviceId);
-            const extensions = this.getExtensionsForContext(serviceFolderUri);
-            const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}${extensions.service}`);
+            const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}${config.extensions.service}`);
             await this.writeServiceFile(serviceFileUri, service);
 
             vscode.window.showInformationMessage(`Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${serviceId}`);
