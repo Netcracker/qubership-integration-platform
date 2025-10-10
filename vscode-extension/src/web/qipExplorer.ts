@@ -201,11 +201,11 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                         console.log(`QIP Explorer: Found service file: ${name}`);
                         const serviceData = await ContentParser.parseContentFromFile(fileUri);
 
-                        if (serviceData && serviceData.content) {
+                        if (serviceData) {
                             // Format: ${name}-${protocol}-${uuid}
                             const displayName = serviceData.name || serviceData.id;
-                            const protocol = serviceData.content.protocol || 'Unknown';
-                            const serviceType = serviceData.content.integrationSystemType || 'Unknown';
+                            const protocol = serviceData.content?.protocol || 'Unknown';
+                            const serviceType = serviceData.content?.integrationSystemType || 'Unknown';
                             const label = `${displayName}-${protocol}-${serviceData.id}`;
                             
                             // Choose icon based on service type

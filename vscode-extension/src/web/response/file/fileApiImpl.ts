@@ -8,6 +8,7 @@ import { FileFilter } from '../fileFilteringUtils';
 import { getExtensionsForFile, extractFilename } from './fileExtensions';
 import {Chain as ChainSchema} from "@netcracker/qip-schemas";
 import { ContentParser } from '../../api-services/parsers/ContentParser';
+import { ServiceNormalizer } from '../../api-services/ServiceNormalizer';
 
 const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';
@@ -250,7 +251,7 @@ export class VSCodeFileApi implements FileApi {
             const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
 
             if (parsed && parsed.name) {
-                return parsed;
+                return ServiceNormalizer.normalizeService(parsed);
             }
             throw Error('Invalid service file content');
         } catch (e) {
@@ -264,7 +265,7 @@ export class VSCodeFileApi implements FileApi {
             const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
 
             if (parsed && parsed.id === serviceId) {
-                return parsed;
+                return ServiceNormalizer.normalizeService(parsed);
             }
             throw Error('Invalid service file content or service ID mismatch');
         } catch (e) {
