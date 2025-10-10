@@ -155,14 +155,7 @@ export class SpecificationProcessorService {
      */
     private async readFileContent(file: File): Promise<string | null> {
         try {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    resolve(e.target?.result as string || null);
-                };
-                reader.onerror = () => reject(new Error('Failed to read file'));
-                reader.readAsText(file);
-            });
+            return await file.text();
         } catch (error) {
             return null;
         }
