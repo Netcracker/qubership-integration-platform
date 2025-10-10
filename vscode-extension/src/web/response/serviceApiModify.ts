@@ -25,6 +25,10 @@ export async function updateService(serviceFileUri: Uri, serviceId: string, serv
         throw Error("ServiceId mismatch");
     }
 
+    if (!service.content) {
+        service.content = {};
+    }
+
     if (serviceRequest.name !== undefined) {
         service.name = serviceRequest.name;
     }

@@ -35,17 +35,17 @@ export class SystemService {
                 return {
                     id: service.id,
                     name: service.name,
-                    description: service.content.description || "",
-                    createdBy: service.content.createdBy || {...EMPTY_USER},
-                    modifiedBy: service.content.modifiedBy || {...EMPTY_USER},
-                    createdWhen: service.content.createdWhen || 0,
-                    modifiedWhen: service.content.modifiedWhen || 0,
-                    activeEnvironmentId: service.content.activeEnvironmentId || "",
-                    integrationSystemType: service.content.integrationSystemType || "EXTERNAL",
-                    protocol: service.content.protocol || "HTTP",
-                    extendedProtocol: service.content.extendedProtocol || "",
-                    specification: service.content.specification || "",
-                    labels: LabelUtils.toEntityLabels(service.content.labels || [])
+                    description: service.content?.description || "",
+                    createdBy: service.content?.createdBy || {...EMPTY_USER},
+                    modifiedBy: service.content?.modifiedBy || {...EMPTY_USER},
+                    createdWhen: service.content?.createdWhen || 0,
+                    modifiedWhen: service.content?.modifiedWhen || 0,
+                    activeEnvironmentId: service.content?.activeEnvironmentId || "",
+                    integrationSystemType: service.content?.integrationSystemType || "",
+                    protocol: service.content?.protocol || "",
+                    extendedProtocol: service.content?.extendedProtocol || "",
+                    specification: service.content?.specification || "",
+                    labels: LabelUtils.toEntityLabels(service.content?.labels || [])
                 };
             }
             console.log(`[SystemService] System with id ${systemId} not found`);
@@ -106,6 +106,11 @@ export class SystemService {
             const serviceFileUri = Uri.joinPath(baseFolder, `${system.id}${ext.service}`);
             
             const service = await fileApi.getMainService(serviceFileUri);
+            
+            if (!service.content) {
+                service.content = {};
+            }
+            
             service.content.protocol = system.protocol;
             service.content.extendedProtocol = system.extendedProtocol;
             service.content.specification = system.specification;

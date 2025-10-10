@@ -154,7 +154,7 @@ export const QIP_SCHEMAS = {
     SERVICE: {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: "object",
-        required: ["$schema", "id", "name", "content"],
+        required: ["$schema", "id", "name"],
         properties: {
             $schema: {
                 type: "string",
@@ -164,12 +164,19 @@ export const QIP_SCHEMAS = {
             name: { type: "string" },
             content: {
                 type: "object",
-                required: ["createdWhen", "modifiedWhen", "version"],
                 properties: {
                     createdWhen: { type: "number" },
                     modifiedWhen: { type: "number" },
                     version: { type: "string" },
                     description: { type: "string" },
+                    integrationSystemType: { type: "string" },
+                    protocol: { type: "string" },
+                    extendedProtocol: { type: "string" },
+                    specification: { type: "string" },
+                    activeEnvironmentId: { type: "string" },
+                    environments: { type: "array" },
+                    labels: { type: "array" },
+                    migrations: { type: "array" },
                     specificationGroups: {
                         type: "array",
                         items: { type: "string" } 

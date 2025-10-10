@@ -34,19 +34,19 @@ export async function getService(serviceFileUri: Uri, serviceId: string): Promis
     return {
         id: service.id,
         name: service.name,
-        description: service.content.description || "",
-        createdBy: service.content.createdBy || {...EMPTY_USER},
-        modifiedBy: service.content.modifiedBy || {...EMPTY_USER},
-        createdWhen: service.content.createdWhen || 0,
-        modifiedWhen: service.content.modifiedWhen || 0,
-        activeEnvironmentId: service.content.activeEnvironmentId || "",
-        integrationSystemType: service.content.integrationSystemType || "EXTERNAL",
-        type: service.content.integrationSystemType || "EXTERNAL",
-        protocol: service.content.protocol || "HTTP",
-        extendedProtocol: service.content.extendedProtocol || "",
-        specification: service.content.specification || "",
-        environments: service.content.environments || [],
-        labels: LabelUtils.toEntityLabels(service.content.labels || [])
+        description: service.content?.description || "",
+        createdBy: service.content?.createdBy || {...EMPTY_USER},
+        modifiedBy: service.content?.modifiedBy || {...EMPTY_USER},
+        createdWhen: service.content?.createdWhen || 0,
+        modifiedWhen: service.content?.modifiedWhen || 0,
+        activeEnvironmentId: service.content?.activeEnvironmentId || "",
+        integrationSystemType: service.content?.integrationSystemType || "",
+        type: service.content?.integrationSystemType || "",
+        protocol: service.content?.protocol || "",
+        extendedProtocol: service.content?.extendedProtocol || "",
+        specification: service.content?.specification || "",
+        environments: service.content?.environments || [],
+        labels: LabelUtils.toEntityLabels(service.content?.labels || [])
     };
 }
 
