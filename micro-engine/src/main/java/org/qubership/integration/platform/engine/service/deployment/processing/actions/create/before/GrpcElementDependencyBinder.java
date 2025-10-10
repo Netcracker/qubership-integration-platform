@@ -22,11 +22,8 @@ import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.binder.grpc.MetricCollectingClientInterceptor;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
-import org.apache.camel.spi.ClassResolver;
-import org.qubership.integration.platform.engine.camel.QipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -36,32 +33,22 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Metric
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.actions.create.before.helpers.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeRoutesCreated;
-import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryService;
-import org.qubership.integration.platform.engine.util.InjectUtil;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Optional;
 import java.util.function.UnaryOperator;
-
-import static java.util.Objects.nonNull;
 
 @ApplicationScoped
 @OnBeforeRoutesCreated
 public class GrpcElementDependencyBinder extends ElementProcessingAction {
     private final MetricsStore metricsStore;
     private final MetricTagsHelper metricTagsHelper;
-    private final Optional<ExternalLibraryService> externalLibraryService;
 
     @Inject
     public GrpcElementDependencyBinder(
         MetricsStore metricsStore,
-        MetricTagsHelper metricTagsHelper,
-        Instance<ExternalLibraryService> externalLibraryServiceInstance
+        MetricTagsHelper metricTagsHelper
     ) {
         this.metricsStore = metricsStore;
         this.metricTagsHelper = metricTagsHelper;
-        this.externalLibraryService = InjectUtil.injectOptional(externalLibraryServiceInstance);
     }
 
     @Override
@@ -82,7 +69,6 @@ public class GrpcElementDependencyBinder extends ElementProcessingAction {
         if (metricsStore.isMetricsEnabled()) {
             bindMetricInterceptor(context, properties, deploymentInfo);
         }
-        bindClassResolver(context, properties, deploymentInfo);
     }
 
     private void bindMetricInterceptor(
@@ -98,23 +84,5 @@ public class GrpcElementDependencyBinder extends ElementProcessingAction {
                 metricsStore.getMeterRegistry(), counterCustomizer, timerCustomizer, Status.Code.OK);
         String elementId = properties.getElementId();
         RegistryHelper.getRegistry(context, deploymentInfo.getDeploymentId()).bind(elementId, metricInterceptor);
-    }
-
-    private void bindClassResolver(
-            CamelContext context,
-            ElementProperties properties,
-            DeploymentInfo deploymentInfo
-    ) {
-        externalLibraryService.ifPresent(libraryService -> {
-            String systemModelId = properties.getProperties().get(ChainProperties.OPERATION_SPECIFICATION_ID);
-            if (nonNull(systemModelId)) {
-                Collection<String> systemModelIds = Collections.singletonList(systemModelId);
-                ClassLoader classLoader = externalLibraryService.get().getClassLoaderForSystemModels(
-                        systemModelIds, context.getApplicationContextClassLoader());
-                ClassResolver classResolver = new QipCustomClassResolver(classLoader);
-                String elementId = properties.getElementId();
-                RegistryHelper.getRegistry(context, deploymentInfo.getDeploymentId()).bind(elementId, classResolver);
-            }
-        });
     }
 }

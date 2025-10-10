@@ -17,12 +17,20 @@
 package org.qubership.integration.platform.engine.util;
 
 import io.grpc.MethodDescriptor;
+import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
+import org.apache.camel.Route;
 import org.apache.camel.component.grpc.GrpcUtils;
+import org.apache.camel.spi.ClassResolver;
+import org.qubership.integration.platform.engine.camel.metadata.Metadata;
+import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
+import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.util.Arrays;
 
@@ -30,12 +38,12 @@ public class GrpcProcessorUtils {
 
     private GrpcProcessorUtils() {}
 
-    public static Class<?> getRequestClass(Exchange exchange) throws NoSuchMethodException {
+    public static Class<?> getRequestClass(Exchange exchange) throws Exception {
         Method method = getMainServiceMethod(exchange);
         return method.getParameterTypes()[0]; // First argument of method
     }
 
-    public static Class<?> getResponseClass(Exchange exchange) throws NoSuchMethodException {
+    public static Class<?> getResponseClass(Exchange exchange) throws Exception {
         Method method = getMainServiceMethod(exchange);
         Type[] types = method.getGenericParameterTypes();
         ParameterizedType pType = (ParameterizedType) types[1];
@@ -49,15 +57,18 @@ public class GrpcProcessorUtils {
      * @return main method to call
      * @throws NoSuchMethodException
      */
-    private static Method getMainServiceMethod(Exchange exchange) throws NoSuchMethodException {
+    private static Method getMainServiceMethod(Exchange exchange) throws Exception {
         String fullServiceName = exchange.getProperty(CamelConstants.Properties.GRPC_SERVICE_NAME, String.class);
         String methodName = exchange.getProperty(CamelConstants.Properties.GRPC_METHOD_NAME, String.class);
         String serviceName = GrpcUtils.extractServiceName(fullServiceName);
         String servicePackage = GrpcUtils.extractServicePackage(fullServiceName);
         String camelCaseMethodName = GrpcUtils.convertMethod2CamelCase(methodName);
 
-        // FIXME extract element ID from the exchange, get a class resolver from the bean repository, and pass a wrapper around the context that returns this resolver to the constructGrpcImplBaseClass.
-        Class<?> grpcServiceClass = GrpcUtils.constructGrpcImplBaseClass(servicePackage, serviceName, exchange.getContext());
+        ClassResolver classResolver = getClassResolver(exchange);
+        CamelContext contextWithCustomClassResolver =
+                createContextProxyWithClassResolver(exchange.getContext(), classResolver);
+
+        Class<?> grpcServiceClass = GrpcUtils.constructGrpcImplBaseClass(servicePackage, serviceName, contextWithCustomClassResolver);
         return Arrays.stream(grpcServiceClass.getMethods())
                 .filter(m -> camelCaseMethodName.equals(m.getName()))
                 .findFirst()
@@ -66,5 +77,31 @@ public class GrpcProcessorUtils {
                             MethodDescriptor.generateFullMethodName(fullServiceName, methodName));
                     return new NoSuchMethodException(message);
                 });
+    }
+
+    private static ClassResolver getClassResolver(Exchange exchange) throws Exception {
+        CamelContext context = exchange.getContext();
+        Route route = context.getRoute(exchange.getFromRouteId());
+        MetadataService metadataService = context.getRegistry().findSingleByType(MetadataService.class);
+        String deploymentId = metadataService.getMetadata(route)
+                .map(Metadata::getDeploymentInfo)
+                .map(DeploymentInfo::getDeploymentId)
+                .orElseThrow(() -> new Exception("Failed to get deployment ID"));
+        return RegistryHelper.getRegistry(context, deploymentId).findSingleByType(ClassResolver.class);
+    }
+
+    private static CamelContext createContextProxyWithClassResolver(
+            CamelContext context,
+            ClassResolver classResolver
+    ) {
+        return (CamelContext) Proxy.newProxyInstance(
+                context.getClass().getClassLoader(),
+                new Class[] {CamelContext.class},
+                (proxy, method, args) -> {
+                    return method.getName().equals("getClassResolver")
+                            ? classResolver
+                            : method.invoke(context, args);
+                }
+        );
     }
 }
