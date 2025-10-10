@@ -44,7 +44,8 @@ import {
   SystemRequest,
   UsedService,
   Element,
-  MaskedFields, TransferElementRequest
+  MaskedFields, TransferElementRequest,
+  SystemOperation
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
@@ -424,6 +425,12 @@ export class VSCodeExtensionApi implements Api {
       (await this.sendMessageToExtension("updateSpecificationModel", { id: modelId, model })).payload
     );
   };
+
+  getOperations = async (modelId: string): Promise<SystemOperation[]> => {
+    return <SystemOperation[]>(
+      (await this.sendMessageToExtension("getOperations", modelId)).payload
+    );
+  }
 
   getOperationInfo = async (operationId: string): Promise<OperationInfo> => {
     return <OperationInfo>(

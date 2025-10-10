@@ -84,7 +84,7 @@ const CustomArrayField: React.FC<Props> = ({
     Record<string, AfterValidation>
   >({});
 
-  const operationId = formContext?.operationId;
+  const operationId = formContext?.integrationOperationId;
 
   useEffect(() => {
     let cancelled = false;

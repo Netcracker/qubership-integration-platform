@@ -57,6 +57,7 @@ import {
   ApiSpecificationFormat,
   TransferElementRequest,
   Element,
+  SystemOperation,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -364,6 +365,8 @@ export interface Api {
     id: string,
     data: Partial<Specification>,
   ): Promise<Specification>;
+
+  getOperations(modelId: string): Promise<SystemOperation[]>;
 
   getOperationInfo(operationId: string): Promise<OperationInfo>;
 

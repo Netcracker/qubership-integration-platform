@@ -64,6 +64,7 @@ import {
   ApiSpecificationFormat,
   TransferElementRequest,
   Element,
+  SystemOperation,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
@@ -1124,6 +1125,18 @@ export class RestApi implements Api {
       modelId,
       {
         headers: { "Content-Type": "text/plain" },
+      },
+    );
+    return response.data;
+  };
+
+  getOperations = async (modelId: string): Promise<SystemOperation[]> => {
+    const response = await this.instance.get<SystemOperation[]>(
+      `/api/v1/${getAppName()}/systems-catalog/operations`,
+      {
+        params: {
+          modelId,
+        },
       },
     );
     return response.data;

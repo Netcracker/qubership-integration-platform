@@ -16,7 +16,7 @@ import {
 import { useFilter } from "../components/table/filter/useFilter";
 import { capitalize } from "../misc/format-utils.ts";
 import { useCallback, useMemo } from "react";
-import { useServices } from "./useServices.ts";
+import { useServiceFilterValues } from "./useServices.ts";
 
 export const LabelsStringTableFilter: FilterConditions = {
   defaultCondition: FilterCondition.CONTAINS,
@@ -66,7 +66,7 @@ export const useChainFilters = () => {
   const { domains } = useDomains();
   const { elementTypes } = useElementTypes();
   const [filterItemStates, setFilterItemStates] = useFilter();
-  const { services } = useServices();
+  const { services } = useServiceFilterValues();
 
   const buildElementTypes = useCallback((): ListValue[] => {
     return elementTypes.map((item) => ({

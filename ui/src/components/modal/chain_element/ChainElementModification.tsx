@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { Button, Modal, Tabs } from "antd";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import styles from "./ChainElementModification.module.css";
@@ -32,6 +32,10 @@ import MappingField from "./field/MappingField.tsx";
 import CustomArrayField from "./field/CustomArrayField.tsx";
 import ScriptField from "./field/ScriptField.tsx";
 import JsonField from "./field/JsonField.tsx";
+import ServiceField from "./field/ServiceField.tsx";
+import SpecificationField from "./field/SpecificationField.tsx";
+import SystemOperationField from "./field/SystemOperationField.tsx";
+import { FormContext } from "antd/es/form/context";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -48,9 +52,16 @@ type TabField = {
 };
 
 export type FormContext = {
-  operationId?: string;
+  integrationOperationId?: string;
+  integrationOperationPath?: string;
+  integrationOperationMethod?: string;
   integrationOperationProtocolType?: string;
   elementType?: string;
+  integrationSystemId?: string;
+  integrationSpecificationGroupId?: string;
+  integrationSpecificationId?: string;
+  systemType?: string;
+  updateContext(newContext: Record<string, unknown>): void;
 };
 
 function constructTitle(name: string, type?: string): string {
@@ -81,17 +92,38 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const notificationService = useNotificationService();
   const [title, setTitle] = useState(constructTitle(`${node.data.label}`));
   const [schema, setSchema] = useState<JSONSchema7>({});
-  const formDataRef = useRef<Record<string, unknown>>({});
+  const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [formContext, setFormContext] = useState<Record<
+      string,
+      unknown
+    >>({});
 
   const [activeKey, setActiveKey] = useState<string>();
+
+  useEffect(() => {
+    setFormData((prevFormData) => {
+      const newContextProperties = { ...formContext, updateContext: undefined };
+      return {
+        ...prevFormData,
+        properties: enrichProperties(
+          prevFormData.properties as Record<string, unknown>,
+          newContextProperties,
+        ),
+      };
+    });
+  }, [formContext]);
 
   useEffect(() => {
     setTitle(constructTitle(`${node.data.label}`, libraryElement?.title));
   }, [libraryElement, node]);
 
-  const schemaModules = import.meta.glob(
-    "/node_modules/@netcracker/qip-schemas/assets/*.schema.yaml",
-    { as: "raw", eager: true },
+  const schemaModules = useMemo(
+    () =>
+      import.meta.glob(
+        "/node_modules/@netcracker/qip-schemas/assets/*.schema.yaml",
+        { as: "raw", eager: true },
+      ),
+    [],
   );
 
   useEffect(() => {
@@ -111,11 +143,32 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       const parsed = yaml.load(raw) as JSONSchema7;
       setSchema(parsed);
 
-      formDataRef.current = {
+      const initialFormData = {
         ...node.data,
         name: node.data.label,
         id: node.id,
       };
+      setFormData(initialFormData);
+
+      const formProperties = initialFormData.properties as Record<string, unknown>;
+
+      setFormContext({
+        integrationOperationId: formProperties.integrationOperationId,
+        integrationOperationProtocolType: formProperties.integrationOperationProtocolType,
+        elementType: node.data.elementType,
+        integrationSystemId: formProperties.integrationSystemId,
+        systemType: formProperties.systemType,
+        integrationSpecificationGroupId:
+          formProperties.integrationSpecificationGroupId,
+        integrationSpecificationId: formProperties.integrationSpecificationId,
+        integrationOperationPath: formProperties.integrationOperationPath,
+        integrationOperationMethod: formProperties.integrationOperationMethod,
+        updateContext: (updatedProperties: Record<string, unknown>) => {
+          setFormContext((prevContext) =>
+            enrichProperties(prevContext, updatedProperties),
+          );
+        },
+      });
     } catch (err) {
       console.error("Failed to parse schema:", err);
       notificationService.errorWithDetails(
@@ -124,17 +177,33 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         err,
       );
     }
-  }, [node.data.elementType]);
+  }, [node.data, node.id, notificationService, schemaModules]);
 
-  const handleOk = async () => {
+  const enrichProperties = (
+    targetProperties: Record<string, unknown>,
+    sourceProperties: Record<string, unknown>,
+  ): Record<string, unknown> => {
+    const result = { ...targetProperties };
+    Object.entries(sourceProperties).forEach(([key, value]) => {
+      result[key] = value === null ? undefined : value;
+    });
+    return result;
+  };
+
+  const handleClose = useCallback(() => {
+    closeContainingModal();
+    onClose?.();
+  }, [closeContainingModal, onClose]);
+
+  const handleOk = useCallback(async () => {
     setIsLoading(true);
     try {
       const request: PatchElementRequest = {
-        name: formDataRef.current.name as string,
-        description: formDataRef.current.description as string,
+        name: formData.name as string,
+        description: formData.description as string,
         type: node.data.elementType,
         parentElementId: node.parentId,
-        properties: formDataRef.current.properties as Record<string, unknown>,
+        properties: formData.properties as Record<string, unknown>,
       };
       const changedElement: Element | undefined = await updateElement(
         chainId,
@@ -154,17 +223,67 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       setIsLoading(false);
       handleClose();
     }
-  };
+  }, [formData, chainId, elementId, node, onSubmit, notificationService, updateElement, handleClose]);
 
-  const handleClose = () => {
-    closeContainingModal();
-    onClose?.();
-  };
+  const collectTabFields = useCallback((
+    schema: JSONSchema7,
+    path: string[] = [],
+    acc: TabField[] = [],
+  ): TabField[] => {
+    const currentPath = path.join(".");
+
+    if (schema.properties && typeof schema.properties === "object") {
+      for (const [key, subSchema] of Object.entries(schema.properties)) {
+        collectTabFields(subSchema as JSONSchema7, [...path, key], acc);
+      }
+    }
+
+    const combinators = ["allOf", "anyOf", "oneOf"] as const;
+    for (const keyword of combinators) {
+      if (Array.isArray(schema[keyword])) {
+        for (const subSchema of schema[keyword]) {
+          if (typeof subSchema === "object" && subSchema !== null) {
+            collectTabFields(subSchema, path, acc);
+          }
+        }
+      }
+    }
+
+    if (schema.type === "array" && schema.items) {
+      if (Array.isArray(schema.items)) {
+        for (let i = 0; i < schema.items.length; i++) {
+          collectTabFields(
+            schema.items[i] as JSONSchema7,
+            [...path, `${i}`],
+            acc,
+          );
+        }
+      } else {
+        collectTabFields(schema.items as JSONSchema7, [...path, "items"], acc);
+      }
+    }
+
+    if (schema.if) {
+      if (schema.then) {
+        collectTabFields(schema.then as JSONSchema7, path, acc);
+      }
+      if (schema.else) {
+        collectTabFields(schema.else as JSONSchema7, path, acc);
+      }
+    }
+
+    if (path.length > 0) {
+      const tab = pathToTabMap[currentPath] || "Parameters";
+      acc.push({ tab, path, schema });
+    }
+
+    return acc;
+  }, []);
 
   const tabFields = useMemo(() => {
     if (!schema) return [];
     return collectTabFields(schema);
-  }, [schema]);
+  }, [schema, collectTabFields]);
 
   const uniqueTabs = useMemo(() => {
     const rawTabs = new Set(tabFields.map((f) => f.tab));
@@ -177,12 +296,27 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     }
   }, [uniqueTabs, activeKey]);
 
-  function buildUiSchemaForTab(
+  const applyHiddenUiSchema = useCallback((target: UiSchema, hidden: UiSchema) => {
+    for (const key in hidden) {
+      if (
+        hidden[key] &&
+        typeof hidden[key] === "object" &&
+        !Array.isArray(hidden[key])
+      ) {
+        if (!target[key]) target[key] = {};
+        applyHiddenUiSchema(target[key] as UiSchema, hidden[key] as UiSchema);
+      } else {
+        target[key] = hidden[key] as UiSchema;
+      }
+    }
+  }, []);
+
+  const buildUiSchemaForTab = useCallback((
     tabFields: TabField[],
     tab: string,
     schema: JSONSchema7,
     initialUiSchema: UiSchema,
-  ): UiSchema {
+  ): UiSchema => {
     const hiddenUiSchema: UiSchema = {};
 
     function setPath(obj: UiSchema, path: string[], value: object) {
@@ -248,84 +382,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     const finalUiSchema: UiSchema = structuredClone(initialUiSchema || {});
     applyHiddenUiSchema(finalUiSchema, hiddenUiSchema);
     return finalUiSchema;
-  }
+  }, [applyHiddenUiSchema]);
 
   const widgets: RegistryWidgetsType = {
     stringAsMultipleSelectWidget: StringAsMultipleSelectWidget,
     customSelectWidget: CustomSelectWidget,
   };
 
-  function collectTabFields(
-    schema: JSONSchema7,
-    path: string[] = [],
-    acc: TabField[] = [],
-  ): TabField[] {
-    const currentPath = path.join(".");
-
-    if (schema.properties && typeof schema.properties === "object") {
-      for (const [key, subSchema] of Object.entries(schema.properties)) {
-        collectTabFields(subSchema as JSONSchema7, [...path, key], acc);
-      }
-    }
-
-    const combinators = ["allOf", "anyOf", "oneOf"] as const;
-    for (const keyword of combinators) {
-      if (Array.isArray(schema[keyword])) {
-        for (const subSchema of schema[keyword]) {
-          if (typeof subSchema === "object" && subSchema !== null) {
-            collectTabFields(subSchema, path, acc);
-          }
-        }
-      }
-    }
-
-    if (schema.type === "array" && schema.items) {
-      if (Array.isArray(schema.items)) {
-        for (let i = 0; i < schema.items.length; i++) {
-          collectTabFields(
-            schema.items[i] as JSONSchema7,
-            [...path, `${i}`],
-            acc,
-          );
-        }
-      } else {
-        collectTabFields(schema.items as JSONSchema7, [...path, "items"], acc);
-      }
-    }
-
-    if (schema.if) {
-      if (schema.then) {
-        collectTabFields(schema.then as JSONSchema7, path, acc);
-      }
-      if (schema.else) {
-        collectTabFields(schema.else as JSONSchema7, path, acc);
-      }
-    }
-
-    if (path.length > 0) {
-      const tab = pathToTabMap[currentPath] || "Parameters";
-      acc.push({ tab, path, schema });
-    }
-
-    return acc;
-  }
-
-  function applyHiddenUiSchema(target: UiSchema, hidden: UiSchema) {
-    for (const key in hidden) {
-      if (
-        hidden[key] &&
-        typeof hidden[key] === "object" &&
-        !Array.isArray(hidden[key])
-      ) {
-        if (!target[key]) target[key] = {};
-        applyHiddenUiSchema(target[key] as UiSchema, hidden[key] as UiSchema);
-      } else {
-        target[key] = hidden[key] as UiSchema;
-      }
-    }
-  }
-
-  function uiSchemaForTab(initialUiSchema: UiSchema, activeKey?: string) {
+  const uiSchemaForTab = useCallback((initialUiSchema: UiSchema, activeKey?: string) => {
     const ui = structuredClone(initialUiSchema || {});
 
     if (!ui.properties || typeof ui.properties !== "object") {
@@ -351,7 +415,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     ui.properties = props;
 
     return ui;
-  }
+  }, [node.data.elementType]);
 
   const uiSchema = useMemo(() => {
     if (!schema) return [];
@@ -359,7 +423,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     const baseUi: UiSchema = uiSchemaForTab(INITIAL_UI_SCHEMA, activeKey);
 
     return buildUiSchemaForTab(tabFields, activeKey ?? "", schema, baseUi);
-  }, [tabFields, activeKey, schema, INITIAL_UI_SCHEMA]);
+  }, [tabFields, activeKey, schema, uiSchemaForTab, buildUiSchemaForTab]);
 
   const handleTabChange = (newTab: string) => {
     setActiveKey(newTab);
@@ -403,7 +467,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           />
           <Form
             schema={schema}
-            formData={formDataRef.current}
+            formData={formData}
             validator={validator}
             uiSchema={uiSchema}
             liveValidate={true}
@@ -412,15 +476,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               mergeDefaultsIntoFormData: "useFormDataIfPresent",
             }}
             formContext={
-              {
-                operationId: (
-                  formDataRef.current.properties as Record<string, unknown>
-                ).integrationOperationId,
-                integrationOperationProtocolType: (
-                  formDataRef.current.properties as Record<string, unknown>
-                ).integrationOperationId,
-                elementType: node.data.elementType,
-              } as FormContext
+              formContext
             }
             templates={{
               ObjectFieldTemplate: CustomObjectFieldTemplate,
@@ -434,10 +490,13 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               customArrayField: CustomArrayField,
               scriptField: ScriptField,
               jsonField: JsonField,
+              serviceField: ServiceField,
+              specificationField: SpecificationField,
+              systemOperationField: SystemOperationField,
             }}
             widgets={widgets}
             onChange={(e) => {
-              formDataRef.current = e.formData as Record<string, object>;
+              setFormData(e.formData as Record<string, object>);
             }}
           />
         </>

@@ -15,6 +15,9 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "enableIdempotency",
       "idempotencyKeyExpression",
       "idempotencyKeyExpiry",
+      "integrationSystemId",
+      "integrationSpecificationId",
+      "integrationOperationId",
       "*",
     ],
     contextPath: {
@@ -227,6 +230,33 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     maxLoopIteration: {
       "ui:fieldReplacesAnyOrOneOf": true,
       "ui:field": "oneOfAsSingleInputField",
+    },
+    integrationSystemId: {
+      "ui:title": "Service",
+      "ui:field": "serviceField",
+    },
+    integrationSpecificationId: {
+      "ui:title": "Specification",
+      "ui:field": "specificationField",
+    },
+    integrationOperationId: {
+      "ui:title": "Operation",
+      "ui:field": "systemOperationField",
+    },
+    systemType: {
+      "ui:widget": "hidden",
+    },
+    integrationOperationProtocolType: {
+      "ui:widget": "hidden",
+    },
+    integrationOperationPath: {
+      "ui:widget": "hidden",
+    },
+    integrationOperationMethod: {
+      "ui:widget": "hidden",
+    },
+    integrationSpecificationGroupId: {
+      "ui:widget": "hidden",
     },
   },
   id: { "ui:widget": "hidden" },
