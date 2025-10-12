@@ -27,9 +27,7 @@ export class SystemService {
      */
     async getSystemById(systemId: string): Promise<IntegrationSystem | null> {
         try {
-            const baseFolder = await this.getBaseFolderUri();
-            const ext = getExtensionsForFile();
-            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}${ext.service}`);
+            const serviceFileUri = await this.findServiceFileUri(systemId);
             const service = await getMainService(serviceFileUri);
             if (service.id === systemId) {
                 return {
@@ -61,8 +59,7 @@ export class SystemService {
      */
     async getRawServiceById(systemId: string): Promise<any | null> {
         try {
-            const baseFolder = await this.getBaseFolderUri();
-            const serviceFileUri = Uri.joinPath(baseFolder, `${systemId}${getExtensionsForFile().service}`);
+            const serviceFileUri = await this.findServiceFileUri(systemId);
             const service = await getMainService(serviceFileUri);
             if (service && service.id === systemId) {
                 return service;
@@ -101,9 +98,7 @@ export class SystemService {
      */
     async saveSystem(system: IntegrationSystem): Promise<void> {
         try {
-            const baseFolder = await this.getBaseFolderUri();
-            const ext = getExtensionsForFile();
-            const serviceFileUri = Uri.joinPath(baseFolder, `${system.id}${ext.service}`);
+            const serviceFileUri = await this.findServiceFileUri(system.id);
             
             const service = await fileApi.getMainService(serviceFileUri);
             
@@ -114,14 +109,19 @@ export class SystemService {
             service.content.protocol = system.protocol;
             service.content.extendedProtocol = system.extendedProtocol;
             service.content.specification = system.specification;
+            service.content.labels = LabelUtils.fromEntityLabels(system.labels);
             service.content.modifiedWhen = Date.now();
             service.content.modifiedBy = { ...EMPTY_USER };
             
             await fileApi.writeMainService(serviceFileUri, service);
-            console.log(`[SystemService] Saved system ${system.id}, protocol: ${system.protocol}`);
         } catch (error) {
             console.error(`[SystemService] Failed to save system ${system.id}:`, error);
             throw error;
         }
+    }
+
+    private async findServiceFileUri(systemId: string): Promise<Uri> {
+        const ext = getExtensionsForFile();
+        return await fileApi.findFileById(systemId, ext.service);
     }
 }

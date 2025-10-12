@@ -14,6 +14,29 @@ import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import { getExtensionsForUri, setCurrentFileContext, extractFilename, initializeContextFromFile } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
 import {VSCodeMessage, VSCodeResponse} from "@netcracker/qip-ui";
+import { FileCacheService } from "./services/FileCacheService";
+import { ProjectConfigService, CONFIG_FILENAME, ProjectConfig } from "./services/ProjectConfigService";
+import { ConfigApiProvider } from "./services/ConfigApiProvider";
+
+export interface QipExtensionAPI {
+    loadConfigFromPath(configUri: Uri): Promise<void>;
+    registerConfig(appName: string, configData: {
+        extensions?: {
+            chain?: string;
+            service?: string;
+            specificationGroup?: string;
+            specification?: string;
+        };
+        schemaUrls?: {
+            service?: string;
+            chain?: string;
+            specification?: string;
+            specificationGroup?: string;
+        };
+    }): void;
+    unregisterConfig(appName: string): void;
+    getConfig(appName: string): ProjectConfig | undefined;
+}
 
 let globalQipProvider: QipExplorerProvider | null = null;
 
@@ -98,10 +121,129 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: 
     });
 }
 
-// Your extension is activated the very first time the command is executed
-export function activate(context: ExtensionContext) {
+async function deleteServiceWithRelatedFiles(serviceFileUri: Uri, serviceName: string): Promise<void> {
+    const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
+    const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+    const cacheService = FileCacheService.getInstance();
+
+    try {
+        const entries = await vscode.workspace.fs.readDirectory(serviceFolderUri);
+        const ext = getExtensionsForUri(serviceFileUri);
+
+        const filesToDelete: Uri[] = [];
+
+        for (const [fileName, fileType] of entries) {
+            if (fileType === vscode.FileType.File) {
+                if (fileName.endsWith(ext.specificationGroup) ||
+                    fileName.endsWith(ext.specification) ||
+                    fileName.endsWith(ext.service)) {
+                    filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
+                }
+            } else if (fileType === vscode.FileType.Directory && fileName === 'resources') {
+                filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
+            }
+        }
+
+        for (const fileUri of filesToDelete) {
+            await vscode.workspace.fs.delete(fileUri, { recursive: true });
+            cacheService.invalidateByUri(fileUri);
+        }
+
+        const isRootFolder = rootUri && serviceFolderUri.fsPath === rootUri.fsPath;
+
+        if (!isRootFolder) {
+            const remainingEntries = await vscode.workspace.fs.readDirectory(serviceFolderUri);
+            if (remainingEntries.length === 0) {
+                await vscode.workspace.fs.delete(serviceFolderUri, { recursive: true });
+            }
+        }
+
+        vscode.window.showInformationMessage(`Service "${serviceName}" and all related files deleted successfully`);
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function setupFileWatchers(context: ExtensionContext): Promise<void> {
+    const cacheService = FileCacheService.getInstance();
+
+    const extensionsToWatch = new Set<string>();
+
+    try {
+        const configService = ProjectConfigService.getInstance();
+        const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+
+        if (workspaceUri) {
+            await configService.loadWorkspaceConfig(workspaceUri);
+        }
+
+        const allConfigs = configService.getAllConfigs();
+
+        if (allConfigs.length > 0) {
+            allConfigs.forEach(config => {
+                Object.values(config.extensions).forEach((extension: string) => {
+                    const pattern = `**/*${extension}`;
+                    extensionsToWatch.add(pattern);
+                });
+            });
+        } else {
+            const defaultAppNames = ['qip'];
+            defaultAppNames.forEach(appName => {
+                const defaultConfig = configService.buildDefaultConfig(appName);
+                Object.values(defaultConfig.extensions).forEach((extension: string) => {
+                    const pattern = `**/*${extension}`;
+                    extensionsToWatch.add(pattern);
+                });
+            });
+        }
+
+    } catch (error) {
+        console.error('[QIP] Failed to setup file watchers from config, using qip defaults:', error);
+
+        const fallbackConfig = ProjectConfigService.getInstance().buildDefaultConfig('qip');
+        Object.values(fallbackConfig.extensions).forEach((extension: string) => {
+            const pattern = `**/*${extension}`;
+            extensionsToWatch.add(pattern);
+        });
+    }
+
+    extensionsToWatch.forEach(pattern => {
+        const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+
+        watcher.onDidChange(uri => cacheService.invalidateByUri(uri));
+        watcher.onDidDelete(uri => cacheService.invalidateByUri(uri));
+        watcher.onDidCreate(uri => cacheService.invalidateByUri(uri));
+
+        context.subscriptions.push(watcher);
+        console.log(`[QIP] File watcher created for pattern: ${pattern}`);
+    });
+
+    console.log(`[QIP] Total file watchers created: ${extensionsToWatch.size}`);
+
+    const configWatcher = vscode.workspace.createFileSystemWatcher(`**/${CONFIG_FILENAME}`);
+    configWatcher.onDidChange(() => {
+        vscode.window.showInformationMessage(
+            'QIP config changed. Reload window to apply new file extensions.',
+            'Reload'
+        ).then(selection => {
+            if (selection === 'Reload') {
+                vscode.commands.executeCommand('workbench.action.reloadWindow');
+            }
+        });
+    });
+    context.subscriptions.push(configWatcher);
+}
+
+export function activate(context: ExtensionContext): QipExtensionAPI {
     const fileApiImpl = new VSCodeFileApi(context);
     setFileApi(fileApiImpl);
+
+    const projectConfigService = ProjectConfigService.getInstance();
+    projectConfigService.setContext(context);
+
+    setupFileWatchers(context).catch(error => {
+        console.error('[QIP] Failed to setup file watchers:', error);
+    });
 
     // Register QIP Explorer provider
     const qipProvider = new QipExplorerProvider(context);
@@ -245,9 +387,8 @@ export function activate(context: ExtensionContext) {
                 );
                 if (result === 'Delete') {
                     try {
-                        await vscode.workspace.fs.delete(item.fileUri);
+                        await deleteServiceWithRelatedFiles(item.fileUri, item.label);
                         qipProvider.refresh();
-                        vscode.window.showInformationMessage(`Service "${item.label}" deleted successfully`);
                     } catch (error) {
                         vscode.window.showErrorMessage(`Failed to delete service: ${error}`);
                     }
@@ -294,6 +435,8 @@ export function activate(context: ExtensionContext) {
             }
         })
     );
+
+    return ConfigApiProvider.getInstance();
 }
 
 // This method is called when your extension is deactivated

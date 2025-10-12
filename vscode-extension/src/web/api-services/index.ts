@@ -9,4 +9,3 @@ export { SystemService } from './SystemService';
 export { YamlFileUtils } from './YamlFileUtils';
 export { LabelUtils } from './LabelUtils';
 export { ContentParser } from './parsers/ContentParser';
-export { ProjectConfigService } from './ProjectConfigService';

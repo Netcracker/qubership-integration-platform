@@ -1,4 +1,4 @@
-import { ProjectConfigService } from '../../api-services/ProjectConfigService';
+import { ProjectConfigService } from '../../services/ProjectConfigService';
 import { Uri } from 'vscode';
 
 export type FileExtensionsConfig = {
@@ -49,7 +49,32 @@ export function getCurrentFileContext(): string | null {
 }
 
 export function extractAppNameFromExtension(filename: string): string {
-    const match = filename.match(/\.(service|chain|specification-group|specification)\.([^.]+)\.yaml$/);
+    const vscode = require('vscode');
+    const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+    
+    if (workspaceUri) {
+        try {
+            const configService = ProjectConfigService.getInstance();
+            
+            if (!configService.isConfigLoaded()) {
+                const match = filename.match(/\.(service\d*|chain\d*|specification-group\d*|specification\d*)\.([^.]+)\.yaml$/);
+                return match ? match[2] : defaultAppName;
+            }
+            
+            const allConfigs = configService.getAllConfigs();
+            
+            for (const config of allConfigs) {
+                for (const extension of Object.values(config.extensions)) {
+                    if (filename.endsWith(extension)) {
+                        return config.appName;
+                    }
+                }
+            }
+        } catch (error) {
+        }
+    }
+    
+    const match = filename.match(/\.(service\d*|chain\d*|specification-group\d*|specification\d*)\.([^.]+)\.yaml$/);
     return match ? match[2] : defaultAppName;
 }
 
@@ -57,6 +82,27 @@ export function getExtensionsForFile(filename?: string): FileExtensionsConfig {
     const contextFile = filename || currentFileContext;
     if (contextFile) {
         const appName = extractAppNameFromExtension(contextFile);
+        
+        try {
+            const configService = ProjectConfigService.getInstance();
+            
+            if (configService.isConfigLoaded()) {
+                const allConfigs = configService.getAllConfigs();
+                
+                const foundConfig = allConfigs.find(cfg => cfg.appName === appName);
+                if (foundConfig) {
+                    return {
+                        appName: foundConfig.appName,
+                        chain: foundConfig.extensions.chain,
+                        service: foundConfig.extensions.service,
+                        specificationGroup: foundConfig.extensions.specificationGroup,
+                        specification: foundConfig.extensions.specification
+                    };
+                }
+            }
+        } catch (error) {
+        }
+        
         return buildDefaultExtensions(appName);
     }
     return getDefaultExtensions();

@@ -16,6 +16,7 @@ import { getExtensionsForFile } from './file/fileExtensions';
 import {fileApi} from "./file/fileApiProvider";
 import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
+import { ProjectConfigService } from "../services/ProjectConfigService";
 
 export async function updateService(serviceFileUri: Uri, serviceId: string, serviceRequest: Partial<IntegrationSystem>): Promise<IntegrationSystem> {
     const service: any = await getMainService(serviceFileUri);
@@ -66,9 +67,10 @@ export async function updateService(serviceFileUri: Uri, serviceId: string, serv
 export async function createService(context: ExtensionContext, mainFolderUri: Uri, serviceRequest: SystemRequest): Promise<IntegrationSystem> {
     try {
         const serviceId = crypto.randomUUID();
+        const config = ProjectConfigService.getConfig();
 
         const service = {
-            $schema: 'http://qubership.org/schemas/product/qip/service',
+            $schema: config.schemaUrls.service,
             id: serviceId,
             name: serviceRequest.name,
             content: {
@@ -124,6 +126,13 @@ export async function updateEnvironment(serviceFileUri: Uri, serviceId: string, 
         throw Error("ServiceId mismatch");
     }
 
+    if (!service.content) {
+        service.content = {};
+    }
+    if (!service.content.environments) {
+        service.content.environments = [];
+    }
+
     const environmentIndex = service.content.environments.findIndex((env: any) => env.id === environmentId);
     if (environmentIndex === -1) {
         console.error(`EnvironmentId not found`);
@@ -169,6 +178,13 @@ export async function createEnvironment(serviceFileUri: Uri, serviceId: string, 
         throw Error("ServiceId mismatch");
     }
 
+    if (!service.content) {
+        service.content = {};
+    }
+    if (!service.content.environments) {
+        service.content.environments = [];
+    }
+
     const environmentId = crypto.randomUUID();
     const environment = {
         id: environmentId,
@@ -198,6 +214,13 @@ export async function deleteEnvironment(serviceFileUri: Uri, serviceId: string, 
     if (service.id !== serviceId) {
         console.error(`ServiceId mismatch`);
         throw Error("ServiceId mismatch");
+    }
+
+    if (!service.content) {
+        service.content = {};
+    }
+    if (!service.content.environments) {
+        service.content.environments = [];
     }
 
     const environmentIndex = service.content.environments.findIndex((env: any) => env.id === environmentId);

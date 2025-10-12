@@ -57,7 +57,7 @@ export async function getEnvironments(serviceFileUri: Uri, serviceId: string): P
         throw Error("ServiceId mismatch");
     }
 
-    return parseEnvironments(service.content.environments);
+    return parseEnvironments(service.content?.environments || []);
 }
 
 function parseEnvironments(environments: any[]): Environment[] {

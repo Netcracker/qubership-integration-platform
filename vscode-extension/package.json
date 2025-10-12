@@ -7,7 +7,8 @@
   "main": "dist/node/index.js",
   "types": "dist/web/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "configs"
   ],
   "engines": {
     "vscode": "^1.100.0"

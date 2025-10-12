@@ -1,0 +1,30 @@
+version: "1.0"
+
+configs:
+  qip:
+    extensions:
+      chain: .chain.${appName}.yaml
+      service: .service.${appName}.yaml
+      specificationGroup: .specification-group.${appName}.yaml
+      specification: .specification.${appName}.yaml
+    schemaUrls:
+      service: http://qubership.org/schemas/product/${appName}/service
+      chain: http://qubership.org/schemas/product/${appName}/chain
+      specification: http://qubership.org/schemas/product/${appName}/specification
+      specificationGroup: http://qubership.org/schemas/product/${appName}/specification-group
+  
+  pip:
+    extensions:
+      chain: .chain.${appName}.yaml
+      service: .service.${appName}.yaml
+      specificationGroup: .specification-group.${appName}.yaml
+      specification: .specification.${appName}.yaml
+    schemaUrls:
+      service: http://qubership.org/schemas/product/${appName}/service
+      chain: http://qubership.org/schemas/product/${appName}/chain
+      specification: http://qubership.org/schemas/product/${appName}/specification
+      specificationGroup: http://qubership.org/schemas/product/${appName}/specification-group
+
+cache:
+  ttl: 60000
+

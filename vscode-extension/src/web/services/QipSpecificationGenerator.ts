@@ -1,7 +1,55 @@
 import { EMPTY_USER } from "../response/chainApiUtils";
+import { ProjectConfigService } from "./ProjectConfigService";
 
 export class QipSpecificationGenerator {
     private static readonly HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options'];
+
+    private static buildAudit() {
+        const now = Date.now();
+        return {
+            createdWhen: now,
+            modifiedWhen: now,
+            createdBy: { ...EMPTY_USER },
+            modifiedBy: { ...EMPTY_USER }
+        };
+    }
+
+    private static buildSpecification(
+        specId: string,
+        name: string,
+        version: string,
+        operations: any[],
+        fileName: string,
+        sourceData: any,
+        extraContent: Record<string, any> = {}
+    ) {
+        const config = ProjectConfigService.getConfig();
+        return {
+            $schema: config.schemaUrls.specification,
+            id: specId,
+            name,
+            content: {
+                ...this.buildAudit(),
+                deprecated: false,
+                version,
+                source: "MANUAL",
+                operations,
+                ...extraContent
+            },
+            specificationSources: this.buildSpecificationSources(specId, fileName, sourceData)
+        };
+    }
+
+    private static buildSpecificationSources(specId: string, fileName: string, sourceData: any) {
+        return [{
+            id: this.generateId(),
+            name: fileName,
+            ...this.buildAudit(),
+            sourceHash: this.calculateHash(JSON.stringify(sourceData)),
+            fileName: `resources/source-${specId}/${fileName}`,
+            mainSource: true
+        }];
+    }
 
     /**
      * Creates QIP specification from OpenAPI 3.0 or Swagger 2.0
@@ -38,32 +86,14 @@ export class QipSpecificationGenerator {
             }
         }
 
-        return {
-            $schema: "http://qubership.org/schemas/product/qip/specification",
-            id: specId,
-            name: openApiSpec.info?.version || '1.0.0',
-            content: {
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                deprecated: false,
-                version: openApiSpec.info?.version || '1.0.0',
-                source: "IMPORTED",
-                operations: operations
-            },
-            specificationSources: [{
-                id: this.generateId(),
-                name: fileName,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                sourceHash: this.calculateHash(JSON.stringify(openApiSpec)),
-                fileName: `resources/source-${specId}/${fileName}`,
-                mainSource: true
-            }]
-        };
+        return this.buildSpecification(
+            specId,
+            openApiSpec.info?.version || '1.0.0',
+            openApiSpec.info?.version || '1.0.0',
+            operations,
+            fileName,
+            openApiSpec
+        );
     }
 
     /**
@@ -75,10 +105,7 @@ export class QipSpecificationGenerator {
         return {
             id: `${specId}-${operationId}`,
             name: operationId,
-            createdWhen: Date.now(),
-            modifiedWhen: Date.now(),
-            createdBy: { id: "", username: "" },
-            modifiedBy: { id: "", username: "" },
+            ...this.buildAudit(),
             method: method,
             path: path,
             specification: this.reorderSpecificationFields(operation),
@@ -501,10 +528,7 @@ export class QipSpecificationGenerator {
                 const operation = {
                     id: `${specId}-${operationName}`,
                     name: operationName,
-                    createdWhen: Date.now(),
-                    modifiedWhen: Date.now(),
-                    createdBy: { id: "", username: "" },
-                    modifiedBy: { id: "", username: "" },
+                    ...this.buildAudit(),
                     method: 'POST',
                     path: wsdlData.service?.address || '',
                     specification: {
@@ -541,32 +565,14 @@ export class QipSpecificationGenerator {
             }
         }
 
-        return {
-            $schema: "http://qubership.org/schemas/product/qip/specification",
-            id: specId,
-            name: wsdlData.name || '1.0.0',
-            content: {
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                deprecated: false,
-                version: '1.0.0',
-                source: "IMPORTED",
-                operations: operations
-            },
-            specificationSources: [{
-                id: this.generateId(),
-                name: fileName,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                sourceHash: this.calculateHash(JSON.stringify(wsdlData)),
-                fileName: `resources/source-${specId}/${fileName}`,
-                mainSource: true
-            }]
-        };
+        return this.buildSpecification(
+            specId,
+            wsdlData.name || '1.0.0',
+            '1.0.0',
+            operations,
+            fileName,
+            wsdlData
+        );
     }
 
     /**
@@ -581,10 +587,7 @@ export class QipSpecificationGenerator {
                 const operation = {
                     id: `${specId}-${service.name}-${method.name}`,
                     name: `${service.name}.${method.name}`,
-                    createdWhen: Date.now(),
-                    modifiedWhen: Date.now(),
-                    createdBy: { id: "", username: "" },
-                    modifiedBy: { id: "", username: "" },
+                    ...this.buildAudit(),
                     method: 'POST',
                     path: `/${service.name}/${method.name}`,
                     specification: {
@@ -621,32 +624,14 @@ export class QipSpecificationGenerator {
             }
         }
 
-        return {
-            $schema: "http://qubership.org/schemas/product/qip/specification",
-            id: specId,
-            name: protoData.package || '1.0.0',
-            content: {
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                deprecated: false,
-                version: '1.0.0',
-                source: "IMPORTED",
-                operations: operations
-            },
-            specificationSources: [{
-                id: this.generateId(),
-                name: fileName,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                sourceHash: this.calculateHash(JSON.stringify(protoData)),
-                fileName: `resources/source-${specId}/${fileName}`,
-                mainSource: true
-            }]
-        };
+        return this.buildSpecification(
+            specId,
+            protoData.package || '1.0.0',
+            '1.0.0',
+            operations,
+            fileName,
+            protoData
+        );
     }
 
     /**
@@ -656,191 +641,72 @@ export class QipSpecificationGenerator {
         const operations: any[] = [];
         const specId = this.generateId();
 
-        // Create operations from queries
-        for (const query of graphqlData.queries) {
-            const operation = {
-                id: `${specId}-query-${query.name}`,
-                name: query.name,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                method: 'POST',
-                path: '/graphql',
-                specification: {
-                    summary: `GraphQL Query: ${query.name}`,
-                    description: `GraphQL query ${query.name}. Returns: ${query.returnType}${query.arguments ? `, Arguments: ${query.arguments}` : ''}`,
-                    tags: ['GraphQL', 'Query']
-                },
-                requestSchema: {
-                    'application/json': {
-                        type: 'object',
-                        properties: {
-                            query: {
-                                type: 'string',
-                                description: `GraphQL query string for ${query.name}`
-                            },
-                            variables: {
-                                type: 'object',
-                                description: 'GraphQL variables'
-                            }
-                        }
-                    }
-                },
-                responseSchemas: {
-                    '200': {
-                        'application/json': {
-                            type: 'object',
-                            properties: {
-                                data: {
-                                    type: 'object',
-                                    description: `Response data of type ${query.returnType}`
-                                },
-                                errors: {
-                                    type: 'array',
-                                    items: { type: 'string' },
-                                    description: 'GraphQL errors'
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-            operations.push(operation);
-        }
-
-        // Create operations from mutations
-        for (const mutation of graphqlData.mutations) {
-            const operation = {
-                id: `${specId}-mutation-${mutation.name}`,
-                name: mutation.name,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                method: 'POST',
-                path: '/graphql',
-                specification: {
-                    summary: `GraphQL Mutation: ${mutation.name}`,
-                    description: `GraphQL mutation ${mutation.name}. Returns: ${mutation.returnType}${mutation.arguments ? `, Arguments: ${mutation.arguments}` : ''}`,
-                    tags: ['GraphQL', 'Mutation']
-                },
-                requestSchema: {
-                    'application/json': {
-                        type: 'object',
-                        properties: {
-                            query: {
-                                type: 'string',
-                                description: `GraphQL mutation string for ${mutation.name}`
-                            },
-                            variables: {
-                                type: 'object',
-                                description: 'GraphQL variables'
-                            }
-                        }
-                    }
-                },
-                responseSchemas: {
-                    '200': {
-                        'application/json': {
-                            type: 'object',
-                            properties: {
-                                data: {
-                                    type: 'object',
-                                    description: `Response data of type ${mutation.returnType}`
-                                },
-                                errors: {
-                                    type: 'array',
-                                    items: { type: 'string' },
-                                    description: 'GraphQL errors'
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-            operations.push(operation);
-        }
-
-        // Create operations from subscriptions
-        for (const subscription of graphqlData.subscriptions) {
-            const operation = {
-                id: `${specId}-subscription-${subscription.name}`,
-                name: subscription.name,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                method: 'POST',
-                path: '/graphql',
-                specification: {
-                    summary: `GraphQL Subscription: ${subscription.name}`,
-                    description: `GraphQL subscription ${subscription.name}. Returns: ${subscription.returnType}${subscription.arguments ? `, Arguments: ${subscription.arguments}` : ''}`,
-                    tags: ['GraphQL', 'Subscription']
-                },
-                requestSchema: {
-                    'application/json': {
-                        type: 'object',
-                        properties: {
-                            query: {
-                                type: 'string',
-                                description: `GraphQL subscription string for ${subscription.name}`
-                            },
-                            variables: {
-                                type: 'object',
-                                description: 'GraphQL variables'
-                            }
-                        }
-                    }
-                },
-                responseSchemas: {
-                    '200': {
-                        'application/json': {
-                            type: 'object',
-                            properties: {
-                                data: {
-                                    type: 'object',
-                                    description: `Response data of type ${subscription.returnType}`
-                                },
-                                errors: {
-                                    type: 'array',
-                                    items: { type: 'string' },
-                                    description: 'GraphQL errors'
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-            operations.push(operation);
-        }
-
-        return {
-            $schema: "http://qubership.org/schemas/product/qip/specification",
-            id: specId,
-            name: '1.0.0',
-            content: {
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                deprecated: false,
-                version: '1.0.0',
-                source: "IMPORTED",
-                operations: operations
+        const buildGraphQLOperation = (kind: 'Query' | 'Mutation' | 'Subscription', item: any) => ({
+            id: `${specId}-${kind.toLowerCase()}-${item.name}`,
+            name: item.name,
+            ...this.buildAudit(),
+            method: 'POST',
+            path: '/graphql',
+            specification: {
+                summary: `GraphQL ${kind}: ${item.name}`,
+                description: `GraphQL ${kind.toLowerCase()} ${item.name}. Returns: ${item.returnType}${item.arguments ? `, Arguments: ${item.arguments}` : ''}`,
+                tags: ['GraphQL', kind]
             },
-            specificationSources: [{
-                id: this.generateId(),
-                name: fileName,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                sourceHash: this.calculateHash(JSON.stringify(graphqlData)),
-                fileName: `resources/source-${specId}/${fileName}`,
-                mainSource: true
-            }]
-        };
+            requestSchema: {
+                'application/json': {
+                    type: 'object',
+                    properties: {
+                        query: {
+                            type: 'string',
+                            description: `GraphQL ${kind.toLowerCase()} string for ${item.name}`
+                        },
+                        variables: {
+                            type: 'object',
+                            description: 'GraphQL variables'
+                        }
+                    }
+                }
+            },
+            responseSchemas: {
+                '200': {
+                    'application/json': {
+                        type: 'object',
+                        properties: {
+                            data: {
+                                type: 'object',
+                                description: `Response data of type ${item.returnType}`
+                            },
+                            errors: {
+                                type: 'array',
+                                items: { type: 'string' },
+                                description: 'GraphQL errors'
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        for (const query of graphqlData.queries) {
+            operations.push(buildGraphQLOperation('Query', query));
+        }
+
+        for (const mutation of graphqlData.mutations) {
+            operations.push(buildGraphQLOperation('Mutation', mutation));
+        }
+
+        for (const subscription of graphqlData.subscriptions) {
+            operations.push(buildGraphQLOperation('Subscription', subscription));
+        }
+
+        return this.buildSpecification(
+            specId,
+            '1.0.0',
+            '1.0.0',
+            operations,
+            fileName,
+            graphqlData
+        );
     }
 
     /**
@@ -852,25 +718,26 @@ export class QipSpecificationGenerator {
 
         if (asyncApiData.channels) {
             Object.entries(asyncApiData.channels).forEach(([channelName, channel]: [string, any]) => {
-                // Publish operations
-                if (channel.publish) {
-                    const operationId = channel.publish.operationId || `publish-${channelName}`;
-                    const operation = {
+                const protocol = asyncApiData.info?.['x-protocol'] || 'unknown';
+                const buildAsyncOperation = (
+                    opType: 'publish' | 'subscribe',
+                    channelNameLocal: string,
+                    op: any
+                ) => {
+                    const operationId = op.operationId || `${opType}-${channelNameLocal}`;
+                    return {
                         id: `${specId}-${operationId}`,
                         name: operationId,
-                        createdWhen: Date.now(),
-                        modifiedWhen: Date.now(),
-                        createdBy: {...EMPTY_USER},
-                        modifiedBy: {...EMPTY_USER},
-                        method: 'PUBLISH',
-                        path: channelName,
+                        ...this.buildAudit(),
+                        method: opType.toUpperCase(),
+                        path: channelNameLocal,
                         specification: {
-                            summary: channel.publish.summary || `${operationId} operation`,
+                            summary: op.summary || `${operationId} operation`,
                             operationId: operationId,
-                            protocol: asyncApiData.info?.['x-protocol'] || 'unknown',
-                            channel: channelName,
-                            operation: 'publish',
-                            message: channel.publish.message || {}
+                            protocol,
+                            channel: channelNameLocal,
+                            operation: opType,
+                            message: op.message || {}
                         },
                         requestSchema: {
                             $id: `http://system.catalog/schemas/requests/${operationId}`,
@@ -897,86 +764,27 @@ export class QipSpecificationGenerator {
                             }
                         }
                     };
-                    operations.push(operation);
+                };
+
+                if (channel.publish) {
+                    operations.push(buildAsyncOperation('publish', channelName, channel.publish));
                 }
 
-                // Subscribe operations
                 if (channel.subscribe) {
-                    const operationId = channel.subscribe.operationId || `subscribe-${channelName}`;
-                    const operation = {
-                        id: `${specId}-${operationId}`,
-                        name: operationId,
-                        createdWhen: Date.now(),
-                        modifiedWhen: Date.now(),
-                        createdBy: {...EMPTY_USER},
-                        modifiedBy: {...EMPTY_USER},
-                        method: 'SUBSCRIBE',
-                        path: channelName,
-                        specification: {
-                            summary: channel.subscribe.summary || `${operationId} operation`,
-                            operationId: operationId,
-                            protocol: asyncApiData.info?.['x-protocol'] || 'unknown',
-                            channel: channelName,
-                            operation: 'subscribe',
-                            message: channel.subscribe.message || {}
-                        },
-                        requestSchema: {
-                            $id: `http://system.catalog/schemas/requests/${operationId}`,
-                            $ref: `#/definitions/${operationId}Request`,
-                            $schema: "http://json-schema.org/draft-07/schema#",
-                            definitions: {
-                                [`${operationId}Request`]: {
-                                    type: "object",
-                                    properties: {},
-                                    additionalProperties: false
-                                }
-                            }
-                        },
-                        responseSchemas: {
-                            $id: `http://system.catalog/schemas/responses/${operationId}`,
-                            $ref: `#/definitions/${operationId}Response`,
-                            $schema: "http://json-schema.org/draft-07/schema#",
-                            definitions: {
-                                [`${operationId}Response`]: {
-                                    type: "object",
-                                    properties: {},
-                                    additionalProperties: false
-                                }
-                            }
-                        }
-                    };
-                    operations.push(operation);
+                    operations.push(buildAsyncOperation('subscribe', channelName, channel.subscribe));
                 }
             });
         }
 
-        return {
-            $schema: "http://qubership.org/schemas/product/qip/specification",
-            id: specId,
-            name: asyncApiData.info?.title || fileName,
-            content: {
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                deprecated: false,
-                version: asyncApiData.info?.version || "1.0.0",
-                source: "IMPORTED",
-                operations: operations,
-                parentId: ""
-            },
-            specificationSources: [{
-                id: this.generateId(),
-                name: fileName,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { id: "", username: "" },
-                modifiedBy: { id: "", username: "" },
-                sourceHash: this.calculateHash(JSON.stringify(asyncApiData)),
-                fileName: `resources/source-${specId}/${fileName}`,
-                mainSource: true
-            }]
-        };
+        return this.buildSpecification(
+            specId,
+            asyncApiData.info?.title || fileName,
+            asyncApiData.info?.version || "1.0.0",
+            operations,
+            fileName,
+            asyncApiData,
+            { parentId: "" }
+        );
     }
 
     /**

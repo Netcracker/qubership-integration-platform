@@ -4,7 +4,6 @@ import {
     ImportSpecificationResult,
     ImportSpecificationGroupRequest,
     SerializedFile,
-    ApiSpecificationType,
 } from "./importApiTypes";
 import { SpecificationGroup, Specification, IntegrationSystem } from "./servicesTypes";
 import { ImportProgressTracker } from "./importProgressTracker";
@@ -21,7 +20,7 @@ import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from './parsers/ContentParser';
-import { ProjectConfigService } from "./ProjectConfigService";
+import { ProjectConfigService } from "../services/ProjectConfigService";
 
 export class SpecificationImportService {
     private context: ExtensionContext;
@@ -381,7 +380,7 @@ export class SpecificationImportService {
                         modifiedBy: specification.modifiedBy,
                         deprecated: specification.deprecated,
                         version: specification.version,
-                        source: "IMPORTED",
+                        source: "MANUAL",
                         operations: specification.operations || [],
                         parentId: specificationGroup.id,
                         labels: specification.labels ? LabelUtils.fromEntityLabels(specification.labels) : []
