@@ -311,3 +311,7 @@ quarkus:
       enabled: false
     logs:
       enabled: false
+  micrometer:
+    export:
+      prometheus:
+        path: /metrics
