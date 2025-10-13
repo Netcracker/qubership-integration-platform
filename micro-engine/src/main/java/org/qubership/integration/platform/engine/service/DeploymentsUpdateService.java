@@ -21,8 +21,8 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.engine.catalog.RuntimeCatalogService;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeploymentsDTO;
+import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentsUpdate;
 
@@ -35,7 +35,7 @@ public class DeploymentsUpdateService {
     IntegrationRuntimeService integrationRuntimeService;
 
     @Inject
-    ServerConfiguration serverConfiguration;
+    EngineInfo engineInfo;
 
     @RestClient
     @Inject
@@ -55,7 +55,7 @@ public class DeploymentsUpdateService {
     }
 
     private DeploymentsUpdate getDeploymentsUpdate(EngineDeploymentsDTO excluded) {
-        String domain = serverConfiguration.getDomain();
+        String domain = engineInfo.getDomain();
         return runtimeCatalogService.getDeploymentsUpdate(domain, excluded);
     }
 }

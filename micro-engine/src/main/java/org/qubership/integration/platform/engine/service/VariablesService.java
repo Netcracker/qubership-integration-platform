@@ -26,7 +26,7 @@ import org.apache.commons.text.StringEscapeUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jetbrains.annotations.NotNull;
-import org.qubership.integration.platform.engine.configuration.NamespaceProvider;
+import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEvent;
@@ -57,7 +57,7 @@ public class VariablesService {
 
     private final EventBus eventBus;
     private final KubeOperator operator;
-    private final NamespaceProvider namespaceProvider;
+    private final ApplicationConfiguration applicationConfiguration;
 
     private Map<String, String> commonVariables = Collections.emptyMap();
     private Map<String, String> securedVariables = Collections.emptyMap();
@@ -73,13 +73,13 @@ public class VariablesService {
     public VariablesService(
             EventBus eventBus,
             KubeOperator operator,
-            NamespaceProvider namespaceProvider,
+            ApplicationConfiguration applicationConfiguration,
             @ConfigProperty(name = "kubernetes.variables-secret.label") String kubeSecretsLabel,
             @ConfigProperty(name = "kubernetes.variables-secret.name") String kubeSecretV2Name
     ) {
         this.eventBus = eventBus;
         this.operator = operator;
-        this.namespaceProvider = namespaceProvider;
+        this.applicationConfiguration = applicationConfiguration;
         this.kubeSecretV2Name = kubeSecretV2Name;
         this.kubeSecretsLabel = Pair.of(kubeSecretsLabel, "secured");
     }
@@ -152,10 +152,11 @@ public class VariablesService {
     }
 
     private Map<String, String> patchNamespaceValue(@NotNull Map<String, String> variables) {
+        String namespace = applicationConfiguration.getNamespace();
         if (variables.isEmpty()) {
-            return Map.of(NAMESPACE_VARIABLE, namespaceProvider.getNamespace());
+            return Map.of(NAMESPACE_VARIABLE, namespace);
         } else {
-            variables.put(NAMESPACE_VARIABLE, namespaceProvider.getNamespace());
+            variables.put(NAMESPACE_VARIABLE, namespace);
             return variables;
         }
     }

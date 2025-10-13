@@ -19,8 +19,8 @@ package org.qubership.integration.platform.engine.service.deployment.processing.
 import io.micrometer.core.instrument.Tag;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
+import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 
@@ -32,11 +32,11 @@ import static org.qubership.integration.platform.engine.service.debugger.metrics
 
 @ApplicationScoped
 public class MetricTagsHelper {
-    private final ServerConfiguration serverConfiguration;
+    private final EngineInfo engineInfo;
 
     @Inject
-    public MetricTagsHelper(ServerConfiguration serverConfiguration) {
-        this.serverConfiguration = serverConfiguration;
+    public MetricTagsHelper(EngineInfo engineInfo) {
+        this.engineInfo = engineInfo;
     }
 
     public Collection<Tag> buildMetricTags(
@@ -50,7 +50,7 @@ public class MetricTagsHelper {
             Tag.of(ELEMENT_ID_TAG, elementProperties.getProperties().get(ChainProperties.ELEMENT_ID)),
             Tag.of(ELEMENT_NAME_TAG, elementProperties.getProperties().get(
                 ChainProperties.ELEMENT_NAME)),
-            Tag.of(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain()))
+            Tag.of(ENGINE_DOMAIN_TAG, engineInfo.getDomain()))
         );
     }
 }

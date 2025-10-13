@@ -26,7 +26,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.camel.context.propagation.constant.BusinessIds;
 import org.qubership.integration.platform.engine.camel.reifiers.CustomResilienceReifier;
 import org.qubership.integration.platform.engine.camel.reifiers.CustomStepReifier;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
 import org.qubership.integration.platform.engine.consul.EngineStateReporter;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
@@ -35,6 +34,7 @@ import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCo
 import org.qubership.integration.platform.engine.model.deployment.DeploymentOperation;
 import org.qubership.integration.platform.engine.model.deployment.engine.DeploymentStatus;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
+import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.engine.model.deployment.update.*;
 import org.qubership.integration.platform.engine.service.deployment.DeploymentLockHelper;
@@ -60,7 +60,7 @@ public class IntegrationRuntimeService {
     @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger log = ExtendedErrorLoggerFactory.getLogger(IntegrationRuntimeService.class);
 
-    private final ServerConfiguration serverConfiguration;
+    private final EngineInfo engineInfo;
     private final QuartzSchedulerService quartzSchedulerService;
     private final EngineStateReporter engineStateReporter;
     private final DeploymentReadinessService deploymentReadinessService;
@@ -79,15 +79,16 @@ public class IntegrationRuntimeService {
     }
 
     @Inject
-    public IntegrationRuntimeService(ServerConfiguration serverConfiguration,
-        QuartzSchedulerService quartzSchedulerService,
-        EngineStateReporter engineStateReporter,
-        @Named("deploymentExecutor") Executor deploymentExecutor,
-        DeploymentReadinessService deploymentReadinessService,
-        DeploymentProcessingService deploymentProcessingService,
-        DeploymentPreprocessorService deploymentPreprocessorService
+    public IntegrationRuntimeService(
+            EngineInfo engineInfo,
+            QuartzSchedulerService quartzSchedulerService,
+            EngineStateReporter engineStateReporter,
+            @Named("deploymentExecutor") Executor deploymentExecutor,
+            DeploymentReadinessService deploymentReadinessService,
+            DeploymentProcessingService deploymentProcessingService,
+            DeploymentPreprocessorService deploymentPreprocessorService
     ) {
-        this.serverConfiguration = serverConfiguration;
+        this.engineInfo = engineInfo;
         this.quartzSchedulerService = quartzSchedulerService;
         this.engineStateReporter = engineStateReporter;
         this.deploymentExecutor = deploymentExecutor;
@@ -169,7 +170,7 @@ public class IntegrationRuntimeService {
 
     private EngineState buildEngineState() throws Exception {
         return EngineState.builder()
-                .engine(serverConfiguration.getEngineInfo())
+                .engine(engineInfo)
                 .deployments(buildActualDeploymentsSnapshot())
                 .build();
     }

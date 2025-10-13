@@ -29,7 +29,6 @@ import org.apache.camel.model.StepDefinition;
 import org.apache.camel.spi.CamelEvent.*;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.qubership.integration.platform.engine.camel.context.propagation.CamelExchangeContextPropagation;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTimeoutException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.ChainElementType;
@@ -39,6 +38,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelNames;
+import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.logging.ElementRetryProperties;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
@@ -76,7 +76,7 @@ import static org.qubership.integration.platform.engine.util.CheckpointUtils.*;
 @Unremovable
 public class CamelDebugger extends DefaultDebugger {
 
-    private final ServerConfiguration serverConfiguration;
+    private final EngineInfo engineInfo;
     private final TracingService tracingService;
     private final CheckpointSessionService checkpointSessionService;
     private final MetricsService metricsService;
@@ -91,7 +91,7 @@ public class CamelDebugger extends DefaultDebugger {
 
     @Inject
     public CamelDebugger(
-            ServerConfiguration serverConfiguration,
+            EngineInfo engineInfo,
             TracingService tracingService,
             CheckpointSessionService checkpointSessionService,
             MetricsService metricsService,
@@ -104,7 +104,7 @@ public class CamelDebugger extends DefaultDebugger {
             Instance<CamelExchangeContextPropagation> exchangeContextPropagation,
             ExchangePropertyService exchangePropertyService
     ) {
-        this.serverConfiguration = serverConfiguration;
+        this.engineInfo = engineInfo;
         this.tracingService = tracingService;
         this.checkpointSessionService = checkpointSessionService;
         this.metricsService = metricsService;
@@ -740,11 +740,11 @@ public class CamelDebugger extends DefaultDebugger {
     }
 
     private String getCurrentDomain() {
-        return serverConfiguration.getDomain();
+        return engineInfo.getDomain();
     }
 
     private String getCurrentEngineAddress() {
-        return serverConfiguration.getHost();
+        return engineInfo.getHost();
     }
 
     public CamelDebuggerProperties getRelatedProperties(Exchange exchange) {

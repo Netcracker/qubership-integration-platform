@@ -9,7 +9,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
 
@@ -41,7 +40,7 @@ public class EngineStateService {
     ConsulSessionService consulSessionService;
 
     @Inject
-    ServerConfiguration serverConfiguration;
+    EngineInfo engineInfo;
 
     @Inject
     @Identifier("jsonMapper")
@@ -58,7 +57,6 @@ public class EngineStateService {
     }
 
     private String getConsulKey() {
-        EngineInfo engineInfo = serverConfiguration.getEngineInfo();
         return keyPrefix + keyEngineConfigRoot + keyEnginesState
                 + "/" + engineInfo.getEngineDeploymentName()
                 + "-" + engineInfo.getDomain()

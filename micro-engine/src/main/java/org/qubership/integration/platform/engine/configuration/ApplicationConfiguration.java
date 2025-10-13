@@ -18,23 +18,25 @@ package org.qubership.integration.platform.engine.configuration;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-@Slf4j
 @Getter
 @ApplicationScoped
 public class ApplicationConfiguration {
-    private final String microserviceName;
-    private final String cloudServiceName;
+    @ConfigProperty(name = "application.name")
+    String microserviceName;
 
-    public ApplicationConfiguration(
-            @ConfigProperty(name = "application.cloud_service_name") String cloudServiceName,
-            @ConfigProperty(name = "application.name") String microserviceName
-    ) {
-        this.microserviceName = microserviceName;
-        this.cloudServiceName = cloudServiceName;
-    }
+    @ConfigProperty(name = "application.cloud_service_name")
+    String cloudServiceName;
+
+    @ConfigProperty(name = "application.namespace")
+    String namespace;
+
+    @ConfigProperty(name = "application.default_integration_domain_name")
+    String engineDefaultDomain;
+
+    @ConfigProperty(name = "application.default_integration_domain_microservice_name")
+    String defaultEngineMicroserviceName;
 
     public String getDeploymentName() {
         return cloudServiceName;

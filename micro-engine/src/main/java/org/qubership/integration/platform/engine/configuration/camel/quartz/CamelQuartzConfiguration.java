@@ -26,7 +26,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.quartz.SchedulerException;
 import org.quartz.impl.StdSchedulerFactory;
 import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
+import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 
 import java.util.Properties;
 import java.util.function.Consumer;
@@ -36,7 +36,7 @@ import java.util.function.Consumer;
 public class CamelQuartzConfiguration {
 
     @Inject
-    ServerConfiguration serverConfiguration;
+    EngineInfo engineInfo;
 
     @ConfigProperty(name = "quarkus.datasource.quartz.jdbc.driver")
     String driver;
@@ -86,7 +86,7 @@ public class CamelQuartzConfiguration {
 
         // scheduler
         properties.setProperty(StdSchedulerFactory.PROP_SCHED_INSTANCE_NAME,
-            "engine-" + serverConfiguration.getDomain());
+            "engine-" + engineInfo.getDomain());
         properties.setProperty(StdSchedulerFactory.PROP_SCHED_INSTANCE_ID, "AUTO");
         properties.setProperty(StdSchedulerFactory.PROP_SCHED_JOB_FACTORY_CLASS,
             "org.quartz.simpl.SimpleJobFactory");
