@@ -5,10 +5,11 @@ import { FormContext } from "../ChainElementModification";
 import { api } from "../../../../api/api";
 import { useNotificationService } from "../../../../hooks/useNotificationService";
 import { Specification, SpecificationGroup } from "../../../../api/apiTypes";
+import { JSONSchema7 } from "json-schema";
 
-const SpecificationField: React.FC<FieldProps<any, any, FormContext>> = (
-  props,
-) => {
+const SpecificationField: React.FC<
+  FieldProps<string, JSONSchema7, FormContext>
+> = (props) => {
   const notificationService = useNotificationService();
   const [options, setOptions] = useState<SelectProps["options"]>([]);
   const [specIdToGroupIdMap, setSpecIdToGroupIdMap] = useState<
@@ -42,11 +43,10 @@ const SpecificationField: React.FC<FieldProps<any, any, FormContext>> = (
   };
 
   useEffect(() => {
-    console.log(`load specification groups, systemId = ${systemId}`);
     const loadSpecificationGroups = async () => {
-      if (systemId) {
-        setIsLoading(true);
-        try {
+      setIsLoading(true);
+      try {
+        if (systemId) {
           const groups = await api.getApiSpecifications(systemId);
 
           const groupOptions: SelectProps["options"] =
@@ -57,14 +57,19 @@ const SpecificationField: React.FC<FieldProps<any, any, FormContext>> = (
             })) ?? [];
           setSpecIdToGroupIdMap(buildSpecToGroupMap(groups));
           setOptions(groupOptions);
-        } catch (error) {
-          notificationService.requestFailed(
-            "Failed to load specification groups",
-            error,
-          );
-        } finally {
-          setIsLoading(false);
+        } else {
+          setSpecIdToGroupIdMap(new Map());
+          setOptions([]);
         }
+      } catch (error) {
+        setSpecIdToGroupIdMap(new Map());
+        setOptions([]);
+        notificationService.requestFailed(
+          "Failed to load specification groups",
+          error,
+        );
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -97,7 +102,7 @@ const SpecificationField: React.FC<FieldProps<any, any, FormContext>> = (
 
       props.formContext!.updateContext(context);
     },
-    [props.formContext],
+    [props.formContext, specIdToGroupIdMap],
   );
 
   return (

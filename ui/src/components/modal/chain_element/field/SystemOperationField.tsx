@@ -1,28 +1,26 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Select, SelectProps } from "antd";
 import { FormContext } from "../ChainElementModification";
 import { api } from "../../../../api/api";
 import { useNotificationService } from "../../../../hooks/useNotificationService";
 import { SystemOperation } from "../../../../api/apiTypes";
+import { JSONSchema7 } from "json-schema";
 
-const SystemOperationField: React.FC<FieldProps<any, any, FormContext>> = ({
-  id,
-  formData,
-  schema,
-  required,
-  uiSchema,
-  formContext,
-}) => {
+const SystemOperationField: React.FC<
+  FieldProps<string, JSONSchema7, FormContext>
+> = ({ id, formData, schema, required, uiSchema, formContext }) => {
   const notificationService = useNotificationService();
   const [options, setOptions] = useState<SelectProps["options"]>([]);
   const [operationsMap, setOperationsMap] = useState<
     Map<string, SystemOperation>
   >(new Map());
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const specificationId = formContext!.integrationSpecificationId;
 
   useEffect(() => {
     const loadOperations = async () => {
+      setIsLoading(true);
       try {
         if (specificationId) {
           const operations = await api.getOperations(specificationId);
@@ -41,7 +39,11 @@ const SystemOperationField: React.FC<FieldProps<any, any, FormContext>> = ({
           setOptions([]);
         }
       } catch (error) {
+        setOperationsMap(new Map());
+        setOptions([]);
         notificationService.requestFailed("Failed to load operations", error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -61,16 +63,19 @@ const SystemOperationField: React.FC<FieldProps<any, any, FormContext>> = ({
     marginRight: 4,
   };
 
-  const handleChange = (newValue: string) => {
-    const operation: SystemOperation = operationsMap.get(newValue)!;
+  const handleChange = useCallback(
+    (newValue: string) => {
+      const operation: SystemOperation = operationsMap.get(newValue)!;
 
-    formContext?.updateContext({
-      integrationOperationId: newValue,
-      integrationOperationPath: operation.path,
-      integrationOperationMethod: operation.method,
-      integrationOperationProtocolType: "http",
-    });
-  };
+      formContext?.updateContext({
+        integrationOperationId: newValue,
+        integrationOperationPath: operation.path,
+        integrationOperationMethod: operation.method,
+        integrationOperationProtocolType: "http",
+      });
+    },
+    [formContext, operationsMap],
+  );
 
   return (
     <div>
@@ -78,7 +83,12 @@ const SystemOperationField: React.FC<FieldProps<any, any, FormContext>> = ({
         {required ? <span style={requiredStyle}> *</span> : null}
         {title}
       </label>
-      <Select value={formData} options={options} onChange={handleChange} />
+      <Select
+        value={formData}
+        options={options}
+        onChange={handleChange}
+        disabled={isLoading}
+      />
     </div>
   );
 };
