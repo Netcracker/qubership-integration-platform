@@ -20,10 +20,6 @@
     flex-direction: column;
 }
 
-.modal-body :global(.panel.panel-default.panel-body) {
-    display: none;
-}
-
 .modal-body :global(.rjsf) {
     display: flex;
     flex-direction: column;
