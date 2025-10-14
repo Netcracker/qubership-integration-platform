@@ -3,6 +3,7 @@ import { Form, Input, Button, Select, Tag, Descriptions, Spin } from "antd";
 import { IntegrationSystem, IntegrationSystemType } from "../../api/apiTypes";
 import { api } from "../../api/api";
 import { useAsyncRequest } from './useAsyncRequest';
+import { SourceFlagTag } from './SourceFlagTag';
 
 interface ServiceParametersTabProps {
   systemId: string;
@@ -15,6 +16,7 @@ interface ServiceFormValues {
   name: string;
   description?: string;
   labels: string[];
+  type: IntegrationSystemType;
 }
 
 export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
@@ -35,6 +37,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
     form.setFieldsValue({
       name: data.name,
       description: data.description,
+      type: data.type,
       labels: [
         ...(data.labels?.filter(l => l.technical).map(l => l.name) || []),
         ...(data.labels?.filter(l => !l.technical).map(l => l.name) || []),
@@ -75,7 +78,9 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
     const values = (await form.validateFields()) as ServiceFormValues;
     const payload = {
       ...system,
-      ...values,
+      name: values.name,
+      description: values.description,
+      type: values.type,
       labels: [
         ...technicalLabels.map(name => ({ name, technical: true })),
         ...userLabels.map(name => ({ name, technical: false })),
@@ -107,6 +112,22 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
         </Form.Item>
         <Form.Item label="Description" name="description">
           <Input.TextArea maxLength={512} />
+        </Form.Item>
+        <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="Protocol">
+            {system.protocol ? <SourceFlagTag source={system.protocol} toUpperCase={true} /> : '-'}
+          </Descriptions.Item>
+        </Descriptions>
+        <Form.Item
+          label="Type"
+          name="type"
+          rules={[{ required: true, message: "Select service type" }]}
+        >
+          <Select>
+            <Select.Option value={IntegrationSystemType.INTERNAL}>Internal</Select.Option>
+            <Select.Option value={IntegrationSystemType.EXTERNAL}>External</Select.Option>
+            <Select.Option value={IntegrationSystemType.IMPLEMENTED}>Implemented</Select.Option>
+          </Select>
         </Form.Item>
         <Form.Item label="Labels" name="labels">
           <Select
