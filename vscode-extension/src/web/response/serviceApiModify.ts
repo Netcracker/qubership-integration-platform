@@ -42,6 +42,9 @@ export async function updateService(serviceFileUri: Uri, serviceId: string, serv
     if (serviceRequest.integrationSystemType !== undefined) {
         service.content.integrationSystemType = serviceRequest.integrationSystemType;
     }
+    if (serviceRequest.type !== undefined) {
+        service.content.integrationSystemType = serviceRequest.type;
+    }
     if (serviceRequest.protocol !== undefined) {
         service.content.protocol = serviceRequest.protocol;
     }
@@ -456,13 +459,13 @@ async function findSpecificationFileById(serviceFileUri: Uri, modelId: string): 
 }
 
 async function deleteSourceFilesFromSpecificationSources(serviceFileUri: Uri, specificationInfo: any): Promise<void> {
-    if (!specificationInfo.specificationSources || specificationInfo.specificationSources.length === 0) {
+    if (!specificationInfo.content?.specificationSources || specificationInfo.content.specificationSources.length === 0) {
         return;
     }
 
     const foldersToCheck: string[] = [];
 
-    for (const source of specificationInfo.specificationSources) {
+    for (const source of specificationInfo.content.specificationSources) {
         try {
             const filePath = source.fileName;
             if (filePath && filePath.startsWith('resources/')) {

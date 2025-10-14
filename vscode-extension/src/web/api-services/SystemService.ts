@@ -40,6 +40,7 @@ export class SystemService {
                     modifiedWhen: service.content?.modifiedWhen || 0,
                     activeEnvironmentId: service.content?.activeEnvironmentId || "",
                     integrationSystemType: service.content?.integrationSystemType || "",
+                    type: service.content?.integrationSystemType || "",
                     protocol: service.content?.protocol || "",
                     extendedProtocol: service.content?.extendedProtocol || "",
                     specification: service.content?.specification || "",
@@ -106,6 +107,7 @@ export class SystemService {
                 service.content = {};
             }
             
+            service.content.integrationSystemType = system.integrationSystemType || system.type;
             service.content.protocol = system.protocol;
             service.content.extendedProtocol = system.extendedProtocol;
             service.content.specification = system.specification;
