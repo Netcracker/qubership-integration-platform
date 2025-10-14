@@ -1,0 +1,46 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/sds-trigger.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: SDS Trigger
+properties:
+  type:
+    type: string
+    const: sds-trigger
+  properties:
+    type: object
+    properties:
+      jobId:
+        type: string
+        pattern: "^[-_.0-9A-Za-z]+$"
+        title: Job Id
+        description: Unique SDS Job Id
+      cron:
+        type: string
+        title: Default cron expression
+        description: >
+          Quartz cron expression.
+          If not specified, job must be manually triggered from SDS itself.
+          Otherwise, SDS will use settings, entered in this field.
+          Example (every 5 minutes): 0 0/5 * * * ? *
+      prohibitParallelRun:
+        type: boolean
+        title: Prohibit parallel run by default
+        description: If checked, new job execution will be skipped while other job is still running.
+        default: false
+      parallelRunTimeout:
+        type: integer
+        title: Default session timeout
+        description: >
+          Only works, when "Prohibit parallel run" checkbox is marked.
+          After specified amount of time (in milliseconds), session, started by SDS will be considered as timed-out, allowing next job to be started.
+        default: 1200000
+    required:
+      - jobId
+      - prohibitParallelRun
+      - parallelRunTimeout
+    additionalProperties: false
+required:
+  - type

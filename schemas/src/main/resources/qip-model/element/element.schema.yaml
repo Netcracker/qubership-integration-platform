@@ -4,42 +4,62 @@ $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Chain element
 oneOf:
-  - $ref: "http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/chain-call-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/chain-trigger-2.schema.yaml"
+
+  # Composite Triggers
   - $ref: "http://qubership.org/schemas/product/qip/element/checkpoint.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/circuit-breaker-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/condition.schema.yaml"
+
+  # Files
   - $ref: "http://qubership.org/schemas/product/qip/element/file-read.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/file-write.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/graphql-sender.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/header-modification.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/http-sender.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/kafka-sender-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/kafka-trigger-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/sftp-download.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/sftp-upload.schema.yaml"
+
+  # Grouping
+  - $ref: "http://qubership.org/schemas/product/qip/element/container.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/swimlane.schema.yaml"
+
+  # Routing
+  - $ref: "http://qubership.org/schemas/product/qip/element/chain-call-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/circuit-breaker-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/condition.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/log-record.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/loop-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/mail-sender.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/pubsub-sender.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/pubsub-trigger.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/quartz-scheduler.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/rabbitmq-sender-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/reuse-reference.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/reuse.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/script.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/service-call.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/sftp-download.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/sftp-trigger-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/sftp-upload.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/reuse-reference.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/split-2.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/split-async-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/swimlane.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/try-catch-finally-2.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/xslt.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/container.schema.yaml"
+
+  # Senders
+  - $ref: "http://qubership.org/schemas/product/qip/element/graphql-sender.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/http-sender.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/jms-sender.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/kafka-sender-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/mail-sender.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/pubsub-sender.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/rabbitmq-sender-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/scs-sender.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/service-call.schema.yaml"
+
+  # Services
   - $ref: "http://qubership.org/schemas/product/qip/element/context-storage.schema.yaml"
+
+  # Transformation
+  - $ref: "http://qubership.org/schemas/product/qip/element/header-modification.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/script.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/xslt.schema.yaml"
+
+  # Triggers
+  - $ref: "http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/chain-trigger-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/jms-trigger.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/kafka-trigger-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/pubsub-trigger.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/quartz-scheduler.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/sds-trigger.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/sftp-trigger-2.schema.yaml"
 required:
   - type

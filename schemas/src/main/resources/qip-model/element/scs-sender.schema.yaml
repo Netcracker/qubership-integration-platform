@@ -1,0 +1,93 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/scs-sender.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: SCS Sender
+properties:
+  type:
+    type: string
+    const: scs-sender
+  properties:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
+    properties:
+      sessionId:
+        type: string
+        title: Session context ID
+        description: Session identifier
+      useCorrelationId:
+        type: boolean
+        title: Use correlation ID as session context ID
+        default: false
+      operation:
+        type: string
+        title: Operation
+        enum:
+          - GET
+          - DELETE
+          - SET
+      ttl:
+        type: integer
+        title: Time to live
+        description: Session context life time (in seconds).
+        default: 21600
+      connectTimeout:
+        allOf:
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+        title: Connection timeout (ms)
+        description: >
+          Specifies connection timeout in millis
+          (default value will be used if nothing is given).
+        default: 120000
+
+    if:
+      properties:
+        operation:
+          const: SET
+    then:
+      properties:
+        key:
+          type: string
+          title: Key
+        value:
+          type: string
+          title: Value
+      required:
+        - key
+        - value
+    else:
+      if:
+        properties:
+          operation:
+            const: GET
+      then:
+        properties:
+          keys:
+            type: string
+            title: Keys
+          target:
+            type: string
+            enum:
+              - BODY
+              - HEADER
+              - PROPERTY
+              - title: Target
+          targetName:
+            type: string
+            title: Target name
+          unwrap:
+            type: boolean
+            title: Unwrap
+            description: Unwrap value
+            default: false
+        required:
+          - target
+    required:
+      - sessionId
+      - useCorrelationId
+      - operation
+required:
+  - type
