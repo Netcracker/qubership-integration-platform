@@ -20,6 +20,7 @@ import org.apache.camel.*;
 import org.apache.camel.spi.*;
 import org.apache.camel.support.DefaultEndpoint;
 
+/** Endpoint for chain component. */
 @UriEndpoint(
         firstVersion = "2.10.0",
         scheme = "cip-chain",

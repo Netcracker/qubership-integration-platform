@@ -36,7 +36,7 @@ import static org.apache.camel.component.springrabbit.SpringRabbitMQEndpoint.ARG
 @Setter
 public class SpringRabbitMQCustomComponent extends SpringRabbitMQComponent {
 
-    @Metadata(label = "security")
+    @Metadata(label = "security", description = "Trust manager")
     private TrustManager trustManager;
 
     @Override

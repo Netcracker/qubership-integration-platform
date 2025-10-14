@@ -37,6 +37,7 @@ import java.util.Map;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 
+/** Endpoint for Spring RabbitMQ custom component. */
 @Slf4j
 @Setter
 @UriEndpoint(
@@ -73,7 +74,7 @@ public class SpringRabbitMQCustomEndpoint extends SpringRabbitMQEndpoint {
     private int requestedHeartbeat = com.rabbitmq.client.ConnectionFactory.DEFAULT_HEARTBEAT;
     @UriParam(label = "security")
     private String sslProtocol;
-    @UriParam(label = "security")
+    @UriParam(label = "security", description = "Trust manager")
     private TrustManager trustManager;
     @UriParam(label = "advanced")
     private Map<String, Object> clientProperties;
