@@ -104,21 +104,21 @@ export const QIP_SCHEMAS = {
                                 }
                             }
                         }
-                    }
-                }
-            },
-            parentId: { type: "string" },
-            specificationSources: {
-                type: "array",
-                items: {
-                    type: "object",
-                    required: ["id", "name", "fileName"],
-                    properties: {
-                        id: { type: "string" },
-                        name: { type: "string" },
-                        fileName: { type: "string" },
-                        mainSource: { type: "boolean" }
-                    }
+                    },
+                    specificationSources: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            required: ["id", "name", "fileName"],
+                            properties: {
+                                id: { type: "string" },
+                                name: { type: "string" },
+                                fileName: { type: "string" },
+                                mainSource: { type: "boolean" }
+                            }
+                        }
+                    },
+                    parentId: { type: "string" }
                 }
             }
         }
@@ -169,7 +169,10 @@ export const QIP_SCHEMAS = {
                     modifiedWhen: { type: "number" },
                     version: { type: "string" },
                     description: { type: "string" },
-                    integrationSystemType: { type: "string" },
+                    integrationSystemType: { 
+                        type: "string",
+                        enum: ["EXTERNAL", "INTERNAL", "IMPLEMENTED"]
+                    },
                     protocol: { type: "string" },
                     extendedProtocol: { type: "string" },
                     specification: { type: "string" },

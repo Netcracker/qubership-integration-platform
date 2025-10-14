@@ -34,9 +34,9 @@ export class QipSpecificationGenerator {
                 version,
                 source: "MANUAL",
                 operations,
+                specificationSources: this.buildSpecificationSources(specId, fileName, sourceData),
                 ...extraContent
-            },
-            specificationSources: this.buildSpecificationSources(specId, fileName, sourceData)
+            }
         };
     }
 

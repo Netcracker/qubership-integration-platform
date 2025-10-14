@@ -382,20 +382,20 @@ export class SpecificationImportService {
                         version: specification.version,
                         source: "MANUAL",
                         operations: specification.operations || [],
+                        specificationSources: await Promise.all(extractedFiles.map(async (file, index) => ({
+                            id: crypto.randomUUID(),
+                            name: file.name,
+                            createdWhen: Date.now(),
+                            modifiedWhen: Date.now(),
+                            createdBy: { id: "", username: "" },
+                            modifiedBy: { id: "", username: "" },
+                            sourceHash: this.calculateHash(await this.readFileContent(file)),
+                            fileName: `resources/source-${specification.id}/${file.name}`,
+                            mainSource: file === sourceFile
+                        }))),
                         parentId: specificationGroup.id,
                         labels: specification.labels ? LabelUtils.fromEntityLabels(specification.labels) : []
-                    },
-                    specificationSources: await Promise.all(extractedFiles.map(async (file, index) => ({
-                        id: crypto.randomUUID(),
-                        name: file.name,
-                        createdWhen: Date.now(),
-                        modifiedWhen: Date.now(),
-                        createdBy: { id: "", username: "" },
-                        modifiedBy: { id: "", username: "" },
-                        sourceHash: this.calculateHash(await this.readFileContent(file)),
-                        fileName: `resources/source-${specification.id}/${file.name}`,
-                        mainSource: file === sourceFile
-                    })))
+                    }
                 };
 
                 console.log(`[SpecificationImportService] Created QIP specification with ${Array.isArray(qipSpecification.content.operations) ? qipSpecification.content.operations.length : 0} operations`);
