@@ -79,7 +79,7 @@ export const QIP_SCHEMAS = {
                     version: { type: "string" },
                     source: {
                         type: "string",
-                        enum: ["MANUAL", "IMPORTED"]
+                        enum: ["MANUAL", "DISCOVERED", "CUSTOMER_MANUAL"]
                     },
                     operations: {
                         type: "array",

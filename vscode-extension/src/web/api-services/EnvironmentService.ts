@@ -193,6 +193,10 @@ export class EnvironmentService {
                 return false;
             }
 
+            if (!system.content) {
+                system.content = {} as any;
+            }
+
             system.content.activeEnvironmentId = environmentId;
             await this.saveSystem(system);
 
@@ -302,24 +306,9 @@ export class EnvironmentService {
      */
     private async saveSystem(system: any): Promise<void> {
         try {
-            const baseFolder = await this.systemService.getBaseFolderWithContext();
-
-            // Convert EntityLabels back to string array for storage
-            const systemForStorage = {
-                ...system,
-                content: {
-                    ...system.content,
-                    labels: system.content?.labels ? LabelUtils.fromEntityLabels(system.content.labels) : [],
-                    environments: system.content?.environments?.map((env: any) => ({
-                        ...env,
-                        labels: env.labels ? LabelUtils.fromEntityLabels(env.labels) : []
-                    })) || []
-                }
-            };
-
-            // Use writeMainService to save the system data
-            const serviceFileUri = Uri.joinPath(baseFolder, `${system.id}${getExtensionsForFile().service}`);
-            await fileApi.writeMainService(serviceFileUri, systemForStorage);
+            const ext = getExtensionsForFile();
+            const serviceFileUri = await fileApi.findFileById(system.id, ext.service);
+            await fileApi.writeMainService(serviceFileUri, system);
         } catch (error) {
             throw error;
         }

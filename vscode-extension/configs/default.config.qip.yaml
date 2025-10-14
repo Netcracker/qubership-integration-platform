@@ -1,0 +1,17 @@
+version: "1.0"
+
+configs:
+  qip:
+    extensions:
+      chain: .chain.qip.yaml
+      service: .service.qip.yaml
+      specificationGroup: .specification-group.qip.yaml
+      specification: .specification.qip.yaml
+    schemaUrls:
+      service: http://qubership.org/schemas/product/qip/service
+      chain: http://qubership.org/schemas/product/qip/chain
+      specification: http://qubership.org/schemas/product/qip/specification
+      specificationGroup: http://qubership.org/schemas/product/qip/specification-group
+
+cache:
+  ttl: 60000

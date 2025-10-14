@@ -6,6 +6,7 @@ import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { getBaseFolder } from "../response/serviceApiUtils";
 import { YamlFileUtils } from "./YamlFileUtils";
 import { LabelUtils } from "./LabelUtils";
+import { ProjectConfigService } from "../services/ProjectConfigService";
 import { ContentParser } from './parsers/ContentParser';
 
 const vscode = require('vscode');
@@ -27,37 +28,25 @@ export class SpecificationGroupService {
      */
     async getSpecificationGroupById(groupId: string, systemId: string): Promise<SpecificationGroup | null> {
         try {
-            const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
-            if (!baseFolder) {
-                throw new Error('No base folder available');
-            }
+            const config = ProjectConfigService.getConfig();
+            const groupFileUri = await fileApi.findFileById(groupId, config.extensions.specificationGroup);
+            const parsed = await ContentParser.parseContentFromFile(groupFileUri);
 
-            // Look for specification group file in root directory
-            const ext = getExtensionsForFile();
-            const groupFile = Uri.joinPath(baseFolder, `${groupId}${ext.specificationGroup}`);
-
-            try {
-                const parsed = await ContentParser.parseContentFromFile(groupFile);
-
-                const specificationGroup: SpecificationGroup = {
-                    id: parsed.id,
-                    name: parsed.name,
-                    description: parsed.description || '',
-                    parentId: parsed.content?.parentId || parsed.parentId,
-                    createdWhen: parsed.content?.createdWhen || parsed.createdWhen,
-                    createdBy: parsed.content?.createdBy || parsed.createdBy,
-                    modifiedWhen: parsed.content?.modifiedWhen || parsed.modifiedWhen,
-                    modifiedBy: parsed.content?.modifiedBy || parsed.modifiedBy,
-                    specifications: [],
-                    synchronization: parsed.content?.synchronization || parsed.synchronization || false
-                };
-                return specificationGroup;
-            } catch (error) {
-                console.error(`[SpecificationGroupService] Specification group not found: ${groupId}`);
-                return null;
-            }
+            const specificationGroup: SpecificationGroup = {
+                id: parsed.id,
+                name: parsed.name,
+                description: parsed.description || '',
+                parentId: parsed.content?.parentId || parsed.parentId,
+                createdWhen: parsed.content?.createdWhen || parsed.createdWhen,
+                createdBy: parsed.content?.createdBy || parsed.createdBy,
+                modifiedWhen: parsed.content?.modifiedWhen || parsed.modifiedWhen,
+                modifiedBy: parsed.content?.modifiedBy || parsed.modifiedBy,
+                specifications: [],
+                synchronization: parsed.content?.synchronization || parsed.synchronization || false
+            };
+            return specificationGroup;
         } catch (error) {
-            console.error(`[SpecificationGroupService] Error getting specification group:`, error);
+            console.error(`[SpecificationGroupService] Error getting specification group ${groupId}:`, error);
             return null;
         }
     }
@@ -99,24 +88,21 @@ export class SpecificationGroupService {
     async saveSpecificationGroupFile(systemId: string, specificationGroup: SpecificationGroup): Promise<void> {
         try {
             const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
-            console.log(`[SpecificationGroupService] Saving specification group file:`, {
-                systemId,
-                specificationGroupId: specificationGroup.id,
-                mainFolder: this.mainFolder?.fsPath,
-                baseFolder: baseFolder?.fsPath
-            });
-
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
+            
+            const config = ProjectConfigService.getConfig();
+            const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}${config.extensions.specificationGroup}`);
 
-            // Save specification group file in root directory
-            const ext = getExtensionsForFile();
-            const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}${ext.specificationGroup}`);
-            console.log(`[SpecificationGroupService] Group file path:`, groupFile.fsPath);
+            console.log(`[SpecificationGroupService] Saving specification group file:`, {
+                systemId,
+                specificationGroupId: specificationGroup.id,
+                groupFile: groupFile.fsPath
+            });
 
             const yamlData = {
-                $schema: "http://qubership.org/schemas/product/qip/specification-group",
+                $schema: config.schemaUrls.specificationGroup,
                 id: specificationGroup.id,
                 name: specificationGroup.name,
                 content: {

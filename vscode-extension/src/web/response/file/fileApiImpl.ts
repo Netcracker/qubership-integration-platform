@@ -9,6 +9,8 @@ import { getExtensionsForFile, extractFilename } from './fileExtensions';
 import {Chain as ChainSchema} from "@netcracker/qip-schemas";
 import { ContentParser } from '../../api-services/parsers/ContentParser';
 import { ServiceNormalizer } from '../../api-services/ServiceNormalizer';
+import { ProjectConfigService } from '../../services/ProjectConfigService';
+import { FileCacheService } from '../../services/FileCacheService';
 
 const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';
@@ -95,8 +97,34 @@ export class VSCodeFileApi implements FileApi {
     }
 
     async findFileById(id: string, extension?: string): Promise<Uri> {
+        const cacheService = FileCacheService.getInstance();
+
+        const cachedUri = cacheService.getFileUri(id, extension);
+        if (cachedUri) {
+            try {
+                await vscode.workspace.fs.stat(cachedUri);
+                return cachedUri;
+            } catch {
+                cacheService.invalidateByUri(cachedUri);
+            }
+        }
+
         if (extension) {
-            return await this.findFile(extension, (fileContent: any) => {return fileContent?.id === id; });
+            const rootDir = this.getRootDirectory();
+            const conventionUri = Uri.joinPath(rootDir, id, `${id}${extension}`);
+            try {
+                await vscode.workspace.fs.stat(conventionUri);
+                const content = await this.parseFile(conventionUri);
+                if (content?.id === id) {
+                    cacheService.setFileUri(id, extension, conventionUri);
+                    return conventionUri;
+                }
+            } catch {
+            }
+
+            const uri = await this.findFile(extension, (fileContent: any) => {return fileContent?.id === id; });
+            cacheService.setFileUri(id, extension, uri);
+            return uri;
         }
 
         const extensions = getExtensionsForFile();
@@ -109,7 +137,9 @@ export class VSCodeFileApi implements FileApi {
 
         for (const ext of typesToTry) {
             try {
-                return await this.findFile(ext, (fileContent: any) => {return fileContent?.id === id; });
+                const uri = await this.findFile(ext, (fileContent: any) => {return fileContent?.id === id; });
+                cacheService.setFileUri(id, ext, uri);
+                return uri;
             } catch (e) {
                 continue;
             }
@@ -223,8 +253,10 @@ export class VSCodeFileApi implements FileApi {
     async writeMainChain(parameters: any, chainData: ChainSchema): Promise<void> {
         const baseUri = parameters as Uri;
         const bytes = new TextEncoder().encode(yaml.stringify(chainData));
+        const fileUri = await this.getMainChainFileUri(baseUri);
         try {
-            await this.writeFile(await this.getMainChainFileUri(baseUri), bytes);
+            await this.writeFile(fileUri, bytes);
+            FileCacheService.getInstance().invalidateByUri(fileUri);
             vscode.window.showInformationMessage('Chain has been updated!');
         } catch (err) {
             vscode.window.showErrorMessage('Failed to write file: ' + err);
@@ -276,6 +308,7 @@ export class VSCodeFileApi implements FileApi {
 
     async writeMainService(serviceFileUri: Uri, serviceData: any): Promise<void> {
         await this.writeServiceFile(serviceFileUri, serviceData);
+        FileCacheService.getInstance().invalidateByUri(serviceFileUri);
     }
 
     async writeServiceFile(fileUri: Uri, serviceData: any): Promise<void> {
@@ -284,6 +317,7 @@ export class VSCodeFileApi implements FileApi {
 
         try {
             await this.writeFile(fileUri, bytes);
+            FileCacheService.getInstance().invalidateByUri(fileUri);
             vscode.window.showInformationMessage('Service has been updated!');
         } catch (err) {
             console.error('writeServiceFile: Error writing file:', err);
@@ -341,6 +375,7 @@ export class VSCodeFileApi implements FileApi {
         } else {
             await vscode.workspace.fs.delete(fileUri);
         }
+        FileCacheService.getInstance().invalidateByUri(fileUri);
     }
 
 
@@ -363,10 +398,10 @@ export class VSCodeFileApi implements FileApi {
 
             await createDirectory(folderUri);
 
-            const extensions = this.getExtensionsForContext(folderUri);
-            const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}${extensions.chain}`);
+            const config = ProjectConfigService.getConfig();
+            const chainFileUri = vscode.Uri.joinPath(folderUri, `${chainId}${config.extensions.chain}`);
             const chain = {
-                $schema: 'http://qubership.org/schemas/product/qip/chain',
+                $schema: config.schemaUrls.chain,
                 id: chainId,
                 name: chainName,
                 content: { }
@@ -433,8 +468,11 @@ export class VSCodeFileApi implements FileApi {
             });
 
             const serviceId = crypto.randomUUID();
+            
+            const config = ProjectConfigService.getConfig();
+            
             const service = {
-                $schema: 'http://qubership.org/schemas/product/qip/service',
+                $schema: config.schemaUrls.service,
                 id: serviceId,
                 name: serviceName.trim(),
                 content: {
@@ -456,8 +494,7 @@ export class VSCodeFileApi implements FileApi {
 
             // Create service file (folder will be created automatically)
             const serviceFolderUri = vscode.Uri.joinPath(workspaceFolders[0].uri, serviceId);
-            const extensions = this.getExtensionsForContext(serviceFolderUri);
-            const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}${extensions.service}`);
+            const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}${config.extensions.service}`);
             await this.writeServiceFile(serviceFileUri, service);
 
             vscode.window.showInformationMessage(`Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${serviceId}`);
@@ -488,6 +525,7 @@ export class VSCodeFileApi implements FileApi {
             const entries = await this.readDirectoryInternal(fileUri);
             const hasChainFile = entries.some(([name]: [string, number]) => name.endsWith(extensions.chain));
             const hasServiceFile = entries.some(([name]: [string, number]) => name.endsWith(extensions.service));
+            
             if (hasServiceFile) {
                 return QipFileType.SERVICE;
             }
