@@ -252,7 +252,7 @@ async function writeElementProperties(fileUri: Uri, element: ElementSchema): Pro
                 throw Error("Deprecated Mapper element is not supported");
             }
             beforeAfterBlock.propertiesFilename = getOrCreatePropertyFilename(beforeAfterBlock.type, ['mappingDescription'], 'json', propertiesFilenameId);
-            const property: any = JSON.stringify({mappingDescription: beforeAfterBlock['mappingDescription']});
+            const property: any = JSON.stringify({mappingDescription: beforeAfterBlock['mappingDescription']}, null, 2);
             await fileApi.writePropertyFile(fileUri, beforeAfterBlock.propertiesFilename, property);
             delete beforeAfterBlock['mappingDescription'];
         }
@@ -270,7 +270,7 @@ async function writeElementProperties(fileUri: Uri, element: ElementSchema): Pro
             for (const propertyName of propertyNames) {
                 properties[propertyName] = elementProperties[propertyName];
             }
-            await fileApi.writePropertyFile(fileUri, elementProperties.propertiesFilename, JSON.stringify(properties));
+            await fileApi.writePropertyFile(fileUri, elementProperties.propertiesFilename, JSON.stringify(properties, null, 2));
             for (const propertyName of propertyNames) {
                 delete elementProperties[propertyName];
             }

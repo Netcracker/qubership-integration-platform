@@ -196,7 +196,7 @@ export class SpecificationParserService {
                             operations.push({
                                 id: `subscribe_${channelName}`,
                                 name: ch.subscribe.summary || `Subscribe to ${channelName}`,
-                                method: 'SUBSCRIBE',
+                                method: 'subscribe',
                                 path: channelName,
                                 description: ch.subscribe.description,
                                 parameters: this.parseAsyncApiParameters(ch.subscribe.parameters || {}),
@@ -210,7 +210,7 @@ export class SpecificationParserService {
                             operations.push({
                                 id: `publish_${channelName}`,
                                 name: ch.publish.summary || `Publish to ${channelName}`,
-                                method: 'PUBLISH',
+                                method: 'publish',
                                 path: channelName,
                                 description: ch.publish.description,
                                 parameters: this.parseAsyncApiParameters(ch.publish.parameters || {}),
@@ -259,7 +259,7 @@ export class SpecificationParserService {
                     operations.push({
                         id: `query_${name}`,
                         name: name,
-                        method: 'QUERY',
+                        method: 'query',
                         description: 'GraphQL query operation',
                         parameters: [],
                         responses: [],
@@ -272,7 +272,7 @@ export class SpecificationParserService {
                     operations.push({
                         id: `mutation_${name}`,
                         name: name,
-                        method: 'MUTATION',
+                        method: 'mutation',
                         description: 'GraphQL mutation operation',
                         parameters: [],
                         responses: [],
@@ -285,7 +285,7 @@ export class SpecificationParserService {
                     operations.push({
                         id: `subscription_${name}`,
                         name: name,
-                        method: 'SUBSCRIPTION',
+                        method: 'subscription',
                         description: 'GraphQL subscription operation',
                         parameters: [],
                         responses: [],
@@ -333,7 +333,7 @@ export class SpecificationParserService {
                         operations.push({
                             id: `rpc_${methodName}`,
                             name: methodName,
-                            method: 'RPC',
+                            method: 'rpc',
                             description: `gRPC method in ${currentService}`,
                             parameters: [],
                             responses: [],
@@ -380,7 +380,7 @@ export class SpecificationParserService {
                             operations.push({
                                 id: `soap_${operationName}`,
                                 name: operationName,
-                                method: 'SOAP',
+                                method: 'soap',
                                 description: `SOAP operation in ${serviceName}`,
                                 parameters: [],
                                 responses: [],

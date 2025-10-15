@@ -21,6 +21,8 @@ import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationPars
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from './parsers/ContentParser';
 import { ProjectConfigService } from "../services/ProjectConfigService";
+import { SpecificationValidator } from "./SpecificationValidator";
+import { ApiSpecificationType } from "./importApiTypes";
 
 export class SpecificationImportService {
     private context: ExtensionContext;
@@ -59,10 +61,26 @@ export class SpecificationImportService {
 
             const extractedFiles = await this.convertSerializedFilesToFiles(request.files || []);
             const importingProtocol = await this.detectImportingProtocol(extractedFiles);
+            const protocolName = importingProtocol ? importingProtocol.toUpperCase() : undefined;
+
+            if (importingProtocol) {
+                const systemProtocol = this.convertToApiSpecificationType(system.protocol);
+                const importProtocol = this.convertToApiSpecificationType(importingProtocol);
+                if (importProtocol) {
+                    try {
+                        SpecificationValidator.validateSpecificationProtocol(systemProtocol, importProtocol);
+                    } catch (error) {
+                        console.error(`[SpecificationImportService] Protocol validation failed:`, error);
+                        vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Protocol validation failed');
+                        throw error;
+                    }
+                }
+            }
+
             const specificationGroup = await this.specificationGroupService.createSpecificationGroup(
                 system,
                 request.name,
-                importingProtocol || undefined
+                protocolName
             );
             this.systemService.saveSystem(system);
             this.progressTracker.startImportSession(importId, specificationGroup.id);
@@ -137,9 +155,30 @@ export class SpecificationImportService {
                 throw new Error(`Specification group with id ${specificationGroupId} not found`);
             }
 
+            const system = await this.systemService.getSystemById(systemId);
+            if (!system) {
+                throw new Error(`System with id ${systemId} not found`);
+            }
+
             this.progressTracker.startImportSession(importId, specificationGroup.id);
 
             const extractedFiles = await this.convertSerializedFilesToFiles(files);
+            
+            const importingProtocol = await this.detectImportingProtocol(extractedFiles);
+            if (importingProtocol) {
+                const systemProtocol = this.convertToApiSpecificationType(system.protocol);
+                const importProtocol = this.convertToApiSpecificationType(importingProtocol);
+                if (importProtocol) {
+                    try {
+                        SpecificationValidator.validateSpecificationProtocol(systemProtocol, importProtocol);
+                    } catch (error) {
+                        console.error(`[SpecificationImportService] Protocol validation failed:`, error);
+                        vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Protocol validation failed');
+                        throw error;
+                    }
+                }
+            }
+
             await this.specificationProcessorService.processSpecificationFiles(
                 specificationGroup,
                 extractedFiles,
@@ -248,29 +287,40 @@ export class SpecificationImportService {
      */
     private async detectImportingProtocol(files: File[]): Promise<string | null> {
         try {
-            // Check for AsyncAPI protocol first
-            const asyncApiProtocol = await this.specificationProcessorService.detectAsyncApiProtocol(files);
-            if (asyncApiProtocol) {
-                return asyncApiProtocol;
-            }
+            for (const file of files) {
+                const content = await this.readFileContent(file);
+                if (!content) {
+                    continue;
+                }
 
-        for (const file of files) {
-                const fileName = file.name.toLowerCase();
-                if (fileName.includes('openapi') || fileName.includes('swagger')) {
-                    return 'HTTP';
-                } else if (fileName.includes('graphql')) {
-                return 'GRAPHQL';
-                } else if (fileName.includes('proto')) {
-                    return 'GRPC';
-                } else if (fileName.includes('wsdl')) {
-                    return 'SOAP';
+                try {
+                    const specData = ContentParser.parseContent(content);
+                    const protocol = this.specificationProcessorService.detectProtocolFromSpecification(specData);
+                    if (protocol) {
+                        console.log(`[SpecificationImportService] Protocol detected: "${protocol}"`);
+                        return protocol;
+                    }
+                } catch (parseError) {
                 }
             }
 
-            return asyncApiProtocol || 'HTTP';
+            for (const file of files) {
+                const fileName = file.name.toLowerCase();
+                if (fileName.includes('openapi') || fileName.includes('swagger')) {
+                    return 'http';
+                } else if (fileName.includes('graphql')) {
+                    return 'graphql';
+                } else if (fileName.includes('proto')) {
+                    return 'grpc';
+                } else if (fileName.includes('wsdl')) {
+                    return 'soap';
+                }
+            }
+
+            return 'http';
 
         } catch (error) {
-            return 'UNKNOWN';
+            return null;
         }
     }
 
@@ -286,56 +336,6 @@ export class SpecificationImportService {
      */
     async parseProtoContent(content: string): Promise<any> {
         return ProtoSpecificationParser.parseProtoContent(content);
-    }
-
-    /**
-     * Detect AsyncAPI protocol from files using AsyncApiSpecificationParser
-     */
-    async detectAsyncApiProtocol(files: File[]): Promise<string | null> {
-        try {
-            for (const file of files) {
-                if (file.name.includes('asyncapi') || file.name.endsWith('.yaml') || file.name.endsWith('.yml') || file.name.endsWith('.json')) {
-                    const content = await this.readFileContent(file);
-                    if (content) {
-                        try {
-                            const asyncApiData = await AsyncApiSpecificationParser.parseAsyncApiContent(content);
-                            const protocol = AsyncApiSpecificationParser.extractAddressFromAsyncApiData(asyncApiData);
-                            if (protocol) {
-                                return protocol;
-                            }
-                        } catch (parseError) {
-                            console.log(`[SpecificationImportService] Error parsing file content:`, parseError);
-                        }
-                    }
-                }
-            }
-            return null;
-        } catch (error) {
-            console.log(`[SpecificationImportService] Error detecting AsyncAPI protocol:`, error);
-            return null;
-        }
-    }
-
-    /**
-     * Extract address from specification data using specialized parsers
-     */
-    extractAddressFromSwaggerData(specData: any): string | null {
-        // For SOAP/WSDL files
-        if (specData.type === 'WSDL') {
-            return SoapSpecificationParser.extractAddressFromWsdlData(specData);
-        }
-
-        // For Swagger 2.0 and OpenAPI 3.x
-        if (specData.swagger || specData.openapi) {
-            return OpenApiSpecificationParser.extractAddressFromOpenApiData(specData);
-        }
-
-        // For AsyncAPI
-        if (specData.asyncapi) {
-            return AsyncApiSpecificationParser.extractAddressFromAsyncApiData(specData);
-        }
-
-        return null;
     }
 
     /**
@@ -505,12 +505,11 @@ export class SpecificationImportService {
         files: File[]
     ): Promise<void> {
         try {
-            // Extract address from specification data or use default
             let address: string;
             const specData = await this.extractSpecificationData(files);
 
             if (specData) {
-                const extractedAddress = this.extractAddressFromSwaggerData(specData);
+                const extractedAddress = this.specificationProcessorService.extractAddressFromSpecification(specData);
                 if (extractedAddress) {
                     address = extractedAddress;
                 } else {
@@ -520,22 +519,19 @@ export class SpecificationImportService {
                 address = this.getDefaultAddressForProtocol(system.protocol);
             }
 
-            // Determine environment name
             let environmentName = `Environment for ${specificationGroup.name}`;
-            if (system.protocol === 'SOAP' && specData && specData.service && specData.service.portName) {
+            if (system.protocol?.toLowerCase() === 'soap' && specData && specData.service && specData.service.portName) {
                 environmentName = specData.service.portName;
             }
 
-            // Create environment request
             const environmentRequest: EnvironmentRequest = {
                 name: environmentName,
                 address: address,
                 description: `Environment created for ${specificationGroup.name} specification group`,
                 systemId: systemId,
-                isActive: false // Don't set as active automatically
+                isActive: false
             };
 
-            // Create environment using EnvironmentService
             const environment = await this.environmentService.createEnvironment(environmentRequest);
 
             console.log(`[SpecificationImportService] Environment created successfully:`, {
@@ -546,7 +542,6 @@ export class SpecificationImportService {
 
         } catch (error) {
             console.log(`[SpecificationImportService] Error creating environment:`, error);
-            // Don't throw error to avoid breaking the import process
         }
     }
 
@@ -595,6 +590,43 @@ export class SpecificationImportService {
                 return 'nats://localhost:4222';
             default:
                 return 'https://api.example.com';
+        }
+    }
+
+    /**
+     * Convert string protocol to ApiSpecificationType
+     */
+    private convertToApiSpecificationType(protocol: string | undefined): ApiSpecificationType | undefined {
+        if (!protocol) {
+            return undefined;
+        }
+        const upperProtocol = protocol.toUpperCase();
+        switch (upperProtocol) {
+            case 'HTTP':
+            case 'HTTPS':
+                return ApiSpecificationType.HTTP;
+            case 'SOAP':
+                return ApiSpecificationType.SOAP;
+            case 'GRAPHQL':
+                return ApiSpecificationType.GRAPHQL;
+            case 'GRPC':
+                return ApiSpecificationType.GRPC;
+            case 'AMQP':
+            case 'RABBIT':
+                return ApiSpecificationType.AMQP;
+            case 'MQTT':
+                return ApiSpecificationType.MQTT;
+            case 'KAFKA':
+                return ApiSpecificationType.KAFKA;
+            case 'REDIS':
+                return ApiSpecificationType.REDIS;
+            case 'NATS':
+                return ApiSpecificationType.NATS;
+            case 'ASYNC':
+            case 'ASYNCAPI':
+                return ApiSpecificationType.ASYNC;
+            default:
+                return ApiSpecificationType.HTTP;
         }
     }
 }

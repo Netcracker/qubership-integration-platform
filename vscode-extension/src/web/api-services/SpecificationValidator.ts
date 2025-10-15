@@ -207,7 +207,10 @@ export class SpecificationValidator {
         }
 
         if (systemProtocol !== importingProtocol) {
-            throw new Error(`Different protocol error: system protocol is ${systemProtocol}, importing protocol is ${importingProtocol}`);
+            throw new Error(
+                `Protocol mismatch: Cannot import ${importingProtocol} specification into ${systemProtocol} service. ` +
+                `The specification protocol (${importingProtocol}) must match the service protocol (${systemProtocol}).`
+            );
         }
     }
 

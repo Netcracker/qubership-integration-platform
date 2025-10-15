@@ -503,7 +503,7 @@ export class QipSpecificationGenerator {
                     id: `${specId}-${operationName}`,
                     name: operationName,
                     ...this.buildAudit(),
-                    method: 'POST',
+                        method: 'post',
                     path: wsdlData.service?.address || '',
                     specification: {
                         summary: `SOAP operation: ${operationName}`,
@@ -562,7 +562,7 @@ export class QipSpecificationGenerator {
                     id: `${specId}-${service.name}-${method.name}`,
                     name: `${service.name}.${method.name}`,
                     ...this.buildAudit(),
-                    method: 'POST',
+                        method: 'post',
                     path: `/${service.name}/${method.name}`,
                     specification: {
                         summary: method.comment || `gRPC method: ${method.name}`,
@@ -619,7 +619,7 @@ export class QipSpecificationGenerator {
             id: `${specId}-${kind.toLowerCase()}-${item.name}`,
             name: item.name,
             ...this.buildAudit(),
-            method: 'POST',
+            method: 'post',
             path: '/graphql',
             specification: {
                 summary: `GraphQL ${kind}: ${item.name}`,
