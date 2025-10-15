@@ -258,7 +258,7 @@ quarkus:
         "hibernate.jdbc.lob.non_contextual_creation": true
         "hibernate.temp.use_jdbc_metadata_defaults": false # disable connection during init
     quartz:
-      datasource: checkpoints
+      datasource: quartz
       dialect: org.hibernate.dialect.PostgreSQLDialect
       packages: org.qubership.integration.platform.engine.persistence.configs.entity
       physical-naming-strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
