@@ -82,6 +82,7 @@ public class VariablesService {
         this.applicationConfiguration = applicationConfiguration;
         this.kubeSecretV2Name = kubeSecretV2Name;
         this.kubeSecretsLabel = Pair.of(kubeSecretsLabel, "secured");
+        updateSubstitutors(Collections.emptyMap());
     }
 
     public String injectVariables(String text) {
@@ -197,13 +198,17 @@ public class VariablesService {
             mergedVariables.putAll(securedVariables);
 
             // build substitutors
-            substitutor = buildSubst(mergedVariables, "#{");
-            Map<String, String> variablesToEscape = new HashMap<>(mergedVariables);
-            variablesToEscape.forEach((k, v) -> variablesToEscape.replace(k, StringEscapeUtils.escapeXml10(v)));
-            substitutorEscaped = buildSubst(variablesToEscape, "#{");
+            updateSubstitutors(mergedVariables);
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    private void updateSubstitutors(Map<String, String> variables) {
+        substitutor = buildSubst(variables, "#{");
+        Map<String, String> variablesToEscape = new HashMap<>(variables);
+        variablesToEscape.forEach((k, v) -> variablesToEscape.replace(k, StringEscapeUtils.escapeXml10(v)));
+        substitutorEscaped = buildSubst(variablesToEscape, "#{");
     }
 
     private StringSubstitutor buildSubst(Map<String, String> variables, String prefix) {
