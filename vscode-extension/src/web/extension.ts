@@ -17,6 +17,7 @@ import {VSCodeMessage, VSCodeResponse} from "@netcracker/qip-ui";
 import { FileCacheService } from "./services/FileCacheService";
 import { ProjectConfigService, CONFIG_FILENAME, ProjectConfig } from "./services/ProjectConfigService";
 import { ConfigApiProvider } from "./services/ConfigApiProvider";
+import { getAndClearNavigationStateValue, getNavigationStateValue, initNavigationState, updateNavigationStateValue } from "./response/navigationUtils";
 
 export interface QipExtensionAPI {
     loadConfigFromPath(configUri: Uri): Promise<void>;
@@ -61,6 +62,29 @@ class ChainFileEditorProvider implements CustomTextEditorProvider {
             enableScripts: true,
             enableCommandUris: true
         };
+
+        panel.onDidChangeViewState(async (e) => {
+            if (e.webviewPanel.active) {
+                const path = await getAndClearNavigationStateValue(this.context, document.uri);
+
+                if (path) {
+                    const navigateMessage: VSCodeMessage<any> = {
+                        requestId: crypto.randomUUID(),
+                        type: "navigate",
+                        payload: { path: path },
+                    };
+
+                    const response: VSCodeResponse<any> = {
+                        requestId: navigateMessage.requestId,
+                        type: navigateMessage.type,
+                    };
+
+                    response.payload = await getApiResponse(navigateMessage, document.uri, this.context);
+
+                    panel.webview.postMessage(response);
+                }
+            }
+        });
 
         enrichWebview(panel, this.context, document.uri);
     }
@@ -109,6 +133,24 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: 
 
             if (message.data.type === "openChainInNewTab") {
                 vscode.commands.executeCommand('vscode.openWith', response.payload, 'qip.chainFile.editor');
+                return;
+            } else if (message.data.type === "navigateInNewTab") {
+                const documentUri: Uri = response.payload;
+                const path: string = message.data.payload;
+
+                await updateNavigationStateValue(context, documentUri, path);
+
+                const fileExtensions = getExtensionsForUri();
+                let editor = undefined;
+                if (documentUri.path.endsWith(fileExtensions.chain)) {
+                    editor = 'qip.chainFile.editor';
+                } else if (documentUri.path.endsWith(fileExtensions.service)){
+                    editor = 'qip.serviceFile.editor';
+                }
+                if (!editor) {
+                    throw new Error(`Unable to find an editor for document: ${documentUri}`);
+                }
+                await vscode.commands.executeCommand('vscode.openWith', documentUri, editor);
                 return;
             }
         } catch (e) {
@@ -237,6 +279,8 @@ async function setupFileWatchers(context: ExtensionContext): Promise<void> {
 export function activate(context: ExtensionContext): QipExtensionAPI {
     const fileApiImpl = new VSCodeFileApi(context);
     setFileApi(fileApiImpl);
+
+    initNavigationState(context);
 
     const projectConfigService = ProjectConfigService.getInstance();
     projectConfigService.setContext(context);

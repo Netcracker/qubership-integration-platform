@@ -52,6 +52,7 @@ import {
     QipFileType
 } from "./serviceApiUtils";
 import {VSCodeMessage, AppExtensionProps} from "@netcracker/qip-ui";
+import { getAndClearNavigationStateValue } from "./navigationUtils";
 
 let lastWebviewPath: string | undefined = undefined;
 
@@ -79,9 +80,16 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
                 lastWebviewPath = message.payload.path;
                 const parsedPath = await parseNavigatePath(message.payload.path, fileUri);
                 return parsedPath;
+            }
+
+            const pathToNavigateFromContext = context && (await getAndClearNavigationStateValue(context, fileUri));
+
+            if (pathToNavigateFromContext) {
+                return await parseNavigatePath(pathToNavigateFromContext, fileUri);
             } else {
                 return await getNavigateUri(fileUri);
             }
+        case 'navigateInNewTab': return await fileApi.findFileByNavigationPath(message.payload);
         case 'getChain': return await getChain(fileUri, message.payload);
         case 'openChainInNewTab': return await getChainFileUri(message.payload);
         case 'getElements': return await getElements(fileUri, message.payload);
@@ -160,28 +168,28 @@ export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
     }
 }
 
-async function parseNavigatePath(path: string, fileUri: vscode.Uri): Promise<string> {
+export const SERVICE_ROUTES: RegExp[] = [
+  /^\/services\/systems\/[^/]+\/parameters$/,
+  /^\/services\/systems\/[^/]+\/specificationGroups$/,
+  /^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications$/,
+  /^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications\/[^/]+$/,
+  /^\/services\/systems\/[^/]+\/environments$/,
+  /^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications\/[^/]+\/operations$/,
+  /^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications\/[^/]+\/operations\/[^/]+$/
+];
 
-    if (/^\/services\/systems\/[^/]+\/parameters$/.test(path)) {
-      return path;
+export const CHAIN_ROUTES: RegExp[] = [/^\/chains\/[^/]+\/graph$/];
+
+export const ROUTES: RegExp[] = [...SERVICE_ROUTES, ...CHAIN_ROUTES];
+
+async function parseNavigatePath(path: string, fileUri: vscode.Uri): Promise<string> {
+    let result: string | undefined = undefined;
+    for (const regexp of ROUTES) {
+        if (regexp.test(path)) {
+            result = path;
+            break;
+        }
     }
-    if (/^\/services\/systems\/[^/]+\/specificationGroups$/.test(path)) {
-        return path;
-    }
-    if (/^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications$/.test(path)) {
-      return path;
-    }
-    if (/^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications\/[^/]+$/.test(path)) {
-      return path;
-    }
-    if (/^\/services\/systems\/[^/]+\/environments$/.test(path)) {
-        return path;
-    }
-    if (/^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications\/[^/]+\/operations$/.test(path)) {
-      return path;
-    }
-    if (/^\/chains\/[^/]+\/graph$/.test(path)) {
-      return path;
-    }
-    return await getNavigateUri(fileUri);
+
+    return result ? result : await getNavigateUri(fileUri);
 }

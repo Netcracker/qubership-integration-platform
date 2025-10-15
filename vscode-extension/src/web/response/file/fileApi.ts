@@ -7,13 +7,15 @@ export interface FileApi {
 
     getMainChain(parameters: any): Promise<ChainSchema>;
 
+    findFileByNavigationPath(navigatePath: string): Promise<Uri>;
+
     findFileById(id: string, extension?: string): Promise<Uri>;
 
     findFile(extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri>;
 
     findFiles(extension: string, filterPredicate?: (fileContent: any) => boolean): Promise<Uri[]>;
 
-    findAndBuildChainsRecursively(folderUri: Uri, chainBuilder: (chainContent: any) => Partial<Chain> | undefined, result: Partial<Chain>[]): Promise<void>;
+    findAndBuildChainsRecursively<T>(folderUri: Uri, chainBuilder: (chainContent: any) => T | undefined, result: T[]): Promise<void>;
 
     readFile(parameters: any, propertyFilename: string): Promise<string>;
 

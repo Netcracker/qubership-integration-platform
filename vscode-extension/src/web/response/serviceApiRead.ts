@@ -1,4 +1,4 @@
-import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo} from "../api-services/servicesTypes";
+import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo, BaseEntity} from "../api-services/servicesTypes";
 import * as yaml from 'yaml';
 import {Uri, WorkspaceFolder} from "vscode";
 import {EMPTY_USER} from "./chainApiUtils";
@@ -151,7 +151,7 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
 
             if (parsed && parsed.content && parsed.content.parentId === groupId) {
 
-                const operations = parseOperations(parsed.content.operations, parsed.id);
+                const operations = await parseOperations(parsed.content.operations, parsed.id);
                 const chains = await getChainsUsingSpecification(serviceId, parsed.id);
 
                 const spec = {
@@ -196,7 +196,7 @@ export async function getOperations(serviceFileUri: Uri, modelId: string): Promi
                 const parsed = await fileApi.parseFile(specFileUri);
 
                 if (parsed && parsed.id === modelId) {
-                    return parseOperations(parsed.content.operations, parsed.id);
+                    return await parseOperations(parsed.content.operations, parsed.id);
                 }
             } catch (e) {
                 console.error(`Failed to parse specification file ${fileName}`, e);
@@ -207,7 +207,7 @@ export async function getOperations(serviceFileUri: Uri, modelId: string): Promi
         try {
             const parsed = await fileApi.parseFile(specFileUri);
 
-            return parseOperations(parsed.content.operations, parsed.id);
+            return await parseOperations(parsed.content.operations, parsed.id);
         } catch (e) {
             console.error(`Failed to parse specification file ${specFileUri}`, e);
         }
@@ -244,23 +244,49 @@ export async function getOperationInfo(serviceFileUri: Uri, operationId: string)
     throw new Error(`Operation with id ${operationId} not found`);
 }
 
-function parseOperations(operations: any[], modelId: string): SystemOperation[] {
+async function parseOperations(operations: any[], modelId: string): Promise<SystemOperation[]> {
     const result: SystemOperation[] = [];
 
     if (operations && Array.isArray(operations)) {
         for (const op of operations) {
-            const operation = {
+            const operation: SystemOperation = {
                 id: op.id,
                 name: op.name,
                 description: op.description || "",
                 method: op.method || "",
                 path: op.path || "",
                 modelId: modelId,
-                chains: []
+                chains: await getChainsUsingOperation(modelId, op.id),
             };
             result.push(operation);
         }
     }
+
+    return result;
+}
+
+async function getChainsUsingOperation(specificationId: string, operationId: string): Promise<BaseEntity[]> {
+    const result: BaseEntity[] = [];
+
+    await fileApi.findAndBuildChainsRecursively<BaseEntity>(fileApi.getRootDirectory(), (chainYaml: any): BaseEntity | undefined => {
+        if (chainYaml.content.elements) {
+            for (const element of chainYaml.content.elements) {
+                if (element?.properties?.integrationOperationId === operationId &&
+                    element?.properties?.integrationSpecificationId === specificationId) {
+                        return {
+                            id: chainYaml.id,
+                            name: chainYaml.name,
+                            createdBy: { ...EMPTY_USER },
+                            createdWhen: Date.now(),
+                            modifiedBy: { ...EMPTY_USER },
+                            modifiedWhen: Date.now(),
+                        };
+                    }
+            }
+        }
+        return undefined;
+
+    }, result);
 
     return result;
 }
