@@ -181,6 +181,8 @@ export class QipSpecificationGenerator {
             paramObj.schema = param.schema;
         } else if (param.type) {
             paramObj.schema = this.createSchemaFromType(param);
+        } else {
+            paramObj.schema = {};
         }
 
         paramObj.required = param.required;
@@ -298,11 +300,11 @@ export class QipSpecificationGenerator {
                 // Return reference as is to break circular dependency
                 return { $ref: schema.$ref };
             }
-            
+
             // Add current ref to visited set
             const newVisited = new Set(visited);
             newVisited.add(schema.$ref);
-            
+
             const resolvedSchema = this.resolveRef(schema.$ref, openApiSpec);
             const refSchemaName = this.extractSchemaNameFromRef(schema.$ref);
             return this.expandSchema(resolvedSchema, openApiSpec, refSchemaName, newVisited);
@@ -322,110 +324,115 @@ export class QipSpecificationGenerator {
             );
         }
 
-        // Recursively expand nested schemas (without adding $id and $schema)
         if (schema.properties) {
             expandedSchema.properties = {};
             for (const [key, prop] of Object.entries(schema.properties)) {
-                expandedSchema.properties[key] = this.expandSchemaNested(prop, openApiSpec, visited);
+                expandedSchema.properties[key] = this.compactProperty(prop);
             }
         }
 
         if (schema.items) {
-            expandedSchema.items = this.expandSchemaNested(schema.items, openApiSpec, visited);
+            expandedSchema.items = this.compactProperty(schema.items);
         }
 
         if (schema.allOf) {
-            expandedSchema.allOf = schema.allOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
+            expandedSchema.allOf = schema.allOf.map((item: any) => this.compactProperty(item));
         }
 
         if (schema.anyOf) {
-            expandedSchema.anyOf = schema.anyOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
+            expandedSchema.anyOf = schema.anyOf.map((item: any) => this.compactProperty(item));
         }
 
         if (schema.oneOf) {
-            expandedSchema.oneOf = schema.oneOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
+            expandedSchema.oneOf = schema.oneOf.map((item: any) => this.compactProperty(item));
         }
 
-        // Add definitions only if they are referenced in the schema
-        const referencedSchemas = this.findReferencedSchemas(schema, openApiSpec);
-        if (referencedSchemas.size > 0) {
-            expandedSchema.definitions = {};
-
-            // Add definitions for Swagger 2.0
-            if (openApiSpec.definitions) {
-                for (const [name, def] of Object.entries(openApiSpec.definitions)) {
-                    if (referencedSchemas.has(name)) {
-                        expandedSchema.definitions[name] = this.expandSchemaNested(def, openApiSpec, visited);
-                    }
-                }
-            }
-
-            // Add components/schemas for OpenAPI 3.0
-            if (openApiSpec.components && openApiSpec.components.schemas) {
-                for (const [name, def] of Object.entries(openApiSpec.components.schemas)) {
-                    if (referencedSchemas.has(name)) {
-                        expandedSchema.definitions[name] = this.expandSchemaNested(def, openApiSpec, visited);
-                    }
-                }
-            }
-        }
+        expandedSchema.definitions = {};
 
         return expandedSchema;
     }
 
-    /**
-     * Expands nested schemas without adding $id and $schema
-     */
-    private static expandSchemaNested(schema: any, openApiSpec: any, visited: Set<string> = new Set()): any {
-        if (!schema) {
-            return {};
+    private static compactProperty(prop: any): any {
+        if (!prop || typeof prop !== 'object') {
+            return prop;
         }
 
-        // If it's a reference, resolve it
-        if (schema.$ref) {
-            // Check for circular references
-            if (visited.has(schema.$ref)) {
-                // Return reference as is to break circular dependency
-                return { $ref: schema.$ref };
-            }
-            
-            // Add current ref to visited set
-            const newVisited = new Set(visited);
-            newVisited.add(schema.$ref);
-            
-            const resolvedSchema = this.resolveRef(schema.$ref, openApiSpec);
-            return this.expandSchemaNested(resolvedSchema, openApiSpec, newVisited);
+        // If it's a $ref, keep it as-is (don't resolve)
+        if (prop.$ref) {
+            return { $ref: prop.$ref };
         }
 
-        // Create schema without $id and $schema for nested elements
-        const expandedSchema = { ...schema };
+        // For objects/arrays, keep only top-level structure
+        const compact: any = {};
 
-        // Recursively expand nested schemas
-        if (schema.properties) {
-            expandedSchema.properties = {};
-            for (const [key, prop] of Object.entries(schema.properties)) {
-                expandedSchema.properties[key] = this.expandSchemaNested(prop, openApiSpec, visited);
+        // Copy basic properties only if they exist
+        const basicProps = ['type', 'format', 'description', 'enum', 'pattern',
+                           'minimum', 'maximum', 'minLength', 'maxLength',
+                           'uniqueItems', 'default', 'example', 'required'];
+
+        for (const key of basicProps) {
+            if (prop[key] !== undefined) {
+                compact[key] = prop[key];
             }
         }
 
-        if (schema.items) {
-            expandedSchema.items = this.expandSchemaNested(schema.items, openApiSpec, visited);
+        if (prop.properties) {
+            compact.properties = {};
+            for (const [key, value] of Object.entries(prop.properties)) {
+                const val = value as any;
+
+                if (val.$ref) {
+                    compact.properties[key] = { $ref: val.$ref };
+                } else if (val.type || val.description || val.enum || val.format) {
+
+                    const propCompact: any = {};
+                    if (val.type) { propCompact.type = val.type; }
+                    if (val.format) { propCompact.format = val.format; }
+                    if (val.description) { propCompact.description = val.description; }
+                    if (val.enum) { propCompact.enum = val.enum; }
+                    if (val.pattern) { propCompact.pattern = val.pattern; }
+                    if (val.uniqueItems !== undefined) { propCompact.uniqueItems = val.uniqueItems; }
+
+                    if (val.items) {
+                        if (val.items.$ref) {
+                            propCompact.items = { $ref: val.items.$ref };
+                        } else {
+                            propCompact.items = {};
+                        }
+                    }
+                    if (val.properties) {
+                        propCompact.properties = {};
+                        for (const [subKey, subVal] of Object.entries(val.properties)) {
+                            const sv = subVal as any;
+                            if (sv.$ref) {
+                                propCompact.properties[subKey] = { $ref: sv.$ref };
+                            } else {
+                                propCompact.properties[subKey] = {};
+                            }
+                        }
+                    }
+
+                    compact.properties[key] = propCompact;
+                } else {
+                    compact.properties[key] = {};
+                }
+            }
         }
 
-        if (schema.allOf) {
-            expandedSchema.allOf = schema.allOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
+        if (prop.items) {
+            if (prop.items.$ref) {
+                compact.items = { $ref: prop.items.$ref };
+            } else {
+                const itemsCompact: any = {};
+                if (prop.items.type) { itemsCompact.type = prop.items.type; }
+                if (prop.items.description) { itemsCompact.description = prop.items.description; }
+                compact.items = Object.keys(itemsCompact).length > 0 ? itemsCompact : {};
+            }
         }
 
-        if (schema.anyOf) {
-            expandedSchema.anyOf = schema.anyOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
-        }
-
-        if (schema.oneOf) {
-            expandedSchema.oneOf = schema.oneOf.map((item: any) => this.expandSchemaNested(item, openApiSpec, visited));
-        }
-
-        return expandedSchema;
+        return Object.keys(compact).length > 0 ? compact : {};
     }
+
 
     /**
      * Extracts schema name from reference
@@ -444,39 +451,6 @@ export class QipSpecificationGenerator {
         return undefined;
     }
 
-    /**
-     * Finds all referenced schemas in a given schema
-     */
-    private static findReferencedSchemas(schema: any, openApiSpec: any): Set<string> {
-        const referenced = new Set<string>();
-
-        const findRefs = (obj: any) => {
-            if (!obj || typeof obj !== 'object') {
-                return;
-            }
-
-            if (obj.$ref && typeof obj.$ref === 'string') {
-                const ref = obj.$ref;
-                if (ref.startsWith('#/definitions/')) {
-                    const schemaName = ref.replace('#/definitions/', '');
-                    referenced.add(schemaName);
-                } else if (ref.startsWith('#/components/schemas/')) {
-                    const schemaName = ref.replace('#/components/schemas/', '');
-                    referenced.add(schemaName);
-                }
-            }
-
-            // Recursively search in all properties
-            for (const key in obj) {
-                if (obj[key] && typeof obj[key] === 'object') {
-                    findRefs(obj[key]);
-                }
-            }
-        };
-
-        findRefs(schema);
-        return referenced;
-    }
 
     /**
      * Resolves schema reference
