@@ -25,7 +25,6 @@ import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 
 import java.util.Collections;
 import java.util.Map;
@@ -62,8 +61,7 @@ public class CamelDebuggerPropertiesService {
 
     public CamelDebuggerProperties getProperties(Exchange exchange) {
         Optional<CamelDebuggerProperties> deployProperties = metadataService.getMetadata(exchange)
-                .map(Metadata::getDeploymentInfo)
-                .map(DeploymentInfo::getDeploymentId)
+                .map(Metadata::getDeploymentId)
                 .map(this::getActualProperties);
         DeploymentRuntimeProperties runtimeProperties = exchange.getProperty(
             Properties.DEPLOYMENT_RUNTIME_PROPERTIES_MAP_PROP, DeploymentRuntimeProperties.class);

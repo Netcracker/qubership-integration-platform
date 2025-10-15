@@ -32,7 +32,6 @@ import org.qubership.integration.platform.engine.camel.metadata.Metadata;
 import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
 import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerFactoryProxy;
 import org.qubership.integration.platform.engine.camel.scheduler.StdSchedulerProxy;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -70,8 +69,7 @@ public class QuartzSchedulerService {
     public List<JobKey> getSchedulerJobsFromContext(CamelContext context, String deploymentId) {
         return context.getRoutes().stream()
                 .filter(route -> metadataService.getMetadata(route)
-                        .map(Metadata::getDeploymentInfo)
-                        .map(DeploymentInfo::getDeploymentId)
+                        .map(Metadata::getDeploymentId)
                         .map(deploymentId::equals)
                         .orElse(false))
                 .map(this::getSchedulerJobsForRoute)

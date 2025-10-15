@@ -46,7 +46,6 @@ import org.qubership.integration.platform.engine.camel.repository.RegistryHelper
 import org.qubership.integration.platform.engine.mapper.atlasmap.CustomAtlasContext;
 import org.qubership.integration.platform.engine.mapper.atlasmap.ValidationResult;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -104,8 +103,7 @@ public class MapperProcessor implements Processor {
         CamelContext camelContext = exchange.getContext();
         Route route = camelContext.getRoute(exchange.getFromRouteId());
         String deploymentId = metadataService.getMetadata(route)
-                .map(Metadata::getDeploymentInfo)
-                .map(DeploymentInfo::getDeploymentId)
+                .map(Metadata::getDeploymentId)
                 .orElse(null);
         if (isNull(deploymentId)) {
             log.warn("Failed to get the deployment id for the route: {}", route.getId());

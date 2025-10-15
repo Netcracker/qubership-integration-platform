@@ -28,7 +28,6 @@ import org.apache.camel.model.RouteDefinitionHelper;
 import org.apache.camel.model.RoutesDefinition;
 import org.qubership.integration.platform.engine.camel.metadata.Metadata;
 import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentUpdate;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterRoutesCreated;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterRoutesDeleted;
@@ -112,8 +111,7 @@ public class DeploymentProcessingService {
                 .map(metadataService::getMetadata)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .map(Metadata::getDeploymentInfo)
-                .map(DeploymentInfo::getDeploymentId)
+                .map(Metadata::getDeploymentId)
                 .anyMatch(deploymentId::equals);
     }
 
@@ -182,8 +180,7 @@ public class DeploymentProcessingService {
     private Stream<Route> getDeploymentRoutes(DefaultCamelContext context, String deploymentId) {
         return context.getRoutes().stream()
                 .filter(route -> metadataService.getMetadata(route)
-                        .map(Metadata::getDeploymentInfo)
-                        .map(DeploymentInfo::getDeploymentId)
+                        .map(Metadata::getDeploymentId)
                         .map(deploymentId::equals)
                         .orElse(false));
     }
@@ -201,7 +198,7 @@ public class DeploymentProcessingService {
         RoutesDefinition routesDefinition = loadRoutesDefinition(context, configInputStream);
 
         Metadata metadata = Metadata.builder()
-                .deploymentInfo(deploymentUpdate.getDeploymentInfo())
+                .deploymentId(deploymentUpdate.getDeploymentInfo().getDeploymentId())
                 .build();
         routesDefinition.getRoutes().forEach(route ->
                 metadataService.setMetadata(route, metadata));

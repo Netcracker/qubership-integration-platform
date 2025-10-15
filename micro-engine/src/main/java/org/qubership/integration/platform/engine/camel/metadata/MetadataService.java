@@ -7,7 +7,6 @@ import org.apache.camel.Exchange;
 import org.apache.camel.Route;
 import org.apache.camel.model.RouteDefinition;
 
-import java.util.Collection;
 import java.util.Optional;
 
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.ROUTE_METADATA_KEY;
@@ -28,10 +27,6 @@ public class MetadataService {
 
     public Optional<Metadata> getMetadata(CamelContext camelContext, String routeId) {
         return Optional.ofNullable(camelContext.getRoute(routeId)).flatMap(this::getMetadata);
-    }
-
-    public void setMetadata(Collection<RouteDefinition> routes, Metadata metadata) {
-        routes.forEach(route -> setMetadata(route, metadata));
     }
 
     public void setMetadata(RouteDefinition routeDefinition, Metadata metadata) {

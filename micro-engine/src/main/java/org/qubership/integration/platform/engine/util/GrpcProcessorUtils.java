@@ -26,7 +26,6 @@ import org.qubership.integration.platform.engine.camel.metadata.Metadata;
 import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
 import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -84,8 +83,7 @@ public class GrpcProcessorUtils {
         Route route = context.getRoute(exchange.getFromRouteId());
         MetadataService metadataService = context.getRegistry().findSingleByType(MetadataService.class);
         String deploymentId = metadataService.getMetadata(route)
-                .map(Metadata::getDeploymentInfo)
-                .map(DeploymentInfo::getDeploymentId)
+                .map(Metadata::getDeploymentId)
                 .orElseThrow(() -> new Exception("Failed to get deployment ID"));
         return RegistryHelper.getRegistry(context, deploymentId).findSingleByType(ClassResolver.class);
     }

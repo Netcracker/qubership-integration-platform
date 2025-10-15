@@ -3,6 +3,8 @@ package org.qubership.integration.platform.engine.camel.metadata;
 import io.quarkus.arc.Unremovable;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.apache.camel.Route;
+import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.spi.CamelEvent;
 import org.apache.camel.support.SimpleEventNotifierSupport;
 
@@ -20,7 +22,10 @@ public class MetadataBuilderEventNotifier extends SimpleEventNotifierSupport {
     @Override
     public void notify(CamelEvent event) throws Exception {
         if (event instanceof CamelEvent.RouteAddedEvent routeAddedEvent) {
-            buildMetadataProperties(routeAddedEvent.getRoute().getProperties());
+            Route route = routeAddedEvent.getRoute();
+            buildMetadataProperties(route.getProperties());
+            ((RouteDefinition) route.getRoute()).getRouteProperties()
+                    .removeIf(prop -> ROUTE_METADATA_KEY.equals(prop.getKey()));
         }
     }
 

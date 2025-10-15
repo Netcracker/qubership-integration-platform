@@ -28,7 +28,6 @@ import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTerminatedException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.rest.v1.dto.LiveExchangeDTO;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 
@@ -62,8 +61,7 @@ public class LiveExchangesService {
         for (InflightRepository.InflightExchange exchangeHolder : exchangeHolders) {
             Exchange exchange = exchangeHolder.getExchange();
             String deploymentId = metadataService.getMetadata(exchange)
-                    .map(Metadata::getDeploymentInfo)
-                    .map(DeploymentInfo::getDeploymentId)
+                    .map(Metadata::getDeploymentId)
                     .orElse(null);
             Long sessionStartTime = exchange.getProperty(CamelConstants.Properties.START_TIME_MS, Long.class);
             Long sessionDuration = sessionStartTime == null ? null : System.currentTimeMillis() - sessionStartTime;

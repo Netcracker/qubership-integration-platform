@@ -28,7 +28,6 @@ import org.apache.camel.component.resilience4j.ResilienceProcessor;
 import org.apache.camel.component.resilience4j.ResilienceReifier;
 import org.apache.camel.model.CircuitBreakerDefinition;
 import org.qubership.integration.platform.engine.camel.metadata.Metadata;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 
@@ -132,8 +131,7 @@ public class CustomResilienceReifier extends ResilienceReifier {
         Route route = camelContext.getRoute(processor.getRouteId());
         return Optional.ofNullable(route.getProperties().get(ROUTE_METADATA_KEY))
                 .map(Metadata.class::cast)
-                .map(Metadata::getDeploymentInfo)
-                .map(DeploymentInfo::getDeploymentId)
+                .map(Metadata::getDeploymentId)
                 .flatMap(deploymentId ->
                     Optional.ofNullable(camelContext.getDebugger())
                             .map(CamelDebugger.class::cast)
