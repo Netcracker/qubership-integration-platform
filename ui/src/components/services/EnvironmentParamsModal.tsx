@@ -6,6 +6,7 @@ import { useServiceContext } from './ServiceParametersPage';
 import { Segmented } from 'antd';
 import { EnvironmentSourceType } from '../../api/apiTypes';
 import { Icon } from "../../IconProvider.tsx";
+import {environmentLabelOptions} from "./utils.tsx";
 
 interface EnvironmentParamsModalProps {
   open: boolean;
@@ -178,23 +179,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
             mode="multiple"
             allowClear
             style={{ width: '100%' }}
-            options={[
-              { value: 'Development' },
-              { value: 'Development1' },
-              { value: 'Development2' },
-              { value: 'QA' },
-              { value: 'QA1' },
-              { value: 'QA2' },
-              { value: 'Production' },
-              { value: 'Production1' },
-              { value: 'Production2' },
-              { value: 'Staging' },
-              { value: 'Staging1' },
-              { value: 'Staging2' },
-              { value: 'SVT' },
-              { value: 'SVT1' },
-              { value: 'SVT2' },
-            ]}
+            options={environmentLabelOptions}
             placeholder="Select environment labels"
           />
         </Form.Item>

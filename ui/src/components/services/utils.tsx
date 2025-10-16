@@ -59,3 +59,25 @@ export function validateFiles(
 
   return { valid: true };
 }
+
+export const environmentLabels = {
+    'DEVELOPMENT': 'Development',
+    'DEVELOPMENT1': 'Development1',
+    'DEVELOPMENT2': 'Development2',
+    'QA': 'QA',
+    'QA1': 'QA1',
+    'QA2': 'QA2',
+    'PRODUCTION': 'Production',
+    'PRODUCTION1': 'Production1',
+    'PRODUCTION2': 'Production2',
+    'STAGING': 'Staging',
+    'STAGING1': 'Staging1',
+    'STAGING2': 'Staging2',
+    'SVT': 'SVT',
+    'SVT1': 'SVT1',
+    'SVT2': 'SVT2',
+};
+
+export const environmentLabelOptions = Object.entries(environmentLabels).map(
+    ([key, value]) => ({ label: value, value: key })
+);

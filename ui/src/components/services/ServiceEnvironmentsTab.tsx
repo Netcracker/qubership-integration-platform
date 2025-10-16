@@ -12,6 +12,7 @@ import { useNotificationService } from "../../hooks/useNotificationService";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useLocation } from "react-router-dom";
 import { Icon } from "../../IconProvider.tsx";
+import {environmentLabels} from "./utils.tsx";
 
 interface ServiceEnvironmentsTabProps {
   formatTimestamp: (val: number) => string;
@@ -243,12 +244,13 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         return (
           <span>
             {labels.map((label, idx) => {
-              const name =
+              let name =
                 typeof label === 'string'
                   ? label
                   : typeof label === 'object' && label && 'name' in label
                     ? String((label as { name?: unknown }).name)
                     : String(label);
+              name = environmentLabels[name] || name;
 
               return <Tag color="blue" key={`${name}-${idx}`}>{name}</Tag>;
             })}
