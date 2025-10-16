@@ -160,7 +160,7 @@ export class ProtoSpecificationParser {
                     modifiedWhen: Date.now(),
                     createdBy: {...EMPTY_USER},
                     modifiedBy: {...EMPTY_USER},
-                    method: 'POST',
+                    method: 'post',
                     path: `/${protoData.package}.${service.name}/${method.name}`,
                     specification: {
                         summary: method.comment || `${method.name} operation`,

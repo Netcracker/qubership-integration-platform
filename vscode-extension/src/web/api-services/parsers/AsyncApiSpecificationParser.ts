@@ -65,7 +65,7 @@ export class AsyncApiSpecificationParser {
                     modifiedWhen: Date.now(),
                     createdBy: {...EMPTY_USER },
                     modifiedBy: {...EMPTY_USER },
-                    method: 'PUBLISH',
+                    method: 'publish',
                     path: channelName,
                     specification: {
                         summary: channel.publish.summary || `${operationId} operation`,
@@ -113,7 +113,7 @@ export class AsyncApiSpecificationParser {
                     modifiedWhen: Date.now(),
                     createdBy: {...EMPTY_USER },
                     modifiedBy: {...EMPTY_USER },
-                    method: 'SUBSCRIBE',
+                    method: 'subscribe',
                     path: channelName,
                     specification: {
                         summary: channel.subscribe.summary || `${operationId} operation`,

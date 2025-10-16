@@ -90,7 +90,7 @@ export class SoapSpecificationParser {
                     modifiedWhen: Date.now(),
                     createdBy: {...EMPTY_USER},
                     modifiedBy: {...EMPTY_USER},
-                    method: 'POST',
+                    method: 'post',
                     path: '/',
                     specification: {
                         summary: `${operationName} operation`,

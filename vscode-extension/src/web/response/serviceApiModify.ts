@@ -108,7 +108,7 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
             modifiedWhen: service.content.modifiedWhen || 0,
             activeEnvironmentId: service.content.activeEnvironmentId || "",
             integrationSystemType: service.content.integrationSystemType || "EXTERNAL",
-            protocol: service.content.protocol || "HTTP",
+            protocol: service.content.protocol || "",
             extendedProtocol: service.content.extendedProtocol || "",
             specification: service.content.specification || "",
             environments: service.content.environments || [],

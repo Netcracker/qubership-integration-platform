@@ -129,25 +129,60 @@ export class SpecificationProcessorService {
     }
 
     /**
-     * Detect AsyncAPI protocol from files
+     * Detect protocol from specification data
      */
-    async detectAsyncApiProtocol(files: File[]): Promise<string | null> {
-        try {
-            for (const file of files) {
-                if (file.name.includes('asyncapi') || file.name.endsWith('.yaml') || file.name.endsWith('.yml') || file.name.endsWith('.json')) {
-                    const content = await this.readFileContent(file);
-                    if (content) {
-                        const protocol = this.extractAddressFromSwaggerData(content);
-                        if (protocol) {
-                            return protocol;
-                        }
-                    }
-                }
-            }
-            return null;
-        } catch (error) {
+    detectProtocolFromSpecification(specData: any): string | null {
+        if (!specData) {
             return null;
         }
+
+        if (specData.type === 'WSDL') {
+            return 'soap';
+        }
+
+        if (specData.swagger || specData.openapi) {
+            return 'http';
+        }
+
+        if (specData.asyncapi) {
+            const protocol = specData.info?.['x-protocol']?.toLowerCase() ||
+                           specData.servers?.main?.protocol?.toLowerCase() ||
+                           (specData.servers && Object.keys(specData.servers).length > 0 
+                               ? (Object.values(specData.servers)[0] as any)?.protocol?.toLowerCase() 
+                               : null);
+            return protocol || null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract address from specification data
+     */
+    extractAddressFromSpecification(specData: any): string | null {
+        if (!specData) {
+            return null;
+        }
+
+        if (specData.type === 'WSDL') {
+            return specData.service?.address || 'https://soap.example.com/ws';
+        }
+
+        if (specData.swagger && specData.host) {
+            const scheme = (specData.schemes || ['https'])[0];
+            const basePath = specData.basePath || '';
+            return `${scheme}://${specData.host}${basePath}`;
+        }
+
+        if (specData.openapi && specData.servers?.length > 0) {
+            return specData.servers[0].url;
+        }
+
+        if (specData.asyncapi) {
+            return AsyncApiSpecificationParser.extractAddressFromAsyncApiData(specData);
+        }
+
+        return null;
     }
 
     /**
@@ -159,67 +194,6 @@ export class SpecificationProcessorService {
         } catch (error) {
             return null;
         }
-    }
-
-    /**
-     * Extract address from swagger data
-     */
-    private extractAddressFromSwaggerData(specData: any): string | null {
-
-        // For SOAP/WSDL files
-        if (specData.type === 'WSDL') {
-            if (specData.service && specData.service.address) {
-                const address = specData.service.address;
-                return address;
-            } else {
-                const address = 'https://soap.example.com/ws';
-                return address;
-            }
-        }
-
-        // For Swagger 2.0
-        if (specData.swagger) {
-            const host = specData.host;
-            const basePath = specData.basePath || '';
-            const schemes = specData.schemes || ['https'];
-            const scheme = schemes[0];
-
-            if (host) {
-                const address = `${scheme}://${host}${basePath}`;
-                return address;
-            }
-        }
-
-        // For OpenAPI 3.x
-        if (specData.openapi) {
-            const servers = specData.servers;
-            if (servers && servers.length > 0) {
-                const address = servers[0].url;
-                return address;
-            }
-        }
-
-        // For AsyncAPI
-        if (specData.asyncapi) {
-            // Check servers first (priority over x-protocol)
-            const servers = specData.servers;
-            if (servers && Object.keys(servers).length > 0) {
-                const firstServerKey = Object.keys(servers)[0];
-                const server = servers[firstServerKey];
-                if (server.url) {
-                    const address = server.url;
-                    return address;
-                }
-            }
-
-            // Check x-protocol if no servers
-            if (specData['x-protocol']) {
-                const protocol = specData['x-protocol'];
-                return protocol;
-            }
-        }
-
-        return null;
     }
 
     /**

@@ -9,7 +9,7 @@ export class ProtocolDetectorService {
         'scalar ', 'directive ', 'extend ', 'schema ',
         'query', 'mutation', 'subscription'
     ];
-    
+
     /**
      * Detects operation protocol from files
      */
@@ -19,14 +19,14 @@ export class ProtocolDetectorService {
         }
 
         const extractedFiles = await this.extractArchives(files);
-        
+
         for (const file of extractedFiles) {
             const protocol = await this.detectProtocolFromFile(file);
             if (protocol) {
                 return protocol;
             }
         }
-        
+
         return ApiSpecificationType.HTTP;
     }
 
@@ -37,21 +37,21 @@ export class ProtocolDetectorService {
         if (!file || !file.name) {
             return null;
         }
-        
+
         const fileName = file.name.toLowerCase();
         const fileExtension = path.extname(fileName).toLowerCase();
-        
+
         // Detection by file extension
         const extensionProtocol = this.detectProtocolByExtension(fileName, fileExtension);
         if (extensionProtocol) {
             return extensionProtocol;
         }
-        
+
         // For JSON and YAML files, analyze content
         if (['.json', '.yaml', '.yml'].includes(fileExtension)) {
             return await this.analyzeFileContent(file);
         }
-        
+
         return null;
     }
 
@@ -68,7 +68,7 @@ export class ProtocolDetectorService {
         } else if (extension === '.proto') {
             return ApiSpecificationType.GRPC;
         }
-        
+
         return null;
     }
 
@@ -82,17 +82,17 @@ export class ProtocolDetectorService {
             }
 
             const { content } = await FileParserService.parseFileContent(file);
-            
+
             // Check for OpenAPI/Swagger
             if (this.isOpenApiSpec(content)) {
                 return ApiSpecificationType.HTTP;
             }
-            
+
             // Check for AsyncAPI
             if (this.isAsyncApiSpec(content)) {
                 return this.determineAsyncProtocol(content);
             }
-            
+
             // Check for GraphQL (for JSON files)
             if (file.name.toLowerCase().endsWith('.json')) {
                 const textContent = await FileParserService.readFileText(file);
@@ -100,11 +100,11 @@ export class ProtocolDetectorService {
                     return ApiSpecificationType.GRAPHQL;
                 }
             }
-            
+
         } catch (error) {
             return this.detectProtocolFromFileName(file.name);
         }
-        
+
         return null;
     }
 
@@ -113,7 +113,7 @@ export class ProtocolDetectorService {
      */
     private static detectProtocolFromFileName(fileName: string): ApiSpecificationType | null {
         const lowerFileName = fileName.toLowerCase();
-        
+
         if (lowerFileName.includes('asyncapi')) {
             return ApiSpecificationType.ASYNC;
         } else if (lowerFileName.includes('openapi') || lowerFileName.includes('swagger')) {
@@ -121,7 +121,7 @@ export class ProtocolDetectorService {
         } else if (lowerFileName.includes('graphql')) {
             return ApiSpecificationType.GRAPHQL;
         }
-        
+
         return null;
     }
 
@@ -132,7 +132,7 @@ export class ProtocolDetectorService {
         if (!content || typeof content !== 'object') {
             return false;
         }
-        
+
         // Check for Swagger 2.0
         if (content.swagger && typeof content.swagger === 'string') {
             const version = content.swagger;
@@ -140,7 +140,7 @@ export class ProtocolDetectorService {
                 return true;
             }
         }
-        
+
         // Check for OpenAPI 3.x
         if (content.openapi && typeof content.openapi === 'string') {
             const version = content.openapi;
@@ -148,7 +148,7 @@ export class ProtocolDetectorService {
                 return true;
             }
         }
-        
+
         return false;
     }
 
@@ -159,7 +159,7 @@ export class ProtocolDetectorService {
         if (!content || typeof content !== 'object') {
             return false;
         }
-        
+
         return content.asyncapi && typeof content.asyncapi === 'string';
     }
 
@@ -167,33 +167,11 @@ export class ProtocolDetectorService {
      * Determines specific AsyncAPI protocol
      */
     private static determineAsyncProtocol(content: any): ApiSpecificationType {
-        // Check servers for protocol determination
-        if (content.servers) {
-            for (const server of Object.values(content.servers)) {
-                const serverObj = server as any;
-                if (serverObj.protocol) {
-                    const protocol = serverObj.protocol.toLowerCase();
-                    const protocolMap: Record<string, ApiSpecificationType> = {
-                        'kafka': ApiSpecificationType.KAFKA,
-                        'kafka-secure': ApiSpecificationType.KAFKA,
-                        'amqp': ApiSpecificationType.AMQP,
-                        'amqps': ApiSpecificationType.AMQP,
-                        'mqtt': ApiSpecificationType.MQTT,
-                        'mqtts': ApiSpecificationType.MQTT,
-                        'redis': ApiSpecificationType.REDIS,
-                        'nats': ApiSpecificationType.NATS
-                    };
-                    
-                    if (protocolMap[protocol]) {
-                        return protocolMap[protocol];
-                    }
-                }
+        const map = (proto: string | undefined): ApiSpecificationType | null => {
+            if (!proto) {
+                return null;
             }
-        }
-        
-        // Check x-protocol in info
-        if (content.info && content.info['x-protocol']) {
-            const protocol = content.info['x-protocol'].toLowerCase();
+            const p = String(proto).toLowerCase();
             const protocolMap: Record<string, ApiSpecificationType> = {
                 'kafka': ApiSpecificationType.KAFKA,
                 'amqp': ApiSpecificationType.AMQP,
@@ -201,12 +179,31 @@ export class ProtocolDetectorService {
                 'redis': ApiSpecificationType.REDIS,
                 'nats': ApiSpecificationType.NATS
             };
-            
-            if (protocolMap[protocol]) {
-                return protocolMap[protocol];
+            return protocolMap[p] ?? null;
+        };
+
+        // 1) info.x-protocol
+        const fromX = map(content?.info?.['x-protocol']);
+        if (fromX) {
+            return fromX;
+        }
+
+        // 2) servers.main.protocol
+        const fromMain = map(content?.servers?.main?.protocol);
+        if (fromMain) {
+            return fromMain;
+        }
+
+        // 3) first servers[*].protocol
+        if (content?.servers && typeof content.servers === 'object') {
+            for (const server of Object.values(content.servers)) {
+                const candidate = map((server as any)?.protocol);
+                if (candidate) {
+                    return candidate;
+                }
             }
         }
-        
+
         return ApiSpecificationType.ASYNC;
     }
 
@@ -216,13 +213,13 @@ export class ProtocolDetectorService {
     private static isGraphQLSpec(content: string): boolean {
         const lowerContent = content.toLowerCase();
         let keywordCount = 0;
-        
+
         for (const keyword of this.GRAPHQL_KEYWORDS) {
             if (lowerContent.includes(keyword)) {
                 keywordCount++;
             }
         }
-        
+
         return keywordCount >= 2;
     }
 
@@ -243,12 +240,12 @@ export class ProtocolDetectorService {
         }
 
         const processedFiles: File[] = [];
-        
+
         for (const file of files) {
             if (!file) {
                 continue;
             }
-            
+
             if (this.isArchiveFile(file.name)) {
                 // In browser environment, archives are not extracted
                 processedFiles.push(file);
@@ -256,7 +253,7 @@ export class ProtocolDetectorService {
                 processedFiles.push(file);
             }
         }
-        
+
         return processedFiles;
     }
 
@@ -276,7 +273,7 @@ export class ProtocolDetectorService {
             [ApiSpecificationType.REDIS]: ['.json', '.yaml', '.yml'],
             [ApiSpecificationType.NATS]: ['.json', '.yaml', '.yml']
         };
-        
+
         return extensionMap[protocol] || ['.json', '.yaml', '.yml'];
     }
 }

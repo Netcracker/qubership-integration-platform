@@ -25,10 +25,17 @@ export async function getMainService(serviceFileUri: Uri): Promise<any> {
 }
 
 export async function getService(serviceFileUri: Uri, serviceId: string): Promise<IntegrationSystem> {
-    const service: any = await getMainService(serviceFileUri);
+    let actualServiceFileUri = serviceFileUri;
+    let service: any = await getMainService(serviceFileUri);
     if (service.id !== serviceId) {
-        console.error(`ServiceId mismatch`);
-        throw Error("ServiceId mismatch");
+        const ext = getExtensionsForUri(serviceFileUri);
+        actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+        service = await getMainService(actualServiceFileUri);
+
+        if (service.id !== serviceId) {
+            console.error(`ServiceId mismatch: expected "${serviceId}", got "${service.id}" even after finding file by ID`);
+            throw Error(`ServiceId mismatch: expected "${serviceId}", got "${service.id}"`);
+        }
     }
 
     return {
@@ -42,7 +49,7 @@ export async function getService(serviceFileUri: Uri, serviceId: string): Promis
         activeEnvironmentId: service.content?.activeEnvironmentId || "",
         integrationSystemType: service.content?.integrationSystemType || "",
         type: service.content?.integrationSystemType || "",
-        protocol: service.content?.protocol || "",
+        protocol: (service.content?.protocol || "").toLowerCase(),
         extendedProtocol: service.content?.extendedProtocol || "",
         specification: service.content?.specification || "",
         environments: service.content?.environments || [],
