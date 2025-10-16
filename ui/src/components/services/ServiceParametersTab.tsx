@@ -159,11 +159,6 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
             placeholder="Add labels"
           />
         </Form.Item>
-        {(system.type === IntegrationSystemType.INTERNAL || system.type === IntegrationSystemType.IMPLEMENTED) && (
-          <Form.Item label="Environment address">
-            <Input value="" readOnly />
-          </Form.Item>
-        )}
         <Descriptions column={1} size="small" style={{ margin: "24px 0" }}>
           <Descriptions.Item label="Created">
             {formatTimestamp(system.createdWhen as string)}

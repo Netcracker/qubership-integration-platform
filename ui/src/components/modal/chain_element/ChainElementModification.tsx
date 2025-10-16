@@ -402,7 +402,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       props["httpMethodRestrict"] = { "ui:widget": "hidden" };
     }
 
-    if (activeKey && activeKey !== "Endpoint") {
+    /* if (activeKey && activeKey !== "Endpoint") {
+      console.log(`activeKey = ${activeKey}`);
       props["ui:fieldReplacesAnyOrOneOf"] = true;
       props["ui:field"] = "hidden";
     } else {
@@ -410,7 +411,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       delete props["ui:fieldReplacesAnyOrOneOf"];
       // eslint-disable-next-line react/prop-types
       delete props["ui:field"];
-    }
+    } */
 
     ui.properties = props;
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { Table, Spin, Flex, Button, Tooltip, message, Tag, Modal } from "antd";
 import { Radio } from "antd";
-import { Environment, EnvironmentSourceType } from "../../api/apiTypes";
+import { Environment, EnvironmentSourceType, IntegrationSystemType } from "../../api/apiTypes";
 import { useServiceContext, useChainsContext } from "./ServiceParametersPage";
 import { api } from "../../api/api";
 import { EnvironmentParamsModal } from "./EnvironmentParamsModal.tsx";
@@ -289,9 +289,11 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
 
   return (
     <Flex vertical>
-      <Button type="primary" style={{ marginBottom: 16, alignSelf: 'flex-start' }} onClick={() => setAddModalOpen(true)}>
-        Add Environment
-      </Button>
+      {system?.type === IntegrationSystemType.EXTERNAL && (
+          <Button type="primary" style={{ marginBottom: 16, alignSelf: 'flex-start' }} onClick={() => setAddModalOpen(true)}>
+            Add Environment
+          </Button>
+      )}
       <Table
         dataSource={environments}
         rowKey="id"
