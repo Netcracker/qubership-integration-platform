@@ -14,6 +14,7 @@ properties:
     properties:
       checkpointElementId:
         type: string
+        title: Checkpoint Element Id
       contextPath:
         type: string
         title: Path Template

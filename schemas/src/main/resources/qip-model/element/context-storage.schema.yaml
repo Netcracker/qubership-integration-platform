@@ -14,18 +14,24 @@ properties:
     properties:
       contextServiceId:
         type: string
+        title: Context Service
       contextId:
         type: string
+        title: Context ID
       useCorrelationId:
         type: boolean
+        title: Use correlation ID as session context ID
       operation:
         type: string
         enum:
           - GET
           - DELETE
           - SET
+        title: Operation
       ttl:
         type: integer
+        title: Time to live
+        description: Session context life time (in seconds).
 
     if:
       properties:
@@ -35,8 +41,10 @@ properties:
       properties:
         key:
           type: string
+          title: Key
         value:
           type: string
+          title: Value
       required:
         - key
         - value
@@ -49,16 +57,20 @@ properties:
         properties:
           keys:
             type: string
+            title: Keys
           target:
             type: string
             enum:
               - BODY
               - HEADER
               - PROPERTY
+            title: Target
           targetName:
             type: string
+            title: Target name
           unwrap:
             type: boolean
+            title: Unwrap
         required:
           - target
     required:
