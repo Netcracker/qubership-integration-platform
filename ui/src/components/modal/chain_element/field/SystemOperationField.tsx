@@ -66,13 +66,24 @@ const SystemOperationField: React.FC<
   const handleChange = useCallback(
     (newValue: string) => {
       const operation: SystemOperation = operationsMap.get(newValue)!;
+      const systemId = formContext?.integrationSystemId;
 
-      formContext?.updateContext({
-        integrationOperationId: newValue,
-        integrationOperationPath: operation.path,
-        integrationOperationMethod: operation.method,
-        integrationOperationProtocolType: "http",
-      });
+      const apply = (proto?: string) => {
+        formContext?.updateContext({
+          integrationOperationId: newValue,
+          integrationOperationPath: operation.path,
+          integrationOperationMethod: operation.method,
+          integrationOperationProtocolType: (typeof proto === 'string' && proto.trim()) ? proto.toLowerCase() : 'http',
+        });
+      };
+
+      if (systemId) {
+        void api.getService(systemId)
+          .then(s => apply(typeof s?.protocol === 'string' ? s.protocol : undefined))
+          .catch(() => apply(undefined));
+      } else {
+        apply(undefined);
+      }
     },
     [formContext, operationsMap],
   );
