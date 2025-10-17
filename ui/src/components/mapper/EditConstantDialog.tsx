@@ -36,6 +36,9 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
   const [generatorOptions, setGeneratorOptions] = useState<
     SelectProps["options"]
   >([]);
+  const [form] = Form.useForm();
+  const nameValue = Form.useWatch('name', form) as string;
+  const valueSupplier = Form.useWatch('valueSupplier', form) as ValueSupplier;
 
   const typeOptions: ReturnType<typeof buildTypeOptions> = buildTypeOptions(
     DataTypes.stringType(),
@@ -97,6 +100,21 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
     );
   }, [constant]);
 
+  // Auto-fill value with name when name changes
+  useEffect(() => {
+    console.log('Auto-fill effect triggered:', { nameValue, isGenerated, constantName: constant.name });
+    if (nameValue && !isGenerated) {
+      const currentValue = valueSupplier?.kind === "given" ? valueSupplier.value : "";
+      console.log('Current value check:', { currentValue, constantName: constant.name, shouldFill: !currentValue || currentValue === constant.name });
+      if (!currentValue || currentValue === constant.name || currentValue !== nameValue) {
+        console.log('Setting valueSupplier to:', nameValue);
+        form.setFieldsValue({
+          valueSupplier: { kind: "given", value: nameValue }
+        });
+      }
+    }
+  }, [nameValue, isGenerated, form, constant.name, valueSupplier]);
+
   return (
     <Modal
       title={title}
@@ -117,6 +135,7 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
       ]}
     >
       <Form<FormData>
+        form={form}
         id="constantEditForm"
         labelCol={{ flex: "100px" }}
         wrapperCol={{ flex: "auto" }}
