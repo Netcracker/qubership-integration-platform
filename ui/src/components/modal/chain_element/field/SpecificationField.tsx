@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
-import { Select, SelectProps } from "antd";
+import { Button, Flex, Select, SelectProps, Tooltip } from "antd";
 import { FormContext } from "../ChainElementModification";
 import { api } from "../../../../api/api";
 import { useNotificationService } from "../../../../hooks/useNotificationService";
 import { Specification, SpecificationGroup } from "../../../../api/apiTypes";
 import { JSONSchema7 } from "json-schema";
+import { VSCodeExtensionApi } from "../../../../api/rest/vscodeExtensionApi";
+import { Icon } from "../../../../IconProvider";
 
 const SpecificationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -17,6 +19,12 @@ const SpecificationField: React.FC<
   >(new Map());
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [specificationId, setSpecificationId] = useState<string | undefined>(
+    props.formData,
+  );
+  const [specificationGroupId, setSpecificationGroupId] = useState<
+    string | undefined
+  >(props.formContext?.integrationSpecificationGroupId);
   const systemId = props.formContext!.integrationSystemId;
 
   const buildSpecificationOptions = (
@@ -91,9 +99,12 @@ const SpecificationField: React.FC<
 
   const handleChange = useCallback(
     (newValue: string) => {
+      const specGroupId = specIdToGroupIdMap.get(newValue);
+      setSpecificationId(newValue);
+      setSpecificationGroupId(specGroupId);
       const context: Record<string, unknown> = {
         integrationSpecificationId: newValue,
-        integrationSpecificationGroupId: specIdToGroupIdMap.get(newValue),
+        integrationSpecificationGroupId: specGroupId,
         integrationOperationId: null,
         integrationOperationPath: null,
         integrationOperationMethod: null,
@@ -105,18 +116,36 @@ const SpecificationField: React.FC<
     [props.formContext, specIdToGroupIdMap],
   );
 
+  const onNavigationButtonClick = useCallback(() => {
+    const path = `/services/systems/${systemId}/specificationGroups/${specificationGroupId}/specifications/${specificationId}/operations`;
+    if (api instanceof VSCodeExtensionApi) {
+      void api.navigateInNewTab(path);
+    } else {
+      window.open(path, "_blank");
+    }
+  }, [systemId, specificationGroupId, specificationId]);
+
   return (
     <div>
       <label htmlFor={props.id} style={labelStyle}>
         {props.required ? <span style={requiredStyle}> *</span> : null}
         {title}
       </label>
-      <Select
-        value={props.formData}
-        options={options}
-        onChange={handleChange}
-        disabled={isLoading}
-      />
+      <Flex gap={4}>
+        <Select
+          value={props.formData}
+          options={options}
+          onChange={handleChange}
+          disabled={isLoading}
+        />
+        <Tooltip title="Go to specification">
+          <Button
+            icon={<Icon name="send" />}
+            disabled={!(specificationGroupId && specificationId)}
+            onClick={onNavigationButtonClick}
+          />
+        </Tooltip>
+      </Flex>
     </div>
   );
 };

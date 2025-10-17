@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
-import { Select, SelectProps } from "antd";
+import { Button, Flex, Select, SelectProps, Tooltip } from "antd";
 import { FormContext } from "../ChainElementModification";
 import { api } from "../../../../api/api";
 import { useNotificationService } from "../../../../hooks/useNotificationService";
 import { SystemOperation } from "../../../../api/apiTypes";
 import { JSONSchema7 } from "json-schema";
+import { VSCodeExtensionApi } from "../../../../api/rest/vscodeExtensionApi";
+import { Icon } from "../../../../IconProvider";
 
 const SystemOperationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -16,7 +18,11 @@ const SystemOperationField: React.FC<
     Map<string, SystemOperation>
   >(new Map());
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const specificationId = formContext!.integrationSpecificationId;
+
+  const systemId = formContext?.integrationSystemId;
+  const specGroupId = formContext?.integrationSpecificationGroupId;
+  const specificationId = formContext?.integrationSpecificationId;
+  const [operationId, setOperationId] = useState<string | undefined>(formData);
 
   useEffect(() => {
     const loadOperations = async () => {
@@ -65,6 +71,7 @@ const SystemOperationField: React.FC<
 
   const handleChange = useCallback(
     (newValue: string) => {
+      setOperationId(newValue);
       const operation: SystemOperation = operationsMap.get(newValue)!;
       const systemId = formContext?.integrationSystemId;
 
@@ -88,18 +95,43 @@ const SystemOperationField: React.FC<
     [formContext, operationsMap],
   );
 
+  const onNavigationButtonClick = useCallback(() => {
+    const path = `/services/systems/${systemId}/specificationGroups/${specGroupId}/specifications/${specificationId}/operations/${operationId}`;
+    if (api instanceof VSCodeExtensionApi) {
+      void api.navigateInNewTab(path);
+    } else {
+      window.open(path, "_blank");
+    }
+  }, [
+    systemId,
+    specGroupId,
+    specificationId,
+    operationId,
+  ]);
+
   return (
     <div>
       <label htmlFor={id} style={labelStyle}>
         {required ? <span style={requiredStyle}> *</span> : null}
         {title}
       </label>
-      <Select
-        value={formData}
-        options={options}
-        onChange={handleChange}
-        disabled={isLoading}
-      />
+      <Flex gap={4}>
+        <Select
+          value={formData}
+          options={options}
+          onChange={handleChange}
+          disabled={isLoading}
+        />
+        <Tooltip title="Go to operation">
+          <Button
+            icon={<Icon name="send" />}
+            disabled={
+              !(systemId && specGroupId && specificationId && operationId)
+            }
+            onClick={onNavigationButtonClick}
+          />
+        </Tooltip>
+      </Flex>
     </div>
   );
 };

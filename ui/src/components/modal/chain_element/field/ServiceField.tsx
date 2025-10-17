@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
-import { Select, SelectProps } from "antd";
+import { Button, Flex, Select, SelectProps, Tooltip } from "antd";
 import { useServices } from "../../../../hooks/useServices";
 import { IntegrationSystem } from "../../../../api/apiTypes";
 import { FormContext } from "../ChainElementModification";
 import { JSONSchema7 } from "json-schema";
 import { useNotificationService } from "../../../../hooks/useNotificationService";
+import { Icon } from "../../../../IconProvider";
+import { VSCodeExtensionApi } from "../../../../api/rest/vscodeExtensionApi";
+import { api } from "../../../../api/api";
 
 const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
   id,
@@ -16,6 +19,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
   formContext,
 }) => {
   const { services } = useServices();
+  const [serviceId, setServiceId] = useState(formData);
   const [servicesMap, setServicesMap] = useState<
     Map<string, IntegrationSystem>
   >(new Map());
@@ -58,6 +62,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
 
   const handleChange = useCallback(
     (newValue: string) => {
+      setServiceId(newValue);
       const newService: IntegrationSystem = servicesMap.get(newValue)!;
 
       formContext?.updateContext({
@@ -71,18 +76,36 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
     [formContext, servicesMap],
   );
 
+  const onNavigationButtonClick = useCallback(() => {
+    const path = `/services/systems/${serviceId}/parameters`;
+    if (api instanceof VSCodeExtensionApi) {
+      void api.navigateInNewTab(path);
+    } else {
+      window.open(path, "_blank");
+    }
+  }, [serviceId]);
+
   return (
     <div>
       <label htmlFor={id} style={labelStyle}>
         {required ? <span style={requiredStyle}> *</span> : null}
         {title}
       </label>
-      <Select
-        value={formData}
-        options={options}
-        onChange={handleChange}
-        disabled={isLoading}
-      />
+      <Flex gap={4}>
+        <Select
+          value={formData}
+          options={options}
+          onChange={handleChange}
+          disabled={isLoading}
+        />
+        <Tooltip title="Go to service">
+          <Button
+            icon={<Icon name="send" />}
+            disabled={!serviceId}
+            onClick={onNavigationButtonClick}
+          />
+        </Tooltip>
+      </Flex>
     </div>
   );
 };
