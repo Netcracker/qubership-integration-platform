@@ -108,7 +108,7 @@ export class SystemService {
             }
             
             service.content.integrationSystemType = system.integrationSystemType || system.type;
-            service.content.protocol = system.protocol;
+            service.content.protocol = system.protocol ? system.protocol.toUpperCase() : system.protocol;
             service.content.extendedProtocol = system.extendedProtocol;
             service.content.specification = system.specification;
             service.content.labels = LabelUtils.fromEntityLabels(system.labels);

@@ -390,7 +390,7 @@ export class SpecificationImportService {
                             createdBy: { id: "", username: "" },
                             modifiedBy: { id: "", username: "" },
                             sourceHash: this.calculateHash(await this.readFileContent(file)),
-                            fileName: `resources/source-${specification.id}/${file.name}`,
+                            fileName: `source-${specification.id}/${file.name}`,
                             mainSource: file === sourceFile
                         }))),
                         parentId: specificationGroup.id,
@@ -410,13 +410,13 @@ export class SpecificationImportService {
                 console.log(`[SpecificationImportService] Saved specification file: ${specFileName}`);
 
                 // Copy source file and additional files to resources folder
-                await this.copySourceFileToResources(baseFolder, systemId, specificationGroup.name, specification.version, sourceFile);
+                await this.copySourceFileToResources(baseFolder, specification.id, sourceFile);
 
                 // Copy additional files (like XSD for SOAP)
                 if (extractedFiles.length > 1) {
                     const additionalFiles = extractedFiles.filter(f => f !== sourceFile);
                     for (const additionalFile of additionalFiles) {
-                        await this.copySourceFileToResources(baseFolder, systemId, specificationGroup.name, specification.version, additionalFile);
+                        await this.copySourceFileToResources(baseFolder, specification.id, additionalFile);
                     }
                 }
             }
@@ -433,18 +433,14 @@ export class SpecificationImportService {
      */
     private async copySourceFileToResources(
         baseFolder: Uri,
-        systemId: string,
-        groupName: string,
-        version: string,
+        specificationId: string,
         sourceFile: File
     ): Promise<void> {
         try {
-            // Create resources folder structure: resources/source-{systemId}-{groupName}-{version}/
             const resourcesFolder = Uri.joinPath(baseFolder, 'resources');
-            const sourceFolderName = `source-${systemId}-${groupName}-${version}`;
+            const sourceFolderName = `source-${specificationId}`;
             const sourceFolder = Uri.joinPath(resourcesFolder, sourceFolderName);
 
-            // Copy file
             const targetFileUri = Uri.joinPath(sourceFolder, sourceFile.name);
             const fileContent = await this.readFileContent(sourceFile);
             const bytes = new TextEncoder().encode(fileContent || '');
