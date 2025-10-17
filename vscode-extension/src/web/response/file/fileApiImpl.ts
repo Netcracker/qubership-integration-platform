@@ -11,6 +11,8 @@ import { ContentParser } from '../../api-services/parsers/ContentParser';
 import { ServiceNormalizer } from '../../api-services/ServiceNormalizer';
 import { ProjectConfigService } from '../../services/ProjectConfigService';
 import { FileCacheService } from '../../services/FileCacheService';
+import { CHAIN_ROUTES, SERVICE_ROUTES } from '../apiRouter';
+import { extractEntityId } from '../navigationUtils';
 
 const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';
@@ -31,6 +33,31 @@ export class VSCodeFileApi implements FileApi {
 
     getRootDirectory(): Uri {
         return vscode.workspace.workspaceFolders[0].uri;
+    }
+
+    async findFileByNavigationPath(path: string): Promise<Uri> {
+        const extensions = this.getExtensionsForContext();
+        let extension: string | undefined = undefined;
+
+        for(const regexp of SERVICE_ROUTES ) {
+            if (regexp.test(path)) {
+                extension = extensions.service;
+            }
+        }
+
+        for(const regexp of CHAIN_ROUTES ) {
+            if (regexp.test(path)) {
+                extension = extensions.chain;
+            }
+        }
+
+        if (!extension) {
+            throw new Error(`Invalid navigation path: ${path}`);
+        }
+
+        const entityId = extractEntityId(path);
+
+        return await this.findFileById(entityId, extension);
     }
 
     private async getParentDirectoryUri(uri: Uri): Promise<Uri> {
@@ -76,7 +103,7 @@ export class VSCodeFileApi implements FileApi {
         return vscode.Uri.joinPath(baseUri, files[0]);
     }
 
-    async findAndBuildChainsRecursively(folderUri: Uri, chainBuilder: (chainContent: any) => Partial<Chain> | undefined, result: Partial<Chain>[]): Promise<void> {
+    async findAndBuildChainsRecursively<T>(folderUri: Uri, chainBuilder: (chainContent: any) => T | undefined, result: T[]): Promise<void> {
         const entries = await readDirectory(folderUri);
         const extensions = this.getExtensionsForContext(folderUri);
 
@@ -468,9 +495,9 @@ export class VSCodeFileApi implements FileApi {
             });
 
             const serviceId = crypto.randomUUID();
-            
+
             const config = ProjectConfigService.getConfig();
-            
+
             const service = {
                 $schema: config.schemaUrls.service,
                 id: serviceId,
@@ -525,7 +552,7 @@ export class VSCodeFileApi implements FileApi {
             const entries = await this.readDirectoryInternal(fileUri);
             const hasChainFile = entries.some(([name]: [string, number]) => name.endsWith(extensions.chain));
             const hasServiceFile = entries.some(([name]: [string, number]) => name.endsWith(extensions.service));
-            
+
             if (hasServiceFile) {
                 return QipFileType.SERVICE;
             }
