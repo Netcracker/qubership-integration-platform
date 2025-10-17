@@ -46,7 +46,7 @@ export async function updateService(serviceFileUri: Uri, serviceId: string, serv
         service.content.integrationSystemType = serviceRequest.type;
     }
     if (serviceRequest.protocol !== undefined) {
-        service.content.protocol = serviceRequest.protocol;
+        service.content.protocol = serviceRequest.protocol.toUpperCase();
     }
     if (serviceRequest.extendedProtocol !== undefined) {
         service.content.extendedProtocol = serviceRequest.extendedProtocol;
@@ -84,7 +84,7 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
                 description: serviceRequest.description || "",
                 activeEnvironmentId: "",
                 integrationSystemType: serviceRequest.type || "EXTERNAL",
-                protocol: serviceRequest.protocol || "",
+                protocol: (serviceRequest.protocol || "").toUpperCase(),
                 extendedProtocol: serviceRequest.extendedProtocol || "",
                 specification: serviceRequest.specification || "",
                 environments: [],
@@ -468,14 +468,13 @@ async function deleteSourceFilesFromSpecificationSources(serviceFileUri: Uri, sp
     for (const source of specificationInfo.content.specificationSources) {
         try {
             const filePath = source.fileName;
-            if (filePath && filePath.startsWith('resources/')) {
-                const relativePath = filePath.replace('resources/', '');
+            if (filePath) {
                 const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
-                const sourceFileUri = vscode.Uri.joinPath(serviceFolderUri, 'resources', relativePath);
+                const sourceFileUri = vscode.Uri.joinPath(serviceFolderUri, 'resources', filePath);
 
                 try {
                     await fileApi.deleteFile(sourceFileUri);
-                    const folderPath = relativePath.split('/')[0];
+                    const folderPath = filePath.split('/')[0];
                     if (folderPath && !foldersToCheck.includes(folderPath)) {
                         foldersToCheck.push(folderPath);
                     }

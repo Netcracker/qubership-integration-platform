@@ -46,7 +46,7 @@ export class QipSpecificationGenerator {
             name: fileName,
             ...this.buildAudit(),
             sourceHash: this.calculateHash(JSON.stringify(sourceData)),
-            fileName: `resources/source-${specId}/${fileName}`,
+            fileName: `source-${specId}/${fileName}`,
             mainSource: true
         }];
     }
