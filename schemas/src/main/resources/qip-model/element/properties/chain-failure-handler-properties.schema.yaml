@@ -1,0 +1,63 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/chain-failure-handler-properties.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - if:
+      properties:
+        handleChainFailureAction:
+          const: default
+      required:
+        - handleChainFailureAction
+    then:
+      properties: {}
+  - if:
+      properties:
+        handleChainFailureAction:
+          const: script
+      required:
+        - handleChainFailureAction
+    then:
+      required:
+        - chainFailureHandlerContainer
+      properties:
+        chainFailureHandlerContainer:
+          $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
+  - if:
+      properties:
+        handleChainFailureAction:
+          const: mapper-2
+      required:
+        - handleChainFailureAction
+    then:
+      required:
+        - chainFailureHandlerContainer
+      properties:
+        chainFailureHandlerContainer:
+          $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml"
+  - if:
+      properties:
+        handleChainFailureAction:
+          const: chain-call
+    then:
+      required:
+        - chainFailureHandlerContainer
+      properties:
+        chainFailureHandlerContainer:
+          type: object
+          properties:
+            elementId:
+              type: string
+          required:
+            - elementId
+title: Chain Failure Handler
+properties:
+  handleChainFailureAction:
+    type: string
+    enum:
+      - default
+      - script
+      - mapper-2
+      - chain-call
+    default: default
+    title: Action on chain failure

@@ -16,7 +16,7 @@ properties:
       - $ref: "http://qubership.org/schemas/product/qip/element/properties/operation.schema.yaml"
       - $ref: "http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml"
       - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
-      - $ref: "#/definitions/ValidationFailureHandler"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/validation-failure-handler-properties.schema.yaml"
     properties:
       errorThrowing:
         type: boolean
@@ -160,42 +160,6 @@ definitions:
             const: "script"
         required:
           - type
-  ValidationFailureHandler:
-    type: object
-    properties:
-      handleValidationAction:
-        title: Action
-        type: string
-        enum:
-          - default
-          - script
-          - mapper-2
-        default: default
-    if:
-      properties:
-        handleValidationAction:
-          const: script
-      required:
-        - handleValidationAction
-    then:
-      properties:
-        handlerContainer:
-          $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
-      required:
-        - handlerContainer
-    else:
-      if:
-        properties:
-          handleValidationAction:
-            const: mapper-2
-        required:
-          - handleValidationAction
-      then:
-        properties:
-          handlerContainer:
-            $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml"
-        required:
-          - handlerContainer
   ResponseHandler:
     type: object
     $ref: "#/definitions/ExchangeTransformation"

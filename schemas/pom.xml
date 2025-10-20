@@ -197,6 +197,7 @@
                     <linkXRef>false</linkXRef>
                     <maxAllowedViolations>0</maxAllowedViolations>
                     <excludeGeneratedSources>true</excludeGeneratedSources>
+                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
                 </configuration>
                 <executions>
                     <execution>
