@@ -1,12 +1,14 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Form, Input, Button, Select, Tag, Descriptions, Spin } from "antd";
 import { IntegrationSystem, IntegrationSystemType } from "../../api/apiTypes";
 import { api } from "../../api/api";
 import { useAsyncRequest } from './useAsyncRequest';
 import { SourceFlagTag } from './SourceFlagTag';
+import {serviceCache} from "./utils.tsx";
 
 interface ServiceParametersTabProps {
   systemId: string;
+  activeTab: string
   formatTimestamp: (val: string) => string;
   sidePadding: number;
   styles: Record<string, string>;
@@ -21,6 +23,7 @@ interface ServiceFormValues {
 
 export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   systemId,
+  activeTab,
   formatTimestamp,
   sidePadding,
   styles,
@@ -29,7 +32,6 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   const [system, setSystem] = useState<IntegrationSystem | null>(null);
   const [technicalLabels, setTechnicalLabels] = useState<string[]>([]);
   const [userLabels, setUserLabels] = useState<string[]>([]);
-  const cacheRef = useRef<{ [key: string]: IntegrationSystem }>({});
 
   const setLabelsAndForm = useCallback((data: IntegrationSystem) => {
     setTechnicalLabels(data.labels?.filter(l => l.technical).map(l => l.name) || []);
@@ -50,11 +52,11 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
     error: loadError,
     execute: loadSystem,
   } = useAsyncRequest(async (id: string) => {
-    if (cacheRef.current[id]) {
-      return cacheRef.current[id];
+    if (serviceCache[id]) {
+      return serviceCache[id];
     }
     const data = await api.getService(id);
-    cacheRef.current[id] = data;
+    serviceCache[id] = data;
     return data;
   }, { initialValue: null });
 
@@ -67,7 +69,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemId]);
+  }, [systemId, activeTab]);
 
   const {
     loading: savingSystem,
@@ -88,7 +90,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
     };
     const updated: IntegrationSystem = await api.updateService(systemId, payload);
     setSystem(updated);
-    cacheRef.current[systemId] = updated;
+    serviceCache[systemId] = updated;
     return updated;
   });
 

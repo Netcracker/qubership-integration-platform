@@ -1,7 +1,7 @@
 import React from "react";
 import { Tag } from "antd";
 import { isSpecification, ServiceEntity } from "./ServicesTreeTable";
-import { Specification } from "../../api/apiTypes.ts";
+import {IntegrationSystem, Specification} from "../../api/apiTypes.ts";
 import { RcFile } from "antd/es/upload";
 
 export type UsageStatus = 'Deprecated' | 'In use' | 'New';
@@ -81,3 +81,10 @@ export const environmentLabels = {
 export const environmentLabelOptions = Object.entries(environmentLabels).map(
     ([key, value]) => ({ label: value, value: key })
 );
+
+export const serviceCache: { [key: string]: IntegrationSystem } = {};
+
+export const invalidateServiceCache = (systemId: string) => {
+    delete serviceCache[systemId];
+    console.log(`Service cache invalidated for: ${systemId}`);
+};

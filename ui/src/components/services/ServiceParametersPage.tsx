@@ -148,6 +148,7 @@ export const ServiceParametersPage: React.FC = () => {
         <Flex justify={"start"}>
           <ServiceParametersTab
             systemId={systemId || ""}
+            activeTab={activeTab}
             formatTimestamp={formatTimestamp}
             sidePadding={sidePadding}
             styles={styles}

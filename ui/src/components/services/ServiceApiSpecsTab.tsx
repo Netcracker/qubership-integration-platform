@@ -15,7 +15,7 @@ import { getActionsColumn } from "./ServicesTreeTable";
 import {  message } from "antd";
 import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 import { downloadFile } from '../../misc/download-utils';
-import { prepareFile } from "./utils.tsx";
+import {invalidateServiceCache, prepareFile} from "./utils.tsx";
 import { ImportSpecificationsModal } from "./ImportSpecificationsModal";
 import { useModalsContext } from "../../Modals";
 import { useAsyncRequest } from './useAsyncRequest';
@@ -92,6 +92,7 @@ const getGroupActions = (
               onSuccess={() => {
                 void loadGroups(systemId);
                 void loadModels(systemId, group.id);
+                invalidateServiceCache(systemId);
               }}
             />
           ),
@@ -418,6 +419,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                       onSuccess={() => {
                         if (!systemId) return;
                         void loadGroups(systemId);
+                        invalidateServiceCache(systemId);
                       }}
                     />
                   ),
@@ -466,6 +468,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                         if (!systemId || !groupId) return;
                         void loadGroups(systemId);
                         void loadModels(systemId, groupId);
+                        invalidateServiceCache(systemId);
                       }}
                     />
                   ),
