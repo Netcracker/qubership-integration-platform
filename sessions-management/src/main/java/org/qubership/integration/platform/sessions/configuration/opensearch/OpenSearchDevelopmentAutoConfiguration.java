@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.sessions.configuration.opensearch;
 
+import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.Credentials;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
@@ -23,34 +24,31 @@ import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.transport.httpclient5.ApacheHttpClient5TransportBuilder;
-import org.qubership.integration.platform.sessions.opensearch.DefaultOpenSearchClientSupplier;
-import org.qubership.integration.platform.sessions.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.sessions.properties.opensearch.ClientProperties;
 import org.qubership.integration.platform.sessions.properties.opensearch.OpenSearchProperties;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-@AutoConfiguration
+import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearchConfiguration.TENANT_NATIVE_OPENSEARCH_CLIENT;
+
+@Configuration
 @EnableConfigurationProperties(OpenSearchProperties.class)
-public class OpenSearchAutoConfiguration {
-    private OpenSearchClient createOpenSearchClient(ClientProperties properties) {
+@ConditionalOnProperty(name = "${qip.datasource.configuration.enabled}", havingValue = "false", matchIfMissing = true)
+public class OpenSearchDevelopmentAutoConfiguration {
+
+    @Bean(TENANT_NATIVE_OPENSEARCH_CLIENT)
+    public DbaasOpensearchClient createOpenSearchClient(OpenSearchProperties properties) {
+        ClientProperties clientProperties = properties.client();
         AuthScope authScope = new AuthScope(null, null, -1, null, null);
-        Credentials credentials = new UsernamePasswordCredentials(properties.username(), properties.password().toCharArray());
+        Credentials credentials = new UsernamePasswordCredentials(clientProperties.username(), clientProperties.password().toCharArray());
         BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(authScope, credentials);
         ApacheHttpClient5TransportBuilder builder = ApacheHttpClient5TransportBuilder
-                .builder(new HttpHost(properties.protocol(), properties.host(), properties.port()))
+                .builder(new HttpHost(clientProperties.protocol(), clientProperties.host(), clientProperties.port()))
                 .setHttpClientConfigCallback(httpClientBuilder ->
                         httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider));
-        return new OpenSearchClient(builder.build());
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(OpenSearchClientSupplier.class)
-    public OpenSearchClientSupplier openSearchClientSupplier(OpenSearchProperties properties) {
-        OpenSearchClient client = createOpenSearchClient(properties.client());
-        return new DefaultOpenSearchClientSupplier(client, properties.index().prefix());
+        return new DevDbaasOpensearchClient(new OpenSearchClient(builder.build()));
     }
 }

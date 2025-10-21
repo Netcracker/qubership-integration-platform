@@ -14,12 +14,20 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.sessions.opensearch;
+package org.qubership.integration.platform.sessions.configuration.opensearch;
 
-import org.opensearch.client.opensearch.OpenSearchClient;
+import com.netcracker.cloud.dbaas.client.config.DefaultMSInfoProvider;
+import lombok.Getter;
+import org.springframework.beans.factory.annotation.Value;
 
-public interface OpenSearchClientSupplier {
-    OpenSearchClient getClient();
+/**
+ * Replaces the name of the microservice to custom name
+ * Useful when accessing the same database via DBaaS from another microservices
+ */
+public class FakeMicroserviceMSInfoProvider extends DefaultMSInfoProvider {
 
-    String normalize(String name);
+    @Getter
+    @Value("${qip.internal-services.engine}")
+    private String microserviceName;
+
 }

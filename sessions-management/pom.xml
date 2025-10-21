@@ -18,10 +18,11 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
 
-        <revision>0.3.0</revision>
+        <revision>0.3.0-move-to-os-local</revision>
 
         <!-- BOMs -->
 
+        <dbaas-client-bom.version>8.2.1</dbaas-client-bom.version>
         <context-propagation-bom.version>6.0.5</context-propagation-bom.version>
         <spring-cloud-bom.version>2024.0.0</spring-cloud-bom.version>
         <jackson-bom.version>2.17.0</jackson-bom.version>
@@ -52,6 +53,19 @@
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/Netcracker/*</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+        </repository>
+    </repositories>
+
     <dependencyManagement>
         <dependencies>
 
@@ -60,6 +74,14 @@
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.netcracker.cloud</groupId>
+                <artifactId>dbaas-client-bom</artifactId>
+                <version>${dbaas-client-bom.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -211,6 +233,21 @@
             <groupId>io.smallrye</groupId>
             <artifactId>jandex</artifactId>
             <version>${jandex.version}</version>
+        </dependency>
+
+        <!-- Datasource dependencies -->
+
+        <dependency>
+            <groupId>com.netcracker.cloud</groupId>
+            <artifactId>dbaas-client-opensearch-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud</groupId>
+            <artifactId>dbaas-client-resttemplate</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud</groupId>
+            <artifactId>dbaas-client-base</artifactId>
         </dependency>
 
 

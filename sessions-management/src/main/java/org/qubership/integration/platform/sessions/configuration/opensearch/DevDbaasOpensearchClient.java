@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.sessions.opensearch;
+package org.qubership.integration.platform.sessions.configuration.opensearch;
 
-import org.apache.commons.lang3.StringUtils;
+import com.netcracker.cloud.dbaas.client.management.DatabaseConfig;
+import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import org.opensearch.client.opensearch.OpenSearchClient;
 
-public class DefaultOpenSearchClientSupplier implements OpenSearchClientSupplier {
-    private final OpenSearchClient client;
-    private final String prefix;
+public class DevDbaasOpensearchClient implements DbaasOpensearchClient {
+    private static final String PREFIX = "dev";
 
-    public DefaultOpenSearchClientSupplier(
-        OpenSearchClient client,
-        String prefix
-    ) {
+    private OpenSearchClient client;
+
+    private DevDbaasOpensearchClient() {}
+
+    public DevDbaasOpensearchClient(OpenSearchClient client) {
         this.client = client;
-        this.prefix = prefix;
     }
 
     @Override
@@ -37,7 +37,23 @@ public class DefaultOpenSearchClientSupplier implements OpenSearchClientSupplier
     }
 
     @Override
+    public OpenSearchClient getClient(DatabaseConfig databaseConfig) {
+        return getClient();
+    }
+
+    @Override
+    public String getPrefix() {
+        return PREFIX;
+    }
+
+    @Override
     public String normalize(String name) {
-        return StringUtils.isEmpty(prefix) ? name : (prefix + "_" + name);
+        return PREFIX + "_" + name;
+    }
+
+    @Override
+    public String normalize(DatabaseConfig databaseConfig, String name) {
+        return normalize(name);
     }
 }
+

@@ -18,6 +18,7 @@ package org.qubership.integration.platform.sessions.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
@@ -29,15 +30,17 @@ import org.qubership.integration.platform.sessions.dto.opensearch.SessionElement
 import org.qubership.integration.platform.sessions.exception.ImportConflictException;
 import org.qubership.integration.platform.sessions.exception.ImportException;
 import org.qubership.integration.platform.sessions.mapper.SessionElementMapper;
-import org.qubership.integration.platform.sessions.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.sessions.properties.opensearch.OpenSearchProperties;
 import org.qubership.integration.platform.sessions.properties.sessions.SessionsProperties;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.*;
+
+import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearchConfiguration.TENANT_NATIVE_OPENSEARCH_CLIENT;
 
 @Slf4j
 @Service
@@ -50,20 +53,20 @@ public class ImportService {
 
     private final ObjectMapper objectMapper;
     private final SessionElementMapper elementMapper;
-    private final OpenSearchClientSupplier openSearchClientSupplier;
+    private final DbaasOpensearchClient opensearchClient;
     private final SessionService sessionService;
 
     @Autowired
     public ImportService(ObjectMapper objectMapper,
                          SessionElementMapper elementMapper,
                          SessionsProperties sessionsProperties,
-                         OpenSearchClientSupplier openSearchClientSupplier,
+                         @Qualifier(TENANT_NATIVE_OPENSEARCH_CLIENT) DbaasOpensearchClient opensearchClient,
                          OpenSearchProperties openSearchProperties,
                          SessionService sessionService) {
         this.indexName = openSearchProperties.index().elements().name();
         this.objectMapper = objectMapper;
         this.elementMapper = elementMapper;
-        this.openSearchClientSupplier = openSearchClientSupplier;
+        this.opensearchClient = opensearchClient;
         this.sessionService = sessionService;
 
         this.bulkRequestMaxSizeBytes = sessionsProperties.bulkRequest().maxSizeKb() * 1024;
@@ -135,7 +138,7 @@ public class ImportService {
             payloadSize = payload.length;
             BulkOperation request = new BulkOperation.Builder()
                     .index(IndexOperation.of(io -> io
-                            .index(openSearchClientSupplier.normalize(indexName))
+                            .index(opensearchClient.normalize(indexName))
                             .id(element.getId())
                             .requireAlias(true)
                             .document(element)
@@ -166,11 +169,11 @@ public class ImportService {
 
     private void executeBulk(List<BulkOperation> updateRequests) throws IOException {
         BulkRequest bulkRequest = new BulkRequest.Builder()
-                .index(openSearchClientSupplier.normalize(indexName))
+                .index(opensearchClient.normalize(indexName))
                 .requireAlias(true)
                 .operations(updateRequests)
                 .build();
-        BulkResponse bulk = openSearchClientSupplier.getClient().bulk(bulkRequest);
+        BulkResponse bulk = opensearchClient.getClient().bulk(bulkRequest);
         updateRequests.clear();
         checkAndLogFailedElements(bulk);
     }

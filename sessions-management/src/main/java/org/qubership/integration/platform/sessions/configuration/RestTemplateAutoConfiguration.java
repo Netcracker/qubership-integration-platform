@@ -37,8 +37,8 @@ public class RestTemplateAutoConfiguration {
     public RestTemplate restTemplateMS(RestTemplateBuilder builder) {
         return builder
                 .requestFactory(getClientHttpRequestFactorySupplier())
-                .setConnectTimeout(Duration.ofMillis(10000))
-                .setReadTimeout(Duration.ofMillis(10000))
+                .connectTimeout(Duration.ofMillis(10000))
+                .readTimeout(Duration.ofMillis(10000))
                 .build();
     }
 

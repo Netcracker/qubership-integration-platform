@@ -77,6 +77,9 @@ info:
     name: ${cloud.microservice.name}
 
 qip:
+  datasource:
+    configuration:
+      enabled: false
   sessions:
     bulk-request:
       max-size-kb: ${SESSIONS_BULK_REQUEST_MAX_SIZE_KB:4096}
@@ -96,6 +99,7 @@ qip:
     session:
       default-buffer-limit: ${OPENSEARCH_SESSION_DEFAULT_BUFFER_LIMIT:104857600}
   internal-services:
+    engine: qubership-integration-platform-engine
     designtime-catalog: qubership-integration-platform-designtime-catalog
 
 logging:
