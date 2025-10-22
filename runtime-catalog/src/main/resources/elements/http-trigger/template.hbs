@@ -86,6 +86,11 @@
     {{/if-property}}
 
     <doTry>
+        {{#if-property 'accessControlType' equals='NONE'}}
+            <step id="Validate Request--{{identifier}}">
+                <process ref="httpTriggerProcessor" />
+            </step>
+        {{/if-property}}
         {{#if-property 'accessControlType' equals='RBAC'}}
             {{#if-property 'roles' presented=''}}
                 <setProperty name="internalProperty_rbac_access_policy">
