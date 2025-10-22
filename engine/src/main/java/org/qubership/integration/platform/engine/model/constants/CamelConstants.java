@@ -58,6 +58,7 @@ public final class CamelConstants {
         public static final String TRIGGER = "trigger";
         public static final String JOB_INSTANCE = "jobInstance";
         public static final String HTTP_URI = "CamelHttpUri";
+        public static final String X_IDEMPOTENCY_KEY = "X-Idempotency-Key";
 
         private Headers() {
         }
