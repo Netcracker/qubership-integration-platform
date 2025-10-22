@@ -76,6 +76,7 @@ public class GeneralInstructionsMapper implements ImportInstructionsMapper<Gener
                 .services(serviceInstructionsMapper.asConfig(importInstructions))
                 .specificationGroups(specificationGroupInstructionsMapper.asConfig(importInstructions))
                 .specifications(specificationInstructionsMapper.asConfig(importInstructions))
+                .commonVariables(commonVariablesInstructionsMapper.asConfig(importInstructions))
                 .build();
     }
 

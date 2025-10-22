@@ -21,7 +21,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import jakarta.persistence.EntityExistsException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
@@ -36,6 +38,9 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable.ImportVariablePreview;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable.VariablesFileResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportMode;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.variable.ImportVariablePreviewResult;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.variable.VariablesCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
@@ -73,6 +78,7 @@ public class CommonVariablesService {
     private static final String YAML_EXTENSION = "yaml";
     private static final String YML_EXTENSION = "yml";
     private static final String EMPTY_COMMON_VARIABLE_NAME_ERROR_MESSAGE = "Common variable's name is empty";
+    private static final String COMMON_VARIABLES_FILE_NAME = VARIABLES_PREFIX.concat(".").concat(YAML_EXTENSION);
 
     private final ActionsLogService actionLogger;
     private final YAMLMapper yamlMapper;
@@ -199,6 +205,29 @@ public class CommonVariablesService {
         }
     }
 
+    public ImportVariablesResult importVariables(File importDirectory, VariablesCommitRequest variablesCommitRequest) {
+        if (variablesCommitRequest.getImportMode() == ImportMode.NONE) {
+            return new ImportVariablesResult();
+        }
+
+        File[] commonVariablesFiles = new File(importDirectory + File.separator + VAR_PARENT_DIR)
+                .listFiles(file -> COMMON_VARIABLES_FILE_NAME.equals(file.getName()));
+        if (ArrayUtils.isEmpty(commonVariablesFiles)) {
+            return new ImportVariablesResult();
+        }
+
+        Map<String, String> variablesForImport;
+
+        try {
+            variablesForImport = importVariablesFile(FileUtils.readFileToByteArray(commonVariablesFiles[0]));
+        } catch (Exception e) {
+            log.error("Unable to convert file to variables {}", e.getMessage());
+            throw new RuntimeException("Unable to convert file to variables");
+        }
+
+        return performVariableImport(variablesForImport, variablesCommitRequest.getImportMode() == ImportMode.PARTIAL ? new HashSet<>(variablesCommitRequest.getVariablesNames()) : null);
+    }
+
     public ImportVariablesResult importVariables(MultipartFile file, Set<String> variablesNames) {
         Map<String, String> variablesForImport;
 
@@ -216,24 +245,7 @@ public class CommonVariablesService {
             throw new RuntimeException("Unsupported file extension: " + fileExtension);
         }
 
-        PerformInstructionsResult ignoreResult = importInstructionsService.performVariableIgnoreInstructions(variablesForImport.keySet());
-        Set<String> variablesToIgnore = ignoreResult.variablesToIgnore();
-
-        List<ImportVariableResult> importVariableResults = new ArrayList<>((addVariables(variablesForImport.entrySet().stream()
-                .filter(entry -> !variablesToIgnore.contains(entry.getKey()))
-                .filter(entry -> variablesNames == null || variablesNames.contains(entry.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)), true)));
-        variablesToIgnore.stream()
-                .map(variableName -> ImportVariableResult.builder()
-                        .name(variableName)
-                        .value(variablesForImport.get(variableName))
-                        .status(ImportEntityStatus.IGNORED)
-                        .build())
-                .forEach(importVariableResults::add);
-        return ImportVariablesResult.builder()
-                .variables(importVariableResults)
-                .instructions(ignoreResult.importInstructionsExecutionResults())
-                .build();
+        return performVariableImport(variablesForImport, variablesNames);
     }
 
     private Map<String, String> importVariableZip(MultipartFile file) {
@@ -263,6 +275,52 @@ public class CommonVariablesService {
         }
 
         return variablesForImport;
+    }
+
+    private ImportVariablesResult performVariableImport(Map<String, String> variablesForImport, Set<String> variablesNames) {
+        PerformInstructionsResult ignoreResult = importInstructionsService.performVariableIgnoreInstructions(variablesForImport.keySet());
+        Set<String> variablesToIgnore = ignoreResult.variablesToIgnore();
+
+        List<ImportVariableResult> importVariableResults = new ArrayList<>((addVariables(variablesForImport.entrySet().stream()
+                .filter(entry -> !variablesToIgnore.contains(entry.getKey()))
+                .filter(entry -> variablesNames == null || variablesNames.contains(entry.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)), true)));
+        variablesToIgnore.stream()
+                .map(variableName -> ImportVariableResult.builder()
+                        .name(variableName)
+                        .value(variablesForImport.get(variableName))
+                        .status(ImportEntityStatus.IGNORED)
+                        .build())
+                .forEach(importVariableResults::add);
+        return ImportVariablesResult.builder()
+                .variables(importVariableResults)
+                .instructions(ignoreResult.importInstructionsExecutionResults())
+                .build();
+    }
+
+    public List<ImportVariablePreviewResult> importVariablePreviewResult(MultipartFile file) {
+        String fileExtension = FilenameUtils.getExtension(file.getOriginalFilename());
+        Map<String, String> newVariables;
+
+        if (YAML_EXTENSION.equalsIgnoreCase(fileExtension) || YML_EXTENSION.equalsIgnoreCase(fileExtension)) {
+            try {
+                newVariables = importVariablesFile(file.getBytes());
+            } catch (Exception e) {
+                log.error("Unable to convert file to preview variables {}", e.getMessage());
+                throw new RuntimeException("Unable to convert file to preview variables");
+            }
+
+        } else if (ZIP_EXTENSION.equalsIgnoreCase(fileExtension)) {
+            newVariables = importVariableZip(file);
+        } else {
+            throw new RuntimeException("Unsupported file extension: " + fileExtension);
+        }
+
+        Map<String, String> currentVariables = getVariables();
+        return newVariables.entrySet().stream()
+                .map(entry -> new ImportVariablePreviewResult(
+                        entry.getKey(), entry.getValue(), currentVariables.getOrDefault(entry.getKey(), "")))
+                .collect(Collectors.toList());
     }
 
     public List<ImportVariablePreview> importVariablePreview(MultipartFile file) {

@@ -193,3 +193,9 @@ camel:
 
 app:
   prefix: qip
+
+listeners: # settings for spring @EventListener's
+  RestoreVariablesListener:
+    call-retry:
+      max-attempts: 10
+      delay: 5000

@@ -28,7 +28,6 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.I
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsInternalException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsValidationException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.*;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.variables.CommonVariablesImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.variables.PerformInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
@@ -44,7 +43,6 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequ
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.DeleteInstructionsRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
 import org.qubership.integration.platform.runtime.catalog.service.*;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.CommonVariablesImportService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.qubership.integration.platform.runtime.catalog.service.filter.ImportInstructionFilterSpecificationBuilder;
 import org.qubership.integration.platform.runtime.catalog.validation.EntityValidator;
@@ -82,7 +80,6 @@ public class ImportInstructionsService {
     private final SystemService systemService;
     private final SpecificationGroupService specificationGroupService;
     private final SystemModelService systemModelService;
-    private final CommonVariablesImportService commonVariablesImportService;
     private final CommonVariablesInstructionsMapper commonVariablesInstructionsMapper;
     private final EntityValidator entityValidator;
     private final ActionsLogService actionsLogService;
@@ -100,7 +97,6 @@ public class ImportInstructionsService {
             SystemService systemService,
             SpecificationGroupService specificationGroupService,
             SystemModelService systemModelService,
-            CommonVariablesImportService commonVariablesImportService,
             CommonVariablesInstructionsMapper commonVariablesInstructionsMapper,
             EntityValidator entityValidator,
             ActionsLogService actionsLogService,
@@ -117,7 +113,6 @@ public class ImportInstructionsService {
         this.systemService = systemService;
         this.specificationGroupService = specificationGroupService;
         this.systemModelService = systemModelService;
-        this.commonVariablesImportService = commonVariablesImportService;
         this.commonVariablesInstructionsMapper = commonVariablesInstructionsMapper;
         this.entityValidator = entityValidator;
         this.actionsLogService = actionsLogService;
@@ -126,13 +121,8 @@ public class ImportInstructionsService {
     }
 
     public List<ImportInstruction> getAllImportInstructions() {
-        List<ImportInstruction> importInstructions = new ArrayList<>(getImportInstructions());
 
-        ImportInstructionsDTO variablesInstructionsDTO = commonVariablesImportService.getCommonVariablesImportInstructions();
-        if (variablesInstructionsDTO != null) {
-            importInstructions.addAll(commonVariablesInstructionsMapper.asEntities(variablesInstructionsDTO));
-        }
-        return importInstructions;
+        return new ArrayList<>(getImportInstructions());
     }
 
     public List<ImportInstruction> getChainImportInstructions(Collection<ImportInstructionAction> actions) {
@@ -232,10 +222,9 @@ public class ImportInstructionsService {
         importInstructionResults.addAll(performSpecificationDeleteInstructions(importInstructionsConfig));
         importInstructionResults.addAll(performSpecificationGroupDeleteInstructions(importInstructionsConfig));
         importInstructionResults.addAll(performServiceDeleteInstructions(importInstructionsConfig));
+        importInstructionResults.addAll(performVariableDeleteInstructions(importInstructionsConfig));
 
         List<ImportInstruction> savedImportInstructions = saveImportInstructions(importInstructionsConfig);
-        importInstructionResults.addAll(commonVariablesImportService
-                .uploadCommonVariablesImportInstructions(fileName, fileContent, labels));
 
         savedImportInstructions.forEach(importInstruction ->
                 logSingleInstructionAction(
@@ -467,7 +456,6 @@ public class ImportInstructionsService {
     private GeneralImportInstructionsConfig getAllImportInstructionsConfig() {
         GeneralImportInstructionsConfig importInstructionsConfig = generalInstructionsMapper
                 .asConfig(importInstructionsRepository.findAll());
-        importInstructionsConfig.setCommonVariables(commonVariablesImportService.getCommonVariablesImportInstructionsConfig());
         return importInstructionsConfig;
     }
 
@@ -658,7 +646,7 @@ public class ImportInstructionsService {
     }
 
     private List<ImportInstructionResult> performVariableDeleteInstructions(
-            CommonVariablesImportInstructionsConfig instructionsConfig
+            GeneralImportInstructionsConfig instructionsConfig
     ) {
         if (
                 Optional.ofNullable(instructionsConfig.getCommonVariables())

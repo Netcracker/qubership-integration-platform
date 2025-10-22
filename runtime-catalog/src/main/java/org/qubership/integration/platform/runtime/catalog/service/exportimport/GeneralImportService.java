@@ -37,6 +37,7 @@ import org.qubership.integration.platform.runtime.catalog.service.ActionsLogServ
 import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceRequest;
 import org.qubership.integration.platform.runtime.catalog.service.difference.EntityDifferenceResult;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
+import org.qubership.integration.platform.runtime.catalog.service.variables.CommonVariablesService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -45,10 +46,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -56,7 +54,7 @@ import java.util.concurrent.CompletionException;
 @Service
 public class GeneralImportService {
 
-    private final CommonVariablesImportService commonVariablesImportService;
+    private final CommonVariablesService commonVariablesService;
     private final SystemExportImportService systemExportImportService;
     private final ContextExportImportService contextExportImportService;
     private final ChainImportService chainImportService;
@@ -67,7 +65,7 @@ public class GeneralImportService {
 
     @Autowired
     public GeneralImportService(
-            CommonVariablesImportService commonVariablesImportService,
+            CommonVariablesService commonVariablesService,
             SystemExportImportService systemExportImportService,
             ContextExportImportService contextExportImportService, ChainImportService chainImportService,
             ImportSessionService importSessionService,
@@ -75,7 +73,7 @@ public class GeneralImportService {
             ImportInstructionsService importInstructionsService,
             GeneralInstructionsMapper generalInstructionsMapper
     ) {
-        this.commonVariablesImportService = commonVariablesImportService;
+        this.commonVariablesService = commonVariablesService;
         this.systemExportImportService = systemExportImportService;
         this.contextExportImportService = contextExportImportService;
         this.chainImportService = chainImportService;
@@ -106,7 +104,7 @@ public class GeneralImportService {
 
             GeneralImportInstructionsConfig instructionsConfig = generalInstructionsMapper.asConfig(importInstructions);
             return ImportPreviewResponse.builder()
-                    .variables(commonVariablesImportService.getCommonVariablesImportPreview(unpackedDirectory))
+                    .variables(commonVariablesService.importVariablePreviewResult(file))
                     .chains(chainImportService.getChainsImportPreview(unpackedDirectory, instructionsConfig.getChains()))
                     .systems(systemExportImportService.getSystemsImportPreview(unpackedDirectory, instructionsConfig.getServices()))
                     .contextService(contextExportImportService.getContextServiceImportPreview(unpackedDirectory, instructionsConfig.getContextServices()))
@@ -154,8 +152,8 @@ public class GeneralImportService {
                 );
             }
 
-            ImportVariablesResult variablesResult = commonVariablesImportService
-                    .importCommonVariables(unpackedDirectory, importRequest.getVariablesCommitRequest(), importId);
+            ImportVariablesResult variablesResult = commonVariablesService
+                    .importVariables(unpackedDirectory,  importRequest.getVariablesCommitRequest());
             ImportSystemsAndInstructionsResult importSystemsAndInstructionsResult = systemExportImportService
                     .importSystems(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId, technicalLabels);
             ImportContextServiceAndInstructionsResult importChainsAndContextInstructionsResult = contextExportImportService.importContextService(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId);

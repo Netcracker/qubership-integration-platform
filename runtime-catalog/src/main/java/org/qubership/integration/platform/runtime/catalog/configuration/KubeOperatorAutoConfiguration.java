@@ -158,7 +158,6 @@ public class KubeOperatorAutoConfiguration {
 
     @Bean
     @ConditionalOnExpression("${kubernetes.devmode:false} and ${kubernetes.localdev:false}")
-    @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "true")
     public KubeSecretOperator kubeOperatorLocalDev() {
         log.info("Creating KubernetesSecretOperator for local development mode");
         return new LocalDevKubeSecretOperator();
