@@ -67,4 +67,5 @@
             </doCatch>
         </doTry>
     </step>
+    <removeProperties pattern="abacParameters_*"/>
 </route>

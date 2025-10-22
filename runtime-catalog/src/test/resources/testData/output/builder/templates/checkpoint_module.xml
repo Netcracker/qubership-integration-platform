@@ -48,6 +48,7 @@
                 </doCatch>
             </doTry>
         </step>
+        <removeProperties pattern="abacParameters_*"/>
     </step>
     <step>
         <doTry>

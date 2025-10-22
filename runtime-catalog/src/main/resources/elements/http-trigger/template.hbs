@@ -100,10 +100,30 @@
         {{/if-property}}
 
         {{#if-property 'accessControlType' equals='ABAC'}}
-            {{#if-property 'abacResource' presented=''}}
-                <setProperty name="internalProperty_abacResource">
-                    <constant>{{escape (property 'abacResource')}}</constant>
-                </setProperty>
+            {{#if-property 'abacParameters' presented=''}}
+                {{#with-property 'abacParameters'}}
+                    <setProperty name='abacParameters_operation'>
+                        <simple>{{escape (property 'operation')}}</simple>
+                    </setProperty>
+                    <setProperty name='abacParameters_resourceType'>
+                        <simple>{{escape (property 'resourceType')}}</simple>
+                    </setProperty>
+                    <setProperty name='abacParameters_resourceDataType'>
+                        <simple>{{escape (property 'resourceDataType')}}</simple>
+                    </setProperty>
+                    {{#if-property 'resourceDataType' equals='String'}}
+                        <setProperty name='abacParameters_resourceString'>
+                            <simple>{{escape (property 'resourceString')}}</simple>
+                        </setProperty>
+                    {{/if-property}}
+                    {{#if-property 'resourceDataType' equals='Map'}}
+                        {{#each (property 'resourceMap' raw='')}}
+                            <setProperty name="abacParameters_resourceMap_{{escape @key}}">
+                                <simple>{{escape this}}</simple>
+                            </setProperty>
+                        {{/each}}
+                    {{/if-property}}
+                {{/with-property}}
             {{/if-property}}
             <policy ref="abacPolicy">
                 <step id="Validate Request--{{identifier}}">
@@ -145,3 +165,5 @@
     </doTry>
     {{> idempotency}}
 </step>
+
+<removeProperties pattern="abacParameters_*"/>

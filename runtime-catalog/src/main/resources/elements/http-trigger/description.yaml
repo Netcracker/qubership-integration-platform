@@ -89,10 +89,10 @@ properties:
         - RBAC
         - ABAC
         default: RBAC
-    -   name: abacResource
-        description: ABAC resource, usually the same as the trigger URI
-        title: Resource
-        type: string
+    -   name: abacParameters
+        description: ABAC parameters contains resourceType, resource, operation
+        title: Parameters
+        type: string # map<string, object>
     -   name: roles
         title: Roles
         description: Allowed user roles to access HTTP trigger
