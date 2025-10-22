@@ -140,6 +140,10 @@ kubernetes:
     label: ${app.prefix}-variable-type
 
 qip:
+  snapshots:
+    cleanup:
+      interval: ${SNAPSHOTS_CLEANUP_INTERVAL:14} # snapshots older than interval will be deleted
+      cron: ${SNAPSHOTS_CLEANUP_CRON:0 0 0 ? * SAT} # Cleanup task schedule in cron expression format
   actions-log:
     cleanup:
       interval: ${ACTION_LOG_CLEANUP_INTERVAL:14 days} # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
