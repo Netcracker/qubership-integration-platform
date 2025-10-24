@@ -41,10 +41,6 @@
         <apache.httpclient5.version>5.5</apache.httpclient5.version>
         <jandex.version>3.2.2</jandex.version>
 
-        <!-- Cloud-core dependencies -->
-
-        <maas-client.version>9.0.21</maas-client.version>
-
         <!-- Plugins -->
 
         <jacoco-plugin.version>0.8.11</jacoco-plugin.version>

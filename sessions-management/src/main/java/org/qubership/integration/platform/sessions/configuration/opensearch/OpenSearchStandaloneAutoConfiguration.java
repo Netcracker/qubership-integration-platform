@@ -30,14 +30,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearchConfiguration.TENANT_NATIVE_OPENSEARCH_CLIENT;
 
 @Configuration
 @EnableConfigurationProperties(OpenSearchProperties.class)
 @ConditionalOnProperty(name = "${qip.datasource.configuration.enabled}", havingValue = "false", matchIfMissing = true)
-public class OpenSearchDevelopmentAutoConfiguration {
+public class OpenSearchStandaloneAutoConfiguration {
 
+    @Primary
     @Bean(TENANT_NATIVE_OPENSEARCH_CLIENT)
     public DbaasOpensearchClient createOpenSearchClient(OpenSearchProperties properties) {
         ClientProperties clientProperties = properties.client();

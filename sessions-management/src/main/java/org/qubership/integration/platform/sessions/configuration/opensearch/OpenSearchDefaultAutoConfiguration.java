@@ -42,6 +42,7 @@ import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearc
 @ConditionalOnProperty(name = "${qip.datasource.configuration.enabled}", havingValue = "true", matchIfMissing = true)
 public class OpenSearchDefaultAutoConfiguration {
 
+    @Primary
     @Bean(TENANT_NATIVE_OPENSEARCH_CLIENT)
     public DbaasOpensearchClient opensearchClient(DatabasePool dbaasConnectionPool,
                                                   DbaasClassifierFactory classifierFactory,
