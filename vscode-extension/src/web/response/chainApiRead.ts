@@ -10,9 +10,7 @@ import {
 } from "@netcracker/qip-ui";
 import {
     Chain as ChainSchema,
-    Element as ElementSchema,
-    MapperParameters,
-    ScriptProperties
+    Element as ElementSchema
 } from "@netcracker/qip-schemas";
 import {Uri} from "vscode";
 import {
@@ -185,8 +183,8 @@ async function parseElement(fileUri: Uri, element: ElementSchema, chainId: strin
         }
     }
 
-    if ((element.properties as ScriptProperties | MapperParameters)?.propertiesToExportInSeparateFile) {
-        const elementProperties = element.properties as ScriptProperties | MapperParameters;
+    if ((element.properties as any)?.propertiesToExportInSeparateFile) {
+        const elementProperties = element.properties as any;
         if (elementProperties.exportFileExtension === 'json') {
             const propertyNames: string[] | undefined = elementProperties.propertiesToExportInSeparateFile?.split(',').map(function (item: string) {
                 return item.trim();

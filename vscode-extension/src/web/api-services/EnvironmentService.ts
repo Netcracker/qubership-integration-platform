@@ -5,6 +5,7 @@ import { fileApi } from "../response/file/fileApiProvider";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { SystemService } from "./SystemService";
 import { LabelUtils } from "./LabelUtils";
+import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
 
 export interface EnvironmentRequest {
     name: string;
@@ -59,6 +60,15 @@ export class EnvironmentService {
     async createEnvironment(request: EnvironmentRequest): Promise<Environment> {
         try {
 
+            // Get system protocol for default properties
+            const system = await this.systemService.getRawServiceById(request.systemId);
+            if (!system) {
+                throw new Error(`System not found: ${request.systemId}`);
+            }
+
+            const protocol = system.content?.protocol || '';
+            const defaultProperties = EnvironmentDefaultProperties.getDefaultProperties(protocol);
+
             const environment: Environment = {
                 id: crypto.randomUUID(),
                 name: request.name,
@@ -66,19 +76,13 @@ export class EnvironmentService {
                 description: request.description || '',
                 sourceType: 'MANUAL' as any,
                 systemId: request.systemId,
-                properties: {},
+                properties: defaultProperties,
                 labels: LabelUtils.toEntityLabels([]),
                 createdWhen: Date.now(),
                 createdBy: { ...EMPTY_USER},
                 modifiedWhen: Date.now(),
                 modifiedBy: { ...EMPTY_USER}
             };
-
-
-            const system = await this.systemService.getRawServiceById(request.systemId);
-            if (!system) {
-                throw new Error(`System not found: ${request.systemId}`);
-            }
 
 
             // Initialize environments array if it doesn't exist

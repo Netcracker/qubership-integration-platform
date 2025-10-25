@@ -28,7 +28,7 @@ import {
 } from "./chainApiUtils";
 import {Uri} from "vscode";
 import {fileApi} from "./file";
-import {Element as ElementSchema, ScriptProperties, MapperParameters, DataType, Chain as ChainSchema} from "@netcracker/qip-schemas";
+import {Element as ElementSchema, DataType, Chain as ChainSchema} from "@netcracker/qip-schemas";
 
 export async function updateChain(fileUri: Uri, chainId: string, chainRequest: Partial<Chain>): Promise<Chain> {
     const chain = await getMainChain(fileUri);
@@ -259,8 +259,8 @@ async function writeElementProperties(fileUri: Uri, element: ElementSchema): Pro
     }
 
     const elementType = element.type as unknown as string;
-    if ((element.properties as ScriptProperties | MapperParameters).propertiesToExportInSeparateFile) {
-        const elementProperties = element.properties as ScriptProperties | MapperParameters;
+    if ((element.properties as any)?.propertiesToExportInSeparateFile) {
+        const elementProperties = element.properties as any;
         const propertyNames: string[] | undefined = elementProperties.propertiesToExportInSeparateFile?.split(',').map(function (item: string) {
             return item.trim();
         });
