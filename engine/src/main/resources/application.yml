@@ -217,6 +217,11 @@ qip:
       password: ${OPENSEARCH_PASSWORD:}
       connection-timeout: ${OPENSEARCH_CONNECTION_TIMEOUT:5000}
       prefix: ${OPENSEARCH_PREFIX:}
+    kafka-client:
+      enabled: ${OPENSEARCH_KAFKA_ENABLED:false}
+      standalone: ${OPENSEARCH_KAFKA_ENABLED:false}
+      bootstrap-servers: ${OPENSEARCH_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+      topic: ${OPENSEARCH_KAFKA_TOPIC:elements}
     write:
       batch:
         count: 100

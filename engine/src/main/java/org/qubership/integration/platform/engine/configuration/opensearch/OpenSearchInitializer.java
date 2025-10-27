@@ -74,6 +74,8 @@ public class OpenSearchInitializer {
     @Value("${qip.opensearch.rollover.min_rollover_age_to_delete:14d}")
     private TimeValue minRolloverAgeToDelete;
 
+    @Value("${qip.opensearch.kafka-client.enabled:false}")
+    private boolean kafkaClientEnabled;
 
     private final Environment environment;
     private final ObjectMapper jsonMapper;
@@ -92,6 +94,10 @@ public class OpenSearchInitializer {
 
     @PostConstruct
     public void initialize() {
+        if (kafkaClientEnabled) {
+            log.info("Update opensearch template and indexes was skipped due to enabled kafka client");
+            return;
+        }
         log.info("Update opensearch template and indexes");
         updateTemplateAndIndexes(openSearchClientSupplier.getClient());
     }
@@ -175,7 +181,7 @@ public class OpenSearchInitializer {
             }
         }
     }
-    
+
     private void createRolloverIndex(OpenSearchClient client, String prefix, Map<String, Object> mapping) {
         String indexName = getFirstRolloverIndexName(prefix);
         log.info("Creating index {}.", indexName);
@@ -465,7 +471,7 @@ public class OpenSearchInitializer {
     private String getRolloverPolicyId(String prefix) {
         return prefix + "-rollover-policy";
     }
-    
+
     private String getFirstRolloverIndexName(String prefix) {
         return prefix + "-000001";
     }

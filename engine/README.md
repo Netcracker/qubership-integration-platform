@@ -65,7 +65,9 @@ Application parameters can be set by environment variables.
 | CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED | true                                                 | Enables predeploy check for Kafka elements.                                                                                  |
 | CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED  | true                                                 | Enables predeploy check for AMQP elements.                                                                                   |
 | RUNTIME_CATALOG_SERVICE_URL         | `http://runtime-catalog:8080`                        | Runtime Catalog Service URL.                                                                                                 |
-
+| OPENSEARCH_KAFKA_ENABLED            | false                                                | Enables writing session elements to kafka instead of Opensearch directly.                                                    |
+| OPENSEARCH_KAFKA_BOOTSTRAP_SERVERS  |                                                      | Kafka address for writing session elements.                                                                                  |
+| OPENSEARCH_KAFKA_TOPIC              | elements                                             | Kafka topic name for writing session elements.                                                                               |
 
 Configuration can be overridden with values stored in Consul.
 The ```config/${NAMESPACE}``` prefix is used.
@@ -80,6 +82,7 @@ It also requires:
 - OpenSearch
 - PostgreSQL
 - Redis (if idempotency support enabled).
+- Kafka (if kafka client enabled for sessions).
 
 ## Contribution
 
