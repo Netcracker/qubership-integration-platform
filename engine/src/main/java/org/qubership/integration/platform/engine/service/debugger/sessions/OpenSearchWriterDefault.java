@@ -31,7 +31,7 @@ import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupp
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
-@ConditionalOnMissingBean(type = "OpenSearchWriter")
+@ConditionalOnProperty(name = "qip.opensearch.kafka-client.enabled", havingValue = "false", matchIfMissing = true)
 public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnable {
 
     private final int queueMaxSizeBytes;
