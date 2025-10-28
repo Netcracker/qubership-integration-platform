@@ -163,7 +163,52 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:field": "patternPropertiesField",
     },
     integrationOperationAsyncProperties: {
-      "ui:field": "patternPropertiesField",
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "enhancedPatternPropertiesField",
+      "ui:title": "Operation Parameters",
+    },
+    integrationOperationPathParameters: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "enhancedPatternPropertiesField",
+      "ui:title": "Path Parameters",
+    },
+    integrationOperationQueryParameters: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "enhancedPatternPropertiesField",
+      "ui:title": "Query Parameters",
+    },
+    integrationAdditionalParameters: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "enhancedPatternPropertiesField",
+      "ui:title": "Additional Parameters",
+    },
+    bodyMimeType: {
+      "ui:field": "bodyMimeTypeField",
+    },
+    bodyFormData: {
+      "ui:widget": "hidden",
+    },
+    integrationGqlQuery: {
+      "ui:widget": "debouncedTextareaWidget",
+      "ui:options": {
+        rows: 10,
+      },
+    },
+    integrationGqlOperationName: {
+      "ui:title": "Operation Name",
+      "ui:placeholder": "Optional if query contains single operation",
+    },
+    integrationGqlVariablesJSON: {
+      "ui:widget": "debouncedTextareaWidget",
+      "ui:options": {
+        rows: 6,
+      },
+    },
+    integrationGqlQueryHeader: {
+      "ui:title": "Query Header",
+    },
+    integrationGqlVariablesHeader: {
+      "ui:title": "Variables Header",
     },
     idempotency: {
       keyExpiry: {
@@ -280,6 +325,16 @@ export const pathToTabMap: Record<string, string> = {
   "properties.systemType": "Endpoint",
   "properties.integrationOperationProtocolType": "Endpoint",
   "properties.integrationOperationAsyncProperties": "Endpoint",
+  "properties.integrationOperationPathParameters": "Endpoint",
+  "properties.integrationOperationQueryParameters": "Endpoint",
+  "properties.integrationAdditionalParameters": "Endpoint",
+  "properties.bodyMimeType": "Endpoint",
+  "properties.bodyFormData": "Endpoint",
+  "properties.integrationGqlQuery": "Endpoint",
+  "properties.integrationGqlOperationName": "Endpoint",
+  "properties.integrationGqlVariablesJSON": "Endpoint",
+  "properties.integrationGqlQueryHeader": "Endpoint",
+  "properties.integrationGqlVariablesHeader": "Endpoint",
   "properties.handleValidationAction": "Handle Validation Failure",
   "properties.handlerContainer": "Handle Validation Failure",
   "properties.handlerContainer.script": "Handle Validation Failure",

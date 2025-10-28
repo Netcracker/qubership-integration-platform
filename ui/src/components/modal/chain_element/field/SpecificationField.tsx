@@ -108,7 +108,6 @@ const SpecificationField: React.FC<
         integrationOperationId: null,
         integrationOperationPath: null,
         integrationOperationMethod: null,
-        integrationOperationProtocolType: null,
       };
 
       props.formContext!.updateContext(context);

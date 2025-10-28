@@ -6,6 +6,7 @@ import styles from "./ChainElementModification.module.css";
 import { Element, PatchElementRequest } from "../../../api/apiTypes.ts";
 import { useLibraryElement } from "../../../hooks/useLibraryElement.tsx";
 import Form from "@rjsf/antd";
+// @ts-expect-error - no types available for js-yaml
 import yaml from "js-yaml";
 import { useElement } from "../../../hooks/useElement.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
@@ -18,6 +19,8 @@ import type { JSONSchema7 } from "json-schema";
 import validator from "@rjsf/validator-ajv8";
 import StringAsMultipleSelectWidget from "./widget/StringAsMultipleSelectWidget.tsx";
 import CustomSelectWidget from "./widget/CustomSelectWidget.tsx";
+import { DebouncedTextareaWidget } from "./widget/DebouncedTextareaWidget.tsx";
+import { DebouncedTextWidget } from "./widget/DebouncedTextWidget.tsx";
 import OneOfAsSingleInputField from "./field/OneOfAsSingleInputField.tsx";
 import PatternPropertiesField from "./field/PatternPropertiesField.tsx";
 
@@ -36,6 +39,9 @@ import ServiceField from "./field/ServiceField.tsx";
 import SpecificationField from "./field/SpecificationField.tsx";
 import SystemOperationField from "./field/SystemOperationField.tsx";
 import { FormContext } from "antd/es/form/context";
+import CustomOneOfField from "./field/CustomOneOfField.tsx";
+import EnhancedPatternPropertiesField from "./field/EnhancedPatternPropertiesField.tsx";
+import BodyMimeTypeField from "./field/BodyMimeTypeField.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -84,6 +90,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   onSubmit,
   onClose,
 }) => {
+  console.log(`[ChainElementModification] Component RENDER for element: ${elementId}, type: ${node.data.elementType}`);
+  
   const { isLoading: libraryElementIsLoading, libraryElement } =
     useLibraryElement(node.data.elementType);
   const [isLoading, setIsLoading] = useState(false);
@@ -101,21 +109,23 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const [activeKey, setActiveKey] = useState<string>();
 
   useEffect(() => {
-    setFormData((prevFormData) => {
-      const newContextProperties = { ...formContext, updateContext: undefined };
-      return {
-        ...prevFormData,
-        properties: enrichProperties(
-          prevFormData.properties as Record<string, unknown>,
-          newContextProperties,
-        ),
-      };
-    });
-  }, [formContext]);
-
-  useEffect(() => {
     setTitle(constructTitle(`${node.data.label}`, libraryElement?.title));
   }, [libraryElement, node]);
+
+  const enrichProperties = useCallback((
+    targetProperties: Record<string, unknown>,
+    sourceProperties: Record<string, unknown>,
+  ): Record<string, unknown> => {
+    const result = { ...targetProperties };
+    Object.entries(sourceProperties).forEach(([key, value]) => {
+      if (value === undefined) {
+        delete result[key];
+      } else {
+        result[key] = value === null ? undefined : value;
+      }
+    });
+    return result;
+  }, []);
 
   const schemaModules = useMemo(
     () =>
@@ -140,6 +150,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     }
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const parsed = yaml.load(raw) as JSONSchema7;
       setSchema(parsed);
 
@@ -163,10 +174,19 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         integrationSpecificationId: formProperties.integrationSpecificationId,
         integrationOperationPath: formProperties.integrationOperationPath,
         integrationOperationMethod: formProperties.integrationOperationMethod,
+        bodyFormData: formProperties.bodyFormData,
         updateContext: (updatedProperties: Record<string, unknown>) => {
           setFormContext((prevContext) =>
             enrichProperties(prevContext, updatedProperties),
           );
+          
+          setFormData((prevFormData) => ({
+            ...prevFormData,
+            properties: enrichProperties(
+              prevFormData.properties as Record<string, unknown>,
+              updatedProperties,
+            ),
+          }));
         },
       });
     } catch (err) {
@@ -177,18 +197,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         err,
       );
     }
-  }, [node.data, node.id, notificationService, schemaModules]);
-
-  const enrichProperties = (
-    targetProperties: Record<string, unknown>,
-    sourceProperties: Record<string, unknown>,
-  ): Record<string, unknown> => {
-    const result = { ...targetProperties };
-    Object.entries(sourceProperties).forEach(([key, value]) => {
-      result[key] = value === null ? undefined : value;
-    });
-    return result;
-  };
+  }, [node.data, node.id, notificationService, schemaModules, enrichProperties]);
 
   const handleClose = useCallback(() => {
     closeContainingModal();
@@ -296,6 +305,26 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     }
   }, [uniqueTabs, activeKey]);
 
+  useEffect(() => {
+    setFormData((prevFormData) => {
+      const newContextProperties = { ...formContext, updateContext: undefined };
+      const enrichedProps = enrichProperties(
+        prevFormData.properties as Record<string, unknown>,
+        newContextProperties,
+      );
+      
+      // Only update if properties actually changed
+      if (JSON.stringify(enrichedProps) === JSON.stringify(prevFormData.properties)) {
+        return prevFormData;
+      }
+      
+      return {
+        ...prevFormData,
+        properties: enrichedProps,
+      };
+    });
+  }, [formContext, enrichProperties]);
+
   const applyHiddenUiSchema = useCallback((target: UiSchema, hidden: UiSchema) => {
     for (const key in hidden) {
       if (
@@ -362,12 +391,13 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             (v) => v.join(".") === fullPath.join("."),
           );
 
-          if (
-            (schema.properties[key].type === "object" && isVisible) ||
-            key === "properties"
-          ) {
+          const subSchema = schema.properties[key];
+          const isObjectSchema = typeof subSchema === 'object' && 
+                                 'type' in subSchema && subSchema.type === "object";
+
+          if ((isObjectSchema && isVisible) || key === "properties") {
             buildHiddenUiSchema(
-              schema.properties[key] as JSONSchema7,
+              subSchema as JSONSchema7,
               currentPath,
             );
           } else if (!isVisible) {
@@ -387,6 +417,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const widgets: RegistryWidgetsType = {
     stringAsMultipleSelectWidget: StringAsMultipleSelectWidget,
     customSelectWidget: CustomSelectWidget,
+    debouncedTextareaWidget: DebouncedTextareaWidget,
+    TextWidget: DebouncedTextWidget,
+    textarea: DebouncedTextareaWidget,
   };
 
   const uiSchemaForTab = useCallback((initialUiSchema: UiSchema, activeKey?: string) => {
@@ -402,10 +435,13 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       props["httpMethodRestrict"] = { "ui:widget": "hidden" };
     }
 
-     if (activeKey && (activeKey !== "Endpoint" || node.data.elementType === "service-call")) {
-      console.log(`activeKey = ${activeKey}`);
+     if (activeKey && activeKey !== "Endpoint") {
       props["ui:fieldReplacesAnyOrOneOf"] = true;
       props["ui:field"] = "hidden";
+    } else if (activeKey === "Endpoint" && node.data.elementType === "service-call") {
+      props["ui:fieldReplacesAnyOrOneOf"] = true;
+      // eslint-disable-next-line react/prop-types
+      delete props["ui:field"];
     } else {
       // eslint-disable-next-line react/prop-types
       delete props["ui:fieldReplacesAnyOrOneOf"];
@@ -422,7 +458,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     if (!schema) return [];
 
     const baseUi: UiSchema = uiSchemaForTab(INITIAL_UI_SCHEMA, activeKey);
-
     return buildUiSchemaForTab(tabFields, activeKey ?? "", schema, baseUi);
   }, [tabFields, activeKey, schema, uiSchemaForTab, buildUiSchemaForTab]);
 
@@ -471,7 +506,15 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             formData={formData}
             validator={validator}
             uiSchema={uiSchema}
-            liveValidate={true}
+            transformErrors={(errors) => {
+              // Suppress oneOf error when protocol is grpc (no matching oneOf branch by design)
+              const proto = formContext?.integrationOperationProtocolType;
+              if (proto === 'grpc') {
+                return errors.filter((e) => e.name !== 'oneOf');
+              }
+              return errors;
+            }}
+            liveValidate={false}
             experimental_defaultFormStateBehavior={{
               allOf: "populateDefaults",
               mergeDefaultsIntoFormData: "useFormDataIfPresent",
@@ -484,16 +527,20 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               ErrorListTemplate,
             }}
             fields={{
+              OneOfField: CustomOneOfField,
               oneOfAsSingleInputField: OneOfAsSingleInputField,
               anyOfAsSingleSelectField: AnyOfAsSingleSelectField,
               patternPropertiesField: PatternPropertiesField,
+              enhancedPatternPropertiesField: EnhancedPatternPropertiesField,
               mappingField: MappingField,
+              // @ts-expect-error - CustomArrayField has incompatible prop types
               customArrayField: CustomArrayField,
               scriptField: ScriptField,
               jsonField: JsonField,
               serviceField: ServiceField,
               specificationField: SpecificationField,
               systemOperationField: SystemOperationField,
+              bodyMimeTypeField: BodyMimeTypeField,
             }}
             widgets={widgets}
             onChange={(e) => {

@@ -1,0 +1,113 @@
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.leftHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.iconWrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: #e6eef8;
+  color: #0b66ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.noEntries {
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.th {
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+  padding: 8px 4px;
+  font-weight: 500;
+}
+
+.td {
+  border-bottom: 1px solid #eee;
+  padding: 4px;
+}
+
+.requiredRow {
+  background-color: #fff7e6;
+}
+
+.nameCell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.paramName {
+  font-weight: 500;
+}
+
+.labels {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.overriddenTag {
+  font-size: 10px;
+  padding: 0 4px;
+  height: 16px;
+  line-height: 14px;
+  background-color: #fff7e6;
+  border: 1px solid #ffa940;
+  color: #d46b08;
+  margin: 0;
+}
+
+.deprecatedTag {
+  font-size: 10px;
+  padding: 0 4px;
+  height: 16px;
+  line-height: 14px;
+  background-color: #fff1f0;
+  border: 1px solid #ff7875;
+  color: #cf1322;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.deleteBtn {
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+}
+
+.restoreBtn {
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+}
+

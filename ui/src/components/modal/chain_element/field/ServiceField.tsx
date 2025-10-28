@@ -64,13 +64,29 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
     (newValue: string) => {
       setServiceId(newValue);
       const newService: IntegrationSystem = servicesMap.get(newValue)!;
+      const protocol = (typeof newService?.protocol === 'string' && newService.protocol.trim()) ? newService.protocol.toLowerCase() : 'http';
+      
+      const isAsync = protocol === 'kafka' || protocol === 'amqp';
+      const isHttp = protocol === 'http' || protocol === 'soap';
 
       formContext?.updateContext({
         integrationSystemId: newValue,
         systemType: newService.type.toString(),
+        integrationOperationProtocolType: protocol,
         integrationSpecificationGroupId: null,
         integrationSpecificationId: null,
         integrationOperationId: null,
+        integrationOperationPath: null,
+        integrationOperationMethod: null,
+        integrationOperationPathParameters: isHttp ? {} : undefined,
+        integrationOperationQueryParameters: isHttp ? {} : undefined,
+        integrationAdditionalParameters: isHttp ? {} : undefined,
+        integrationOperationAsyncProperties: isAsync ? {} : undefined,
+        integrationGqlQuery: undefined,
+        integrationGqlOperationName: undefined,
+        integrationGqlVariablesJSON: undefined,
+        integrationGqlQueryHeader: undefined,
+        integrationGqlVariablesHeader: undefined,
       });
     },
     [formContext, servicesMap],

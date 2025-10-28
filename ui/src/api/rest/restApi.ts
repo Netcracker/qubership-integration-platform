@@ -1144,7 +1144,7 @@ export class RestApi implements Api {
 
   getOperationInfo = async (operationId: string): Promise<OperationInfo> => {
     const response = await this.instance.get<OperationInfo>(
-      `/api/v1/${getAppName()}/systems-catalog/operations/${operationId}/info`,
+      `/api/v1/${getAppName()}/systems-catalog/operations/${encodeURIComponent(operationId)}/info`,
     );
     return response.data;
   };

@@ -75,12 +75,34 @@ const SystemOperationField: React.FC<
       const operation: SystemOperation = operationsMap.get(newValue)!;
       const systemId = formContext?.integrationSystemId;
 
-      const apply = (proto?: string) => {
+      const apply = async (proto?: string) => {
+        const protocolType = (typeof proto === 'string' && proto.trim()) ? proto.toLowerCase() : 'http';
+        
+        // Initialize query parameters from specification (for HTTP/SOAP)
+        let queryParams = {};
+        if (protocolType === 'http' || protocolType === 'soap') {
+          try {
+            const opInfo = await api.getOperationInfo(newValue);
+            if (opInfo.specification?.parameters) {
+              const queryParamNames = opInfo.specification.parameters
+                .filter((p: any) => p.in === 'query')
+                .map((p: any) => p.name);
+              
+              queryParamNames.forEach((name: string) => {
+                queryParams[name] = '';
+              });
+            }
+          } catch (error) {
+            console.error('Failed to load operation specification for query params:', error);
+          }
+        }
+        
         formContext?.updateContext({
           integrationOperationId: newValue,
           integrationOperationPath: operation.path,
           integrationOperationMethod: operation.method,
-          integrationOperationProtocolType: (typeof proto === 'string' && proto.trim()) ? proto.toLowerCase() : 'http',
+          integrationOperationProtocolType: protocolType,
+          integrationOperationQueryParameters: Object.keys(queryParams).length > 0 ? queryParams : undefined,
         });
       };
 
@@ -89,7 +111,7 @@ const SystemOperationField: React.FC<
           .then(s => apply(typeof s?.protocol === 'string' ? s.protocol : undefined))
           .catch(() => apply(undefined));
       } else {
-        apply(undefined);
+        void apply(undefined);
       }
     },
     [formContext, operationsMap],
