@@ -39,7 +39,7 @@ import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearc
 @EnableConfigurationProperties(OpenSearchProperties.class)
 @ConditionalOnProperty(name = "${qip.datasource.configuration.enabled}", havingValue = "false", matchIfMissing = true)
 @Slf4j
-public class OpenSearchStandaloneAutoConfiguration {
+public class OpenSearchStandaloneConfiguration {
 
     @Primary
     @Bean(TENANT_NATIVE_OPENSEARCH_CLIENT)
