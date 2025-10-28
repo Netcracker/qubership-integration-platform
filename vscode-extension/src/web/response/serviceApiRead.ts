@@ -12,7 +12,6 @@ const vscode = require('vscode');
 
 export async function getCurrentServiceId(serviceFileUri: Uri): Promise<string> {
     const service: any = await getMainService(serviceFileUri);
-    console.log('getCurrentServiceId', service.id);
     return service.id;
 }
 
@@ -58,10 +57,18 @@ export async function getService(serviceFileUri: Uri, serviceId: string): Promis
 }
 
 export async function getEnvironments(serviceFileUri: Uri, serviceId: string): Promise<Environment[]> {
-    const service: any = await getMainService(serviceFileUri);
+    let actualServiceFileUri = serviceFileUri;
+    let service: any = await getMainService(serviceFileUri);
+
     if (service.id !== serviceId) {
-        console.error(`ServiceId mismatch`);
-        throw Error("ServiceId mismatch");
+        const ext = getExtensionsForUri(serviceFileUri);
+        actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+        service = await getMainService(actualServiceFileUri);
+
+        if (service.id !== serviceId) {
+            console.error(`ServiceId mismatch: expected "${serviceId}", got "${service.id}"`);
+            throw Error("ServiceId mismatch");
+        }
     }
 
     return parseEnvironments(service.content?.environments || []);
@@ -140,8 +147,19 @@ export async function getApiSpecifications(currentFile: Uri, serviceId: string):
 }
 
 export async function getSpecificationModel(serviceFileUri: Uri, serviceId: string, groupId: string): Promise<Specification[]> {
-    const specFiles = await fileApi.getSpecificationFiles(serviceFileUri);
-    const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
+    let actualServiceFileUri = serviceFileUri;
+    const ext = getExtensionsForUri(serviceFileUri);
+
+    if (!serviceFileUri.path.endsWith(ext.service)) {
+        try {
+            actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+        } catch (e) {
+            console.warn(`Could not find service file for ${serviceId}, using original URI`);
+        }
+    }
+
+    const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
+    const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, '..');
     const result: Specification[] = [];
 
     for (const fileName of specFiles) {
@@ -186,9 +204,21 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
 
 export async function getOperations(serviceFileUri: Uri, modelId: string): Promise<SystemOperation[]> {
     const ext = getExtensionsForUri(serviceFileUri);
-    if (serviceFileUri.path.endsWith(ext.service)) {
-        const specFiles = await fileApi.getSpecificationFiles(serviceFileUri);
-        const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
+    let actualServiceFileUri = serviceFileUri;
+
+    const parts = modelId.split('-');
+    if (parts.length >= 5 && !serviceFileUri.path.endsWith(ext.service)) {
+        const serviceId = parts.slice(0, 5).join('-');
+        try {
+            actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+        } catch (e) {
+            console.warn(`Could not find service file for ${serviceId}, using original URI`);
+        }
+    }
+
+    if (actualServiceFileUri.path.endsWith(ext.service)) {
+        const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
+        const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, '..');
 
         for (const fileName of specFiles) {
             try {
@@ -217,8 +247,25 @@ export async function getOperations(serviceFileUri: Uri, modelId: string): Promi
 }
 
 export async function getOperationInfo(serviceFileUri: Uri, operationId: string): Promise<OperationInfo> {
-    const specFiles = await fileApi.getSpecificationFiles(serviceFileUri);
-    const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
+    let actualServiceFileUri = serviceFileUri;
+
+    const parts = operationId.split('-');
+    if (parts.length >= 5) {
+        const serviceId = parts.slice(0, 5).join('-');
+        const service: any = await getMainService(serviceFileUri);
+
+        if (service.id !== serviceId) {
+            const ext = getExtensionsForUri(serviceFileUri);
+            try {
+                actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+            } catch (e) {
+                console.warn(`Could not find service file for ${serviceId}, using original URI`);
+            }
+        }
+    }
+
+    const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
+    const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, '..');
 
     for (const fileName of specFiles) {
         try {
@@ -226,7 +273,9 @@ export async function getOperationInfo(serviceFileUri: Uri, operationId: string)
             const parsed = await ContentParser.parseContentFromFile(fileUri);
 
             if (parsed && parsed.content && parsed.content.operations) {
-                const operation = parsed.content.operations.find((op: any) => op.id === operationId);
+                const operation = parsed.content.operations.find((op: any) => {
+                    return op.id === operationId || operationId.endsWith(`-${op.id}`);
+                });
                 if (operation) {
                     return {
                         id: operation.id,

@@ -46,6 +46,40 @@ export class ServiceNormalizer {
             if (!service.content.environments) service.content.environments = [];
             if (!service.content.labels) service.content.labels = [];
             if (!service.content.migrations) service.content.migrations = [];
+
+            // Normalize environments
+            if (service.content.environments && Array.isArray(service.content.environments)) {
+                service.content.environments = service.content.environments.map((env: any) => {
+                    if (!env.properties) {
+                        env.properties = {};
+                    }
+                    if (!env.labels) {
+                        env.labels = [];
+                    }
+                    if (env.sourceType === undefined) {
+                        env.sourceType = "MANUAL";
+                    }
+                    if (env.description === undefined) {
+                        env.description = "";
+                    }
+                    if (env.address === undefined) {
+                        env.address = "";
+                    }
+                    if (!env.createdBy) {
+                        env.createdBy = { ...EMPTY_USER };
+                    }
+                    if (!env.modifiedBy) {
+                        env.modifiedBy = { ...EMPTY_USER };
+                    }
+                    if (!env.createdWhen) {
+                        env.createdWhen = now;
+                    }
+                    if (!env.modifiedWhen) {
+                        env.modifiedWhen = now;
+                    }
+                    return env;
+                });
+            }
         }
 
         return service;
