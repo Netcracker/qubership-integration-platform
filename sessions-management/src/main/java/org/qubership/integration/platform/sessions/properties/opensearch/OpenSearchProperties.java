@@ -23,7 +23,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties(prefix = PropertiesConstants.PROPERTIES_ROOT + ".opensearch")
 public record OpenSearchProperties(
-    @DefaultValue("false") String standalone,
     @DefaultValue ClientProperties client,
     @DefaultValue SessionProperties session,
     @DefaultValue IndexProperties index

@@ -40,7 +40,7 @@ import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearc
 
 @AutoConfiguration
 @EnableTenantDbaasOpensearch
-@ConditionalOnProperty(name = "qip.opensearch.standalone", havingValue = "false")
+@ConditionalOnProperty(name = "qip.standalone", havingValue = "false")
 @Slf4j
 public class OpenSearchDefaultAutoConfiguration {
 
