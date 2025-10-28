@@ -77,15 +77,13 @@ info:
     name: ${cloud.microservice.name}
 
 qip:
-  datasource:
-    configuration:
-      enabled: false
   sessions:
     bulk-request:
       max-size-kb: ${SESSIONS_BULK_REQUEST_MAX_SIZE_KB:4096}
       payload-size-threshold-kb: ${qip.sessions.bulk-request.max-size-kb}
       elements-count-threshold: ${SESSIONS_BULK_REQUEST_ELEMENTS_COUNT_THRESHOLD:5}
   opensearch:
+    standalone: true
     client:
       host: ${OPENSEARCH_HOST:opensearch}
       port: ${OPENSEARCH_PORT:9200}

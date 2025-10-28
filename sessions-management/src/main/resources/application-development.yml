@@ -16,10 +16,6 @@ spring:
           enabled: false
         acl-token: ${CONSUL_ADMIN_TOKEN}
 
-datasource:
-  configuration:
-    enabled: false
-
 qip:
   internal-services:
     designtime-catalog: qip-design-time-catalog

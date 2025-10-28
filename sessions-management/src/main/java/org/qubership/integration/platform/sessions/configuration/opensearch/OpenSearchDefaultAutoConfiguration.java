@@ -28,9 +28,9 @@ import com.netcracker.cloud.dbaas.client.opensearch.config.OpensearchConfig;
 import com.netcracker.cloud.dbaas.client.opensearch.entity.OpensearchDatabaseSettings;
 import com.netcracker.cloud.dbaas.client.opensearch.entity.OpensearchProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 import java.util.Collections;
@@ -38,11 +38,11 @@ import java.util.Collections;
 import static com.netcracker.cloud.dbaas.client.DbaasConst.LOGICAL_DB_NAME;
 import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearchConfiguration.TENANT_NATIVE_OPENSEARCH_CLIENT;
 
-@Configuration
+@AutoConfiguration
 @EnableTenantDbaasOpensearch
-@ConditionalOnProperty(name = "${qip.datasource.configuration.enabled}", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "qip.opensearch.standalone", havingValue = "false")
 @Slf4j
-public class OpenSearchDefaultConfiguration {
+public class OpenSearchDefaultAutoConfiguration {
 
     @Primary
     @Bean(TENANT_NATIVE_OPENSEARCH_CLIENT)

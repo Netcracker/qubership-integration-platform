@@ -27,19 +27,19 @@ import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.transport.httpclient5.ApacheHttpClient5TransportBuilder;
 import org.qubership.integration.platform.sessions.properties.opensearch.ClientProperties;
 import org.qubership.integration.platform.sessions.properties.opensearch.OpenSearchProperties;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearchConfiguration.TENANT_NATIVE_OPENSEARCH_CLIENT;
 
-@Configuration
+@AutoConfiguration
 @EnableConfigurationProperties(OpenSearchProperties.class)
-@ConditionalOnProperty(name = "${qip.datasource.configuration.enabled}", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "qip.opensearch.standalone", havingValue = "true")
 @Slf4j
-public class OpenSearchStandaloneConfiguration {
+public class OpenSearchStandaloneAutoConfiguration {
 
     @Primary
     @Bean(TENANT_NATIVE_OPENSEARCH_CLIENT)
