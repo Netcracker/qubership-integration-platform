@@ -27,9 +27,10 @@ import com.netcracker.cloud.dbaas.client.opensearch.config.EnableTenantDbaasOpen
 import com.netcracker.cloud.dbaas.client.opensearch.config.OpensearchConfig;
 import com.netcracker.cloud.dbaas.client.opensearch.entity.OpensearchDatabaseSettings;
 import com.netcracker.cloud.dbaas.client.opensearch.entity.OpensearchProperties;
-import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.sessions.properties.opensearch.OpenSearchProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
@@ -40,8 +41,8 @@ import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearc
 
 @AutoConfiguration
 @EnableTenantDbaasOpensearch
+@EnableConfigurationProperties(OpenSearchProperties.class)
 @ConditionalOnProperty(name = "qip.standalone", havingValue = "false")
-@Slf4j
 public class OpenSearchDefaultAutoConfiguration {
 
     @Primary
@@ -54,16 +55,8 @@ public class OpenSearchDefaultAutoConfiguration {
                 .userRole(opensearchProperties.getRuntimeUserRole())
                 .databaseSettings(dbSettings);
         OpensearchConfig opensearchConfig = new OpensearchConfig(opensearchProperties, opensearchProperties.getTenant().getDelimiter());
-        log.info("DbaaS opensearch client initialization...");
         return new DbaasOpensearchClientImpl(dbaasConnectionPool,
                 classifierFactory.newTenantClassifierBuilder().withCustomKey(LOGICAL_DB_NAME, "sessions"), databaseConfigBuilder, opensearchConfig);
-    }
-
-    private DatabaseSettings getDatabaseSettings() {
-        OpensearchDatabaseSettings opensearchDatabaseSettings = new OpensearchDatabaseSettings();
-        opensearchDatabaseSettings.setResourcePrefix(true);
-        opensearchDatabaseSettings.setCreateOnly(Collections.singletonList("user"));
-        return opensearchDatabaseSettings;
     }
 
     /**
@@ -77,5 +70,12 @@ public class OpenSearchDefaultAutoConfiguration {
     @Primary
     public MSInfoProvider fakeMicroserviceMSInfoProvider() {
         return new FakeMicroserviceMSInfoProvider();
+    }
+
+    private DatabaseSettings getDatabaseSettings() {
+        OpensearchDatabaseSettings opensearchDatabaseSettings = new OpensearchDatabaseSettings();
+        opensearchDatabaseSettings.setResourcePrefix(true);
+        opensearchDatabaseSettings.setCreateOnly(Collections.singletonList("user"));
+        return opensearchDatabaseSettings;
     }
 }
