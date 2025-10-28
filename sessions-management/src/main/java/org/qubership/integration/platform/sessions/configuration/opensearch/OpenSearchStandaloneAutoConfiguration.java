@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.sessions.configuration.opensearch;
 
 import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.Credentials;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
@@ -37,6 +38,7 @@ import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearc
 @Configuration
 @EnableConfigurationProperties(OpenSearchProperties.class)
 @ConditionalOnProperty(name = "${qip.datasource.configuration.enabled}", havingValue = "false", matchIfMissing = true)
+@Slf4j
 public class OpenSearchStandaloneAutoConfiguration {
 
     @Primary
@@ -51,6 +53,7 @@ public class OpenSearchStandaloneAutoConfiguration {
                 .builder(new HttpHost(clientProperties.protocol(), clientProperties.host(), clientProperties.port()))
                 .setHttpClientConfigCallback(httpClientBuilder ->
                         httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider));
+        log.info("Standalone opensearch client initialization...");
         return new DevDbaasOpensearchClient(new OpenSearchClient(builder.build()));
     }
 }
