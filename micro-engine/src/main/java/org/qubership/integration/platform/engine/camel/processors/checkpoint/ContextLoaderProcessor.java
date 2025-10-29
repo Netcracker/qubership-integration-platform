@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import groovy.xml.slurpersupport.GPathResult;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
@@ -134,26 +135,46 @@ public class ContextLoaderProcessor implements Processor {
         }
     }
 
-    void deserializeProperties(Checkpoint checkpoint, Map<String, Object> result) throws IOException {
-
+    void deserializeProperties(Checkpoint checkpoint, Map<String, Object> result) {
         for (Property property : checkpoint.getProperties()) {
-            byte[] value = property.getValue() == null ? property.getDeprecatedValue() : property.getValue();
-            try {
-                Class<?> clazz = Class.forName(property.getType());
-                if (Serializable.class.isAssignableFrom(clazz)) {
-                    result.put(property.getName(), deserializeWithMetadata(value));
-                } else {
-                    result.put(property.getName(), checkpointMapper.readValue(value, clazz));
-                }
-            } catch (ClassNotFoundException e) {
-                try {
-                    result.put(property.getName(), checkpointMapper.readValue(value, new TypeReference<>() {
-                    }));
-                } catch (Exception exception) {
-                    //WA for properties without type after migration
-                    result.put(property.getName(), new String(value));
-                }
+            byte[] value = property.getValue() != null
+                    ? property.getValue()
+                    : property.getDeprecatedValue();
+
+            Object deserialized = deserializeProperty(property, value);
+            result.put(property.getName(), deserialized);
+        }
+    }
+
+    private Object deserializeProperty(Property property, byte[] value) {
+        try {
+            Class<?> clazz = Class.forName(property.getType());
+
+            if (GPathResult.class.isAssignableFrom(clazz)) {
+                String xml = new String(value, StandardCharsets.UTF_8);
+                return new groovy.xml.XmlSlurper().parseText(xml);
             }
+
+            if (Serializable.class.isAssignableFrom(clazz)) {
+                return deserializeWithMetadata(value);
+            }
+
+            return checkpointMapper.readValue(value, clazz);
+
+        } catch (ClassNotFoundException e) {
+            return safeDeserializeWithoutType(value);
+        } catch (Exception e) {
+            //WA for properties without type after migration
+            return new String(value, StandardCharsets.UTF_8);
+        }
+    }
+
+    private Object safeDeserializeWithoutType(byte[] value) {
+        try {
+            return checkpointMapper.readValue(value, new TypeReference<>() {
+            });
+        } catch (Exception e) {
+            return new String(value, StandardCharsets.UTF_8);
         }
     }
 

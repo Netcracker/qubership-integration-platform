@@ -18,6 +18,9 @@ package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import groovy.lang.GroovyObject;
+import groovy.lang.GroovyRuntimeException;
+import groovy.xml.XmlUtil;
+import groovy.xml.slurpersupport.GPathResult;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
@@ -71,7 +74,7 @@ public class ContextSaverProcessor implements Processor {
 
             Checkpoint checkpoint = Checkpoint.builder()
                     .checkpointElementId(exchange.getProperty(
-                        CamelConstants.Properties.CHECKPOINT_ELEMENT_ID, String.class))
+                            CamelConstants.Properties.CHECKPOINT_ELEMENT_ID, String.class))
                     .headers(checkpointMapper.writeValueAsString(
                             ExchangeUtils.filterExchangeMap(
                                     exchange.getMessage().getHeaders(),
@@ -87,7 +90,7 @@ public class ContextSaverProcessor implements Processor {
             // dump propagation and tracing context
             if (contextOperations.isPresent()) {
                 checkpoint.setContextData(checkpointMapper.writeValueAsString(
-                    contextOperations.get().getSerializableContextData()));
+                        contextOperations.get().getSerializableContextData()));
             }
 
             checkpointSessionService.saveAndAssignCheckpoint(
@@ -110,14 +113,27 @@ public class ContextSaverProcessor implements Processor {
     }
 
     byte[] serializeProperty(Class<?> propertyClass, Object property) {
-        if (Serializable.class.isAssignableFrom(propertyClass) && !GroovyObject.class.isAssignableFrom(propertyClass)) {
-            try {
-                return serializeWithIOLibrary(property);
-            } catch (Exception e) {
-                //when receive Serializable object, but it contains non-Serializable fields/objects inside;
-                return serializeWithObjectMapper(property);
+        try {
+            if (GPathResult.class.isAssignableFrom(propertyClass)) {
+                GPathResult gpath = (GPathResult) property;
+                //groovy.xml.slurpersupport.NodeChild class serialization. XmlUtil.serialize() correctly serialize only NodeChild
+                String xml = XmlUtil.serialize(gpath.text());
+                return xml.getBytes(StandardCharsets.UTF_8);
             }
+
+            if (Serializable.class.isAssignableFrom(propertyClass) && !GroovyObject.class.isAssignableFrom(propertyClass)) {
+
+                return serializeWithIOLibrary(property);
+            }
+        } catch (GroovyRuntimeException groovyRuntimeException) {
+            //WA for put all classes that inherit groovy.xml.slurpersupport.GPathResult
+            GPathResult gpath = (GPathResult) property;
+            return ("<value>" + XmlUtil.escapeXml(gpath.text()) + "</value>").getBytes(StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            //when receive Serializable object, but it contains non-Serializable fields/objects inside;
+            return serializeWithObjectMapper(property);
         }
+
         return serializeWithObjectMapper(property);
     }
 
