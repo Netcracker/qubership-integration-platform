@@ -438,7 +438,9 @@ public class OpenSearchWriter implements Runnable {
     }
 
     private long calculateElementSize(String s) {
-        if (s == null) return 0;
+        if (s == null) {
+            return 0;
+        }
 
         int bytesPerChar = 2;
 
