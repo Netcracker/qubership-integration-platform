@@ -13,6 +13,7 @@ properties:
       - $ref: "http://qubership.org/schemas/product/qip/common-properties/entity-audit-properties.schema.yaml"
       - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
       - $ref: "http://qubership.org/schemas/product/qip/common-properties/migrations-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/folder-property.schema.yaml"
     properties:
       businessDescription:
         type: string
