@@ -66,7 +66,7 @@ const EnhancedPatternPropertiesField: React.FC<FieldProps<Record<string, string>
 }) => {
   const [specParameters, setSpecParameters] = useState<ParameterMetadata[]>([]);
   const [envParameters, setEnvParameters] = useState<Map<string, string>>(new Map());
-  const [isMaasEnvironment, setIsMaasEnvironment] = useState(false);
+  const [isMaasEnvironment, setIsMaasEnvironment] = useState<any>(null);
   const [loadedSpec, setLoadedSpec] = useState<any>(null);
   const [autoFilledOperationId, setAutoFilledOperationId] = useState<string | null>(null);
 
@@ -137,6 +137,15 @@ const EnhancedPatternPropertiesField: React.FC<FieldProps<Record<string, string>
       } else {
         setEnvParameters(new Map());
       }
+
+      const updatedFormData = { ...formData };
+      if (isMaas && 'topic' in updatedFormData) {
+        delete updatedFormData['topic'];
+        onChange(updatedFormData);
+      } else if (!isMaas && 'maas.classifier.name' in updatedFormData) {
+        delete updatedFormData['maas.classifier.name'];
+        onChange(updatedFormData);
+      }
     } catch (error) {
       console.error('[EnhancedPatternPropertiesField] Failed to load environment parameters:', error);
       setEnvParameters(new Map());
@@ -165,7 +174,7 @@ const EnhancedPatternPropertiesField: React.FC<FieldProps<Record<string, string>
     const protocolType = formContext?.integrationOperationProtocolType;
     const updates: Record<string, string> = {};
 
-    if (protocolType === 'kafka' && !formData['topic']) {
+    if (protocolType === 'kafka' && !formData['topic'] && isMaasEnvironment == false) {
       const topicValue = loadedSpec.topic || loadedSpec.channel;
       if (topicValue) {
         updates['topic'] = topicValue;
@@ -183,7 +192,7 @@ const EnhancedPatternPropertiesField: React.FC<FieldProps<Record<string, string>
       }
     }
 
-    if ((protocolType === 'kafka' || protocolType === 'amqp') && loadedSpec.maasClassifierName && !formData['maas.classifier.name']) {
+    if ((protocolType === 'kafka' || protocolType === 'amqp') && loadedSpec.maasClassifierName && !formData['maas.classifier.name'] && isMaasEnvironment) {
       updates['maas.classifier.name'] = loadedSpec.maasClassifierName;
     }
 
