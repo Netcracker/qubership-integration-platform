@@ -40,6 +40,7 @@
         <kubernetes-client-java.version>19.0.2</kubernetes-client-java.version>
         <reflections.version>0.10.2</reflections.version>
         <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
+        <groovy.xml.version>5.0.2</groovy.xml.version>
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
@@ -193,6 +194,11 @@
                 <groupId>org.apache.camel</groupId>
                 <artifactId>camel-bean</artifactId>
                 <version>${camel.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-xml</artifactId>
+                <version>${groovy.xml.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -471,6 +477,11 @@
         <dependency>
             <groupId>org.apache.camel</groupId>
             <artifactId>camel-bean</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-xml</artifactId>
+        </dependency>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
