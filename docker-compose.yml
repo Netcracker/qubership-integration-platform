@@ -47,9 +47,11 @@ services:
         env_file:
         - "qip-dev.env"
         - "engine-dev.env"
+        environment:
+          - MONITORING_ENABLED=true
         command: [
             "/opt/java/openjdk/bin/java",
-            "-Xmx832m",
+            "-Xmx8092m",
             "-XX:MetaspaceSize=512m",
             "-XX:MaxMetaspaceSize=224m",
             "-XX:MaxDirectMemorySize=224m",
