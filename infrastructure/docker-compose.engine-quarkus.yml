@@ -1,0 +1,72 @@
+services:
+  qip-engine-quarkus:
+    image: ghcr.io/netcracker/qubership-integration-engine-quarkus:latest
+    container_name: qip-engine-quarkus
+    read_only: true
+    ports:
+      - "8192:8080"
+      - "5107:5005"
+      - "9010:9010"
+    env_file:
+      - "qip-dev.env"
+      - "engine-dev.env"
+    environment:
+      - KUBE_DEV_MODE=true
+      - KUBE_USER_TOKEN=blablabla
+      - MONITORING_ENABLED=true
+      - CAMEL_K_CONF=/etc/camel/application.properties
+      - CAMEL_K_CONF_D=/etc/camel/conf.d
+      - CAMEL_K_DIGEST=vnuh-h8RkKx22M3klnorOeYp3Zs3hVp8neLFno4QxrZQ
+      - CAMEL_K_INTEGRATION=test
+      - CAMEL_K_MOUNT_PATH_CONFIGMAPS=/etc/camel/conf.d/_configmaps
+      - CAMEL_K_MOUNT_PATH_SECRETS=/etc/camel/conf.d/_secrets
+      - CAMEL_K_OPERATOR_ID=camel-k
+      - CAMEL_K_RUNTIME_VERSION=
+      - CAMEL_K_VERSION=
+    command: [
+      "/opt/java/openjdk/bin/java",
+      "-Xmx8092m",
+      "-XX:MetaspaceSize=512m",
+      "-XX:MaxMetaspaceSize=224m",
+      "-XX:MaxDirectMemorySize=224m",
+      "-XX:+ExitOnOutOfMemoryError",
+      "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+      "-Djava.security.egd=file:/dev/./urandom",
+      "--add-opens=java.base/java.lang=ALL-UNNAMED",
+      "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+      "--add-opens=java.base/java.util=ALL-UNNAMED",
+      "--add-opens=java.base/java.io=ALL-UNNAMED",
+
+#      "-Dorg.apache.camel.jmx.disabled=true",
+
+#      "-Dcom.sun.management.jmxremote",
+#      "-Dcom.sun.management.jmxremote.port=9010",
+#      "-Dcom.sun.management.jmxremote.local.only=false",
+#      "-Dcom.sun.management.jmxremote.authenticate=false",
+#      "-Dcom.sun.management.jmxremote.ssl=false",
+#      "-Dcom.sun.management.jmxremote.rmi.port=9010",
+#      "-Djava.rmi.server.hostname=localhost",
+
+      "-XX:+HeapDumpOnOutOfMemoryError",
+      '-XX:HeapDumpPath=/tmp/dump.hprof',
+
+      "-Dfile.encoding=UTF-8",
+      "-Dspring.profiles.active=development",
+      "-jar",
+      "/app/quarkus-run.jar"
+    ]
+    volumes:
+      - ./kafka-ssl/client:/app/cert/defaultsslcertificate
+      - .:/tmp:rw
+      - ./camel-k/application.properties:/etc/camel/application.properties
+      - ./camel-k/user.properties:/etc/camel/conf.d/user.properties
+      - ./camel-k/flow.xml:/etc/camel/sources/camel-k-embedded-flow.xml
+    networks:
+      default:
+        aliases:
+          - engine
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy

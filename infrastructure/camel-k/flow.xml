@@ -1,0 +1,120 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<camel xmlns="http://camel.apache.org/schema/xml-io">
+    <bean name="messageString" type="java.lang.String">
+<!--        <constructors>-->
+<!--            <constructor index="0" value="'Hello World'"/>-->
+<!--        </constructors>-->
+    </bean>
+    <route>
+        <from uri="cip-chain:4006298c-5bb6-41ab-b1e3-bff7daf9aabd"/>
+        <toD uri="direct:7711fe59-a52b-4f4f-9558-c9c8def5011d"/>
+    </route>
+    <bean name="messageString1" type="java.lang.String">
+<!--        <constructors>-->
+<!--            <constructor index="0" value="'Hello World'"/>-->
+<!--        </constructors>-->
+    </bean>
+    <route group="foo">
+        <from uri="direct:7711fe59-a52b-4f4f-9558-c9c8def5011d"/>
+        <step id="e86066ef-f176-4d94-9134-8f72fc97c73e">
+            <setProperty name="internalProperty_mappingThrowException">
+                <constant>true</constant>
+            </setProperty>
+            <setProperty name='internalProperty_mappingConfig'>
+                <constant>
+                    {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.v2.AtlasMapping&quot;,
+                    &quot;dataSource&quot; : [ {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.json.v2.JsonDataSource&quot;,
+                    &quot;id&quot; : &quot;source&quot;,
+                    &quot;name&quot; : &quot;source&quot;,
+                    &quot;description&quot; : &quot;source&quot;,
+                    &quot;uri&quot; : &quot;atlas:cip:json:source&quot;,
+                    &quot;dataSourceType&quot; : &quot;SOURCE&quot;
+                    }, {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.json.v2.JsonDataSource&quot;,
+                    &quot;id&quot; : &quot;target&quot;,
+                    &quot;name&quot; : &quot;target&quot;,
+                    &quot;description&quot; : &quot;target&quot;,
+                    &quot;uri&quot; : &quot;atlas:cip:json:target&quot;,
+                    &quot;dataSourceType&quot; : &quot;TARGET&quot;
+                    }, {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.v2.DataSource&quot;,
+                    &quot;id&quot; : &quot;2d9098c0ab264c7e8d8f04128461ab3b&quot;,
+                    &quot;name&quot; : &quot;timestamp-2d9098c0ab264c7e8d8f04128461ab3b&quot;,
+                    &quot;uri&quot; : &quot;atlas:cip:generated:2d9098c0ab264c7e8d8f04128461ab3b?name=currentDateTime&amp;parameter=false&amp;parameter=yyyy-MM-dd%27T%27HH%3Amm%3Ass.SSS&amp;parameter=&amp;parameter=&quot;,
+                    &quot;dataSourceType&quot; : &quot;SOURCE&quot;
+                    } ],
+                    &quot;mappings&quot; : {
+                    &quot;mapping&quot; : [ {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.v2.Mapping&quot;,
+                    &quot;inputField&quot; : [ {
+                    &quot;jsonType&quot; : &quot;org.qubership.integration.platform.mapper.GeneratedField&quot;,
+                    &quot;collectionType&quot; : &quot;NONE&quot;,
+                    &quot;docId&quot; : &quot;2d9098c0ab264c7e8d8f04128461ab3b&quot;,
+                    &quot;path&quot; : &quot;/timestamp&quot;,
+                    &quot;fieldType&quot; : &quot;STRING&quot;
+                    } ],
+                    &quot;outputField&quot; : [ {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.json.v2.JsonField&quot;,
+                    &quot;collectionType&quot; : &quot;NONE&quot;,
+                    &quot;docId&quot; : &quot;target&quot;,
+                    &quot;path&quot; : &quot;/timestamp&quot;,
+                    &quot;fieldType&quot; : &quot;STRING&quot;,
+                    &quot;name&quot; : &quot;timestamp&quot;
+                    } ],
+                    &quot;id&quot; : &quot;mapping.1d51e1f6-9026-4f40-a42f-984a321e786f&quot;
+                    }, {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.v2.Mapping&quot;,
+                    &quot;expression&quot; : &quot;trim(${source:/message})&quot;,
+                    &quot;inputFieldGroup&quot; : {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.v2.FieldGroup&quot;,
+                    &quot;actions&quot; : [ ],
+                    &quot;field&quot; : [ {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.json.v2.JsonField&quot;,
+                    &quot;collectionType&quot; : &quot;NONE&quot;,
+                    &quot;docId&quot; : &quot;source&quot;,
+                    &quot;path&quot; : &quot;/message&quot;,
+                    &quot;fieldType&quot; : &quot;STRING&quot;,
+                    &quot;name&quot; : &quot;message&quot;
+                    } ]
+                    },
+                    &quot;inputField&quot; : [ ],
+                    &quot;outputField&quot; : [ {
+                    &quot;jsonType&quot; : &quot;io.atlasmap.json.v2.JsonField&quot;,
+                    &quot;collectionType&quot; : &quot;NONE&quot;,
+                    &quot;docId&quot; : &quot;target&quot;,
+                    &quot;path&quot; : &quot;/message&quot;,
+                    &quot;fieldType&quot; : &quot;STRING&quot;,
+                    &quot;name&quot; : &quot;message&quot;
+                    } ],
+                    &quot;id&quot; : &quot;mapping.7f8559d0-0d4c-4bb0-adda-be1027564ac5&quot;
+                    } ]
+                    },
+                    &quot;constants&quot; : {
+                    &quot;constant&quot; : [ ]
+                    },
+                    &quot;properties&quot; : {
+                    &quot;property&quot; : [ ]
+                    },
+                    &quot;name&quot; : &quot;QIP_Mapping_Configuration&quot;
+                    }
+                </constant>
+            </setProperty>
+            <setProperty name='internalProperty_mappingId'>
+                <constant>
+                    f99aa9c3-e5d3-4b73-8191-8d2555b41df6
+                </constant>
+            </setProperty>
+            <process ref='mapperProcessor'/>
+            <removeProperty name='internalProperty_mappingConfig'/>
+            <removeProperty name='internalProperty_mappingId'/>
+            <removeProperty name="internalProperty_mappingThrowException"/>
+        </step>
+        <script id="e1c00614-3dd8-4460-a4ff-ed7bd96116d5">
+            <groovy>
+                exchange.getMessage().setHeader(&quot;Content-Type&quot;, &quot;application/json&quot;)
+            </groovy>
+        </script>
+    </route>
+</camel>
