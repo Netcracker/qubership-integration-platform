@@ -27,7 +27,8 @@ import {
 } from "./chainApiUtils";
 import {Uri} from "vscode";
 import {fileApi} from "./file";
-import {Element as ElementSchema, DataType, Chain as ChainSchema} from "@netcracker/qip-schemas";
+import {Element as ElementSchema, DataType} from "@netcracker/qip-schemas";
+import {Folder} from "@netcracker/qip-schemas/types/chain.schema";
 
 export async function updateChain(fileUri: Uri, chainId: string, chainRequest: Partial<Chain>): Promise<Chain> {
     const chain = await getMainChain(fileUri);
@@ -35,6 +36,8 @@ export async function updateChain(fileUri: Uri, chainId: string, chainRequest: P
         console.error(`ChainId mismatch`);
         throw Error("ChainId mismatch");
     }
+
+    console.log("Chain request", chainRequest);
 
     const labels = chainRequest?.labels?.filter(label => !label.technical).map(label => label.name);
 
@@ -46,13 +49,18 @@ export async function updateChain(fileUri: Uri, chainId: string, chainRequest: P
     chain.content.outOfScope = chainRequest.outOfScope !== undefined ? chainRequest.outOfScope : chain.content.outOfScope;
     chain.content.deployments = chainRequest.deployments !== undefined ? chainRequest.deployments : chain.content.deployments;
     chain.content.deployAction = chainRequest.deployAction !== undefined ? chainRequest.deployAction : chain.content.deployAction;
+    chain.content.folder = chainRequest.navigationPath !== undefined ? getFoldersFromStringPath(Object.values(
+        chainRequest.navigationPath
+    ).reverse()) : chain.content.folder;
+
+    console.log("chain navigation path", chainRequest.navigationPath);
 
     await fileApi.writeMainChain(fileUri, chain);
 
     return await getChain(fileUri, chainId);
 }
 
-async function checkRestrictions(element: ElementSchema, elements:ElementSchema[]) {
+async function checkRestrictions(element: ElementSchema, elements: ElementSchema[]) {
     const elementType = element.type as unknown as string;
     const libraryData = await getLibraryElementByType(elementType);
     const parentElementId = findElementById(elements, element.id)?.parentId; // More consistent way instead of parentElementId field
@@ -179,7 +187,7 @@ export async function transferElement(fileUri: Uri, chainId: string, elementRequ
             throw Error("ElementId not found");
         }
 
-        (chain.content.dependencies as [])?.forEach( (dependency: Dependency) => { // TODO change to dependency schema
+        (chain.content.dependencies as [])?.forEach((dependency: Dependency) => { // TODO change to dependency schema
             if (dependency.from === elementId || dependency.to === elementId) {
                 if (!elementRequest.elements.includes(dependency.from) || !elementRequest.elements.includes(dependency.to)) {
                     console.error(`Element ${elementId} not found has outside dependencies`);
@@ -219,7 +227,7 @@ export async function transferElement(fileUri: Uri, chainId: string, elementRequ
     }
 
     return {
-         updatedElements: updatedElements
+        updatedElements: updatedElements
     };
 }
 
@@ -465,7 +473,6 @@ async function deleteElementsPropertyFiles(fileUri: Uri, removedElements: any[])
 }
 
 
-
 export async function deleteElements(fileUri: Uri, chainId: string, elementIds: string[]): Promise<ActionDifference> {
     const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
@@ -506,9 +513,9 @@ export async function deleteElements(fileUri: Uri, chainId: string, elementIds: 
 }
 
 async function deleteDependenciesForElement(elementId: string, dependencies: Dependency[]) { // TODO change to dependency schema
-    dependencies?.forEach( (dependency, index) => {
+    dependencies?.forEach((dependency, index) => {
         if (dependency.from === elementId || dependency.to === elementId) {
-            dependencies.splice(index,1);
+            dependencies.splice(index, 1);
         }
     });
 }
@@ -663,4 +670,36 @@ export async function createMaskedField(fileUri: Uri, chainId: string, changes: 
     await fileApi.writeMainChain(fileUri, chain);
 
     return parseMaskedField(chain, id);
+}
+
+export async function changeFolder(fileUri: Uri, chainId: string, folders: string): Promise<void> {
+    const chain = await getMainChain(fileUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    // const parts = folders.split("/");
+    //
+    // let current: any = null;
+    // for (let i = parts.length - 1; i >= 0; i--) {
+    //     current = {name: String(parts[i]), ...(current ? {subfolder: current} : {})};
+    // }
+    chain.content = {
+        ...chain.content,
+        folder: getFoldersFromStringPath(folders.split("/")),
+    };
+
+    console.log("MOVED CHAIN", chain);
+
+    return await fileApi.writeMainChain(fileUri, chain);
+}
+
+function getFoldersFromStringPath(parts: string[]): Folder {
+
+    let current: any = null;
+    for (let i = parts.length - 1; i >= 0; i--) {
+        current = {name: String(parts[i]), ...(current ? {subfolder: current} : {})};
+    }
+    return current;
 }
