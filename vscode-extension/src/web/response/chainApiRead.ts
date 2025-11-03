@@ -17,7 +17,6 @@ import {
     ChainCommitRequestAction,
     EMPTY_USER,
     findElementById,
-    getElementChildren,
     getParsedElementChildren
 } from "./chainApiUtils";
 import {fileApi} from "./file";
@@ -259,6 +258,19 @@ export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
 
     const labels: EntityLabel[] = chain.content.labels ? chain.content.labels.map(label => ({name: label, technical: false})) : [];
 
+    console.log("READING NAVIGATE PATH:", chain.content);
+
+    const navigationPath = new Map<string, string>();
+    let currentFolder = chain.content.folder;
+    while (currentFolder) {
+        console.log("CURRENT FOLDER:", currentFolder);
+        navigationPath.set(currentFolder.name, currentFolder.name);
+        currentFolder = currentFolder.subfolder;
+    }
+    navigationPath.set(chain.id, chain.name);
+
+    console.log("NAVIGATE PATH:", navigationPath);
+
     return {
         assumptions: chain.content.assumptions as string,
         businessDescription: chain.content.businessDescription as string,
@@ -281,7 +293,7 @@ export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
         modifiedBy: {...EMPTY_USER},
         modifiedWhen: chain.content.modifiedWhen as number,
         name: chain.name,
-        navigationPath: new Map<string, string>([[chain.id, chain.name]]),
+        navigationPath: new Map<string, string>(navigationPath),
         outOfScope: chain.content.outOfScope as string,
         reuseSwimlaneId: chain.content.reuseSwimlaneId  as string,
         unsavedChanges: false
