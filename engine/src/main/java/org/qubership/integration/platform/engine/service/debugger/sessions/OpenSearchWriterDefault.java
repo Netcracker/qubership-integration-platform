@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
@@ -27,7 +28,6 @@ import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
 import org.opensearch.client.opensearch.core.bulk.IndexOperation;
 import org.qubership.integration.platform.engine.model.opensearch.QueueElement;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
-import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,7 +54,7 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
     private final int bulkRequestPayloadSizeThresholdBytes;
     private final int bulkRequestElementsCountThreshold;
 
-    private final OpenSearchClientSupplier openSearchClientSupplier;
+    private final DbaasOpensearchClient dbaasOpenSearchClient;
     private final ObjectMapper mapper;
 
     private final BlockingQueue<QueueElement> sessionElementsQueue;
@@ -85,7 +85,7 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
                                    @Value("${qip.sessions.bulk-request.max-size-kb}") int bulkRequestMaxSizeKb,
                                    @Value("${qip.sessions.bulk-request.payload-size-threshold-kb}") int bulkRequestPayloadSizeThresholdKb,
                                    @Value("${qip.sessions.bulk-request.elements-count-threshold}") int bulkRequestElementsCountThreshold,
-                                   OpenSearchClientSupplier openSearchClientSupplier,
+                                   DbaasOpensearchClient dbaasOpenSearchClient,
                                    @Qualifier("jsonMapper") ObjectMapper mapper) {
         sessionElementsQueue = new LinkedBlockingQueue<>(sessionBufferCapacity);
         this.queueMaxSizeBytes = (int) (queueMaxSizeMb * 1024 * 1024);
@@ -94,7 +94,7 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
         this.bulkRequestPayloadSizeThresholdBytes = bulkRequestPayloadSizeThresholdKb * 1024;
         this.bulkRequestElementsCountThreshold = bulkRequestElementsCountThreshold;
 
-        this.openSearchClientSupplier = openSearchClientSupplier;
+        this.dbaasOpenSearchClient = dbaasOpenSearchClient;
         this.mapper = mapper;
 
         // start permanent writer thread
@@ -158,7 +158,7 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
             payloadSize = payload.length;
             BulkOperation request = new BulkOperation.Builder()
                     .index(IndexOperation.of(io -> io
-                            .index(openSearchClientSupplier.normalize(indexName))
+                            .index(dbaasOpenSearchClient.normalize(indexName))
                             .id(element.getId())
                             .requireAlias(true)
                             .document(element)
@@ -214,11 +214,11 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
 
     private boolean executeBulk(List<BulkOperation> updateRequests) throws IOException {
         BulkRequest bulkRequest = new BulkRequest.Builder()
-                .index(openSearchClientSupplier.normalize(indexName))
+                .index(dbaasOpenSearchClient.normalize(indexName))
                 .requireAlias(true)
                 .operations(updateRequests)
                 .build();
-        BulkResponse bulk = openSearchClientSupplier.getClient().bulk(bulkRequest);
+        BulkResponse bulk = dbaasOpenSearchClient.getClient().bulk(bulkRequest);
         updateRequests.clear();
         return checkAndLogFailedElements(bulk);
     }

@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.netcracker.cloud.context.propagation.core.ContextManager;
 import groovy.xml.slurpersupport.GPathResult;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,6 @@ import org.apache.camel.Exchange;
 import org.apache.camel.Message;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextOperationsWrapper;
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
@@ -41,24 +41,20 @@ import org.springframework.stereotype.Component;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.Optional;
 
 @Slf4j
 @Component
 public class ContextLoaderProcessor implements Processor {
     private final CheckpointSessionService checkpointSessionService;
     private final ObjectMapper checkpointMapper;
-    private final Optional<ContextOperationsWrapper> contextOperations;
 
     @Autowired
     public ContextLoaderProcessor(
             CheckpointSessionService checkpointSessionService,
-            @Qualifier("checkpointMapper") ObjectMapper checkpointMapper,
-            Optional<ContextOperationsWrapper> contextOperations
+            @Qualifier("checkpointMapper") ObjectMapper checkpointMapper
     ) {
         this.checkpointSessionService = checkpointSessionService;
         this.checkpointMapper = checkpointMapper;
-        this.contextOperations = contextOperations;
     }
 
     @Override
@@ -109,11 +105,11 @@ public class ContextLoaderProcessor implements Processor {
         Message message = exchange.getMessage();
 
         // restore propagation and tracing contexts
-        if (contextOperations.isPresent() && StringUtils.isNotEmpty(checkpoint.getContextData())) {
+        if (StringUtils.isNotEmpty(checkpoint.getContextData())) {
             Map<String, Map<String, Object>> contextData =
                     checkpointMapper.readValue(checkpoint.getContextData(), new TypeReference<>() {
                     });
-            contextOperations.get().activateWithSerializableContextData(contextData);
+            ContextManager.activateWithSerializableContextData(contextData);
         }
 
         deserializeProperties(checkpoint, exchange.getProperties());

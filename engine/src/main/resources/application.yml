@@ -70,6 +70,10 @@ spring:
 app:
   prefix: qip
 
+tenant:
+  default:
+    id: ""
+
 management:
   endpoints:
     probe:
@@ -187,6 +191,7 @@ camel:
       name: 'requestFilterHeaderAllowlist'
 
 qip:
+  standalone: true
   camel:
     stream-caching:
       enabled: true # enable exchange payload spooling
@@ -204,6 +209,8 @@ qip:
     thread-pool:
       core-size: 3
       max-size: 3
+  control-plane:
+    enabled: false
   context-service:
     cleanup:
       cron: ${CONTEXT_RECORDS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
@@ -219,7 +226,6 @@ qip:
       prefix: ${OPENSEARCH_PREFIX:}
     kafka-client:
       enabled: ${OPENSEARCH_KAFKA_ENABLED:false}
-      standalone: ${OPENSEARCH_KAFKA_ENABLED:false}
       bootstrap-servers: ${OPENSEARCH_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
       topic: ${OPENSEARCH_KAFKA_TOPIC:elements}
     write:
@@ -279,6 +285,9 @@ qip:
     timeout: 300000
   idempotency:
     expired-records-cleanup-cron: ${IDEMPOTENCY_RECORDS_CLEANUP_CRON:0 */5 * ? * *}
+  chains:
+    external-routes:
+      base-path: /qip-routes
 
 kubernetes:
   devmode: ${KUBE_DEV_MODE:false}

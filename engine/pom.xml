@@ -20,6 +20,8 @@
 
         <revision>0.3.1</revision>
 
+        <dbaas-client-bom.version>8.2.2</dbaas-client-bom.version>
+        <maas-client.version>11.1.3</maas-client.version>
         <groovy-apache-bom.version>4.0.21</groovy-apache-bom.version>
         <jackson-bom.version>2.17.0</jackson-bom.version>
 
@@ -56,10 +58,39 @@
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/Netcracker/*</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+        </repository>
+    </repositories>
+
     <dependencyManagement>
         <dependencies>
 
             <!-- BOMs -->
+            <dependency>
+                <groupId>com.netcracker.cloud</groupId>
+                <artifactId>dbaas-client-bom</artifactId>
+                <version>${dbaas-client-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.netcracker.cloud.maas.client</groupId>
+                <artifactId>maas-client-bom</artifactId>
+                <version>${maas-client.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty-bom</artifactId>
@@ -282,6 +313,39 @@
 
     <dependencies>
 
+        <!--   DBaaS dependencies    -->
+
+        <dependency>
+            <groupId>com.netcracker.cloud</groupId>
+            <artifactId>dbaas-client-postgres-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud</groupId>
+            <artifactId>dbaas-client-opensearch-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud</groupId>
+            <artifactId>consul-config-provider-common</artifactId>
+            <version>6.1.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud</groupId>
+            <artifactId>blue-green-state-monitor-spring</artifactId>
+            <version>1.2.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud.maas.declarative</groupId>
+            <artifactId>maas-declarative-kafka-client-spring</artifactId>
+            <version>6.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.maas.client</groupId>
+            <artifactId>rabbit-context-propagation</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-consul-config</artifactId>
@@ -315,6 +379,11 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-aspects</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud.maas.client</groupId>
+            <artifactId>kafka-blue-green-consumer</artifactId>
         </dependency>
 
         <dependency>

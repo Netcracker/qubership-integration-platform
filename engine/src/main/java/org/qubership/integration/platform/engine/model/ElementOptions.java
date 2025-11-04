@@ -43,6 +43,9 @@ public class ElementOptions {
 
     // generic maas
     public static final String MAAS_DEPLOYMENT_CLASSIFIER_PROP = "maasClassifier";
+    public static final String MAAS_CLASSIFIER_NAMESPACE_PROP = "maasClassifierNamespace";
+    public static final String MAAS_CLASSIFIER_TENANT_ID_PROP = "maasClassifierTenantId";
+    public static final String MAAS_CLASSIFIER_TENANT_ENABLED_PROP = "maasClassifierTenantEnabled";
 
     private ElementOptions() {
     }

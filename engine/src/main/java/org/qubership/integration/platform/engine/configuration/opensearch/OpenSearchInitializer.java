@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.configuration.opensearch;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -29,7 +30,6 @@ import org.opensearch.client.opensearch.indices.UpdateAliasesRequest;
 import org.opensearch.client.opensearch.indices.update_aliases.Action;
 import org.qubership.integration.platform.engine.IntegrationEngineApplication;
 import org.qubership.integration.platform.engine.model.opensearch.OpenSearchFieldType;
-import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.engine.opensearch.annotation.OpenSearchDocument;
 import org.qubership.integration.platform.engine.opensearch.annotation.OpenSearchField;
 import org.qubership.integration.platform.engine.opensearch.ism.IndexStateManagementClient;
@@ -79,17 +79,17 @@ public class OpenSearchInitializer {
 
     private final Environment environment;
     private final ObjectMapper jsonMapper;
-    private final OpenSearchClientSupplier openSearchClientSupplier;
+    private final DbaasOpensearchClient openSearchClient;
 
 
     public OpenSearchInitializer(
-        Environment environment,
-        @Qualifier("jsonMapper") ObjectMapper jsonMapper,
-        OpenSearchClientSupplier openSearchClientSupplier
+            Environment environment,
+            @Qualifier("jsonMapper") ObjectMapper jsonMapper,
+            DbaasOpensearchClient openSearchClient
     ) {
         this.environment = environment;
         this.jsonMapper = jsonMapper;
-        this.openSearchClientSupplier = openSearchClientSupplier;
+        this.openSearchClient = openSearchClient;
     }
 
     @PostConstruct
@@ -99,14 +99,14 @@ public class OpenSearchInitializer {
             return;
         }
         log.info("Update opensearch template and indexes");
-        updateTemplateAndIndexes(openSearchClientSupplier.getClient());
+        updateTemplateAndIndexes(openSearchClient.getClient());
     }
 
     private void updateTemplateAndIndexes(OpenSearchClient client) {
         String packageRoot = IntegrationEngineApplication.class.getPackage().getName();
         Set<Class<?>> indexClasses = new Reflections(
-            new ConfigurationBuilder().forPackages(packageRoot))
-            .getTypesAnnotatedWith(OpenSearchDocument.class);
+                new ConfigurationBuilder().forPackages(packageRoot))
+                .getTypesAnnotatedWith(OpenSearchDocument.class);
         for (Class<?> indexClass : indexClasses) {
             OpenSearchDocument osd = indexClass.getAnnotation(OpenSearchDocument.class);
             String documentName = environment.getProperty(osd.documentNameProperty());
@@ -119,7 +119,7 @@ public class OpenSearchInitializer {
             try {
                 Map<String, Object> mapping = getIndexMapSource(indexClass);
                 if (!mapping.isEmpty()) {
-                    String prefix = openSearchClientSupplier.normalize(documentName);
+                    String prefix = openSearchClient.normalize(documentName);
                     createOrUpdatePolicy(client, buildRolloverPolicy(prefix));
                     updateTemplate(client, prefix, mapping);
                     updateIndices(client, prefix, mapping);
@@ -230,9 +230,9 @@ public class OpenSearchInitializer {
         return isNull(minIndexAge) && isNull(minRolloverAgeToDelete)
                 ? null
                 : TimeValue.timeValueMillis(
-                        Instant.now().toEpochMilli() - creationTimestamp.toEpochMilli()
-                                + Optional.ofNullable(minRolloverAgeToDelete).map(TimeValue::millis).orElse(0L)
-                                + Optional.ofNullable(minIndexAge).map(TimeValue::millis).orElse(0L));
+                Instant.now().toEpochMilli() - creationTimestamp.toEpochMilli()
+                        + Optional.ofNullable(minRolloverAgeToDelete).map(TimeValue::millis).orElse(0L)
+                        + Optional.ofNullable(minIndexAge).map(TimeValue::millis).orElse(0L));
     }
 
     private void addPolicyToIndex(OpenSearchClient client, String indexName, String policyId) {
@@ -252,7 +252,8 @@ public class OpenSearchInitializer {
         IndexStateManagementClient ismClient = new IndexStateManagementClient(client, jsonMapper);
         try {
             ismClient.addPolicy(indexName, policyId);
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
     }
 
     private void handleISMStatusResponse(ISMStatusResponse response) throws Exception {
@@ -433,10 +434,10 @@ public class OpenSearchInitializer {
                                                 .stateName("delete")
                                                 .conditions(
                                                         isNull(minRolloverAgeToDelete)
-                                                            ? null
-                                                            : Conditions.builder()
-                                                                    .minRolloverAge(minRolloverAgeToDelete)
-                                                                    .build()
+                                                                ? null
+                                                                : Conditions.builder()
+                                                                .minRolloverAge(minRolloverAgeToDelete)
+                                                                .build()
                                                 )
                                                 .build()
                                 ))

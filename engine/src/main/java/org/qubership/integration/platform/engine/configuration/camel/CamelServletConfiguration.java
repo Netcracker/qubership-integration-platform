@@ -19,16 +19,14 @@ package org.qubership.integration.platform.engine.configuration.camel;
 import jakarta.servlet.Servlet;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spi.ComponentCustomizer;
-import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
 import org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomComponent;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
+import org.qubership.integration.platform.engine.camel.context.propagation.ContextPropsProvider;
 import org.springframework.boot.web.embedded.tomcat.TomcatConnectorCustomizer;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.util.Optional;
 
 import static org.apache.tomcat.util.buf.EncodedSolidusHandling.PASS_THROUGH;
 
@@ -63,9 +61,7 @@ public class CamelServletConfiguration {
     }
 
     @Bean
-    public ComponentCustomizer servletCustomComponentCustomizer(
-        Optional<ContextPropsProvider> contextPropsProvider
-    ) {
+    public ComponentCustomizer servletCustomComponentCustomizer(ContextPropsProvider contextPropsProvider) {
         return ComponentCustomizer.builder(ServletCustomComponent.class)
             .build((component) -> {
                 component.setHeaderFilterStrategy(

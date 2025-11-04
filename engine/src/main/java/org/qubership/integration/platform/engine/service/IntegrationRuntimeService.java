@@ -39,6 +39,7 @@ import org.qubership.integration.platform.engine.camel.converters.FormDataConver
 import org.qubership.integration.platform.engine.camel.converters.SecurityAccessPolicyConverter;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory.FilteringEntity;
+import org.qubership.integration.platform.engine.cloudcore.maas.MaasService;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
@@ -108,7 +109,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private final GroovyLanguageWithResettableCache groovyLanguage;
     private final MetricsStore metricsStore;
     private final Optional<ExternalLibraryService> externalLibraryService;
-    private final Optional<MaasService> maasService;
+    private final MaasService maasService;
     private final Optional<XmlConfigurationPreProcessor> xmlPreProcessor;
     private final VariablesService variablesService;
     private final EngineStateReporter engineStateReporter;
@@ -146,7 +147,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         GroovyLanguageWithResettableCache groovyLanguage,
         MetricsStore metricsStore,
         Optional<ExternalLibraryService> externalLibraryService,
-        Optional<MaasService> maasService,
+        MaasService maasService,
         Optional<XmlConfigurationPreProcessor> xmlPreProcessor,
         VariablesService variablesService,
         EngineStateReporter engineStateReporter,
@@ -460,9 +461,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         String configurationXml = configuration.getXml();
 
         configurationXml = variablesService.injectVariables(configurationXml, true);
-        if (maasService.isPresent()) {
-            configurationXml = maasService.get().resolveDeploymentMaasParameters(configuration, configurationXml);
-        }
+        configurationXml = maasService.resolveDeploymentMaasParameters(configuration, configurationXml);
         configurationXml = resolveRouteVariables(configuration.getRoutes(), configurationXml);
         if (xmlPreProcessor.isPresent()) {
             configurationXml = xmlPreProcessor.get().process(configurationXml);

@@ -16,15 +16,12 @@
 
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
-
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.engine.kafka.OpenSearchKafkaProducer;
 import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -32,27 +29,19 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "qip.opensearch.kafka-client.enabled", havingValue = "true")
 public class OpenSearchWriterKafka extends OpenSearchWriter {
 
-    private final KafkaTemplate<String, KafkaQueueElement> openSearchKafkaTemplate;
-
-    @Value("${qip.opensearch.kafka-client.topic:}")
-    private String kafkaClientTopic;
+    private final OpenSearchKafkaProducer openSearchKafkaProducer;
 
     @Autowired
-    public OpenSearchWriterKafka(@Qualifier("openSearchKafkaTemplate") KafkaTemplate<String, KafkaQueueElement> openSearchKafkaTemplate) {
-        this.openSearchKafkaTemplate = openSearchKafkaTemplate;
+    public OpenSearchWriterKafka(OpenSearchKafkaProducer openSearchKafkaProducer) {
+        this.openSearchKafkaProducer = openSearchKafkaProducer;
     }
 
     private void sendToKafka(SessionElementElastic element) {
-        try {
-            KafkaQueueElement kafkaQueueElement = KafkaQueueElement.builder()
-                    .id(element.getId())
-                    .source(element)
-                    .build();
-
-            openSearchKafkaTemplate.send(kafkaClientTopic, element.getId(), kafkaQueueElement);
-        } catch (Exception e) {
-            log.error("Unable to send element to opensearch via kafka", e);
-        }
+        KafkaQueueElement kafkaQueueElement = KafkaQueueElement.builder()
+                .id(element.getId())
+                .source(element)
+                .build();
+        openSearchKafkaProducer.send(element.getId(), kafkaQueueElement);
     }
 
     @Override

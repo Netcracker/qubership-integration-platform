@@ -16,7 +16,13 @@
 
 package org.qubership.integration.platform.engine.configuration.datasource;
 
-import com.zaxxer.hikari.HikariDataSource;
+import com.netcracker.cloud.dbaas.client.config.EnableTenantDbaasPostgresql;
+import com.netcracker.cloud.dbaas.client.entity.DbaasApiProperties;
+import com.netcracker.cloud.dbaas.client.entity.settings.PostgresSettings;
+import com.netcracker.cloud.dbaas.client.management.DatabaseConfig;
+import com.netcracker.cloud.dbaas.client.management.DatabasePool;
+import com.netcracker.cloud.dbaas.client.management.DbaasPostgresProxyDataSource;
+import com.netcracker.cloud.dbaas.client.management.classifier.DbaasClassifierFactory;
 import jakarta.persistence.SharedCacheMode;
 import lombok.Getter;
 import org.hibernate.jpa.HibernatePersistenceProvider;
@@ -24,7 +30,7 @@ import org.qubership.integration.platform.engine.configuration.datasource.proper
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.orm.jpa.JpaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -50,7 +56,8 @@ import javax.sql.DataSource;
     transactionManagerRef = "checkpointTransactionManager",
     entityManagerFactoryRef = "checkpointEntityManagerFactory"
 )
-@EnableConfigurationProperties({JpaProperties.class, HikariConfigProperties.class})
+@EnableConfigurationProperties(JpaProperties.class)
+@EnableTenantDbaasPostgresql
 public class PersistenceCheckpointAutoConfiguration {
 
     public static final String JPA_ENTITIES_PACKAGE_SCAN =
@@ -59,16 +66,36 @@ public class PersistenceCheckpointAutoConfiguration {
     private final HikariConfigProperties properties;
 
     @Autowired
-    public PersistenceCheckpointAutoConfiguration(JpaProperties jpaProperties,
-        HikariConfigProperties properties) {
+    public PersistenceCheckpointAutoConfiguration(
+            JpaProperties jpaProperties,
+            HikariConfigProperties properties
+    ) {
         this.jpaProperties = jpaProperties;
         this.properties = properties;
     }
 
+    /**
+     * Used for chain checkpoints and sessions
+     */
     @Bean("checkpointDataSource")
-    @ConditionalOnMissingBean(name = "checkpointDataSource")
-    public DataSource checkpointDataSource() {
-        return new HikariDataSource(properties.getDatasource("checkpoints-datasource"));
+    @ConditionalOnProperty(value = "qip.standalone", havingValue = "false")
+    DataSource checkpointDataSource(DatabasePool dbaasConnectionPool,
+                                    DbaasClassifierFactory classifierFactory,
+                                    @Qualifier("postgresDbaasApiProperties") DbaasApiProperties postgresDbaasApiProperties
+    ) {
+        PostgresSettings databaseSettings =
+                new PostgresSettings(postgresDbaasApiProperties.getDatabaseSettings(DbaasApiProperties.DbScope.TENANT));
+
+        DatabaseConfig databaseConfig = DatabaseConfig.builder()
+                .userRole(postgresDbaasApiProperties.getRuntimeUserRole())
+                .dbNamePrefix(postgresDbaasApiProperties.getDbPrefix())
+                .databaseSettings(databaseSettings)
+                .build();
+
+        return new DbaasPostgresProxyDataSource(
+                dbaasConnectionPool,
+                classifierFactory.newTenantClassifierBuilder(),
+                databaseConfig);
     }
 
     @Bean
