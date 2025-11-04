@@ -57,24 +57,8 @@ export const QIP_SCHEMAS = {
             },
             content: {
                 type: "object",
-                required: ["createdWhen", "modifiedWhen", "version", "source", "operations"],
+                required: ["version", "source", "operations"],
                 properties: {
-                    createdWhen: { type: "number" },
-                    modifiedWhen: { type: "number" },
-                    createdBy: {
-                        type: "object",
-                        properties: {
-                            id: { type: "string" },
-                            username: { type: "string" }
-                        }
-                    },
-                    modifiedBy: {
-                        type: "object", 
-                        properties: {
-                            id: { type: "string" },
-                            username: { type: "string" }
-                        }
-                    },
                     deprecated: { type: "boolean" },
                     version: { type: "string" },
                     source: {
@@ -123,7 +107,7 @@ export const QIP_SCHEMAS = {
             }
         }
     },
-    
+
     SPECIFICATION_GROUP: {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: "object",
@@ -137,20 +121,18 @@ export const QIP_SCHEMAS = {
             name: { type: "string" },
             content: {
                 type: "object",
-                required: ["createdWhen", "modifiedWhen", "version"],
+                required: ["version"],
                 properties: {
-                    createdWhen: { type: "number" },
-                    modifiedWhen: { type: "number" },
                     version: { type: "string" },
                     specifications: {
                         type: "array",
-                        items: { type: "string" } 
+                        items: { type: "string" }
                     }
                 }
             }
         }
     },
-    
+
     SERVICE: {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: "object",
@@ -165,11 +147,9 @@ export const QIP_SCHEMAS = {
             content: {
                 type: "object",
                 properties: {
-                    createdWhen: { type: "number" },
-                    modifiedWhen: { type: "number" },
                     version: { type: "string" },
                     description: { type: "string" },
-                    integrationSystemType: { 
+                    integrationSystemType: {
                         type: "string",
                         enum: ["EXTERNAL", "INTERNAL", "IMPLEMENTED"]
                     },
@@ -182,13 +162,13 @@ export const QIP_SCHEMAS = {
                     migrations: { type: "array" },
                     specificationGroups: {
                         type: "array",
-                        items: { type: "string" } 
+                        items: { type: "string" }
                     }
                 }
             }
         }
     },
-    
+
     CHAIN: {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: "object",
@@ -202,10 +182,8 @@ export const QIP_SCHEMAS = {
             name: { type: "string" },
             content: {
                 type: "object",
-                required: ["createdWhen", "modifiedWhen", "version"],
+                required: ["version"],
                 properties: {
-                    createdWhen: { type: "number" },
-                    modifiedWhen: { type: "number" },
                     version: { type: "string" },
                     elements: {
                         type: "array",

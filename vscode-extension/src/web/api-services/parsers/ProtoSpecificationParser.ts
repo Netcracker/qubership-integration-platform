@@ -1,5 +1,3 @@
-import { EMPTY_USER } from "../../response/chainApiUtils";
-
 export interface ProtoData {
     type: 'PROTO';
     package: string;
@@ -156,10 +154,6 @@ export class ProtoSpecificationParser {
                 const operation = {
                     id: `${specificationId}-${method.name}`,
                     name: method.name,
-                    createdWhen: Date.now(),
-                    modifiedWhen: Date.now(),
-                    createdBy: {...EMPTY_USER},
-                    modifiedBy: {...EMPTY_USER},
                     method: 'post',
                     path: `/${protoData.package}.${service.name}/${method.name}`,
                     specification: {

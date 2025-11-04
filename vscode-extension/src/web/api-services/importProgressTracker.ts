@@ -22,7 +22,6 @@ export class ImportProgressTracker {
             id: importId,
             done: false,
             specificationGroupId: specificationGroupId,
-            createdWhen: Date.now()
         };
         this.importSessions.set(importId, session);
     }
@@ -55,7 +54,7 @@ export class ImportProgressTracker {
         const expirationTime = 15 * 60 * 1000; // 15 minutes
 
         for (const [importId, session] of this.importSessions.entries()) {
-            if (session.done && session.createdWhen && (now - session.createdWhen) > expirationTime) {
+            if (session.done) {
                 this.importSessions.delete(importId);
             }
         }

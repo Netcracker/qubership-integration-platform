@@ -1,7 +1,5 @@
 import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo, BaseEntity} from "../api-services/servicesTypes";
-import * as yaml from 'yaml';
-import {Uri, WorkspaceFolder} from "vscode";
-import {EMPTY_USER} from "./chainApiUtils";
+import {Uri} from "vscode";
 import {fileApi} from "./file/fileApiProvider";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { getExtensionsForUri } from './file/fileExtensions';
@@ -41,10 +39,6 @@ export async function getService(serviceFileUri: Uri, serviceId: string): Promis
         id: service.id,
         name: service.name,
         description: service.content?.description || "",
-        createdBy: service.content?.createdBy || {...EMPTY_USER},
-        modifiedBy: service.content?.modifiedBy || {...EMPTY_USER},
-        createdWhen: service.content?.createdWhen || 0,
-        modifiedWhen: service.content?.modifiedWhen || 0,
         activeEnvironmentId: service.content?.activeEnvironmentId || "",
         integrationSystemType: service.content?.integrationSystemType || "",
         type: service.content?.integrationSystemType || "",
@@ -82,10 +76,6 @@ function parseEnvironments(environments: any[]): Environment[] {
                 id: env.id,
                 name: env.name,
                 description: env.description || "",
-                createdBy: env.createdBy || {...EMPTY_USER},
-                modifiedBy: env.modifiedBy || {...EMPTY_USER},
-                createdWhen: env.createdWhen || 0,
-                modifiedWhen: env.modifiedWhen || 0,
                 address: env.address || "",
                 sourceType: env.sourceType || "MANUAL",
                 properties: env.properties || {},
@@ -125,10 +115,6 @@ export async function getApiSpecifications(currentFile: Uri, serviceId: string):
                     id: parsed.id,
                     name: parsed.name,
                     description: parsed.content.description || "",
-                    createdBy: parsed.content.createdBy || {...EMPTY_USER},
-                    modifiedBy: parsed.content.modifiedBy || {...EMPTY_USER},
-                    createdWhen: parsed.content.createdWhen || 0,
-                    modifiedWhen: parsed.content.modifiedWhen || 0,
                     specifications: specifications,
                     synchronization: parsed.content.synchronization || false,
                     parentId: parsed.content.parentId,
@@ -176,10 +162,6 @@ export async function getSpecificationModel(serviceFileUri: Uri, serviceId: stri
                     id: parsed.id,
                     name: parsed.name,
                     description: parsed.content.description || "",
-                    createdBy: parsed.content.createdBy || {...EMPTY_USER},
-                    modifiedBy: parsed.content.modifiedBy || {...EMPTY_USER},
-                    createdWhen: parsed.content.createdWhen || 0,
-                    modifiedWhen: parsed.content.modifiedWhen || 0,
                     version: parsed.content.version || "",
                     format: parsed.content.format || "",
                     content: parsed.content.content || "",
@@ -325,10 +307,6 @@ async function getChainsUsingOperation(specificationId: string, operationId: str
                         return {
                             id: chainYaml.id,
                             name: chainYaml.name,
-                            createdBy: { ...EMPTY_USER },
-                            createdWhen: Date.now(),
-                            modifiedBy: { ...EMPTY_USER },
-                            modifiedWhen: Date.now(),
                         };
                     }
             }

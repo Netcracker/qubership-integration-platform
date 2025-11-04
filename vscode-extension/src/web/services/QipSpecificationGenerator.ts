@@ -1,18 +1,7 @@
-import { EMPTY_USER } from "../response/chainApiUtils";
 import { ProjectConfigService } from "./ProjectConfigService";
 
 export class QipSpecificationGenerator {
     private static readonly HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options'];
-
-    private static buildAudit() {
-        const now = Date.now();
-        return {
-            createdWhen: now,
-            modifiedWhen: now,
-            createdBy: { ...EMPTY_USER },
-            modifiedBy: { ...EMPTY_USER }
-        };
-    }
 
     private static buildSpecification(
         specId: string,
@@ -29,7 +18,6 @@ export class QipSpecificationGenerator {
             id: specId,
             name,
             content: {
-                ...this.buildAudit(),
                 deprecated: false,
                 version,
                 source: "MANUAL",
@@ -44,7 +32,6 @@ export class QipSpecificationGenerator {
         return [{
             id: this.generateId(),
             name: fileName,
-            ...this.buildAudit(),
             sourceHash: this.calculateHash(JSON.stringify(sourceData)),
             fileName: `source-${specId}/${fileName}`,
             mainSource: true
@@ -105,7 +92,6 @@ export class QipSpecificationGenerator {
         return {
             id: `${specId}-${operationId}`,
             name: operationId,
-            ...this.buildAudit(),
             method: method,
             path: path,
             specification: this.reorderSpecificationFields(operation),
@@ -502,8 +488,7 @@ export class QipSpecificationGenerator {
                 const operation = {
                     id: `${specId}-${operationName}`,
                     name: operationName,
-                    ...this.buildAudit(),
-                        method: 'post',
+                    method: 'post',
                     path: wsdlData.service?.address || '',
                     specification: {
                         summary: `SOAP operation: ${operationName}`,
@@ -561,8 +546,7 @@ export class QipSpecificationGenerator {
                 const operation = {
                     id: `${specId}-${service.name}-${method.name}`,
                     name: `${service.name}.${method.name}`,
-                    ...this.buildAudit(),
-                        method: 'post',
+                    method: 'post',
                     path: `/${service.name}/${method.name}`,
                     specification: {
                         summary: method.comment || `gRPC method: ${method.name}`,
@@ -618,7 +602,6 @@ export class QipSpecificationGenerator {
         const buildGraphQLOperation = (kind: 'Query' | 'Mutation' | 'Subscription', item: any) => ({
             id: `${specId}-${kind.toLowerCase()}-${item.name}`,
             name: item.name,
-            ...this.buildAudit(),
             method: 'post',
             path: '/graphql',
             specification: {
@@ -702,7 +685,6 @@ export class QipSpecificationGenerator {
                     return {
                         id: `${specId}-${operationId}`,
                         name: operationId,
-                        ...this.buildAudit(),
                         method: opType.toUpperCase(),
                         path: channelNameLocal,
                         specification: {

@@ -163,7 +163,7 @@ export class SpecificationImportService {
             this.progressTracker.startImportSession(importId, specificationGroup.id);
 
             const extractedFiles = await this.convertSerializedFilesToFiles(files);
-            
+
             const importingProtocol = await this.detectImportingProtocol(extractedFiles);
             if (importingProtocol) {
                 const systemProtocol = this.convertToApiSpecificationType(system.protocol);
@@ -224,7 +224,6 @@ export class SpecificationImportService {
             id: importId,
             done: true,
                 specificationGroupId: '',
-                createdWhen: Date.now(),
                 warningMessage: `Import session ${importId} not found. It may have expired or been cleaned up.`
             };
         }
@@ -374,10 +373,6 @@ export class SpecificationImportService {
                     id: specification.id,
                     name: specification.name,
                     content: {
-                        createdWhen: specification.createdWhen,
-                        modifiedWhen: specification.modifiedWhen,
-                        createdBy: specification.createdBy,
-                        modifiedBy: specification.modifiedBy,
                         deprecated: specification.deprecated,
                         version: specification.version,
                         source: "MANUAL",
@@ -385,10 +380,6 @@ export class SpecificationImportService {
                         specificationSources: await Promise.all(extractedFiles.map(async (file, index) => ({
                             id: crypto.randomUUID(),
                             name: file.name,
-                            createdWhen: Date.now(),
-                            modifiedWhen: Date.now(),
-                            createdBy: { id: "", username: "" },
-                            modifiedBy: { id: "", username: "" },
                             sourceHash: this.calculateHash(await this.readFileContent(file)),
                             fileName: `source-${specification.id}/${file.name}`,
                             mainSource: file === sourceFile

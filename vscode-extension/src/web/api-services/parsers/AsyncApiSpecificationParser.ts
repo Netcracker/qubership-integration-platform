@@ -1,4 +1,3 @@
-import { EMPTY_USER } from '../../response/chainApiUtils';
 import { ContentParser } from './ContentParser';
 
 export interface AsyncApiData {
@@ -61,10 +60,6 @@ export class AsyncApiSpecificationParser {
                 const operation = {
                     id: `${specificationId}-${operationId}`,
                     name: operationId,
-                    createdWhen: Date.now(),
-                    modifiedWhen: Date.now(),
-                    createdBy: {...EMPTY_USER },
-                    modifiedBy: {...EMPTY_USER },
                     method: 'publish',
                     path: channelName,
                     specification: {
@@ -109,10 +104,6 @@ export class AsyncApiSpecificationParser {
                 const operation = {
                     id: `${specificationId}-${operationId}`,
                     name: operationId,
-                    createdWhen: Date.now(),
-                    modifiedWhen: Date.now(),
-                    createdBy: {...EMPTY_USER },
-                    modifiedBy: {...EMPTY_USER },
                     method: 'subscribe',
                     path: channelName,
                     specification: {

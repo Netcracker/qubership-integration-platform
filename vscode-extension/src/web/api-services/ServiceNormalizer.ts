@@ -1,5 +1,3 @@
-import { EMPTY_USER } from "../response/chainApiUtils";
-
 /**
  * Utility for normalizing service objects
  * Ensures that service.content always exists with valid default values
@@ -17,10 +15,6 @@ export class ServiceNormalizer {
         if (!service.content || typeof service.content !== 'object') {
             const now = Date.now();
             service.content = {
-                createdWhen: now,
-                modifiedWhen: now,
-                createdBy: { ...EMPTY_USER },
-                modifiedBy: { ...EMPTY_USER },
                 description: "",
                 activeEnvironmentId: "",
                 integrationSystemType: "",
@@ -33,10 +27,6 @@ export class ServiceNormalizer {
             };
         } else {
             const now = Date.now();
-            if (!service.content.createdWhen) service.content.createdWhen = now;
-            if (!service.content.modifiedWhen) service.content.modifiedWhen = now;
-            if (!service.content.createdBy) service.content.createdBy = { ...EMPTY_USER };
-            if (!service.content.modifiedBy) service.content.modifiedBy = { ...EMPTY_USER };
             if (service.content.description === undefined) service.content.description = "";
             if (service.content.activeEnvironmentId === undefined) service.content.activeEnvironmentId = "";
             if (service.content.integrationSystemType === undefined) service.content.integrationSystemType = "";
@@ -64,18 +54,6 @@ export class ServiceNormalizer {
                     }
                     if (env.address === undefined) {
                         env.address = "";
-                    }
-                    if (!env.createdBy) {
-                        env.createdBy = { ...EMPTY_USER };
-                    }
-                    if (!env.modifiedBy) {
-                        env.modifiedBy = { ...EMPTY_USER };
-                    }
-                    if (!env.createdWhen) {
-                        env.createdWhen = now;
-                    }
-                    if (!env.modifiedWhen) {
-                        env.modifiedWhen = now;
                     }
                     return env;
                 });

@@ -1,8 +1,6 @@
 import { ExtensionContext, Uri } from "vscode";
 import { SpecificationGroup, IntegrationSystem } from "./servicesTypes";
-import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
-import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { getBaseFolder } from "../response/serviceApiUtils";
 import { YamlFileUtils } from "./YamlFileUtils";
 import { LabelUtils } from "./LabelUtils";
@@ -37,10 +35,6 @@ export class SpecificationGroupService {
                 name: parsed.name,
                 description: parsed.description || '',
                 parentId: parsed.content?.parentId || parsed.parentId,
-                createdWhen: parsed.content?.createdWhen || parsed.createdWhen,
-                createdBy: parsed.content?.createdBy || parsed.createdBy,
-                modifiedWhen: parsed.content?.modifiedWhen || parsed.modifiedWhen,
-                modifiedBy: parsed.content?.modifiedBy || parsed.modifiedBy,
                 specifications: [],
                 synchronization: parsed.content?.synchronization || parsed.synchronization || false
             };
@@ -66,13 +60,9 @@ export class SpecificationGroupService {
             id: groupId,
             name: name,
             systemId: system.id, // Store systemId for UI compatibility
-            createdWhen: now,
-            createdBy: {...EMPTY_USER},
-            modifiedWhen: now,
-            modifiedBy: {...EMPTY_USER},
             specifications: [],
             synchronization: false,
-            
+
         };
 
         if (protocol) {
@@ -91,7 +81,7 @@ export class SpecificationGroupService {
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
-            
+
             const config = ProjectConfigService.getConfig();
             const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}${config.extensions.specificationGroup}`);
 
@@ -106,10 +96,6 @@ export class SpecificationGroupService {
                 id: specificationGroup.id,
                 name: specificationGroup.name,
                 content: {
-                    createdWhen: specificationGroup.createdWhen,
-                    modifiedWhen: specificationGroup.modifiedWhen,
-                    createdBy: specificationGroup.createdBy,
-                    modifiedBy: specificationGroup.modifiedBy,
                     synchronization: specificationGroup.synchronization || false,
                     parentId: systemId,
                     labels: specificationGroup.labels ? LabelUtils.fromEntityLabels(specificationGroup.labels) : []

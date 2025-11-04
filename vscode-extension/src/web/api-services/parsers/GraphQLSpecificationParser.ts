@@ -1,5 +1,3 @@
-import { EMPTY_USER } from "../../response/chainApiUtils";
-
 export interface GraphQLData {
     type: 'GRAPHQL';
     schema: string;
@@ -184,10 +182,6 @@ export class GraphQLSpecificationParser {
             const operation = {
                 id: `${specificationId}-${query.name}`,
                 name: query.name,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: {...EMPTY_USER},
-                modifiedBy: {...EMPTY_USER},
                 method: 'query',
                 path: query.arguments ? `${query.name}(${query.arguments}): ${query.returnType}` : `${query.name}: ${query.returnType}`,
                 specification: {
@@ -205,10 +199,6 @@ export class GraphQLSpecificationParser {
             const operation = {
                 id: `${specificationId}-${mutation.name}`,
                 name: mutation.name,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: {...EMPTY_USER},
-                modifiedBy: {...EMPTY_USER},
                 method: 'mutation',
                 path: mutation.arguments ? `${mutation.name}(${mutation.arguments}): ${mutation.returnType}` : `${mutation.name}: ${mutation.returnType}`,
                 specification: {
@@ -226,10 +216,6 @@ export class GraphQLSpecificationParser {
             const operation = {
                 id: `${specificationId}-${subscription.name}`,
                 name: subscription.name,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: {...EMPTY_USER},
-                modifiedBy: {...EMPTY_USER},
                 method: 'subscription',
                 path: subscription.arguments ? `${subscription.name}(${subscription.arguments}): ${subscription.returnType}` : `${subscription.name}: ${subscription.returnType}`,
                 specification: {

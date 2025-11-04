@@ -1,5 +1,3 @@
-import { EMPTY_USER } from "../../response/chainApiUtils";
-
 export interface WsdlData {
     type: 'WSDL';
     targetNamespace?: string;
@@ -86,10 +84,6 @@ export class SoapSpecificationParser {
                 const operation = {
                     id: `${specificationId}-${operationName}`,
                     name: operationName,
-                    createdWhen: Date.now(),
-                    modifiedWhen: Date.now(),
-                    createdBy: {...EMPTY_USER},
-                    modifiedBy: {...EMPTY_USER},
                     method: 'post',
                     path: '/',
                     specification: {

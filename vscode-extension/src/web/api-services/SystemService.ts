@@ -2,7 +2,6 @@ import { ExtensionContext, Uri } from "vscode";
 import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
-import { EMPTY_USER } from "../response/chainApiUtils";
 import { getBaseFolder } from "../response/serviceApiUtils";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { LabelUtils } from "./LabelUtils";
@@ -34,10 +33,6 @@ export class SystemService {
                     id: service.id,
                     name: service.name,
                     description: service.content?.description || "",
-                    createdBy: service.content?.createdBy || {...EMPTY_USER},
-                    modifiedBy: service.content?.modifiedBy || {...EMPTY_USER},
-                    createdWhen: service.content?.createdWhen || 0,
-                    modifiedWhen: service.content?.modifiedWhen || 0,
                     activeEnvironmentId: service.content?.activeEnvironmentId || "",
                     integrationSystemType: service.content?.integrationSystemType || "",
                     type: service.content?.integrationSystemType || "",
@@ -100,21 +95,19 @@ export class SystemService {
     async saveSystem(system: IntegrationSystem): Promise<void> {
         try {
             const serviceFileUri = await this.findServiceFileUri(system.id);
-            
+
             const service = await fileApi.getMainService(serviceFileUri);
-            
+
             if (!service.content) {
                 service.content = {};
             }
-            
+
             service.content.integrationSystemType = system.integrationSystemType || system.type;
             service.content.protocol = system.protocol ? system.protocol.toUpperCase() : system.protocol;
             service.content.extendedProtocol = system.extendedProtocol;
             service.content.specification = system.specification;
             service.content.labels = LabelUtils.fromEntityLabels(system.labels);
-            service.content.modifiedWhen = Date.now();
-            service.content.modifiedBy = { ...EMPTY_USER };
-            
+
             await fileApi.writeMainService(serviceFileUri, service);
         } catch (error) {
             console.error(`[SystemService] Failed to save system ${system.id}:`, error);

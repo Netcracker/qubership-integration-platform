@@ -8,10 +8,7 @@ import {
     OpenApiSpecificationParser,
     AsyncApiSpecificationParser
 } from "./parsers";
-import { EMPTY_USER } from "../response/chainApiUtils";
 import { ContentParser } from './parsers/ContentParser';
-
-const vscode = require('vscode');
 
 /**
  * Service for processing specification files
@@ -72,10 +69,6 @@ export class SpecificationProcessorService {
             name: version, // Use version as name, not file name
             description: `Specification for ${file.name}`,
             parentId: specificationGroup.id,
-            createdWhen: Date.now(),
-            createdBy: {...EMPTY_USER},
-            modifiedWhen: Date.now(),
-            modifiedBy: {...EMPTY_USER},
             version: version,
             format: specificationType?.toString() || 'unknown',
             content: '',
@@ -147,8 +140,8 @@ export class SpecificationProcessorService {
         if (specData.asyncapi) {
             const protocol = specData.info?.['x-protocol']?.toLowerCase() ||
                            specData.servers?.main?.protocol?.toLowerCase() ||
-                           (specData.servers && Object.keys(specData.servers).length > 0 
-                               ? (Object.values(specData.servers)[0] as any)?.protocol?.toLowerCase() 
+                           (specData.servers && Object.keys(specData.servers).length > 0
+                               ? (Object.values(specData.servers)[0] as any)?.protocol?.toLowerCase()
                                : null);
             return protocol || null;
         }

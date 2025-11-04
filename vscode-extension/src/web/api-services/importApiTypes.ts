@@ -3,7 +3,6 @@ export type ImportSpecificationResult = {
   warningMessage?: string;
   done: boolean;
   specificationGroupId: string;
-  createdWhen?: number;
 };
 
 export type SerializedFile = {

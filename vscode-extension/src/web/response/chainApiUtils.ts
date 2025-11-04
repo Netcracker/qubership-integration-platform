@@ -75,11 +75,6 @@ export function replaceElementPlaceholders(properties: any, chainId: string, ele
     }
 }
 
-export const EMPTY_USER: User = {
-    id: "",
-    username: ""
-};
-
 //TODO WA for exporting only types in UI
 export enum ChainCommitRequestAction {
     NONE = "NONE",
