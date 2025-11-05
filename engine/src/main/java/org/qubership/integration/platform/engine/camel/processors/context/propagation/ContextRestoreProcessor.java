@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 import static java.util.Objects.nonNull;
-import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.ENABLE_AUTH_RESTORE_PROP;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT;
 
 @Slf4j

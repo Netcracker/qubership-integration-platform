@@ -17,6 +17,7 @@
 
 package org.qubership.integration.platform.engine.camel.components.kafka.configuration;
 
+import com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode;
 import org.apache.camel.Exchange;
 import org.apache.camel.RuntimeCamelException;
 import org.apache.camel.component.kafka.KafkaConstants;
@@ -38,7 +39,6 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
-import com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode;
 
 import java.util.HashMap;
 import java.util.List;

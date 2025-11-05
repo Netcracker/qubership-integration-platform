@@ -1,14 +1,5 @@
 package org.qubership.integration.platform.engine.camel.components.kafka.cloudcore;
 
-import lombok.Getter;
-import lombok.Setter;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.consumer.*;
-import org.apache.kafka.common.Metric;
-import org.apache.kafka.common.MetricName;
-import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.header.Header;
 import com.netcracker.cloud.bluegreen.api.model.BlueGreenState;
 import com.netcracker.cloud.bluegreen.api.model.NamespaceVersion;
 import com.netcracker.cloud.bluegreen.api.model.State;
@@ -18,6 +9,15 @@ import com.netcracker.cloud.maas.bluegreen.kafka.Record;
 import com.netcracker.cloud.maas.bluegreen.kafka.RecordsBatch;
 import com.netcracker.cloud.maas.bluegreen.kafka.impl.*;
 import com.netcracker.cloud.maas.bluegreen.versiontracker.impl.VersionFilterConstructor;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.*;
+import org.apache.kafka.common.Metric;
+import org.apache.kafka.common.MetricName;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.header.Header;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -28,9 +28,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static com.netcracker.cloud.framework.contexts.xversion.XVersionContextObject.X_VERSION_SERIALIZATION_NAME;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
-import static com.netcracker.cloud.framework.contexts.xversion.XVersionContextObject.X_VERSION_SERIALIZATION_NAME;
 
 /**
  * Based on {@link com.netcracker.cloud.maas.bluegreen.kafka.impl.BGKafkaConsumerImpl}

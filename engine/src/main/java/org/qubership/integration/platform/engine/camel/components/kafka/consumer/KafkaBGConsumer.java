@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.camel.components.kafka.consumer;
 
+import com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Processor;
 import org.apache.camel.component.kafka.KafkaConsumer;
@@ -10,7 +11,6 @@ import org.apache.camel.support.service.ServiceHelper;
 import org.apache.camel.support.service.ServiceSupport;
 import org.apache.camel.util.ObjectHelper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode;
 import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomEndpoint;
 import org.qubership.integration.platform.engine.camel.components.kafka.configuration.KafkaCustomConfiguration;
 

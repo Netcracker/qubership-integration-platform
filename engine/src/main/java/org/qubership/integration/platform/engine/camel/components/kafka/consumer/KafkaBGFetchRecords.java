@@ -1,5 +1,9 @@
 package org.qubership.integration.platform.engine.camel.components.kafka.consumer;
 
+import com.netcracker.cloud.maas.bluegreen.kafka.CommitMarker;
+import com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode;
+import com.netcracker.cloud.maas.bluegreen.kafka.Record;
+import com.netcracker.cloud.maas.bluegreen.kafka.RecordsBatch;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.component.kafka.KafkaFetchRecords;
@@ -9,10 +13,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
-import com.netcracker.cloud.maas.bluegreen.kafka.CommitMarker;
-import com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode;
-import com.netcracker.cloud.maas.bluegreen.kafka.Record;
-import com.netcracker.cloud.maas.bluegreen.kafka.RecordsBatch;
 import org.qubership.integration.platform.engine.camel.components.kafka.cloudcore.BGKafkaConsumerExtended;
 
 import java.time.Duration;
