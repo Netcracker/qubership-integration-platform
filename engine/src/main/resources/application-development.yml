@@ -30,6 +30,10 @@ spring:
         jdbc:
           batch_size: 30
 
+maas:
+  kafka:
+    enabled: false
+
 logging:
   level:
     root: ${ROOT_LOG_LEVEL:WARN}

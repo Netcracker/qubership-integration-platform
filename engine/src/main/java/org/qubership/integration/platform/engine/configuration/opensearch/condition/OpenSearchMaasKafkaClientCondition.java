@@ -10,6 +10,7 @@ public class OpenSearchMaasKafkaClientCondition implements Condition {
     public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
         boolean standaloneMode = Boolean.parseBoolean(context.getEnvironment().getProperty("qip.standalone"));
         boolean opensearchKafkaClientEnabled = Boolean.parseBoolean(context.getEnvironment().getProperty("qip.opensearch.kafka-client.enabled"));
-        return !standaloneMode && opensearchKafkaClientEnabled;
+        boolean maasKafkaEnabled = Boolean.parseBoolean(context.getEnvironment().getProperty("maas.kafka.enabled"));
+        return !standaloneMode && opensearchKafkaClientEnabled && maasKafkaEnabled;
     }
 }

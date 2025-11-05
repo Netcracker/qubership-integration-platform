@@ -4,5 +4,5 @@ import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElem
 
 public interface OpenSearchKafkaProducer {
 
-    void send(String key, KafkaQueueElement value);
+    void send(String key, KafkaQueueElement kafkaQueueElement);
 }

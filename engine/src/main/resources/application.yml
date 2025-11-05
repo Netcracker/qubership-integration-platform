@@ -155,6 +155,10 @@ db:
         idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
         leak-detection-threshold: ${db.hikari.datasources.datasource.leak-detection-threshold}
 
+maas:
+  kafka:
+    enabled: false
+
 security:
   role-prefix: 'ROLE_'
 
