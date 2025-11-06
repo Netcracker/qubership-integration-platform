@@ -64,6 +64,12 @@ properties:
           type: array
           items:
             $ref: "#/definitions/ResponseValidation"
+        integrationOperationSkipEmptyQueryParameters:
+          type: boolean
+          default: false
+          title: Skip empty query parameters
+          description: >
+            If checked, empty query parameters will be excluded from the request URL.
 definitions:
   AuthorizationInherit:
     title: Inherit
