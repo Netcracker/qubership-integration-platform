@@ -163,7 +163,7 @@ export class SpecificationImportService {
             this.progressTracker.startImportSession(importId, specificationGroup.id);
 
             const extractedFiles = await this.convertSerializedFilesToFiles(files);
-            
+
             const importingProtocol = await this.detectImportingProtocol(extractedFiles);
             if (importingProtocol) {
                 const systemProtocol = this.convertToApiSpecificationType(system.protocol);
@@ -370,8 +370,8 @@ export class SpecificationImportService {
 
                 // Create QIP specification using operations from SpecificationProcessorService
                 const qipSpecification = {
-                    $schema: config.schemaUrls.specification,
                     id: specification.id,
+                    $schema: config.schemaUrls.specification,
                     name: specification.name,
                     content: {
                         createdWhen: specification.createdWhen,

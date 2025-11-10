@@ -72,7 +72,7 @@ export class SpecificationGroupService {
             modifiedBy: {...EMPTY_USER},
             specifications: [],
             synchronization: false,
-            
+
         };
 
         if (protocol) {
@@ -91,7 +91,7 @@ export class SpecificationGroupService {
             if (!baseFolder) {
                 throw new Error('No base folder available');
             }
-            
+
             const config = ProjectConfigService.getConfig();
             const groupFile = Uri.joinPath(baseFolder, `${specificationGroup.id}${config.extensions.specificationGroup}`);
 
@@ -102,8 +102,8 @@ export class SpecificationGroupService {
             });
 
             const yamlData = {
-                $schema: config.schemaUrls.specificationGroup,
                 id: specificationGroup.id,
+                $schema: config.schemaUrls.specificationGroup,
                 name: specificationGroup.name,
                 content: {
                     createdWhen: specificationGroup.createdWhen,
