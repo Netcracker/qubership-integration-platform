@@ -72,6 +72,7 @@ public final class CamelOptions {
     public static final String OPERATION_METHOD = "integrationOperationMethod";
     public static final String OPERATION_PATH_PARAMETERS = "integrationOperationPathParameters";
     public static final String OPERATION_QUERY_PARAMETERS = "integrationOperationQueryParameters";
+    public static final String SEND_EMPTY_QUERY_PARAMS = "sendEmptyQueryParams";
     public static final String AUTHORIZATION_CONFIGURATION = "authorizationConfiguration";
 
     public static final String SYSTEM_TYPE_INTERNAL = "INTERNAL";

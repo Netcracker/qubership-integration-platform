@@ -25,6 +25,9 @@
         <setProperty name="serviceCallPath">
             <simple>{{escape (property "integrationOperationPath")}}</simple>
         </setProperty>
+        <setProperty name="serviceCallSendEmptyQueryParams">
+            <simple>{{property "sendEmptyQueryParams"}}</simple>
+        </setProperty>
 
         {{#each (property 'integrationOperationQueryParameters' raw='')}}
             <setProperty name="serviceCallQueryParameter_{{escape @key}}">
@@ -245,6 +248,7 @@
             <doTry id="Request--{{identifier}}">
 
                 {{#if-property 'integrationOperationProtocolType' equals='http'}}
+                    <process ref="queryParameterFilterProcessor"/>
                     <process ref="httpSenderProcessor"/>
                     <process ref="httpProducerCharsetProcessor"/>
                     <toD uri="http:stub{{escape (manualQuery

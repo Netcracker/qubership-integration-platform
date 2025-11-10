@@ -43,7 +43,11 @@ public class GenerateURLHelper {
             return oldFormatUrl;
         }
 
-        return generatePathParamString(element) + generateQueryParamString(element);
+        if (isSendEmptyQueryParams(element)) {
+            return generatePathParamString(element) + generateQueryParamString(element);
+        } else {
+            return generatePathParamString(element);
+        }
     }
 
     /**
@@ -116,8 +120,9 @@ public class GenerateURLHelper {
             return result.toString();
         }
 
+        boolean sendEmptyParams = isSendEmptyQueryParams(element);
         for (String key : map.keySet()) {
-            if (!StringUtils.isEmpty(map.get(key))) {
+            if (!sendEmptyParams || !StringUtils.isEmpty(map.get(key))) {
                 if (result.length() == 0) {
                     result.append("?");
                 } else {
@@ -127,5 +132,10 @@ public class GenerateURLHelper {
             }
         }
         return result.toString();
+    }
+
+    private boolean isSendEmptyQueryParams(ChainElement element) {
+        Object sendEmptyParamsProperty = element.getProperty(CamelOptions.SEND_EMPTY_QUERY_PARAMS);
+        return sendEmptyParamsProperty != null && Boolean.parseBoolean(String.valueOf(sendEmptyParamsProperty));
     }
 }
