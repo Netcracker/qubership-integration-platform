@@ -19,7 +19,7 @@ properties:
     description: Throw exception on transformation failure.
     default: true
   mappingDescription:
-    type: object
+    $ref: "#/definitions/MappingDescription"
 
 definitions:
   Metadata:
