@@ -92,8 +92,8 @@ export class SpecificationGroupService {
             });
 
             const yamlData = {
-                $schema: config.schemaUrls.specificationGroup,
                 id: specificationGroup.id,
+                $schema: config.schemaUrls.specificationGroup,
                 name: specificationGroup.name,
                 content: {
                     synchronization: specificationGroup.synchronization || false,

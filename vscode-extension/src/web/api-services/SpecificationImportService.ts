@@ -369,8 +369,8 @@ export class SpecificationImportService {
 
                 // Create QIP specification using operations from SpecificationProcessorService
                 const qipSpecification = {
-                    $schema: config.schemaUrls.specification,
                     id: specification.id,
+                    $schema: config.schemaUrls.specification,
                     name: specification.name,
                     content: {
                         deprecated: specification.deprecated,

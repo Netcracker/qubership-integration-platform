@@ -13,11 +13,13 @@ export interface AsyncApiData {
             summary?: string;
             operationId?: string;
             message?: any;
+            'x-maas-classifier-name'?: string
         };
         subscribe?: {
             summary?: string;
             operationId?: string;
             message?: any;
+            'x-maas-classifier-name'?: string
         };
     }>;
     servers?: Record<string, {
@@ -68,7 +70,8 @@ export class AsyncApiSpecificationParser {
                         protocol: protocol,
                         channel: channelName,
                         operation: 'publish',
-                        message: channel.publish.message || {}
+                        message: channel.publish.message || {},
+                        maasClassifierName: channel.publish['x-maas-classifier-name'] || "",
                     },
                     requestSchema: {
                         $id: `http://system.catalog/schemas/requests/${operationId}`,
@@ -112,7 +115,8 @@ export class AsyncApiSpecificationParser {
                         protocol: protocol,
                         channel: channelName,
                         operation: 'subscribe',
-                        message: channel.subscribe.message || {}
+                        message: channel.subscribe.message || {},
+                        maasClassifierName: channel.subscribe['x-maas-classifier-name'] || "",
                     },
                     requestSchema: {
                         $id: `http://system.catalog/schemas/requests/${operationId}`,
