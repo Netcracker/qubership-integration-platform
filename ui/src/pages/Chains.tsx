@@ -497,7 +497,8 @@ const Chains = () => {
         data.push(variablesData);
       }
 
-      const archiveData = await mergeZipArchives(data);
+      const nonEmptyData = data.filter(d => d.size !== 0);
+      const archiveData = await mergeZipArchives(nonEmptyData);
       const file = new File([archiveData], chainsFile.name, {
         type: "application/zip",
       });
