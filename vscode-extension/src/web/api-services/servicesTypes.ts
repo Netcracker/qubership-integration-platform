@@ -80,11 +80,13 @@ export type SystemRequest = {
 
 export type EnvironmentRequest = {
   name: string;
-  description?: string;
   address: string;
-  sourceType: string;
+  description?: string;
+  sourceType?: string;
   properties?: Record<string, string>;
   labels?: EntityLabel[];
+  systemId?: string;
+  isActive?: boolean;
 };
 
 export interface SystemOperation {

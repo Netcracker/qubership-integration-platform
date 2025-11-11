@@ -1,182 +1,145 @@
+import { WsdlParser } from "./soap/WsdlParser";
+import type { WsdlParseResult } from "./soap/WsdlTypes";
+import { WsdlLoader, WsdlResolver } from "./soap/WsdlLoader";
 import { EMPTY_USER } from "../../response/chainApiUtils";
+import { SoapSchemaGenerator } from "./soap/SoapSchemaGenerator";
 
-export interface WsdlData {
-    type: 'WSDL';
-    targetNamespace?: string;
-    name?: string;
-    portType?: {
-        name: string;
-        operations: string[];
-    };
-    service?: {
-        name: string;
-        portName?: string;
-        address?: string;
-    };
+const wsdlParser = new WsdlParser();
+
+interface SoapParseOptions {
+    fileName?: string;
+    additionalDocuments?: Array<{ uri: string; content: string }>;
 }
 
 export class SoapSpecificationParser {
 
-    /**
-     * Parse WSDL content and extract operations
-     */
-    static async parseWsdlContent(content: string): Promise<WsdlData> {
+    static async parseWsdlContent(content: string, options?: SoapParseOptions): Promise<WsdlParseResult> {
+        const mainUri = this.normalizePath(options?.fileName ?? "main.wsdl");
+        const additionalDocuments = options?.additionalDocuments ?? [];
+        const documentsMap = new Map<string, string>();
+        additionalDocuments.forEach((document) => {
+            const normalizedUri = this.normalizePath(document.uri);
+            documentsMap.set(normalizedUri, document.content);
+            const fileName = normalizedUri.split("/").pop();
+            if (fileName) {
+                documentsMap.set(fileName, document.content);
+            }
+            if (document.uri !== normalizedUri) {
+                documentsMap.set(document.uri, document.content);
+            }
+        });
 
-        const wsdlData: WsdlData = {
-            type: 'WSDL'
+        const resolver: WsdlResolver = async (importUri, baseUri) => {
+            const candidates = this.resolveImportCandidates(importUri, baseUri);
+            for (const candidate of candidates) {
+                const normalized = this.normalizePath(candidate);
+                if (documentsMap.has(normalized)) {
+                    return {
+                        uri: normalized,
+                        content: documentsMap.get(normalized)!,
+                    };
+                }
+            }
+            return null;
         };
 
-        // Extract targetNamespace
-        const targetNamespaceMatch = content.match(/targetNamespace="([^"]+)"/);
-        if (targetNamespaceMatch) {
-            wsdlData.targetNamespace = targetNamespaceMatch[1];
-        }
+        const loader = new WsdlLoader(resolver);
+        const resources = await loader.load(mainUri, content);
 
-        // Extract name
-        const nameMatch = content.match(/<wsdl:definitions[^>]*name="([^"]+)"/);
-        if (nameMatch) {
-            wsdlData.name = nameMatch[1];
-        }
-
-        // Extract operations from portType
-        const portTypeMatch = content.match(/<wsdl:portType[^>]*name="([^"]+)">([\s\S]*?)<\/wsdl:portType>/);
-        if (portTypeMatch) {
-            wsdlData.portType = {
-                name: portTypeMatch[1],
-                operations: []
-            };
-
-            const operationMatches = portTypeMatch[2].matchAll(/<wsdl:operation[^>]*name="([^"]+)">/g);
-            for (const match of operationMatches) {
-                wsdlData.portType.operations.push(match[1]);
-            }
-        }
-
-        // Extract service, port name and soap:address
-        const serviceMatch = content.match(/<wsdl:service[^>]*name="([^"]+)">([\s\S]*?)<\/wsdl:service>/);
-        if (serviceMatch) {
-            wsdlData.service = {
-                name: serviceMatch[1]
-            };
-
-            // Extract port name from service
-            const portMatch = serviceMatch[2].match(/<wsdl:port[^>]*name="([^"]+)"/);
-            if (portMatch) {
-                wsdlData.service.portName = portMatch[1];
-            }
-
-            // Extract soap:address location from service
-            const soapAddressMatch = serviceMatch[2].match(/<soap:address[^>]*location="([^"]+)"/);
-            if (soapAddressMatch) {
-                wsdlData.service.address = soapAddressMatch[1];
-            }
-        }
-
-        return wsdlData;
+        return wsdlParser.parse(resources, mainUri);
     }
 
-    /**
-     * Create operations from WSDL data
-     */
-    static createOperationsFromWsdl(wsdlData: WsdlData, specificationId: string): any[] {
+    static createOperationsFromWsdl(wsdlData: WsdlParseResult, specificationId: string): any[] {
         const operations: any[] = [];
+        const seen = new Set<string>();
+        const schemaGenerator = new SoapSchemaGenerator(wsdlData);
+        const schemaMap = schemaGenerator.buildOperationSchemas();
 
-        if (wsdlData.portType && wsdlData.portType.operations) {
-            for (const operationName of wsdlData.portType.operations) {
-                const operation = {
-                    id: `${specificationId}-${operationName}`,
-                    name: operationName,
-                    createdWhen: Date.now(),
-                    modifiedWhen: Date.now(),
-                    createdBy: {...EMPTY_USER},
-                    modifiedBy: {...EMPTY_USER},
-                    method: 'post',
-                    path: '/',
-                    specification: {
-                        summary: `${operationName} operation`,
-                        operationId: operationName,
-                        requestBody: {
-                            content: {
-                                "application/json": {
-                                    "$id": `http://system.catalog/schemas/requests/${operationName}`,
-                                    "$ref": `#/definitions/${operationName}Request`,
-                                    "$schema": "http://json-schema.org/draft-07/schema#",
-                                    definitions: {
-                                        [`${operationName}Request`]: {
-                                            type: "object",
-                                            properties: {},
-                                            additionalProperties: false
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        responses: {
-                            "200": {
-                                content: {
-                                    "application/json": {
-                                        "$id": `http://system.catalog/schemas/responses/${operationName}`,
-                                        "$ref": `#/definitions/${operationName}Response`,
-                                        "$schema": "http://json-schema.org/draft-07/schema#",
-                                        definitions: {
-                                            [`${operationName}Response`]: {
-                                                type: "object",
-                                                properties: {},
-                                                additionalProperties: false
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    requestSchema: {
-                        "application/json": {
-                            "$id": `http://system.catalog/schemas/requests/${operationName}`,
-                            "$ref": `#/definitions/${operationName}Request`,
-                            "$schema": "http://json-schema.org/draft-07/schema#",
-                            definitions: {
-                                [`${operationName}Request`]: {
-                                    type: "object",
-                                    properties: {},
-                                    additionalProperties: false
-                                }
-                            }
-                        }
-                    },
-                    responseSchemas: {
-                        "200": {
-                            "application/json": {
-                                "$id": `http://system.catalog/schemas/responses/${operationName}`,
-                                "$ref": `#/definitions/${operationName}Response`,
-                                "$schema": "http://json-schema.org/draft-07/schema#",
-                                definitions: {
-                                    [`${operationName}Response`]: {
-                                        type: "object",
-                                        properties: {},
-                                        additionalProperties: false
-                                    }
-                                }
-                            }
-                        }
-                    }
-                };
-
-                operations.push(operation);
+        wsdlData.operations.forEach((operationName) => {
+            if (seen.has(operationName)) {
+                return;
             }
-        }
+            seen.add(operationName);
+
+            const audit = buildAudit();
+            const schemas = schemaMap.get(operationName);
+
+            operations.push({
+                id: `${specificationId}-${operationName}`,
+                name: operationName,
+                ...audit,
+                method: "POST",
+                path: "",
+                specification: {
+                    operationId: operationName
+                },
+                requestSchema: schemas?.request ?? {},
+                responseSchemas: schemas?.response ?? {}
+            });
+        });
 
         return operations;
     }
 
-    /**
-     * Extract address from WSDL data
-     */
-    static extractAddressFromWsdlData(wsdlData: WsdlData): string | null {
-        if (wsdlData.service && wsdlData.service.address) {
-            return wsdlData.service.address;
-        } else {
-            return 'https://soap.example.com/ws';
-        }
+    static extractAddressFromWsdlData(wsdlData: WsdlParseResult): string | null {
+        const endpoint = wsdlData.endpoints.find((item) => Boolean(item.address));
+        return endpoint?.address ?? null;
     }
+
+    private static normalizePath(value: string): string {
+        return value
+            .replace(/\\/g, "/")
+            .split("/")
+            .reduce<string[]>((segments, segment) => {
+                if (!segment || segment === ".") {
+                    return segments;
+                }
+                if (segment === "..") {
+                    segments.pop();
+                } else {
+                    segments.push(segment);
+                }
+                return segments;
+            }, [])
+            .join("/");
+    }
+
+    private static resolveImportCandidates(importUri: string, baseUri: string): string[] {
+        const candidates = new Set<string>();
+        const normalizedImport = this.normalizePath(importUri);
+        if (normalizedImport) {
+            candidates.add(normalizedImport);
+        }
+
+        const baseDir = this.getDirectory(baseUri);
+        if (baseDir) {
+            const combined = this.normalizePath(`${baseDir}/${importUri}`);
+            if (combined) {
+                candidates.add(combined);
+            }
+        }
+
+        const fileName = normalizedImport.split("/").pop();
+        if (fileName) {
+            candidates.add(fileName);
+        }
+
+        return Array.from(candidates);
+    }
+
+    private static getDirectory(uri: string): string {
+        const normalized = this.normalizePath(uri);
+        const lastSlash = normalized.lastIndexOf("/");
+        return lastSlash >= 0 ? normalized.substring(0, lastSlash) : "";
+    }
+}
+
+function buildAudit() {
+    const now = Date.now();
+    return {
+        createdWhen: now,
+        modifiedWhen: now,
+        createdBy: { ...EMPTY_USER },
+        modifiedBy: { ...EMPTY_USER }
+    };
 }

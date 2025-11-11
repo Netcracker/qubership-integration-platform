@@ -1,19 +1,11 @@
 import { ExtensionContext, Uri } from "vscode";
-import { Environment, IntegrationSystem } from "./servicesTypes";
+import { Environment, EnvironmentRequest } from "./servicesTypes";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { SystemService } from "./SystemService";
 import { LabelUtils } from "./LabelUtils";
 import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
-
-export interface EnvironmentRequest {
-    name: string;
-    address: string;
-    description?: string;
-    systemId: string;
-    isActive?: boolean;
-}
 
 /**
  * Service for managing environments
@@ -61,9 +53,14 @@ export class EnvironmentService {
         try {
 
             // Get system protocol for default properties
-            const system = await this.systemService.getRawServiceById(request.systemId);
+            const { systemId } = request;
+            if (!systemId) {
+                throw new Error("System id is required to create environment");
+            }
+
+            const system = await this.systemService.getRawServiceById(systemId);
             if (!system) {
-                throw new Error(`System not found: ${request.systemId}`);
+                throw new Error(`System not found: ${systemId}`);
             }
 
             const protocol = system.content?.protocol || '';
@@ -75,7 +72,7 @@ export class EnvironmentService {
                 address: request.address,
                 description: request.description || '',
                 sourceType: 'MANUAL' as any,
-                systemId: request.systemId,
+                systemId,
                 properties: defaultProperties,
                 labels: LabelUtils.toEntityLabels([]),
                 createdWhen: Date.now(),
