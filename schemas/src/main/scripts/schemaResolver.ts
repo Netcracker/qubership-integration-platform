@@ -5,7 +5,7 @@ import $RefParser from "@apidevtools/json-schema-ref-parser";
 import yaml from "js-yaml";
 
 const qubershipResolver = {
-    order: 1,
+    order: 2,
     canRead: (file: any) => {
         return file.url.startsWith("http://qubership.org/schemas/product/qip/")
     },
@@ -41,6 +41,17 @@ const ignoreSchemaResolver = {
     },
 };
 
+const ignoreMapperResolver = {
+    order: 1,
+    canRead: (file: any) =>
+        file.url === "http://qubership.org/schemas/product/qip/element/properties/mapper-description.schema.yaml",
+    read: (file: any) => {
+        return {
+            type: "object",
+        };
+    }
+};
+
 export class SchemaResolver {
     private inputDir = path.resolve(process.cwd(), "src/main/resources/qip-model/element");
     private outputDir = path.resolve(process.cwd(), "assets");
@@ -59,9 +70,10 @@ export class SchemaResolver {
         for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
             const fullPath = path.join(dir, entry.name);
 
-            if (entry.isDirectory()) {
-                results = results.concat(this.collectYamlFiles(fullPath));
-            } else if (entry.isFile() && (entry.name.endsWith(".yaml") || entry.name.endsWith(".schema.yaml"))) {
+            if (entry.isFile() &&
+                entry.name !== "element.schema.yaml" &&
+                (entry.name.endsWith(".yaml") || entry.name.endsWith(".schema.yaml"))) {
+
                 results.push(path.relative(this.inputDir, fullPath));
             }
         }
@@ -104,15 +116,14 @@ export class SchemaResolver {
             resolve: {
                 ignoreSchema: ignoreSchemaResolver,
                 qubership: qubershipResolver,
+                ignoreMapperResolver: ignoreMapperResolver,
                 file: true,
                 http: false,
             },
+
             dereference: {
                 excludedPathMatcher: (path: string) => {
-                    return path.includes("mappingDescription") ||
-                        path.includes("/definitions/DataType/") ||
-                        path.includes("/properties/children/items") ||
-                        path.includes("/properties/schema");
+                    return path.includes("/properties/children/items");
                 },
                 onCircular: (refPath: string) => {
                     console.warn("ERROR", refPath);

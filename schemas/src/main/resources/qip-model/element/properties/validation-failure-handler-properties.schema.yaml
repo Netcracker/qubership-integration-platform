@@ -37,9 +37,12 @@ title: Validation Failure Handler
 properties:
   handleValidationAction:
     type: string
-    enum:
-      - default
-      - script
-      - mapper-2
+    oneOf:
+      - const: default
+        title: Default
+      - const: script
+        title: Scripting
+      - const: mapper-2
+        title: Mapper
     default: default
     title: Action on validation failure

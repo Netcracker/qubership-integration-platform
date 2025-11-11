@@ -54,10 +54,14 @@ title: Chain Failure Handler
 properties:
   handleChainFailureAction:
     type: string
-    enum:
-      - default
-      - script
-      - mapper-2
-      - chain-call
+    oneOf:
+      - const: default
+        title: Default
+      - const: script
+        title: Scripting
+      - const: mapper-2
+        title: Mapper
+      - const: chain-call
+        title: Chain call
     default: default
     title: Action on chain failure
