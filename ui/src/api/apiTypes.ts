@@ -323,10 +323,10 @@ export type MaskedFields = {
 export type MaskedField = {
   id: string;
   name: string;
-  createdWhen: number;
-  createdBy: User;
-  modifiedWhen: number;
-  modifiedBy: User;
+  createdWhen?: number;
+  createdBy?: User;
+  modifiedWhen?: number;
+  modifiedBy?: User;
 };
 
 export type SessionFilterAndSearchRequest = {
