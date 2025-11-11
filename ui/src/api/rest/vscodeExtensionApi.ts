@@ -468,6 +468,12 @@ export class VSCodeExtensionApi implements Api {
     await this.sendMessageToExtension("deleteSpecificationModel", modelId);
   };
 
+  moveChain = async (chainId: string, folder?: string): Promise<Chain> => {
+    return <Chain>(
+      (await this.sendMessageToExtension("moveChain", { chainId, folder })).payload
+    );
+  }
+
   getDetailedDesignTemplates(): Promise<DetailedDesignTemplate[]> {
     throw new Error("Method getDetailedDesignTemplates not implemented.");
   }
@@ -546,10 +552,6 @@ export class VSCodeExtensionApi implements Api {
 
   copyChain(): Promise<Chain> {
     throw new Error("Method copyChain not implemented.");
-  }
-
-  moveChain(): Promise<Chain> {
-    throw new Error("Method moveChain not implemented.");
   }
 
   exportAllChains(): Promise<File> {
@@ -671,6 +673,9 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method getFolder not implemented.");
   }
   getPathToFolder(): Promise<FolderItem[]> {
+    throw new Error("Method getPathToFolder not implemented.");
+  }
+  getPathToFolderByName(): Promise<FolderItem[]> {
     throw new Error("Method getPathToFolder not implemented.");
   }
   listFolder(): Promise<(FolderItem | ChainItem)[]> {

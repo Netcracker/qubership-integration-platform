@@ -79,7 +79,7 @@ export interface Api {
 
   copyChain(chainId: string, folderId?: string): Promise<Chain>;
 
-  moveChain(chainId: string, folderId?: string): Promise<Chain>;
+  moveChain(chainId: string, folder?: string): Promise<Chain>;
 
   exportAllChains(): Promise<File>;
 
@@ -216,6 +216,8 @@ export interface Api {
   getRootFolders(filter: string, openedFolderId: string): Promise<FolderItem[]>;
 
   getPathToFolder(folderId: string): Promise<FolderItem[]>;
+
+  getPathToFolderByName(folderName: string): Promise<FolderItem[]>;
 
   listFolder(request: ListFolderRequest): Promise<(FolderItem | ChainItem)[]>;
 
