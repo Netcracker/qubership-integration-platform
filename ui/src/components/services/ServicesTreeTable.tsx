@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Table, Tag, Dropdown, Button, Modal } from 'antd';
 import type { FilterDropdownProps, TableRowSelection } from 'antd/es/table/interface';
 import { formatTimestamp } from '../../misc/format-utils';
@@ -12,7 +12,7 @@ import {
   User,
   IntegrationSystemType,
 } from "../../api/apiTypes.ts";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ColumnsFilter } from '../table/ColumnsFilter';
 import { OperationInfoModal } from './OperationInfoModal';
 import { api } from '../../api/api';
@@ -137,7 +137,11 @@ const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
   const [operationInfo, setOperationInfo] = React.useState<OperationInfo | undefined>(undefined);
   const [loading, setLoading] = React.useState(false);
 
-  const handleClick = () => {
+  const { operationId } = useParams<{
+    operationId?: string;
+  }>();
+
+  const handleClick = useCallback(() => {
     if (isSystemOperation(record)) {
       const fetchOperationInfo = async () => {
         setLoading(true);
@@ -158,7 +162,13 @@ const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
         void navigate(url);
       }
     }
-  };
+  }, [record, navigate]);
+
+  useEffect(() => {
+    if (operationId && operationId === record.id) {
+      handleClick();
+    }
+  }, [operationId, record.id, handleClick]);
 
   return (
     <>

@@ -25,12 +25,7 @@ export const ChainsContext = createContext<BaseEntity[] | null>(null);
 export const useChainsContext = () => useContext(ChainsContext);
 
 export const ServiceParametersPage: React.FC = () => {
-  const { systemId, groupId, specId, operationId } = useParams<{
-    systemId: string;
-    groupId?: string;
-    specId?: string;
-    operationId?: string;
-  }>();
+  const { systemId, groupId, specId } = useParams<{ systemId: string; groupId?: string; specId?: string }>();
   const location = useLocation();
   const state = location.state as { type?: IntegrationSystemType; name?: string } | undefined;
   const [system, setSystem] = useState<IntegrationSystem | null>(null);
