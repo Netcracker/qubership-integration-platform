@@ -10,8 +10,13 @@ import {
 } from "./parsers";
 import { EMPTY_USER } from "../response/chainApiUtils";
 import { ContentParser } from './parsers/ContentParser';
+import { normalizePath } from "./pathUtils";
 
-const vscode = require('vscode');
+export interface EnvironmentCandidate {
+    name?: string;
+    address: string;
+    protocol?: string;
+}
 
 /**
  * Service for processing specification files
@@ -29,10 +34,10 @@ export class SpecificationProcessorService {
         files: File[],
         systemId?: string
     ): Promise<void> {
-
+        const contentCache = new Map<string, Promise<string>>();
         for (const file of files) {
             try {
-                await this.processSpecificationFile(file, specificationGroup, systemId, files);
+                await this.processSpecificationFile(file, specificationGroup, systemId, files, contentCache);
             } catch (error) {
                 throw error;
             }
@@ -47,7 +52,8 @@ export class SpecificationProcessorService {
         file: File,
         specificationGroup: SpecificationGroup,
         systemId?: string,
-        allFiles?: File[]
+        allFiles?: File[],
+        contentCache?: Map<string, Promise<string>>
     ): Promise<void> {
         const fileExtension = this.getFileExtension(file.name);
         const specificationType = await this.detectSpecificationType(file.name, fileExtension);
@@ -64,7 +70,7 @@ export class SpecificationProcessorService {
         const specificationId = systemId ? `${systemId}-${specificationGroup.name}-${version}` : crypto.randomUUID();
 
         // Parse file content and create operations
-        const operations = await this.createOperationsFromFile(file, specificationType, specificationId);
+        const operations = await this.createOperationsFromFile(file, specificationType, specificationId, allFiles, contentCache);
 
         // Create specification object
         const specification: Specification = {
@@ -147,8 +153,8 @@ export class SpecificationProcessorService {
         if (specData.asyncapi) {
             const protocol = specData.info?.['x-protocol']?.toLowerCase() ||
                            specData.servers?.main?.protocol?.toLowerCase() ||
-                           (specData.servers && Object.keys(specData.servers).length > 0 
-                               ? (Object.values(specData.servers)[0] as any)?.protocol?.toLowerCase() 
+                           (specData.servers && Object.keys(specData.servers).length > 0
+                               ? (Object.values(specData.servers)[0] as any)?.protocol?.toLowerCase()
                                : null);
             return protocol || null;
         }
@@ -159,30 +165,59 @@ export class SpecificationProcessorService {
     /**
      * Extract address from specification data
      */
-    extractAddressFromSpecification(specData: any): string | null {
+    extractEnvironmentCandidates(specData: any): EnvironmentCandidate[] {
         if (!specData) {
-            return null;
+            return [];
         }
 
-        if (specData.type === 'WSDL') {
-            return specData.service?.address || 'https://soap.example.com/ws';
+        const candidates: EnvironmentCandidate[] = [];
+
+        if (specData.type === 'WSDL' && Array.isArray(specData.endpoints)) {
+            specData.endpoints.forEach((endpoint: any) => {
+                const normalizedAddress = this.normalizeEnvironmentAddress(endpoint?.address);
+                if (normalizedAddress) {
+                    candidates.push({
+                        name: endpoint?.endpointName || endpoint?.serviceName,
+                        address: normalizedAddress,
+                        protocol: 'SOAP'
+                    });
+                }
+            });
         }
 
-        if (specData.swagger && specData.host) {
-            const scheme = (specData.schemes || ['https'])[0];
-            const basePath = specData.basePath || '';
-            return `${scheme}://${specData.host}${basePath}`;
-        }
-
-        if (specData.openapi && specData.servers?.length > 0) {
-            return specData.servers[0].url;
+        if (specData.openapi || specData.swagger) {
+            const openApiCandidates = this.extractOpenApiServers(specData);
+            candidates.push(...openApiCandidates);
         }
 
         if (specData.asyncapi) {
-            return AsyncApiSpecificationParser.extractAddressFromAsyncApiData(specData);
+            const initialCandidateCount = candidates.length;
+            if (specData.servers && typeof specData.servers === 'object') {
+                Object.entries(specData.servers).forEach(([key, value]: [string, any]) => {
+                    const normalizedAddress = this.normalizeEnvironmentAddress(value?.url);
+                    if (normalizedAddress) {
+                        candidates.push({
+                            name: key,
+                            address: normalizedAddress,
+                            protocol: (value?.protocol || specData.info?.['x-protocol'] || '').toUpperCase() || undefined
+                        });
+                    }
+                });
+            }
+
+            if (candidates.length === initialCandidateCount) {
+                const fallbackAddress = AsyncApiSpecificationParser.extractAddressFromAsyncApiData(specData);
+                const normalizedAddress = this.normalizeEnvironmentAddress(fallbackAddress || undefined);
+                if (normalizedAddress) {
+                    candidates.push({
+                        address: normalizedAddress,
+                        protocol: this.resolveProtocolName(specData.info?.['x-protocol'])
+                    });
+                }
+            }
         }
 
-        return null;
+        return this.deduplicateEnvironmentCandidates(candidates);
     }
 
     /**
@@ -194,6 +229,141 @@ export class SpecificationProcessorService {
         } catch (error) {
             return null;
         }
+    }
+
+    private async getFileContentWithCache(file: File, cache?: Map<string, Promise<string>>): Promise<string | null> {
+        if (!cache) {
+            return this.readFileContent(file);
+        }
+
+        const key = normalizePath(file.name);
+        if (!cache.has(key)) {
+            cache.set(key, file.text());
+        }
+
+        try {
+            return await cache.get(key)!;
+        } catch {
+            return null;
+        }
+    }
+
+    private async buildWsdlAdditionalDocuments(
+        mainFile: File,
+        allFiles?: File[],
+        cache?: Map<string, Promise<string>>
+    ): Promise<Array<{ uri: string; content: string }>> {
+        if (!allFiles || allFiles.length === 0) {
+            return [];
+        }
+
+        const mainPath = normalizePath(mainFile.name);
+        const documents: Array<{ uri: string; content: string }> = [];
+
+        for (const candidate of allFiles) {
+            const candidatePath = normalizePath(candidate.name);
+            if (candidatePath === mainPath) {
+                continue;
+            }
+            if (!candidatePath.toLowerCase().endsWith(".wsdl")) {
+                continue;
+            }
+
+            const content = await this.getFileContentWithCache(candidate, cache);
+            if (content !== null) {
+                documents.push({
+                    uri: candidatePath,
+                    content
+                });
+            }
+        }
+
+        return documents;
+    }
+
+    private extractOpenApiServers(specData: any): EnvironmentCandidate[] {
+        const candidates: EnvironmentCandidate[] = [];
+
+        if (Array.isArray(specData.servers) && specData.servers.length > 0) {
+            specData.servers.forEach((server: any, index: number) => {
+                const url = this.buildOpenApiServerUrl(server);
+                const normalizedAddress = this.normalizeEnvironmentAddress(url);
+                if (normalizedAddress) {
+                    const name = server?.description || server?.name || specData.info?.title || `Server ${index + 1}`;
+                    candidates.push({
+                        name,
+                        address: normalizedAddress,
+                        protocol: this.resolveProtocolName(server?.protocol || specData.info?.['x-protocol'] || specData.protocol)
+                    });
+                }
+            });
+        } else if (specData.swagger && specData.host) {
+            const schemes = Array.isArray(specData.schemes) && specData.schemes.length > 0 ? specData.schemes : ['https'];
+            const basePath = typeof specData.basePath === 'string' ? specData.basePath : '';
+            schemes.forEach((scheme: string) => {
+                const url = `${scheme}://${specData.host}${basePath}`;
+                const normalizedAddress = this.normalizeEnvironmentAddress(url);
+                if (normalizedAddress) {
+                    candidates.push({
+                        name: specData.info?.title || specData.host,
+                        address: normalizedAddress,
+                        protocol: scheme.toUpperCase()
+                    });
+                }
+            });
+        }
+
+        return candidates;
+    }
+
+    private buildOpenApiServerUrl(server: any): string | undefined {
+        if (!server?.url || typeof server.url !== 'string') {
+            return undefined;
+        }
+        let resolvedUrl = server.url;
+        const variables = server.variables && typeof server.variables === 'object' ? server.variables : undefined;
+        if (variables) {
+            Object.entries(variables).forEach(([key, value]: [string, any]) => {
+                const token = `{${key}}`;
+                if (resolvedUrl.includes(token)) {
+                    resolvedUrl = resolvedUrl.replaceAll(token, value?.default ?? "");
+                }
+            });
+        }
+        return resolvedUrl;
+    }
+
+    private normalizeEnvironmentAddress(value: string | undefined | null): string | null {
+        if (!value || typeof value !== 'string') {
+            return null;
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return null;
+        }
+        if (trimmed === "/") {
+            return trimmed;
+        }
+        return trimmed.replace(/\/+$/, "");
+    }
+
+    private deduplicateEnvironmentCandidates(candidates: EnvironmentCandidate[]): EnvironmentCandidate[] {
+        const map = new Map<string, EnvironmentCandidate>();
+        candidates.forEach((candidate) => {
+            const key = candidate.address.toLowerCase();
+            if (!map.has(key)) {
+                map.set(key, candidate);
+            }
+        });
+        return Array.from(map.values());
+    }
+
+    private resolveProtocolName(protocol: unknown): string | undefined {
+        if (typeof protocol !== 'string') {
+            return undefined;
+        }
+        const trimmed = protocol.trim();
+        return trimmed ? trimmed.toUpperCase() : undefined;
     }
 
     /**
@@ -271,10 +441,12 @@ export class SpecificationProcessorService {
     private async createOperationsFromFile(
         file: File,
         specificationType: ApiSpecificationType,
-        specificationId: string
+        specificationId: string,
+        allFiles?: File[],
+        contentCache?: Map<string, Promise<string>>
     ): Promise<any[]> {
         try {
-            const content = await this.readFileContent(file);
+            const content = await this.getFileContentWithCache(file, contentCache);
             if (!content) {
                 return [];
             }
@@ -304,7 +476,11 @@ export class SpecificationProcessorService {
 
             switch (actualSpecificationType) {
                 case ApiSpecificationType.SOAP:
-                    const wsdlData = await SoapSpecificationParser.parseWsdlContent(content);
+                    const additionalDocuments = await this.buildWsdlAdditionalDocuments(file, allFiles, contentCache);
+                    const wsdlData = await SoapSpecificationParser.parseWsdlContent(content, {
+                        fileName: file.name,
+                        additionalDocuments
+                    });
                     return SoapSpecificationParser.createOperationsFromWsdl(wsdlData, specificationId);
 
                 case ApiSpecificationType.GRPC:
