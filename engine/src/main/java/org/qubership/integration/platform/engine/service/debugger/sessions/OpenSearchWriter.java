@@ -87,7 +87,6 @@ public class OpenSearchWriter implements Runnable {
     private static final int ERROR_MESSAGE_COUNT_THRESHOLD = 3;
 
     private static final int RETRY_COUNT_ON_WRITE_ERROR = 5;
-    private static final double REPEATED_ELEMENTS_RATIO = 2.2; // element objects in the queue can be repeated
 
     @Autowired
     public OpenSearchWriter(@Value("${qip.sessions.queue.capacity}") int sessionBufferCapacity,
@@ -98,7 +97,7 @@ public class OpenSearchWriter implements Runnable {
                             OpenSearchClientSupplier openSearchClientSupplier,
                             @Qualifier("jsonMapper") ObjectMapper mapper) {
         sessionElementsQueue = new LinkedBlockingQueue<>(sessionBufferCapacity);
-        this.queueMaxSizeBytes = (int) (queueMaxSizeMb * 1024 * 1024 * REPEATED_ELEMENTS_RATIO);
+        this.queueMaxSizeBytes = (int) (queueMaxSizeMb * 1024 * 1024);
 
         this.bulkRequestMaxSizeBytes = bulkRequestMaxSizeKb * 1024;
         this.bulkRequestPayloadSizeThresholdBytes = bulkRequestPayloadSizeThresholdKb * 1024;
@@ -399,14 +398,56 @@ public class OpenSearchWriter implements Runnable {
 
     private long calculatePayloadSizeInBytes(SessionElementElastic element) {
         long size = 0;
-        String bodyBefore = element.getBodyBefore();
-        String bodyAfter = element.getBodyAfter();
-        if (bodyBefore != null) {
-            size += bodyBefore.length();
+
+        size += calculateElementSize(element.getSessionId());
+        size += calculateElementSize(element.getExternalSessionId());
+        size += calculateElementSize(element.getSessionStarted());
+        size += calculateElementSize(element.getSessionFinished());
+        size += calculateElementSize(element.getChainId());
+        size += calculateElementSize(element.getActualElementChainId());
+        size += calculateElementSize(element.getChainName());
+        size += calculateElementSize(element.getDomain());
+        size += calculateElementSize(element.getEngineAddress());
+        size += calculateElementSize(element.getLoggingLevel());
+        size += calculateElementSize(element.getSnapshotName());
+        size += calculateElementSize(element.getCorrelationId());
+        size += calculateElementSize(element.getChainElementId());
+        size += calculateElementSize(element.getElementName());
+        size += calculateElementSize(element.getCamelElementName());
+        size += calculateElementSize(element.getPrevElementId());
+        size += calculateElementSize(element.getParentElementId());
+        size += calculateElementSize(element.getParentSessionId());
+        size += calculateElementSize(element.getBodyBefore());
+        size += calculateElementSize(element.getBodyAfter());
+        size += calculateElementSize(element.getHeadersBefore());
+        size += calculateElementSize(element.getHeadersAfter());
+        size += calculateElementSize(element.getPropertiesBefore());
+        size += calculateElementSize(element.getPropertiesAfter());
+        size += calculateElementSize(element.getContextBefore());
+        size += calculateElementSize(element.getContextAfter());
+
+        if (element.getSessionExecutionStatus() != null) {
+            size += calculateElementSize(element.getSessionExecutionStatus().name());
         }
-        if (bodyAfter != null) {
-            size += bodyAfter.length();
+
+        if (element.getExceptionInfo() != null) {
+            size += calculateElementSize(element.getExceptionInfo().toString());
         }
+        log.debug("Payload size for chain {} : {}", element.getChainId(), size);
         return size;
+    }
+
+    private long calculateElementSize(String s) {
+        if (s == null) {
+            return 0;
+        }
+
+        int bytesPerChar = 2;
+
+        long byteArraySize = 16L + (long) s.length() * bytesPerChar;
+        long stringObjectOverhead = 38L;
+
+        // round up to 8-byte alignment
+        return ((byteArraySize + stringObjectOverhead + 7) / 8) * 8;
     }
 }
