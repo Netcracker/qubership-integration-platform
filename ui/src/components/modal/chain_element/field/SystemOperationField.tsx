@@ -8,6 +8,8 @@ import { SystemOperation } from "../../../../api/apiTypes";
 import { JSONSchema7 } from "json-schema";
 import { VSCodeExtensionApi } from "../../../../api/rest/vscodeExtensionApi";
 import { Icon } from "../../../../IconProvider";
+import { HttpMethod } from "../../../services/HttpMethod";
+import { ServiceTag } from "./ServiceTag";
 
 const SystemOperationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -33,7 +35,11 @@ const SystemOperationField: React.FC<
 
           const operationOptions: SelectProps["options"] =
             operations?.map((operation) => ({
-              label: `${operation.name} ${operation.method} ${operation.path}`,
+              label: (
+                <>
+                  <ServiceTag value={operation.name} width={200}/><HttpMethod value={operation.method} width={110}/>{operation.path}
+                </>
+              ),
               value: operation.id,
             })) ?? [];
           setOperationsMap(
@@ -77,7 +83,7 @@ const SystemOperationField: React.FC<
 
       const apply = async (proto?: string) => {
         const protocolType = (typeof proto === 'string' && proto.trim()) ? proto.toLowerCase() : 'http';
-        
+
         // Initialize query parameters from specification (for HTTP/SOAP)
         let queryParams = {};
         if (protocolType === 'http' || protocolType === 'soap') {
@@ -87,7 +93,7 @@ const SystemOperationField: React.FC<
               const queryParamNames = opInfo.specification.parameters
                 .filter((p: any) => p.in === 'query')
                 .map((p: any) => p.name);
-              
+
               queryParamNames.forEach((name: string) => {
                 queryParams[name] = '';
               });
@@ -96,7 +102,7 @@ const SystemOperationField: React.FC<
             console.error('Failed to load operation specification for query params:', error);
           }
         }
-        
+
         formContext?.updateContext({
           integrationOperationId: newValue,
           integrationOperationPath: operation.path,

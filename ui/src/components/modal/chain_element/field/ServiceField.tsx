@@ -9,6 +9,8 @@ import { useNotificationService } from "../../../../hooks/useNotificationService
 import { Icon } from "../../../../IconProvider";
 import { VSCodeExtensionApi } from "../../../../api/rest/vscodeExtensionApi";
 import { api } from "../../../../api/api";
+import { ServiceTag } from "./ServiceTag";
+import { capitalize } from "../../../../misc/format-utils";
 
 const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
   id,
@@ -34,7 +36,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
 
       const serviceOptions: SelectProps["options"] =
         services?.map((service: IntegrationSystem) => ({
-          label: `${service.type} ${service.name}`,
+          label: <><ServiceTag value={capitalize(service.type)}/>{service.name}</>,
           value: service.id,
         })) ?? [];
       setOptions(serviceOptions);
@@ -65,7 +67,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
       setServiceId(newValue);
       const newService: IntegrationSystem = servicesMap.get(newValue)!;
       const protocol = (typeof newService?.protocol === 'string' && newService.protocol.trim()) ? newService.protocol.toLowerCase() : 'http';
-      
+
       const isAsync = protocol === 'kafka' || protocol === 'amqp';
       const isHttp = protocol === 'http' || protocol === 'soap';
 
