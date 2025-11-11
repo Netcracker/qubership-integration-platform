@@ -220,6 +220,15 @@ public class FolderService {
         return path;
     }
 
+    public List<Folder> getPathToFolderByName(String folderName) {
+        if (isNull(folderName)) {
+            return Collections.emptyList();
+        }
+        List<Folder> path = folderRepository.getPathByName(folderName);
+        Collections.reverse(path);
+        return path;
+    }
+
     public List<Folder> getFoldersHierarchically(List<? extends FoldableEntity> relatedChains) {
         List<String> foldersIds = relatedChains
                 .stream()
@@ -323,8 +332,8 @@ public class FolderService {
         folderState.setFolderList(actualizedFolderList);
 
         if (folderState.getParentFolder() != null) {
-           Folder actualizedParentFolder = setActualizedFolderState(folderState.getParentFolder());
-           folderState.setParentFolder(actualizedParentFolder);
+            Folder actualizedParentFolder = setActualizedFolderState(folderState.getParentFolder());
+            folderState.setParentFolder(actualizedParentFolder);
         }
 
         return folderRepository.persist(folderState);

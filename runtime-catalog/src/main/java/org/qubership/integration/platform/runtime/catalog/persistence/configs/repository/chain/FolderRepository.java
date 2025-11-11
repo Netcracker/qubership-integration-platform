@@ -59,6 +59,26 @@ public interface FolderRepository extends CommonRepository<Folder>, JpaRepositor
     @Query(
             nativeQuery = true,
             value = """
+                        WITH RECURSIVE folder_hierarchy AS (
+                                SELECT
+                                    f1.*
+                                FROM
+                                    catalog.folders f1
+                                WHERE f1.name = :folderName
+                                UNION ALL
+                                SELECT
+                                    f2.*
+                                FROM catalog.folders f2 INNER JOIN folder_hierarchy fh
+                                    ON f2.id = fh.parent_folder_id
+                        )
+                        SELECT * FROM folder_hierarchy;
+                    """
+    )
+    List<Folder> getPathByName(String folderName);
+
+    @Query(
+            nativeQuery = true,
+            value = """
                     WITH RECURSIVE folder_hierarchy AS (
                             SELECT
                                 f1.*

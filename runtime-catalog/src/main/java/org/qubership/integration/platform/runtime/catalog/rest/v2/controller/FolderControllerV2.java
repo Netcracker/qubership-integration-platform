@@ -88,6 +88,21 @@ public class FolderControllerV2 {
         return ResponseEntity.ok(path);
     }
 
+    @GetMapping("/path")
+    @Operation(description = "Get path to folder by name")
+    public ResponseEntity<List<FolderItem>> getFolderPathByName(
+            @RequestParam
+            @Parameter(description = "Folder name")
+            String name
+    ) {
+        log.debug("Request to get path to folder with name: {}", name);
+        List<FolderItem> path = folderService.getPathToFolderByName(name)
+                .stream()
+                .map(folderItemMapper::asFolderItem)
+                .toList();
+        return ResponseEntity.ok(path);
+    }
+
     @PutMapping("/{id}")
     @Operation(description = "Update folder")
     public ResponseEntity<FolderItem> updateFolder(
