@@ -74,7 +74,7 @@ const CustomArrayField: React.FC<Props> = ({
   }, [name, formContext]);
 
   const [availableCodes, setAvailableCodes] = useState<{ value: string }[]>(
-    readOnlyMode || formContext?.integrationOperationProtocolType !== "http"
+    readOnlyMode || formContext?.integrationOperationProtocolType?.toLowerCase() !== "http"
       ? []
       : defaultCodeOptions,
   );
@@ -90,7 +90,7 @@ const CustomArrayField: React.FC<Props> = ({
     let cancelled = false;
 
     const loadOperationInfo = async () => {
-      if (!operationId) return;
+    if (!operationId) return;
       try {
         const operationInfo = await api.getOperationInfo(operationId);
         if (cancelled) return;

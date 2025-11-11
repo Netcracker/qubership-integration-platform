@@ -92,6 +92,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 }) => {
   console.log(`[ChainElementModification] Component RENDER for element: ${elementId}, type: ${node.data.elementType}`);
   
+  const normalizeProtocol = useCallback((protocol: unknown): string | undefined => {
+    if (typeof protocol !== "string") {
+      return undefined;
+    }
+    const trimmed = protocol.trim();
+    return trimmed ? trimmed.toLowerCase() : undefined;
+  }, []);
+
   const { isLoading: libraryElementIsLoading, libraryElement } =
     useLibraryElement(node.data.elementType);
   const [isLoading, setIsLoading] = useState(false);
@@ -118,6 +126,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   ): Record<string, unknown> => {
     const result = { ...targetProperties };
     Object.entries(sourceProperties).forEach(([key, value]) => {
+      if (key === "integrationOperationProtocolType") {
+        value = normalizeProtocol(value);
+      }
       if (value === undefined) {
         delete result[key];
       } else {
@@ -125,7 +136,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       }
     });
     return result;
-  }, []);
+  }, [normalizeProtocol]);
 
   const schemaModules = useMemo(
     () =>
@@ -165,7 +176,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
       setFormContext({
         integrationOperationId: formProperties.integrationOperationId,
-        integrationOperationProtocolType: formProperties.integrationOperationProtocolType,
+        integrationOperationProtocolType: normalizeProtocol(formProperties.integrationOperationProtocolType),
         elementType: node.data.elementType,
         integrationSystemId: formProperties.integrationSystemId,
         systemType: formProperties.systemType,
@@ -176,6 +187,11 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         integrationOperationMethod: formProperties.integrationOperationMethod,
         bodyFormData: formProperties.bodyFormData,
         updateContext: (updatedProperties: Record<string, unknown>) => {
+          if (updatedProperties.integrationOperationProtocolType !== undefined) {
+            updatedProperties.integrationOperationProtocolType = normalizeProtocol(
+              updatedProperties.integrationOperationProtocolType
+            );
+          }
           setFormContext((prevContext) =>
             enrichProperties(prevContext, updatedProperties),
           );
@@ -307,7 +323,13 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
   useEffect(() => {
     setFormData((prevFormData) => {
-      const newContextProperties = { ...formContext, updateContext: undefined };
+      const newContextProperties = {
+        ...formContext,
+        integrationOperationProtocolType: normalizeProtocol(
+          formContext?.integrationOperationProtocolType
+        ),
+        updateContext: undefined,
+      };
       const enrichedProps = enrichProperties(
         prevFormData.properties as Record<string, unknown>,
         newContextProperties,
@@ -508,7 +530,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             uiSchema={uiSchema}
             transformErrors={(errors) => {
               // Suppress oneOf error when protocol is grpc (no matching oneOf branch by design)
-              const proto = formContext?.integrationOperationProtocolType;
+              const proto = normalizeProtocol(formContext?.integrationOperationProtocolType);
               if (proto === 'grpc') {
                 return errors.filter((e) => e.name !== 'oneOf');
               }

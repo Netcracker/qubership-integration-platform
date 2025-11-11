@@ -188,7 +188,8 @@ function isOperationSet(element: Element): boolean {
 
 function isConfiguredGraphQLServiceCallElement(element: Element): boolean {
   return (
-    element.properties?.["integrationOperationProtocolType"] === "graphql" &&
+    typeof element.properties?.["integrationOperationProtocolType"] === "string" &&
+    element.properties?.["integrationOperationProtocolType"]?.toLowerCase() === "graphql" &&
     !!element.properties?.["integrationSystemId"] &&
     !!element.properties?.["integrationSpecificationId"] &&
     !!element.properties?.["integrationGqlQuery"]

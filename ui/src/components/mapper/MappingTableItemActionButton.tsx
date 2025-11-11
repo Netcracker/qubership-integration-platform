@@ -61,14 +61,19 @@ export const MappingTableItemActionButton: React.FC<
       isHeaderGroup(item) ||
       isPropertyGroup(item) ||
       isBodyGroup(item);
-    const isObject =
+    const isComplexObject =
       (isAttributeItem(item) &&
         DataTypes.isComplexType(item.resolvedType, item.typeDefinitions)) ||
       (isBodyGroup(item) &&
         item.type &&
         DataTypes.isComplexType(item.type, []));
+    const canLoad =
+      !readonly &&
+      (isBodyGroup(item) ||
+        (isAttributeItem(item) &&
+          DataTypes.isComplexType(item.resolvedType, item.typeDefinitions)));
     const items: ItemType[] = [];
-    if (isObject && !readonly) {
+    if (canLoad) {
       items.push({
         key: "load",
         label: "Load",
@@ -97,7 +102,7 @@ export const MappingTableItemActionButton: React.FC<
         },
       });
     }
-    if (isObject) {
+    if (isComplexObject) {
       items.push({
         key: "export",
         label: "Export",
@@ -107,7 +112,12 @@ export const MappingTableItemActionButton: React.FC<
         },
       });
     }
-    if (isObject && !isBodyGroup(item) && enableXmlNamespaces && !readonly) {
+    if (
+      isComplexObject &&
+      !isBodyGroup(item) &&
+      enableXmlNamespaces &&
+      !readonly
+    ) {
       items.push({
         key: "namespaces",
         label: "Namespaces",
@@ -129,7 +139,7 @@ export const MappingTableItemActionButton: React.FC<
         },
       });
     }
-    if ((isGroup || isObject) && !readonly) {
+    if ((isGroup || isComplexObject) && !readonly) {
       items.push(
         {
           key: "add",
