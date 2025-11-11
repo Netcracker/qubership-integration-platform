@@ -46,6 +46,7 @@ public class SystemModelContentDto {
     private SystemModelSource source;
 
     @Builder.Default
+    @JsonIgnoreProperties({"createdWhen", "modifiedWhen", "createdBy", "modifiedBy"})
     private List<Operation> operations = new ArrayList<>();
 
     @JsonProperty("parentId")

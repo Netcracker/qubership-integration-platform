@@ -23,7 +23,6 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.ins
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionDTO;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.instructions.ImportInstructionLabel;
-import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.springframework.lang.NonNull;
 
 import java.util.Collection;
@@ -68,7 +67,6 @@ public interface ImportInstructionsMapper<ConfigType, DTOType> {
                 .overriddenById(importInstruction.getOverriddenBy())
                 .overriddenByName(importInstruction.getOverriddenByName())
                 .labels(importInstruction.getLabels().stream().map(ImportInstructionLabel::getName).collect(Collectors.toSet()))
-                .modifiedWhen(MapperUtils.fromTimestamp(importInstruction.getModifiedWhen()))
                 .preview(importInstruction.getModifiedWhen() == null)
                 .build();
     }

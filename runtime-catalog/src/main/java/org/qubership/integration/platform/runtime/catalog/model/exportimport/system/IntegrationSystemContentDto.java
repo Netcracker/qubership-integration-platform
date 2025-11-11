@@ -49,6 +49,7 @@ public class IntegrationSystemContentDto {
     private OperationProtocol protocol;
 
     @Builder.Default
+    @JsonIgnoreProperties({"createdWhen", "modifiedWhen", "createdBy", "modifiedBy"})
     private List<Environment> environments = new ArrayList<>();
 
     @Builder.Default

@@ -45,13 +45,12 @@ public class ContextServiceDtoMapper implements ExternalEntityMapper<ContextSyst
 
     @Override
     public ContextSystem toInternalEntity(ContextServiceDto contextServiceDto) {
-        ContextSystem systems = ContextSystem.builder()
+        return ContextSystem.builder()
                 .id(contextServiceDto.getId())
                 .name(contextServiceDto.getName())
                 .modifiedWhen(contextServiceDto.getContent().getModifiedWhen())
                 .description(contextServiceDto.getContent().getDescription())
                 .build();
-        return systems;
     }
 
 
@@ -63,7 +62,6 @@ public class ContextServiceDtoMapper implements ExternalEntityMapper<ContextSyst
                 .schema(schemaUri)
                 .content(ContextServiceContentDto.builder()
                         .description(contextSystem.getDescription())
-                        .modifiedWhen(contextSystem.getModifiedWhen())
                         .migrations(serviceImportFileMigrations
                                 .stream()
                                 .map(ImportFileMigration::getVersion)
