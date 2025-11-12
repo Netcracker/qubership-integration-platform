@@ -36,7 +36,8 @@ const webExtensionConfig = {
 			// Webpack 5 no longer polyfills Node.js core modules automatically.
 			// see https://webpack.js.org/configuration/resolve/#resolvefallback
 			// for the list of Node.js core module polyfills.
-			'assert': require.resolve('assert')
+			'assert': require.resolve('assert'),
+			'process': require.resolve('process/browser.js')
 		}
 	},
 	module: {
@@ -53,7 +54,7 @@ const webExtensionConfig = {
 			maxChunks: 1 // disable chunks by default since web extensions must be a single bundle
 		}),
 		new webpack.ProvidePlugin({
-			process: 'process/browser', // provide a shim for the global `process` variable
+			process: require.resolve('process/browser.js'), // provide a shim for the global `process` variable
 		}),
 	],
 	externals: {

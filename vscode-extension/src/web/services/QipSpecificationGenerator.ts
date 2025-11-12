@@ -1,7 +1,23 @@
+import { EMPTY_USER } from "../response/chainApiUtils";
 import { ProjectConfigService } from "./ProjectConfigService";
+import { AsyncApiOperationResolver } from "../api-services/parsers/async/AsyncApiOperationResolver";
+import { ProtoOperationResolver, buildProtoOperationSpecification } from "../api-services/parsers/proto/ProtoOperationResolver";
+import type { ProtoData } from "../api-services/parsers/proto/ProtoTypes";
+import type { WsdlParseResult } from "../api-services/parsers/soap/WsdlTypes";
+import { SoapSpecificationParser } from "../api-services/parsers/SoapSpecificationParser";
 
 export class QipSpecificationGenerator {
     private static readonly HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options'];
+
+    private static buildAudit() {
+        const now = Date.now();
+        return {
+            createdWhen: now,
+            modifiedWhen: now,
+            createdBy: { ...EMPTY_USER },
+            modifiedBy: { ...EMPTY_USER }
+        };
+    }
 
     private static buildSpecification(
         specId: string,
@@ -18,6 +34,7 @@ export class QipSpecificationGenerator {
             id: specId,
             name,
             content: {
+                ...this.buildAudit(),
                 deprecated: false,
                 version,
                 source: "MANUAL",
@@ -32,6 +49,7 @@ export class QipSpecificationGenerator {
         return [{
             id: this.generateId(),
             name: fileName,
+            ...this.buildAudit(),
             sourceHash: this.calculateHash(JSON.stringify(sourceData)),
             fileName: `source-${specId}/${fileName}`,
             mainSource: true
@@ -92,6 +110,7 @@ export class QipSpecificationGenerator {
         return {
             id: `${specId}-${operationId}`,
             name: operationId,
+            ...this.buildAudit(),
             method: method,
             path: path,
             specification: this.reorderSpecificationFields(operation),
@@ -273,150 +292,184 @@ export class QipSpecificationGenerator {
 
     /**
      * Expands schema, resolving references and creating full JSON Schema
+     * while collecting referenced definitions for backward compatibility.
      */
-    private static expandSchema(schema: any, openApiSpec: any, schemaName?: string, visited: Set<string> = new Set()): any {
+    private static expandSchema(
+        schema: any,
+        openApiSpec: any,
+        schemaName?: string,
+        visited: Set<string> = new Set(),
+        definitions: Record<string, any> = {}
+    ): any {
         if (!schema) {
             return {};
         }
 
-        // If it's a reference, resolve it and extract schema name
         if (schema.$ref) {
-            // Check for circular references
-            if (visited.has(schema.$ref)) {
-                // Return reference as is to break circular dependency
-                return { $ref: schema.$ref };
-            }
-
-            // Add current ref to visited set
-            const newVisited = new Set(visited);
-            newVisited.add(schema.$ref);
-
             const resolvedSchema = this.resolveRef(schema.$ref, openApiSpec);
             const refSchemaName = this.extractSchemaNameFromRef(schema.$ref);
-            return this.expandSchema(resolvedSchema, openApiSpec, refSchemaName, newVisited);
+            const newVisited = new Set(visited);
+            newVisited.add(schema.$ref);
+            return this.expandSchema(resolvedSchema, openApiSpec, refSchemaName, newVisited, definitions);
         }
 
-        // Create full JSON Schema (only for root schemas)
-        const expandedSchema = {
-            $id: `http://system.catalog/schemas/#/components/schemas/${schemaName || schema.title || 'Schema'}`,
-            $schema: "http://json-schema.org/draft-07/schema#",
-            ...schema
-        };
+        const expandedSchema = this.expandSchemaInternal(
+            schema,
+            openApiSpec,
+            schemaName,
+            new Set(visited),
+            definitions,
+            true
+        );
 
-        // Fix required array format
-        if (expandedSchema.required && Array.isArray(expandedSchema.required)) {
-            expandedSchema.required = expandedSchema.required.map((item: any) =>
+        expandedSchema.definitions = Object.keys(definitions).length > 0 ? definitions : {};
+
+        return expandedSchema;
+    }
+
+    private static expandSchemaInternal(
+        schema: any,
+        openApiSpec: any,
+        schemaName: string | undefined,
+        visited: Set<string>,
+        definitions: Record<string, any>,
+        isRoot: boolean
+    ): any {
+        if (!schema) {
+            return {};
+        }
+
+        if (schema.$ref) {
+            return this.convertRefToDefinition(schema.$ref, openApiSpec, visited, definitions);
+        }
+
+        const expanded: any = { ...schema };
+
+        if (isRoot) {
+            expanded.$id = `http://system.catalog/schemas/#/components/schemas/${schemaName || schema.title || 'Schema'}`;
+            expanded.$schema = "http://json-schema.org/draft-07/schema#";
+        }
+
+        if (expanded.required && Array.isArray(expanded.required)) {
+            expanded.required = expanded.required.map((item: any) =>
                 typeof item === 'string' ? `${item}` : item
             );
         }
 
         if (schema.properties) {
-            expandedSchema.properties = {};
+            expanded.properties = {};
             for (const [key, prop] of Object.entries(schema.properties)) {
-                expandedSchema.properties[key] = this.compactProperty(prop);
+                expanded.properties[key] = this.expandProperty(prop, openApiSpec, visited, definitions);
             }
         }
 
         if (schema.items) {
-            expandedSchema.items = this.compactProperty(schema.items);
+            expanded.items = this.expandProperty(schema.items, openApiSpec, visited, definitions);
         }
 
         if (schema.allOf) {
-            expandedSchema.allOf = schema.allOf.map((item: any) => this.compactProperty(item));
+            expanded.allOf = schema.allOf.map((item: any) => this.expandProperty(item, openApiSpec, visited, definitions));
         }
 
         if (schema.anyOf) {
-            expandedSchema.anyOf = schema.anyOf.map((item: any) => this.compactProperty(item));
+            expanded.anyOf = schema.anyOf.map((item: any) => this.expandProperty(item, openApiSpec, visited, definitions));
         }
 
         if (schema.oneOf) {
-            expandedSchema.oneOf = schema.oneOf.map((item: any) => this.compactProperty(item));
+            expanded.oneOf = schema.oneOf.map((item: any) => this.expandProperty(item, openApiSpec, visited, definitions));
         }
 
-        expandedSchema.definitions = {};
+        if (schema.additionalProperties !== undefined) {
+            expanded.additionalProperties = this.expandProperty(schema.additionalProperties, openApiSpec, visited, definitions);
+        }
 
-        return expandedSchema;
+        return expanded;
     }
 
-    private static compactProperty(prop: any): any {
+    private static expandProperty(
+        prop: any,
+        openApiSpec: any,
+        visited: Set<string>,
+        definitions: Record<string, any>
+    ): any {
         if (!prop || typeof prop !== 'object') {
             return prop;
         }
 
-        // If it's a $ref, keep it as-is (don't resolve)
         if (prop.$ref) {
-            return { $ref: prop.$ref };
+            return this.convertRefToDefinition(prop.$ref, openApiSpec, visited, definitions);
         }
 
-        // For objects/arrays, keep only top-level structure
-        const compact: any = {};
-
-        // Copy basic properties only if they exist
-        const basicProps = ['type', 'format', 'description', 'enum', 'pattern',
-                           'minimum', 'maximum', 'minLength', 'maxLength',
-                           'uniqueItems', 'default', 'example', 'required'];
-
-        for (const key of basicProps) {
-            if (prop[key] !== undefined) {
-                compact[key] = prop[key];
-            }
-        }
+        const expanded: any = { ...prop };
 
         if (prop.properties) {
-            compact.properties = {};
+            expanded.properties = {};
             for (const [key, value] of Object.entries(prop.properties)) {
-                const val = value as any;
-
-                if (val.$ref) {
-                    compact.properties[key] = { $ref: val.$ref };
-                } else if (val.type || val.description || val.enum || val.format) {
-
-                    const propCompact: any = {};
-                    if (val.type) { propCompact.type = val.type; }
-                    if (val.format) { propCompact.format = val.format; }
-                    if (val.description) { propCompact.description = val.description; }
-                    if (val.enum) { propCompact.enum = val.enum; }
-                    if (val.pattern) { propCompact.pattern = val.pattern; }
-                    if (val.uniqueItems !== undefined) { propCompact.uniqueItems = val.uniqueItems; }
-
-                    if (val.items) {
-                        if (val.items.$ref) {
-                            propCompact.items = { $ref: val.items.$ref };
-                        } else {
-                            propCompact.items = {};
-                        }
-                    }
-                    if (val.properties) {
-                        propCompact.properties = {};
-                        for (const [subKey, subVal] of Object.entries(val.properties)) {
-                            const sv = subVal as any;
-                            if (sv.$ref) {
-                                propCompact.properties[subKey] = { $ref: sv.$ref };
-                            } else {
-                                propCompact.properties[subKey] = {};
-                            }
-                        }
-                    }
-
-                    compact.properties[key] = propCompact;
-                } else {
-                    compact.properties[key] = {};
-                }
+                expanded.properties[key] = this.expandProperty(value, openApiSpec, visited, definitions);
             }
         }
 
         if (prop.items) {
-            if (prop.items.$ref) {
-                compact.items = { $ref: prop.items.$ref };
-            } else {
-                const itemsCompact: any = {};
-                if (prop.items.type) { itemsCompact.type = prop.items.type; }
-                if (prop.items.description) { itemsCompact.description = prop.items.description; }
-                compact.items = Object.keys(itemsCompact).length > 0 ? itemsCompact : {};
-            }
+            expanded.items = this.expandProperty(prop.items, openApiSpec, visited, definitions);
         }
 
-        return Object.keys(compact).length > 0 ? compact : {};
+        if (prop.allOf) {
+            expanded.allOf = prop.allOf.map((item: any) => this.expandProperty(item, openApiSpec, visited, definitions));
+        }
+
+        if (prop.anyOf) {
+            expanded.anyOf = prop.anyOf.map((item: any) => this.expandProperty(item, openApiSpec, visited, definitions));
+        }
+
+        if (prop.oneOf) {
+            expanded.oneOf = prop.oneOf.map((item: any) => this.expandProperty(item, openApiSpec, visited, definitions));
+        }
+
+        if (prop.additionalProperties !== undefined) {
+            expanded.additionalProperties = this.expandProperty(prop.additionalProperties, openApiSpec, visited, definitions);
+        }
+
+        return expanded;
+    }
+
+    private static convertRefToDefinition(
+        ref: string,
+        openApiSpec: any,
+        visited: Set<string>,
+        definitions: Record<string, any>
+    ): { $ref: string } {
+        const schemaName = this.extractSchemaNameFromRef(ref);
+        if (!schemaName) {
+            return { $ref: ref };
+        }
+
+        if (!definitions[schemaName]) {
+            if (visited.has(ref)) {
+                return { $ref: `#/definitions/${schemaName}` };
+            }
+
+            const newVisited = new Set(visited);
+            newVisited.add(ref);
+
+            const isDefinitionRef = ref.startsWith('#/definitions/');
+            const resolutionRef = isDefinitionRef ? `#/components/schemas/${schemaName}` : ref;
+            const resolvedSchema = this.resolveRef(resolutionRef, openApiSpec);
+
+            if (!resolvedSchema || Object.keys(resolvedSchema).length === 0) {
+                return { $ref: `#/definitions/${schemaName}` };
+            }
+
+            definitions[schemaName] = this.expandSchemaInternal(
+                resolvedSchema,
+                openApiSpec,
+                schemaName,
+                newVisited,
+                definitions,
+                false
+            );
+        }
+
+        return { $ref: `#/definitions/${schemaName}` };
     }
 
 
@@ -432,6 +485,10 @@ export class QipSpecificationGenerator {
         // For components/schemas/SchemaName, return SchemaName
         if (path.length >= 3 && path[0] === 'components' && path[1] === 'schemas') {
             return path[2];
+        }
+
+        if (path.length >= 2 && path[0] === 'definitions') {
+            return path[1];
         }
 
         return undefined;
@@ -479,55 +536,15 @@ export class QipSpecificationGenerator {
     /**
      * Creates QIP specification from SOAP/WSDL data
      */
-    static createQipSpecificationFromSoap(wsdlData: any, fileName: string): any {
-        const operations: any[] = [];
+    static createQipSpecificationFromSoap(wsdlData: WsdlParseResult, fileName: string): any {
         const specId = this.generateId();
-
-        if (wsdlData.portType && wsdlData.portType.operations) {
-            for (const operationName of wsdlData.portType.operations) {
-                const operation = {
-                    id: `${specId}-${operationName}`,
-                    name: operationName,
-                    method: 'post',
-                    path: wsdlData.service?.address || '',
-                    specification: {
-                        summary: `SOAP operation: ${operationName}`,
-                        description: `SOAP operation ${operationName} from service ${wsdlData.service?.name || 'Unknown'}`,
-                        tags: ['SOAP']
-                    },
-                    requestSchema: {
-                        'application/soap+xml': {
-                            type: 'object',
-                            properties: {
-                                soapEnvelope: {
-                                    type: 'object',
-                                    description: 'SOAP envelope for the request'
-                                }
-                            }
-                        }
-                    },
-                    responseSchemas: {
-                        '200': {
-                            'application/soap+xml': {
-                                type: 'object',
-                                properties: {
-                                    soapEnvelope: {
-                                        type: 'object',
-                                        description: 'SOAP envelope for the response'
-                                    }
-                                }
-                            }
-                        }
-                    }
-                };
-                operations.push(operation);
-            }
-        }
+        const operations = SoapSpecificationParser.createOperationsFromWsdl(wsdlData, specId);
+        const specName = wsdlData.serviceNames[0] || fileName;
 
         return this.buildSpecification(
             specId,
-            wsdlData.name || '1.0.0',
-            '1.0.0',
+            specName,
+            "1.0.0",
             operations,
             fileName,
             wsdlData
@@ -537,59 +554,46 @@ export class QipSpecificationGenerator {
     /**
      * Creates QIP specification from Proto data
      */
-    static createQipSpecificationFromProto(protoData: any, fileName: string): any {
+    static createQipSpecificationFromProto(protoData: ProtoData, fileName: string): any {
         const operations: any[] = [];
         const specId = this.generateId();
+        const resolver = new ProtoOperationResolver(protoData);
+        const resolvedOperations = resolver.resolve();
 
-        for (const service of protoData.services) {
-            for (const method of service.methods) {
-                const operation = {
-                    id: `${specId}-${service.name}-${method.name}`,
-                    name: `${service.name}.${method.name}`,
-                    method: 'post',
-                    path: `/${service.name}/${method.name}`,
-                    specification: {
-                        summary: method.comment || `gRPC method: ${method.name}`,
-                        description: `gRPC method ${method.name} from service ${service.name}. Input: ${method.input}, Output: ${method.output}`,
-                        tags: ['gRPC', service.name]
-                    },
-                    requestSchema: {
-                        'application/grpc': {
-                            type: 'object',
-                            properties: {
-                                request: {
-                                    type: 'object',
-                                    description: `Request message of type ${method.input}`
-                                }
-                            }
-                        }
-                    },
-                    responseSchemas: {
-                        '200': {
-                            'application/grpc': {
-                                type: 'object',
-                                properties: {
-                                    response: {
-                                        type: 'object',
-                                        description: `Response message of type ${method.output}`
-                                    }
-                                }
-                            }
-                        }
+        for (const operation of resolvedOperations) {
+            const requestSchema = this.cloneSchema(operation.requestSchema);
+            const responseSchema = this.cloneSchema(operation.responseSchema);
+
+            operations.push({
+                id: `${specId}-${operation.operationId}`,
+                name: operation.operationId,
+                ...this.buildAudit(),
+                method: operation.rpcName,
+                path: operation.path,
+                specification: buildProtoOperationSpecification(operation, requestSchema, responseSchema),
+                requestSchema: {
+                    "application/json": requestSchema
+                },
+                responseSchemas: {
+                    "200": {
+                        "application/json": responseSchema
                     }
-                };
-                operations.push(operation);
-            }
+                }
+            });
         }
 
         return this.buildSpecification(
             specId,
-            protoData.package || '1.0.0',
-            '1.0.0',
+            protoData.packageName || fileName,
+            "1.0.0",
             operations,
             fileName,
             protoData
         );
+    }
+
+    private static cloneSchema<T>(schema: T): T {
+        return JSON.parse(JSON.stringify(schema));
     }
 
     /**
@@ -599,62 +603,37 @@ export class QipSpecificationGenerator {
         const operations: any[] = [];
         const specId = this.generateId();
 
-        const buildGraphQLOperation = (kind: 'Query' | 'Mutation' | 'Subscription', item: any) => ({
-            id: `${specId}-${kind.toLowerCase()}-${item.name}`,
-            name: item.name,
-            method: 'post',
-            path: '/graphql',
-            specification: {
-                summary: `GraphQL ${kind}: ${item.name}`,
-                description: `GraphQL ${kind.toLowerCase()} ${item.name}. Returns: ${item.returnType}${item.arguments ? `, Arguments: ${item.arguments}` : ''}`,
-                tags: ['GraphQL', kind]
-            },
-            requestSchema: {
-                'application/json': {
-                    type: 'object',
-                    properties: {
-                        query: {
-                            type: 'string',
-                            description: `GraphQL ${kind.toLowerCase()} string for ${item.name}`
-                        },
-                        variables: {
-                            type: 'object',
-                            description: 'GraphQL variables'
-                        }
+        if (graphqlData.queries) {
+            for (const query of graphqlData.queries) {
+                operations.push({
+                    id: `${specId}-query-${query.name}`,
+                    name: query.name,
+                    ...this.buildAudit(),
+                    method: 'query',
+                    path: query.name,
+                    specification: {
+                        operation: query.sdl
                     }
-                }
-            },
-            responseSchemas: {
-                '200': {
-                    'application/json': {
-                        type: 'object',
-                        properties: {
-                            data: {
-                                type: 'object',
-                                description: `Response data of type ${item.returnType}`
-                            },
-                            errors: {
-                                type: 'array',
-                                items: { type: 'string' },
-                                description: 'GraphQL errors'
-                            }
-                        }
-                    }
-                }
+                });
             }
-        });
-
-        for (const query of graphqlData.queries) {
-            operations.push(buildGraphQLOperation('Query', query));
         }
 
-        for (const mutation of graphqlData.mutations) {
-            operations.push(buildGraphQLOperation('Mutation', mutation));
+        if (graphqlData.mutations) {
+            for (const mutation of graphqlData.mutations) {
+                operations.push({
+                    id: `${specId}-mutation-${mutation.name}`,
+                    name: mutation.name,
+                    ...this.buildAudit(),
+                    method: 'mutation',
+                    path: mutation.name,
+                    specification: {
+                        operation: mutation.sdl
+                    }
+                });
+            }
         }
 
-        for (const subscription of graphqlData.subscriptions) {
-            operations.push(buildGraphQLOperation('Subscription', subscription));
-        }
+        const schema = graphqlData.schema || '';
 
         return this.buildSpecification(
             specId,
@@ -662,7 +641,10 @@ export class QipSpecificationGenerator {
             '1.0.0',
             operations,
             fileName,
-            graphqlData
+            {
+                ...graphqlData,
+                schema
+            }
         );
     }
 
@@ -672,6 +654,7 @@ export class QipSpecificationGenerator {
     static createQipSpecificationFromAsyncApi(asyncApiData: any, fileName: string): any {
         const operations: any[] = [];
         const specId = this.generateId();
+        const operationResolver = new AsyncApiOperationResolver();
 
         if (asyncApiData.channels) {
             Object.entries(asyncApiData.channels).forEach(([channelName, channel]: [string, any]) => {
@@ -682,43 +665,23 @@ export class QipSpecificationGenerator {
                     op: any
                 ) => {
                     const operationId = op.operationId || `${opType}-${channelNameLocal}`;
+                    const resolvedData = operationResolver.resolve(
+                        protocol,
+                        channelNameLocal,
+                        operationId,
+                        channel,
+                        op,
+                        asyncApiData.components
+                    );
                     return {
                         id: `${specId}-${operationId}`,
                         name: operationId,
+                        ...this.buildAudit(),
                         method: opType.toUpperCase(),
                         path: channelNameLocal,
-                        specification: {
-                            summary: op.summary || `${operationId} operation`,
-                            operationId: operationId,
-                            protocol,
-                            channel: channelNameLocal,
-                            operation: opType,
-                            message: op.message || {}
-                        },
-                        requestSchema: {
-                            $id: `http://system.catalog/schemas/requests/${operationId}`,
-                            $ref: `#/definitions/${operationId}Request`,
-                            $schema: "http://json-schema.org/draft-07/schema#",
-                            definitions: {
-                                [`${operationId}Request`]: {
-                                    type: "object",
-                                    properties: {},
-                                    additionalProperties: false
-                                }
-                            }
-                        },
-                        responseSchemas: {
-                            $id: `http://system.catalog/schemas/responses/${operationId}`,
-                            $ref: `#/definitions/${operationId}Response`,
-                            $schema: "http://json-schema.org/draft-07/schema#",
-                            definitions: {
-                                [`${operationId}Response`]: {
-                                    type: "object",
-                                    properties: {},
-                                    additionalProperties: false
-                                }
-                            }
-                        }
+                        specification: resolvedData.specification,
+                        requestSchema: resolvedData.requestSchemas,
+                        responseSchemas: resolvedData.responseSchemas
                     };
                 };
 

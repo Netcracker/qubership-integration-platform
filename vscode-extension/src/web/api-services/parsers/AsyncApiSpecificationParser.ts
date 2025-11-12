@@ -1,4 +1,6 @@
 import { ContentParser } from './ContentParser';
+import { EMPTY_USER } from "../../response/chainApiUtils";
+import { AsyncApiOperationResolver } from './async/AsyncApiOperationResolver';
 
 export interface AsyncApiData {
     asyncapi: string;
@@ -8,6 +10,7 @@ export interface AsyncApiData {
         description?: string;
         'x-protocol'?: string;
     };
+    components?: Record<string, any>;
     channels: Record<string, {
         publish?: {
             summary?: string;
@@ -52,51 +55,31 @@ export class AsyncApiSpecificationParser {
             return operations;
         }
 
-        const protocol = asyncApiData.info?.['x-protocol'] || 'unknown';
+        const protocol = this.resolveProtocol(asyncApiData);
+
+        const operationResolver = new AsyncApiOperationResolver();
 
         // Process each channel
         Object.entries(asyncApiData.channels).forEach(([channelName, channel]) => {
             // Publish operations
             if (channel.publish) {
                 const operationId = channel.publish.operationId || `publish-${channelName}`;
+                const resolvedData = operationResolver.resolve(
+                    protocol,
+                    channelName,
+                    operationId,
+                    channel,
+                    channel.publish,
+                    asyncApiData.components
+                );
                 const operation = {
                     id: `${specificationId}-${operationId}`,
                     name: operationId,
                     method: 'publish',
                     path: channelName,
-                    specification: {
-                        summary: channel.publish.summary || `${operationId} operation`,
-                        operationId: operationId,
-                        protocol: protocol,
-                        channel: channelName,
-                        operation: 'publish',
-                        message: channel.publish.message || {},
-                        maasClassifierName: channel.publish['x-maas-classifier-name'] || "",
-                    },
-                    requestSchema: {
-                        $id: `http://system.catalog/schemas/requests/${operationId}`,
-                        $ref: `#/definitions/${operationId}Request`,
-                        $schema: "http://json-schema.org/draft-07/schema#",
-                        definitions: {
-                            [`${operationId}Request`]: {
-                                type: "object",
-                                properties: {},
-                                additionalProperties: false
-                            }
-                        }
-                    },
-                    responseSchemas: {
-                        $id: `http://system.catalog/schemas/responses/${operationId}`,
-                        $ref: `#/definitions/${operationId}Response`,
-                        $schema: "http://json-schema.org/draft-07/schema#",
-                        definitions: {
-                            [`${operationId}Response`]: {
-                                type: "object",
-                                properties: {},
-                                additionalProperties: false
-                            }
-                        }
-                    }
+                    specification: resolvedData.specification,
+                    requestSchema: resolvedData.requestSchemas,
+                    responseSchemas: resolvedData.responseSchemas
                 };
                 operations.push(operation);
             }
@@ -104,44 +87,22 @@ export class AsyncApiSpecificationParser {
             // Subscribe operations
             if (channel.subscribe) {
                 const operationId = channel.subscribe.operationId || `subscribe-${channelName}`;
+                const resolvedData = operationResolver.resolve(
+                    protocol,
+                    channelName,
+                    operationId,
+                    channel,
+                    channel.subscribe,
+                    asyncApiData.components
+                );
                 const operation = {
                     id: `${specificationId}-${operationId}`,
                     name: operationId,
                     method: 'subscribe',
                     path: channelName,
-                    specification: {
-                        summary: channel.subscribe.summary || `${operationId} operation`,
-                        operationId: operationId,
-                        protocol: protocol,
-                        channel: channelName,
-                        operation: 'subscribe',
-                        message: channel.subscribe.message || {},
-                        maasClassifierName: channel.subscribe['x-maas-classifier-name'] || "",
-                    },
-                    requestSchema: {
-                        $id: `http://system.catalog/schemas/requests/${operationId}`,
-                        $ref: `#/definitions/${operationId}Request`,
-                        $schema: "http://json-schema.org/draft-07/schema#",
-                        definitions: {
-                            [`${operationId}Request`]: {
-                                type: "object",
-                                properties: {},
-                                additionalProperties: false
-                            }
-                        }
-                    },
-                    responseSchemas: {
-                        $id: `http://system.catalog/schemas/responses/${operationId}`,
-                        $ref: `#/definitions/${operationId}Response`,
-                        $schema: "http://json-schema.org/draft-07/schema#",
-                        definitions: {
-                            [`${operationId}Response`]: {
-                                type: "object",
-                                properties: {},
-                                additionalProperties: false
-                            }
-                        }
-                    }
+                    specification: resolvedData.specification,
+                    requestSchema: resolvedData.requestSchemas,
+                    responseSchemas: resolvedData.responseSchemas
                 };
                 operations.push(operation);
             }
@@ -183,5 +144,22 @@ export class AsyncApiSpecificationParser {
         }
 
         return null;
+    }
+
+    private static resolveProtocol(asyncApiData: AsyncApiData): string {
+        const infoProtocol = asyncApiData.info?.['x-protocol'];
+        if (infoProtocol) {
+            return infoProtocol.toLowerCase();
+        }
+
+        const servers = asyncApiData.servers;
+        if (servers) {
+            const firstServer = Object.values(servers)[0] as { protocol?: string } | undefined;
+            if (firstServer?.protocol) {
+                return firstServer.protocol.toLowerCase();
+            }
+        }
+
+        return 'unknown';
     }
 }
