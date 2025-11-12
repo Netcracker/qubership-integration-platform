@@ -52,10 +52,10 @@ export type PatchElementRequest = {
 };
 
 export type TransferElementRequest = {
-    parentId: string | null;
-    elements: string[];
-    swimlaneId: string | null;
-}
+  parentId: string | null;
+  elements: string[];
+  swimlaneId: string | null;
+};
 
 export type ConnectionRequest = {
   from: string;
@@ -101,7 +101,7 @@ export type Element = BaseEntity & {
   children?: Element[];
   swimlaneId?: string;
   mandatoryChecksPassed: boolean;
-}
+};
 
 export type LibraryElement = {
   name: string;
@@ -160,17 +160,17 @@ export enum ElementColorType {
   UNSUPPORTED = 'unsupported'
 }
 
-export type ElementWithChainName  = BaseEntity &  {
+export type ElementWithChainName = BaseEntity & {
   type: string;
-  chainId: string
-  chainName: string
+  chainId: string;
+  chainName: string;
   arentElementId: string;
   originalId: string;
   properties?: Record<string, unknown>;
   children: ChildElement[];
-  swimlaneId: string
+  swimlaneId: string;
   mandatoryChecksPassed: boolean;
-}
+};
 
 export interface ElementFilter {
   elementTitle: string;
@@ -1126,3 +1126,9 @@ export enum ApiSpecificationFormat {
   YAML = "YAML",
 }
 
+export type Folder = {
+  id?: string;
+  name: string;
+  subfolder?: Folder;
+  description?: string;
+};

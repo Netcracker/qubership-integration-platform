@@ -74,7 +74,8 @@ const CustomArrayField: React.FC<Props> = ({
   }, [name, formContext]);
 
   const [availableCodes, setAvailableCodes] = useState<{ value: string }[]>(
-    readOnlyMode || formContext?.integrationOperationProtocolType?.toLowerCase() !== "http"
+    readOnlyMode ||
+      formContext?.integrationOperationProtocolType?.toLowerCase() !== "http"
       ? []
       : defaultCodeOptions,
   );
@@ -90,7 +91,7 @@ const CustomArrayField: React.FC<Props> = ({
     let cancelled = false;
 
     const loadOperationInfo = async () => {
-    if (!operationId) return;
+      if (!operationId) return;
       try {
         const operationInfo = await api.getOperationInfo(operationId);
         if (cancelled) return;
@@ -114,18 +115,17 @@ const CustomArrayField: React.FC<Props> = ({
                     };
                   },
                 );
+
+                const usedIds = formData.map((f) => f.id);
+                setAvailableCodes(
+                  Object.keys(acc)
+                    .filter((id) => !usedIds.includes(id))
+                    .map((id) => ({ value: id })),
+                );
                 return acc;
               },
               {} as Record<string, AfterValidation>,
             ),
-          );
-
-          const usedIds = formData.map((f) => f.id);
-
-          setAvailableCodes(
-            Object.keys(validationSchemas)
-              .filter((id) => !usedIds.includes(id))
-              .map((id) => ({ value: id })),
           );
         } else {
           const responseCodes = Object.keys(responseSchemas).map((c) => ({

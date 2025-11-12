@@ -1312,7 +1312,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
   return (
     <ArcherContainer
       ref={archerContainerRef}
-      style={{ height: "100%" }}
+      style={{ height: "100%"}}
       strokeWidth={3}
       strokeColor={"#FFB02E"}
       endShape={{ arrow: { arrowLength: 3, arrowThickness: 3 } }}
@@ -1321,7 +1321,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
       {...props}
     >
       {contextHolder}
-      <Row ref={containerRef} gutter={[16, 16]} style={{ height: "100%" }}>
+      <Row ref={containerRef} style={{ height: "100%" }}>
         <Col span={9} className={graphViewStyles["mapping-table-column"]}>
           <Table<MappingTableItem>
             className="flex-table"

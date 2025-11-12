@@ -338,11 +338,14 @@ export const pathToTabMap: Record<string, string> = {
   "properties.handleValidationAction": "Handle Validation Failure",
   "properties.handlerContainer": "Handle Validation Failure",
   "properties.handlerContainer.script": "Handle Validation Failure",
+  "properties.handlerContainer.mappingDescription": "Handle Validation Failure",
   "properties.handleChainFailureAction": "Failure Response Mapping",
   "properties.chainFailureHandlerContainer": "Failure Response Mapping",
   "properties.chainFailureHandlerContainer.elementId":
     "Failure Response Mapping",
   "properties.chainFailureHandlerContainer.script": "Failure Response Mapping",
+  "properties.chainFailureHandlerContainer.mappingDescription":
+    "Failure Response Mapping",
   "properties.validationSchema": "Validate Request",
   "properties.roles": "Access Control",
   "properties.abacResource": "Access Control",

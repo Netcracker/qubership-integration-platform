@@ -6,7 +6,6 @@ import styles from "./ChainElementModification.module.css";
 import { Element, PatchElementRequest } from "../../../api/apiTypes.ts";
 import { useLibraryElement } from "../../../hooks/useLibraryElement.tsx";
 import Form from "@rjsf/antd";
-// @ts-expect-error - no types available for js-yaml
 import yaml from "js-yaml";
 import { useElement } from "../../../hooks/useElement.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
@@ -23,7 +22,6 @@ import { DebouncedTextareaWidget } from "./widget/DebouncedTextareaWidget.tsx";
 import { DebouncedTextWidget } from "./widget/DebouncedTextWidget.tsx";
 import OneOfAsSingleInputField from "./field/OneOfAsSingleInputField.tsx";
 import PatternPropertiesField from "./field/PatternPropertiesField.tsx";
-
 import {
   INITIAL_UI_SCHEMA,
   pathToTabMap,
@@ -38,7 +36,6 @@ import JsonField from "./field/JsonField.tsx";
 import ServiceField from "./field/ServiceField.tsx";
 import SpecificationField from "./field/SpecificationField.tsx";
 import SystemOperationField from "./field/SystemOperationField.tsx";
-import { FormContext } from "antd/es/form/context";
 import CustomOneOfField from "./field/CustomOneOfField.tsx";
 import EnhancedPatternPropertiesField from "./field/EnhancedPatternPropertiesField.tsx";
 import BodyMimeTypeField from "./field/BodyMimeTypeField.tsx";
@@ -91,7 +88,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   onClose,
 }) => {
   console.log(`[ChainElementModification] Component RENDER for element: ${elementId}, type: ${node.data.elementType}`);
-  
+
   const normalizeProtocol = useCallback((protocol: unknown): string | undefined => {
     if (typeof protocol !== "string") {
       return undefined;
@@ -195,7 +192,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           setFormContext((prevContext) =>
             enrichProperties(prevContext, updatedProperties),
           );
-          
+
           setFormData((prevFormData) => ({
             ...prevFormData,
             properties: enrichProperties(
@@ -334,12 +331,12 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         prevFormData.properties as Record<string, unknown>,
         newContextProperties,
       );
-      
+
       // Only update if properties actually changed
       if (JSON.stringify(enrichedProps) === JSON.stringify(prevFormData.properties)) {
         return prevFormData;
       }
-      
+
       return {
         ...prevFormData,
         properties: enrichedProps,
@@ -414,7 +411,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           );
 
           const subSchema = schema.properties[key];
-          const isObjectSchema = typeof subSchema === 'object' && 
+          const isObjectSchema = typeof subSchema === 'object' &&
                                  'type' in subSchema && subSchema.type === "object";
 
           if ((isObjectSchema && isVisible) || key === "properties") {
