@@ -5,6 +5,7 @@ import { api } from "../../api/api";
 import { useAsyncRequest } from './useAsyncRequest';
 import { SourceFlagTag } from './SourceFlagTag';
 import {serviceCache} from "./utils.tsx";
+import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 
 interface ServiceParametersTabProps {
   systemId: string;
@@ -161,14 +162,16 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
             placeholder="Add labels"
           />
         </Form.Item>
-        <Descriptions column={1} size="small" style={{ margin: "24px 0" }}>
-          <Descriptions.Item label="Created">
-            {formatTimestamp(system.createdWhen as string)}
-          </Descriptions.Item>
-          <Descriptions.Item label="Modified">
-            {formatTimestamp(system.modifiedWhen as string)}
-          </Descriptions.Item>
-        </Descriptions>
+        {!isVsCode && (
+          <Descriptions column={1} size="small" style={{ margin: "24px 0" }}>
+            <Descriptions.Item label="Created">
+              {formatTimestamp(system.createdWhen as string)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Modified">
+              {formatTimestamp(system.modifiedWhen as string)}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
         <Button
           type="primary"
           className={styles["variables-actions"]}

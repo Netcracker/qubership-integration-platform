@@ -13,6 +13,7 @@ import { getErrorMessage } from '../../misc/error-utils';
 import { useLocation } from "react-router-dom";
 import { Icon } from "../../IconProvider.tsx";
 import {environmentLabels} from "./utils.tsx";
+import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 
 interface ServiceEnvironmentsTabProps {
   formatTimestamp: (val: number) => string;
@@ -230,6 +231,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
       title: 'Modified',
       dataIndex: 'modifiedWhen',
       key: 'modifiedWhen',
+      hidden: isVsCode,
       render: (val?: number) => val ? formatTimestamp(val) : '',
     },
     {
