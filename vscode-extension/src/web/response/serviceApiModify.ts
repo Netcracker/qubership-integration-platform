@@ -411,13 +411,21 @@ async function getSpecificationFilesByGroup(serviceFileUri: Uri, groupId: string
     }
 
     const specificationFiles = await fileApi.getSpecificationFiles(serviceFileUri);
+    let groupSpecificationFiles: string[] = [];
 
-    const groupName = groupInfo.name;
-    const systemId = groupInfo.content.parentId;
+    for (const fileName of specificationFiles) {
+        try {
+            const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
+            const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
+            const parsed = await ContentParser.parseContentFromFile(fileUri);
 
-    const groupSpecificationFiles = specificationFiles.filter((fileName: string) =>
-        fileName.startsWith(`${systemId}-${groupName}-`)
-    );
+            if (parsed?.content?.parentId === groupId) {
+                groupSpecificationFiles.push(fileName);
+            }
+        } catch (error) {
+            console.error(`Error reading specification file ${fileName}:`, error);
+        }
+    }
 
     return {
         groupFile: groupFileToDelete,

@@ -1,15 +1,14 @@
-import { ExtensionContext, Uri } from "vscode";
-const vscode = require('vscode');
+import { ExtensionContext, Uri, window } from "vscode";
 import {
     ImportSpecificationResult,
     ImportSpecificationGroupRequest,
     SerializedFile,
 } from "./importApiTypes";
-import { SpecificationGroup, Specification, IntegrationSystem } from "./servicesTypes";
+import { SpecificationGroup, Specification, IntegrationSystem, IntegrationSystemType, Environment } from "./servicesTypes";
 import { ImportProgressTracker } from "./importProgressTracker";
 import { SpecificationGroupService } from "./SpecificationGroupService";
-import { SpecificationProcessorService } from "./SpecificationProcessorService";
-import { EnvironmentService, EnvironmentRequest } from "./EnvironmentService";
+import { SpecificationProcessorService, EnvironmentCandidate } from "./SpecificationProcessorService";
+import { EnvironmentService } from "./EnvironmentService";
 import { SystemService } from "./SystemService";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
@@ -23,6 +22,8 @@ import { ContentParser } from './parsers/ContentParser';
 import { ProjectConfigService } from "../services/ProjectConfigService";
 import { SpecificationValidator } from "./SpecificationValidator";
 import { ApiSpecificationType } from "./importApiTypes";
+import { normalizePath } from "./pathUtils";
+import type { EnvironmentRequest } from "./servicesTypes";
 
 export class SpecificationImportService {
     private context: ExtensionContext;
@@ -71,7 +72,7 @@ export class SpecificationImportService {
                         SpecificationValidator.validateSpecificationProtocol(systemProtocol, importProtocol);
                     } catch (error) {
                         console.error(`[SpecificationImportService] Protocol validation failed:`, error);
-                        vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Protocol validation failed');
+                        window.showErrorMessage(error instanceof Error ? error.message : 'Protocol validation failed');
                         throw error;
                     }
                 }
@@ -103,10 +104,6 @@ export class SpecificationImportService {
                 throw new Error(`Failed to save specification group file: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
 
-            if (importingProtocol) {
-                console.log(`[SpecificationImportService] Protocol ${importingProtocol} detected`);
-            }
-
             try {
                 await this.createEnvironmentForSpecificationGroup(
                     system,
@@ -115,7 +112,7 @@ export class SpecificationImportService {
                     extractedFiles
                 );
             } catch (error) {
-                console.log(`[SpecificationImportService] Error creating environment:`, error);
+                console.error(`[SpecificationImportService] Error creating environment:`, error);
             }
 
             const result: ImportSpecificationResult = {
@@ -163,7 +160,7 @@ export class SpecificationImportService {
             this.progressTracker.startImportSession(importId, specificationGroup.id);
 
             const extractedFiles = await this.convertSerializedFilesToFiles(files);
-            
+
             const importingProtocol = await this.detectImportingProtocol(extractedFiles);
             if (importingProtocol) {
                 const systemProtocol = this.convertToApiSpecificationType(system.protocol);
@@ -173,7 +170,7 @@ export class SpecificationImportService {
                         SpecificationValidator.validateSpecificationProtocol(systemProtocol, importProtocol);
                     } catch (error) {
                         console.error(`[SpecificationImportService] Protocol validation failed:`, error);
-                        vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Protocol validation failed');
+                        window.showErrorMessage(error instanceof Error ? error.message : 'Protocol validation failed');
                         throw error;
                     }
                 }
@@ -199,7 +196,7 @@ export class SpecificationImportService {
             return result;
 
         } catch (error) {
-            console.log(`[SpecificationImportService] Specification import failed:`, error);
+            console.error(`[SpecificationImportService] Specification import failed:`, error);
 
             const result: ImportSpecificationResult = {
                 id: importId,
@@ -274,7 +271,7 @@ export class SpecificationImportService {
 
                 files.push(file);
         } catch (error) {
-                console.log(`[SpecificationImportService] Error converting file ${serializedFile.name}:`, error);
+                console.error(`[SpecificationImportService] Error converting file ${serializedFile.name}:`, error);
                 throw new Error(`Failed to convert file ${serializedFile.name}: ${error}`);
             }
         }
@@ -297,7 +294,6 @@ export class SpecificationImportService {
                     const specData = ContentParser.parseContent(content);
                     const protocol = this.specificationProcessorService.detectProtocolFromSpecification(specData);
                     if (protocol) {
-                        console.log(`[SpecificationImportService] Protocol detected: "${protocol}"`);
                         return protocol;
                     }
                 } catch (parseError) {
@@ -352,8 +348,6 @@ export class SpecificationImportService {
                 throw new Error('No base folder available');
             }
 
-            console.log(`[SpecificationImportService] Saving specification files for group: ${specificationGroup.name}`);
-
             for (let i = 0; i < specificationGroup.specifications.length; i++) {
                 const specification = specificationGroup.specifications[i];
                 const sourceFile = extractedFiles[i];
@@ -370,8 +364,8 @@ export class SpecificationImportService {
 
                 // Create QIP specification using operations from SpecificationProcessorService
                 const qipSpecification = {
-                    $schema: config.schemaUrls.specification,
                     id: specification.id,
+                    $schema: config.schemaUrls.specification,
                     name: specification.name,
                     content: {
                         createdWhen: specification.createdWhen,
@@ -398,8 +392,6 @@ export class SpecificationImportService {
                     }
                 };
 
-                console.log(`[SpecificationImportService] Created QIP specification with ${Array.isArray(qipSpecification.content.operations) ? qipSpecification.content.operations.length : 0} operations`);
-
                 const yaml = require('yaml');
                 // Disable anchors to avoid "Excessive alias count" error when parsing large specifications
                 const yamlContent = yaml.stringify(qipSpecification, {
@@ -407,7 +399,6 @@ export class SpecificationImportService {
                 });
                 const bytes = new TextEncoder().encode(yamlContent);
                 await fileApi.writeFile(specFileUri, bytes);
-                console.log(`[SpecificationImportService] Saved specification file: ${specFileName}`);
 
                 // Copy source file and additional files to resources folder
                 await this.copySourceFileToResources(baseFolder, specification.id, sourceFile);
@@ -421,7 +412,6 @@ export class SpecificationImportService {
                 }
             }
 
-            console.log(`[SpecificationImportService] All specification files saved successfully`);
         } catch (error) {
             console.error(`[SpecificationImportService] Error saving specification files:`, error);
             throw new Error(`Failed to save specification files: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -446,7 +436,6 @@ export class SpecificationImportService {
             const bytes = new TextEncoder().encode(fileContent || '');
 
             await fileApi.writeFile(targetFileUri, bytes);
-            console.log(`[SpecificationImportService] Copied source file: ${sourceFile.name} to ${sourceFolderName}/`);
         } catch (error) {
             console.error(`[SpecificationImportService] Error copying source file ${sourceFile.name}:`, error);
             throw error;
@@ -501,43 +490,34 @@ export class SpecificationImportService {
         files: File[]
     ): Promise<void> {
         try {
-            let address: string;
             const specData = await this.extractSpecificationData(files);
+            const candidates = specData ? this.specificationProcessorService.extractEnvironmentCandidates(specData) : [];
+            if (candidates.length === 0) {
+                return;
+            }
 
-            if (specData) {
-                const extractedAddress = this.specificationProcessorService.extractAddressFromSpecification(specData);
-                if (extractedAddress) {
-                    address = extractedAddress;
-                } else {
-                    address = this.getDefaultAddressForProtocol(system.protocol);
-                }
+            const systemType = system.integrationSystemType || system.type;
+            const existingEnvironments = await this.environmentService.getEnvironmentsForSystem(systemId);
+            const existingAddresses = new Set(
+                existingEnvironments
+                    .map((env) => this.normalizeEnvironmentAddress(env.address))
+                    .filter((value): value is string => Boolean(value))
+                    .map((value) => value.toLowerCase())
+            );
+
+            if (systemType === IntegrationSystemType.EXTERNAL) {
+                await this.createEnvironmentsForExternalSystem(candidates, specificationGroup, systemId, existingAddresses);
             } else {
-                address = this.getDefaultAddressForProtocol(system.protocol);
+                await this.applyInternalEnvironmentStrategy(
+                    candidates,
+                    specificationGroup,
+                    systemId,
+                    existingEnvironments,
+                    existingAddresses
+                );
             }
-
-            let environmentName = `Environment for ${specificationGroup.name}`;
-            if (system.protocol?.toLowerCase() === 'soap' && specData && specData.service && specData.service.portName) {
-                environmentName = specData.service.portName;
-            }
-
-            const environmentRequest: EnvironmentRequest = {
-                name: environmentName,
-                address: address,
-                description: `Environment created for ${specificationGroup.name} specification group`,
-                systemId: systemId,
-                isActive: false
-            };
-
-            const environment = await this.environmentService.createEnvironment(environmentRequest);
-
-            console.log(`[SpecificationImportService] Environment created successfully:`, {
-                id: environment.id,
-                name: environment.name,
-                address: environment.address
-            });
-
         } catch (error) {
-            console.log(`[SpecificationImportService] Error creating environment:`, error);
+            console.error(`[SpecificationImportService] Error creating environment:`, error);
         }
     }
 
@@ -548,50 +528,140 @@ export class SpecificationImportService {
         for (const file of files) {
             try {
                 const content = await file.text();
-                if (content) {
-                    // Try JSON first, then YAML
-                    return ContentParser.parseContent(content);
+                if (!content) {
+                    continue;
+                }
+
+                const extension = this.getFileExtension(file.name);
+                if (this.isWsdlContent(extension, content)) {
+                    const additionalDocuments = await this.buildWsdlAdditionalDocumentsForImport(file, files);
+                    return await SoapSpecificationParser.parseWsdlContent(content, {
+                        fileName: file.name,
+                        additionalDocuments
+                    });
+                }
+
+                const parsedContent = ContentParser.parseContent(content);
+                if (parsedContent && typeof parsedContent === "object") {
+                    if (parsedContent.openapi || parsedContent.swagger || parsedContent.asyncapi) {
+                        return parsedContent;
+                    }
+                    if (parsedContent.type === 'WSDL') {
+                        return parsedContent;
+                    }
                 }
             } catch (error) {
-                console.log(`[SpecificationImportService] Error reading file ${file.name}:`, error);
+                console.error(`[SpecificationImportService] Error reading file ${file.name}:`, error);
             }
         }
         return null;
     }
 
     /**
-     * Get default address for protocol
+     * Convert string protocol to ApiSpecificationType
      */
-    private getDefaultAddressForProtocol(protocol?: string): string {
-        switch (protocol?.toUpperCase()) {
-            case 'HTTP':
-            case 'HTTPS':
-                return 'https://api.example.com';
-            case 'SOAP':
-                return 'https://soap.example.com/ws';
-            case 'GRAPHQL':
-                return 'https://graphql.example.com/graphql';
-            case 'GRPC':
-                return 'grpc://grpc.example.com:9090';
-            case 'AMQP':
-            case 'RABBIT':
-                return 'amqp://localhost:5672';
-            case 'KAFKA':
-                return 'kafka://localhost:9092';
-            case 'MQTT':
-                return 'mqtt://localhost:1883';
-            case 'REDIS':
-                return 'redis://localhost:6379';
-            case 'NATS':
-                return 'nats://localhost:4222';
-            default:
-                return 'https://api.example.com';
+    private async createEnvironmentsForExternalSystem(
+        candidates: EnvironmentCandidate[],
+        specificationGroup: SpecificationGroup,
+        systemId: string,
+        existingAddresses: Set<string>
+    ): Promise<void> {
+        for (let index = 0; index < candidates.length; index++) {
+            const candidate = candidates[index];
+            const normalizedAddress = this.normalizeEnvironmentAddress(candidate.address);
+            if (!normalizedAddress) {
+                continue;
+            }
+            const addressKey = normalizedAddress.toLowerCase();
+            if (existingAddresses.has(addressKey)) {
+                continue;
+            }
+
+            const environmentRequest: EnvironmentRequest = {
+                name: this.buildEnvironmentName(specificationGroup.name, candidate, normalizedAddress, index),
+                address: normalizedAddress,
+                description: this.buildEnvironmentDescription(specificationGroup.name),
+                systemId,
+                isActive: existingAddresses.size === 0 && index === 0
+            };
+
+            const environment = await this.environmentService.createEnvironment(environmentRequest);
+            existingAddresses.add(addressKey);
+
         }
     }
 
-    /**
-     * Convert string protocol to ApiSpecificationType
-     */
+    private async applyInternalEnvironmentStrategy(
+        candidates: EnvironmentCandidate[],
+        specificationGroup: SpecificationGroup,
+        systemId: string,
+        existingEnvironments: Environment[],
+        existingAddresses: Set<string>
+    ): Promise<void> {
+        const primaryCandidate = candidates[0];
+        const normalizedAddress = this.normalizeEnvironmentAddress(primaryCandidate.address);
+        if (!normalizedAddress) {
+            return;
+        }
+
+        const addressKey = normalizedAddress.toLowerCase();
+        if (existingAddresses.has(addressKey)) {
+            return;
+        }
+
+        if (existingEnvironments.length === 0) {
+            await this.environmentService.createEnvironment({
+                name: this.buildEnvironmentName(specificationGroup.name, primaryCandidate, normalizedAddress, 0),
+                address: normalizedAddress,
+                description: this.buildEnvironmentDescription(specificationGroup.name),
+                systemId,
+                isActive: true
+            });
+            return;
+        }
+
+        const targetEnvironment = existingEnvironments[0];
+        const currentAddress = this.normalizeEnvironmentAddress(targetEnvironment.address);
+        if (!currentAddress) {
+            await this.environmentService.updateEnvironment(systemId, targetEnvironment.id, {
+                name: this.buildEnvironmentName(specificationGroup.name, primaryCandidate, normalizedAddress, 0),
+                address: normalizedAddress
+            });
+        }
+    }
+
+    private buildEnvironmentName(
+        specificationGroupName: string,
+        candidate: EnvironmentCandidate,
+        fallbackAddress: string,
+        index: number
+    ): string {
+        const name = candidate.name?.trim();
+        if (name) {
+            return name;
+        }
+        const suffix = index > 0 ? ` #${index + 1}` : "";
+        return `Environment for ${specificationGroupName}${suffix}`.trim() || fallbackAddress;
+    }
+
+    private buildEnvironmentDescription(specificationGroupName: string): string {
+        return `Environment created for ${specificationGroupName} specification group`;
+    }
+
+    private normalizeEnvironmentAddress(address: string | undefined | null): string | null {
+        if (!address || typeof address !== 'string') {
+            return null;
+        }
+        const trimmed = address.trim();
+        if (!trimmed) {
+            return null;
+        }
+        if (trimmed === "/") {
+            return trimmed;
+        }
+        return trimmed.replace(/\/+$/, "");
+    }
+
     private convertToApiSpecificationType(protocol: string | undefined): ApiSpecificationType | undefined {
         if (!protocol) {
             return undefined;
@@ -625,4 +695,52 @@ export class SpecificationImportService {
                 return ApiSpecificationType.HTTP;
         }
     }
+
+    private getFileExtension(fileName: string): string {
+        const lastDotIndex = fileName.lastIndexOf('.');
+        return lastDotIndex !== -1 ? fileName.substring(lastDotIndex).toLowerCase() : '';
+    }
+
+    private isWsdlContent(extension: string, content: string): boolean {
+        if (extension === '.wsdl') {
+            return true;
+        }
+        const snippet = content.slice(0, 512).toLowerCase();
+        return snippet.includes('http://schemas.xmlsoap.org/wsdl') || snippet.includes('http://www.w3.org/ns/wsdl');
+    }
+
+    private async buildWsdlAdditionalDocumentsForImport(
+        mainFile: File,
+        allFiles: File[]
+    ): Promise<Array<{ uri: string; content: string }>> {
+        if (!allFiles || allFiles.length === 0) {
+            return [];
+        }
+
+        const mainPath = normalizePath(mainFile.name);
+        const documents: Array<{ uri: string; content: string }> = [];
+
+        for (const candidate of allFiles) {
+            const candidatePath = normalizePath(candidate.name);
+            if (candidatePath === mainPath) {
+                continue;
+            }
+            const extension = this.getFileExtension(candidate.name);
+            if (!['.wsdl', '.xsd'].includes(extension)) {
+                continue;
+            }
+            try {
+                const candidateContent = await candidate.text();
+                documents.push({
+                    uri: candidatePath,
+                    content: candidateContent
+                });
+            } catch (error) {
+                console.error(`[SpecificationImportService] Error reading WSDL dependency ${candidate.name}:`, error);
+            }
+        }
+
+        return documents;
+    }
+
 }

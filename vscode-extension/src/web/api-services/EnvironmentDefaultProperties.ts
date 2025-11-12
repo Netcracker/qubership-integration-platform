@@ -46,23 +46,5 @@ export class EnvironmentDefaultProperties {
         }
     }
 
-    /**
-     * Get default properties for MaaS environments
-     */
-    static getMaasDefaultProperties(protocol: string): Record<string, string> {
-        switch (protocol?.toLowerCase()) {
-            case 'amqp':
-                return {
-                    routingKey: '',
-                    acknowledgeMode: 'AUTO',
-                };
-            case 'kafka':
-                return {
-                    // MaaS environments typically have fewer properties
-                    // Only essential ones are pre-filled
-                };
-            default:
-                return {};
-        }
-    }
 }
+
