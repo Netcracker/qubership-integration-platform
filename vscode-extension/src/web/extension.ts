@@ -8,7 +8,6 @@ import {
     WebviewPanel
 } from "vscode";
 import {getApiResponse} from "./response";
-import * as path from "path";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import { getExtensionsForUri, setCurrentFileContext, extractFilename, initializeContextFromFile } from "./response/file/fileExtensions";
@@ -40,6 +39,140 @@ export interface QipExtensionAPI {
 }
 
 let globalQipProvider: QipExplorerProvider | null = null;
+const activeWebviewPanels = new Map<string, WebviewPanel>();
+let currentExtensionVersion = "unknown";
+
+interface ThemePayload {
+    kind: vscode.ColorThemeKind;
+    isDark: boolean;
+    isLight: boolean;
+    isHighContrast: boolean;
+    themeName: string;
+    colors: Record<string, string>;
+    fonts: {
+        fontFamily: string;
+        fontSize: number;
+        fontWeight: string;
+        lineHeight: number;
+    };
+    ui: {
+        tabSize: number;
+        wordWrap: string;
+        minimap: {
+            enabled: boolean;
+            maxColumn: number;
+        };
+        scrollbar: {
+            vertical: string;
+            horizontal: string;
+            verticalScrollbarSize: number;
+            horizontalScrollbarSize: number;
+        };
+    };
+    accessibility: {
+        highContrast: boolean;
+        reducedMotion: string;
+    };
+    debug: {
+        timestamp: string;
+        extensionVersion: string;
+        vscodeVersion: string;
+        themeKindValues: Record<string, number>;
+    };
+}
+
+function getThemeData(): ThemePayload {
+    const activeTheme = vscode.window.activeColorTheme;
+    const editorConfig = vscode.workspace.getConfiguration("editor");
+
+    const kind = activeTheme.kind;
+    const isHighContrast = kind === vscode.ColorThemeKind.HighContrast || kind === vscode.ColorThemeKind.HighContrastLight;
+    const isDark = kind === vscode.ColorThemeKind.Dark || isHighContrast;
+
+    const colorOverrides: Record<string, string> = {};
+    const customColors = vscode.workspace.getConfiguration().get<Record<string, unknown>>("workbench.colorCustomizations") ?? {};
+    const activeThemeLabel = (activeTheme as { label?: string }).label ?? "";
+
+    Object.entries(customColors).forEach(([key, value]) => {
+        if (typeof value === "string") {
+            colorOverrides[key] = value;
+            return;
+        }
+
+        if (key.startsWith("[") && key.endsWith("]") && typeof value === "object" && value) {
+            const themeName = key.slice(1, -1).trim();
+            if (themeName && activeThemeLabel && themeName === activeThemeLabel) {
+                Object.entries(value as Record<string, unknown>).forEach(([nestedKey, nestedValue]) => {
+                    if (typeof nestedValue === "string") {
+                        colorOverrides[nestedKey] = nestedValue;
+                    }
+                });
+            }
+        }
+    });
+
+    return {
+        kind,
+        isDark,
+        isLight: !isDark,
+        isHighContrast,
+        themeName: (activeTheme as { label?: string }).label ?? (kind === vscode.ColorThemeKind.Light
+            ? "Light"
+            : kind === vscode.ColorThemeKind.Dark
+                ? "Dark"
+                : "High Contrast"),
+        colors: colorOverrides,
+        fonts: {
+            fontFamily: editorConfig.get<string>("fontFamily", 'Consolas, "Courier New", monospace'),
+            fontSize: editorConfig.get<number>("fontSize", 14),
+            fontWeight: editorConfig.get<string>("fontWeight", "normal"),
+            lineHeight: editorConfig.get<number>("lineHeight", 0) || 1.5
+        },
+        ui: {
+            tabSize: editorConfig.get<number>("tabSize", 4),
+            wordWrap: editorConfig.get<string>("wordWrap", "off"),
+            minimap: {
+                enabled: editorConfig.get<boolean>("minimap.enabled", true),
+                maxColumn: editorConfig.get<number>("minimap.maxColumn", 120)
+            },
+            scrollbar: {
+                vertical: editorConfig.get<string>("scrollbar.vertical", "auto"),
+                horizontal: editorConfig.get<string>("scrollbar.horizontal", "auto"),
+                verticalScrollbarSize: editorConfig.get<number>("scrollbar.verticalScrollbarSize", 14),
+                horizontalScrollbarSize: editorConfig.get<number>("scrollbar.horizontalScrollbarSize", 10)
+            }
+        },
+        accessibility: {
+            highContrast: isHighContrast,
+            reducedMotion: editorConfig.get<string>("accessibilitySupport", "auto")
+        },
+        debug: {
+            timestamp: new Date().toISOString(),
+            extensionVersion: currentExtensionVersion,
+            vscodeVersion: vscode.version,
+            themeKindValues: {
+                Light: vscode.ColorThemeKind.Light,
+                Dark: vscode.ColorThemeKind.Dark,
+                HighContrast: vscode.ColorThemeKind.HighContrast,
+                HighContrastLight: vscode.ColorThemeKind.HighContrastLight
+            }
+        }
+    };
+}
+
+function sendThemeToWebview(panel: WebviewPanel) {
+    const themeData = getThemeData();
+    panel.webview.postMessage({
+        type: "theme-update",
+        payload: themeData
+    });
+}
+
+function broadcastThemeToAllWebviews() {
+    activeWebviewPanels.forEach((panel) => {
+        sendThemeToWebview(panel);
+    });
+}
 
 export function refreshQipExplorer() {
     if (globalQipProvider) {
@@ -122,7 +255,22 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: 
 
     panel.webview.html = getWebviewContent(context, panel.webview);
 
+    const panelId = crypto.randomUUID();
+    activeWebviewPanels.set(panelId, panel);
+
+    sendThemeToWebview(panel);
+    setTimeout(() => sendThemeToWebview(panel), 300);
+
+    panel.onDidDispose(() => {
+        activeWebviewPanels.delete(panelId);
+    });
+
     panel.webview.onDidReceiveMessage(async (message: VSCodeMessageWrapper) => {
+        if (message.command === "requestTheme") {
+            sendThemeToWebview(panel);
+            return;
+        }
+
         const response: VSCodeResponse<any> = {
             requestId: message.data.requestId,
             type: message.data.type,
@@ -282,6 +430,8 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
     initNavigationState(context);
 
+    currentExtensionVersion = context.extension.packageJSON.version ?? "unknown";
+
     const projectConfigService = ProjectConfigService.getInstance();
     projectConfigService.setContext(context);
 
@@ -379,6 +529,29 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
     context.subscriptions.push(
         vscode.commands.registerCommand('qip.refreshExplorer', () => {
             qipProvider.refresh();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration("editor.fontSize") ||
+                e.affectsConfiguration("editor.fontFamily") ||
+                e.affectsConfiguration("editor.fontWeight") ||
+                e.affectsConfiguration("editor.lineHeight") ||
+                e.affectsConfiguration("editor.minimap.enabled") ||
+                e.affectsConfiguration("editor.minimap.maxColumn") ||
+                e.affectsConfiguration("editor.scrollbar.vertical") ||
+                e.affectsConfiguration("editor.scrollbar.horizontal") ||
+                e.affectsConfiguration("editor.scrollbar.verticalScrollbarSize") ||
+                e.affectsConfiguration("editor.scrollbar.horizontalScrollbarSize")) {
+                broadcastThemeToAllWebviews();
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveColorTheme(() => {
+            broadcastThemeToAllWebviews();
         })
     );
 
@@ -529,7 +702,6 @@ function getWebviewContent(context: ExtensionContext, webview: Webview) {
             overflow: auto !important;
           }
           body {
-            zoom: 0.9;
             display: flex !important;
             flex-direction: column !important;
           }
