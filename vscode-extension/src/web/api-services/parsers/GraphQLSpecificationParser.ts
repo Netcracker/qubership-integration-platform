@@ -1,4 +1,3 @@
-import { EMPTY_USER } from "../../response/chainApiUtils";
 import {
     DefinitionNode,
     DocumentNode,
@@ -68,10 +67,6 @@ export class GraphQLSpecificationParser {
         return {
             id: `${specificationId}-${operation.name}`,
             name: operation.name,
-            createdWhen: Date.now(),
-            modifiedWhen: Date.now(),
-            createdBy: { ...EMPTY_USER },
-            modifiedBy: { ...EMPTY_USER },
             method,
             path: operation.name,
             specification: {

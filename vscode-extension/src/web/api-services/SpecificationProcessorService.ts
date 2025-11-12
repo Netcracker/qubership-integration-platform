@@ -8,7 +8,6 @@ import {
     OpenApiSpecificationParser,
     AsyncApiSpecificationParser
 } from "./parsers";
-import { EMPTY_USER } from "../response/chainApiUtils";
 import { ContentParser } from './parsers/ContentParser';
 import { normalizePath } from "./pathUtils";
 
@@ -78,10 +77,6 @@ export class SpecificationProcessorService {
             name: version, // Use version as name, not file name
             description: `Specification for ${file.name}`,
             parentId: specificationGroup.id,
-            createdWhen: Date.now(),
-            createdBy: {...EMPTY_USER},
-            modifiedWhen: Date.now(),
-            modifiedBy: {...EMPTY_USER},
             version: version,
             format: specificationType?.toString() || 'unknown',
             content: '',

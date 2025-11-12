@@ -1,7 +1,6 @@
 import { WsdlParser } from "./soap/WsdlParser";
 import type { WsdlParseResult } from "./soap/WsdlTypes";
 import { WsdlLoader, WsdlResolver } from "./soap/WsdlLoader";
-import { EMPTY_USER } from "../../response/chainApiUtils";
 import { SoapSchemaGenerator } from "./soap/SoapSchemaGenerator";
 
 const wsdlParser = new WsdlParser();
@@ -61,13 +60,11 @@ export class SoapSpecificationParser {
             }
             seen.add(operationName);
 
-            const audit = buildAudit();
             const schemas = schemaMap.get(operationName);
 
             operations.push({
                 id: `${specificationId}-${operationName}`,
                 name: operationName,
-                ...audit,
                 method: "POST",
                 path: "",
                 specification: {
@@ -132,14 +129,4 @@ export class SoapSpecificationParser {
         const lastSlash = normalized.lastIndexOf("/");
         return lastSlash >= 0 ? normalized.substring(0, lastSlash) : "";
     }
-}
-
-function buildAudit() {
-    const now = Date.now();
-    return {
-        createdWhen: now,
-        modifiedWhen: now,
-        createdBy: { ...EMPTY_USER },
-        modifiedBy: { ...EMPTY_USER }
-    };
 }

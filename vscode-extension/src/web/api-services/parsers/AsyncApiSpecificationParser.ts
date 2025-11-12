@@ -1,5 +1,4 @@
 import { ContentParser } from './ContentParser';
-import { EMPTY_USER } from "../../response/chainApiUtils";
 import { AsyncApiOperationResolver } from './async/AsyncApiOperationResolver';
 
 export interface AsyncApiData {

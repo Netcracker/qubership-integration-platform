@@ -1,6 +1,5 @@
 import { ExtensionContext, Uri } from "vscode";
 import { Environment, EnvironmentRequest } from "./servicesTypes";
-import { EMPTY_USER } from "../response/chainApiUtils";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { SystemService } from "./SystemService";
@@ -75,10 +74,6 @@ export class EnvironmentService {
                 systemId,
                 properties: defaultProperties,
                 labels: LabelUtils.toEntityLabels([]),
-                createdWhen: Date.now(),
-                createdBy: { ...EMPTY_USER},
-                modifiedWhen: Date.now(),
-                modifiedBy: { ...EMPTY_USER}
             };
 
 
@@ -127,8 +122,6 @@ export class EnvironmentService {
             const updatedEnvironment: Environment = {
                 ...environment,
                 ...updates,
-                modifiedWhen: Date.now(),
-                modifiedBy: {...EMPTY_USER}
             };
 
             system.content.environments[environmentIndex] = updatedEnvironment;
