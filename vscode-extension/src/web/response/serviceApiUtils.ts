@@ -1,32 +1,29 @@
 import vscode, {ExtensionContext} from "vscode";
-import { fileApi } from "./file/fileApiProvider";
+import {fileApi} from "./file/fileApiProvider";
 import {getCurrentServiceId} from "./serviceApiRead";
 import {createService} from "./serviceApiModify";
 import {SpecificationImportApiHandler} from "../api-services/SpecificationImportApiHandler";
 import {SerializedFile} from "../api-services/importApiTypes";
 
 export async function getServiceUri(serviceFileUri: vscode.Uri): Promise<string> {
-    const result = `/services/systems/${await getCurrentServiceId(serviceFileUri)}/parameters`;
-    return result;
+    return `/services/systems/${await getCurrentServiceId(serviceFileUri)}/parameters`;
 }
 
 export async function getServiceSpecificationsUri(serviceFileUri: vscode.Uri, groupId: string): Promise<string> {
     const serviceId = await getCurrentServiceId(serviceFileUri);
-    const result = `/services/systems/${serviceId}/specificationGroups/${groupId}/specifications`;
-    return result;
+    return `/services/systems/${serviceId}/specificationGroups/${groupId}/specifications`;
 }
 
 export async function getServiceOperationsUri(serviceFileUri: vscode.Uri, groupId: string, specId: string): Promise<string> {
     const serviceId = await getCurrentServiceId(serviceFileUri);
-    const result = `/services/systems/${serviceId}/specificationGroups/${groupId}/specifications/${specId}/operations`;
-    return result;
+    return `/services/systems/${serviceId}/specificationGroups/${groupId}/specifications/${specId}/operations`;
 }
 
 export async function handleImportSpecificationGroup(context: ExtensionContext | undefined, serviceFileUri: vscode.Uri, payload: any): Promise<any> {
     if (!context) {
         throw new Error('ExtensionContext is required for import operations');
     }
-    const importHandler = new SpecificationImportApiHandler(context, serviceFileUri);
+    const importHandler = new SpecificationImportApiHandler(serviceFileUri);
     return await importHandler.handleImportSpecificationGroup(payload);
 }
 
@@ -34,7 +31,7 @@ export async function handleImportSpecification(context: ExtensionContext | unde
     if (!context) {
         throw new Error('ExtensionContext is required for import operations');
     }
-    const importSpecHandler = new SpecificationImportApiHandler(context, serviceFileUri);
+    const importSpecHandler = new SpecificationImportApiHandler(serviceFileUri);
     return await importSpecHandler.handleImportSpecification(payload.specificationGroupId, payload.files as SerializedFile[], payload.systemId);
 }
 
@@ -42,7 +39,7 @@ export async function handleGetImportSpecificationResult(context: ExtensionConte
     if (!context) {
         throw new Error('ExtensionContext is required for import operations');
     }
-    const resultHandler = new SpecificationImportApiHandler(context, serviceFileUri);
+    const resultHandler = new SpecificationImportApiHandler(serviceFileUri);
     return await resultHandler.handleGetImportResult(payload.importId);
 }
 

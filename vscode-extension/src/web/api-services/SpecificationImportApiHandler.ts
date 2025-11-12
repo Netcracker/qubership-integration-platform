@@ -1,4 +1,3 @@
-import { ExtensionContext } from "vscode";
 import { SpecificationImportService } from "./SpecificationImportService";
 import {
     ImportSpecificationResult,
@@ -10,8 +9,8 @@ import { Uri } from "vscode";
 export class SpecificationImportApiHandler {
     private service: SpecificationImportService;
 
-    constructor(context: ExtensionContext, serviceFileUri?: Uri) {
-        this.service = new SpecificationImportService(context, serviceFileUri);
+    constructor(serviceFileUri?: Uri) {
+        this.service = new SpecificationImportService(serviceFileUri);
     }
 
     async handleImportSpecificationGroup(request: ImportSpecificationGroupRequest): Promise<ImportSpecificationResult> {
@@ -36,7 +35,7 @@ export class SpecificationImportApiHandler {
             systemId,
             filesCount: files?.length || 0
         });
-        
+
         try {
             const result = await this.service.importSpecification(specificationGroupId, files, systemId);
             console.log(`[SpecificationImportApiHandler] Specification import completed successfully:`, {
@@ -53,7 +52,7 @@ export class SpecificationImportApiHandler {
 
     async handleGetImportResult(importId: string): Promise<ImportSpecificationResult> {
         console.log(`[SpecificationImportApiHandler] Getting import result for ID: ${importId}`);
-        
+
         try {
             const result = await this.service.getImportSpecificationResult(importId);
             console.log(`[SpecificationImportApiHandler] Import result retrieved:`, {

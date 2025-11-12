@@ -1,18 +1,12 @@
-import { ExtensionContext } from "vscode";
 import { ImportSpecificationResult } from "./importApiTypes";
 
 export class ImportProgressTracker {
     private static instance: ImportProgressTracker;
-    private context: ExtensionContext;
     private importSessions: Map<string, ImportSpecificationResult> = new Map();
 
-    private constructor(context: ExtensionContext) {
-        this.context = context;
-    }
-
-    static getInstance(context: ExtensionContext): ImportProgressTracker {
+    static getInstance(): ImportProgressTracker {
         if (!ImportProgressTracker.instance) {
-            ImportProgressTracker.instance = new ImportProgressTracker(context);
+            ImportProgressTracker.instance = new ImportProgressTracker();
         }
         return ImportProgressTracker.instance;
     }
@@ -43,20 +37,5 @@ export class ImportProgressTracker {
 
     getImportSession(importId: string): ImportSpecificationResult | undefined {
         return this.importSessions.get(importId);
-    }
-
-    cleanupImportSession(importId: string): void {
-        this.importSessions.delete(importId);
-    }
-
-    cleanupExpiredSessions(): void {
-        const now = Date.now();
-        const expirationTime = 15 * 60 * 1000; // 15 minutes
-
-        for (const [importId, session] of this.importSessions.entries()) {
-            if (session.done) {
-                this.importSessions.delete(importId);
-            }
-        }
     }
 }

@@ -1,4 +1,3 @@
-import { ExtensionContext, Uri } from "vscode";
 import { SpecificationGroup, Specification } from "./servicesTypes";
 import { ApiSpecificationType } from "./importApiTypes";
 import {
@@ -21,9 +20,6 @@ export interface EnvironmentCandidate {
  * Service for processing specification files
  */
 export class SpecificationProcessorService {
-    constructor(context: ExtensionContext, mainFolder?: Uri) {
-        // Constructor parameters are kept for API compatibility but not used internally
-    }
 
     /**
      * Process specification files

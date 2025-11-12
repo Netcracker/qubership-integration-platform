@@ -1,8 +1,7 @@
-import { ExtensionContext, Uri } from "vscode";
+import { Uri } from "vscode";
 import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
-import { getBaseFolder } from "../response/serviceApiUtils";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { LabelUtils } from "./LabelUtils";
 
@@ -13,12 +12,8 @@ const vscode = require('vscode');
  * Provides functionality for reading and managing systems from files
  */
 export class SystemService {
-    private context: ExtensionContext;
-    private mainFolder?: Uri;
 
-    constructor(context: ExtensionContext, mainFolder?: Uri) {
-        this.context = context;
-        this.mainFolder = mainFolder;
+    constructor() {
     }
 
     /**
@@ -65,28 +60,6 @@ export class SystemService {
             console.error(`[SystemService] Error getting raw service ${systemId}:`, error);
             return null;
         }
-    }
-
-    /**
-     * Get base folder with standardized logic
-     */
-    async getBaseFolderUri(): Promise<Uri> {
-        const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
-        if (!baseFolder) {
-            throw new Error('No base folder available');
-        }
-        return baseFolder;
-    }
-
-    /**
-     * Get base folder with extension context (for services that need it)
-     */
-    async getBaseFolderWithContext(): Promise<Uri> {
-        const baseFolder = await getBaseFolder(this.mainFolder, this.context.extensionUri);
-        if (!baseFolder) {
-            throw new Error('No base folder available');
-        }
-        return baseFolder;
     }
 
     /**

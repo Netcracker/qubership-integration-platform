@@ -1,4 +1,3 @@
-import { ExtensionContext, Uri } from "vscode";
 import { Environment, EnvironmentRequest } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
@@ -13,8 +12,8 @@ import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
 export class EnvironmentService {
     private systemService: SystemService;
 
-    constructor(context: ExtensionContext, mainFolder?: Uri) {
-        this.systemService = new SystemService(context, mainFolder);
+    constructor() {
+        this.systemService = new SystemService();
     }
 
     /**
@@ -30,18 +29,6 @@ export class EnvironmentService {
             return system.content?.environments || [];
         } catch (error) {
             return [];
-        }
-    }
-
-    /**
-     * Get environment by ID
-     */
-    async getEnvironmentById(systemId: string, environmentId: string): Promise<Environment | null> {
-        try {
-            const environments = await this.getEnvironmentsForSystem(systemId);
-            return environments.find((env: Environment) => env.id === environmentId) || null;
-        } catch (error) {
-            return null;
         }
     }
 
@@ -171,129 +158,6 @@ export class EnvironmentService {
             throw new Error(`Failed to delete environment: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
-
-    /**
-     * Set active environment for a system
-     */
-    async setActiveEnvironment(systemId: string, environmentId: string): Promise<boolean> {
-        try {
-            const system = await this.systemService.getRawServiceById(systemId);
-            if (!system) {
-                return false;
-            }
-
-            const environment = await this.getEnvironmentById(systemId, environmentId);
-            if (!environment) {
-                return false;
-            }
-
-            if (!system.content) {
-                system.content = {} as any;
-            }
-
-            system.content.activeEnvironmentId = environmentId;
-            await this.saveSystem(system);
-
-            return true;
-        } catch (error) {
-            return false;
-        }
-    }
-
-    /**
-     * Get active environment for a system
-     */
-    async getActiveEnvironment(systemId: string): Promise<Environment | null> {
-        try {
-            const system = await this.systemService.getRawServiceById(systemId);
-            if (!system || !system.content?.activeEnvironmentId) {
-                return null;
-            }
-
-            return await this.getEnvironmentById(systemId, system.content.activeEnvironmentId);
-        } catch (error) {
-            return null;
-        }
-    }
-
-    /**
-     * Validate environment data
-     */
-    validateEnvironmentData(environment: Partial<EnvironmentRequest>): { isValid: boolean; errors: string[] } {
-        const errors: string[] = [];
-
-        if (!environment.name || environment.name.trim().length === 0) {
-            errors.push('Environment name is required');
-        }
-
-        if (!environment.address || environment.address.trim().length === 0) {
-            errors.push('Environment address is required');
-        }
-
-        if (!environment.systemId || environment.systemId.trim().length === 0) {
-            errors.push('System ID is required');
-        }
-
-        if (environment.name && environment.name.length > 100) {
-            errors.push('Environment name must be less than 100 characters');
-        }
-
-        if (environment.address && environment.address.length > 500) {
-            errors.push('Environment address must be less than 500 characters');
-        }
-
-        if (environment.description && environment.description.length > 1000) {
-            errors.push('Environment description must be less than 1000 characters');
-        }
-
-        // Validate URL format
-        if (environment.address) {
-            try {
-                new URL(environment.address);
-            } catch {
-                errors.push('Environment address must be a valid URL');
-            }
-        }
-
-        return {
-            isValid: errors.length === 0,
-            errors
-        };
-    }
-
-    /**
-     * Get environment statistics for a system
-     */
-    async getEnvironmentStatistics(systemId: string): Promise<{
-        total: number;
-        active: string | null;
-        byName: Record<string, number>;
-    }> {
-        try {
-            const environments = await this.getEnvironmentsForSystem(systemId);
-            const system = await this.systemService.getRawServiceById(systemId);
-
-            const stats = {
-                total: environments.length,
-                active: system?.content?.activeEnvironmentId || null,
-                byName: {} as Record<string, number>
-            };
-
-            for (const environment of environments) {
-                const name = environment.name || 'Unnamed';
-                stats.byName[name] = (stats.byName[name] || 0) + 1;
-            }
-
-            return stats;
-        } catch (error) {
-            return {
-                total: 0,
-                active: null,
-                byName: {}
-            };
-        }
-    }
-
 
     /**
      * Save system data

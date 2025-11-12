@@ -1,11 +1,11 @@
-import { ExtensionContext, Uri } from "vscode";
-import { SpecificationGroup, IntegrationSystem } from "./servicesTypes";
-import { fileApi } from "../response/file/fileApiProvider";
-import { getBaseFolder } from "../response/serviceApiUtils";
-import { YamlFileUtils } from "./YamlFileUtils";
-import { LabelUtils } from "./LabelUtils";
-import { ProjectConfigService } from "../services/ProjectConfigService";
-import { ContentParser } from './parsers/ContentParser';
+import {Uri} from "vscode";
+import {IntegrationSystem, SpecificationGroup} from "./servicesTypes";
+import {fileApi} from "../response/file/fileApiProvider";
+import {getBaseFolder} from "../response/serviceApiUtils";
+import {YamlFileUtils} from "./YamlFileUtils";
+import {LabelUtils} from "./LabelUtils";
+import {ProjectConfigService} from "../services/ProjectConfigService";
+import {ContentParser} from './parsers/ContentParser';
 
 const vscode = require('vscode');
 
@@ -13,11 +13,9 @@ const vscode = require('vscode');
  * Service for managing specification groups
  */
 export class SpecificationGroupService {
-    private context: ExtensionContext;
-    private mainFolder?: Uri;
+    private readonly mainFolder?: Uri;
 
-    constructor(context: ExtensionContext, mainFolder?: Uri) {
-        this.context = context;
+    constructor(mainFolder?: Uri) {
         this.mainFolder = mainFolder;
     }
 
@@ -30,7 +28,7 @@ export class SpecificationGroupService {
             const groupFileUri = await fileApi.findFileById(groupId, config.extensions.specificationGroup);
             const parsed = await ContentParser.parseContentFromFile(groupFileUri);
 
-            const specificationGroup: SpecificationGroup = {
+            return {
                 id: parsed.id,
                 name: parsed.name,
                 description: parsed.description || '',
@@ -38,7 +36,6 @@ export class SpecificationGroupService {
                 specifications: [],
                 synchronization: parsed.content?.synchronization || parsed.synchronization || false
             };
-            return specificationGroup;
         } catch (error) {
             console.error(`[SpecificationGroupService] Error getting specification group ${groupId}:`, error);
             return null;
