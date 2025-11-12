@@ -19,6 +19,9 @@
         <setProperty name="serviceCallPath">
             <simple>/RestNotify_1</simple>
         </setProperty>
+        <setProperty name="serviceCallSendEmptyQueryParams">
+            <simple/>
+        </setProperty>
         <removeHeader name="CamelHttpQuery"/>
         <step id="Prepare request--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
             <setProperty name="internalProperty_mappingConfig">
@@ -56,6 +59,7 @@
                     <constant>false</constant>
                 </setProperty>
                 <doTry id="Request--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
+                    <process ref="queryParameterFilterProcessor"/>
                     <process ref="httpSenderProcessor"/>
                     <process ref="httpProducerCharsetProcessor"/>
                     <toD allowOptimisedComponents="false" uri="http:stub?httpClientConfigurer=#8ff3584f-3666-4c75-ba40-a3c8955c44e8&amp;followRedirects=true"/>
@@ -75,7 +79,7 @@
                                 <choice>
                                     <when>
                                         <simple>${exchangeProperty[internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Iterator]} == 1</simple>
-                                        <process ref="setCaughtHttpExceptionContextProcessor"/>     
+                                        <process ref="setCaughtHttpExceptionContextProcessor"/>
                                     </when>
                                 </choice>
                             </when>
@@ -121,7 +125,7 @@
                         <choice>
                             <when>
                                 <simple>${exchangeProperty[internalProperty_serviceCall_8ff3584f-3666-4c75-ba40-a3c8955c44e8_Retry]} != true</simple>
-                                <removeProperty name="internalProperty_overrideContextParams"/> 
+                                <removeProperty name="internalProperty_overrideContextParams"/>
                                 <removeProperty name="internalProperty_retryAwait"/>
                                 <process ref="contextRestoreProcessor"/>
                             </when>
@@ -134,7 +138,7 @@
         <choice>
             <when>
                 <simple>${headers.CamelHttpResponseCode} == '200'</simple>
-                <step id="Handle response--8ff3584f-3666-4c75-ba40-a3c8955c44e8">       
+                <step id="Handle response--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
                     <script>
                         <groovy>exchange.setProperty("responseBody", exchange.getMessage().getBody(String.class))</groovy>
                     </script>
@@ -147,7 +151,7 @@
                 </step>
             </when>
             <when>
-                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>      
+                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>
                 <process ref="throwCaughtExceptionProcessor"/>
             </when>
         </choice>
