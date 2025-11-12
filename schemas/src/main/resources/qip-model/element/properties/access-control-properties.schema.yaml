@@ -1,0 +1,101 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/access-control-properties.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - if:
+      properties:
+        accessControlType:
+          const: NONE
+      required:
+        - accessControlType
+    then:
+      properties: {}
+  - if:
+      properties:
+        accessControlType:
+          const: RBAC
+      required:
+        - accessControlType
+    then:
+      properties:
+        roles:
+          title: Roles
+          type: array
+          minItems: 1
+          items:
+            type: string
+      required:
+        - roles
+  - if:
+      properties:
+        accessControlType:
+          const: ABAC
+      required:
+        - accessControlType
+    then:
+      properties:
+        abacParameters:
+          type: object
+          properties:
+            resourceType:
+              title: Resource Type
+              type: string
+            operation:
+              title: Operation
+              type: string
+            resourceDataType:
+              title: Resource Data Type
+              type: string
+              enum:
+                - String
+                - Map
+              default: String
+          allOf:
+            - if:
+                properties:
+                  resourceDataType:
+                    const: String
+                required:
+                  - resourceDataType
+              then:
+                properties:
+                  resourceString:
+                    title: Resource
+                    type: string
+                required:
+                  - resourceString
+            - if:
+                properties:
+                  resourceDataType:
+                    const: Map
+                required:
+                  - resourceDataType
+              then:
+                properties:
+                  resourceMap:
+                    title: Resource Map
+                    type: object
+                    patternProperties:
+                      "^.+$":
+                        type: string
+                required:
+                  - resourceMap
+          required:
+            - resourceType
+            - operation
+            - resourceDataType
+      required:
+        - abacParameters
+title: Access Control
+properties:
+  accessControlType:
+    title: Access Control Type
+    type: string
+    enum:
+      - NONE
+      - RBAC
+      - ABAC
+    default: NONE
+required:
+  - accessControlType

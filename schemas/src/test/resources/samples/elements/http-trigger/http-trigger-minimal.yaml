@@ -16,7 +16,7 @@
   "type": "http-trigger",
   "properties": {
     "handleChainFailureAction": "default",
-    "accessControlType": "RBAC",
+    "accessControlType": "NONE",
     "httpBinding": "handlingHttpBinding",
     "rejectRequestIfNonNullBodyGetDelete": true,
     "chunked": true,

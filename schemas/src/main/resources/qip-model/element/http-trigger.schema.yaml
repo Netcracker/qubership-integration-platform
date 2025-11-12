@@ -16,7 +16,7 @@ properties:
     allOf:
       - $ref: "http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml"
       - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
-      - $ref: "#/definitions/AccessControlProperties"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/access-control-properties.schema.yaml"
       - oneOf:
           - $ref: "#/definitions/CustomEndpoint"
           - $ref: "#/definitions/ImplementedServiceEndpoint"
@@ -93,37 +93,6 @@ properties:
         type: string
         default: handlingHttpBinding
 definitions:
-  AccessControlProperties:
-    type: object
-    properties:
-      accessControlType:
-        title: Access Control Type
-        default: RBAC
-        type: string
-        enum:
-          - RBAC
-          - ABAC
-    required:
-      - accessControlType
-    if:
-      properties:
-        accessControlType:
-          const: RBAC
-    then: # rbac
-      properties:
-        roles:
-          title: Roles
-          type: array
-          items:
-            type: string
-    else: # abac
-      properties:
-        abacResource:
-          type: string
-          title: Resource
-          description: ABAC resource, usually the same as the trigger URI.
-      required:
-        - abacResource
   CustomEndpoint:
     title: Custom Endpoint
     type: object
