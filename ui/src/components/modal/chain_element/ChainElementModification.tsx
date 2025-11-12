@@ -210,7 +210,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         err,
       );
     }
-  }, [node.data, node.id, notificationService, schemaModules, enrichProperties]);
+  }, [node.data, node.id, notificationService, schemaModules, enrichProperties, normalizeProtocol]);
 
   const handleClose = useCallback(() => {
     closeContainingModal();
@@ -342,7 +342,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         properties: enrichedProps,
       };
     });
-  }, [formContext, enrichProperties]);
+  }, [formContext, enrichProperties, normalizeProtocol]);
 
   const applyHiddenUiSchema = useCallback((target: UiSchema, hidden: UiSchema) => {
     for (const key in hidden) {

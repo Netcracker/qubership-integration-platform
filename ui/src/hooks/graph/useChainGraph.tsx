@@ -54,7 +54,10 @@ import {
   OnDeleteEvent,
 } from "../../components/graph/nodes/ChainGraphNodeTypes.ts";
 
-export const useChainGraph = (chainId?: string) => {
+export const useChainGraph = (
+  chainId?: string,
+  onChainUpdate?: () => void | Promise<void>,
+) => {
   const { screenToFlowPosition } = useReactFlow();
   const { libraryElements, isLibraryLoading } = useLibraryContext();
 
@@ -303,11 +306,14 @@ export const useChainGraph = (chainId?: string) => {
           new Set([sourceParent, targetParent].filter(Boolean) as string[]),
         );
         if (parents.length) structureChanged(parents);
+        if (onChainUpdate) {
+          void onChainUpdate();
+        }
       } catch (error) {
         notificationService.requestFailed("Failed to create connection", error);
       }
     },
-    [chainId, nodes, notificationService, setEdges, structureChanged],
+    [chainId, nodes, notificationService, setEdges, structureChanged, onChainUpdate],
   );
 
   const onDragOver = useCallback(
@@ -536,6 +542,9 @@ export const useChainGraph = (chainId?: string) => {
         const ordered = sortParentsBeforeChildren(allNodes);
         setNodes(ordered);
         setEdges(allEdges);
+        if (onChainUpdate) {
+          void onChainUpdate();
+        }
 
         const ids = Array.from(affectedParents);
         if (ids.length) {
@@ -553,6 +562,7 @@ export const useChainGraph = (chainId?: string) => {
       setNodes,
       setEdges,
       structureChanged,
+      onChainUpdate,
     ],
   );
 

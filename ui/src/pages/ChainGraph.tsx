@@ -54,6 +54,16 @@ const ChainGraphInner: React.FC = () => {
   const notificationService = useNotificationService();
   const { isLibraryLoading } = useLibraryContext();
 
+  const refreshChain = useCallback(async () => {
+    if (!chainContext?.refresh) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+      await chainContext.refresh();
+    } catch (err) {
+      notificationService.requestFailed("Failed to refresh chain", err);
+    }
+  }, [chainContext, notificationService]);
+
   const {
     nodes,
     edges,
@@ -70,7 +80,7 @@ const ChainGraphInner: React.FC = () => {
     toggleDirection,
     updateNodeData,
     isLoading,
-  } = useChainGraph(chainId);
+  } = useChainGraph(chainId, refreshChain);
 
   const onNodeDoubleClick = (
     _event: MouseEvent,

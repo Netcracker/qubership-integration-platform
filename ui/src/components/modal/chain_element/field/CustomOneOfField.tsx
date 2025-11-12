@@ -54,7 +54,7 @@ const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema,
     }
 
     const matchingIndex = oneOfOptions.findIndex((option: OneOfOption) => {
-      const protocolConst: string | undefined = option?.properties?.integrationOperationProtocolType?.const.toLowerCase();
+      const protocolConst: string | undefined = option?.properties?.integrationOperationProtocolType?.const?.toLowerCase();
 
       if (protocolType) {
         if (protocolType === 'http' || protocolType === 'soap') {

@@ -216,7 +216,9 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
   const [envParameters, setEnvParameters] = useState<Map<string, string>>(new Map());
   const [isMaasEnvironment, setIsMaasEnvironment] = useState<boolean>(false);
   const [loadedSpec, setLoadedSpec] = useState<OperationSpecFragment | null>(null);
+  const [loadedSpecOperationId, setLoadedSpecOperationId] = useState<string | null>(null);
   const [autoFilledOperationId, setAutoFilledOperationId] = useState<string | null>(null);
+  const [isEnvironmentLoaded, setIsEnvironmentLoaded] = useState<boolean>(false);
 
   const paramType = useMemo(() => determineParamType(idSchema), [idSchema]);
 
@@ -241,6 +243,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     if (!operationId) {
       setSpecParameters([]);
       setLoadedSpec(null);
+      setLoadedSpecOperationId(null);
       setAutoFilledOperationId(null);
       return;
     }
@@ -251,11 +254,14 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       const params = parseParametersFromSpec(specFragment, paramType, protocolType);
       setSpecParameters(params);
       setLoadedSpec(specFragment);
+      setLoadedSpecOperationId(operationId);
+      setAutoFilledOperationId(null);
     } catch (error: unknown) {
       const details = error instanceof Error ? error : new Error(String(error));
       console.error('Failed to load operation specification:', details);
       setSpecParameters([]);
       setLoadedSpec(null);
+      setLoadedSpecOperationId(null);
       setAutoFilledOperationId(null);
     }
   }, [formContext?.integrationOperationId, formContext?.integrationOperationProtocolType, paramType]);
@@ -263,9 +269,12 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
   const loadEnvironmentParameters = useCallback(async () => {
     const systemId = formContext?.integrationSystemId;
 
+    setIsEnvironmentLoaded(false);
+
     if (!systemId) {
       setEnvParameters(new Map());
       setIsMaasEnvironment(false);
+      setIsEnvironmentLoaded(true);
       return;
     }
 
@@ -280,11 +289,13 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       setIsMaasEnvironment(Boolean(isMaas));
 
       setEnvParameters(toStringMap(activeEnv?.properties));
+      setIsEnvironmentLoaded(true);
     } catch (error: unknown) {
       const details = error instanceof Error ? error : new Error(String(error));
       console.error('[EnhancedPatternPropertiesField] Failed to load environment parameters:', details);
       setEnvParameters(new Map());
       setIsMaasEnvironment(false);
+      setIsEnvironmentLoaded(true);
     }
   }, [formContext?.integrationSystemId]);
 
@@ -297,7 +308,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
   }, [loadEnvironmentParameters]);
 
   useEffect(() => {
-    if (paramType !== 'async') {
+    if (paramType !== 'async' || !isEnvironmentLoaded) {
       return;
     }
 
@@ -316,15 +327,13 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     if (updatedData) {
       onChange(updatedData);
     }
-  }, [formData, isMaasEnvironment, onChange, paramType]);
+  }, [formData, isMaasEnvironment, onChange, paramType, isEnvironmentLoaded]);
 
-  // Auto-fill parameters from specification (separate effect to avoid infinite loop)
   useEffect(() => {
     if (!loadedSpec) return;
 
     const operationId = formContext?.integrationOperationId;
-
-    if (operationId === autoFilledOperationId) {
+    if (!operationId || operationId !== loadedSpecOperationId || operationId === autoFilledOperationId) {
       return;
     }
 
@@ -349,8 +358,17 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       }
     }
 
-    if ((protocolType === 'kafka' || protocolType === 'amqp') && loadedSpec.maasClassifierName && !formData['maas.classifier.name'] && isMaasEnvironment) {
-      updates['maas.classifier.name'] = loadedSpec.maasClassifierName;
+    if (protocolType === 'kafka' || protocolType === 'amqp') {
+      const classifierName = loadedSpec?.maasClassifierName;
+      if (isMaasEnvironment && classifierName) {
+        updates['maas.classifier.name'] = classifierName;
+      } else if (!formData['maas.classifier.name']) {
+        if (classifierName) {
+          updates['maas.classifier.name'] = classifierName;
+        } else if (protocolType === 'amqp') {
+          updates['maas.classifier.name'] = 'public';
+        }
+      }
     }
 
     if (protocolType === 'kafka' && !formData['groupId'] && loadedSpec?.groupId) {
@@ -358,30 +376,25 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     }
 
     if (Object.keys(updates).length > 0) {
-      const updatedProps = { ...formData, ...updates };
-      onChange(updatedProps);
-      setAutoFilledOperationId(operationId || null);
+      onChange({ ...formData, ...updates });
+      setAutoFilledOperationId(operationId);
     }
-  }, [loadedSpec, formContext?.integrationOperationProtocolType, formContext?.integrationOperationId, paramType, autoFilledOperationId, formData, onChange, isMaasEnvironment]);
+  }, [loadedSpec, loadedSpecOperationId, formContext?.integrationOperationProtocolType, formContext?.integrationOperationId, paramType, autoFilledOperationId, formData, onChange, isMaasEnvironment]);
 
   const mergedParameters = useMemo((): EnhancedParameter[] => {
     const result: EnhancedParameter[] = [];
     const processed = new Set<string>();
 
-    // Helper function to check if parameter should be hidden based on environment type
     const isHiddenParameter = (name: string): boolean => {
       if (paramType !== 'async') return false;
 
       if (isMaasEnvironment) {
-        // In MaaS mode: hide 'topic' parameter
         return name === 'topic';
       } else {
-        // In Manual mode: hide parameters with 'maas.' prefix
         return name.startsWith('maas.');
       }
     };
 
-    // 1. Add required parameters from specification
     specParameters.filter(p => p.required && !isHiddenParameter(p.name)).forEach(p => {
       const value = formData[p.name] || envParameters.get(p.name) || '';
       result.push({
@@ -394,9 +407,6 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       processed.add(p.name);
     });
 
-    // 2. Add optional parameters from specification
-    // For async/additional: ALWAYS show spec params (even if empty), unless hidden
-    // For path/query: only show if present in formData
     specParameters.filter(p => !p.required && !isHiddenParameter(p.name)).forEach(p => {
       const hasFormValue = formData[p.name] !== undefined;
       const isAsyncOrAdditional = paramType === 'async' || paramType === 'additional';
@@ -415,7 +425,6 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       }
     });
 
-    // 3. For async/additional: Add ALL environment parameters (except hidden)
     if (paramType === 'additional' || paramType === 'async') {
       envParameters.forEach((envValue, name) => {
         if (!processed.has(name) && !isHiddenParameter(name)) {
@@ -436,7 +445,6 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       });
     }
 
-    // 4. Add custom parameters (not in spec, not in env, and not hidden)
     Object.entries(formData).forEach(([name, value]) => {
       if (!processed.has(name) && !isHiddenParameter(name)) {
         result.push({
@@ -478,7 +486,6 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
   const [localValues, setLocalValues] = useState<Record<string, string>>({});
   const debounceTimersRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // Clean up timers on unmount
   useEffect(() => {
     const timersSnapshot = debounceTimersRef.current;
     return () => {

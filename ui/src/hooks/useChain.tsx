@@ -47,5 +47,5 @@ export const useChain = (chainId?: string) => {
     void getChain().then(setChain);
   }, [getChain]);
 
-  return { isLoading, chain, setChain, updateChain, error };
+  return { isLoading, chain, setChain, updateChain, getChain, error };
 };
