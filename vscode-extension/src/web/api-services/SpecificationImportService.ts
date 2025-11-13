@@ -1,22 +1,17 @@
-import { ExtensionContext, Uri, window } from "vscode";
+import { Uri, window } from "vscode";
 import {
     ImportSpecificationResult,
     ImportSpecificationGroupRequest,
     SerializedFile,
 } from "./importApiTypes";
-import { SpecificationGroup, Specification, IntegrationSystem, IntegrationSystemType, Environment } from "./servicesTypes";
+import { SpecificationGroup, IntegrationSystem, IntegrationSystemType, Environment } from "./servicesTypes";
 import { ImportProgressTracker } from "./importProgressTracker";
 import { SpecificationGroupService } from "./SpecificationGroupService";
 import { SpecificationProcessorService, EnvironmentCandidate } from "./SpecificationProcessorService";
 import { EnvironmentService } from "./EnvironmentService";
 import { SystemService } from "./SystemService";
 import { fileApi } from "../response/file/fileApiProvider";
-import { getExtensionsForFile } from "../response/file/fileExtensions";
-import { GraphQLSpecificationParser } from "./parsers/GraphQLSpecificationParser";
-import { ProtoSpecificationParser } from "./parsers/ProtoSpecificationParser";
-import { OpenApiSpecificationParser } from "./parsers/OpenApiSpecificationParser";
 import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
-import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from './parsers/ContentParser';
 import { ProjectConfigService } from "../services/ProjectConfigService";
@@ -26,7 +21,6 @@ import { normalizePath } from "./pathUtils";
 import type { EnvironmentRequest } from "./servicesTypes";
 
 export class SpecificationImportService {
-    private context: ExtensionContext;
     private progressTracker: ImportProgressTracker;
     private serviceFileUri?: Uri;
     private specificationGroupService: SpecificationGroupService;
@@ -34,14 +28,13 @@ export class SpecificationImportService {
     private environmentService: EnvironmentService;
     private systemService: SystemService;
 
-    constructor(context: ExtensionContext, serviceFileUri?: Uri) {
-        this.context = context;
-        this.progressTracker = ImportProgressTracker.getInstance(context);
+    constructor(serviceFileUri?: Uri) {
+        this.progressTracker = ImportProgressTracker.getInstance();
         this.serviceFileUri = serviceFileUri;
-        this.specificationGroupService = new SpecificationGroupService(context, serviceFileUri);
-        this.specificationProcessorService = new SpecificationProcessorService(context, serviceFileUri);
-        this.environmentService = new EnvironmentService(context, serviceFileUri);
-        this.systemService = new SystemService(context, serviceFileUri);
+        this.specificationGroupService = new SpecificationGroupService(serviceFileUri);
+        this.specificationProcessorService = new SpecificationProcessorService();
+        this.environmentService = new EnvironmentService();
+        this.systemService = new SystemService();
     }
 
     /**
@@ -221,7 +214,6 @@ export class SpecificationImportService {
             id: importId,
             done: true,
                 specificationGroupId: '',
-                createdWhen: Date.now(),
                 warningMessage: `Import session ${importId} not found. It may have expired or been cleaned up.`
             };
         }
@@ -321,20 +313,6 @@ export class SpecificationImportService {
     }
 
     /**
-     * Parse GraphQL content using GraphQLSpecificationParser
-     */
-    async parseGraphQLContent(content: string): Promise<any> {
-        return GraphQLSpecificationParser.parseGraphQLContent(content);
-    }
-
-    /**
-     * Parse Proto content using ProtoSpecificationParser
-     */
-    async parseProtoContent(content: string): Promise<any> {
-        return ProtoSpecificationParser.parseProtoContent(content);
-    }
-
-    /**
      * Save specification files and copy source files
      */
     private async saveSpecificationFiles(
@@ -368,10 +346,6 @@ export class SpecificationImportService {
                     $schema: config.schemaUrls.specification,
                     name: specification.name,
                     content: {
-                        createdWhen: specification.createdWhen,
-                        modifiedWhen: specification.modifiedWhen,
-                        createdBy: specification.createdBy,
-                        modifiedBy: specification.modifiedBy,
                         deprecated: specification.deprecated,
                         version: specification.version,
                         source: "MANUAL",
@@ -379,10 +353,6 @@ export class SpecificationImportService {
                         specificationSources: await Promise.all(extractedFiles.map(async (file, index) => ({
                             id: crypto.randomUUID(),
                             name: file.name,
-                            createdWhen: Date.now(),
-                            modifiedWhen: Date.now(),
-                            createdBy: { id: "", username: "" },
-                            modifiedBy: { id: "", username: "" },
                             sourceHash: this.calculateHash(await this.readFileContent(file)),
                             fileName: `source-${specification.id}/${file.name}`,
                             mainSource: file === sourceFile

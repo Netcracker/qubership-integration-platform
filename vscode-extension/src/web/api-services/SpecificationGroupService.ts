@@ -1,13 +1,11 @@
-import { ExtensionContext, Uri } from "vscode";
-import { SpecificationGroup, IntegrationSystem } from "./servicesTypes";
-import { EMPTY_USER } from "../response/chainApiUtils";
-import { fileApi } from "../response/file/fileApiProvider";
-import { getExtensionsForFile } from "../response/file/fileExtensions";
-import { getBaseFolder } from "../response/serviceApiUtils";
-import { YamlFileUtils } from "./YamlFileUtils";
-import { LabelUtils } from "./LabelUtils";
-import { ProjectConfigService } from "../services/ProjectConfigService";
-import { ContentParser } from './parsers/ContentParser';
+import {Uri} from "vscode";
+import {IntegrationSystem, SpecificationGroup} from "./servicesTypes";
+import {fileApi} from "../response/file/fileApiProvider";
+import {getBaseFolder} from "../response/serviceApiUtils";
+import {YamlFileUtils} from "./YamlFileUtils";
+import {LabelUtils} from "./LabelUtils";
+import {ProjectConfigService} from "../services/ProjectConfigService";
+import {ContentParser} from './parsers/ContentParser';
 
 const vscode = require('vscode');
 
@@ -15,11 +13,9 @@ const vscode = require('vscode');
  * Service for managing specification groups
  */
 export class SpecificationGroupService {
-    private context: ExtensionContext;
-    private mainFolder?: Uri;
+    private readonly mainFolder?: Uri;
 
-    constructor(context: ExtensionContext, mainFolder?: Uri) {
-        this.context = context;
+    constructor(mainFolder?: Uri) {
         this.mainFolder = mainFolder;
     }
 
@@ -32,19 +28,14 @@ export class SpecificationGroupService {
             const groupFileUri = await fileApi.findFileById(groupId, config.extensions.specificationGroup);
             const parsed = await ContentParser.parseContentFromFile(groupFileUri);
 
-            const specificationGroup: SpecificationGroup = {
+            return {
                 id: parsed.id,
                 name: parsed.name,
                 description: parsed.description || '',
                 parentId: parsed.content?.parentId || parsed.parentId,
-                createdWhen: parsed.content?.createdWhen || parsed.createdWhen,
-                createdBy: parsed.content?.createdBy || parsed.createdBy,
-                modifiedWhen: parsed.content?.modifiedWhen || parsed.modifiedWhen,
-                modifiedBy: parsed.content?.modifiedBy || parsed.modifiedBy,
                 specifications: [],
                 synchronization: parsed.content?.synchronization || parsed.synchronization || false
             };
-            return specificationGroup;
         } catch (error) {
             console.error(`[SpecificationGroupService] Error getting specification group ${groupId}:`, error);
             return null;
@@ -66,10 +57,6 @@ export class SpecificationGroupService {
             id: groupId,
             name: name,
             systemId: system.id, // Store systemId for UI compatibility
-            createdWhen: now,
-            createdBy: {...EMPTY_USER},
-            modifiedWhen: now,
-            modifiedBy: {...EMPTY_USER},
             specifications: [],
             synchronization: false,
 
@@ -106,10 +93,6 @@ export class SpecificationGroupService {
                 $schema: config.schemaUrls.specificationGroup,
                 name: specificationGroup.name,
                 content: {
-                    createdWhen: specificationGroup.createdWhen,
-                    modifiedWhen: specificationGroup.modifiedWhen,
-                    createdBy: specificationGroup.createdBy,
-                    modifiedBy: specificationGroup.modifiedBy,
                     synchronization: specificationGroup.synchronization || false,
                     parentId: systemId,
                     labels: specificationGroup.labels ? LabelUtils.fromEntityLabels(specificationGroup.labels) : []

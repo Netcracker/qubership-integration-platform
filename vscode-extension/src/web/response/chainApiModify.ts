@@ -19,7 +19,6 @@ import {
     getMaskedField, parseMaskedField
 } from "./chainApiRead";
 import {
-    EMPTY_USER,
     findElementById,
     getElementChildren,
     LibraryElementQuantity,
@@ -311,13 +310,9 @@ async function getDefaultElementByType(chainId: string, elementRequest: CreateEl
 
     const element: ElementSchema = {
         chainId: chainId,
-        createdBy: {...EMPTY_USER},
-        createdWhen: 0,
         description: "",
         id: elementId,
         mandatoryChecksPassed: false,
-        modifiedBy: {...EMPTY_USER},
-        modifiedWhen: 0,
         name: libraryData.title,
         properties: await getDefaultPropertiesForElement(libraryData.properties),
         type: elementRequest.type as unknown as DataType,

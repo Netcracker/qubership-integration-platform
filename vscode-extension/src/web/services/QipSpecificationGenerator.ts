@@ -1,4 +1,3 @@
-import { EMPTY_USER } from "../response/chainApiUtils";
 import { ProjectConfigService } from "./ProjectConfigService";
 import { AsyncApiOperationResolver } from "../api-services/parsers/async/AsyncApiOperationResolver";
 import { ProtoOperationResolver, buildProtoOperationSpecification } from "../api-services/parsers/proto/ProtoOperationResolver";
@@ -8,16 +7,6 @@ import { SoapSpecificationParser } from "../api-services/parsers/SoapSpecificati
 
 export class QipSpecificationGenerator {
     private static readonly HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options'];
-
-    private static buildAudit() {
-        const now = Date.now();
-        return {
-            createdWhen: now,
-            modifiedWhen: now,
-            createdBy: { ...EMPTY_USER },
-            modifiedBy: { ...EMPTY_USER }
-        };
-    }
 
     private static buildSpecification(
         specId: string,
@@ -34,7 +23,6 @@ export class QipSpecificationGenerator {
             id: specId,
             name,
             content: {
-                ...this.buildAudit(),
                 deprecated: false,
                 version,
                 source: "MANUAL",
@@ -49,7 +37,6 @@ export class QipSpecificationGenerator {
         return [{
             id: this.generateId(),
             name: fileName,
-            ...this.buildAudit(),
             sourceHash: this.calculateHash(JSON.stringify(sourceData)),
             fileName: `source-${specId}/${fileName}`,
             mainSource: true
@@ -110,7 +97,6 @@ export class QipSpecificationGenerator {
         return {
             id: `${specId}-${operationId}`,
             name: operationId,
-            ...this.buildAudit(),
             method: method,
             path: path,
             specification: this.reorderSpecificationFields(operation),
@@ -567,7 +553,6 @@ export class QipSpecificationGenerator {
             operations.push({
                 id: `${specId}-${operation.operationId}`,
                 name: operation.operationId,
-                ...this.buildAudit(),
                 method: operation.rpcName,
                 path: operation.path,
                 specification: buildProtoOperationSpecification(operation, requestSchema, responseSchema),
@@ -608,7 +593,6 @@ export class QipSpecificationGenerator {
                 operations.push({
                     id: `${specId}-query-${query.name}`,
                     name: query.name,
-                    ...this.buildAudit(),
                     method: 'query',
                     path: query.name,
                     specification: {
@@ -623,7 +607,6 @@ export class QipSpecificationGenerator {
                 operations.push({
                     id: `${specId}-mutation-${mutation.name}`,
                     name: mutation.name,
-                    ...this.buildAudit(),
                     method: 'mutation',
                     path: mutation.name,
                     specification: {
@@ -676,7 +659,6 @@ export class QipSpecificationGenerator {
                     return {
                         id: `${specId}-${operationId}`,
                         name: operationId,
-                        ...this.buildAudit(),
                         method: opType.toUpperCase(),
                         path: channelNameLocal,
                         specification: resolvedData.specification,

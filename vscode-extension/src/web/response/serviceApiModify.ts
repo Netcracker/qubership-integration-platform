@@ -1,22 +1,21 @@
 import {
-    IntegrationSystem,
     Environment,
-    SpecificationGroup,
-    Specification,
-    SystemRequest,
     EnvironmentRequest,
-    IntegrationSystemType
+    IntegrationSystem,
+    IntegrationSystemType,
+    Specification,
+    SpecificationGroup,
+    SystemRequest
 } from "../api-services/servicesTypes";
 import * as yaml from 'yaml';
-import {getService, getMainService} from "./serviceApiRead";
-import {EMPTY_USER} from "./chainApiUtils";
+import {getMainService, getService} from "./serviceApiRead";
 import vscode, {ExtensionContext, Uri} from "vscode";
-import { ContentParser } from '../api-services/parsers/ContentParser';
-import { getExtensionsForFile } from './file/fileExtensions';
+import {ContentParser} from '../api-services/parsers/ContentParser';
+import {getExtensionsForFile} from './file/fileExtensions';
 import {fileApi} from "./file/fileApiProvider";
-import { refreshQipExplorer } from "../extension";
-import { LabelUtils } from "../api-services/LabelUtils";
-import { ProjectConfigService } from "../services/ProjectConfigService";
+import {refreshQipExplorer} from "../extension";
+import {LabelUtils} from "../api-services/LabelUtils";
+import {ProjectConfigService} from "../services/ProjectConfigService";
 
 export async function updateService(serviceFileUri: Uri, serviceId: string, serviceRequest: Partial<IntegrationSystem>): Promise<IntegrationSystem> {
     const service: any = await getMainService(serviceFileUri);
@@ -58,9 +57,6 @@ export async function updateService(serviceFileUri: Uri, serviceId: string, serv
         service.content.activeEnvironmentId = serviceRequest.activeEnvironmentId;
     }
 
-    service.content.modifiedWhen = Date.now();
-    service.content.modifiedBy = {...EMPTY_USER};
-
     await writeMainService(serviceFileUri, service);
     const updatedService = await getService(serviceFileUri, serviceId);
 
@@ -77,10 +73,6 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
             id: serviceId,
             name: serviceRequest.name,
             content: {
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: {...EMPTY_USER},
-                modifiedBy: {...EMPTY_USER},
                 description: serviceRequest.description || "",
                 activeEnvironmentId: "",
                 integrationSystemType: serviceRequest.type || "EXTERNAL",
@@ -98,14 +90,10 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
         const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}${ext.service}`);
         await fileApi.writeServiceFile(serviceFileUri, service);
 
-        const result: IntegrationSystem = {
+        return {
             id: service.id,
             name: service.name,
             description: service.content.description || "",
-            createdBy: service.content.createdBy || {...EMPTY_USER},
-            modifiedBy: service.content.modifiedBy || {...EMPTY_USER},
-            createdWhen: service.content.createdWhen || 0,
-            modifiedWhen: service.content.modifiedWhen || 0,
             activeEnvironmentId: service.content.activeEnvironmentId || "",
             integrationSystemType: service.content.integrationSystemType || "EXTERNAL",
             protocol: service.content.protocol || "",
@@ -114,8 +102,6 @@ export async function createService(context: ExtensionContext, mainFolderUri: Ur
             environments: service.content.environments || [],
             labels: LabelUtils.toEntityLabels(service.content.labels || [])
         };
-
-        return result;
     } catch (error) {
         console.error('createService: Error creating service:', error);
         throw new Error(`Failed to create service: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -163,9 +149,6 @@ export async function updateEnvironment(serviceFileUri: Uri, serviceId: string, 
         environment.labels = LabelUtils.fromEntityLabels(environmentRequest.labels);
     }
 
-    environment.modifiedWhen = Date.now();
-    environment.modifiedBy = {...EMPTY_USER};
-
     await writeMainService(serviceFileUri, service);
 
     return {
@@ -193,10 +176,6 @@ export async function createEnvironment(serviceFileUri: Uri, serviceId: string, 
         id: environmentId,
         name: environmentRequest.name,
         description: environmentRequest.description || "",
-        createdWhen: Date.now(),
-        modifiedWhen: Date.now(),
-        createdBy: {...EMPTY_USER},
-        modifiedBy: {...EMPTY_USER},
         address: environmentRequest.address,
         sourceType: environmentRequest.sourceType || "MANUAL",
         properties: environmentRequest.properties || {},
@@ -265,8 +244,6 @@ export async function updateApiSpecificationGroup(serviceFileUri: Uri, groupId: 
         if (!groupInfo.content) {
             groupInfo.content = {};
         }
-        groupInfo.content.modifiedWhen = Date.now();
-        groupInfo.content.modifiedBy = EMPTY_USER;
 
         const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
         const groupFileUri = vscode.Uri.joinPath(serviceFolderUri, groupFile);
@@ -330,8 +307,6 @@ export async function updateSpecificationModel(serviceFileUri: Uri, modelId: str
         if (!specificationInfo.content) {
             specificationInfo.content = {};
         }
-        specificationInfo.content.modifiedWhen = Date.now();
-        specificationInfo.content.modifiedBy = EMPTY_USER;
 
         const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
         const specificationFileUri = vscode.Uri.joinPath(serviceFolderUri, specificationFile);
@@ -359,8 +334,6 @@ export async function deprecateModel(serviceFileUri: Uri, modelId: string): Prom
             specificationInfo.content = {};
         }
         specificationInfo.content.deprecated = true;
-        specificationInfo.content.modifiedWhen = Date.now();
-        specificationInfo.content.modifiedBy = EMPTY_USER;
 
         const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, '..');
         const specificationFileUri = vscode.Uri.joinPath(serviceFolderUri, specificationFile);

@@ -2,10 +2,6 @@ export type BaseEntity = {
   id: string;
   name: string;
   description?: string;
-  createdWhen: number;
-  createdBy: User;
-  modifiedWhen: number;
-  modifiedBy: User;
 };
 
 export type User = {

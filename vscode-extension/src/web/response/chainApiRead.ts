@@ -15,9 +15,7 @@ import {
 import {Uri} from "vscode";
 import {
     ChainCommitRequestAction,
-    EMPTY_USER,
     findElementById,
-    getElementChildren,
     getParsedElementChildren
 } from "./chainApiUtils";
 import {fileApi} from "./file";
@@ -90,11 +88,7 @@ export function parseMaskedField(chain: any, id: string): MaskedField {
 
     return {
         id: maskedField.id,
-        name: maskedField.name,
-        createdWhen: chain.content.modifiedWhen,
-        modifiedWhen: chain.content.modifiedWhen,
-        createdBy: {...EMPTY_USER},
-        modifiedBy: {...EMPTY_USER},
+        name: maskedField.name
     };
 }
 
@@ -226,10 +220,6 @@ async function parseElement(fileUri: Uri, element: ElementSchema, chainId: strin
         type: element.type as unknown as string,
         properties: element.properties,
         mandatoryChecksPassed: true,
-        createdBy: {...EMPTY_USER},
-        modifiedBy: {...EMPTY_USER},
-        createdWhen: element.modifiedWhen,
-        modifiedWhen: element.modifiedWhen,
         chainId: chainId,
         description: element.description,
         parentElementId: parentId,
@@ -265,8 +255,6 @@ export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
         containsDeprecatedContainers: false,
         containsDeprecatedElements: false,
         containsUnsupportedElements: false,
-        createdBy: {...EMPTY_USER},
-        createdWhen: chain.content.modifiedWhen as number,
         currentSnapshot: undefined,
         defaultSwimlaneId: chain.content.defaultSwimlaneId as string,
         dependencies: parseDependencies(chain.content.dependencies as any[]),
@@ -278,8 +266,6 @@ export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
         elements: await parseElements(fileUri, chain.content.elements as ElementSchema[], chain.id),
         id: chain.id,
         labels: labels,
-        modifiedBy: {...EMPTY_USER},
-        modifiedWhen: chain.content.modifiedWhen as number,
         name: chain.name,
         navigationPath: new Map<string, string>([[chain.id, chain.name]]),
         outOfScope: chain.content.outOfScope as string,

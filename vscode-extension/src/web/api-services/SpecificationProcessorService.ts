@@ -1,4 +1,3 @@
-import { ExtensionContext, Uri } from "vscode";
 import { SpecificationGroup, Specification } from "./servicesTypes";
 import { ApiSpecificationType } from "./importApiTypes";
 import {
@@ -8,7 +7,6 @@ import {
     OpenApiSpecificationParser,
     AsyncApiSpecificationParser
 } from "./parsers";
-import { EMPTY_USER } from "../response/chainApiUtils";
 import { ContentParser } from './parsers/ContentParser';
 import { normalizePath } from "./pathUtils";
 
@@ -22,9 +20,6 @@ export interface EnvironmentCandidate {
  * Service for processing specification files
  */
 export class SpecificationProcessorService {
-    constructor(context: ExtensionContext, mainFolder?: Uri) {
-        // Constructor parameters are kept for API compatibility but not used internally
-    }
 
     /**
      * Process specification files
@@ -78,10 +73,6 @@ export class SpecificationProcessorService {
             name: version, // Use version as name, not file name
             description: `Specification for ${file.name}`,
             parentId: specificationGroup.id,
-            createdWhen: Date.now(),
-            createdBy: {...EMPTY_USER},
-            modifiedWhen: Date.now(),
-            modifiedBy: {...EMPTY_USER},
             version: version,
             format: specificationType?.toString() || 'unknown',
             content: '',

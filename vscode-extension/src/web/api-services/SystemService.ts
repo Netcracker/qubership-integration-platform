@@ -1,9 +1,7 @@
-import { ExtensionContext, Uri } from "vscode";
+import { Uri } from "vscode";
 import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
-import { EMPTY_USER } from "../response/chainApiUtils";
-import { getBaseFolder } from "../response/serviceApiUtils";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { LabelUtils } from "./LabelUtils";
 
@@ -14,12 +12,8 @@ const vscode = require('vscode');
  * Provides functionality for reading and managing systems from files
  */
 export class SystemService {
-    private context: ExtensionContext;
-    private mainFolder?: Uri;
 
-    constructor(context: ExtensionContext, mainFolder?: Uri) {
-        this.context = context;
-        this.mainFolder = mainFolder;
+    constructor() {
     }
 
     /**
@@ -34,10 +28,6 @@ export class SystemService {
                     id: service.id,
                     name: service.name,
                     description: service.content?.description || "",
-                    createdBy: service.content?.createdBy || {...EMPTY_USER},
-                    modifiedBy: service.content?.modifiedBy || {...EMPTY_USER},
-                    createdWhen: service.content?.createdWhen || 0,
-                    modifiedWhen: service.content?.modifiedWhen || 0,
                     activeEnvironmentId: service.content?.activeEnvironmentId || "",
                     integrationSystemType: service.content?.integrationSystemType || "",
                     type: service.content?.integrationSystemType || "",
@@ -73,48 +63,24 @@ export class SystemService {
     }
 
     /**
-     * Get base folder with standardized logic
-     */
-    async getBaseFolderUri(): Promise<Uri> {
-        const baseFolder = await getBaseFolder(this.mainFolder, vscode.workspace.workspaceFolders?.[0]?.uri);
-        if (!baseFolder) {
-            throw new Error('No base folder available');
-        }
-        return baseFolder;
-    }
-
-    /**
-     * Get base folder with extension context (for services that need it)
-     */
-    async getBaseFolderWithContext(): Promise<Uri> {
-        const baseFolder = await getBaseFolder(this.mainFolder, this.context.extensionUri);
-        if (!baseFolder) {
-            throw new Error('No base folder available');
-        }
-        return baseFolder;
-    }
-
-    /**
      * Save system to file
      */
     async saveSystem(system: IntegrationSystem): Promise<void> {
         try {
             const serviceFileUri = await this.findServiceFileUri(system.id);
-            
+
             const service = await fileApi.getMainService(serviceFileUri);
-            
+
             if (!service.content) {
                 service.content = {};
             }
-            
+
             service.content.integrationSystemType = system.integrationSystemType || system.type;
             service.content.protocol = system.protocol ? system.protocol.toUpperCase() : system.protocol;
             service.content.extendedProtocol = system.extendedProtocol;
             service.content.specification = system.specification;
             service.content.labels = LabelUtils.fromEntityLabels(system.labels);
-            service.content.modifiedWhen = Date.now();
-            service.content.modifiedBy = { ...EMPTY_USER };
-            
+
             await fileApi.writeMainService(serviceFileUri, service);
         } catch (error) {
             console.error(`[SystemService] Failed to save system ${system.id}:`, error);

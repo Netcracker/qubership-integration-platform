@@ -1,5 +1,4 @@
 import * as protobuf from "protobufjs";
-import { EMPTY_USER } from "../../response/chainApiUtils";
 import { ProtoOperationResolver, buildProtoOperationSpecification } from "./proto/ProtoOperationResolver";
 import { ProtoTypeDefinitionBuilder } from "./proto/ProtoTypeDefinitionBuilder";
 import type { ProtoData, ProtoMethod, ProtoService } from "./proto/ProtoTypes";
@@ -37,10 +36,6 @@ export class ProtoSpecificationParser {
             return {
                 id: `${specificationId}-${operation.operationId}`,
                 name: operation.operationId,
-                createdWhen: Date.now(),
-                modifiedWhen: Date.now(),
-                createdBy: { ...EMPTY_USER },
-                modifiedBy: { ...EMPTY_USER },
                 method: operation.rpcName,
                 path: operation.path,
                 specification: buildProtoOperationSpecification(operation, requestSchema, responseSchema),

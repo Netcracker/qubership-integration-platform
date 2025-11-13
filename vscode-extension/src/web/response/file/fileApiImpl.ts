@@ -1,8 +1,7 @@
 import {FileApi} from './fileApi';
 import {ExtensionContext, Uri} from 'vscode';
 import * as yaml from 'yaml';
-import {Chain, LibraryData} from "@netcracker/qip-ui";
-import {EMPTY_USER} from "../chainApiUtils";
+import {LibraryData} from "@netcracker/qip-ui";
 import {QipFileType} from "../serviceApiUtils";
 import { FileFilter } from '../fileFilteringUtils';
 import { getExtensionsForFile, extractFilename } from './fileExtensions';
@@ -503,10 +502,6 @@ export class VSCodeFileApi implements FileApi {
                 id: serviceId,
                 name: serviceName.trim(),
                 content: {
-                    createdWhen: Date.now(),
-                    modifiedWhen: Date.now(),
-                    createdBy: { ...EMPTY_USER },
-                    modifiedBy: { ...EMPTY_USER },
                     description: serviceDescription?.trim() || "",
                     activeEnvironmentId: "",
                     integrationSystemType: serviceType.value,
