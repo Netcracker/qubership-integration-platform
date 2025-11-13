@@ -6,6 +6,9 @@ import { useAsyncRequest } from './useAsyncRequest';
 import { SourceFlagTag } from './SourceFlagTag';
 import {serviceCache} from "./utils.tsx";
 import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
+import { useBlocker } from "react-router-dom";
+import { useModalsContext } from "../../Modals.tsx";
+import { UnsavedChangesModal } from "../modal/UnsavedChangesModal.tsx";
 
 interface ServiceParametersTabProps {
   systemId: string;
@@ -33,6 +36,9 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   const [system, setSystem] = useState<IntegrationSystem | null>(null);
   const [technicalLabels, setTechnicalLabels] = useState<string[]>([]);
   const [userLabels, setUserLabels] = useState<string[]>([]);
+  const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const blocker = useBlocker(hasChanges);
+  const { showModal } = useModalsContext();
 
   const setLabelsAndForm = useCallback((data: IntegrationSystem) => {
     setTechnicalLabels(data.labels?.filter(l => l.technical).map(l => l.name) || []);
@@ -72,6 +78,24 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [systemId, activeTab]);
 
+  useEffect(() => {
+    if (blocker.state === "blocked") {
+      showModal({
+        component: (
+          <UnsavedChangesModal
+            onYes={() => {
+              blocker.proceed();
+              setHasChanges(false);
+            }}
+            onNo={() => {
+              blocker.reset();
+            }}
+          />
+        ),
+      });
+    }
+  }, [blocker, showModal]);
+
   const {
     loading: savingSystem,
     error: saveError,
@@ -97,6 +121,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
 
   const handleSave = async (): Promise<void> => {
     await saveSystem();
+    setHasChanges(false);
   };
 
   if (loadingSystem) return <Spin style={{ margin: 32 }} />;
@@ -105,7 +130,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
 
   return (
     <div style={{ paddingLeft: sidePadding, maxWidth: 900 }}>
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" onChange={() => setHasChanges(true)}>
         <Form.Item
           label="Name"
           name="name"
@@ -126,7 +151,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
           name="type"
           rules={[{ required: true, message: "Select service type" }]}
         >
-          <Select>
+          <Select onChange={() => setHasChanges(true)}>
             <Select.Option value={IntegrationSystemType.INTERNAL}>Internal</Select.Option>
             <Select.Option value={IntegrationSystemType.EXTERNAL}>External</Select.Option>
             <Select.Option value={IntegrationSystemType.IMPLEMENTED}>Implemented</Select.Option>
@@ -145,6 +170,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
               form.setFieldsValue({
                 labels: [...technicalLabels, ...updatedUserLabels],
               });
+              setHasChanges(true)
             }}
             tagRender={({ label, onClose }) => {
               const isTech = technicalLabels.includes(typeof label === "string" ? label : "");
@@ -177,7 +203,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
           className={styles["variables-actions"]}
           onClick={() => { void handleSave(); }}
           loading={savingSystem}
-          disabled={savingSystem}
+          disabled={savingSystem || !hasChanges}
         >
           Save
         </Button>

@@ -39,6 +39,8 @@ import SystemOperationField from "./field/SystemOperationField.tsx";
 import CustomOneOfField from "./field/CustomOneOfField.tsx";
 import EnhancedPatternPropertiesField from "./field/EnhancedPatternPropertiesField.tsx";
 import BodyMimeTypeField from "./field/BodyMimeTypeField.tsx";
+import { useModalsContext } from "../../../Modals.tsx";
+import { UnsavedChangesModal } from "../UnsavedChangesModal.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -112,6 +114,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     >>({});
 
   const [activeKey, setActiveKey] = useState<string>();
+  const { showModal } = useModalsContext();
+  const [hasChanges, setHasChanges] = useState<boolean>(false);
 
   useEffect(() => {
     setTitle(constructTitle(`${node.data.label}`, libraryElement?.title));
@@ -200,6 +204,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               updatedProperties,
             ),
           }));
+          setHasChanges(true);
         },
       });
     } catch (err) {
@@ -216,6 +221,23 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     closeContainingModal();
     onClose?.();
   }, [closeContainingModal, onClose]);
+
+  const handleCheckUnsavedAndClose = useCallback(() => {
+    if (hasChanges) {
+      showModal({
+        component: (
+          <UnsavedChangesModal
+            onYes={() => {
+              handleClose();
+              setHasChanges(false);
+            }}
+          />
+        ),
+      });
+    } else {
+      handleClose();
+    }
+  }, [showModal, handleClose, hasChanges]);
 
   const handleOk = useCallback(async () => {
     setIsLoading(true);
@@ -488,7 +510,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     <Modal
       open
       title={title}
-      onCancel={handleClose}
+      onCancel={handleCheckUnsavedAndClose}
       maskClosable={false}
       loading={libraryElementIsLoading}
       footer={[
@@ -502,7 +524,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         >
           Save
         </Button>,
-        <Button key="cancel" onClick={handleClose}>
+        <Button key="cancel" onClick={handleCheckUnsavedAndClose}>
           Cancel
         </Button>,
       ]}
@@ -563,7 +585,11 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             }}
             widgets={widgets}
             onChange={(e) => {
-              setFormData(e.formData as Record<string, object>);
+              const newFormData = e.formData as Record<string, object>;
+              setFormData(newFormData);
+              if (newFormData.properties?.before?.type !== 'none') { //form changed after initialization
+                setHasChanges(true);
+              }
             }}
           />
         </>

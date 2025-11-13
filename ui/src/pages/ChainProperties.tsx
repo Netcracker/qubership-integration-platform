@@ -13,6 +13,9 @@ import styles from "./Chain.module.css";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
+import { useBlocker } from 'react-router-dom';
+import { useModalsContext } from "../Modals.tsx";
+import { UnsavedChangesModal } from "../components/modal/UnsavedChangesModal.tsx";
 
 export type FormData = {
   name: string;
@@ -29,6 +32,8 @@ export type FormData = {
 export const ChainProperties: React.FC = () => {
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const blocker = useBlocker(hasChanges);
+  const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
   const [form] = useForm();
 
@@ -58,6 +63,23 @@ export const ChainProperties: React.FC = () => {
   };
 
   useEffect(() => {
+    if (blocker.state === "blocked") {
+      showModal({
+        component: (
+          <UnsavedChangesModal
+            onYes={() => {
+              blocker.proceed();
+            }}
+            onNo={() => {
+              blocker.reset();
+            }}
+          />
+        ),
+      });
+    }
+  }, [blocker, showModal]);
+
+  useEffect(() => {
     if (chainContext?.chain) {
       const fullPath = Object.values(
         chainContext.chain.navigationPath,
@@ -75,7 +97,8 @@ export const ChainProperties: React.FC = () => {
       loadChainExtensionPropertiesToForm(chainContext, formData);
       form.setFieldsValue(formData);
     }
-  }, [chainContext, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleFinish = async (values: FormData) => {
     if (!chainContext?.chain) return;
