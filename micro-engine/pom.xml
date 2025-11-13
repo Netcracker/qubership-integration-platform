@@ -482,7 +482,6 @@
             <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-xml</artifactId>
         </dependency>
-        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit5</artifactId>
