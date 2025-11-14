@@ -37,8 +37,6 @@ export async function updateChain(fileUri: Uri, chainId: string, chainRequest: P
         throw Error("ChainId mismatch");
     }
 
-    console.log("Chain request", chainRequest);
-
     const labels = chainRequest?.labels?.filter(label => !label.technical).map(label => label.name);
 
     chain.name = chainRequest.name !== undefined ? chainRequest.name : chain.name;
@@ -49,8 +47,6 @@ export async function updateChain(fileUri: Uri, chainId: string, chainRequest: P
     chain.content.outOfScope = chainRequest.outOfScope !== undefined ? chainRequest.outOfScope : chain.content.outOfScope;
     chain.content.deployments = chainRequest.deployments !== undefined ? chainRequest.deployments : chain.content.deployments;
     chain.content.deployAction = chainRequest.deployAction !== undefined ? chainRequest.deployAction : chain.content.deployAction;
-
-    console.log("chain navigation path", chainRequest.navigationPath);
 
     await fileApi.writeMainChain(fileUri, chain);
 
