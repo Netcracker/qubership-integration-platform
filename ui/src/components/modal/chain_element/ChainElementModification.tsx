@@ -586,10 +586,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             widgets={widgets}
             onChange={(e) => {
               const newFormData = e.formData as Record<string, object>;
-              setFormData(newFormData);
-              if (newFormData.properties?.before?.type !== 'none') { //form changed after initialization
+              if (
+                newFormData.type &&
+                formData.type &&
+                JSON.stringify(newFormData) !== JSON.stringify(formData)
+              ) {
                 setHasChanges(true);
               }
+              setFormData(newFormData);
             }}
           />
         </>
