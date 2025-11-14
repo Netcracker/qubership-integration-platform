@@ -81,13 +81,17 @@ export const ChainProperties: React.FC = () => {
 
   useEffect(() => {
     if (chainContext?.chain) {
-      const fullPath = Object.values(
-        chainContext.chain.navigationPath,
-      ).reverse();
-
       const formData: FormData = {
         name: chainContext.chain.name ?? "",
-        path: fullPath.slice(0, -1).join("/"),
+        path: isVsCode
+          ? chainContext.chain?.navigationPath
+              .map(([, value]) => value)
+              .join("/")
+          : Object.entries(chainContext.chain?.navigationPath)
+              .reverse()
+              .slice(0, -1)
+              .map(([, value]) => value)
+              .join("/"),
         labels: chainContext.chain.labels?.map((label) => label.name) ?? [],
         description: chainContext.chain.description ?? "",
         businessDescription: chainContext.chain.businessDescription ?? "",
@@ -118,23 +122,27 @@ export const ChainProperties: React.FC = () => {
 
     if (isVsCode) {
       await moveChain(String(chainContext.chain.id), uiFoldersPath.join("/"));
+      console.log("Moved chain path", uiFoldersPath);
       changes = {
         ...changes,
-        navigationPath: new Map(uiFoldersPath.map((path) => [path, path])),
+        navigationPath: uiFoldersPath.map((path) => [path, path]),
       };
     }
 
     if (!isVsCode) {
-      const lastSegment = String(uiFoldersPath.reverse()[0] ?? "");
-      const folders = await getPathToFolder(lastSegment);
+      const lastSegment = uiFoldersPath.reverse()[0] ?? "";
+      const folders = await getPathToFolder(lastSegment); //get folders hierarchy from backend
       const dbFoldersPath = folders.map((f) => f.name).join("/");
 
+      //check that folders can move to this path
       if (dbFoldersPath !== uiFoldersPath.reverse().join("/")) {
         notificationService.requestFailed("Incorrect folder path", undefined);
         return;
       }
 
-      const navigationPath = new Map(folders.map((f) => [f.id, f.name]));
+      const navigationPath = folders.map(
+        (f) => [f.id, f.name] as [string, string],
+      );
       const destinationFolderId = folders.reverse()[0]?.id;
 
       if (chainContext.chain.parentId !== destinationFolderId) {

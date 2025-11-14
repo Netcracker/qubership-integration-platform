@@ -9,7 +9,7 @@ export type BaseEntity = {
 };
 
 export type Chain = BaseEntity & {
-  navigationPath: Map<string, string>; // Need to be a Map to preserve key order
+  navigationPath: [string, string][];
   elements: Element[];
   dependencies: Dependency[];
   deployments: Deployment[];
