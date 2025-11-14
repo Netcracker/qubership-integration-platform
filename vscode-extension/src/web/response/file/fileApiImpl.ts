@@ -579,6 +579,10 @@ export class VSCodeFileApi implements FileApi {
         return await this.getFilesByExtension(serviceFileUri, extensions.specification);
     }
 
+    async getSpecApiFiles(): Promise<Uri[]> {
+        return await this.findFiles('.api.yaml');
+    }
+
 }
 
 export async function readDirectory(mainFolderUri: Uri): Promise<[string, number][]> {

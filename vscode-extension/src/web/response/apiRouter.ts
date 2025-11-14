@@ -49,6 +49,8 @@ import {
     handleGetImportSpecificationResult,
     handleImportSpecification,
     handleImportSpecificationGroup,
+    handleGetSpecApiFiles,
+    handleReadSpecificationFileContent,
     QipFileType
 } from "./serviceApiUtils";
 import {VSCodeMessage, AppExtensionProps} from "@netcracker/qip-ui";
@@ -141,6 +143,10 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
         // Navigation operations
         case 'navigateToSpecifications': return await getServiceSpecificationsUri(fileUri, message.payload.groupId);
         case 'navigateToOperations': return await getServiceOperationsUri(fileUri, message.payload.groupId, message.payload.specId);
+
+        // API contract files
+        case 'getSpecApiFiles': return await handleGetSpecApiFiles();
+        case 'readSpecificationFileContent': return await handleReadSpecificationFileContent(message.payload.fileUri, message.payload.specificationFilePath);
     }
 }
 

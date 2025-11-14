@@ -75,6 +75,9 @@ let current: FileApi = {
     getSpecificationFiles: async () => {
         throw new Error('FileApi not configured');
     },
+    getSpecApiFiles: async () => {
+        throw new Error('FileApi not configured');
+    },
 };
 
 export function setFileApi(api: FileApi) {
@@ -108,4 +111,5 @@ export const fileApi: FileApi = {
     readFileContent: async (fileUri: Uri): Promise<string> => current.readFileContent(fileUri),
     deleteFile: async (fileUri: Uri): Promise<void> => current.deleteFile(fileUri),
     getFileType: async (fileUri: Uri): Promise<string> => current.getFileType(fileUri),
+    getSpecApiFiles: async () => current.getSpecApiFiles(),
 };

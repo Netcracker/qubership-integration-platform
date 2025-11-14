@@ -50,4 +50,6 @@ export interface FileApi {
     deleteFile(fileUri: Uri): Promise<void>;
 
     getFileType(fileUri: Uri): Promise<string>;
+
+    getSpecApiFiles(): Promise<Uri[]>;
 }
