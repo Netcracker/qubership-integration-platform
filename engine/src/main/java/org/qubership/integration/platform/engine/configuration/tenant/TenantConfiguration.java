@@ -7,6 +7,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.BeanInitializationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.Collections;
@@ -14,6 +15,7 @@ import java.util.Collections;
 @Slf4j
 @Getter
 @Configuration
+@ConditionalOnMissingBean(TenantConfiguration.class)
 public class TenantConfiguration {
 
     private final String defaultTenant;

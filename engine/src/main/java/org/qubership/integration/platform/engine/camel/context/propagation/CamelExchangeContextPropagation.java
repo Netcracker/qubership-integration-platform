@@ -15,8 +15,8 @@ import java.util.stream.Collectors;
 import static java.util.Objects.nonNull;
 
 @Slf4j
-@Component("camelExchangeContextPropagation")
-@ConditionalOnMissingBean(name = "camelExchangeContextPropagation")
+@Component
+@ConditionalOnMissingBean(CamelExchangeContextPropagation.class)
 public class CamelExchangeContextPropagation {
 
     private final ContextPropsProvider contextPropsProvider;

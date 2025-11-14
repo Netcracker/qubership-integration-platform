@@ -18,6 +18,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 
 import java.util.function.Supplier;
@@ -32,12 +33,14 @@ public class MaasClientConfiguration {
         return () -> () -> "";
     }
 
+    @Primary
     @Bean
     @ConditionalOnProperty(name = "maas.localdev", havingValue = "false", matchIfMissing = true)
     MaaSAPIClient maasClient(TokenSupplierProvider tokenSupplierProvider) {
         return new MaaSAPIClientImpl(tokenSupplierProvider.tokenSupplier());
     }
 
+    @Primary
     @Bean
     @ConditionalOnProperty(name = "maas.localdev", havingValue = "true")
     MaaSAPIClient localDevMaasClient(

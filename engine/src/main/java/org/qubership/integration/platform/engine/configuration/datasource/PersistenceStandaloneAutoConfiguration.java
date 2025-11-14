@@ -14,7 +14,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import javax.sql.DataSource;
 
 @AutoConfiguration
-@ConditionalOnProperty(name = "qip.standalone", havingValue = "false")
+@ConditionalOnProperty(name = "qip.standalone", havingValue = "true")
 @EnableConfigurationProperties(HikariConfigProperties.class)
 @EnableJpaRepositories(
         basePackages = "org.qubership.integration.platform.engine.persistence.shared.repository",
@@ -30,7 +30,6 @@ public class PersistenceStandaloneAutoConfiguration {
         this.properties = properties;
     }
 
-    @Primary
     @Bean("checkpointDataSource")
     public DataSource checkpointDataSource() {
         return new HikariDataSource(properties.getDatasource("checkpoints-datasource"));

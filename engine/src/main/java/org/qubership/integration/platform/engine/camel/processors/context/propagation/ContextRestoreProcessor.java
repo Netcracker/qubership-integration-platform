@@ -15,8 +15,8 @@ import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT;
 
 @Slf4j
-@Component("contextRestoreProcessor")
-@ConditionalOnMissingBean(name = "contextRestoreProcessor")
+@Component
+@ConditionalOnMissingBean(ContextRestoreProcessor.class)
 public class ContextRestoreProcessor implements Processor {
     private final CamelExchangeContextPropagation camelExchangeContextPropagation;
 

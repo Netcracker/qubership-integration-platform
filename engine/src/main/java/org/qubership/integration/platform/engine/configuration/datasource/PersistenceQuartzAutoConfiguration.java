@@ -70,9 +70,9 @@ public class PersistenceQuartzAutoConfiguration {
      * Used for chains quartz scheduler
      */
     @Primary
-    @Bean
+    @Bean("qrtzDataSource")
     @ConditionalOnProperty(value = "qip.standalone", havingValue = "false")
-    DataSource qrtzDataSource(DatabasePool dbaasConnectionPool,
+    public DataSource qrtzDataSource(DatabasePool dbaasConnectionPool,
                               DbaasClassifierFactory classifierFactory,
                               @Autowired(required = false) @Qualifier("dbaasApiProperties") DbaasApiProperties dbaasApiProperties) {
         PostgresSettings databaseSettings =

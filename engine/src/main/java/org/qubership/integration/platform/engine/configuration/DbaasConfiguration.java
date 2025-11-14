@@ -5,19 +5,17 @@ import com.netcracker.cloud.dbaas.client.config.EnableDbaasDefault;
 import com.netcracker.cloud.dbaas.client.config.MSInfoProvider;
 import com.netcracker.cloud.dbaas.client.management.DatabasePool;
 import com.netcracker.cloud.dbaas.client.management.classifier.DbaasClassifierFactory;
-import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.configuration.datasource.DbaasClassifierFactoryWithTenant;
 import org.qubership.integration.platform.engine.configuration.tenant.TenantConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 
-@Slf4j
-@Configuration
+@AutoConfiguration
 @EnableDbaasDefault
 @Import(TenantConfiguration.class)
 public class DbaasConfiguration {
