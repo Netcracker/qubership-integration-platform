@@ -20,7 +20,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <revision>0.3.1</revision>
+        <revision>0.3.2</revision>
         <catalog-library.revision>0.2.0</catalog-library.revision>
 
         <!-- BOMs -->
