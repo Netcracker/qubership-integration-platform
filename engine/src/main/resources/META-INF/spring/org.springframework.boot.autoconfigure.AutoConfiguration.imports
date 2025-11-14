@@ -3,6 +3,7 @@ org.qubership.integration.platform.engine.configuration.camel.CamelSecurityAutoC
 org.qubership.integration.platform.engine.configuration.datasource.PersistenceCheckpointAutoConfiguration
 org.qubership.integration.platform.engine.configuration.datasource.PersistenceQuartzAutoConfiguration
 org.qubership.integration.platform.engine.configuration.opensearch.OpenSearchConfiguration
+org.qubership.integration.platform.engine.configuration.opensearch.OpenSearchKafkaAutoConfiguration
 org.qubership.integration.platform.engine.configuration.SwaggerAutoConfiguration
 org.qubership.integration.platform.engine.configuration.ApplicationAutoConfiguration
 org.qubership.integration.platform.engine.configuration.web.WebAutoConfiguration

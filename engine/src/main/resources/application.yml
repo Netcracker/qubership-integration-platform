@@ -187,6 +187,7 @@ camel:
       name: 'requestFilterHeaderAllowlist'
 
 qip:
+  standalone: true
   camel:
     stream-caching:
       enabled: true # enable exchange payload spooling
@@ -219,7 +220,6 @@ qip:
       prefix: ${OPENSEARCH_PREFIX:}
     kafka-client:
       enabled: ${OPENSEARCH_KAFKA_ENABLED:false}
-      standalone: ${OPENSEARCH_KAFKA_ENABLED:false}
       bootstrap-servers: ${OPENSEARCH_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
       topic: ${OPENSEARCH_KAFKA_TOPIC:elements}
     write:
