@@ -303,6 +303,13 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     integrationSpecificationGroupId: {
       "ui:widget": "hidden",
     },
+    abacParameters: {
+      resourceMap: {
+        "ui:fieldReplacesAnyOrOneOf": true,
+        "ui:field": "enhancedPatternPropertiesField",
+        "ui:title": "Resource Map",
+      },
+    },
   },
   id: { "ui:widget": "hidden" },
   elementType: { "ui:widget": "hidden" },
@@ -348,8 +355,13 @@ export const pathToTabMap: Record<string, string> = {
     "Failure Response Mapping",
   "properties.validationSchema": "Validate Request",
   "properties.roles": "Access Control",
-  "properties.abacResource": "Access Control",
   "properties.accessControlType": "Access Control",
+  "properties.abacParameters": "Access Control",
+  "properties.abacParameters.resourceType": "Access Control",
+  "properties.abacParameters.operation": "Access Control",
+  "properties.abacParameters.resourceDataType": "Access Control",
+  "properties.abacParameters.resourceString": "Access Control",
+  "properties.abacParameters.resourceMap": "Access Control",
   "properties.allowedContentTypes": "Validate Request",
   "properties.rejectRequestIfNonNullBodyGetDelete": "Validate Request",
   "properties.authorizationConfiguration": "Authorization",
