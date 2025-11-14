@@ -1,5 +1,6 @@
 import vscode, {ExtensionContext, Uri} from "vscode";
 import {
+    changeFolder,
     createConnection,
     createElement,
     createMaskedField,
@@ -108,6 +109,7 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
         case 'createMaskedField': return await createMaskedField(fileUri, message.payload.chainId, message.payload.maskedField);
         case 'deleteMaskedFields': return await deleteMaskedFields(fileUri, message.payload.chainId, message.payload.maskedFieldIds);
         case 'updateMaskedField': return await updateMaskedField(fileUri, message.payload.id, message.payload.chainId, message.payload.maskedField);
+        case 'moveChain': return await changeFolder(fileUri, message.payload.chainId, message.payload.folder);
 
 
         // Service operations
