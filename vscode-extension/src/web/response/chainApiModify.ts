@@ -4,7 +4,7 @@ import {
     ConnectionRequest,
     CreateElementRequest,
     Dependency,
-    Element,
+    Element, Folder,
     LibraryElementProperty,
     MaskedField,
     PatchElementRequest,
@@ -28,7 +28,6 @@ import {
 import {Uri} from "vscode";
 import {fileApi} from "./file";
 import {Element as ElementSchema, DataType} from "@netcracker/qip-schemas";
-import {Folder} from "@netcracker/qip-schemas/types/chain.schema";
 
 export async function updateChain(fileUri: Uri, chainId: string, chainRequest: Partial<Chain>): Promise<Chain> {
     const chain = await getMainChain(fileUri);
@@ -49,9 +48,6 @@ export async function updateChain(fileUri: Uri, chainId: string, chainRequest: P
     chain.content.outOfScope = chainRequest.outOfScope !== undefined ? chainRequest.outOfScope : chain.content.outOfScope;
     chain.content.deployments = chainRequest.deployments !== undefined ? chainRequest.deployments : chain.content.deployments;
     chain.content.deployAction = chainRequest.deployAction !== undefined ? chainRequest.deployAction : chain.content.deployAction;
-    chain.content.folder = chainRequest.navigationPath !== undefined ? getFoldersFromStringPath(Object.values(
-        chainRequest.navigationPath
-    ).reverse()) : chain.content.folder;
 
     console.log("chain navigation path", chainRequest.navigationPath);
 
@@ -679,18 +675,10 @@ export async function changeFolder(fileUri: Uri, chainId: string, folders: strin
         throw Error("ChainId mismatch");
     }
 
-    // const parts = folders.split("/");
-    //
-    // let current: any = null;
-    // for (let i = parts.length - 1; i >= 0; i--) {
-    //     current = {name: String(parts[i]), ...(current ? {subfolder: current} : {})};
-    // }
     chain.content = {
         ...chain.content,
-        folder: getFoldersFromStringPath(folders.split("/")),
+        folder: getFoldersFromStringPath(trimSlashes(folders.trim()).split("/")),
     };
-
-    console.log("MOVED CHAIN", chain);
 
     return await fileApi.writeMainChain(fileUri, chain);
 }
@@ -699,7 +687,20 @@ function getFoldersFromStringPath(parts: string[]): Folder {
 
     let current: any = null;
     for (let i = parts.length - 1; i >= 0; i--) {
-        current = {name: String(parts[i]), ...(current ? {subfolder: current} : {})};
+        if (parts[i] === "") {
+            continue;
+        }
+        current = {name: parts[i].trim(), ...(current ? {subfolder: current} : {})};
     }
     return current;
+}
+
+function trimSlashes(value: string): string {
+    while (value.startsWith("/")) {
+        value = value.slice(1);
+    }
+    while (value.endsWith("/")) {
+        value = value.slice(0, -1);
+    }
+    return value;
 }

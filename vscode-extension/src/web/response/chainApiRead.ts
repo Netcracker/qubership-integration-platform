@@ -2,7 +2,7 @@ import {
     Chain,
     Dependency,
     Element,
-    EntityLabel,
+    EntityLabel, Folder,
     LibraryData,
     LibraryElement,
     MaskedField,
@@ -19,7 +19,7 @@ import {
     getParsedElementChildren
 } from "./chainApiUtils";
 import {fileApi} from "./file";
-import { getExtensionsForUri } from './file/fileExtensions';
+import {getExtensionsForUri} from './file/fileExtensions';
 
 
 export async function getCurrentChainId(fileUri: Uri): Promise<string> {
@@ -106,7 +106,7 @@ export async function getMaskedFields(fileUri: Uri, chainId: string): Promise<Ma
         }
     }
 
-    return  {
+    return {
         fields,
     };
 }
@@ -247,20 +247,18 @@ export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
         throw Error("ChainId mismatch");
     }
 
-    const labels: EntityLabel[] = chain.content.labels ? chain.content.labels.map(label => ({name: label, technical: false})) : [];
+    const labels: EntityLabel[] = chain.content.labels ? chain.content.labels.map(label => ({
+        name: label,
+        technical: false
+    })) : [];
 
-    console.log("READING NAVIGATE PATH:", chain.content);
+    const navigationPath: [string, string][] = [];
+    let currentFolder = chain.content.folder as Folder;
 
-    const navigationPath = new Map<string, string>();
-    let currentFolder = chain.content.folder;
     while (currentFolder) {
-        console.log("CURRENT FOLDER:", currentFolder);
-        navigationPath.set(currentFolder.name, currentFolder.name);
-        currentFolder = currentFolder.subfolder;
+        navigationPath.push([currentFolder.name, currentFolder.name]);
+        currentFolder = currentFolder.subfolder as Folder;
     }
-    navigationPath.set(chain.id, chain.name);
-
-    console.log("NAVIGATE PATH:", navigationPath);
 
     return {
         assumptions: chain.content.assumptions as string,
@@ -273,16 +271,16 @@ export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
         dependencies: parseDependencies(chain.content.dependencies as any[]),
         deployments: chain.content.deployments as any[],
         deployAction: chain.content.deployAction
-          ? ChainCommitRequestAction[chain.content.deployAction as keyof typeof ChainCommitRequestAction]
-          : undefined,
+            ? ChainCommitRequestAction[chain.content.deployAction as keyof typeof ChainCommitRequestAction]
+            : undefined,
         description: chain.content.description as string,
         elements: await parseElements(fileUri, chain.content.elements as ElementSchema[], chain.id),
         id: chain.id,
         labels: labels,
         name: chain.name,
-        navigationPath: new Map<string, string>(navigationPath),
+        navigationPath: navigationPath,
         outOfScope: chain.content.outOfScope as string,
-        reuseSwimlaneId: chain.content.reuseSwimlaneId  as string,
+        reuseSwimlaneId: chain.content.reuseSwimlaneId as string,
         unsavedChanges: false
     };
 }
