@@ -88,7 +88,8 @@ properties:
         allowedValues:
         - RBAC
         - ABAC
-        default: RBAC
+        - NONE
+        default: NONE
     -   name: abacParameters
         description: ABAC parameters contains resourceType, resource, operation
         title: Parameters
