@@ -164,9 +164,11 @@
     <removeProperties pattern="serviceCallQueryParameter_*"/>
     <removeProperties pattern="serviceCallPathParameter_*"/>
     <removeProperties pattern="serviceCallParameter_*"/>
+    <removeProperties pattern="internalProperty_queryParam_*"/>
     <removeProperty name="serviceCallTopic"/>
     <removeProperty name="serviceCallBrokers"/>
     <removeProperty name="serviceCallExchange"/>
     <removeProperty name="serviceCallService"/>
     <removeProperty name="serviceCallVariablesHeader"/>
+    <removeProperty name="serviceCallSkipEmptyQueryParams"/>
 </route>

@@ -43,10 +43,10 @@ public class GenerateURLHelper {
             return oldFormatUrl;
         }
 
-        if (isSendEmptyQueryParams(element)) {
-            return generatePathParamString(element) + generateQueryParamString(element);
-        } else {
+        if (shouldSkipEmptyQueryParams(element)) {
             return generatePathParamString(element);
+        } else {
+            return generatePathParamString(element) + generateQueryParamString(element); // BAU: Includes only runtime empty query params
         }
     }
 
@@ -120,9 +120,8 @@ public class GenerateURLHelper {
             return result.toString();
         }
 
-        boolean sendEmptyParams = isSendEmptyQueryParams(element);
         for (String key : map.keySet()) {
-            if (!sendEmptyParams || !StringUtils.isEmpty(map.get(key))) {
+            if (!StringUtils.isEmpty(map.get(key))) {
                 if (result.length() == 0) {
                     result.append("?");
                 } else {
@@ -134,8 +133,8 @@ public class GenerateURLHelper {
         return result.toString();
     }
 
-    private boolean isSendEmptyQueryParams(ChainElement element) {
-        Object sendEmptyParamsProperty = element.getProperty(CamelOptions.SEND_EMPTY_QUERY_PARAMS);
-        return sendEmptyParamsProperty != null && Boolean.parseBoolean(String.valueOf(sendEmptyParamsProperty));
+    private boolean shouldSkipEmptyQueryParams(ChainElement element) {
+        Object skipEmptyParamsProperty = element.getProperty(CamelOptions.SKIP_EMPTY_QUERY_PARAMS);
+        return skipEmptyParamsProperty != null && Boolean.parseBoolean(String.valueOf(skipEmptyParamsProperty));
     }
 }

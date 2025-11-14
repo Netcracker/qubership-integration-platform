@@ -198,6 +198,7 @@ elements:
       integrationSpecificationGroupId: "78a90c20-9d90-424c-a0a9-5b37de84933d"
       integrationOperationProtocolType: "http"
       integrationOperationPathParameters: {}
+      integrationOperationSkipEmptyQueryParameters: false
       propagateContext: true
     service-environment:
       id: "0c151b35-1a38-4032-af81-77d1385c2c04"
