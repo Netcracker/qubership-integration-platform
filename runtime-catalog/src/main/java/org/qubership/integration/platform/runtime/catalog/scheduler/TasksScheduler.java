@@ -22,8 +22,7 @@ import org.qubership.integration.platform.catalog.consul.ConsulService;
 import org.qubership.integration.platform.catalog.consul.exception.KVNotFoundException;
 import org.qubership.integration.platform.catalog.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
-import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
+import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -41,17 +40,31 @@ public class TasksScheduler {
     private final ConsulService consulService;
     private final RuntimeDeploymentService runtimeDeploymentService;
     private final ActionsLogService actionsLogService;
+    private final SnapshotService snapshotService;
 
     @Value("${qip.actions-log.cleanup.interval}")
     private String actionLogInterval;
 
+    @Value("${qip.snapshots.cleanup.interval}")
+    private int snapshotCleanupInterval;
+    private static final int SNAPSHOT_CLEANUP_CHUNK = 1000;
+
     @Autowired
     public TasksScheduler(ConsulService consulService,
                           RuntimeDeploymentService runtimeDeploymentService,
-                          ActionsLogService actionsLogService) {
+                          ActionsLogService actionsLogService,
+                          SnapshotService snapshotService) {
         this.consulService = consulService;
         this.runtimeDeploymentService = runtimeDeploymentService;
         this.actionsLogService = actionsLogService;
+        this.snapshotService = snapshotService;
+    }
+
+    @Scheduled(cron = "${qip.snapshots.cleanup.cron}")
+    public void snapshotCleanup() {
+        snapshotService.pruneSnapshotsAsync(snapshotCleanupInterval, SNAPSHOT_CLEANUP_CHUNK);
+
+        log.info("Remove old snapshots");
     }
 
     @Scheduled(cron = "${qip.actions-log.cleanup.cron}")
