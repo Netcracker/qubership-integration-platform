@@ -6,6 +6,8 @@ export interface ProtoMethod {
     comment?: string;
     requestType: string;
     responseType: string;
+    requestStream: boolean;
+    responseStream: boolean;
 }
 
 export interface ProtoService {
@@ -28,6 +30,11 @@ export interface ResolvedProtoOperation {
     rpcName: string;
     path: string;
     summary?: string;
+    serviceName: string;
+    requestStream: boolean;
+    responseStream: boolean;
+    requestType: string;
+    responseType: string;
     requestSchema: JsonSchema;
     responseSchema: JsonSchema;
 }

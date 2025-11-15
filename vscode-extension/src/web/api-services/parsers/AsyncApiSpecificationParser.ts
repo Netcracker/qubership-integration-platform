@@ -1,34 +1,6 @@
 import { ContentParser } from './ContentParser';
 import { AsyncApiOperationResolver } from './async/AsyncApiOperationResolver';
-
-export interface AsyncApiData {
-    asyncapi: string;
-    info: {
-        title: string;
-        version: string;
-        description?: string;
-        'x-protocol'?: string;
-    };
-    components?: Record<string, any>;
-    channels: Record<string, {
-        publish?: {
-            summary?: string;
-            operationId?: string;
-            message?: any;
-            'x-maas-classifier-name'?: string
-        };
-        subscribe?: {
-            summary?: string;
-            operationId?: string;
-            message?: any;
-            'x-maas-classifier-name'?: string
-        };
-    }>;
-    servers?: Record<string, {
-        url: string;
-        protocol: string;
-    }>;
-}
+import { AsyncApiData } from './parserTypes';
 
 export class AsyncApiSpecificationParser {
     /**
@@ -134,11 +106,18 @@ export class AsyncApiSpecificationParser {
 
         // Check servers if no x-protocol
         const servers = asyncApiData.servers;
-        if (servers && Object.keys(servers).length > 0) {
-            const firstServerKey = Object.keys(servers)[0];
-            const server = servers[firstServerKey];
-            if (server.url) {
-                return server.url;
+        if (servers) {
+            const mainServer = (servers as Record<string, { url?: string }>).main;
+            if (mainServer?.url) {
+                return mainServer.url;
+            }
+
+            const serverEntries = Object.entries(servers as Record<string, { url?: string }>);
+            if (serverEntries.length > 0) {
+                const [, firstServer] = serverEntries[0];
+                if (firstServer?.url) {
+                    return firstServer.url;
+                }
             }
         }
 
@@ -153,9 +132,14 @@ export class AsyncApiSpecificationParser {
 
         const servers = asyncApiData.servers;
         if (servers) {
-            const firstServer = Object.values(servers)[0] as { protocol?: string } | undefined;
-            if (firstServer?.protocol) {
-                return firstServer.protocol.toLowerCase();
+            const mainServer = (servers as Record<string, { protocol?: string }>).main;
+            if (mainServer?.protocol) {
+                return mainServer.protocol.toLowerCase();
+            }
+
+            const serverEntries = Object.values(servers) as Array<{ protocol?: string }>;
+            if (serverEntries.length > 0 && serverEntries[0]?.protocol) {
+                return serverEntries[0].protocol!.toLowerCase();
             }
         }
 

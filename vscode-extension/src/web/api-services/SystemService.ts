@@ -1,11 +1,10 @@
 import { Uri } from "vscode";
+import * as vscode from "vscode";
 import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { LabelUtils } from "./LabelUtils";
-
-const vscode = require('vscode');
 
 /**
  * Service for managing integration systems

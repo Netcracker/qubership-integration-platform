@@ -1,5 +1,8 @@
 import { SerializedFile, ApiSpecificationType } from "./importApiTypes";
 import { FileConversionService } from "../services/FileConversionService";
+import { ProtoSpecificationParser } from "./parsers/ProtoSpecificationParser";
+import { ProtoOperationResolver } from "./parsers/proto/ProtoOperationResolver";
+import type { ProtoData, ResolvedProtoOperation } from "./parsers/proto/ProtoTypes";
 
 export interface ParsedSpecification {
     id: string;
@@ -21,6 +24,12 @@ export interface ParsedOperation {
     parameters: ParsedParameter[];
     responses: ParsedResponse[];
     tags?: string[];
+    requestSchema?: Record<string, unknown>;
+    responseSchemas?: Record<string, unknown>;
+    requestStream?: boolean;
+    responseStream?: boolean;
+    rpcType?: 'unary' | 'client_streaming' | 'server_streaming' | 'bidirectional';
+    metadata?: Record<string, unknown>;
 }
 
 export interface ParsedParameter {
@@ -314,34 +323,15 @@ export class SpecificationParserService {
      */
     private async parseGrpcSpecification(content: string, file: SerializedFile): Promise<ParsedSpecification> {
         try {
-            const operations: ParsedOperation[] = [];
-            const lines = content.split('\n');
-            let currentService = '';
-
-            for (const line of lines) {
-                const trimmed = line.trim();
-                
-                // Detect service
-                if (trimmed.startsWith('service ')) {
-                    currentService = trimmed.split(' ')[1]?.split(' ')[0] || 'Service';
-                }
-                // Detect RPC method
-                else if (trimmed.startsWith('rpc ')) {
-                    const rpcMatch = trimmed.match(/rpc\s+(\w+)\s*\([^)]*\)\s*returns\s*\([^)]*\)/);
-                    if (rpcMatch) {
-                        const methodName = rpcMatch[1];
-                        operations.push({
-                            id: `rpc_${methodName}`,
-                            name: methodName,
-                            method: 'rpc',
-                            description: `gRPC method in ${currentService}`,
-                            parameters: [],
-                            responses: [],
-                            tags: ['grpc', currentService.toLowerCase()]
-                        });
-                    }
-                }
+            const protoData = await ProtoSpecificationParser.parseProtoContent(content);
+            const resolver = new ProtoOperationResolver(protoData);
+            const resolvedOperations = resolver.resolve();
+            if (resolvedOperations.length === 0) {
+                throw new Error('No RPC methods found in gRPC specification');
             }
+            const operations = resolvedOperations.map(operation =>
+                this.buildParsedGrpcOperation(operation, protoData)
+            );
 
             return {
                 id: crypto.randomUUID(),
@@ -349,13 +339,79 @@ export class SpecificationParserService {
                 type: ApiSpecificationType.GRPC,
                 operations,
                 metadata: {
-                    content: content.substring(0, 1000) // Store first 1000 chars for reference
+                    packageName: protoData.packageName,
+                    javaPackage: protoData.javaPackage,
+                    serviceCount: protoData.services.length,
+                    services: protoData.services.map(service => ({
+                        name: service.name,
+                        qualifiedName: service.qualifiedName,
+                        methodCount: service.methods.length
+                    }))
                 },
                 errors: []
             };
         } catch (error) {
             throw new Error(`Failed to parse gRPC specification: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+    }
+
+    private buildParsedGrpcOperation(operation: ResolvedProtoOperation, protoData: ProtoData): ParsedOperation {
+        const requestSchema = this.cloneJson(operation.requestSchema);
+        const responseSchema = this.cloneJson(operation.responseSchema);
+
+        const tags: string[] = ['grpc'];
+        if (operation.serviceName) {
+            tags.push(operation.serviceName.toLowerCase());
+        }
+
+        return {
+            id: `rpc_${operation.operationId}`,
+            name: operation.operationId,
+            method: operation.rpcName,
+            path: operation.path,
+            description: operation.summary,
+            parameters: [],
+            responses: [
+                {
+                    statusCode: '200',
+                    description: 'gRPC response',
+                    contentType: 'application/json',
+                    schema: responseSchema
+                }
+            ],
+            tags,
+            requestSchema,
+            responseSchemas: {
+                '200': responseSchema
+            },
+            requestStream: operation.requestStream,
+            responseStream: operation.responseStream,
+            rpcType: this.resolveGrpcCallType(operation.requestStream, operation.responseStream),
+            metadata: {
+                serviceName: operation.serviceName,
+                packageName: protoData.packageName,
+                javaPackage: protoData.javaPackage,
+                requestType: operation.requestType,
+                responseType: operation.responseType
+            }
+        };
+    }
+
+    private resolveGrpcCallType(requestStream: boolean, responseStream: boolean): ParsedOperation['rpcType'] {
+        if (requestStream && responseStream) {
+            return 'bidirectional';
+        }
+        if (requestStream) {
+            return 'client_streaming';
+        }
+        if (responseStream) {
+            return 'server_streaming';
+        }
+        return 'unary';
+    }
+
+    private cloneJson<T>(value: T): T {
+        return JSON.parse(JSON.stringify(value));
     }
 
     /**

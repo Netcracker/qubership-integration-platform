@@ -1,4 +1,5 @@
 import {Uri} from "vscode";
+import * as vscode from "vscode";
 import {IntegrationSystem, SpecificationGroup} from "./servicesTypes";
 import {fileApi} from "../response/file/fileApiProvider";
 import {getBaseFolder} from "../response/serviceApiUtils";
@@ -6,8 +7,6 @@ import {YamlFileUtils} from "./YamlFileUtils";
 import {LabelUtils} from "./LabelUtils";
 import {ProjectConfigService} from "../services/ProjectConfigService";
 import {ContentParser} from './parsers/ContentParser';
-
-const vscode = require('vscode');
 
 /**
  * Service for managing specification groups

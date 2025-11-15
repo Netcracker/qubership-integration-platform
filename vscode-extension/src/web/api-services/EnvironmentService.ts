@@ -52,14 +52,20 @@ export class EnvironmentService {
             const protocol = system.content?.protocol || '';
             const defaultProperties = EnvironmentDefaultProperties.getDefaultProperties(protocol);
 
+            const requestedSourceType = request.sourceType || 'MANUAL';
+            const requestedProperties = request.properties;
+            const mergedProperties = requestedProperties
+                ? { ...defaultProperties, ...requestedProperties }
+                : defaultProperties;
+
             const environment: Environment = {
                 id: crypto.randomUUID(),
                 name: request.name,
                 address: request.address,
                 description: request.description || '',
-                sourceType: 'MANUAL' as any,
+                sourceType: requestedSourceType as any,
                 systemId,
-                properties: defaultProperties,
+                properties: mergedProperties,
                 labels: LabelUtils.toEntityLabels([]),
             };
 

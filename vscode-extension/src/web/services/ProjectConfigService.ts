@@ -1,4 +1,6 @@
 import { Uri, ExtensionContext } from "vscode";
+import * as vscode from "vscode";
+import * as yaml from "yaml";
 import { YamlFileUtils } from "../api-services/YamlFileUtils";
 import { fileApi } from "../response/file/fileApiProvider";
 
@@ -99,7 +101,6 @@ export class ProjectConfigService {
         
         this.currentAppName = appName;
         
-        const vscode = require('vscode');
         const rootUri = workspaceUri || vscode.workspace.workspaceFolders?.[0]?.uri;
         
         if (!rootUri) {
@@ -182,7 +183,6 @@ export class ProjectConfigService {
     private async loadConfigFileFromUri(configUri: Uri): Promise<ProjectConfigFile | null> {
         try {
             const content = await fileApi.readFileContent(configUri);
-            const yaml = require('yaml');
             const configFile = yaml.parse(content) as ProjectConfigFile;
             
             if (!configFile || !configFile.configs) {
@@ -405,7 +405,6 @@ export class ProjectConfigService {
     }
 
     private getWorkspaceUri(workspaceUri?: Uri): Uri {
-        const vscode = require('vscode');
         const rootUri = workspaceUri || vscode.workspace.workspaceFolders?.[0]?.uri;
         
         if (!rootUri) {
