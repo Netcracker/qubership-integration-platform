@@ -15,6 +15,15 @@ export class ProtoSpecificationParser {
         const services = this.collectServices(root);
         const typeDefinitions = ProtoTypeDefinitionBuilder.build(root);
 
+        if (services.length === 0) {
+            throw new Error('Proto specification must declare at least one service definition');
+        }
+
+        const hasRpcMethods = services.some(service => service.methods.length > 0);
+        if (!hasRpcMethods) {
+            throw new Error('Proto specification must declare at least one RPC method');
+        }
+
         return {
             type: "PROTO",
             packageName,
@@ -99,7 +108,9 @@ export class ProtoSpecificationParser {
             operationId,
             comment: method.comment ?? undefined,
             requestType,
-            responseType
+            responseType,
+            requestStream: Boolean(method.requestStream),
+            responseStream: Boolean(method.responseStream)
         };
     }
 

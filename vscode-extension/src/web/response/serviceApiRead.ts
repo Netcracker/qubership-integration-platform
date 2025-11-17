@@ -1,12 +1,11 @@
 import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo, BaseEntity} from "../api-services/servicesTypes";
 import {Uri} from "vscode";
+import * as vscode from "vscode";
 import {fileApi} from "./file/fileApiProvider";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { getExtensionsForUri } from './file/fileExtensions';
 import { Chain } from "@netcracker/qip-ui";
 import { ContentParser } from "../api-services/parsers/ContentParser";
-
-const vscode = require('vscode');
 
 export async function getCurrentServiceId(serviceFileUri: Uri): Promise<string> {
     const service: any = await getMainService(serviceFileUri);

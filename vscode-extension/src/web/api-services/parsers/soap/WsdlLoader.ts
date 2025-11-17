@@ -30,14 +30,17 @@ export class WsdlLoader {
             }
 
             const resolved = await this.resolver(importUri, uri);
-            if (resolved) {
-                await this.collectRecursive(resolved.uri, resolved.content, visited);
+            if (!resolved) {
+                console.warn('[WsdlLoader] Unable to resolve import', importUri, 'from', uri);
+                continue;
             }
+
+            await this.collectRecursive(resolved.uri, resolved.content, visited);
         }
     }
 
     private extractImports(content: string): string[] {
-        const regex = /<(?:wsdl:)?(?:import|include)[^>]*(?:schemaLocation|location)\s*=\s*(?:"([^"]+)"|'([^']+)')[^>]*>/g;
+        const regex = /<(?:[a-zA-Z0-9_]+:)?(?:import|include)[^>]*(?:schemaLocation|location)\s*=\s*(?:"([^"]+)"|'([^']+)')[^>]*>/gi;
         const imports: string[] = [];
         let match: RegExpExecArray | null;
 

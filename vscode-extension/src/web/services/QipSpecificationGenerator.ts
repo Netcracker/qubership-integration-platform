@@ -46,7 +46,7 @@ export class QipSpecificationGenerator {
     /**
      * Creates QIP specification from OpenAPI 3.0 or Swagger 2.0
      */
-    static createQipSpecificationFromOpenApi(openApiSpec: any, fileName: string): any {
+    static createQipSpecificationFromOpenApi(openApiSpec: any, fileName: string, specificationId: string): any {
         // Determine OpenAPI version and convert Swagger 2.0 to OpenAPI 3.0 if needed
         const isOpenApi3 = openApiSpec.openapi && openApiSpec.openapi.startsWith('3.');
         const isSwagger2 = openApiSpec.swagger && openApiSpec.swagger.startsWith('2.');
@@ -62,7 +62,6 @@ export class QipSpecificationGenerator {
         }
 
         const operations: any[] = [];
-        const specId = this.generateId();
 
         if (processedSpec.paths) {
             for (const [path, pathItem] of Object.entries(processedSpec.paths)) {
@@ -71,7 +70,7 @@ export class QipSpecificationGenerator {
                 for (const [method, operation] of Object.entries(pathItemObj)) {
                     if (this.HTTP_METHODS.includes(method.toLowerCase())) {
                         const operationObj = operation as any;
-                        const qipOperation = this.createQipOperation(operationObj, method.toUpperCase(), path, processedSpec, specId);
+                        const qipOperation = this.createQipOperation(operationObj, method.toUpperCase(), path, processedSpec, specificationId);
                         operations.push(qipOperation);
                     }
                 }
@@ -79,7 +78,7 @@ export class QipSpecificationGenerator {
         }
 
         return this.buildSpecification(
-            specId,
+            specificationId,
             openApiSpec.info?.version || '1.0.0',
             openApiSpec.info?.version || '1.0.0',
             operations,
@@ -91,11 +90,11 @@ export class QipSpecificationGenerator {
     /**
      * Creates QIP operation from OpenAPI operation
      */
-    private static createQipOperation(operation: any, method: string, path: string, openApiSpec: any, specId: string): any {
+    private static createQipOperation(operation: any, method: string, path: string, openApiSpec: any, specificationId: string): any {
         const operationId = operation.operationId || this.generateOperationId(method, path);
 
         return {
-            id: `${specId}-${operationId}`,
+            id: `${specificationId}-${operationId}`,
             name: operationId,
             method: method,
             path: path,

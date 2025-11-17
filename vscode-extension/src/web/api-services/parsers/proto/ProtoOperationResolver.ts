@@ -33,6 +33,11 @@ export class ProtoOperationResolver {
                     rpcName: method.name,
                     path,
                     summary: method.comment,
+                    serviceName: service.name,
+                    requestStream: method.requestStream,
+                    responseStream: method.responseStream,
+                    requestType: method.requestType,
+                    responseType: method.responseType,
                     requestSchema,
                     responseSchema
                 });
@@ -72,6 +77,16 @@ export function buildProtoOperationSpecification(
                 schema: cloneSchema(requestSchema)
             }
         }
+    };
+
+    specification['x-grpc'] = {
+        serviceName: operation.serviceName,
+        methodName: operation.rpcName,
+        servicePath: operation.path,
+        requestType: operation.requestType,
+        responseType: operation.responseType,
+        requestStream: operation.requestStream,
+        responseStream: operation.responseStream
     };
 
     return specification;

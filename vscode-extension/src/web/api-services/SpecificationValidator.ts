@@ -201,17 +201,32 @@ export class SpecificationValidator {
     /**
      * Validates specification protocol
      */
+    private static readonly asyncProtocols = new Set<ApiSpecificationType>([
+        ApiSpecificationType.ASYNC,
+        ApiSpecificationType.AMQP,
+        ApiSpecificationType.MQTT,
+        ApiSpecificationType.KAFKA,
+        ApiSpecificationType.REDIS,
+        ApiSpecificationType.NATS
+    ]);
+
     static validateSpecificationProtocol(systemProtocol: ApiSpecificationType | undefined, importingProtocol: ApiSpecificationType): void {
         if (!systemProtocol) {
             return;
         }
 
-        if (systemProtocol !== importingProtocol) {
-            throw new Error(
-                `Protocol mismatch: Cannot import ${importingProtocol} specification into ${systemProtocol} service. ` +
-                `The specification protocol (${importingProtocol}) must match the service protocol (${systemProtocol}).`
-            );
+        if (systemProtocol === importingProtocol) {
+            return;
         }
+
+        if (this.asyncProtocols.has(systemProtocol) && this.asyncProtocols.has(importingProtocol)) {
+            return;
+        }
+
+        throw new Error(
+            `Protocol mismatch: Cannot import ${importingProtocol} specification into ${systemProtocol} service. ` +
+            `The specification protocol (${importingProtocol}) must match the service protocol (${systemProtocol}).`
+        );
     }
 
     /**

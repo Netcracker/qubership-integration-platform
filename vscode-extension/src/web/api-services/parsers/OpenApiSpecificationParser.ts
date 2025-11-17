@@ -1,35 +1,7 @@
 
-export interface OpenApiData {
-    openapi?: string;
-    swagger?: string;
-    info: {
-        title: string;
-        version: string;
-        description?: string;
-    };
-    servers?: Array<{
-        url: string;
-        description?: string;
-        name?: string;
-        variables?: Record<string, { default?: string }>;
-        protocol?: string;
-    }>;
-    paths: {
-        [path: string]: {
-            [method: string]: {
-                operationId?: string;
-                summary?: string;
-                description?: string;
-                tags?: string[];
-                parameters?: any[];
-                requestBody?: any;
-                responses?: any;
-            };
-        };
-    };
-}
-
+import { QipSpecificationGenerator } from '../../services/QipSpecificationGenerator';
 import { ContentParser } from './ContentParser';
+import { OpenApiData } from './parserTypes';
 
 export class OpenApiSpecificationParser {
 
@@ -86,14 +58,14 @@ export class OpenApiSpecificationParser {
      * Create operations from OpenAPI data using QipSpecificationGenerator
      */
     static createOperationsFromOpenApi(openApiData: OpenApiData, specificationId: string): any[] {
-        // Import QipSpecificationGenerator dynamically to avoid circular dependencies
-        const { QipSpecificationGenerator } = require('../../services/QipSpecificationGenerator');
-
         // Create full QIP specification using QipSpecificationGenerator
-        const qipSpec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(openApiData, 'specification');
+        const qipSpec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(openApiData, 'specification', specificationId);
+        const operations = qipSpec.content?.operations || [];
 
-        // Extract operations from the QIP specification
-        return qipSpec.content?.operations || [];
+        return operations.map((operation: any) => ({
+            ...operation,
+            id: `${specificationId}-${operation.name}`
+        }));
     }
 
 
@@ -126,4 +98,5 @@ export class OpenApiSpecificationParser {
 
         return null;
     }
+
 }

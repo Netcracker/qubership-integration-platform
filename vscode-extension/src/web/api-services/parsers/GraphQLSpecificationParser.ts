@@ -7,25 +7,7 @@ import {
     print,
     SchemaDefinitionNode
 } from "graphql";
-
-export interface GraphQLData {
-    type: "GRAPHQL";
-    schema: string;
-    queries: GraphQLOperation[];
-    mutations: GraphQLOperation[];
-    types: GraphQLType[];
-    scalars: string[];
-}
-
-export interface GraphQLOperation {
-    name: string;
-    sdl: string;
-}
-
-export interface GraphQLType {
-    name: string;
-    sdl: string;
-}
+import { GraphQLData, GraphQLOperation, GraphQLType } from "./parserTypes";
 
 export class GraphQLSpecificationParser {
     static async parseGraphQLContent(content: string): Promise<GraphQLData> {

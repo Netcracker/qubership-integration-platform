@@ -1,5 +1,6 @@
 import { ProjectConfigService } from '../../services/ProjectConfigService';
 import { Uri } from 'vscode';
+import * as vscode from 'vscode';
 
 export type FileExtensionsConfig = {
     appName: string;
@@ -49,7 +50,6 @@ export function getCurrentFileContext(): string | null {
 }
 
 export function extractAppNameFromExtension(filename: string): string {
-    const vscode = require('vscode');
     const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
     
     if (workspaceUri) {
@@ -124,7 +124,6 @@ export function getExtensionsForUri(fileUri?: { path: string }): FileExtensionsC
 }
 
 export async function initializeContextFromFile(fileUri: Uri): Promise<void> {
-    const vscode = require('vscode');
     const filename = extractFilename(fileUri);
     const appName = extractAppNameFromExtension(filename);
     

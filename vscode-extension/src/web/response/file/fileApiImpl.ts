@@ -1,5 +1,6 @@
 import {FileApi} from './fileApi';
 import {ExtensionContext, Uri} from 'vscode';
+import * as vscode from 'vscode';
 import * as yaml from 'yaml';
 import {LibraryData} from "@netcracker/qip-ui";
 import {QipFileType} from "../serviceApiUtils";
@@ -12,8 +13,6 @@ import { ProjectConfigService } from '../../services/ProjectConfigService';
 import { FileCacheService } from '../../services/FileCacheService';
 import { CHAIN_ROUTES, SERVICE_ROUTES } from '../apiRouter';
 import { extractEntityId } from '../navigationUtils';
-
-const vscode = require('vscode');
 const RESOURCES_FOLDER = 'resources';
 
 export class VSCodeFileApi implements FileApi {
@@ -31,7 +30,11 @@ export class VSCodeFileApi implements FileApi {
     }
 
     getRootDirectory(): Uri {
-        return vscode.workspace.workspaceFolders[0].uri;
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            throw new Error('No workspace folder is open');
+        }
+        return workspaceFolders[0].uri;
     }
 
     async findFileByNavigationPath(path: string): Promise<Uri> {
@@ -577,6 +580,10 @@ export class VSCodeFileApi implements FileApi {
     async getSpecificationFiles(serviceFileUri: Uri): Promise<string[]> {
         const extensions = this.getExtensionsForContext(serviceFileUri);
         return await this.getFilesByExtension(serviceFileUri, extensions.specification);
+    }
+
+    async getSpecApiFiles(): Promise<Uri[]> {
+        return await this.findFiles('.api.yaml');
     }
 
 }

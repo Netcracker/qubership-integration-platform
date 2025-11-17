@@ -9,6 +9,7 @@ import {
 } from "./parsers";
 import { ContentParser } from './parsers/ContentParser';
 import { normalizePath } from "./pathUtils";
+import * as yaml from "yaml";
 
 export interface EnvironmentCandidate {
     name?: string;
@@ -27,12 +28,13 @@ export class SpecificationProcessorService {
     async processSpecificationFiles(
         specificationGroup: SpecificationGroup,
         files: File[],
-        systemId?: string
+        systemId?: string,
+        contentCache?: Map<string, Promise<string>>
     ): Promise<void> {
-        const contentCache = new Map<string, Promise<string>>();
+        const cache = contentCache ?? new Map<string, Promise<string>>();
         for (const file of files) {
             try {
-                await this.processSpecificationFile(file, specificationGroup, systemId, files, contentCache);
+                await this.processSpecificationFile(file, specificationGroup, systemId, files, cache);
             } catch (error) {
                 throw error;
             }
@@ -51,70 +53,69 @@ export class SpecificationProcessorService {
         contentCache?: Map<string, Promise<string>>
     ): Promise<void> {
         const fileExtension = this.getFileExtension(file.name);
-        const specificationType = await this.detectSpecificationType(file.name, fileExtension);
+        const specificationType = await this.detectSpecificationType(file, fileExtension, contentCache);
 
         if (!specificationType) {
-            return;
+            if (this.isWsdlDependencyExtension(fileExtension)) {
+                console.log('[SpecificationProcessorService] Skipping WSDL dependency file', file.name);
+                return;
+            }
+            throw new Error(`Unsupported specification format: ${file.name}`);
         }
 
 
-        // Extract version from file name or content
         const version = await this.extractVersionFromFile(file);
-
-        // Create specification ID in format: {systemId}-{groupName}-{version}
-        const specificationId = systemId ? `${systemId}-${specificationGroup.name}-${version}` : crypto.randomUUID();
-
-        // Parse file content and create operations
+        const specificationId = this.buildSpecificationId(systemId, specificationGroup.name, version);
         const operations = await this.createOperationsFromFile(file, specificationType, specificationId, allFiles, contentCache);
+        if (specificationType === ApiSpecificationType.GRPC && operations.length === 0) {
+            throw new Error(`No gRPC operations detected in ${file.name}. Ensure the proto file declares at least one RPC method.`);
+        }
+        console.log('[SpecificationProcessorService] Generated', operations.length, 'operations for', file.name);
+        const specification = this.createSpecificationEntity(file, specificationGroup.id, specificationId, version, specificationType, operations);
 
-        // Create specification object
-        const specification: Specification = {
-            id: specificationId,
-            name: version, // Use version as name, not file name
-            description: `Specification for ${file.name}`,
-            parentId: specificationGroup.id,
-            version: version,
-            format: specificationType?.toString() || 'unknown',
-            content: '',
-            deprecated: false,
-            source: file.name,
-            operations: operations
-        };
-
-        // Add to specification group
         specificationGroup.specifications.push(specification);
-
     }
 
     /**
      * Detect specification type from file
      */
-    private async detectSpecificationType(fileName: string, fileExtension: string): Promise<ApiSpecificationType | null> {
-        try {
-            // First check by file name patterns
-            if (fileName.includes('asyncapi') || fileName.includes('async')) {
-                return ApiSpecificationType.ASYNC;
-            } else if (fileName.includes('openapi') || fileName.includes('swagger')) {
-                return ApiSpecificationType.HTTP;
-            } else if (fileName.includes('graphql') || fileExtension === '.graphql') {
-                return ApiSpecificationType.GRAPHQL;
-            } else if (fileName.includes('proto') || fileExtension === '.proto') {
-                return ApiSpecificationType.GRPC;
-            } else if (fileName.includes('wsdl') || fileExtension === '.wsdl' || fileExtension === '.xml') {
-                return ApiSpecificationType.SOAP;
-            }
-
-            // If file name doesn't give clear indication, check content for JSON/YAML files
-            if (fileExtension === '.json' || fileExtension === '.yaml' || fileExtension === '.yml') {
-                // For now, default to HTTP for JSON/YAML files without clear naming
-                // Content-based detection will be handled in the calling method
-                return ApiSpecificationType.HTTP;
-            }
-
-            return null;
-        } catch (error) {
+    private async detectSpecificationType(
+        file: File,
+        fileExtension: string,
+        contentCache?: Map<string, Promise<string>>
+    ): Promise<ApiSpecificationType | null> {
+        if (this.isWsdlDependencyExtension(fileExtension)) {
             return null;
         }
+
+        const typeByExtension = this.detectTypeByExtension(fileExtension);
+        if (typeByExtension) {
+            return typeByExtension;
+        }
+
+        const content = await this.getFileContentWithCache(file, contentCache);
+        if (!content) {
+            return null;
+        }
+
+        if (this.isLikelyWsdlContent(fileExtension, content)) {
+            return ApiSpecificationType.SOAP;
+        }
+
+        const parsedContent = this.tryParseStructuredContent(content);
+        if (!parsedContent) {
+            return null;
+        }
+
+        if (parsedContent.asyncapi) {
+            return ApiSpecificationType.ASYNC;
+        }
+
+        if (parsedContent.openapi || parsedContent.swagger) {
+            return ApiSpecificationType.HTTP;
+        }
+
+        return null;
     }
 
     /**
@@ -123,6 +124,32 @@ export class SpecificationProcessorService {
     private getFileExtension(fileName: string): string {
         const lastDotIndex = fileName.lastIndexOf('.');
         return lastDotIndex !== -1 ? fileName.substring(lastDotIndex) : '';
+    }
+
+    private buildSpecificationId(systemId: string | undefined, groupName: string, version: string): string {
+        return systemId ? `${systemId}-${groupName}-${version}` : crypto.randomUUID();
+    }
+
+    private createSpecificationEntity(
+        file: File,
+        groupId: string,
+        specificationId: string,
+        version: string,
+        specificationType: ApiSpecificationType,
+        operations: Specification['operations']
+    ): Specification {
+        return {
+            id: specificationId,
+            name: version,
+            description: `Specification for ${file.name}`,
+            parentId: groupId,
+            version,
+            format: specificationType.toString(),
+            content: '',
+            deprecated: false,
+            source: file.name,
+            operations: operations || []
+        };
     }
 
     /**
@@ -256,7 +283,9 @@ export class SpecificationProcessorService {
             if (candidatePath === mainPath) {
                 continue;
             }
-            if (!candidatePath.toLowerCase().endsWith(".wsdl")) {
+
+            const extension = this.getFileExtension(candidate.name).toLowerCase();
+            if (!['.wsdl', '.xsd'].includes(extension)) {
                 continue;
             }
 
@@ -267,6 +296,12 @@ export class SpecificationProcessorService {
                     content
                 });
             }
+        }
+
+        if (documents.length === 0) {
+            console.log('[SpecificationProcessorService] No WSDL dependencies detected for', mainPath);
+        } else {
+            console.log('[SpecificationProcessorService] Resolved WSDL dependencies for', mainPath, documents.map(({ uri }) => uri));
         }
 
         return documents;
@@ -439,7 +474,7 @@ export class SpecificationProcessorService {
         try {
             const content = await this.getFileContentWithCache(file, contentCache);
             if (!content) {
-                return [];
+                throw new Error(`Unable to read specification content from ${file.name}`);
             }
 
             // If specification type is HTTP but content suggests AsyncAPI, correct it
@@ -492,11 +527,50 @@ export class SpecificationProcessorService {
                     return AsyncApiSpecificationParser.createOperationsFromAsyncApi(asyncApiData, specificationId);
 
                 default:
-                    return [];
+                    throw new Error(`Unsupported specification type ${specificationType} for ${file.name}`);
             }
         } catch (error) {
             console.error('[SpecificationProcessorService] Failed to create operations:', error);
-            return [];
+            throw error instanceof Error ? error : new Error('Failed to create operations');
+        }
+    }
+
+    private detectTypeByExtension(extension: string): ApiSpecificationType | null {
+        switch (extension.toLowerCase()) {
+            case '.wsdl':
+                return ApiSpecificationType.SOAP;
+            case '.graphql':
+            case '.gql':
+                return ApiSpecificationType.GRAPHQL;
+            case '.proto':
+                return ApiSpecificationType.GRPC;
+            default:
+                return null;
+        }
+    }
+
+    private isLikelyWsdlContent(extension: string, content: string): boolean {
+        if (extension.toLowerCase() === '.wsdl') {
+            return true;
+        }
+        const snippet = content.slice(0, 512).toLowerCase();
+        return snippet.includes('http://schemas.xmlsoap.org/wsdl') || snippet.includes('http://www.w3.org/ns/wsdl');
+    }
+
+    private isWsdlDependencyExtension(extension: string): boolean {
+        const normalized = extension.toLowerCase();
+        return normalized === '.xsd';
+    }
+
+    private tryParseStructuredContent(content: string): any | null {
+        try {
+            return JSON.parse(content);
+        } catch {
+            try {
+                return yaml.parse(content, { maxAliasCount: -1 });
+            } catch {
+                return null;
+            }
         }
     }
 

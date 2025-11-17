@@ -1,4 +1,6 @@
 import { Uri } from "vscode";
+import * as vscode from "vscode";
+import * as yaml from "yaml";
 import { fileApi } from "../response/file/fileApiProvider";
 
 /**
@@ -9,7 +11,6 @@ export class YamlFileUtils {
      * Save data as YAML file
      */
     static async saveYamlFile(fileUri: Uri, data: any): Promise<void> {
-        const yaml = require('yaml');
         const yamlContent = yaml.stringify(data);
         const bytes = new TextEncoder().encode(yamlContent);
         await fileApi.writeFile(fileUri, bytes);
@@ -20,7 +21,6 @@ export class YamlFileUtils {
      */
     static async saveYamlFileWithMessage(fileUri: Uri, data: any, successMessage: string): Promise<void> {
         await this.saveYamlFile(fileUri, data);
-        const vscode = require('vscode');
         vscode.window.showInformationMessage(successMessage);
     }
 }

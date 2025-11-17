@@ -1,4 +1,5 @@
 import { Uri } from "vscode";
+import * as yaml from "yaml";
 import { fileApi } from "../../response/file/fileApiProvider";
 
 /**
@@ -16,7 +17,6 @@ export class ContentParser {
         } catch (jsonError) {
             try {
                 // If JSON parsing fails, try YAML
-                const yaml = require('yaml');
                 return yaml.parse(content, { maxAliasCount: -1 });
             } catch (yamlError) {
                 console.error('[ContentParser] Error parsing content as both JSON and YAML:', { jsonError, yamlError });

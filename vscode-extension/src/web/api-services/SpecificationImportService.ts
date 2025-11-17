@@ -1,10 +1,11 @@
 import { Uri, window } from "vscode";
+import * as yaml from "yaml";
 import {
     ImportSpecificationResult,
     ImportSpecificationGroupRequest,
     SerializedFile,
 } from "./importApiTypes";
-import { SpecificationGroup, IntegrationSystem, IntegrationSystemType, Environment } from "./servicesTypes";
+import { SpecificationGroup, IntegrationSystem, IntegrationSystemType, Environment, Specification } from "./servicesTypes";
 import { ImportProgressTracker } from "./importProgressTracker";
 import { SpecificationGroupService } from "./SpecificationGroupService";
 import { SpecificationProcessorService, EnvironmentCandidate } from "./SpecificationProcessorService";
@@ -19,6 +20,8 @@ import { SpecificationValidator } from "./SpecificationValidator";
 import { ApiSpecificationType } from "./importApiTypes";
 import { normalizePath } from "./pathUtils";
 import type { EnvironmentRequest } from "./servicesTypes";
+import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
+import { ProtocolDetectorService } from "../services/ProtocolDetectorService";
 
 export class SpecificationImportService {
     private progressTracker: ImportProgressTracker;
@@ -41,165 +44,121 @@ export class SpecificationImportService {
      * Import specification group
      */
     async importSpecificationGroup(request: ImportSpecificationGroupRequest): Promise<ImportSpecificationResult> {
-        const importId = crypto.randomUUID();
+        const validationResult = await this.validateImportRequest(request);
+        if (!validationResult.isValid) {
+            throw new Error(`Invalid import request: ${validationResult.errors.join(', ')}`);
+        }
 
-        try {
-            const validationResult = await this.validateImportRequest(request);
-            if (!validationResult.isValid) {
-                throw new Error(`Invalid import request: ${validationResult.errors.join(', ')}`);
-            }
-            const system = await this.systemService.getSystemById(request.systemId);
-            if (!system) {
-                throw new Error(`System with id ${request.systemId} not found`);
-            }
+        const system = await this.systemService.getSystemById(request.systemId);
+        if (!system) {
+            throw new Error(`System with id ${request.systemId} not found`);
+        }
 
-            const extractedFiles = await this.convertSerializedFilesToFiles(request.files || []);
-            const importingProtocol = await this.detectImportingProtocol(extractedFiles);
-            const protocolName = importingProtocol ? importingProtocol.toUpperCase() : undefined;
-
-            if (importingProtocol) {
-                const systemProtocol = this.convertToApiSpecificationType(system.protocol);
-                const importProtocol = this.convertToApiSpecificationType(importingProtocol);
-                if (importProtocol) {
-                    try {
-                        SpecificationValidator.validateSpecificationProtocol(systemProtocol, importProtocol);
-                    } catch (error) {
-                        console.error(`[SpecificationImportService] Protocol validation failed:`, error);
-                        window.showErrorMessage(error instanceof Error ? error.message : 'Protocol validation failed');
-                        throw error;
-                    }
+        return this.runImport({
+            system,
+            systemId: request.systemId,
+            serializedFiles: request.files || [],
+            specificationGroupResolver: async (protocolName?: string) =>
+                this.specificationGroupService.createSpecificationGroup(system, request.name, protocolName),
+            afterImport: async (specificationGroup, extractedFiles) => {
+                try {
+                    await this.createEnvironmentForSpecificationGroup(system, specificationGroup, request.systemId, extractedFiles);
+                } catch (error) {
+                    console.error(`[SpecificationImportService] Error creating environment:`, error);
                 }
             }
-
-            const specificationGroup = await this.specificationGroupService.createSpecificationGroup(
-                system,
-                request.name,
-                protocolName
-            );
-            this.systemService.saveSystem(system);
-            this.progressTracker.startImportSession(importId, specificationGroup.id);
-
-            await this.specificationProcessorService.processSpecificationFiles(
-                specificationGroup,
-                extractedFiles,
-                request.systemId
-            );
-
-            await this.saveSpecificationFiles(request.systemId, specificationGroup, extractedFiles);
-
-            try {
-                await this.specificationGroupService.saveSpecificationGroupFile(
-                    request.systemId,
-                    specificationGroup
-                );
-            } catch (error) {
-                console.error(`[SpecificationImportService] Failed to save specification group file:`, error);
-                throw new Error(`Failed to save specification group file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            }
-
-            try {
-                await this.createEnvironmentForSpecificationGroup(
-                    system,
-                    specificationGroup,
-                    request.systemId,
-                    extractedFiles
-                );
-            } catch (error) {
-                console.error(`[SpecificationImportService] Error creating environment:`, error);
-            }
-
-            const result: ImportSpecificationResult = {
-                id: importId,
-                specificationGroupId: specificationGroup.id,
-                done: true
-            };
-
-
-            this.progressTracker.completeImportSession(importId, result);
-
-            return result;
-
-        } catch (error) {
-            const result: ImportSpecificationResult = {
-                id: importId,
-                specificationGroupId: '',
-                done: true,
-                warningMessage: error instanceof Error ? error.message : 'Unknown error'
-            };
-
-            this.progressTracker.failImportSession(importId, result.warningMessage || 'Unknown error');
-
-            return result;
-        }
+        });
     }
 
     /**
      * Import specification into existing group
      */
     async importSpecification(specificationGroupId: string, files: SerializedFile[], systemId: string): Promise<ImportSpecificationResult> {
+        const specificationGroup = await this.specificationGroupService.getSpecificationGroupById(specificationGroupId, systemId);
+        if (!specificationGroup) {
+            throw new Error(`Specification group with id ${specificationGroupId} not found`);
+        }
+
+        const system = await this.systemService.getSystemById(systemId);
+        if (!system) {
+            throw new Error(`System with id ${systemId} not found`);
+        }
+
+        return this.runImport({
+            system,
+            systemId,
+            serializedFiles: files,
+            specificationGroupResolver: async () => specificationGroup,
+            specificationGroupIdHint: specificationGroupId
+        });
+    }
+
+    private async runImport(params: {
+        system: IntegrationSystem;
+        systemId: string;
+        serializedFiles: SerializedFile[];
+        specificationGroupResolver: (protocolName?: string) => Promise<SpecificationGroup>;
+        afterImport?: (specificationGroup: SpecificationGroup, files: File[]) => Promise<void>;
+        specificationGroupIdHint?: string;
+    }): Promise<ImportSpecificationResult> {
         const importId = crypto.randomUUID();
+        let specificationGroupId = params.specificationGroupIdHint || '';
 
         try {
-            const specificationGroup = await this.specificationGroupService.getSpecificationGroupById(specificationGroupId, systemId);
-            if (!specificationGroup) {
-                throw new Error(`Specification group with id ${specificationGroupId} not found`);
+            const files = await this.convertSerializedFilesToFiles(params.serializedFiles || []);
+            const extractedFiles = await ProtocolDetectorService.extractArchives(files);
+            const importingProtocol = await this.detectImportingProtocol(extractedFiles);
+            if (!importingProtocol) {
+                const errorMessage = 'Unsupported specification format: unable to detect protocol';
+                window.showErrorMessage(errorMessage);
+                throw new Error(errorMessage);
             }
 
-            const system = await this.systemService.getSystemById(systemId);
-            if (!system) {
-                throw new Error(`System with id ${systemId} not found`);
-            }
+            const systemProtocol = this.convertToApiSpecificationType(params.system.protocol);
+            SpecificationValidator.validateSpecificationProtocol(systemProtocol, importingProtocol);
+            await this.ensureSystemProtocol(params.system, importingProtocol);
+
+            const specificationGroup = await params.specificationGroupResolver(importingProtocol);
+            specificationGroupId = specificationGroup.id;
 
             this.progressTracker.startImportSession(importId, specificationGroup.id);
 
-            const extractedFiles = await this.convertSerializedFilesToFiles(files);
-
-            const importingProtocol = await this.detectImportingProtocol(extractedFiles);
-            if (importingProtocol) {
-                const systemProtocol = this.convertToApiSpecificationType(system.protocol);
-                const importProtocol = this.convertToApiSpecificationType(importingProtocol);
-                if (importProtocol) {
-                    try {
-                        SpecificationValidator.validateSpecificationProtocol(systemProtocol, importProtocol);
-                    } catch (error) {
-                        console.error(`[SpecificationImportService] Protocol validation failed:`, error);
-                        window.showErrorMessage(error instanceof Error ? error.message : 'Protocol validation failed');
-                        throw error;
-                    }
-                }
-            }
+            const contentCache = new Map<string, Promise<string>>();
 
             await this.specificationProcessorService.processSpecificationFiles(
                 specificationGroup,
                 extractedFiles,
-                systemId
+                params.systemId,
+                contentCache
             );
 
-            await this.saveSpecificationFiles(systemId, specificationGroup, extractedFiles);
-            await this.specificationGroupService.saveSpecificationGroupFile(systemId, specificationGroup);
+            await this.saveSpecificationFiles(params.systemId, specificationGroup, extractedFiles, contentCache);
+            await this.specificationGroupService.saveSpecificationGroupFile(params.systemId, specificationGroup);
+
+            if (params.afterImport) {
+                await params.afterImport(specificationGroup, extractedFiles);
+            }
 
             const result: ImportSpecificationResult = {
                 id: importId,
-                specificationGroupId: specificationGroup.id,
+                specificationGroupId,
                 done: true
             };
 
             this.progressTracker.completeImportSession(importId, result);
-
             return result;
-
         } catch (error) {
             console.error(`[SpecificationImportService] Specification import failed:`, error);
-
+            const warningMessage = this.buildImportErrorMessage(error);
+            window.showErrorMessage(warningMessage);
             const result: ImportSpecificationResult = {
                 id: importId,
-                specificationGroupId: specificationGroupId,
+                specificationGroupId,
                 done: true,
-                warningMessage: error instanceof Error ? error.message : 'Unknown error'
+                warningMessage: warningMessage
             };
 
-            this.progressTracker.failImportSession(importId, result.warningMessage || 'Unknown error');
-
+            this.progressTracker.failImportSession(importId, warningMessage);
             return result;
         }
     }
@@ -274,42 +233,40 @@ export class SpecificationImportService {
     /**
      * Detect importing protocol from files
      */
-    private async detectImportingProtocol(files: File[]): Promise<string | null> {
-        try {
-            for (const file of files) {
-                const content = await this.readFileContent(file);
-                if (!content) {
-                    continue;
-                }
-
-                try {
-                    const specData = ContentParser.parseContent(content);
-                    const protocol = this.specificationProcessorService.detectProtocolFromSpecification(specData);
-                    if (protocol) {
-                        return protocol;
-                    }
-                } catch (parseError) {
+    private async detectImportingProtocol(files: File[]): Promise<ApiSpecificationType | null> {
+        let fallbackProtocol: ApiSpecificationType | null = null;
+        for (const file of files) {
+            const extension = this.getFileExtension(file.name);
+            const extensionBasedProtocol = this.detectProtocolByExtension(extension);
+            if (extensionBasedProtocol) {
+                if (extensionBasedProtocol === ApiSpecificationType.ASYNC) {
+                    fallbackProtocol = fallbackProtocol ?? ApiSpecificationType.ASYNC;
+                } else {
+                    return extensionBasedProtocol;
                 }
             }
 
-            for (const file of files) {
-                const fileName = file.name.toLowerCase();
-                if (fileName.includes('openapi') || fileName.includes('swagger')) {
-                    return 'http';
-                } else if (fileName.includes('graphql')) {
-                    return 'graphql';
-                } else if (fileName.includes('proto')) {
-                    return 'grpc';
-                } else if (fileName.includes('wsdl')) {
-                    return 'soap';
-                }
+            const content = await this.readFileContent(file);
+            if (!content) {
+                continue;
             }
 
-            return 'http';
+            if (this.isWsdlContent(extension, content)) {
+                return ApiSpecificationType.SOAP;
+            }
 
-        } catch (error) {
-            return null;
+            const parsedContent = this.safeParseContent(content);
+            if (!parsedContent) {
+                continue;
+            }
+
+            const protocolFromContent = this.detectProtocolFromParsedContent(parsedContent);
+            if (protocolFromContent) {
+                return protocolFromContent;
+            }
         }
+
+        return fallbackProtocol;
     }
 
     /**
@@ -318,7 +275,8 @@ export class SpecificationImportService {
     private async saveSpecificationFiles(
         systemId: string,
         specificationGroup: SpecificationGroup,
-        extractedFiles: File[]
+        extractedFiles: File[],
+        contentCache?: Map<string, Promise<string>>
     ): Promise<void> {
         try {
             const baseFolder = await this.getBaseFolder();
@@ -328,7 +286,7 @@ export class SpecificationImportService {
 
             for (let i = 0; i < specificationGroup.specifications.length; i++) {
                 const specification = specificationGroup.specifications[i];
-                const sourceFile = extractedFiles[i];
+                const sourceFile = this.resolveSpecificationSourceFile(specification, extractedFiles);
 
                 if (!sourceFile) {
                     console.warn(`[SpecificationImportService] No source file found for specification: ${specification.name}`);
@@ -350,10 +308,10 @@ export class SpecificationImportService {
                         version: specification.version,
                         source: "MANUAL",
                         operations: specification.operations || [],
-                        specificationSources: await Promise.all(extractedFiles.map(async (file, index) => ({
+                        specificationSources: await Promise.all(extractedFiles.map(async (file) => ({
                             id: crypto.randomUUID(),
                             name: file.name,
-                            sourceHash: this.calculateHash(await this.readFileContent(file)),
+                            sourceHash: this.calculateHash(await this.getFileContentCached(file, contentCache)),
                             fileName: `source-${specification.id}/${file.name}`,
                             mainSource: file === sourceFile
                         }))),
@@ -362,7 +320,6 @@ export class SpecificationImportService {
                     }
                 };
 
-                const yaml = require('yaml');
                 // Disable anchors to avoid "Excessive alias count" error when parsing large specifications
                 const yamlContent = yaml.stringify(qipSpecification, {
                     aliasDuplicateObjects: false
@@ -371,13 +328,13 @@ export class SpecificationImportService {
                 await fileApi.writeFile(specFileUri, bytes);
 
                 // Copy source file and additional files to resources folder
-                await this.copySourceFileToResources(baseFolder, specification.id, sourceFile);
+                await this.copySourceFileToResources(baseFolder, specification.id, sourceFile, contentCache);
 
                 // Copy additional files (like XSD for SOAP)
                 if (extractedFiles.length > 1) {
                     const additionalFiles = extractedFiles.filter(f => f !== sourceFile);
                     for (const additionalFile of additionalFiles) {
-                        await this.copySourceFileToResources(baseFolder, specification.id, additionalFile);
+                        await this.copySourceFileToResources(baseFolder, specification.id, additionalFile, contentCache);
                     }
                 }
             }
@@ -394,7 +351,8 @@ export class SpecificationImportService {
     private async copySourceFileToResources(
         baseFolder: Uri,
         specificationId: string,
-        sourceFile: File
+        sourceFile: File,
+        contentCache?: Map<string, Promise<string>>
     ): Promise<void> {
         try {
             const resourcesFolder = Uri.joinPath(baseFolder, 'resources');
@@ -402,7 +360,7 @@ export class SpecificationImportService {
             const sourceFolder = Uri.joinPath(resourcesFolder, sourceFolderName);
 
             const targetFileUri = Uri.joinPath(sourceFolder, sourceFile.name);
-            const fileContent = await this.readFileContent(sourceFile);
+            const fileContent = await this.getFileContentCached(sourceFile, contentCache);
             const bytes = new TextEncoder().encode(fileContent || '');
 
             await fileApi.writeFile(targetFileUri, bytes);
@@ -417,6 +375,47 @@ export class SpecificationImportService {
      */
     private async readFileContent(file: File): Promise<string> {
         return await file.text();
+    }
+
+    private async getFileContentCached(file: File, cache?: Map<string, Promise<string>>): Promise<string> {
+        if (!cache) {
+            return this.readFileContent(file);
+        }
+        const key = normalizePath(file.name);
+        if (!cache.has(key)) {
+            cache.set(key, file.text());
+        }
+        return cache.get(key)!;
+    }
+
+    private async ensureSystemProtocol(system: IntegrationSystem, protocol: ApiSpecificationType): Promise<void> {
+        const protocolChanged = this.syncSystemProtocol(system, protocol);
+        if (!protocolChanged) {
+            return;
+        }
+        console.log(`[SpecificationImportService] Updating system protocol`, {
+            systemId: system.id,
+            protocol: system.protocol,
+            extendedProtocol: system.extendedProtocol
+        });
+        await this.systemService.saveSystem(system);
+    }
+
+    private syncSystemProtocol(system: IntegrationSystem, protocol: ApiSpecificationType): boolean {
+        if (!protocol) {
+            return false;
+        }
+        const normalizedProtocol = protocol.toString().toUpperCase();
+        let changed = false;
+        if (system.protocol?.toUpperCase() !== normalizedProtocol) {
+            system.protocol = normalizedProtocol;
+            changed = true;
+        }
+        if (system.extendedProtocol?.toUpperCase() !== normalizedProtocol) {
+            system.extendedProtocol = normalizedProtocol;
+            changed = true;
+        }
+        return changed;
     }
 
     /**
@@ -449,6 +448,18 @@ export class SpecificationImportService {
         return Math.abs(hash).toString(16);
     }
 
+    private resolveSpecificationSourceFile(specification: Specification, files: File[]): File | undefined {
+        if (specification.source) {
+            const normalizedSource = normalizePath(specification.source);
+            const matched = files.find((file) => normalizePath(file.name) === normalizedSource);
+            if (matched) {
+                return matched;
+            }
+        }
+
+        return files[0];
+    }
+
     /**
      * Create environment for specification group
      * Based on the old implementation but without protocol filtering
@@ -461,24 +472,27 @@ export class SpecificationImportService {
     ): Promise<void> {
         try {
             const specData = await this.extractSpecificationData(files);
-            const candidates = specData ? this.specificationProcessorService.extractEnvironmentCandidates(specData) : [];
+            const rawCandidates = specData ? this.specificationProcessorService.extractEnvironmentCandidates(specData) : [];
+            const candidates = rawCandidates.length > 0
+                ? rawCandidates
+                : this.buildGrpcFallbackCandidates(system, specificationGroup);
             if (candidates.length === 0) {
                 return;
             }
 
             const systemType = system.integrationSystemType || system.type;
             const existingEnvironments = await this.environmentService.getEnvironmentsForSystem(systemId);
-            const existingAddresses = new Set(
-                existingEnvironments
-                    .map((env) => this.normalizeEnvironmentAddress(env.address))
-                    .filter((value): value is string => Boolean(value))
-                    .map((value) => value.toLowerCase())
-            );
+            const existingAddresses = this.buildExistingAddressSet(existingEnvironments);
 
             if (systemType === IntegrationSystemType.EXTERNAL) {
-                await this.createEnvironmentsForExternalSystem(candidates, specificationGroup, systemId, existingAddresses);
+                await this.createEnvironmentsForExternalSystem(
+                    candidates,
+                    specificationGroup,
+                    systemId,
+                    existingAddresses
+                );
             } else {
-                await this.applyInternalEnvironmentStrategy(
+                await this.ensureInternalEnvironment(
                     candidates,
                     specificationGroup,
                     systemId,
@@ -539,29 +553,21 @@ export class SpecificationImportService {
         for (let index = 0; index < candidates.length; index++) {
             const candidate = candidates[index];
             const normalizedAddress = this.normalizeEnvironmentAddress(candidate.address);
-            if (!normalizedAddress) {
-                continue;
-            }
-            const addressKey = normalizedAddress.toLowerCase();
-            if (existingAddresses.has(addressKey)) {
+            if (!normalizedAddress || this.isDuplicateAddress(existingAddresses, normalizedAddress)) {
                 continue;
             }
 
-            const environmentRequest: EnvironmentRequest = {
-                name: this.buildEnvironmentName(specificationGroup.name, candidate, normalizedAddress, index),
-                address: normalizedAddress,
-                description: this.buildEnvironmentDescription(specificationGroup.name),
+            const environmentRequest = this.buildEnvironmentRequest(specificationGroup.name, candidate, normalizedAddress, index);
+            await this.environmentService.createEnvironment({
+                ...environmentRequest,
                 systemId,
                 isActive: existingAddresses.size === 0 && index === 0
-            };
-
-            const environment = await this.environmentService.createEnvironment(environmentRequest);
-            existingAddresses.add(addressKey);
-
+            });
+            existingAddresses.add(normalizedAddress.toLowerCase());
         }
     }
 
-    private async applyInternalEnvironmentStrategy(
+    private async ensureInternalEnvironment(
         candidates: EnvironmentCandidate[],
         specificationGroup: SpecificationGroup,
         systemId: string,
@@ -574,16 +580,15 @@ export class SpecificationImportService {
             return;
         }
 
-        const addressKey = normalizedAddress.toLowerCase();
-        if (existingAddresses.has(addressKey)) {
+        if (this.isDuplicateAddress(existingAddresses, normalizedAddress)) {
             return;
         }
 
+        const environmentRequest = this.buildEnvironmentRequest(specificationGroup.name, primaryCandidate, normalizedAddress, 0);
+
         if (existingEnvironments.length === 0) {
             await this.environmentService.createEnvironment({
-                name: this.buildEnvironmentName(specificationGroup.name, primaryCandidate, normalizedAddress, 0),
-                address: normalizedAddress,
-                description: this.buildEnvironmentDescription(specificationGroup.name),
+                ...environmentRequest,
                 systemId,
                 isActive: true
             });
@@ -594,10 +599,60 @@ export class SpecificationImportService {
         const currentAddress = this.normalizeEnvironmentAddress(targetEnvironment.address);
         if (!currentAddress) {
             await this.environmentService.updateEnvironment(systemId, targetEnvironment.id, {
-                name: this.buildEnvironmentName(specificationGroup.name, primaryCandidate, normalizedAddress, 0),
-                address: normalizedAddress
+                name: environmentRequest.name,
+                address: normalizedAddress,
+                sourceType: environmentRequest.sourceType,
+                properties: environmentRequest.properties
             });
         }
+    }
+
+    private buildExistingAddressSet(environments: Environment[]): Set<string> {
+        return new Set(
+            environments
+                .map((env) => this.normalizeEnvironmentAddress(env.address))
+                .filter((value): value is string => Boolean(value))
+                .map((value) => value.toLowerCase())
+        );
+    }
+
+    private isDuplicateAddress(existing: Set<string>, address: string): boolean {
+        return existing.has(address.toLowerCase());
+    }
+
+    private buildEnvironmentRequest(
+        specificationGroupName: string,
+        candidate: EnvironmentCandidate,
+        normalizedAddress: string,
+        index: number
+    ): EnvironmentRequest {
+        return {
+            name: this.buildEnvironmentName(specificationGroupName, candidate, normalizedAddress, index),
+            address: normalizedAddress,
+            description: this.buildEnvironmentDescription(specificationGroupName),
+            sourceType: this.resolveEnvironmentSourceType(candidate.protocol),
+            properties: this.resolveEnvironmentProperties(candidate.protocol)
+        };
+    }
+
+    private resolveEnvironmentSourceType(protocol?: string): string {
+        const normalized = protocol?.toUpperCase();
+        if (normalized === 'MAAS' || normalized === 'MAAS_BY_CLASSIFIER') {
+            return 'MAAS_BY_CLASSIFIER';
+        }
+        return 'MANUAL';
+    }
+
+    private resolveEnvironmentProperties(protocol?: string): Record<string, string> | undefined {
+        const normalized = protocol?.toUpperCase();
+        if (normalized === 'MAAS' || normalized === 'MAAS_BY_CLASSIFIER') {
+            return {};
+        }
+        if (!protocol) {
+        return undefined;
+        }
+        const defaults = EnvironmentDefaultProperties.getDefaultProperties(protocol);
+        return Object.keys(defaults).length > 0 ? defaults : undefined;
     }
 
     private buildEnvironmentName(
@@ -616,6 +671,23 @@ export class SpecificationImportService {
 
     private buildEnvironmentDescription(specificationGroupName: string): string {
         return `Environment created for ${specificationGroupName} specification group`;
+    }
+
+    private buildGrpcFallbackCandidates(
+        system: IntegrationSystem,
+        specificationGroup: SpecificationGroup
+    ): EnvironmentCandidate[] {
+        const protocol = system.protocol?.toLowerCase();
+        if (protocol !== 'grpc') {
+            return [];
+        }
+        return [
+            {
+                name: `${specificationGroup.name} gRPC endpoint`,
+                address: 'grpc://localhost:50051',
+                protocol: 'GRPC'
+            }
+        ];
     }
 
     private normalizeEnvironmentAddress(address: string | undefined | null): string | null {
@@ -662,7 +734,114 @@ export class SpecificationImportService {
             case 'ASYNCAPI':
                 return ApiSpecificationType.ASYNC;
             default:
+                return undefined;
+        }
+    }
+
+    private buildImportErrorMessage(error: unknown): string {
+        const rawMessage = error instanceof Error ? error.message : (error ? String(error) : 'Unknown error');
+        if (!rawMessage) {
+            return 'Unsupported specification format: unable to detect protocol';
+        }
+        if (/unsupported protocol/i.test(rawMessage) || /protocol:\s*null/i.test(rawMessage)) {
+            return 'Unsupported specification format: unable to detect protocol';
+        }
+        return rawMessage;
+    }
+
+    private detectProtocolByExtension(extension: string): ApiSpecificationType | null {
+        switch (extension) {
+            case '.wsdl':
+                return ApiSpecificationType.SOAP;
+            case '.graphql':
+            case '.gql':
+                return ApiSpecificationType.GRAPHQL;
+            case '.proto':
+                return ApiSpecificationType.GRPC;
+            default:
+                return null;
+        }
+    }
+
+    private detectProtocolFromParsedContent(parsed: unknown): ApiSpecificationType | null {
+        if (!parsed || typeof parsed !== 'object') {
+            return null;
+        }
+
+        const specData = parsed as Record<string, unknown>;
+
+        if (specData.openapi || specData.swagger) {
+            return ApiSpecificationType.HTTP;
+        }
+
+        if (specData.type === 'WSDL') {
+            return ApiSpecificationType.SOAP;
+        }
+
+        if (specData.asyncapi) {
+            const asyncProtocol = this.extractAsyncProtocol(specData);
+            return this.resolveAsyncProtocol(asyncProtocol);
+        }
+
+        return null;
+    }
+
+    private extractAsyncProtocol(specData: Record<string, unknown>): string | undefined {
+        const infoProtocol = (specData.info as Record<string, unknown> | undefined)?.['x-protocol'];
+        if (typeof infoProtocol === 'string') {
+            return infoProtocol;
+        }
+
+        const servers = specData.servers;
+        if (servers && typeof servers === 'object') {
+            const serverList = Object.values(servers as Record<string, unknown>);
+            for (const server of serverList) {
+                const protocol = (server as Record<string, unknown>)?.protocol;
+                if (typeof protocol === 'string') {
+                    return protocol;
+                }
+            }
+        }
+
+        return undefined;
+    }
+
+    private resolveAsyncProtocol(protocol: string | undefined): ApiSpecificationType {
+        if (!protocol) {
+            return ApiSpecificationType.ASYNC;
+        }
+        const normalized = protocol.trim().toUpperCase();
+        switch (normalized) {
+            case 'AMQP':
+            case 'RABBITMQ':
+                return ApiSpecificationType.AMQP;
+            case 'MQTT':
+                return ApiSpecificationType.MQTT;
+            case 'KAFKA':
+                return ApiSpecificationType.KAFKA;
+            case 'REDIS':
+                return ApiSpecificationType.REDIS;
+            case 'NATS':
+                return ApiSpecificationType.NATS;
+            case 'SOAP':
+                return ApiSpecificationType.SOAP;
+            case 'HTTP':
+            case 'HTTPS':
                 return ApiSpecificationType.HTTP;
+            default:
+                return ApiSpecificationType.ASYNC;
+        }
+    }
+
+    private safeParseContent(content: string): any | null {
+        try {
+            return JSON.parse(content);
+        } catch {
+            try {
+                return yaml.parse(content, { maxAliasCount: -1 });
+            } catch {
+                return null;
+            }
         }
     }
 
@@ -695,7 +874,7 @@ export class SpecificationImportService {
             if (candidatePath === mainPath) {
                 continue;
             }
-            const extension = this.getFileExtension(candidate.name);
+            const extension = this.getFileExtension(candidate.name).toLowerCase();
             if (!['.wsdl', '.xsd'].includes(extension)) {
                 continue;
             }
@@ -708,6 +887,12 @@ export class SpecificationImportService {
             } catch (error) {
                 console.error(`[SpecificationImportService] Error reading WSDL dependency ${candidate.name}:`, error);
             }
+        }
+
+        if (documents.length === 0) {
+            console.log('[SpecificationImportService] No WSDL dependencies detected for', mainPath);
+        } else {
+            console.log('[SpecificationImportService] Resolved WSDL dependencies for', mainPath, documents.map(({ uri }) => uri));
         }
 
         return documents;
