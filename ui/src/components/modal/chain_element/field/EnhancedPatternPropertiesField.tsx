@@ -5,6 +5,12 @@ import styles from "./EnhancedPatternPropertiesField.module.css";
 import { Icon } from "../../../../IconProvider.tsx";
 import { FormContext } from "../ChainElementModification";
 import { api } from "../../../../api/api";
+import {
+  isAmqpProtocol,
+  isAsyncProtocol,
+  isKafkaProtocol,
+  normalizeProtocol,
+} from "../../../../misc/protocol-utils";
 
 type ParamType = 'path' | 'query' | 'additional' | 'async' | 'custom';
 
@@ -119,10 +125,9 @@ function parseOpenAPIParameters(spec: OperationSpecFragment, paramType: ParamTyp
 }
 
 function parseAsyncAPIParameters(protocolType?: string): ParameterMetadata[] {
-  const normalizedProtocol = protocolType?.toLowerCase();
   const params: ParameterMetadata[] = [];
 
-  if (normalizedProtocol === 'kafka' || normalizedProtocol === 'amqp') {
+  if (isKafkaProtocol(protocolType) || isAmqpProtocol(protocolType)) {
     params.push({
       name: 'maas.classifier.name',
       required: false,
@@ -130,7 +135,7 @@ function parseAsyncAPIParameters(protocolType?: string): ParameterMetadata[] {
     });
   }
 
-  if (normalizedProtocol === 'kafka') {
+  if (isKafkaProtocol(protocolType)) {
     params.push({
       name: 'topic',
       required: false,
@@ -143,7 +148,7 @@ function parseAsyncAPIParameters(protocolType?: string): ParameterMetadata[] {
     });
   }
 
-  if (normalizedProtocol === 'amqp') {
+  if (isAmqpProtocol(protocolType)) {
     params.push({
       name: 'exchange',
       required: false,
@@ -224,9 +229,12 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
 
   const title = useMemo(() => {
     if (paramType === 'async') {
-      const protocolType = formContext?.integrationOperationProtocolType?.toLowerCase();
+      const protocolType = normalizeProtocol(
+        formContext?.integrationOperationProtocolType,
+      );
       if (protocolType) {
-        const protocolName = protocolType.charAt(0).toUpperCase() + protocolType.slice(1);
+        const protocolName =
+          protocolType.charAt(0).toUpperCase() + protocolType.slice(1);
         return `${protocolName} Parameters`;
       }
     }
@@ -238,7 +246,9 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
 
   const loadOperationSpecification = useCallback(async () => {
     const operationId = formContext?.integrationOperationId;
-    const protocolType = formContext?.integrationOperationProtocolType?.toLowerCase();
+    const protocolType = normalizeProtocol(
+      formContext?.integrationOperationProtocolType,
+    );
 
     if (!operationId) {
       setSpecParameters([]);
@@ -251,7 +261,11 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     try {
       const response = await api.getOperationInfo(operationId);
       const specFragment = toOperationSpecFragment(extractSpecification(response));
-      const params = parseParametersFromSpec(specFragment, paramType, protocolType);
+      const params = parseParametersFromSpec(
+        specFragment,
+        paramType,
+        protocolType ?? undefined,
+      );
       setSpecParameters(params);
       setLoadedSpec(specFragment);
       setLoadedSpecOperationId(operationId);
@@ -337,41 +351,43 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       return;
     }
 
-    const protocolType = formContext?.integrationOperationProtocolType?.toLowerCase();
+    const protocolType = normalizeProtocol(
+      formContext?.integrationOperationProtocolType,
+    );
     const updates: Record<string, string> = {};
 
-    if (protocolType === 'kafka' && !formData['topic'] && !isMaasEnvironment) {
+    if (isKafkaProtocol(protocolType) && !formData['topic'] && !isMaasEnvironment) {
       const topicValue = loadedSpec.topic ?? loadedSpec.channel;
       if (topicValue) {
         updates['topic'] = topicValue;
       }
     }
 
-    if (protocolType === 'amqp' && loadedSpec.exchange && !formData['exchange']) {
+    if (isAmqpProtocol(protocolType) && loadedSpec.exchange && !formData['exchange']) {
       updates['exchange'] = loadedSpec.exchange;
     }
 
-    if (protocolType === 'amqp' && !formData['queues']) {
+    if (isAmqpProtocol(protocolType) && !formData['queues']) {
       const queuesValue = loadedSpec.queues || loadedSpec.queue;
       if (queuesValue) {
         updates['queues'] = queuesValue;
       }
     }
 
-    if (protocolType === 'kafka' || protocolType === 'amqp') {
+    if (isKafkaProtocol(protocolType) || isAmqpProtocol(protocolType)) {
       const classifierName = loadedSpec?.maasClassifierName;
       if (isMaasEnvironment && classifierName) {
         updates['maas.classifier.name'] = classifierName;
       } else if (!formData['maas.classifier.name']) {
         if (classifierName) {
           updates['maas.classifier.name'] = classifierName;
-        } else if (protocolType === 'amqp') {
+        } else if (isAmqpProtocol(protocolType)) {
           updates['maas.classifier.name'] = 'public';
         }
       }
     }
 
-    if (protocolType === 'kafka' && !formData['groupId'] && loadedSpec?.groupId) {
+    if (isKafkaProtocol(protocolType) && !formData['groupId'] && loadedSpec?.groupId) {
       updates['groupId'] = loadedSpec.groupId;
     }
 

@@ -38,6 +38,7 @@ import { capitalize } from "../../misc/format-utils.ts";
 import { exportAsJsonSchema } from "../../mapper/json-schema/json-schema.ts";
 import { api } from "../../api/api.ts";
 import { Icon } from "../../IconProvider.tsx";
+import { normalizeProtocol } from "../../misc/protocol-utils.ts";
 
 function buildGraphQLOperations(schemaText: string, queryText: string) {
   const operations: GraphQLOperationInfo[] = [];
@@ -188,8 +189,8 @@ function isOperationSet(element: Element): boolean {
 
 function isConfiguredGraphQLServiceCallElement(element: Element): boolean {
   return (
-    typeof element.properties?.["integrationOperationProtocolType"] === "string" &&
-    element.properties?.["integrationOperationProtocolType"]?.toLowerCase() === "graphql" &&
+    normalizeProtocol(element.properties?.["integrationOperationProtocolType"]) ===
+      "graphql" &&
     !!element.properties?.["integrationSystemId"] &&
     !!element.properties?.["integrationSpecificationId"] &&
     !!element.properties?.["integrationGqlQuery"]

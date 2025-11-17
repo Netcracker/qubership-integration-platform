@@ -31,13 +31,18 @@ import { LibraryProvider } from "../components/LibraryContext.tsx";
 import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
 import { ElkDirectionContextProvider } from "./ElkDirectionContext.tsx";
 import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
-import { CreateDeploymentRequest, DiagramMode } from "../api/apiTypes.ts";
+import {
+  CreateDeploymentRequest,
+  DiagramMode,
+  Element,
+} from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
 import { useLibraryContext } from "../components/LibraryContext.tsx";
 import { ChainContext } from "./ChainPage.tsx";
 import {
+  ChainGraphNode,
   ChainGraphNodeData,
   nodeTypes,
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
@@ -57,7 +62,6 @@ const ChainGraphInner: React.FC = () => {
   const refreshChain = useCallback(async () => {
     if (!chainContext?.refresh) return;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       await chainContext.refresh();
     } catch (err) {
       notificationService.requestFailed("Failed to refresh chain", err);
@@ -81,6 +85,14 @@ const ChainGraphInner: React.FC = () => {
     updateNodeData,
     isLoading,
   } = useChainGraph(chainId, refreshChain);
+
+  const handleElementUpdated = useCallback(
+    (element: Element, node: ChainGraphNode) => {
+      updateNodeData(element, node);
+      void refreshChain();
+    },
+    [updateNodeData, refreshChain],
+  );
 
   const onNodeDoubleClick = (
     _event: MouseEvent,
@@ -115,7 +127,7 @@ const ChainGraphInner: React.FC = () => {
               node={node}
               chainId={chainId!}
               elementId={node.id}
-              onSubmit={updateNodeData}
+              onSubmit={handleElementUpdated}
               onClose={clearElementPath}
             />
           </ChainContext.Provider>
@@ -129,7 +141,7 @@ const ChainGraphInner: React.FC = () => {
       clearElementPath,
       setElementPath,
       showModal,
-      updateNodeData,
+      handleElementUpdated,
     ],
   );
 

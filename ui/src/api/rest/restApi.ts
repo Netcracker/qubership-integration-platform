@@ -65,6 +65,7 @@ import {
   TransferElementRequest,
   Element,
   SystemOperation,
+  SpecApiFile,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
@@ -1329,5 +1330,13 @@ export class RestApi implements Api {
       },
     );
     return response.data;
+  };
+
+  getSpecApiFiles = async (): Promise<SpecApiFile[]> => {
+    return [];
+  };
+
+  readSpecificationFileContent = async (): Promise<string> => {
+    throw new Error("Method readSpecificationFileContent not implemented in RestApi");
   };
 }

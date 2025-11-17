@@ -58,6 +58,7 @@ import {
   TransferElementRequest,
   Element,
   SystemOperation,
+  SpecApiFile,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -412,6 +413,13 @@ export interface Api {
     specificationGroupId: string,
     httpTriggerIds: string[],
   ): Promise<void>;
+
+  getSpecApiFiles(): Promise<SpecApiFile[]>;
+
+  readSpecificationFileContent(
+    fileUri: string,
+    specificationFilePath: string
+  ): Promise<string>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

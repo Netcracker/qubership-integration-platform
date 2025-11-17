@@ -12,8 +12,14 @@ import { useNotificationService } from "../../hooks/useNotificationService";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useLocation } from "react-router-dom";
 import { Icon } from "../../IconProvider.tsx";
-import {environmentLabels} from "./utils.tsx";
+import { environmentLabels } from "./utils.tsx";
 import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
+import {
+  isAmqpProtocol,
+  isKafkaProtocol,
+  isHttpProtocol,
+  normalizeProtocol,
+} from "../../misc/protocol-utils";
 
 interface ServiceEnvironmentsTabProps {
   formatTimestamp: (val: number) => string;
@@ -25,7 +31,8 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   setSystem,
 }) => {
   const system = useServiceContext();
-  const protocol = system?.protocol || '';
+  const protocol = system?.protocol || "";
+  const normalizedProtocol = normalizeProtocol(protocol);
   const systemId = system?.id || "";
   const activeEnvironmentId = system?.activeEnvironmentId;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -42,51 +49,56 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   const notificationService = useNotificationService();
   const location = useLocation();
 
-  const getDefaultProperties = useCallback((protocol: string, sourceType: EnvironmentSourceType) => {
-    if (sourceType === EnvironmentSourceType.MANUAL) {
-      const proto = protocol.toLowerCase();
-      if (proto === 'amqp' || proto === 'rabbit') {
-        return {
-          password: '',
-          username: '',
-          routingKey: '',
-          acknowledgeMode: 'AUTO',
-        };
+  const getDefaultProperties = useCallback(
+    (protocol: string, sourceType: EnvironmentSourceType) => {
+      const normalized = normalizeProtocol(protocol);
+
+      if (sourceType === EnvironmentSourceType.MANUAL) {
+        if (isAmqpProtocol(normalized)) {
+          return {
+            password: "",
+            username: "",
+            routingKey: "",
+            acknowledgeMode: "AUTO",
+          };
+        }
+        if (isKafkaProtocol(normalized)) {
+          return {
+            key: "",
+            sslProtocol: "",
+            saslMechanism: "",
+            saslJaasConfig: "",
+            securityProtocol: "",
+            sslEnabledProtocols: "",
+            sslEndpointAlgorithm: "",
+          };
+        }
+        if (normalized === "http") {
+          return {
+            connectTimeout: "120000",
+            soTimeout: "120000",
+            connectionRequestTimeout: "120000",
+            responseTimeout: "120000",
+            getWithBody: "false",
+            deleteWithBody: "false",
+          };
+        }
       }
-      if (proto === 'kafka') {
-        return {
-          key: '',
-          sslProtocol: '',
-          saslMechanism: '',
-          saslJaasConfig: '',
-          securityProtocol: '',
-          sslEnabledProtocols: '',
-          sslEndpointAlgorithm: '',
-        };
+
+      if (sourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER) {
+        if (isAmqpProtocol(normalized)) {
+          return {
+            routingKey: "",
+            acknowledgeMode: "AUTO",
+          };
+        }
+        return {};
       }
-      if (proto === 'http') {
-        return {
-          connectTimeout: '120000',
-          soTimeout: '120000',
-          connectionRequestTimeout: '120000',
-          responseTimeout: '120000',
-          getWithBody: 'false',
-          deleteWithBody: 'false',
-        };
-      }
-    }
-    if (sourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER) {
-      const proto = protocol.toLowerCase();
-      if (proto === 'amqp' || proto === 'rabbit') {
-        return {
-          routingKey: '',
-          acknowledgeMode: 'AUTO',
-        };
-      }
+
       return {};
-    }
-    return {};
-  }, []);
+    },
+    [],
+  );
 
   const defaultNewEnv: Environment = {
     id: '',
@@ -94,7 +106,10 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
     name: 'New Environment',
     address: '',
     labels: [],
-    properties: getDefaultProperties(protocol, EnvironmentSourceType.MANUAL),
+    properties: getDefaultProperties(
+      normalizedProtocol ?? "",
+      EnvironmentSourceType.MANUAL,
+    ),
     sourceType: EnvironmentSourceType.MANUAL,
   };
 

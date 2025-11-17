@@ -94,6 +94,17 @@
   margin: 0;
 }
 
+.lockedTag {
+  font-size: 10px;
+  padding: 0 4px;
+  height: 16px;
+  line-height: 14px;
+  background-color: #f0f5ff;
+  border: 1px solid #adc6ff;
+  color: #2f54eb;
+  margin: 0;
+}
+
 .actions {
   display: flex;
   gap: 4px;

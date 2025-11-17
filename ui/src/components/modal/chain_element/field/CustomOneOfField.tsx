@@ -1,7 +1,11 @@
-import React from 'react';
-import { FieldProps, RJSFSchema } from '@rjsf/utils';
-import { FormContext } from '../ChainElementModification';
-import OriginalMultiSchemaField from '@rjsf/core/lib/components/fields/MultiSchemaField';
+import React from "react";
+import { FieldProps, RJSFSchema } from "@rjsf/utils";
+import { FormContext } from "../ChainElementModification";
+import OriginalMultiSchemaField from "@rjsf/core/lib/components/fields/MultiSchemaField";
+import {
+  isHttpProtocol,
+  normalizeProtocol,
+} from "../../../../misc/protocol-utils";
 
 interface OneOfOption {
   properties?: {
@@ -34,19 +38,17 @@ const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema,
       const value =
         context?.integrationOperationProtocolType ??
         (formData as Record<string, unknown>)?.integrationOperationProtocolType;
-      return typeof value === "string" ? value.toLowerCase() : undefined;
+      return normalizeProtocol(value);
     })();
 
-    if (protocolType === 'grpc') {
+    if (protocolType === "grpc") {
       const SchemaField = fields.SchemaField;
       return (
         <SchemaField
           {...props}
           schema={{
             type: 'object',
-            properties: {
-              synchronous: { type: 'boolean', title: 'Synchronous' },
-            },
+            properties: {},
           }}
           uiSchema={uiSchema}
         />
@@ -54,10 +56,12 @@ const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema,
     }
 
     const matchingIndex = oneOfOptions.findIndex((option: OneOfOption) => {
-      const protocolConst: string | undefined = option?.properties?.integrationOperationProtocolType?.const?.toLowerCase();
+      const protocolConst = normalizeProtocol(
+        option?.properties?.integrationOperationProtocolType?.const,
+      );
 
       if (protocolType) {
-        if (protocolType === 'http' || protocolType === 'soap') {
+        if (isHttpProtocol(protocolType)) {
           return Array.isArray(option?.oneOf) || protocolConst === protocolType;
         }
         return protocolConst === protocolType;
@@ -75,10 +79,12 @@ const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema,
       let matchedSchema: Record<string, unknown> = { ...matchedOption };
       const SchemaField = fields.SchemaField;
 
-      if (Array.isArray(matchedOption.oneOf) && (protocolType === 'http' || protocolType === 'soap')) {
+      if (Array.isArray(matchedOption.oneOf) && isHttpProtocol(protocolType)) {
         const nestedOptions = matchedOption.oneOf;
         const nestedIndex = nestedOptions.findIndex((opt: OneOfOption) =>
-          opt?.properties?.integrationOperationProtocolType?.const?.toLowerCase() === protocolType
+          normalizeProtocol(
+            opt?.properties?.integrationOperationProtocolType?.const,
+          ) === protocolType,
         );
 
         if (nestedIndex >= 0) {

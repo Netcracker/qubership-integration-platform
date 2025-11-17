@@ -41,6 +41,10 @@ import EnhancedPatternPropertiesField from "./field/EnhancedPatternPropertiesFie
 import BodyMimeTypeField from "./field/BodyMimeTypeField.tsx";
 import { useModalsContext } from "../../../Modals.tsx";
 import { UnsavedChangesModal } from "../UnsavedChangesModal.tsx";
+import {
+  isKafkaProtocol,
+  normalizeProtocol,
+} from "../../../misc/protocol-utils.ts";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -56,6 +60,23 @@ type TabField = {
   schema: JSONSchema7;
 };
 
+const getOptionalString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const validateKafkaGroupId = (properties?: Record<string, unknown>) => {
+  if (!properties) return;
+  if (!isKafkaProtocol(properties["integrationOperationProtocolType"])) return;
+
+  const asyncProperties = properties[
+    "integrationOperationAsyncProperties"
+  ] as Record<string, unknown> | undefined;
+  const groupIdValue = asyncProperties?.["groupId"];
+  const groupId = typeof groupIdValue === "string" ? groupIdValue.trim() : "";
+  if (!groupId) {
+    throw new Error("Group ID is required for Kafka operations.");
+  }
+};
+
 export type FormContext = {
   integrationOperationId?: string;
   integrationOperationPath?: string;
@@ -66,7 +87,9 @@ export type FormContext = {
   integrationSpecificationGroupId?: string;
   integrationSpecificationId?: string;
   systemType?: string;
-  updateContext(newContext: Record<string, unknown>): void;
+  bodyFormData?: unknown;
+  synchronousGrpcCall?: boolean;
+  updateContext?: (newContext: Record<string, unknown>) => void;
 };
 
 function constructTitle(name: string, type?: string): string {
@@ -91,14 +114,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 }) => {
   console.log(`[ChainElementModification] Component RENDER for element: ${elementId}, type: ${node.data.elementType}`);
 
-  const normalizeProtocol = useCallback((protocol: unknown): string | undefined => {
-    if (typeof protocol !== "string") {
-      return undefined;
-    }
-    const trimmed = protocol.trim();
-    return trimmed ? trimmed.toLowerCase() : undefined;
-  }, []);
-
   const { isLoading: libraryElementIsLoading, libraryElement } =
     useLibraryElement(node.data.elementType);
   const [isLoading, setIsLoading] = useState(false);
@@ -108,10 +123,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const [title, setTitle] = useState(constructTitle(`${node.data.label}`));
   const [schema, setSchema] = useState<JSONSchema7>({});
   const [formData, setFormData] = useState<Record<string, unknown>>({});
-  const [formContext, setFormContext] = useState<Record<
-      string,
-      unknown
-    >>({});
+  const [formContext, setFormContext] = useState<FormContext>({});
 
   const [activeKey, setActiveKey] = useState<string>();
   const { showModal } = useModalsContext();
@@ -137,7 +149,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       }
     });
     return result;
-  }, [normalizeProtocol]);
+  }, []);
 
   const schemaModules = useMemo(
     () =>
@@ -162,7 +174,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const parsed = yaml.load(raw) as JSONSchema7;
       setSchema(parsed);
 
@@ -176,17 +187,24 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       const formProperties = initialFormData.properties as Record<string, unknown>;
 
       setFormContext({
-        integrationOperationId: formProperties.integrationOperationId,
-        integrationOperationProtocolType: normalizeProtocol(formProperties.integrationOperationProtocolType),
+        integrationOperationId: getOptionalString(formProperties.integrationOperationId),
+        integrationOperationProtocolType: normalizeProtocol(
+          formProperties.integrationOperationProtocolType,
+        ),
         elementType: node.data.elementType,
-        integrationSystemId: formProperties.integrationSystemId,
-        systemType: formProperties.systemType,
+        integrationSystemId: getOptionalString(formProperties.integrationSystemId),
+        systemType: getOptionalString(formProperties.systemType),
         integrationSpecificationGroupId:
-          formProperties.integrationSpecificationGroupId,
-        integrationSpecificationId: formProperties.integrationSpecificationId,
-        integrationOperationPath: formProperties.integrationOperationPath,
-        integrationOperationMethod: formProperties.integrationOperationMethod,
+          getOptionalString(formProperties.integrationSpecificationGroupId),
+        integrationSpecificationId: getOptionalString(
+          formProperties.integrationSpecificationId,
+        ),
+        integrationOperationPath: getOptionalString(formProperties.integrationOperationPath),
+        integrationOperationMethod: getOptionalString(
+          formProperties.integrationOperationMethod,
+        ),
         bodyFormData: formProperties.bodyFormData,
+        synchronousGrpcCall: Boolean(formProperties.synchronousGrpcCall),
         updateContext: (updatedProperties: Record<string, unknown>) => {
           if (updatedProperties.integrationOperationProtocolType !== undefined) {
             updatedProperties.integrationOperationProtocolType = normalizeProtocol(
@@ -215,7 +233,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         err,
       );
     }
-  }, [node.data, node.id, notificationService, schemaModules, enrichProperties, normalizeProtocol]);
+  }, [node.data, node.id, notificationService, schemaModules, enrichProperties]);
 
   const handleClose = useCallback(() => {
     closeContainingModal();
@@ -240,6 +258,21 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   }, [showModal, handleClose, hasChanges]);
 
   const handleOk = useCallback(async () => {
+    try {
+      validateKafkaGroupId(
+        formData?.properties as Record<string, unknown> | undefined,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+            ? error
+            : "Unknown error";
+      notificationService.info("Validation failed", message);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const request: PatchElementRequest = {
@@ -267,7 +300,16 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       setIsLoading(false);
       handleClose();
     }
-  }, [formData, chainId, elementId, node, onSubmit, notificationService, updateElement, handleClose]);
+  }, [
+    formData,
+    chainId,
+    elementId,
+    node,
+    onSubmit,
+    notificationService,
+    updateElement,
+    handleClose,
+  ]);
 
   const collectTabFields = useCallback((
     schema: JSONSchema7,
@@ -364,7 +406,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         properties: enrichedProps,
       };
     });
-  }, [formContext, enrichProperties, normalizeProtocol]);
+  }, [formContext, enrichProperties]);
 
   const applyHiddenUiSchema = useCallback((target: UiSchema, hidden: UiSchema) => {
     for (const key in hidden) {

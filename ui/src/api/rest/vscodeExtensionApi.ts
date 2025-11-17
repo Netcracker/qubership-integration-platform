@@ -45,7 +45,8 @@ import {
   UsedService,
   Element,
   MaskedFields, TransferElementRequest,
-  SystemOperation
+  SystemOperation,
+  SpecApiFile
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
@@ -696,6 +697,18 @@ export class VSCodeExtensionApi implements Api {
   moveFolder(): Promise<FolderItem> {
     throw new Error("Method moveFolder not implemented.");
   }
+
+  getSpecApiFiles = async (): Promise<SpecApiFile[]> => {
+    return <SpecApiFile[]>(
+      (await this.sendMessageToExtension("getSpecApiFiles")).payload
+    );
+  };
+
+  readSpecificationFileContent = async (fileUri: string, specificationFilePath: string): Promise<string> => {
+    return <string>(
+      (await this.sendMessageToExtension("readSpecificationFileContent", { fileUri, specificationFilePath })).payload
+    );
+  };
 }
 
 interface VSCodeApi<T> {

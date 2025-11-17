@@ -30,6 +30,12 @@ const colorMap: Record<string, string> = {
   lightblue: '#4FC0F8',
 };
 
+const displayNameOverrides: Record<string, string> = {
+  grpc: 'gRPC',
+  graphql: 'GraphQL',
+  asyncapi: 'AsyncAPI',
+};
+
 function capitalize(str: string) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
@@ -40,9 +46,13 @@ export const SourceFlagTag: React.FC<{ source?: string, toUpperCase?: boolean }>
   const key = source.toLowerCase();
   const colorName = sourceColors[key] || 'gray';
   const color = colorMap[colorName] || colorName;
+  //const label = source + " " + key + " " + displayNameOverrides[key];
+  const label = toUpperCase
+    ? source.toUpperCase()
+    : displayNameOverrides[key] || capitalize(source);
   return (
     <Tag style={{ background: color, color: '#fff', borderRadius: 12, border: 'none' }}>
-      {toUpperCase ? source.toUpperCase() : capitalize(source)}
+      {label}
     </Tag>
   );
 };

@@ -1132,3 +1132,12 @@ export type Folder = {
   subfolder?: Folder;
   description?: string;
 };
+
+export interface SpecApiFile {
+  id: string;
+  name: string;
+  description?: string;
+  protocol: string;
+  specificationFilePath: string;
+  fileUri: string;
+}

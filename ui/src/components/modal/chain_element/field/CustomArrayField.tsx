@@ -4,6 +4,7 @@ import { MappingDescription } from "../../../../mapper/model/model.ts";
 import { MappingUtil } from "../../../../mapper/util/mapping.ts";
 import { Mapping } from "../../../mapper/Mapping.tsx";
 import { api } from "../../../../api/api.ts";
+import { isHttpProtocol } from "../../../../misc/protocol-utils.ts";
 import { Script } from "../../../Script.tsx";
 import { FormContext } from "../ChainElementModification.tsx";
 import styles from "./CustomArrayField.module.css";
@@ -75,7 +76,7 @@ const CustomArrayField: React.FC<Props> = ({
 
   const [availableCodes, setAvailableCodes] = useState<{ value: string }[]>(
     readOnlyMode ||
-      formContext?.integrationOperationProtocolType?.toLowerCase() !== "http"
+      !isHttpProtocol(formContext?.integrationOperationProtocolType)
       ? []
       : defaultCodeOptions,
   );
