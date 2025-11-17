@@ -21,6 +21,7 @@ import { ApiSpecificationType } from "./importApiTypes";
 import { normalizePath } from "./pathUtils";
 import type { EnvironmentRequest } from "./servicesTypes";
 import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
+import { ProtocolDetectorService } from "../services/ProtocolDetectorService";
 
 export class SpecificationImportService {
     private progressTracker: ImportProgressTracker;
@@ -104,7 +105,8 @@ export class SpecificationImportService {
         let specificationGroupId = params.specificationGroupIdHint || '';
 
         try {
-            const extractedFiles = await this.convertSerializedFilesToFiles(params.serializedFiles || []);
+            const files = await this.convertSerializedFilesToFiles(params.serializedFiles || []);
+            const extractedFiles = await ProtocolDetectorService.extractArchives(files);
             const importingProtocol = await this.detectImportingProtocol(extractedFiles);
             if (!importingProtocol) {
                 const errorMessage = 'Unsupported specification format: unable to detect protocol';
