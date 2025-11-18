@@ -676,6 +676,10 @@ export async function changeFolder(fileUri: Uri, chainId: string, folders: strin
         folder: getFoldersFromStringPath(trimSlashes(folders.trim()).split("/")),
     };
 
+    if (!chain.content.folder) {
+        delete chain.content.folder;
+    }
+
     return await fileApi.writeMainChain(fileUri, chain);
 }
 
