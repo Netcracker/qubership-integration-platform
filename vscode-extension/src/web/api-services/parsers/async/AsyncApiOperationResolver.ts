@@ -36,7 +36,7 @@ export class AsyncApiOperationResolver {
             case "amqp":
             case "rabbit":
             case "rabbitmq":
-                return this.resolveAmqpSchemas(channel, operationObject);
+                return this.resolveAmqpSchemas(channel, operationId, operationObject, components);
             default:
                 return this.buildEmptySchemas();
         }
@@ -58,12 +58,14 @@ export class AsyncApiOperationResolver {
 
     private resolveAmqpSchemas(
         channel: AsyncChannel,
-        operationObject: AsyncOperationObject
+        operationId: string,
+        operationObject: AsyncOperationObject,
+        components: AsyncComponents
     ): ResolvedOperationData {
         return {
             specification: this.buildAmqpSpecification(channel),
             requestSchemas: {},
-            responseSchemas: {},
+            responseSchemas: this.resolveMessage(operationId, operationObject?.message, components),
         };
     }
 
@@ -76,10 +78,20 @@ export class AsyncApiOperationResolver {
             return {};
         }
 
-        if (message.payload && typeof message.payload === "object") {
-            return {
-                payload: this.buildPayloadSchema(message.payload),
-            };
+        const resolvedSchemas: Record<string, unknown> = {};
+
+        const payloadSchema = this.cloneAndResolveSchemaNode(message.payload, components);
+        if (payloadSchema) {
+            resolvedSchemas.payload = payloadSchema;
+        }
+
+        const headerSchema = this.cloneAndResolveSchemaNode(message.headers, components);
+        if (headerSchema) {
+            resolvedSchemas.headers = headerSchema;
+        }
+
+        if (Object.keys(resolvedSchemas).length > 0) {
+            return resolvedSchemas;
         }
 
         if (typeof message.$ref === "string") {
@@ -121,37 +133,42 @@ export class AsyncApiOperationResolver {
         return this.schemaResolver.resolveRef(ref, components);
     }
 
-    private buildPayloadSchema(payload: Record<string, any>): Record<string, any> {
-        const schema: Record<string, any> = {};
-
-        if (payload[TYPE_FIELD_NAME]) {
-            schema[TYPE_FIELD_NAME] = payload[TYPE_FIELD_NAME];
+    private cloneAndResolveSchemaNode(schemaNode: unknown, components: AsyncComponents): Record<string, unknown> | undefined {
+        if (!isPlainObject(schemaNode)) {
+            return undefined;
         }
 
-        const properties = payload[PROPERTIES_FIELD_NAME];
-        if (properties && typeof properties === "object") {
-            schema[PROPERTIES_FIELD_NAME] = {};
-            Object.entries(properties).forEach(([propertyName, propertyValue]) => {
-                schema[PROPERTIES_FIELD_NAME][propertyName] = this.extractPropertySchema(propertyValue);
-            });
-        }
+        const cloned = deepClone(schemaNode);
+        const resolved = this.resolveInlineRefs(cloned, components);
 
-        return schema;
+        return isPlainObject(resolved) ? resolved : undefined;
     }
 
-    private extractPropertySchema(propertyValue: any): Record<string, any> {
-        const propertySchema: Record<string, any> = {};
+    private resolveInlineRefs(value: unknown, components: AsyncComponents): unknown {
+        if (!components) {
+            return value;
+        }
 
-        if (propertyValue && typeof propertyValue === "object") {
-            if (propertyValue[TYPE_FIELD_NAME]) {
-                propertySchema[TYPE_FIELD_NAME] = propertyValue[TYPE_FIELD_NAME];
-            }
-            if (propertyValue[FORMAT_FIELD_NAME]) {
-                propertySchema[FORMAT_FIELD_NAME] = propertyValue[FORMAT_FIELD_NAME];
+        if (Array.isArray(value)) {
+            return value.map((item) => this.resolveInlineRefs(item, components));
+        }
+
+        if (!isPlainObject(value)) {
+            return value;
+        }
+
+        if (typeof value.$ref === "string") {
+            const resolved = this.resolveRef(value.$ref, components);
+            if (resolved) {
+                return resolved.schema;
             }
         }
 
-        return propertySchema;
+        Object.entries(value).forEach(([key, child]) => {
+            value[key] = this.resolveInlineRefs(child, components);
+        });
+
+        return value;
     }
 
     private buildKafkaSpecification(channelName: string, operationObject: AsyncOperationObject): Record<string, unknown> {
@@ -210,7 +227,14 @@ export class AsyncApiOperationResolver {
     }
 }
 
-const TYPE_FIELD_NAME = "type";
-const FORMAT_FIELD_NAME = "format";
-const PROPERTIES_FIELD_NAME = "properties";
+function isPlainObject(value: unknown): value is Record<string, any> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function deepClone<T>(value: T): T {
+    if (value === undefined || value === null) {
+        return value as T;
+    }
+    return JSON.parse(JSON.stringify(value));
+}
 
