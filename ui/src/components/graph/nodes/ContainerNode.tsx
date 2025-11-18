@@ -4,6 +4,7 @@ import { Badge, Button, Tooltip } from "antd";
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EllipsisLabel } from "./EllipsisLabel";
 import { Icon } from "../../../IconProvider.tsx";
+import styles from "./ContainerNode.module.css";
 
 function useElementWidth(ref: React.RefObject<HTMLElement>) {
   const [width, setWidth] = useState(0);
@@ -37,43 +38,12 @@ export function ContainerNode({
   const actionsWidth = useElementWidth(actionsRef);
 
   return (
-    <div
-      style={{
-        background: "#fff",
-        border: selected ? "2px solid #FFB02E" : "1px solid #FFB02E",
-        borderRadius: 5,
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          position: "relative",
-          padding: "4px 10px 8px 10px",
-          paddingRight: actionsWidth ? actionsWidth + 8 : 32,
-          background: "#fff",
-          borderBottom: "1px solid #fff",
-          fontWeight: "bold",
-          fontSize: 12,
-          lineHeight: 1.2,
-          flexShrink: 0,
-        }}
+    <div className={`${styles.container} ${selected ? styles.selected : ''}`}>
+      <div 
+        className={styles.header}
+        style={{ paddingRight: actionsWidth ? actionsWidth + 8 : 32 }}
       >
-        <div
-          ref={actionsRef}
-          style={{
-            position: "absolute",
-            top: 2,
-            right: 2,
-            zIndex: 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
+        <div ref={actionsRef} className={styles.actions}>
           <Tooltip title={isCollapsed ? "Expand" : "Collapse"}>
             <Button
               size="small"
@@ -85,21 +55,14 @@ export function ContainerNode({
           </Tooltip>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            minWidth: 0,
-          }}
-        >
+        <div className={styles.labelWrapper}>
           {data.unitCount! > 0 && (
             <Badge
               count={data.unitCount}
               status="default"
               size="small"
               color="#fff3bf"
-              style={{ display: "inline-flex", color: "black" }}
+              className={styles.badge}
             />
           )}
 

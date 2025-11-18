@@ -134,7 +134,17 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
     })();
   };
 
-  const cellStyle = { border: '1px solid #eee', padding: 4 };
+  const tableBackground = 'var(--table-bg, var(--vscode-editor-background, var(--vscode-panel-background, #ffffff)))';
+  const tableBorderColor = 'var(--vscode-editorGroup-border, var(--vscode-border, #d9d9d9))';
+  const tableForeground = 'var(--vscode-foreground, rgba(0, 0, 0, 0.88))';
+  const mutedColor = 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.6))';
+
+  const cellStyle = {
+    border: `1px solid ${tableBorderColor}`,
+    padding: 4,
+    background: tableBackground,
+    color: tableForeground,
+  };
   const iconBtnStyle = {
     width: 28,
     height: 28,
@@ -205,7 +215,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
             style={{ minWidth: 120, width: 'auto' }}
           />
           {(currentSourceType === EnvironmentSourceType.MAAS || currentSourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER) && (
-            <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, color: '#888' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, color: mutedColor }}>
               <Icon name="questionCircle" style={{ marginRight: 8, fontSize: 18 }} />
               <span>This type allows the use of the MaaS classifier to obtain connection parameters when creating a chain snapshot.</span>
             </div>
@@ -233,13 +243,13 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', userSelect: 'none' }}>
             <span
-              style={{ marginRight: 8, fontSize: 16, color: '#888', cursor: 'pointer' }}
+              style={{ marginRight: 8, fontSize: 16, color: mutedColor, cursor: 'pointer' }}
               onClick={() => setShowProperties(prev => !prev)}
             >
               {showProperties ? '▲' : '▼'}
             </span>
             <b>Properties</b>
-            <Badge count={Object.keys(propertiesObj).length} style={{ backgroundColor: '#1677ff', marginLeft: 8 }} />
+            <Badge count={Object.keys(propertiesObj).length} style={{ backgroundColor: 'var(--vscode-button-background, #1677ff)', marginLeft: 8 }} />
             {showProperties && (
               <>
                 <Button
@@ -258,12 +268,20 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                   style={{ marginLeft: 16 }}
                   size="small"
                 />
-                <span style={{ marginLeft: 8 }}>Show as Key Value</span>
+                <span style={{ marginLeft: 8, color: mutedColor }}>Show as Key Value</span>
               </>
             )}
           </div>
 
-          <div style={showProperties ? propertiesTableTransition : propertiesTableHidden}>
+          <div
+            style={{
+              ...(showProperties ? propertiesTableTransition : propertiesTableHidden),
+              background: tableBackground,
+              border: `1px solid ${tableBorderColor}`,
+              borderRadius: 6,
+              marginTop: 8,
+            }}
+          >
             {showAsKeyValue ? (
               <Input.TextArea
                 value={propertiesText}
@@ -280,11 +298,24 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                 onFocus={() => setIsEditingText(true)}
                 onBlur={() => setIsEditingText(false)}
                 autoSize={{ minRows: 6, maxRows: 16 }}
-                style={{ fontFamily: 'monospace', marginTop: 8, background: '#fafafa' }}
+                style={{
+                  fontFamily: 'monospace',
+                  marginTop: 8,
+                  background: tableBackground,
+                  color: tableForeground,
+                  borderColor: tableBorderColor,
+                }}
               />
             ) : (
               <Form.Item style={{ margin: 0 }}>
-                <table style={{ width: '100%', marginTop: 8, borderCollapse: 'collapse' }}>
+                <table
+                  style={{
+                    width: '100%',
+                    marginTop: 8,
+                    borderCollapse: 'collapse',
+                    color: tableForeground,
+                  }}
+                >
                   <thead>
                   <tr>
                     <th style={{ ...cellStyle, width: '35%' }}>Key</th>
@@ -313,13 +344,13 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                           />
                         ) : (
                           <div
-                            style={{ display: 'flex', alignItems: 'center', minHeight: 32, cursor: 'pointer' }}
+                            style={{ display: 'flex', alignItems: 'center', minHeight: 32, cursor: 'pointer', color: tableForeground }}
                             onMouseEnter={() => setHoverValueKey(key)}
                             onMouseLeave={() => setHoverValueKey(null)}
                             onClick={() => setEditingValueKey(key)}
                           >
                             <span style={{ flex: 1 }}>{value}</span>
-                            {hoverValueKey === key && <Icon name="edit" style={{ marginLeft: 8, color: '#888' }} />}
+                            {hoverValueKey === key && <Icon name="edit" style={{ marginLeft: 8, color: mutedColor }} />}
                           </div>
                         )}
                       </td>

@@ -14,6 +14,7 @@ import {
 import { useModalContext } from "../../ModalContextProvider";
 import Dragger from "antd/lib/upload/Dragger";
 import { Editor } from "@monaco-editor/react";
+import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../hooks/useMonacoTheme";
 import {
   GraphQLOperationInfo,
   GraphQLUtil,
@@ -353,6 +354,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
   const chainContext = useContext(ChainContext);
   const { closeContainingModal } = useModalContext();
   const notificationService = useNotificationService();
+  const monacoTheme = useMonacoTheme();
   const [form] = Form.useForm<FormData>();
   const [isOperationsLoading, setIsOperationsLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>("json");
@@ -574,10 +576,12 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         <Editor
                           className="qip-editor"
                           language={"graphql"}
+                          theme={monacoTheme}
                           options={{
                             readOnly: true,
                             fixedOverflowWidgets: true,
                           }}
+                          onMount={(_editor, monaco) => applyVSCodeThemeToMonaco(monaco)}
                         />
                       </Form.Item>
                       <Form.Item
@@ -589,10 +593,12 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         <Editor
                           className="qip-editor"
                           language={"graphql"}
+                          theme={monacoTheme}
                           options={{
                             readOnly: true,
                             fixedOverflowWidgets: true,
                           }}
+                          onMount={(_editor, monaco) => applyVSCodeThemeToMonaco(monaco)}
                         />
                       </Form.Item>
                     </>
@@ -607,6 +613,8 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         className="qip-editor"
                         options={{ readOnly: true, fixedOverflowWidgets: true }}
                         language={"json"}
+                        theme={monacoTheme}
+                        onMount={(_editor, monaco) => applyVSCodeThemeToMonaco(monaco)}
                       />
                     </Form.Item>
                   )}
@@ -722,6 +730,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         <Editor
                           className="qip-editor"
                           language={"graphql"}
+                          theme={monacoTheme}
                           onValidate={(markers) => {
                             setGraphqlSchemaErrors(
                               markers.filter(
@@ -734,6 +743,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                             ]);
                           }}
                           options={{ fixedOverflowWidgets: true }}
+                          onMount={(_editor, monaco) => applyVSCodeThemeToMonaco(monaco)}
                         />
                       </Form.Item>
                       <Form.Item
@@ -760,6 +770,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         <Editor
                           className="qip-editor"
                           language={"graphql"}
+                          theme={monacoTheme}
                           onValidate={(markers) => {
                             setGraphqlQueryErrors(
                               markers.filter(
@@ -772,6 +783,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                             ]);
                           }}
                           options={{ fixedOverflowWidgets: true }}
+                          onMount={(_editor, monaco) => applyVSCodeThemeToMonaco(monaco)}
                         />
                       </Form.Item>
                     </>
@@ -802,6 +814,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                       <Editor
                         className="qip-editor"
                         language={selectedLanguage}
+                        theme={monacoTheme}
                         onValidate={(markers) => {
                           setSampleErrors(
                             markers.filter(
@@ -812,6 +825,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                           void form.validateFields([["sample", "text"]]);
                         }}
                         options={{ fixedOverflowWidgets: true }}
+                        onMount={(_editor, monaco) => applyVSCodeThemeToMonaco(monaco)}
                       />
                     </Form.Item>
                   )}

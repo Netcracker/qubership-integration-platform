@@ -8,6 +8,7 @@ import {
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
+import "../styles/reactflow-theme.css";
 import React, {
   MouseEvent,
   useCallback,

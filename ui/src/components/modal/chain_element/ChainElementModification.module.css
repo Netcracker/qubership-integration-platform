@@ -6,6 +6,14 @@
     transform: translateX(-50%);
     display: flex;
     flex-direction: column;
+    background: var(--vscode-modal-background, var(--vscode-panel-background));
+    color: var(--vscode-modal-foreground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-border);
+}
+
+.modal-header {
+    background: var(--vscode-modal-background, var(--vscode-panel-background));
+    color: var(--vscode-modal-foreground, var(--vscode-foreground));
 }
 
 .modal-footer {
@@ -18,6 +26,8 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+    background: var(--vscode-modal-background, var(--vscode-panel-background));
+    color: var(--vscode-modal-foreground, var(--vscode-foreground));
 }
 
 .modal-body :global(.rjsf) {
@@ -32,7 +42,7 @@
 
 .modal-body :global(#root__description) {
     font-size: 12px !important;
-    color: #8c8c8c !important;
+    color: var(--vscode-descriptionForeground) !important;
     padding-top: 16px !important;
 }
 

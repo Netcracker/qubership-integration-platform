@@ -2,6 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 
+import "./styles/theme-variables.css";
+import "./styles/antd-overrides.css";
 import "./index.css";
 import "./components/graph/nodes/Node.component.css";
 import { isVsCode } from "./api/rest/vscodeExtensionApi.ts";

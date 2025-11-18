@@ -3,6 +3,7 @@ import styles from "./Navigation.module.css";
 import type { MenuProps } from "antd";
 import { NotificationBar } from "./notifications/NotificationBar.tsx";
 import { Icon } from "../IconProvider.tsx";
+import { SettingsPanel } from "./SettingsPanel.tsx";
 
 type MenuItem = Required<MenuProps>["items"][number];
 
@@ -24,17 +25,32 @@ const items: MenuItem[] = [
   },
 ];
 
-const Navigation = () => (
-  <nav className={styles.navigation}>
-    <Menu
-      style={{ border: "none" }}
-      items={items}
-      key="menu"
-      mode="horizontal"
-      className={styles.menu}
-    ></Menu>
-    <NotificationBar />
-  </nav>
-);
+interface NavigationProps {
+  showThemeSwitcher?: boolean;
+  currentTheme?: 'light' | 'dark' | 'high-contrast';
+  onThemeChange?: (theme: 'light' | 'dark' | 'high-contrast') => void;
+}
+
+const Navigation = ({ showThemeSwitcher = false, currentTheme, onThemeChange }: NavigationProps) => {
+  const shouldShowDevTools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEV_TOOLS === 'true';
+  
+  return (
+    <nav className={styles.navigation}>
+      <Menu
+        style={{ border: "none" }}
+        items={items}
+        key="menu"
+        mode="horizontal"
+        className={styles.menu}
+      ></Menu>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {(showThemeSwitcher && shouldShowDevTools) && (
+          <SettingsPanel currentTheme={currentTheme} onThemeChange={onThemeChange} />
+        )}
+        <NotificationBar />
+      </div>
+    </nav>
+  );
+};
 
 export default Navigation;

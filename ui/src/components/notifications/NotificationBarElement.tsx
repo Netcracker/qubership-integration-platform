@@ -13,14 +13,17 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({
   onRemove,
 }) => {
   const getIconByType = (type?: string) => {
-    const style = { fontSize: "18", marginTop: 4 };
+    const baseStyle = { fontSize: "18", marginTop: 4 };
+    const errorColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-errorForeground').trim() || '#ff4d4f';
+    const infoColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-textLink-foreground').trim() || '#1890ff';
+    
     switch (type) {
       case "error":
-        return <Icon name="closeCircle" style={{ ...style, color: "#ff4d4f" }} />;
+        return <Icon name="closeCircle" style={{ ...baseStyle, color: errorColor }} />;
       case "info":
       default:
         return (
-          <Icon name="exclamationCircle" style={{ ...style, color: "#1890ff" }} />
+          <Icon name="exclamationCircle" style={{ ...baseStyle, color: infoColor }} />
         );
     }
   };

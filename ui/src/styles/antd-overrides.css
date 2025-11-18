@@ -1,0 +1,377 @@
+/* Global Ant Design overrides - CSS variables already defined in theme-variables.css */
+
+.ant-input,
+.ant-input-affix-wrapper {
+  background-color: var(--vscode-input-background) !important;
+  color: var(--vscode-input-foreground) !important;
+  border-color: var(--vscode-editorGroup-border) !important;
+}
+
+.ant-select-selector {
+  background-color: var(--vscode-input-background) !important;
+  color: var(--vscode-input-foreground) !important;
+  border-color: var(--vscode-editorGroup-border) !important;
+}
+
+.ant-select-selection-placeholder,
+.ant-select-selection-item {
+  color: var(--vscode-input-foreground) !important;
+}
+
+.ant-input::placeholder,
+.ant-input-affix-wrapper input::placeholder {
+  color: var(--vscode-input-placeholderForeground) !important;
+}
+
+/* Icons and buttons inside input */
+.ant-input-affix-wrapper .ant-input-suffix .anticon,
+.ant-input-affix-wrapper .ant-input-prefix .anticon,
+.ant-input-clear-icon {
+  color: var(--vscode-foreground) !important;
+}
+
+/* Search button - same style as settings button (transparent background) */
+.ant-input-search-button {
+  color: var(--vscode-foreground) !important;
+  background-color: transparent !important;
+  border-color: var(--vscode-editorGroup-border) !important;
+}
+
+.ant-input-search-button:hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  border-color: var(--vscode-border) !important;
+}
+
+.ant-input-search-button .anticon {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-layout-sider {
+  background: var(--vscode-editor-background) !important;
+}
+
+/* Drawer theming */
+.ant-drawer-content {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-drawer-header {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+  border-bottom-color: var(--vscode-border) !important;
+}
+
+.ant-drawer-body {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+/* List theming in Drawer */
+.ant-list {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-list-item {
+  border-bottom-color: var(--vscode-border) !important;
+}
+
+.ant-list-item-meta-title {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-list-item-meta-description {
+  color: var(--vscode-descriptionForeground) !important;
+}
+
+/* SyntaxHighlighter (react-syntax-highlighter) theming */
+pre[class*="language-"] {
+  background: var(--vscode-editor-background) !important;
+  text-shadow: none !important;
+}
+
+code[class*="language-"] {
+  background: transparent !important;
+  text-shadow: none !important;
+}
+
+/* Only remove text-shadow, keep syntax highlighting colors */
+[data-theme="dark"] pre[class*="language-"] .token,
+[data-theme="dark"] pre[class*="language-"] span,
+[data-theme="high-contrast"] pre[class*="language-"] .token,
+[data-theme="high-contrast"] pre[class*="language-"] span {
+  text-shadow: none !important;
+}
+
+/* Fix punctuation tokens (colons, brackets, etc.) background */
+pre[class*="language-"] .token.punctuation {
+  background-color: transparent !important;
+  text-shadow: none !important;
+}
+
+/* Fix button shadows in VS Code webview */
+.ant-btn {
+  text-shadow: none !important;
+  box-shadow: none !important;
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+}
+
+.ant-btn:hover,
+.ant-btn:focus,
+.ant-btn:active {
+  text-shadow: none !important;
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+}
+
+.ant-btn-default {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+}
+
+.ant-btn-default:hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-btn-outlined,
+.ant-btn[class*="ant-btn-variant-outlined"] {
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+}
+
+.ant-btn-outlined:hover,
+.ant-btn[class*="ant-btn-variant-outlined"]:hover {
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+}
+
+.ant-btn-text {
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-btn-text:hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-btn-primary {
+  border-color: var(--vscode-button-background, #0078d4) !important;
+}
+
+.ant-btn-primary:hover {
+  border-color: var(--vscode-button-hoverBackground, #106ebe) !important;
+}
+
+/* Fix radio button group borders */
+.ant-radio-button-wrapper {
+  border: 1px solid var(--vscode-border) !important;
+  box-shadow: none !important;
+}
+
+.ant-radio-button-wrapper-checked {
+  border: 1px solid var(--vscode-focusBorder) !important;
+  box-shadow: none !important;
+}
+
+.ant-radio-button-wrapper:hover {
+  border-color: var(--vscode-focusBorder) !important;
+}
+
+/* Fix form label colors - keep them bright and readable in dark theme */
+[data-theme="dark"] .ant-form-item-label > label,
+[data-theme="high-contrast"] .ant-form-item-label > label {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+[data-theme="light"] .ant-form-item-label > label {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+/* Fix Tag text color for colored tags with inline styles (like Source tags) */
+.ant-tag[style*="background:"],
+.ant-tag[style*="background-color:"] {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+/* Monaco Editor fixes for proper mouse selection */
+.monaco-editor {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+.monaco-editor .view-lines {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+.monaco-editor .overflow-guard {
+  position: relative !important;
+}
+
+.monaco-editor .lines-content {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+}
+
+/* Tooltip theming for FloatButton and other components */
+.ant-tooltip {
+  background-color: var(--vscode-panel-background) !important;
+  color: var(--vscode-foreground) !important;
+  border: 1px solid var(--vscode-border) !important;
+}
+
+.ant-tooltip .ant-tooltip-inner {
+  background-color: var(--vscode-panel-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-tooltip .ant-tooltip-arrow::before {
+  background-color: var(--vscode-panel-background) !important;
+  border: 1px solid var(--vscode-border) !important;
+}
+
+/* FloatButton theming */
+.ant-float-btn {
+  background-color: var(--vscode-panel-background) !important;
+  color: var(--vscode-foreground) !important;
+  border: 1px solid var(--vscode-border) !important;
+}
+
+.ant-float-btn:hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-float-btn-group {
+  background-color: var(--vscode-panel-background) !important;
+}
+
+/* Notification theming */
+.ant-notification-notice {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+  border: 1px solid var(--vscode-border) !important;
+  box-shadow: none !important;
+}
+
+.ant-notification-notice-message,
+.ant-notification-notice-description {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-notification-notice-message > span {
+  color: inherit !important;
+}
+
+.ant-notification-notice-icon {
+  color: var(--vscode-errorForeground, #f87171) !important;
+}
+
+.ant-notification-notice-close {
+  color: var(--vscode-foreground) !important;
+}
+
+/* Table theming */
+.ant-table {
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-table-container {
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+}
+
+.ant-table-thead > tr > th {
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.ant-table-cell {
+  border-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+}
+
+/* Segmented theming */
+.ant-segmented {
+  background-color: var(--vscode-editor-background) !important;
+  border: none !important;
+}
+
+.ant-segmented-item {
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-segmented-item::before {
+  background-color: transparent !important;
+}
+
+.ant-segmented-item:hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-segmented-item-selected {
+  background-color: var(--vscode-button-background, #0078d4) !important;
+  color: var(--vscode-button-foreground, #ffffff) !important;
+  border-color: transparent !important;
+}
+
+.ant-segmented-item-selected::before {
+  background-color: transparent !important;
+}
+
+.ant-segmented-item-label {
+  color: inherit !important;
+}
+
+/* Tabs theming */
+.ant-tabs {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-tabs-tab {
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-tabs-tab:hover {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+}
+
+.ant-tabs-tab-active {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+}
+
+.ant-tabs-ink-bar {
+  background: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+  height: 2px !important;
+}
+
+.ant-tabs-nav {
+  border-bottom-color: var(--vscode-border) !important;
+}
+
+.ant-tabs-nav::before {
+  border-bottom-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+}
+

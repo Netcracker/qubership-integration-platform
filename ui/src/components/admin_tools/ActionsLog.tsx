@@ -31,6 +31,7 @@ import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 import { ResizableTitle } from "../ResizableTitle.tsx";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { Icon } from "../../IconProvider.tsx";
+import commonStyles from "./CommonStyle.module.css";
 
 export enum OperationType {
   READ = "read",
@@ -463,49 +464,13 @@ export const ActionsLog: React.FC = () => {
   };
 
   return (
-    <Flex
-      vertical
-      style={{
-        background: "#fff",
-        borderRadius: "8px",
-        padding: "4px",
-        margin: "4px",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <Flex
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          marginBottom: "20px",
-        }}
-      >
-        <Title
-          level={4}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            margin: "16px",
-            fontSize: "20px",
-            color: "var(--textColor)",
-            transition:
-              "color var(--transition-duration) var(--transition-easing)",
-          }}
-        >
-          <Icon name="audit"
-            style={{
-              marginRight: "12px",
-              transition:
-                "transform 0.2s var(--transition-easing), color var(--transition-duration) var(--transition-easing)",
-            }}
-          />
+    <Flex vertical className={commonStyles["container"]}>
+      <Flex className={commonStyles["header"]}>
+        <Title level={4} className={commonStyles["title"]}>
+          <Icon name="audit" className={commonStyles["icon"]} />
           Audit
         </Title>
-        <Flex vertical={false} gap={8}>
+        <Flex vertical={false} gap={8} className={commonStyles["actions"]}>
           <Dropdown
             menu={{
               items: columnVisibilityMenuItems,

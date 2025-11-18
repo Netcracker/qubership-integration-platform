@@ -51,6 +51,7 @@ import { FilterItemState } from "../components/table/filter/FilterItem.tsx";
 import { GenerateDdsModal } from "../components/modal/GenerateDdsModal.tsx";
 import { DdsPreview } from "../components/modal/DdsPreview.tsx";
 import { Icon } from "../IconProvider.tsx";
+import styles from "./Chains.module.css";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -923,7 +924,7 @@ const Chains = () => {
   return (
     <>
       {contextHolder}
-      <Flex vertical gap={16} style={{ height: "100%" }}>
+      <Flex vertical gap={16} className={styles.container}>
         {pathItems && pathItems.length > 0 ? (
           <Breadcrumb items={pathItems} />
         ) : null}

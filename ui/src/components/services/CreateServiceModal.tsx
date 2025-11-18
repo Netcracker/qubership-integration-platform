@@ -99,8 +99,8 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
             <Select.Option value={IntegrationSystemType.IMPLEMENTED}>Implemented</Select.Option>
           </Select>
         </Form.Item>
-        {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
-        {submitError && <div style={{ color: 'red', marginBottom: 8 }}>{submitError}</div>}
+        {error && <div style={{ color: 'var(--vscode-errorForeground, #d73a49)', marginBottom: 8 }}>{error}</div>}
+        {submitError && <div style={{ color: 'var(--vscode-errorForeground, #d73a49)', marginBottom: 8 }}>{submitError}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <Button onClick={() => { form.resetFields(); onCancel(); }} disabled={loading}>
             Cancel

@@ -71,9 +71,9 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
     <div
       style={{
         padding: 12,
-        background: '#fff',
-        border: '1px solid #ddd',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+        background: 'var(--vscode-editor-background, #ffffff)',
+        border: '1px solid var(--vscode-border, #d9d9d9)',
+        boxShadow: 'var(--vscode-widget-shadow, 0 4px 12px rgba(0, 0, 0, 0.1))',
         borderRadius: 8,
         minWidth: 180,
       }}>

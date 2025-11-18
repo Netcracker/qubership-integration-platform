@@ -1,0 +1,50 @@
+.container {
+  background: #fff;
+  border: 1px solid #FFB02E;
+  border-radius: 5px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.container.selected {
+  border-width: 2px;
+}
+
+.header {
+  position: relative;
+  padding: 4px 10px 8px 10px;
+  background: #fff;
+  border-bottom: 1px solid #fff;
+  font-weight: bold;
+  font-size: 12px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.actions {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.labelWrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.badge {
+  display: inline-flex;
+  color: black;
+}
+
+
+

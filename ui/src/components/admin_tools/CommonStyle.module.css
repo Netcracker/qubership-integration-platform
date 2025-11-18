@@ -1,18 +1,8 @@
-:root {
-  --primary-color: #1890ff;
-  --hover-color: #40a9ff;
-  --danger-color: #ff4d4f;
-  --danger-hover-color: #ff7875;
-  --text-color: rgba(0, 0, 0, 0.85);
-  --border-color: #d9d9d9;
-  --background-color: #f5f5f5;
-  --transition-duration: 0.3s;
-  --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
-}
 
 .container {
   min-height: 0;
   height: 100%;
+  overflow: auto;
 }
 
 .header {
@@ -28,12 +18,12 @@
   gap: 8px;
   margin: 0 0 16px 0;
   font-size: 20px;
-  color: var(--text-color);
+  color: var(--vscode-foreground, rgba(0, 0, 0, 0.85)) !important;
   transition: color var(--transition-duration) var(--transition-easing);
 }
 
 .title:hover {
-  color: var(--primary-color);
+  color: var(--vscode-textLink-foreground, #1890ff);
 }
 
 .icon {
@@ -45,7 +35,7 @@
 
 .icon:hover {
   transform: scale(1.1);
-  color: var(--primary-color);
+  color: var(--vscode-textLink-foreground, #1890ff);
 }
 
 .actions {
@@ -58,24 +48,24 @@
 }
 
 .actions .ant-btn-primary {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
+  background-color: var(--vscode-button-background, #1890ff);
+  border-color: var(--vscode-button-background, #1890ff);
 }
 
 .actions .ant-btn-primary:hover {
-  background-color: var(--hover-color);
-  border-color: var(--hover-color);
+  background-color: var(--vscode-button-hoverBackground, #40a9ff);
+  border-color: var(--vscode-button-hoverBackground, #40a9ff);
   transform: translateY(-1px);
 }
 
 .actions .ant-btn-dangerous {
-  background-color: var(--danger-color);
-  border-color: var(--danger-color);
+  background-color: var(--vscode-errorForeground, #ff4d4f);
+  border-color: var(--vscode-errorForeground, #ff4d4f);
 }
 
 .actions .ant-btn-dangerous:hover {
-  background-color: var(--danger-hover-color);
-  border-color: var(--danger-hover-color);
+  background-color: var(--vscode-errorForeground, #ff7875);
+  border-color: var(--vscode-errorForeground, #ff7875);
   transform: translateY(-1px);
 }
 

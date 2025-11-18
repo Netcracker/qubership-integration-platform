@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { TransformationContext } from "../../TransformationEditDialog.tsx";
 import { Editor, Monaco } from "@monaco-editor/react";
+import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../../../hooks/useMonacoTheme";
 import {
   editor,
   languages,
@@ -786,16 +787,20 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
     [references.attributes, references.constants],
   );
 
+  const monacoTheme = useMonacoTheme();
+
   return (
     <Editor
       className="qip-editor"
       value={value}
       language={MAPPER_TRANSFORMATION_EXPRESSION_LANGUAGE_ID}
       path={action.id}
+      theme={monacoTheme}
       onMount={(editor, monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
         configureMapperActionsLanguage(monaco);
+        applyVSCodeThemeToMonaco(monaco);
       }}
       onChange={(value) => {
         const text = value ?? "";

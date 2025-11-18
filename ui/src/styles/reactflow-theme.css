@@ -1,0 +1,262 @@
+/* ReactFlow Theme Integration */
+
+/* Container styling - flat design */
+.react-flow-container {
+  height: 100%;
+  flex-grow: 1;
+  display: flex;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-border);
+  background-color: var(--vscode-panel-background);
+}
+
+.chain-layout {
+  all: unset;
+  display: flex;
+  height: 100vh;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-border);
+  background-color: var(--vscode-panel-background);
+}
+
+/* ReactFlow viewport styling - transparent to show background */
+.react-flow__viewport {
+  background-color: transparent;
+}
+
+/* Node styling with theme support - flat design */
+.react-flow__node {
+  background-color: var(--vscode-panel-background);
+  border: 1px solid (--vscode-foreground);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.react-flow__node.selected {
+  border-color: var(--vscode-focusBorder);
+  box-shadow: none;
+}
+
+/* Node text styling - always dark text on light node backgrounds */
+.react-flow__node,
+.react-flow__node *:not(.react-flow__handle) {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+/* Edge styling */
+.react-flow__edge {
+  stroke: var(--vscode-foreground);
+  stroke-width: 2px;
+}
+
+.react-flow__edge.selected {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 3px;
+}
+
+.react-flow__edge-path {
+  stroke: var(--vscode-foreground);
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--vscode-focusBorder);
+}
+
+/* Dark theme - more visible edges */
+[data-theme="dark"] .react-flow__edge {
+  stroke: rgba(255, 255, 255, 0.4);
+}
+
+[data-theme="dark"] .react-flow__edge-path {
+  stroke: rgba(255, 255, 255, 0.4);
+}
+
+[data-theme="dark"] .react-flow__edge.selected {
+  stroke: var(--vscode-focusBorder);
+}
+
+[data-theme="dark"] .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--vscode-focusBorder);
+}
+
+/* Connection line */
+.react-flow__connectionline {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 2px;
+  stroke-dasharray: 5;
+}
+
+/* Handle styling */
+.react-flow__handle {
+  background-color: var(--vscode-button-background);
+  border: 2px solid var(--vscode-editor-background);
+  width: 8px;
+  height: 8px;
+}
+
+.react-flow__handle:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+.react-flow__handle.valid {
+  background-color: var(--vscode-terminal-ansiGreen);
+}
+
+.react-flow__handle.connecting {
+  background-color: var(--vscode-focusBorder);
+}
+
+/* Custom node styles - flat design */
+.trigger-node {
+  background-color: var(--vscode-panel-background);
+  border: 1px solid var(--vscode-border);
+  border-radius: 4px;
+  color: rgba(0, 0, 0, 0.88);
+  padding: 10px;
+}
+
+.dndnode {
+  border: 1px solid var(--vscode-border);
+  border-radius: 4px;
+  cursor: grab;
+  background-color: var(--vscode-panel-background);
+  color: var(--vscode-foreground);
+  padding: 8px;
+}
+
+.dndnode:hover {
+  border-color: var(--vscode-focusBorder);
+  background-color: var(--vscode-sideBar-background);
+}
+
+/* Background patterns - dots with theme support */
+.react-flow__background {
+  background-color: var(--vscode-panel-background) !important;
+}
+
+/* ReactFlow background pattern */
+.react-flow__background .react-flow__background-pattern {
+  fill: var(--vscode-foreground) !important;
+}
+
+/* MiniMap theming - only colors, standard ReactFlow style */
+.react-flow__minimap {
+  background-color: var(--vscode-editor-background) !important;
+  border: 1px solid var(--vscode-foreground) !important;
+}
+
+[data-theme="dark"] .react-flow__minimap {
+  background-color: #141414 !important;
+}
+
+[data-theme="light"] .react-flow__minimap {
+  background-color: #ffffff !important;
+}
+
+.react-flow__minimap-mask {
+  fill: var(--vscode-panel-background) !important;
+}
+
+.react-flow__minimap-node {
+  fill: var(--vscode-foreground) !important;
+  stroke: var(--vscode-border) !important;
+}
+
+/* Controls theming - only colors, standard ReactFlow style */
+.react-flow__controls {
+  background-color: var(--vscode-panel-background);
+}
+
+.react-flow__controls-button {
+  background-color: var(--vscode-panel-background);
+  color: var(--vscode-foreground);
+  border-bottom-color: var(--vscode-border);
+}
+
+.react-flow__controls-button:hover {
+  background-color: var(--vscode-sideBar-background);
+}
+
+/* Panel theming - only colors, standard ReactFlow style */
+.react-flow__panel {
+  background-color: var(--vscode-panel-background);
+  border-color: var(--vscode-border);
+  color: var(--vscode-foreground);
+}
+
+/* Node highlighting for selection and hover - flat design */
+[class~="react-flow__node"]:not(.highlight) > div {
+  background: unset;
+  border: unset;
+  box-shadow: none;
+}
+
+[class~="react-flow__node"].highlight > div {
+  border: 1.5px solid var(--vscode-focusBorder) !important;
+  background: unset !important;
+  box-shadow: none !important;
+}
+
+[class~="react-flow__node"].highlight > div > div:first-child {
+  background: unset !important;
+  border-bottom: unset !important;
+}
+
+[class~="react-flow__node"].highlight [class~="react-flow__handle"] {
+  box-shadow: none !important;
+  border: 2px solid var(--vscode-focusBorder) !important;
+}
+
+/* Tooltips - flat design */
+.trigger-node-input .tooltiptext {
+  visibility: hidden;
+  background-color: var(--vscode-panel-background);
+  color: var(--vscode-foreground);
+  border: 1px solid var(--vscode-border);
+  border-radius: 4px;
+  padding: 5px;
+  position: absolute;
+  z-index: 1000;
+  box-shadow: none;
+}
+
+.trigger-node-input:hover .tooltiptext {
+  visibility: visible;
+}
+
+/* Smooth transitions for theme changes */
+.react-flow__node,
+.react-flow__edge,
+.react-flow__handle,
+.react-flow__controls,
+.react-flow__minimap,
+.react-flow__panel,
+.dndnode,
+.trigger-node {
+  transition: 
+    background-color var(--transition-duration) ease,
+    border-color var(--transition-duration) ease,
+    color var(--transition-duration) ease,
+    box-shadow var(--transition-duration) ease;
+}
+
+/* Disable transitions during theme switching */
+.theme-switching .react-flow__node,
+.theme-switching .react-flow__edge,
+.theme-switching .react-flow__handle,
+.theme-switching .react-flow__controls,
+.theme-switching .react-flow__minimap,
+.theme-switching .react-flow__panel,
+.theme-switching .dndnode,
+.theme-switching .trigger-node {
+  transition: none !important;
+}
+
+
+
+
+
+
+

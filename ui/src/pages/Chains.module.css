@@ -1,0 +1,7 @@
+.container {
+  height: 100%;
+  background: var(--vscode-editor-background, #ffffff);
+  border-radius: 8px;
+  padding: 16px;
+}
+

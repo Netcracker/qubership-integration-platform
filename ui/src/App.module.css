@@ -1,5 +1,5 @@
 .header {
-  background: white;
+  background: var(--vscode-editor-background, white);
   padding-right: 15px;
 }
 
@@ -17,4 +17,5 @@
   flex-direction: column;
   border-radius: 12px;
   overflow: auto;
+  background: var(--vscode-panel-background, #fafafa);
 }

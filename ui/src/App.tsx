@@ -1,8 +1,9 @@
+import { useEffect, useState } from "react";
 import Navigation from "./components/Navigation.tsx";
 import { Navigate, Route, createBrowserRouter, createRoutesFromElements, RouterProvider } from "react-router";
 import Chains from "./pages/Chains";
 import ChainPage from "./pages/ChainPage.tsx";
-import { Layout } from "antd";
+import { ConfigProvider, Layout } from "antd";
 
 import styles from "./App.module.css";
 import { Modals } from "./Modals.tsx";
@@ -29,6 +30,8 @@ import AdminTools from "./pages/AdminTools.tsx";
 import { Masking } from "./pages/Masking.tsx";
 import { getIcons } from "./appConfig.ts";
 import { IconProvider } from "./IconProvider.tsx";
+import { initializeBrowserTheme, setupThemeListener, ThemeMode } from "./theme/themeInit.ts";
+import { getAntdThemeConfig } from "./theme/antdTokens.ts";
 
 const { Header } = Layout;
 
@@ -93,13 +96,24 @@ const router = createBrowserRouter(
 );
 
 const App = () => {
+  const [theme, setTheme] = useState<ThemeMode>(() => initializeBrowserTheme());
+
+  useEffect(() => {
+    const cleanup = setupThemeListener(setTheme);
+    return cleanup;
+  }, []);
+
+  const isDark = theme === 'dark' || theme === 'high-contrast';
+  const antdConfig = getAntdThemeConfig(isDark);
+
   return (
-    <IconProvider icons={getIcons()}>
+    <ConfigProvider theme={antdConfig}>
+      <IconProvider icons={getIcons()}>
       <Layout className={styles.layout}>
         <EventNotification>
           <Modals>
             <Header className={styles.header}>
-              <Navigation />
+              <Navigation showThemeSwitcher currentTheme={theme} onThemeChange={setTheme} />
             </Header>
             <Content className={styles.content}>
               <RouterProvider router={router}/>
@@ -108,6 +122,7 @@ const App = () => {
         </EventNotification>
       </Layout>
     </IconProvider>
+    </ConfigProvider>
   );
 }
 export default App;

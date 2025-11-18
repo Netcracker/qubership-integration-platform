@@ -14,6 +14,7 @@ import { capitalize } from "../misc/format-utils.ts";
 
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
+import styles from "./Chain.module.css";
 
 type LogSettingsFormState = ChainLoggingProperties & { custom: boolean };
 
@@ -150,69 +151,70 @@ export const LoggingSettings: React.FC = () => {
   }));
 
   return (
-    <>
-      {isLoggingSettingsLoading ? (
-        <Spin
-          size="large"
-          style={{
-            position: "absolute",
-            left: "calc(50% - 16px)",
-            top: "calc(50% - 16px)",
+    <div className={styles.pageContainer as string}>
+      <div className={styles.formContent as string} style={{ position: "relative" }}>
+        {isLoggingSettingsLoading ? (
+          <Spin
+            size="large"
+            style={{
+              position: "absolute",
+              left: "calc(50% - 16px)",
+              top: "calc(50% - 16px)",
+            }}
+          />
+        ) : null}
+        <Form<LogSettingsFormState>
+          disabled={isLoggingSettingsLoading}
+          labelWrap
+          form={form}
+          {...formItemLayout}
+          onValuesChange={(changedValues: Partial<LogSettingsFormState>) => {
+            if (changedValues.custom !== undefined) {
+              setIsCustom(changedValues.custom);
+            }
           }}
-        />
-      ) : null}
-      <Form<LogSettingsFormState>
-        disabled={isLoggingSettingsLoading}
-        labelWrap
-        form={form}
-        {...formItemLayout}
-        onValuesChange={(changedValues: Partial<LogSettingsFormState>) => {
-          if (changedValues.custom !== undefined) {
-            setIsCustom(changedValues.custom);
-          }
-        }}
-        onFinish={(formState) => void setLoggingProperties(formState)}
-      >
-        <Form.Item label={null} name="custom" valuePropName="checked" {...formItemStyle}>
-          <Checkbox>Override default properties</Checkbox>
-        </Form.Item>
-        {/* Logging properties source label */}
-        <Form.Item label="Session level" name="sessionsLoggingLevel">
-          <Select<SessionsLoggingLevel>
-            disabled={!isCustom}
-            options={sessionLevelOptions}
-          ></Select>
-        </Form.Item>
-        <Form.Item label="Log level" name="logLoggingLevel">
-          <Select<LogLoggingLevel>
-            disabled={!isCustom}
-            options={logLoggingLevelOptions}
-          ></Select>
-        </Form.Item>
-        <Form.Item label="Log payload" name="logPayload">
-          <Select<LogPayload[]>
-            disabled={!isCustom}
-            mode="multiple"
-            allowClear
-            options={logPayloadOptions}
-          ></Select>
-        </Form.Item>
-        <Form.Item label={null} name="dptEventsEnabled" valuePropName="checked" {...formItemStyle}>
-          <Checkbox disabled={!isCustom}>Produce DPT Events</Checkbox>
-        </Form.Item>
-        <Form.Item label={null} name="maskingEnabled" valuePropName="checked" {...formItemStyle}>
-          <Checkbox disabled={!isCustom}>Enable logging masking</Checkbox>
-        </Form.Item>
-        <Form.Item label={null} {...formItemStyle}>
-          <Button 
-            type="primary" 
-            htmlType="submit" 
-            loading={isLoggingSettingsLoading}
-          >
-            Apply
-          </Button>
-        </Form.Item>
-      </Form>
-    </>
+          onFinish={(formState) => void setLoggingProperties(formState)}
+        >
+          <Form.Item label={null} name="custom" valuePropName="checked" {...formItemStyle}>
+            <Checkbox>Override default properties</Checkbox>
+          </Form.Item>
+          <Form.Item label="Session level" name="sessionsLoggingLevel">
+            <Select<SessionsLoggingLevel>
+              disabled={!isCustom}
+              options={sessionLevelOptions}
+            ></Select>
+          </Form.Item>
+          <Form.Item label="Log level" name="logLoggingLevel">
+            <Select<LogLoggingLevel>
+              disabled={!isCustom}
+              options={logLoggingLevelOptions}
+            ></Select>
+          </Form.Item>
+          <Form.Item label="Log payload" name="logPayload">
+            <Select<LogPayload[]>
+              disabled={!isCustom}
+              mode="multiple"
+              allowClear
+              options={logPayloadOptions}
+            ></Select>
+          </Form.Item>
+          <Form.Item label={null} name="dptEventsEnabled" valuePropName="checked" {...formItemStyle}>
+            <Checkbox disabled={!isCustom}>Produce DPT Events</Checkbox>
+          </Form.Item>
+          <Form.Item label={null} name="maskingEnabled" valuePropName="checked" {...formItemStyle}>
+            <Checkbox disabled={!isCustom}>Enable logging masking</Checkbox>
+          </Form.Item>
+          <Form.Item label={null} {...formItemStyle}>
+            <Button 
+              type="primary" 
+              htmlType="submit" 
+              loading={isLoggingSettingsLoading}
+            >
+              Apply
+            </Button>
+          </Form.Item>
+        </Form>
+      </div>
+    </div>
   );
 };

@@ -574,6 +574,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         footer: styles["modal-footer"],
         content: styles["modal"],
         body: styles["modal-body"],
+        header: styles["modal-header"],
       }}
     >
       {schema && activeKey && (

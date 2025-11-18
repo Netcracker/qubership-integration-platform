@@ -187,10 +187,16 @@ button:focus-visible {
 }
 
 .qip-editor {
-  border: solid 1px lightgrey;
+  border: solid 1px var(--vscode-border, lightgrey);
   border-radius: 4px;
-  overflow: hidden;
   margin-top: 8px;
+  position: relative;
+}
+
+.qip-editor .monaco-editor,
+.qip-editor .monaco-editor-background,
+.qip-editor .monaco-editor .overflow-guard {
+  border-radius: 4px;
 }
 
 .flex-dragger {

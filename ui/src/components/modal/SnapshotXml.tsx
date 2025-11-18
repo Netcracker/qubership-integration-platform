@@ -5,6 +5,7 @@ import { Snapshot } from "../../api/apiTypes.ts";
 import { api } from "../../api/api.ts";
 import { Editor } from "@monaco-editor/react";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../hooks/useMonacoTheme";
 
 type SnapshotXmlViewProps = {
   snapshotId: string;
@@ -17,6 +18,7 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const notificationService = useNotificationService();
+  const monacoTheme = useMonacoTheme();
 
   const getSnapshot = useCallback(
     async (snapshotId: string) => {
@@ -51,7 +53,9 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
         height={"80vh"}
         defaultLanguage="xml"
         defaultValue={snapshot?.xmlDefinition}
+        theme={monacoTheme}
         options={{ readOnly: true, fixedOverflowWidgets: true }}
+        onMount={(_editor, monaco) => applyVSCodeThemeToMonaco(monaco)}
       />
     </Modal>
   );

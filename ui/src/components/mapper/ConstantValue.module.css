@@ -22,7 +22,9 @@
   font-style: italic;
   font-weight: 600;
   margin-right: 0;
-  background-color: #D5DCE3;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground) !important;
+  border-color: transparent;
 }
 
 .constant-generator-details {

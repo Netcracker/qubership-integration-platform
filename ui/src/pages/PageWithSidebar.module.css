@@ -5,11 +5,11 @@
   overflow: hidden;
   min-height: 0;
   flex: 1;
-  background: #fff;
+  background: var(--vscode-panel-background, #fafafa);
 }
 
 .sidebar {
-  background: #fff;
+  background: var(--vscode-editor-background, #ffffff);
 }
 
 .sidebarInner {
@@ -35,7 +35,7 @@
 }
 
 .sidebarToggleBar:hover {
-  background-color: #f0f0f0;
+  background-color: var(--vscode-list-hoverBackground, #f0f0f0);
 }
 
 .mainContentWrapper {
@@ -52,6 +52,8 @@
   padding: 16px;
   min-height: 0;
   height: 100%;
+  background: var(--vscode-editor-background, #ffffff);
+  border-radius: 0 8px 8px 0;
 }
 
 .moduleContainer {

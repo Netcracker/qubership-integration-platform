@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, Tabs } from 'antd';
 import { OperationInfo } from '../../api/apiTypes';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useSyntaxHighlighterTheme } from '../../hooks/useSyntaxHighlighterTheme';
 import styles from './Services.module.css';
 
 interface OperationInfoModalProps {
@@ -18,10 +18,22 @@ export const OperationInfoModal: React.FC<OperationInfoModalProps> = ({
   operationInfo,
   loading,
 }) => {
-  const prismStyle = prism as Record<string, unknown>;
-
+  const syntaxTheme = useSyntaxHighlighterTheme();
+  
+  console.log('[OperationInfoModal] syntaxTheme:', syntaxTheme);
+  
   const renderJsonTabContent = (data: unknown) => (
-    <SyntaxHighlighter language="json" style={prismStyle} className={styles.codeBlock}>
+    <SyntaxHighlighter 
+      language="json" 
+      style={syntaxTheme}
+      className={styles.codeBlock}
+      customStyle={{
+        margin: 0,
+        padding: 0,
+      }}
+      PreTag="pre"
+      CodeTag="code"
+    >
       {loading ? '{}' : JSON.stringify(data, null, 2)}
     </SyntaxHighlighter>
   );

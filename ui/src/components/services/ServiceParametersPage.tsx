@@ -184,7 +184,7 @@ export const ServiceParametersPage: React.FC = () => {
           <div
             style={{
               flexShrink: 0,
-              background: "#fff",
+              background: "var(--vscode-editor-background, #ffffff)",
               zIndex: 2,
               paddingLeft: sidePadding,
             }}

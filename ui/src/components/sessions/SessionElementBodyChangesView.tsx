@@ -8,6 +8,7 @@ import {
 } from "./SessionElementBodyView.tsx";
 import { DiffEditor } from "@monaco-editor/react";
 import { editor as editor_ } from "monaco-editor";
+import { useMonacoTheme } from "../../hooks/useMonacoTheme";
 
 export type SessionElementBodyChangesViewProps =
   React.HTMLAttributes<HTMLElement> & {
@@ -23,6 +24,7 @@ export const SessionElementBodyChangesView: React.FC<
   const [viewDiff, setViewDiff] = useState<boolean>(false);
   const [originalLanguage, setOriginalLanguage] = useState<string>();
   const [modifiedLanguage, setModifiedLanguage] = useState<string>();
+  const monacoTheme = useMonacoTheme();
 
   useEffect(() => {
     setOriginalLanguage(
@@ -54,6 +56,7 @@ export const SessionElementBodyChangesView: React.FC<
           modifiedLanguage={modifiedLanguage}
           original={bodyBefore}
           modified={bodyAfter}
+          theme={monacoTheme}
           options={{
             readOnly: true,
             originalAriaLabel: "Body Before",

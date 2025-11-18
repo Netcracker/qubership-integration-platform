@@ -1,5 +1,5 @@
 .container {
-    background: #fff;
+    background: var(--vscode-editor-background, #fff);
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -18,7 +18,7 @@
     gap: 8px;
     margin: 0px;
     font-size: 20px;
-    color: var(--text-color);
+    color: var(--vscode-foreground, rgba(0, 0, 0, 0.85));
     transition: color var(--transition-duration) var(--transition-easing);
 }
 
@@ -38,11 +38,17 @@
 }
 
 .codeBlock {
-  background: #fff;
+  background: var(--vscode-editor-background, #fff) !important;
   border-radius: 4px;
   max-height: 350px;
   overflow: auto;
   font-size: 14px;
+  padding: 12px !important;
+  border: 1px solid var(--vscode-panel-border, var(--vscode-border, #d9d9d9));
+}
+
+.codeBlock > code {
+  background: transparent !important;
 }
 
 .rightAlignedUsedBy {
@@ -50,17 +56,18 @@
 }
 
 .variables-container {
-  background: #fff;
+  background: var(--vscode-editor-background, #fff);
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   padding-right: 32px;
+  overflow: auto;
 }
 
 .variables-title {
   font-size: 20px;
-  color: var(--text-color);
+  color: var(--vscode-foreground, rgba(0, 0, 0, 0.85));
   margin: 0;
   font-weight: 500;
 }
@@ -90,7 +97,7 @@
   margin: 32px;
 }
 .serviceApiSpecsTabError {
-  color: red;
+  color: var(--vscode-errorForeground, red);
 }
 
 .chainCard {
@@ -103,7 +110,7 @@
 }
 .chainNameLink {
   font-weight: bold;
-  color: var(--primary-color, #1677ff);
+  color: var(--vscode-textLink-foreground, #1677ff);
   text-decoration: none;
 }
 .chainNameLink:hover {
@@ -114,7 +121,7 @@
 }
 .triggerNameLink {
   font-size: 12px;
-  color: #888;
+  color: var(--vscode-descriptionForeground, #888);
   text-decoration: none;
 }
 .triggerNameLink:hover {
@@ -168,10 +175,10 @@
 .validationErrorContainer {
   margin-top: 24px;
   padding: 16px;
-  border: 1px solid #faad14;
+  border: 1px solid var(--vscode-warningForeground, #faad14);
   border-radius: 8px;
-  background: #fffbe6;
-  color: #ad6800;
+  background: var(--vscode-input-background, #fffbe6);
+  color: var(--vscode-warningForeground, #ad6800);
 }
 
 .validationErrorHeader {

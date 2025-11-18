@@ -3,6 +3,7 @@ import { RuntimeState } from "../../api/apiTypes.ts";
 import { useModalsContext } from "../../Modals.tsx";
 import React from "react";
 import { ErrorDetails } from "../modal/ErrorDetails.tsx";
+import { getDeploymentStatusColor } from "../../theme/semanticColors";
 
 type DeploymentRuntimeStateProps = {
   name: string;
@@ -49,18 +50,3 @@ export const DeploymentRuntimeState: React.FC<DeploymentRuntimeStateProps> = ({
     tag
   );
 };
-
-function getDeploymentStatusColor(status: string): string {
-  switch (status) {
-    case "DEPLOYED":
-      return "green";
-    case "PROCESSING":
-      return "blue";
-    case "FAILED":
-      return "red";
-    case "REMOVED":
-      return "orange";
-    default:
-      return "#888888";
-  }
-}

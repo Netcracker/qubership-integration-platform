@@ -127,7 +127,7 @@ export const EditAttributeDialog: React.FC<EditAttributeDialogProps> = ({
             name={"hasDefaultValue"}
             valuePropName={"checked"}
           >
-            <Checkbox>Default value</Checkbox>
+            <Checkbox style={{ color: "var(--vscode-foreground)" }}>Default value</Checkbox>
           </Form.Item>
           <Form.Item style={{ flexGrow: 1 }} label={null} name={"defaultValue"}>
             <Input disabled={!hasDefaultValue}/>
@@ -139,7 +139,7 @@ export const EditAttributeDialog: React.FC<EditAttributeDialogProps> = ({
           name={"required"}
           valuePropName={"checked"}
         >
-          <Checkbox>Required</Checkbox>
+          <Checkbox style={{ color: "var(--vscode-foreground)" }}>Required</Checkbox>
         </Form.Item>
       </Form>
     </Modal>

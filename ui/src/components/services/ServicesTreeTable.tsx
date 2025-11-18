@@ -83,13 +83,13 @@ export interface ServicesTreeTableProps<T extends ServiceEntity = ServiceEntity>
 
 const clickableStyle: React.CSSProperties = {
   fontWeight: 500,
-  color: '#1677ff',
+  color: 'var(--vscode-textLink-foreground, #1677ff)',
   cursor: 'pointer',
 };
 
 const iconStyle: React.CSSProperties = {
   fontSize: 22,
-  color: '#b0b8c4',
+  color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))',
   marginRight: 8,
   verticalAlign: 'middle',
 };
@@ -572,7 +572,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         expandable={expandable}
         size={"small"}
         pagination={pagination}
-        style={{ background: "#fff", borderRadius: 12, width: '100%' }}
+        style={{ background: "var(--vscode-editor-background)", borderRadius: 12, width: '100%' }}
         rowClassName={rowClassName}
         onRow={onRowClick ? (record) => ({
           onClick: (event: React.MouseEvent<HTMLElement>) => onRowClick(record, event),

@@ -156,7 +156,7 @@ export const ServicesListPage: React.FC = () => {
             onExpand(record, e);
             e.stopPropagation();
           }}
-          style={{ cursor: "pointer", fontSize: 11, color: '#b0b8c4', display: 'inline-flex', alignItems: 'center', verticalAlign: 'sub', marginRight: 6 }}
+          style={{ cursor: "pointer", fontSize: 11, color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))', display: 'inline-flex', alignItems: 'center', verticalAlign: 'sub', marginRight: 6 }}
         >
           {expanded ? <Icon name="down" /> : <Icon name="right" />}
         </span>
@@ -377,7 +377,7 @@ export const ServicesListPage: React.FC = () => {
           {loading && <div>Loading...</div>}
 
           <servicesTable.Table />
-          {error && <div style={{ color: "red" }}>Error: {error}</div>}
+          {error && <div style={{ color: "var(--vscode-errorForeground, #d73a49)" }}>Error: {error}</div>}
 
           <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
             <FloatButton

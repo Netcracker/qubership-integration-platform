@@ -19,7 +19,7 @@ export const ChainColumn: React.FC<ChainColumnProps> = ({ chains }) => {
   const navigate = useNavigate();
 
   if (!chains || chains.length === 0) {
-    return <div style={{ color: '#bbb' }}>No chains</div>;
+    return <div style={{ color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))' }}>No chains</div>;
   }
 
   const handleMenuClick = (chainId: string) => {

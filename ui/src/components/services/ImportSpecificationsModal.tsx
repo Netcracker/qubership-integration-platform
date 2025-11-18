@@ -47,6 +47,9 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
 
   const isGroupMode = groupMode ?? (!!systemId && !specificationGroupId);
   const isVsCodeContext = api instanceof VSCodeExtensionApi;
+  const hasApiTab = isVsCodeContext && isGroupMode;
+  const defaultTabKey = hasApiTab ? "api" : "file";
+  const [activeTabKey, setActiveTabKey] = useState<string>(defaultTabKey);
 
   const handleCancel = () => {
     closeContainingModal();
@@ -186,6 +189,10 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVsCodeContext]);
+
+  React.useEffect(() => {
+    setActiveTabKey(hasApiTab ? "api" : "file");
+  }, [hasApiTab]);
 
   const handleImportFromApi = async () => {
     if (!selectedSpecApiFile) return;
@@ -328,9 +335,10 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       destroyOnHidden
     >
       <Tabs
-        defaultActiveKey={isVsCodeContext && isGroupMode ? "api" : "file"}
+        activeKey={activeTabKey}
+        onChange={(key) => setActiveTabKey(key)}
         items={[
-          ...(isVsCodeContext && isGroupMode ? [
+          ...(hasApiTab ? [
             {
               key: "api",
               label: "Import from API",
@@ -391,17 +399,6 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                       )}
                     </div>
                   )}
-                  <Button
-                    type="primary"
-                    onClick={() => void handleImportFromApi()}
-                    loading={loading || polling}
-                    disabled={!selectedSpecApiFile || (isGroupMode && !name.trim()) || loading || polling}
-                    className={styles.importButton}
-                    block
-                    style={{ marginTop: 16 }}
-                  >
-                    Import
-                  </Button>
                   {(loading || polling) && (
                     <div className={styles.loadingContainer}>
                       <Spin />
@@ -466,16 +463,6 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                     Drag one or more specification files or click to choose
                   </p>
                 </Upload.Dragger>
-                <Button
-                  type="primary"
-                  onClick={() => void handleImport()}
-                  loading={loading || polling}
-                  disabled={!files.length || (isGroupMode && !name.trim()) || loading || polling}
-                  className={styles.importButton}
-                  block
-                >
-                  Import {files.length > 1 ? `${files.length} Files` : 'File'}
-                </Button>
                 {(loading || polling) && (
                   <div className={styles.loadingContainer}>
                     <Spin />
@@ -571,18 +558,43 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
         ]}
       />
       <div className={styles.actionsContainer}>
-        <Button
-          onClick={() => setSelectedChainIds([])}
-          disabled={selectedChainIds.length === 0}
-        >
-          Clear
-        </Button>
-        <Button
-          type="primary"
-          disabled={selectedChainIds.length === 0}
-          onClick={() => void handleGenerateAndImport()}
-        >
-          Create
+        {activeTabKey === "chains" && isImplementedService && (
+          <>
+            <Button
+              onClick={() => setSelectedChainIds([])}
+              disabled={selectedChainIds.length === 0}
+            >
+              Clear
+            </Button>
+            <Button
+              type="primary"
+              disabled={selectedChainIds.length === 0}
+              onClick={() => void handleGenerateAndImport()}
+            >
+              Create
+            </Button>
+          </>
+        )}
+        {activeTabKey === "file" && (
+          <Button
+            type="primary"
+            onClick={() => void handleImport()}
+            disabled={!files.length || (isGroupMode && !name.trim()) || loading || polling}
+          >
+            Import {files.length > 1 ? `${files.length} Files` : "File"}
+          </Button>
+        )}
+        {activeTabKey === "api" && hasApiTab && (
+          <Button
+            type="primary"
+            onClick={() => void handleImportFromApi()}
+            disabled={!selectedSpecApiFile || (isGroupMode && !name.trim()) || loading || polling}
+          >
+            Import
+          </Button>
+        )}
+        <Button onClick={handleCancel}>
+          Cancel
         </Button>
       </div>
       {validationError && (

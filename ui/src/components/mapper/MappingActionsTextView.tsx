@@ -7,6 +7,7 @@ import {
 } from "../../mapper/model/model.ts";
 import React, { useCallback, useEffect, useState } from "react";
 import { Editor, Monaco } from "@monaco-editor/react";
+import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../hooks/useMonacoTheme";
 import {
   editor,
   languages,
@@ -499,9 +500,12 @@ export const MappingActionsTextView: React.FC<MappingActionsTextViewProps> = ({
           onChange?.(mappingDescription);
         },
       );
+      applyVSCodeThemeToMonaco(monaco);
     },
     [mapping, onChange],
   );
+
+  const monacoTheme = useMonacoTheme();
 
   return (
     <Editor
@@ -509,6 +513,7 @@ export const MappingActionsTextView: React.FC<MappingActionsTextViewProps> = ({
       className="qip-editor"
       value={value}
       language={MAPPER_ACTIONS_LANGUAGE_ID}
+      theme={monacoTheme}
       onMount={(editor, monaco) => onEditorMount(editor, monaco)}
       options={{ fixedOverflowWidgets: true }}
     />
