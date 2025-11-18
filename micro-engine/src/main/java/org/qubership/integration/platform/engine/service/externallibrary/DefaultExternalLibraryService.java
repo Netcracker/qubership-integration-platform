@@ -92,13 +92,14 @@ public class DefaultExternalLibraryService implements ExternalLibraryService {
             ClassLoader parentClassLoader
     ) {
         Set<String> ids = new HashSet<>(systemModelIds);
-        List<URL> urls = systemModelLibraries.stream()
+        List<URL> urls = systemModelLibraries != null ? systemModelLibraries.stream()
                 .map(CompiledLibraryUpdate::getModelId)
                 .filter(ids::contains)
                 .map(this::getSystemModelLibraryPath)
                 .map(this::toUrl)
                 .filter(Objects::nonNull)
-                .toList();
+                .toList()
+                : Collections.emptyList();
         return urls.isEmpty() ? parentClassLoader : new URLClassLoader(urls.toArray(new URL[0]), parentClassLoader);
     }
 

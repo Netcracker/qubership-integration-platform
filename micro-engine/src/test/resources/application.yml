@@ -1,0 +1,7 @@
+kubernetes:
+  cluster:
+    token: asd
+    namespace: local
+  variables-secret:
+    name: qip-secured-variables-v2
+    label: qip-variable-type
