@@ -19,74 +19,34 @@ package org.qubership.integration.platform.engine.camel.converters;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.camel.Exchange;
-import org.apache.camel.NoTypeConversionAvailableException;
-import org.apache.camel.TypeConversionException;
-import org.apache.camel.TypeConverter;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.apache.camel.*;
 import org.qubership.integration.platform.engine.forms.FormData;
 import org.qubership.integration.platform.engine.forms.FormEntry;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
-public class FormDataConverter implements TypeConverter {
+@ApplicationScoped
+@Converter
+public class FormDataConverter {
     private static final TypeReference<List<FormEntry>> FORM_ENTRY_LIST_TYPE_REFERENCE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public FormDataConverter(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public FormDataConverter(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
-    @Override
-    public boolean allowNull() {
-        return false;
-    }
-
-    @Override
-    public <T> T convertTo(Class<T> type, Object value) throws TypeConversionException {
+    @Converter
+    public FormData convert(Object value) throws TypeConversionException {
         try {
-            List<FormEntry> entries = objectMapper.readValue(value.toString(), FORM_ENTRY_LIST_TYPE_REFERENCE);
-            return (T) FormData.builder().entries(entries).build();
+            List<FormEntry> entries = objectMapper.readValue(String.valueOf(value), FORM_ENTRY_LIST_TYPE_REFERENCE);
+            return FormData.builder().entries(entries).build();
         } catch (JsonProcessingException exception) {
-            throw new TypeConversionException(value, type, exception);
-        }
-    }
-
-    @Override
-    public <T> T convertTo(Class<T> type, Exchange exchange, Object value) throws TypeConversionException {
-        return convertTo(type, value);
-    }
-
-    @Override
-    public <T> T mandatoryConvertTo(Class<T> type, Object value) throws TypeConversionException, NoTypeConversionAvailableException {
-        return convertTo(type, value);
-    }
-
-    @Override
-    public <T> T mandatoryConvertTo(Class<T> type, Exchange exchange, Object value) throws TypeConversionException, NoTypeConversionAvailableException {
-        return convertTo(type, value);
-    }
-
-    @Override
-    public <T> T tryConvertTo(Class<T> type, Object value) {
-        try {
-            return convertTo(type, value);
-        } catch (TypeConversionException ignored) {
-            return null;
-        }
-    }
-
-    @Override
-    public <T> T tryConvertTo(Class<T> type, Exchange exchange, Object value) {
-        try {
-            return convertTo(type, value);
-        } catch (TypeConversionException ignored) {
-            return null;
+            throw new TypeConversionException(value, FormData.class, exception);
         }
     }
 }

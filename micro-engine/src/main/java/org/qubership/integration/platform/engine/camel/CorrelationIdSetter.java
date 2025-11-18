@@ -17,21 +17,21 @@
 package org.qubership.integration.platform.engine.camel;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.MDCUtil;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class CorrelationIdSetter {
 
     public static final String CORRELATION_ID_POSITION = "correlationIdPosition";
@@ -42,8 +42,8 @@ public class CorrelationIdSetter {
 
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public CorrelationIdSetter(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public CorrelationIdSetter(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

@@ -36,6 +36,7 @@ import org.apache.hc.core5.http.message.BasicHeader;
 
 import java.util.Arrays;
 
+/** Endpoint for graphql component. */
 @UriEndpoint(firstVersion = "3.0.0", scheme = "graphql-custom", title = "GraphQL", syntax = "graphql-custom:httpUri",
     category = { Category.API }, producerOnly = true, lenientProperties = true)
 public class GraphqlCustomEndpoint extends GraphqlEndpoint {

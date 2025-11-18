@@ -19,12 +19,13 @@ package org.qubership.integration.platform.engine.service.contextstorage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.errorhandling.ContextStorageException;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ContextSystemRecords;
-import org.qubership.integration.platform.engine.persistence.shared.repository.ContextStorageRespository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.qubership.integration.platform.engine.persistence.shared.repository.ContextStorageRepository;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -32,16 +33,19 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Service
+@ApplicationScoped
 public class ContextStorageService {
 
     private static final String CONTEXT = "context";
-    private final ContextStorageRespository contextStorageRepository;
+    private final ContextStorageRepository contextStorageRepository;
 
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public ContextStorageService(ContextStorageRespository contextStorageRepository, ObjectMapper objectMapper) {
+    @Inject
+    public ContextStorageService(
+            ContextStorageRepository contextStorageRepository,
+            @Identifier("objectMapper") ObjectMapper objectMapper
+    ) {
         this.contextStorageRepository = contextStorageRepository;
         this.objectMapper = objectMapper;
     }
@@ -58,7 +62,7 @@ public class ContextStorageService {
                 .expiresAt(Timestamp.from(Instant.now().plusSeconds(ttl)))
                 .updatedAt(Timestamp.from(Instant.now()))
                 .build();
-        contextStorageRepository.save(contextSystemRecords);
+        contextStorageRepository.persist(contextSystemRecords);
         log.debug("Value stored successfully for contextKey: {}, contextServiceId: {}, contextId: {}", contextKey, contextServiceId, contextId);
     }
 
@@ -93,7 +97,7 @@ public class ContextStorageService {
         try {
             List<ContextSystemRecords> oldRecords  = contextStorageRepository.findAllByExpiresAtBefore(Timestamp.from(Instant.now()));
             if (oldRecords != null && !oldRecords.isEmpty()) {
-                contextStorageRepository.deleteAll(oldRecords);
+                contextStorageRepository.deleteByIds(oldRecords.stream().map(ContextSystemRecords::getId).collect(Collectors.toList()));
                 log.debug("Deleted old records from context storage");
             } else {
                 log.debug("No old records found to delete");

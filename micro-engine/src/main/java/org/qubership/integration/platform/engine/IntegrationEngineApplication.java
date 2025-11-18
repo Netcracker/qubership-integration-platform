@@ -16,16 +16,22 @@
 
 package org.qubership.integration.platform.engine;
 
-import org.apache.camel.spring.boot.CamelAutoConfiguration;
-import org.qubership.integration.platform.engine.opensearch.ism.converters.OpenSearchTypeConvertersRegistrar;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import jakarta.ws.rs.core.Application;
+import org.eclipse.microprofile.openapi.annotations.OpenAPIDefinition;
+import org.eclipse.microprofile.openapi.annotations.extensions.Extension;
+import org.eclipse.microprofile.openapi.annotations.info.Info;
+import org.eclipse.microprofile.openapi.annotations.servers.Server;
 
-@SpringBootApplication(exclude = CamelAutoConfiguration.class)
-public class IntegrationEngineApplication {
-    public static void main(String[] args) {
-        SpringApplication application = new SpringApplication(IntegrationEngineApplication.class);
-        application.addListeners(new OpenSearchTypeConvertersRegistrar());
-        application.run(args);
-    }
+@OpenAPIDefinition(
+        info = @Info(
+                title = "QIP Engine",
+                description = "REST API of QIP Engine Microservice",
+                version = "v1",
+                extensions = {@Extension(name = "x-api-kind", value = "no-bwc")}
+        ),
+        servers = {
+                @Server(url = "/")
+        }
+)
+public class IntegrationEngineApplication extends Application {
 }

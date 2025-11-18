@@ -17,53 +17,55 @@
 package org.qubership.integration.platform.engine.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
+import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
+import org.apache.http.HttpHeaders;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.persistence.shared.repository.SessionInfoRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClient.RequestBodySpec;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static org.qubership.integration.platform.engine.util.CheckpointUtils.CHECKPOINT_RETRY_PATH_TEMPLATE;
-
 @Slf4j
-@Component
+@ApplicationScoped
 public class CheckpointSessionService {
 
     private final SessionInfoRepository sessionInfoRepository;
     private final CheckpointRepository checkpointRepository;
-    private final WebClient localhostWebclient;
+    private final CheckpointRestService checkpointRestService;
     private final ObjectMapper jsonMapper;
 
-    @Autowired
-    public CheckpointSessionService(SessionInfoRepository sessionInfoRepository,
-        CheckpointRepository checkpointRepository, WebClient localhostWebclient,
-        @Qualifier("jsonMapper") ObjectMapper jsonMapper) {
+    @Inject
+    public CheckpointSessionService(
+            SessionInfoRepository sessionInfoRepository,
+            CheckpointRepository checkpointRepository,
+            @RestClient CheckpointRestService checkpointRestService,
+            @Identifier("jsonMapper") ObjectMapper jsonMapper
+    ) {
         this.sessionInfoRepository = sessionInfoRepository;
         this.checkpointRepository = checkpointRepository;
-        this.localhostWebclient = localhostWebclient;
+        this.checkpointRestService = checkpointRestService;
         this.jsonMapper = jsonMapper;
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void retryFromLastCheckpoint(String chainId, String sessionId, String body,
         Supplier<Pair<String, String>> authHeaderProvider, boolean traceMe) {
 
@@ -76,7 +78,7 @@ public class CheckpointSessionService {
         retryFromCheckpointAsync(lastCheckpoint, body, authHeaderProvider, traceMe);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void retryFromCheckpoint(
         String chainId,
         String sessionId,
@@ -94,29 +96,31 @@ public class CheckpointSessionService {
         retryFromCheckpointAsync(checkpoint, body, authHeaderProvider, traceMe);
     }
 
-    private void retryFromCheckpointAsync(Checkpoint checkpoint,
-                                          String body,
-                                          Supplier<Pair<String, String>> authHeaderProvider,
-                                          boolean traceMe) {
-        RequestBodySpec request = localhostWebclient
-            .post()
-            .uri(CamelServletConfiguration.CAMEL_ROUTES_PREFIX + CHECKPOINT_RETRY_PATH_TEMPLATE,
-                checkpoint.getSession().getChainId(),
-                checkpoint.getSession().getId(),
-                checkpoint.getCheckpointElementId());
-
+    private void retryFromCheckpointAsync(
+            Checkpoint checkpoint,
+            String body,
+            Supplier<Pair<String, String>> authHeaderProvider,
+            boolean traceMe
+    ) {
+        Map<String, String> headers = new HashMap<>();
         Pair<String, String> authPair = authHeaderProvider.get();
         if (authPair != null) {
-            request.header(authPair.getKey(), authPair.getValue());
+            headers.put(authPair.getKey(), authPair.getValue());
         }
-        request.header(Headers.TRACE_ME, String.valueOf(traceMe));
-        request.contentType(MediaType.APPLICATION_JSON);
-        if (StringUtils.isNotEmpty(body)) {
-            validateRetryBody(body);
-            request.bodyValue(body);
-        }
-
-        request.retrieve().toBodilessEntity().subscribe();
+        headers.put(Headers.TRACE_ME, String.valueOf(traceMe));
+        headers.put(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
+        checkpointRestService.retryCheckpoint(
+                checkpoint.getSession().getChainId(),
+                checkpoint.getSession().getId(),
+                checkpoint.getCheckpointElementId(),
+                headers,
+                StringUtils.isNotEmpty(body) ? Optional.of(body) : Optional.empty()
+        ).subscribe().with(
+                rsp -> {},
+                failure -> {
+                    log.error("Failed to trigger checkpoint: {}", failure.getMessage());
+                }
+        );
     }
 
     private void validateRetryBody(String body) {
@@ -128,27 +132,31 @@ public class CheckpointSessionService {
         }
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public Checkpoint findLastCheckpoint(String chainId, String sessionId) {
         List<Checkpoint> checkpoints = checkpointRepository
-            .findAllBySessionChainIdAndSessionId(chainId, sessionId,
-                PageRequest.of(0, 1, Sort.by("timestamp").descending()));
-        return (checkpoints == null || checkpoints.isEmpty()) ? null : checkpoints.get(0);
+                .findAllBySessionChainIdAndSessionId(
+                        chainId,
+                        sessionId,
+                        Page.of(0, 1),
+                        Sort.by("timestamp", Sort.Direction.Descending));
+        return (checkpoints == null || checkpoints.isEmpty()) ? null : checkpoints.getFirst();
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public List<SessionInfo> findAllFailedChainSessionsInfo(String chainId) {
         List<SessionInfo> allByChainIdAndExecutionStatus = sessionInfoRepository.findAllByChainIdAndExecutionStatus(
             chainId, ExecutionStatus.COMPLETED_WITH_ERRORS);
         return allByChainIdAndExecutionStatus;
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public SessionInfo saveSession(SessionInfo sessionInfo) {
-        return sessionInfoRepository.save(sessionInfo);
+        sessionInfoRepository.persistAndFlush(sessionInfo); // Calling flush to generate entity ID, if needed
+        return sessionInfo;
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void saveAndAssignCheckpoint(Checkpoint checkpoint, String sessionId) {
         SessionInfo sessionInfo = findSession(sessionId);
         if (sessionInfo == null) {
@@ -158,32 +166,32 @@ public class CheckpointSessionService {
         sessionInfo.assignCheckpoint(checkpoint);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public Checkpoint findCheckpoint(String sessionId, String chainId, String checkpointElementId) {
         return checkpointRepository.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId(
             sessionId, chainId, checkpointElementId);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public SessionInfo findSession(String sessionId) {
-        return sessionInfoRepository.findById(sessionId).orElse(null);
+        return sessionInfoRepository.findByIdOptional(sessionId).orElse(null);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public List<SessionInfo> findSessions(List<String> sessionIds) {
         return sessionInfoRepository.findAllById(sessionIds);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void updateSessionParent(String sessionId, String parentId) {
-        SessionInfo sessionInfo = sessionInfoRepository.findById(sessionId)
+        SessionInfo sessionInfo = sessionInfoRepository.findByIdOptional(sessionId)
                 .orElseThrow(EntityNotFoundException::new);
-        SessionInfo parentSessionInfo = sessionInfoRepository.findById(parentId)
+        SessionInfo parentSessionInfo = sessionInfoRepository.findByIdOptional(parentId)
                 .orElseThrow(EntityNotFoundException::new);
         sessionInfo.setParentSession(parentSessionInfo);
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public Optional<SessionInfo> findOriginalSessionInfo(String sessionId) {
         return sessionInfoRepository.findOriginalSessionInfo(sessionId);
     }
@@ -191,7 +199,7 @@ public class CheckpointSessionService {
     /**
      * Remove all related checkpoint recursively
      */
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void removeAllRelatedCheckpoints(String sessionId, boolean isRootSession) {
         if (isRootSession) {
             // do not execute complex query if possible
@@ -201,7 +209,7 @@ public class CheckpointSessionService {
         }
     }
 
-    @Transactional("checkpointTransactionManager")
+    @Transactional
     public void deleteOldRecordsByInterval(String checkpointsInterval) {
         sessionInfoRepository.deleteOldRecordsByInterval(checkpointsInterval);
     }

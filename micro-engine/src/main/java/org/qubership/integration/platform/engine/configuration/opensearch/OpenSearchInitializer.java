@@ -17,9 +17,13 @@
 package org.qubership.integration.platform.engine.configuration.opensearch;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PostConstruct;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.ExpandWildcard;
 import org.opensearch.client.opensearch.indices.GetIndexRequest;
@@ -42,10 +46,6 @@ import org.qubership.integration.platform.engine.opensearch.ism.rest.PolicyRespo
 import org.qubership.integration.platform.engine.opensearch.ism.rest.RequestHelper;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.env.Environment;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -58,53 +58,33 @@ import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.engine.opensearch.ism.rest.RequestHelper.processHttpResponse;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class OpenSearchInitializer {
     public static final long TEMPLATE_VERSION = 4L;
 
-    @Value("${qip.opensearch.index.elements.shards:3}")
-    private int indexShardsAmount;
+    @Inject
+    OpenSearchProperties properties;
 
-    @Value("${qip.opensearch.rollover.min_index_age:1d}")
-    private TimeValue minIndexAge;
+    @Inject
+    @Identifier("jsonMapper")
+    ObjectMapper jsonMapper;
 
-    @Value("${qip.opensearch.rollover.min_index_size:}")
-    private String minIndexSize;
-
-    @Value("${qip.opensearch.rollover.min_rollover_age_to_delete:14d}")
-    private TimeValue minRolloverAgeToDelete;
-
-
-    private final Environment environment;
-    private final ObjectMapper jsonMapper;
-    private final OpenSearchClientSupplier openSearchClientSupplier;
-
-
-    public OpenSearchInitializer(
-        Environment environment,
-        @Qualifier("jsonMapper") ObjectMapper jsonMapper,
-        OpenSearchClientSupplier openSearchClientSupplier
-    ) {
-        this.environment = environment;
-        this.jsonMapper = jsonMapper;
-        this.openSearchClientSupplier = openSearchClientSupplier;
-    }
-
-    @PostConstruct
-    public void initialize() {
+    public void initialize(OpenSearchClientSupplier clientSupplier) {
         log.info("Update opensearch template and indexes");
-        updateTemplateAndIndexes(openSearchClientSupplier.getClient());
+        updateTemplateAndIndexes(clientSupplier);
     }
 
-    private void updateTemplateAndIndexes(OpenSearchClient client) {
+    private void updateTemplateAndIndexes(OpenSearchClientSupplier clientSupplier) {
+        OpenSearchClient client = clientSupplier.getClient();
         String packageRoot = IntegrationEngineApplication.class.getPackage().getName();
         Set<Class<?>> indexClasses = new Reflections(
             new ConfigurationBuilder().forPackages(packageRoot))
             .getTypesAnnotatedWith(OpenSearchDocument.class);
+        Config config = ConfigProvider.getConfig();
         for (Class<?> indexClass : indexClasses) {
             OpenSearchDocument osd = indexClass.getAnnotation(OpenSearchDocument.class);
-            String documentName = environment.getProperty(osd.documentNameProperty());
-            if (documentName == null) {
+            String documentName = config.getValue(osd.documentNameProperty(), String.class);
+            if (StringUtils.isBlank(documentName)) {
                 log.error("Failed to get document name from property {}. Skipping creation of policies, index template, and indices for {}.",
                         osd.documentNameProperty(), indexClass.getName());
                 continue;
@@ -113,7 +93,7 @@ public class OpenSearchInitializer {
             try {
                 Map<String, Object> mapping = getIndexMapSource(indexClass);
                 if (!mapping.isEmpty()) {
-                    String prefix = openSearchClientSupplier.normalize(documentName);
+                    String prefix = clientSupplier.normalize(documentName);
                     createOrUpdatePolicy(client, buildRolloverPolicy(prefix));
                     updateTemplate(client, prefix, mapping);
                     updateIndices(client, prefix, mapping);
@@ -175,7 +155,7 @@ public class OpenSearchInitializer {
             }
         }
     }
-    
+
     private void createRolloverIndex(OpenSearchClient client, String prefix, Map<String, Object> mapping) {
         String indexName = getFirstRolloverIndexName(prefix);
         log.info("Creating index {}.", indexName);
@@ -221,12 +201,15 @@ public class OpenSearchInitializer {
     }
 
     private TimeValue calculateOldIndexMinAge(Instant creationTimestamp) {
-        return isNull(minIndexAge) && isNull(minRolloverAgeToDelete)
+        return isNull(properties.rollover().minIndexAge())
+                && isNull(properties.rollover().minRolloverAgeToDelete())
                 ? null
                 : TimeValue.timeValueMillis(
                         Instant.now().toEpochMilli() - creationTimestamp.toEpochMilli()
-                                + Optional.ofNullable(minRolloverAgeToDelete).map(TimeValue::millis).orElse(0L)
-                                + Optional.ofNullable(minIndexAge).map(TimeValue::millis).orElse(0L));
+                                + Optional.ofNullable(properties.rollover().minRolloverAgeToDelete())
+                                        .map(TimeValue::millis).orElse(0L)
+                                + Optional.ofNullable(properties.rollover().minIndexAge())
+                                        .map(TimeValue::millis).orElse(0L));
     }
 
     private void addPolicyToIndex(OpenSearchClient client, String indexName, String policyId) {
@@ -287,7 +270,7 @@ public class OpenSearchInitializer {
     }
 
     private Map<String, Object> getIndexSettings(String prefix) {
-        return Map.of("index.number_of_shards", indexShardsAmount,
+        return Map.of("index.number_of_shards", properties.index().elements().shards(),
                 "plugins.index_state_management.rollover_alias", getAliasName(prefix));
     }
 
@@ -379,14 +362,14 @@ public class OpenSearchInitializer {
                             .build())
                     .build());
         }
-        if (StringUtils.isNotBlank(minIndexSize)) {
+        properties.rollover().minIndexSize().ifPresent(minIndexSize ->
             transitions.add(Transition.builder()
                     .stateName("delete")
                     .conditions(Conditions.builder()
                             .minSize(minIndexSize)
                             .build())
-                    .build());
-        }
+                    .build())
+        );
         return Policy.builder()
                 .policyId(policyId)
                 .description("QIP old index rollover policy.")
@@ -418,18 +401,18 @@ public class OpenSearchInitializer {
                                 .name("rollover")
                                 .actions(Collections.singletonList(
                                         RolloverAction.builder()
-                                                .minIndexAge(minIndexAge)
-                                                .minSize(StringUtils.isNotBlank(minIndexSize) ? minIndexSize : null)
+                                                .minIndexAge(properties.rollover().minIndexAge())
+                                                .minSize(properties.rollover().minIndexSize().orElse(null))
                                                 .build()
                                 ))
                                 .transitions(Collections.singletonList(
                                         Transition.builder()
                                                 .stateName("delete")
                                                 .conditions(
-                                                        isNull(minRolloverAgeToDelete)
+                                                        isNull(properties.rollover().minRolloverAgeToDelete())
                                                             ? null
                                                             : Conditions.builder()
-                                                                    .minRolloverAge(minRolloverAgeToDelete)
+                                                                    .minRolloverAge(properties.rollover().minRolloverAgeToDelete())
                                                                     .build()
                                                 )
                                                 .build()
@@ -465,7 +448,7 @@ public class OpenSearchInitializer {
     private String getRolloverPolicyId(String prefix) {
         return prefix + "-rollover-policy";
     }
-    
+
     private String getFirstRolloverIndexName(String prefix) {
         return prefix + "-000001";
     }

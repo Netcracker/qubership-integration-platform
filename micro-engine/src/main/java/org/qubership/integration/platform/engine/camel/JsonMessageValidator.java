@@ -23,16 +23,16 @@ import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.errorhandling.ValidationException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Component
+@ApplicationScoped
 public class JsonMessageValidator {
     public static final String MESSAGE_VALIDATION_ERROR = "Errors during message validation: ";
     private static final String PARSE_MESSAGE_BODY_ERROR = "Unable to parse message body";
@@ -40,8 +40,8 @@ public class JsonMessageValidator {
 
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public JsonMessageValidator(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public JsonMessageValidator(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

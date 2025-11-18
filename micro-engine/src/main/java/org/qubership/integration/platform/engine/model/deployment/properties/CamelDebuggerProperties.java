@@ -18,7 +18,7 @@ package org.qubership.integration.platform.engine.model.deployment.properties;
 
 import lombok.*;
 import org.apache.camel.Exchange;
-import org.qubership.integration.platform.engine.consul.ConsulService;
+import org.qubership.integration.platform.engine.consul.ConsulConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
@@ -65,8 +65,8 @@ public class CamelDebuggerProperties {
                     return cacheMap.get(chainId); // use custom chain settings
                 }
 
-                if (cacheMap.containsKey(ConsulService.DEFAULT_CONSUL_SETTING_KEY)) {
-                    return cacheMap.get(ConsulService.DEFAULT_CONSUL_SETTING_KEY); // use consul defaults
+                if (cacheMap.containsKey(ConsulConstants.DEFAULT_CONSUL_SETTING_KEY)) {
+                    return cacheMap.get(ConsulConstants.DEFAULT_CONSUL_SETTING_KEY); // use consul defaults
                 }
             }
         }

@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
@@ -24,7 +25,6 @@ import org.qubership.integration.platform.engine.model.SessionElementProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.service.debugger.util.json.JsonSerializationHelper;
-import org.springframework.http.MediaType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,7 +32,7 @@ import java.util.Map.Entry;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.springframework.http.HttpHeaders.CONTENT_TYPE;
+import static jakarta.ws.rs.core.HttpHeaders.CONTENT_TYPE;
 
 @Slf4j
 public class ExchangeUtils {
@@ -96,7 +96,7 @@ public class ExchangeUtils {
         Message message = exchange.getMessage();
         Map<String, Object> headersMap = message.getHeaders();
         if (!headersMap.containsKey(CONTENT_TYPE)) {
-            headersMap.put(CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+            headersMap.put(CONTENT_TYPE, MediaType.APPLICATION_JSON);
         }
     }
 

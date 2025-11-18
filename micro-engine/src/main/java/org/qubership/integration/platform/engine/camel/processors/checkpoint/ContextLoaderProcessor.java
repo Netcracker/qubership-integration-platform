@@ -19,6 +19,11 @@ package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import groovy.xml.slurpersupport.GPathResult;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -34,9 +39,7 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Sessi
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.CheckpointUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -44,21 +47,22 @@ import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
-@Component
+@ApplicationScoped
+@Named("contextLoaderProcessor")
 public class ContextLoaderProcessor implements Processor {
     private final CheckpointSessionService checkpointSessionService;
     private final ObjectMapper checkpointMapper;
     private final Optional<ContextOperationsWrapper> contextOperations;
 
-    @Autowired
+    @Inject
     public ContextLoaderProcessor(
             CheckpointSessionService checkpointSessionService,
-            @Qualifier("checkpointMapper") ObjectMapper checkpointMapper,
-            Optional<ContextOperationsWrapper> contextOperations
+            @Identifier("checkpointMapper") ObjectMapper checkpointMapper,
+            Instance<ContextOperationsWrapper> contextOperations
     ) {
         this.checkpointSessionService = checkpointSessionService;
         this.checkpointMapper = checkpointMapper;
-        this.contextOperations = contextOperations;
+        this.contextOperations = InjectUtil.injectOptional(contextOperations);
     }
 
     @Override
@@ -75,7 +79,7 @@ public class ContextLoaderProcessor implements Processor {
                         checkpointInfo.checkpointElementId());
                 throw new EntityNotFoundException(
                         "Can't find checkpoint with session id: " + checkpointInfo.sessionId()
-                        + ", checkpoint id: " + checkpointInfo.checkpointElementId());
+                                + ", checkpoint id: " + checkpointInfo.checkpointElementId());
             }
 
             CheckpointPayloadOptions replaceOptions = parseReplaceOptions(exchange);
@@ -111,8 +115,7 @@ public class ContextLoaderProcessor implements Processor {
         // restore propagation and tracing contexts
         if (contextOperations.isPresent() && StringUtils.isNotEmpty(checkpoint.getContextData())) {
             Map<String, Map<String, Object>> contextData =
-                    checkpointMapper.readValue(checkpoint.getContextData(), new TypeReference<>() {
-                    });
+                    checkpointMapper.readValue(checkpoint.getContextData(), new TypeReference<>() {});
             contextOperations.get().activateWithSerializableContextData(contextData);
         }
 

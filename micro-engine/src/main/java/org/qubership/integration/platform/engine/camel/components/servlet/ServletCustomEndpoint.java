@@ -32,6 +32,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.UUID;
 
+/** Endpoint for custom servlet component. */
 @Slf4j
 @UriEndpoint(
         firstVersion = "2.0.0",

@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.MessageHistory;
@@ -25,21 +28,19 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
 import org.qubership.integration.platform.engine.model.logging.LogPayload;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
 import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 @Slf4j
-@Component
+@ApplicationScoped
+@Named("httpTriggerFinishProcessor")
 public class HttpTriggerFinishProcessor implements Processor {
 
     private final CamelDebuggerPropertiesService propertiesService;
@@ -47,7 +48,7 @@ public class HttpTriggerFinishProcessor implements Processor {
     private final ChainLogger chainLogger;
     private final MetricsService metricsService;
 
-    @Autowired
+    @Inject
     public HttpTriggerFinishProcessor(CamelDebuggerPropertiesService propertiesService,
                                       PayloadExtractor payloadExtractor,
                                       ChainLogger chainLogger,
@@ -125,7 +126,6 @@ public class HttpTriggerFinishProcessor implements Processor {
     }
 
     private CamelDebuggerProperties getCamelDebuggerProperties(Exchange exchange) {
-        CamelDebugger camelDebugger = ((CamelDebugger) exchange.getContext().getDebugger());
-        return propertiesService.getProperties(exchange, camelDebugger.getDeploymentId());
+        return propertiesService.getProperties(exchange);
     }
 }

@@ -17,11 +17,13 @@
 package org.qubership.integration.platform.engine.service.externallibrary;
 
 import groovy.lang.Script;
+import io.quarkus.vertx.ConsumeEvent;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.language.groovy.GroovyLanguage;
 import org.qubership.integration.platform.engine.events.ExternalLibrariesUpdatedEvent;
-import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Component;
+import org.qubership.integration.platform.engine.events.UpdateEvent;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -29,7 +31,8 @@ import java.lang.reflect.Method;
 import java.util.Map;
 
 @Slf4j
-@Component("groovy")
+@ApplicationScoped
+@Named("groovy")
 public class GroovyLanguageWithResettableCache extends GroovyLanguage {
     public GroovyLanguageWithResettableCache() {
         super();
@@ -68,9 +71,9 @@ public class GroovyLanguageWithResettableCache extends GroovyLanguage {
         method.invoke(this, key, scriptClass);
     }
 
-    @EventListener
-    public void onExternalLibrariesUpdated(ExternalLibrariesUpdatedEvent event) {
-        if (!event.isInitialUpdate()) {
+    @ConsumeEvent(UpdateEvent.EVENT_ADDRESS)
+    public void onExternalLibrariesUpdated(UpdateEvent event) {
+        if (!event.isInitialUpdate() && event instanceof ExternalLibrariesUpdatedEvent) {
             resetScriptCache();
         }
     }

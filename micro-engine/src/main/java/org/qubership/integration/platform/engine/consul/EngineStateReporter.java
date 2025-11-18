@@ -16,31 +16,34 @@
 
 package org.qubership.integration.platform.engine.consul;
 
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 @Slf4j
-@Component
+@Singleton
 public class EngineStateReporter extends Thread {
-
     public static final int REPORT_RETRY_DELAY = 5000;
     public static final int QUEUE_CAPACITY = 128;
-    private final ConsulService consulService;
+
+    private final EngineStateService engineStateService;
     private final MetricsService metricsService;
 
     private final BlockingQueue<EngineState> statesQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
 
-    @Autowired
-    public EngineStateReporter(ConsulService consulService, MetricsService metricsService) {
-        this.consulService = consulService;
+    @Inject
+    public EngineStateReporter(
+            EngineStateService engineStateService,
+            MetricsService metricsService
+    ) {
+        this.engineStateService = engineStateService;
         this.metricsService = metricsService;
         this.start();
     }
@@ -59,7 +62,7 @@ public class EngineStateReporter extends Thread {
                 EngineState state = statesQueue.take();
                 while (true) {
                     try {
-                        consulService.updateEnginesState(state);
+                        engineStateService.updateState(state);
                         updateDeploymentMetrics(state);
 
                         break;

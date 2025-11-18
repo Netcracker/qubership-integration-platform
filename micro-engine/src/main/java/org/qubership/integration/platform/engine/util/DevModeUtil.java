@@ -16,15 +16,15 @@
 
 package org.qubership.integration.platform.engine.util;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-@Component
+@ApplicationScoped
 public class DevModeUtil {
-    @Value("${spring.profiles.active}")
-    private String activeProfile;
+    @ConfigProperty(name = "quarkus.profile")
+    String activeProfile;
 
     public boolean isDevMode() {
-        return "development".equals(activeProfile);
+        return "dev".equals(activeProfile);
     }
 }

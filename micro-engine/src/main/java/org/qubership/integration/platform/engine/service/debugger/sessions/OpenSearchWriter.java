@@ -19,23 +19,23 @@ package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.bulk.BulkOperation;
 import org.opensearch.client.opensearch.core.bulk.BulkResponseItem;
 import org.opensearch.client.opensearch.core.bulk.IndexOperation;
+import org.qubership.integration.platform.engine.configuration.opensearch.OpenSearchProperties;
 import org.qubership.integration.platform.engine.model.Session;
 import org.qubership.integration.platform.engine.model.opensearch.QueueElement;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.*;
@@ -50,7 +50,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.annotation.Nullable;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class OpenSearchWriter implements Runnable {
 
     private final int queueMaxSizeBytes;
@@ -58,6 +58,7 @@ public class OpenSearchWriter implements Runnable {
     private final int bulkRequestPayloadSizeThresholdBytes;
     private final int bulkRequestElementsCountThreshold;
 
+    private final OpenSearchProperties openSearchProperties;
     private final OpenSearchClientSupplier openSearchClientSupplier;
     private final ObjectMapper mapper;
 
@@ -72,13 +73,6 @@ public class OpenSearchWriter implements Runnable {
     private final ConcurrentMap<String, SessionElementElastic> singleElementCache = new ConcurrentHashMap<>();
     private long currentWriteTimeout = 0;
 
-    @Value("${qip.opensearch.write.batch.count}")
-    private int queueDrainThreshold;
-    @Value("${qip.opensearch.write.retry.timeout.minimum}")
-    private long writeTimeoutDefaultMin;
-    @Value("${qip.opensearch.write.retry.timeout.maximum}")
-    private long writeTimeoutDefaultMax;
-    @Value("${qip.opensearch.index.elements.name}-session-elements")
     private String indexName;
 
     private static final int EXCEPTION_COOLDOWN_DELAY = 10000;
@@ -89,14 +83,15 @@ public class OpenSearchWriter implements Runnable {
     private static final int RETRY_COUNT_ON_WRITE_ERROR = 5;
     private static final double REPEATED_ELEMENTS_RATIO = 2.2; // element objects in the queue can be repeated
 
-    @Autowired
-    public OpenSearchWriter(@Value("${qip.sessions.queue.capacity}") int sessionBufferCapacity,
-                            @Value("${qip.sessions.queue.max-size-mb}") int queueMaxSizeMb,
-                            @Value("${qip.sessions.bulk-request.max-size-kb}") int bulkRequestMaxSizeKb,
-                            @Value("${qip.sessions.bulk-request.payload-size-threshold-kb}") int bulkRequestPayloadSizeThresholdKb,
-                            @Value("${qip.sessions.bulk-request.elements-count-threshold}") int bulkRequestElementsCountThreshold,
+    @Inject
+    public OpenSearchWriter(@ConfigProperty(name = "qip.sessions.queue.capacity") int sessionBufferCapacity,
+                            @ConfigProperty(name = "qip.sessions.queue.max-size-mb") int queueMaxSizeMb,
+                            @ConfigProperty(name = "qip.sessions.bulk-request.max-size-kb") int bulkRequestMaxSizeKb,
+                            @ConfigProperty(name = "qip.sessions.bulk-request.payload-size-threshold-kb") int bulkRequestPayloadSizeThresholdKb,
+                            @ConfigProperty(name = "qip.sessions.bulk-request.elements-count-threshold") int bulkRequestElementsCountThreshold,
+                            OpenSearchProperties openSearchProperties,
                             OpenSearchClientSupplier openSearchClientSupplier,
-                            @Qualifier("jsonMapper") ObjectMapper mapper) {
+                            @Identifier("jsonMapper") ObjectMapper mapper) {
         sessionElementsQueue = new LinkedBlockingQueue<>(sessionBufferCapacity);
         this.queueMaxSizeBytes = (int) (queueMaxSizeMb * 1024 * 1024 * REPEATED_ELEMENTS_RATIO);
 
@@ -104,6 +99,8 @@ public class OpenSearchWriter implements Runnable {
         this.bulkRequestPayloadSizeThresholdBytes = bulkRequestPayloadSizeThresholdKb * 1024;
         this.bulkRequestElementsCountThreshold = bulkRequestElementsCountThreshold;
 
+        this.indexName = openSearchProperties.index().elements().name() + "-session-elements";
+        this.openSearchProperties = openSearchProperties;
         this.openSearchClientSupplier = openSearchClientSupplier;
         this.mapper = mapper;
 
@@ -113,7 +110,7 @@ public class OpenSearchWriter implements Runnable {
 
     @Override
     public void run() {
-        List<QueueElement> elementsToSave = new ArrayList<>(queueDrainThreshold);
+        List<QueueElement> elementsToSave = new ArrayList<>(openSearchProperties.write().batch().count());
         resetWriteTimeout();
 
         while (true) {
@@ -124,12 +121,12 @@ public class OpenSearchWriter implements Runnable {
                 } catch (InterruptedException ignored) {
                     continue;
                 }
-                sessionElementsQueue.drainTo(elementsToSave, queueDrainThreshold - 1);
+                sessionElementsQueue.drainTo(elementsToSave, openSearchProperties.write().batch().count() - 1);
                 elementsToSave.forEach(element -> queueTotalPayloadSize.addAndGet(
                         -element.getCalculatedPayloadSize()));
                 LinkedHashSet<QueueElement> filteredElements = new LinkedHashSet<>(elementsToSave);
 
-                if (!CollectionUtils.isEmpty(filteredElements)) {
+                if (!filteredElements.isEmpty()) {
                     saveElements(filteredElements);
                 }
 
@@ -259,17 +256,17 @@ public class OpenSearchWriter implements Runnable {
     }
 
     private void resetWriteTimeout() {
-        currentWriteTimeout = writeTimeoutDefaultMin;
+        currentWriteTimeout = openSearchProperties.write().retry().timeout().minimum();
         log.trace("OpenSearch write timeout has been reset to {}", currentWriteTimeout);
     }
 
     private void increaseWriteTimeout() {
-        if (currentWriteTimeout == writeTimeoutDefaultMax) {
+        if (currentWriteTimeout == openSearchProperties.write().retry().timeout().maximum()) {
             return;
         }
-        currentWriteTimeout = Math.max(writeTimeoutDefaultMin, currentWriteTimeout);
+        currentWriteTimeout = Math.max(openSearchProperties.write().retry().timeout().minimum(), currentWriteTimeout);
         currentWriteTimeout *= WRITE_TIMEOUT_MULTIPLIER;
-        currentWriteTimeout = Math.min(writeTimeoutDefaultMax, currentWriteTimeout);
+        currentWriteTimeout = Math.min(openSearchProperties.write().retry().timeout().maximum(), currentWriteTimeout);
         log.info("OpenSearch write timeout has been increased to {}", currentWriteTimeout);
     }
 

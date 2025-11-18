@@ -16,12 +16,11 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import jakarta.annotation.PostConstruct;
+import io.quarkus.runtime.Startup;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -32,15 +31,21 @@ import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
-@Configuration
+@ApplicationScoped
 public class TruststoreConfiguration {
-    public final String storeFilePath;
-    public final String storePassword;
-    public final String certsLocation;
+    @ConfigProperty(name = "qip.local-truststore.store.path")
+    String storeFilePath;
+
+    @ConfigProperty(name = "qip.local-truststore.store.password")
+    Optional<String> storePassword;
+
+    @ConfigProperty(name = "qip.local-truststore.certs.location")
+    String certsLocation;
 
     private static final String JAVA_HOME_PROPERTY = "java.home";
 
@@ -51,16 +56,7 @@ public class TruststoreConfiguration {
     private static final String JAVA_DEFAULT_TRUSTSTORE = "/lib/security/cacerts";
     private static final String JAVA_DEFAULT_TRUSTSTORE_PASSWORD = "changeit";
 
-    @Autowired
-    public TruststoreConfiguration(@Value("${qip.local-truststore.store.path}") String storeFilePath,
-                                   @Value("${qip.local-truststore.store.password}") String storePassword,
-                                   @Value("${qip.local-truststore.certs.location}") String certsLocation) {
-        this.storeFilePath = storeFilePath;
-        this.storePassword = storePassword;
-        this.certsLocation = certsLocation;
-    }
-
-    @PostConstruct
+    @Startup
     public void buildTruststore() {
         try {
             KeyStore keyStore = getDefaultTrustStore();
@@ -100,7 +96,7 @@ public class TruststoreConfiguration {
                 storeFile.getParentFile().mkdirs();
             }
             try (FileOutputStream fos = new FileOutputStream(storeFile, false)) {
-                keyStore.store(fos, storePassword.toCharArray());
+                keyStore.store(fos, storePassword.orElse("").toCharArray());
             }
         } catch (Exception e) {
             log.error("Failed to load trusted certificates from volume", e);

@@ -16,33 +16,34 @@
 
 package org.qubership.integration.platform.engine.consul;
 
+import io.quarkus.runtime.StartupEvent;
+import io.quarkus.vertx.ConsumeEvent;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.engine.configuration.DeploymentReadinessAutoConfiguration;
+import org.qubership.integration.platform.engine.configuration.DeploymentReadinessProvider;
+import org.qubership.integration.platform.engine.configuration.EventClassesContainerWrapper;
 import org.qubership.integration.platform.engine.events.UpdateEvent;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.context.event.ApplicationStartedEvent;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class DeploymentReadinessService {
     public static final int CONSUMER_STARTUP_CHECK_DELAY_MILLIS = 20 * 1000;
 
     // <event_class, is_consumed>
     private final ConcurrentMap<Class<? extends UpdateEvent>, Boolean> receivedEvents;
-    
+
     @Getter
     private boolean readyForDeploy = false;
 
@@ -50,24 +51,31 @@ public class DeploymentReadinessService {
     @Setter
     private boolean initialized = false;
 
-    @Autowired
+    @Inject
     public DeploymentReadinessService(
-        @Qualifier(DeploymentReadinessAutoConfiguration.DEPLOYMENT_READINESS_EVENTS_BEAN) Set<Class<? extends UpdateEvent>> events
+        @Named(DeploymentReadinessProvider.DEPLOYMENT_READINESS_EVENTS_BEAN)
+        EventClassesContainerWrapper eventClassesContainerWrapper
     ) {
         if (log.isDebugEnabled()) {
-            String eventClassNames = events.stream().map(Class::getSimpleName).collect(Collectors.joining(", ")); 
+            String eventClassNames = eventClassesContainerWrapper.getEventClasses()
+                    .stream()
+                    .map(Class::getSimpleName)
+                    .collect(Collectors.joining(", "));
             log.debug("Required events to start deployments processing: {}", eventClassNames);
         }
-        receivedEvents = new ConcurrentHashMap<>(events.stream().collect(Collectors.toMap(event -> event, event -> false)));
+        receivedEvents = new ConcurrentHashMap<>(
+                eventClassesContainerWrapper.getEventClasses()
+                        .stream()
+                        .collect(Collectors.toMap(
+                                Function.identity(),
+                                eventClass -> false)));
     }
 
-    @Async
-    @EventListener(ApplicationStartedEvent.class)
-    @SuppressWarnings("checkstyle:EmptyCatchBlock")
-    public void onApplicationStarted() {
+    public void onApplicationStarted(@Observes StartupEvent ev) {
         try {
             Thread.sleep(CONSUMER_STARTUP_CHECK_DELAY_MILLIS);
         } catch (InterruptedException ignored) {
+            // Do nothing
         }
 
         if (!isRequiredEventsReceived()) {
@@ -80,7 +88,7 @@ public class DeploymentReadinessService {
         }
     }
 
-    @EventListener
+    @ConsumeEvent(UpdateEvent.EVENT_ADDRESS)
     public synchronized void onUpdateEvent(UpdateEvent event) {
         Class<? extends UpdateEvent> cls = event.getClass();
         if (event.isInitialUpdate() && receivedEvents.containsKey(cls)) {

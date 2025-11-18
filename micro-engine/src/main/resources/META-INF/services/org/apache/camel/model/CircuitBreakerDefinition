@@ -1,1 +1,1 @@
-class=org.qubership.integration.platform.engine.camel.CustomResilienceReifierFactory
+class=org.qubership.integration.platform.engine.camel.reifiers.CustomResilienceReifierFactory

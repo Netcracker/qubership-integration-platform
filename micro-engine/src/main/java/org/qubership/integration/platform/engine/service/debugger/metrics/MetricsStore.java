@@ -19,16 +19,16 @@ package org.qubership.integration.platform.engine.service.debugger.metrics;
 import com.google.common.collect.Maps;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.binder.BaseUnits;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.ChainElementType;
+import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Stores metrics
  */
 @Slf4j
-@Component
+@ApplicationScoped
 public class MetricsStore {
     private static final String SESSION_TIMER_NAME = "sessions.duration.timer";
     private static final String SESSIONS_COUNTER_NAME = "sessions.counter";
@@ -82,20 +82,20 @@ public class MetricsStore {
 
     private static final int CHAINS_DEPLOYMENTS_NUMBER = 1;
 
-    @Value("${qip.metrics.prometheus.init.delay}")
-    private long lagDelay;
+    @ConfigProperty(name = "qip.metrics.prometheus.init.delay")
+    long lagDelay;
 
     @Getter
-    @Value("${qip.metrics.enabled}")
-    private boolean metricsEnabled;
+    @ConfigProperty(name = "qip.metrics.enabled")
+    boolean metricsEnabled;
 
     @Getter
-    @Value("${qip.metrics.http-payload-metrics.enabled}")
-    private boolean httpPayloadMetricsEnabled;
+    @ConfigProperty(name = "qip.metrics.http-payload-metrics.enabled")
+    boolean httpPayloadMetricsEnabled;
 
     @Getter
-    @Value("${qip.metrics.http-payload-metrics.buckets}")
-    private double[] httpPayloadMetricsBuckets;
+    @ConfigProperty(name = "qip.metrics.http-payload-metrics.buckets")
+    double[] httpPayloadMetricsBuckets;
 
     @Getter
     private final MeterRegistry meterRegistry;
@@ -130,12 +130,15 @@ public class MetricsStore {
     // <chainId__chainName, <AtomicLong (Gauge reference) >
     private final ConcurrentMap<String, AtomicLong> checkpointsSizeGauges;
 
-    private final ServerConfiguration serverConfiguration;
+    private final EngineInfo engineInfo;
 
-    @Autowired
-    public MetricsStore(ServerConfiguration serverConfiguration, MeterRegistry meterRegistry,
-                        @Value("${app.prefix}") String appPrefix) {
-        this.serverConfiguration = serverConfiguration;
+    @Inject
+    public MetricsStore(
+            EngineInfo engineInfo,
+            MeterRegistry meterRegistry,
+            @ConfigProperty(name = "application.prefix") String appPrefix
+    ) {
+        this.engineInfo = engineInfo;
         this.meterRegistry = meterRegistry;
         this.sessionExecutionTime = Maps.newConcurrentMap();
         this.sessionsCounters = Maps.newConcurrentMap();
@@ -286,7 +289,7 @@ public class MetricsStore {
                 .tag(CHAIN_ID_TAG, chainId)
                 .tag(CHAIN_NAME_TAG, chainName)
                 .tag(EXECUTION_STATUS_TAG, executionStatus)
-                .tag(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain())
+                .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
                 .register(meterRegistry);
     }
 
@@ -295,7 +298,7 @@ public class MetricsStore {
                 .tag(CHAIN_ID_TAG, chainId)
                 .tag(CHAIN_NAME_TAG, chainName)
                 .tag(EXECUTION_STATUS_TAG, executionStatus)
-                .tag(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain())
+                .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
                 .register(meterRegistry);
     }
 
@@ -304,7 +307,7 @@ public class MetricsStore {
                 .tag(CHAIN_ID_TAG, chainId)
                 .tag(CHAIN_NAME_TAG, chainName)
                 .tag(RESPONSE_CODE_TAG, responseCode)
-                .tag(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain())
+                .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
                 .register(meterRegistry);
     }
 
@@ -314,7 +317,7 @@ public class MetricsStore {
                 .tag(CHAIN_NAME_TAG, chainName)
                 .tag(ELEMENT_ID_TAG, elementId)
                 .tag(ELEMENT_NAME_TAG, elementName)
-                .tag(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain())
+                .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
                 .register(meterRegistry);
     }
 
@@ -324,7 +327,7 @@ public class MetricsStore {
                 .tag(CHAIN_NAME_TAG, chainName)
                 .tag(ELEMENT_ID_TAG, elementId)
                 .tag(ELEMENT_NAME_TAG, elementName)
-                .tag(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain())
+                .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
                 .register(meterRegistry);
     }
 
@@ -334,7 +337,7 @@ public class MetricsStore {
                 .tag(CHAIN_NAME_TAG, chainName)
                 .tag(CHAIN_STATUS_CODE_TAG, errorCode.getCode())
                 .tag(CHAIN_STATUS_REASON_TAG, errorCode.getPayload().getReason())
-                .tag(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain())
+                .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
                 .register(meterRegistry);
     }
 
@@ -345,7 +348,7 @@ public class MetricsStore {
                 .tag(EXECUTION_STATUS_TAG, executionStatus)
                 .tag(CHAIN_STATUS_CODE_TAG, chainStatusCode)
                 .tag(SNAPSHOT_NAME_TAG, snapshotName)
-                .tag(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain())
+                .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
                 .register(meterRegistry);
     }
 
@@ -374,7 +377,7 @@ public class MetricsStore {
                 .tag(ELEMENT_ID_TAG, elementId)
                 .tag(ELEMENT_NAME_TAG, elementName)
                 .tag(ELEMENT_TYPE_TAG, elementType)
-                .tag(ENGINE_DOMAIN_TAG, serverConfiguration.getDomain())
+                .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
                 .distributionStatisticExpiry(Duration.ofMinutes(1))
                 .baseUnit(BaseUnits.BYTES)
                 .serviceLevelObjectives(httpPayloadMetricsBuckets)

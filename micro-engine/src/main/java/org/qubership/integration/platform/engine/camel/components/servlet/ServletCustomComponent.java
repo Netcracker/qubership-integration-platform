@@ -22,7 +22,7 @@ import org.apache.camel.spi.annotations.Component;
 
 import java.net.URI;
 
-
+/** Custom servlet component */
 @Component("servlet-custom")
 public class ServletCustomComponent extends ServletComponent {
 

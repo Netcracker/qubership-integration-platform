@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.opensearch.ism.rest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -27,7 +28,6 @@ import org.opensearch.client.opensearch.generic.Request;
 import org.opensearch.client.opensearch.generic.Response;
 import org.qubership.integration.platform.engine.opensearch.ism.model.Policy;
 import org.qubership.integration.platform.engine.opensearch.ism.model.rest.GenericRequest;
-import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.net.URI;
@@ -122,7 +122,7 @@ public class RequestHelper {
 
         EndpointBuilder addPathPart(String... parts) {
             for (String part : parts) {
-                if (StringUtils.hasLength(part)) {
+                if (StringUtils.isNotBlank(part)) {
                     joiner.add(encodePart(part));
                 }
             }
@@ -131,7 +131,7 @@ public class RequestHelper {
 
         EndpointBuilder addPathPartAsIs(String... parts) {
             for (String part : parts) {
-                if (StringUtils.hasLength(part)) {
+                if (StringUtils.isNotBlank(part)) {
                     joiner.add(part);
                 }
             }

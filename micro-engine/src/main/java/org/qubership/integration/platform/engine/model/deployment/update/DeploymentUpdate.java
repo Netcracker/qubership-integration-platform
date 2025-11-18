@@ -24,7 +24,7 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class DeploymentUpdate {
     private DeploymentInfo deploymentInfo;
     private DeploymentConfiguration configuration;

@@ -16,23 +16,27 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.http.HttpHeaders;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.RabbitContextPropagationWrapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.util.Optional;
 
-@Component
+@ApplicationScoped
+@Named("rabbitMqSenderProcessor")
 public class RabbitMqSenderProcessor implements Processor {
     private final Optional<RabbitContextPropagationWrapper> contextPropagationWrapper;
 
-    @Autowired
+    @Inject
     public RabbitMqSenderProcessor(
-        Optional<RabbitContextPropagationWrapper> contextPropagationWrapper) {
-        this.contextPropagationWrapper = contextPropagationWrapper;
+        Instance<RabbitContextPropagationWrapper> contextPropagationWrapper) {
+        this.contextPropagationWrapper = InjectUtil.injectOptional(contextPropagationWrapper);
     }
 
     @Override

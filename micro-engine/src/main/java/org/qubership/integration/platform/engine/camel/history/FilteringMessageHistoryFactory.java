@@ -50,13 +50,6 @@ public class FilteringMessageHistoryFactory implements MessageHistoryFactory {
     }
 
     @Override
-    public MessageHistory newMessageHistory(String routeId, NamedNode node, long timestamp, Exchange exchange) {
-        return filter.test(new FilteringEntity(routeId, node, exchange))
-                ? factory.newMessageHistory(routeId, node, timestamp, exchange)
-                : null;
-    }
-
-    @Override
     public boolean isCopyMessage() {
         return factory.isCopyMessage();
     }

@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.engine.service;
 
-import io.swagger.v3.oas.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(description = "Status of the element or session")
 public enum ExecutionStatus {

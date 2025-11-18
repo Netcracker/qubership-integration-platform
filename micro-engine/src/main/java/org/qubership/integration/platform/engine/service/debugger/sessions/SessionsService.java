@@ -16,10 +16,13 @@
 
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.Session;
@@ -37,10 +40,7 @@ import org.qubership.integration.platform.engine.service.debugger.util.DebuggerU
 import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -52,7 +52,7 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties.REUSE_ORIGINAL_ID;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class SessionsService {
 
     private final PayloadExtractor extractor;
@@ -61,10 +61,10 @@ public class SessionsService {
 
     private final Random random = new Random();
 
-    @Value("${qip.sessions.sampler.probabilistic}")
-    private double samplerProbabilistic;
+    @ConfigProperty(name = "qip.sessions.sampler.probabilistic")
+    double samplerProbabilistic;
 
-    @Autowired
+    @Inject
     public SessionsService(PayloadExtractor extractor, OpenSearchWriter writer) {
         this.extractor = extractor;
         this.writer = writer;

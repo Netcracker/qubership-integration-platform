@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -27,15 +30,14 @@ import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.slf4j.MDC;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
-@Component
+@ApplicationScoped
+@Named("logRecordProcessor")
 public class LogRecordProcessor implements Processor {
     enum LogLevel {
         ERROR,
@@ -54,7 +56,7 @@ public class LogRecordProcessor implements Processor {
 
     private final SimpleLanguage simpleInterpreter;
 
-    @Autowired
+    @Inject
     public LogRecordProcessor(ChainLogger chainLogger, SimpleLanguage simpleInterpreter) {
         this.chainLogger = chainLogger;
         this.simpleInterpreter = simpleInterpreter;

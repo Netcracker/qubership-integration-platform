@@ -16,11 +16,13 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
-import org.springframework.stereotype.Component;
 
-@Component
+@ApplicationScoped
+@Named("noopProcessor")
 public class NoopProcessor implements Processor {
     @Override
     public void process(Exchange exchange) throws Exception {

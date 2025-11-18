@@ -16,8 +16,10 @@
 
 package org.qubership.integration.platform.engine.service.debugger;
 
-import lombok.Getter;
-import lombok.Setter;
+import io.quarkus.arc.Unremovable;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.NamedNode;
@@ -27,7 +29,6 @@ import org.apache.camel.model.StepDefinition;
 import org.apache.camel.spi.CamelEvent.*;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.qubership.integration.platform.engine.camel.context.propagation.CamelExchangeContextPropagation;
-import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTimeoutException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.ChainElementType;
@@ -37,6 +38,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelNames;
+import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.logging.ElementRetryProperties;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
@@ -57,10 +59,7 @@ import org.qubership.integration.platform.engine.service.debugger.util.DebuggerU
 import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -73,11 +72,11 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 import static org.qubership.integration.platform.engine.util.CheckpointUtils.*;
 
 @Slf4j
-@Component
-@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
+@ApplicationScoped
+@Unremovable
 public class CamelDebugger extends DefaultDebugger {
 
-    private final ServerConfiguration serverConfiguration;
+    private final EngineInfo engineInfo;
     private final TracingService tracingService;
     private final CheckpointSessionService checkpointSessionService;
     private final MetricsService metricsService;
@@ -89,36 +88,33 @@ public class CamelDebugger extends DefaultDebugger {
     private final CamelDebuggerPropertiesService propertiesService;
     private final Optional<CamelExchangeContextPropagation> exchangeContextPropagation;
     private final ExchangePropertyService exchangePropertyService;
-    @Setter
-    @Getter
-    private String deploymentId;
 
-    @Autowired
+    @Inject
     public CamelDebugger(
-            ServerConfiguration serverConfiguration,
+            EngineInfo engineInfo,
             TracingService tracingService,
             CheckpointSessionService checkpointSessionService,
             MetricsService metricsService,
             ChainLogger chainLogger,
-            Optional<SessionsKafkaReportingService> sessionsKafkaReportingService,
+            Instance<SessionsKafkaReportingService> sessionsKafkaReportingService,
             SessionsService sessionsService,
             PayloadExtractor payloadExtractor,
             VariablesService variablesService,
             CamelDebuggerPropertiesService propertiesService,
-            Optional<CamelExchangeContextPropagation> exchangeContextPropagation,
+            Instance<CamelExchangeContextPropagation> exchangeContextPropagation,
             ExchangePropertyService exchangePropertyService
     ) {
-        this.serverConfiguration = serverConfiguration;
+        this.engineInfo = engineInfo;
         this.tracingService = tracingService;
         this.checkpointSessionService = checkpointSessionService;
         this.metricsService = metricsService;
         this.chainLogger = chainLogger;
-        this.sessionsKafkaReportingService = sessionsKafkaReportingService;
+        this.sessionsKafkaReportingService = InjectUtil.injectOptional(sessionsKafkaReportingService);
         this.sessionsService = sessionsService;
         this.payloadExtractor = payloadExtractor;
         this.variablesService = variablesService;
         this.propertiesService = propertiesService;
-        this.exchangeContextPropagation = exchangeContextPropagation;
+        this.exchangeContextPropagation = InjectUtil.injectOptional(exchangeContextPropagation);
         this.exchangePropertyService = exchangePropertyService;
     }
 
@@ -744,18 +740,18 @@ public class CamelDebugger extends DefaultDebugger {
     }
 
     private String getCurrentDomain() {
-        return serverConfiguration.getDomain();
+        return engineInfo.getDomain();
     }
 
     private String getCurrentEngineAddress() {
-        return serverConfiguration.getHost();
+        return engineInfo.getHost();
     }
 
     public CamelDebuggerProperties getRelatedProperties(Exchange exchange) {
-        return propertiesService.getProperties(exchange, deploymentId);
+        return propertiesService.getProperties(exchange);
     }
 
-    public CamelDebuggerProperties getRelatedProperties() {
+    public CamelDebuggerProperties getRelatedProperties(String deploymentId) {
         return propertiesService.getActualProperties(deploymentId);
     }
 

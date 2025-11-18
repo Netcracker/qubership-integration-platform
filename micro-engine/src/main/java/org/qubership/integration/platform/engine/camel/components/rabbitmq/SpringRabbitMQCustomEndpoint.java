@@ -27,7 +27,6 @@ import org.apache.camel.spi.UriEndpoint;
 import org.apache.camel.spi.UriParam;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
-import org.springframework.boot.autoconfigure.amqp.RabbitConnectionDetails.Address;
 import org.springframework.util.Assert;
 
 import java.security.KeyManagementException;
@@ -38,6 +37,7 @@ import java.util.Map;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 
+/** Endpoint for Spring RabbitMQ custom component. */
 @Slf4j
 @Setter
 @UriEndpoint(
@@ -49,6 +49,7 @@ import javax.net.ssl.TrustManager;
     headersClass = SpringRabbitMQConstants.class
 )
 public class SpringRabbitMQCustomEndpoint extends SpringRabbitMQEndpoint {
+    private record Address(String host, int port) {}
 
     // connection params for connection factory builder that removed in spring-rabbit
     @UriParam(label = "common")
@@ -73,7 +74,7 @@ public class SpringRabbitMQCustomEndpoint extends SpringRabbitMQEndpoint {
     private int requestedHeartbeat = com.rabbitmq.client.ConnectionFactory.DEFAULT_HEARTBEAT;
     @UriParam(label = "security")
     private String sslProtocol;
-    @UriParam(label = "security")
+    @UriParam(label = "security", description = "Trust manager")
     private TrustManager trustManager;
     @UriParam(label = "advanced")
     private Map<String, Object> clientProperties;

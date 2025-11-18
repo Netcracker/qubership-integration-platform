@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -23,25 +24,24 @@ import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
-@Configuration
+@ApplicationScoped
 @Getter
 public class PredeployCheckKafkaConfiguration {
+    @ConfigProperty(name = "qip.camel.component.kafka.predeploy-check-enabled")
+    boolean camelKafkaPredeployCheckEnabled;
 
-    @Value("${qip.camel.component.kafka.predeploy-check-enabled}")
-    private boolean camelKafkaPredeployCheckEnabled;
+    @ConfigProperty(name = "qip.local-truststore.store.path")
+    String truststoreLocation;
 
-    @Value("${qip.local-truststore.store.path}")
-    private String truststoreLocation;
-
-    @Value("${qip.local-truststore.store.password}")
-    private String truststorePassword;
+    @ConfigProperty(name = "qip.local-truststore.store.password")
+    Optional<String> truststorePassword;
 
     public Map<String, Object> createValidationKafkaAdminConfig(String brokers,
         String securityProtocol,
@@ -63,7 +63,7 @@ public class PredeployCheckKafkaConfiguration {
         config.put(CommonClientConfigs.DEFAULT_API_TIMEOUT_MS_CONFIG, 5000);
 
         config.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, truststoreLocation);
-        config.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, truststorePassword);
+        config.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, truststorePassword.orElse(""));
         config.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "JKS");
 
         return config;

@@ -16,22 +16,23 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Processor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
-
-import java.util.Optional;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 @Slf4j
-@Component("securityProcessor")
+@Singleton
+@Named("securityProcessor")
 public class SecurityProcessorProxy extends OptionalProcessorProxy {
 
-    @Autowired
+    @Inject
     public SecurityProcessorProxy(
-        @Qualifier("securityProcessorImpl") Optional<Processor> processor
+        @Named("securityProcessorImpl") Instance<Processor> processor
     ) {
-        super(processor);
+        super(InjectUtil.injectOptional(processor));
     }
 }

@@ -17,13 +17,14 @@
 package org.qubership.integration.platform.engine.rest.v1.mapper;
 
 import org.mapstruct.Mapper;
+import org.mapstruct.MappingConstants;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointDTO;
 import org.qubership.integration.platform.engine.util.MapperUtils;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring",
+@Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI,
     uses = {
         MapperUtils.class,
     }

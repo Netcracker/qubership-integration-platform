@@ -17,6 +17,9 @@
 package org.qubership.integration.platform.engine.service.debugger.logging;
 
 import com.networknt.schema.utils.StringUtils;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelException;
 import org.apache.camel.Exchange;
@@ -40,19 +43,17 @@ import org.qubership.integration.platform.engine.service.debugger.tracing.Tracin
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class ChainLogger {
     @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger chainLogger = ExtendedErrorLoggerFactory.getLogger(ChainLogger.class);
@@ -63,11 +64,13 @@ public class ChainLogger {
     private final TracingService tracingService;
     private final Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider;
 
-    @Autowired
-    public ChainLogger(@Lazy TracingService tracingService,
-        Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider) {
+    @Inject
+    public ChainLogger(
+            TracingService tracingService,
+            Instance<OriginatingBusinessIdProvider> originatingBusinessIdProvider
+    ) {
         this.tracingService = tracingService;
-        this.originatingBusinessIdProvider = originatingBusinessIdProvider;
+        this.originatingBusinessIdProvider = InjectUtil.injectOptional(originatingBusinessIdProvider);
     }
 
     public static void updateMDCProperty(String key, String value) {

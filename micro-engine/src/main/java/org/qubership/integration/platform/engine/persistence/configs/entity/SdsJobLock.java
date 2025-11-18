@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.persistence.configs.entity;
 
+import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.*;
@@ -32,6 +33,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @NoArgsConstructor
 @Entity(name = "sds_job_locks")
+@IfBuildProperty(name = "qip.sds.enabled", stringValue = "true")
 public class SdsJobLock {
 
     @Id

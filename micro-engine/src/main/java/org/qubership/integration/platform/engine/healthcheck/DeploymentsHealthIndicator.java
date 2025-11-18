@@ -16,31 +16,45 @@
 
 package org.qubership.integration.platform.engine.healthcheck;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.health.HealthCheck;
+import org.eclipse.microprofile.health.HealthCheckResponse;
+import org.eclipse.microprofile.health.HealthCheckResponseBuilder;
+import org.eclipse.microprofile.health.Readiness;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuate.availability.ReadinessStateHealthIndicator;
-import org.springframework.boot.availability.ApplicationAvailability;
-import org.springframework.boot.availability.AvailabilityState;
-import org.springframework.boot.availability.ReadinessState;
-import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component
-public class DeploymentsHealthIndicator extends ReadinessStateHealthIndicator {
+@Readiness
+@ApplicationScoped
+public class DeploymentsHealthIndicator implements HealthCheck {
+    private static final String DEPLOYMENTS_HEALTH_INDICATOR_NAME = "Deployments";
+    private static final String DEPLOYMENTS_HEALTH_INDICATOR_STATE = "state";
 
-    private final DeploymentReadinessService deploymentReadinessService;
-
-    @Autowired
-    public DeploymentsHealthIndicator(DeploymentReadinessService deploymentReadinessService, ApplicationAvailability availability) {
-        super(availability);
-        this.deploymentReadinessService = deploymentReadinessService;
-    }
+    @Inject
+    DeploymentReadinessService deploymentReadinessService;
 
     @Override
-    protected AvailabilityState getState(ApplicationAvailability applicationAvailability) {
-        return deploymentReadinessService.isInitialized()
-                ? super.getState(applicationAvailability)
-                : ReadinessState.REFUSING_TRAFFIC;
+    public HealthCheckResponse call() {
+        HealthCheckResponseBuilder builder = HealthCheckResponse.named(DEPLOYMENTS_HEALTH_INDICATOR_NAME);
+        if (deploymentReadinessService.isInitialized()) {
+            builder.withData(
+                    DEPLOYMENTS_HEALTH_INDICATOR_STATE,
+                    "Ready to process deployments."
+            ).up();
+        } else if (deploymentReadinessService.isReadyForDeploy()) {
+            builder.withData(
+                    DEPLOYMENTS_HEALTH_INDICATOR_STATE,
+                    "Deployments is not initialized yet."
+            ).down();
+        } else {
+            builder.withData(
+                    DEPLOYMENTS_HEALTH_INDICATOR_STATE,
+                    "At least one required event was not received to start deployments processing."
+            )
+            .down();
+        }
+        return builder.build();
     }
 }

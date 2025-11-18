@@ -16,6 +16,10 @@
 
 package org.qubership.integration.platform.engine.camel.processors.session;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -38,8 +42,7 @@ import org.qubership.integration.platform.engine.service.debugger.sessions.Sessi
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -51,8 +54,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Component
+@ApplicationScoped
 @Slf4j
+@Named("chainFinishProcessor")
 public class ChainFinishProcessor implements Processor {
 
     private final MetricsService metricsService;
@@ -64,18 +68,18 @@ public class ChainFinishProcessor implements Processor {
     private final PayloadExtractor payloadExtractor;
     private final ConcurrentHashMap<String, Long> syncDurationMap = new ConcurrentHashMap<>();
 
-    @Autowired
+    @Inject
     public ChainFinishProcessor(MetricsService metricsService,
                                 CamelDebuggerPropertiesService propertiesService,
                                 SessionsService sessionsService,
-                                Optional<SessionsKafkaReportingService> sessionsKafkaReportingService,
-                                Optional<SdsService> sdsService,
+                                Instance<SessionsKafkaReportingService> sessionsKafkaReportingService,
+                                Instance<SdsService> sdsService,
                                 ChainLogger chainLogger, PayloadExtractor payloadExtractor) {
         this.metricsService = metricsService;
         this.propertiesService = propertiesService;
         this.sessionsService = sessionsService;
-        this.sessionsKafkaReportingService = sessionsKafkaReportingService;
-        this.sdsService = sdsService;
+        this.sessionsKafkaReportingService = InjectUtil.injectOptional(sessionsKafkaReportingService);
+        this.sdsService = InjectUtil.injectOptional(sdsService);
         this.chainLogger = chainLogger;
         this.payloadExtractor = payloadExtractor;
     }
@@ -113,8 +117,7 @@ public class ChainFinishProcessor implements Processor {
         // finish session if this is the last thread
         if (sessionActiveThreadCounter == null || sessionActiveThreadCounter.decrementAndGet() <= 0) {
             CamelDebugger camelDebugger = ((CamelDebugger) exchange.getContext().getDebugger());
-            CamelDebuggerProperties dbgProperties = propertiesService.getProperties(exchange,
-                    camelDebugger.getDeploymentId());
+            CamelDebuggerProperties dbgProperties = propertiesService.getProperties(exchange);
 
             ExecutionStatus executionStatus = ExecutionStatus.COMPLETED_NORMALLY;
             for (Entry<Long, ExecutionStatus> entry : threadsStatuses.entrySet()) {

@@ -22,26 +22,31 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 
-@Component
+@ApplicationScoped
+@Named("grpcSenderPostProcessor")
 public class GrpcSenderPostProcessor implements Processor {
 
     private final JsonFormat.Printer grpcPrinter;
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public GrpcSenderPostProcessor(JsonFormat.Printer grpcPrinter, @Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public GrpcSenderPostProcessor(
+            JsonFormat.Printer grpcPrinter,
+            @Identifier("jsonMapper") ObjectMapper objectMapper
+    ) {
         this.grpcPrinter = grpcPrinter;
         this.objectMapper = objectMapper;
     }
@@ -49,7 +54,7 @@ public class GrpcSenderPostProcessor implements Processor {
     @Override
     public void process(Exchange exchange) throws Exception {
         exchange.getMessage().setBody(extractBodyAsJsonString(exchange));
-        exchange.getMessage().setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+        exchange.getMessage().setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
 
         exchange.removeProperty(CamelConstants.Properties.GRPC_SERVICE_NAME);
         exchange.removeProperty(CamelConstants.Properties.GRPC_METHOD_NAME);

@@ -16,23 +16,36 @@
 
 package org.qubership.integration.platform.engine.persistence.configs.repository;
 
+import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.qubership.integration.platform.engine.persistence.configs.entity.SdsJobLock;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.sql.Timestamp;
 import java.util.Collection;
 
-public interface SdsJobLockRepository extends JpaRepository<SdsJobLock, String> {
-    SdsJobLock findByJobId(String jobId);
+@ApplicationScoped
+public class SdsJobLockRepository implements PanacheRepositoryBase<SdsJobLock, String> {
+    public SdsJobLock findByJobId(String jobId) {
+        return find("jobId", jobId).firstResult();
+    }
 
-    boolean existsByJobId(String jobId);
+    public boolean existsByJobId(String jobId) {
+        return count("jobId", jobId) > 0;
+    }
 
-    void deleteAllByJobIdAndCreatedLessThanEqual(String jobId, Timestamp olderThan);
+    public void deleteAllByJobIdAndCreatedLessThanEqual(String jobId, Timestamp olderThan) {
+        delete("jobId = ?1 and created <= ?2", jobId, olderThan);
+    }
 
-    void deleteAllByJobId(String jobId);
+    public void deleteAllByJobId(String jobId) {
+        delete("jobId", jobId);
+    }
 
-    void deleteAllByExecutionId(String executionId);
+    void deleteAllByExecutionId(String executionId) {
+        delete("executionId", executionId);
+    }
 
-    void deleteAllByJobIdIn(Collection<String> jobId);
-
+    void deleteAllByJobIdIn(Collection<String> jobIds) {
+        delete("jobId in (?1)", jobIds);
+    }
 }

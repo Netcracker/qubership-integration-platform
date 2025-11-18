@@ -16,7 +16,9 @@
 
 package org.qubership.integration.platform.engine.service.debugger.metrics;
 
+import io.quarkus.scheduler.Scheduled;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.opensearch._types.InlineScript;
 import org.opensearch.client.opensearch._types.Script;
@@ -31,8 +33,6 @@ import org.qubership.integration.platform.engine.model.opensearch.SessionElement
 import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,22 +44,24 @@ import java.util.Map;
 @Slf4j
 public class SessionsMetricsService {
 
-    private static final long SCHEDULER_INTERVAL = 60000;
+    private static final String SCHEDULER_INTERVAL = "60s";
     private static final String UNABLE_TO_RETRIEVE_SESSION_METRICS_ERROR_MESSAGE = "Unable to retrieve session metrics from opensearch";
     private static final String UNABLE_TO_RETRIEVE_CHECKPOINTS_METRICS_ERROR_MESSAGE = "Unable to retrieve checkpoints metrics from postgres";
 
-    @Value("${qip.opensearch.index.elements.name}")
-    private String indexName;
+    private final String indexName;
 
     private final MetricsStore metricsStore;
     private final OpenSearchClientSupplier openSearchClientSupplier;
     private final HttpAsyncResponseConsumerFactory consumerFactory;
     private final CheckpointRepository  checkpointRepository;
 
-    public SessionsMetricsService(MetricsStore metricsStore,
-                                  OpenSearchClientSupplier openSearchClientSupplier,
-                                  CheckpointRepository checkpointRepository
+    public SessionsMetricsService(
+            @ConfigProperty(name = "qip.opensearch.index.elements.name") String indexName,
+            MetricsStore metricsStore,
+            OpenSearchClientSupplier openSearchClientSupplier,
+            CheckpointRepository checkpointRepository
     ) {
+        this.indexName = indexName;
         this.metricsStore = metricsStore;
         this.openSearchClientSupplier = openSearchClientSupplier;
         this.checkpointRepository = checkpointRepository;
@@ -67,7 +69,7 @@ public class SessionsMetricsService {
     }
 
 
-    @Scheduled(fixedDelay = SCHEDULER_INTERVAL)
+    @Scheduled(every = SCHEDULER_INTERVAL, concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void processSessionsSizeMetrics() {
 
         ScriptedMetricAggregation sizeMetricAgg = AggregationBuilders.scriptedMetric()
@@ -138,21 +140,10 @@ public class SessionsMetricsService {
         }
     }
 
-    @Scheduled(fixedDelay = SCHEDULER_INTERVAL)
+    @Scheduled(every = SCHEDULER_INTERVAL, concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void processCheckpointSizeMetrics() {
         try {
-            List<ChainDataAllocationSize> chainCheckpointSizes = new ArrayList<>();
-            List<Object[]> checkpointSizeResult = checkpointRepository.findAllChainCheckpointSize();
-            checkpointSizeResult.forEach(row -> {
-                        ChainDataAllocationSize chainCheckpointSize = ChainDataAllocationSize.builder()
-                                .chainId((String) row[0])
-                                .chainName((String) row[1])
-                                .allocatedSize(Long.parseLong(row[2].toString()))
-                                .build();
-
-                        chainCheckpointSizes.add(chainCheckpointSize);
-                    }
-            );
+            List<ChainDataAllocationSize> chainCheckpointSizes = checkpointRepository.findAllChainCheckpointSize();
             metricsStore.processChainCheckpointsSize(chainCheckpointSizes);
         } catch (Exception e) {
             throw new EngineRuntimeException(UNABLE_TO_RETRIEVE_CHECKPOINTS_METRICS_ERROR_MESSAGE, e);

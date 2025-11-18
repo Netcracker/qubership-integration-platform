@@ -16,12 +16,13 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.service.debugger.util.ChainExceptionResponseHandlerService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 
 /**
@@ -30,12 +31,13 @@ import org.springframework.stereotype.Component;
  */
 
 @Slf4j
-@Component
+@ApplicationScoped
+@Named("chainExceptionResponseHandlerProcessor")
 public class ChainExceptionResponseHandlerProcessor implements Processor {
 
     ChainExceptionResponseHandlerService handler;
 
-    @Autowired
+    @Inject
     public ChainExceptionResponseHandlerProcessor(ChainExceptionResponseHandlerService handler) {
         this.handler = handler;
     }

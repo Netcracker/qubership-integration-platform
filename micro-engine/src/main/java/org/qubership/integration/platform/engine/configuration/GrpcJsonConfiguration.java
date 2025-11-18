@@ -17,18 +17,18 @@
 package org.qubership.integration.platform.engine.configuration;
 
 import com.google.protobuf.util.JsonFormat;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
 
-@Configuration
+@ApplicationScoped
 public class GrpcJsonConfiguration {
 
-    @Bean
+    @Produces
     public JsonFormat.Parser grpcParser() {
         return JsonFormat.parser().ignoringUnknownFields();
     }
 
-    @Bean
+    @Produces
     public JsonFormat.Printer grpcPrinter() {
         return JsonFormat.printer();
     }

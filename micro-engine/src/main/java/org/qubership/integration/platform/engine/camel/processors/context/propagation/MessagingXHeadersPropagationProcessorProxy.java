@@ -16,23 +16,25 @@
 
 package org.qubership.integration.platform.engine.camel.processors.context.propagation;
 
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.camel.processors.OptionalProcessorProxy;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
-import java.util.Optional;
 
 @Slf4j
-@Component("messagingXHeadersPropagationProcessor")
+@Singleton
+@Named("messagingXHeadersPropagationProcessor")
 public class MessagingXHeadersPropagationProcessorProxy extends OptionalProcessorProxy {
 
-    @Autowired
+    @Inject
     public MessagingXHeadersPropagationProcessorProxy(
-        @Qualifier("messagingXHeadersPropagationProcessorImpl") Optional<Processor> processor
+        @Named("messagingXHeadersPropagationProcessorImpl") Instance<Processor> processor
     ) {
-        super(processor);
+        super(InjectUtil.injectOptional(processor));
     }
 }

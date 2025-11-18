@@ -16,14 +16,14 @@
 
 package org.qubership.integration.platform.engine.camel;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.kafka.serde.KafkaHeaderDeserializer;
-import org.springframework.stereotype.Component;
 
 import java.io.UnsupportedEncodingException;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class KafkaHeaderStringDeserializer implements KafkaHeaderDeserializer {
     private final String encoding = "UTF8";
 

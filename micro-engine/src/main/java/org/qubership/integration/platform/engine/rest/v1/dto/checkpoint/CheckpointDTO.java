@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.engine.rest.v1.dto.checkpoint;
 
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Data
 @Builder

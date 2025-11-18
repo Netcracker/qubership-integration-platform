@@ -33,6 +33,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static java.util.Objects.nonNull;
+
 @Slf4j
 public class KubeOperator {
 
@@ -51,9 +53,11 @@ public class KubeOperator {
         devmode = null;
     }
 
-    public KubeOperator(ApiClient client,
-        String namespace,
-        Boolean devmode) {
+    public KubeOperator(
+            ApiClient client,
+            String namespace,
+            Boolean devmode
+    ) {
 
         coreApi = new CoreV1Api();
         coreApi.setApiClient(client);
@@ -115,6 +119,6 @@ public class KubeOperator {
     }
 
     public Boolean isDevmode() {
-        return devmode;
+        return nonNull(devmode) && devmode;
     }
 }

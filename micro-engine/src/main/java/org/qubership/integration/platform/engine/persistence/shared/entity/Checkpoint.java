@@ -48,6 +48,7 @@ public class Checkpoint {
 
     @OneToMany(orphanRemoval = true, mappedBy = "checkpoint", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     @OnDelete(action = OnDeleteAction.CASCADE)
+    @Builder.Default
     private List<Property> properties = new LinkedList<>();
 
     @Column(columnDefinition = "TEXT")

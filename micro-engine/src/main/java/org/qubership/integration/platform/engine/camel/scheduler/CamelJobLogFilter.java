@@ -16,22 +16,25 @@
 
 package org.qubership.integration.platform.engine.camel.scheduler;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.filter.Filter;
-import ch.qos.logback.core.spi.FilterReply;
+import io.quarkus.logging.LoggingFilter;
+import org.jboss.logmanager.Level;
 
-public class CamelJobLogFilter extends Filter<ILoggingEvent> {
+import java.util.Optional;
+import java.util.logging.Filter;
+import java.util.logging.LogRecord;
+
+@LoggingFilter(name = "camel-job-filter")
+public class CamelJobLogFilter implements Filter {
     @Override
-    public FilterReply decide(ILoggingEvent event) {
-        return (event.getLevel().equals(Level.ERROR)
-                && event.getLoggerName().equals("org.apache.camel.component.quartz.CamelJob")
-                    || event.getLevel().equals(Level.INFO)
-                && event.getLoggerName().equals("org.quartz.core.JobRunShell"))
-                && event.getThrowableProxy() != null
-                && event.getThrowableProxy().getMessage() != null
-                && event.getThrowableProxy().getMessage().startsWith("No CamelContext could be found with name")
-                    ? FilterReply.DENY
-                    : FilterReply.NEUTRAL;
+    public boolean isLoggable(LogRecord record) {
+        boolean shouldBeFiltered = (record.getLevel().equals(Level.ERROR)
+                && record.getLoggerName().equals("org.apache.camel.component.quartz.CamelJob")
+                || record.getLevel().equals(Level.INFO)
+                && record.getLoggerName().equals("org.quartz.core.JobRunShell"))
+                && Optional.ofNullable(record.getThrown())
+                    .map(Throwable::getMessage)
+                    .map(message -> message.startsWith("No CamelContext could be found with name"))
+                    .orElse(false);
+        return !shouldBeFiltered;
     }
 }

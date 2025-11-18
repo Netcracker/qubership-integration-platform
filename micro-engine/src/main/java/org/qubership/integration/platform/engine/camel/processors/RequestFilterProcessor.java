@@ -16,21 +16,24 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-@Component
+@ApplicationScoped
+@Named("requestFilterProcessor")
 public class RequestFilterProcessor implements Processor {
+    private final String requestFilterHeaderName;
 
-    public final String requestFilterHeaderName;
-
-    public RequestFilterProcessor(@Value("${camel.constants.request-filter-header.name}") String requestFilterHeaderName) {
+    public RequestFilterProcessor(
+            @ConfigProperty(name = "camel.constants.request-filter-header.name") String requestFilterHeaderName
+    ) {
         this.requestFilterHeaderName = CamelConstants.INTERNAL_PROPERTY_PREFIX + requestFilterHeaderName;
     }
 

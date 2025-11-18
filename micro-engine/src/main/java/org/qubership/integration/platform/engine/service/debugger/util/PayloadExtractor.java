@@ -18,6 +18,13 @@ package org.qubership.integration.platform.engine.service.debugger.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.NotSupportedException;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.support.http.HttpUtil;
@@ -29,12 +36,7 @@ import org.qubership.integration.platform.engine.model.SessionElementProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.service.debugger.masking.MaskingService;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.HttpHeaders;
-import org.springframework.stereotype.Component;
-import org.springframework.util.MimeType;
-import org.springframework.web.reactive.function.UnsupportedMediaTypeException;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -44,18 +46,21 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class PayloadExtractor {
     private final MaskingService maskingService;
     private final ObjectMapper objectMapper;
     private final Optional<CamelExchangeContextPropagation> exchangeContextPropagation;
 
-    @Autowired
-    public PayloadExtractor(MaskingService maskingService, @Qualifier("jsonMapper") ObjectMapper objectMapper,
-        Optional<CamelExchangeContextPropagation> exchangeContextPropagation) {
+    @Inject
+    public PayloadExtractor(
+            MaskingService maskingService,
+            @Identifier("jsonMapper") ObjectMapper objectMapper,
+            Instance<CamelExchangeContextPropagation> exchangeContextPropagation
+    ) {
         this.maskingService = maskingService;
         this.objectMapper = objectMapper;
-        this.exchangeContextPropagation = exchangeContextPropagation;
+        this.exchangeContextPropagation = InjectUtil.injectOptional(exchangeContextPropagation);
     }
 
     public Map<String, String> extractHeadersForLogging(Exchange exchange, Set<String> maskedFields, boolean maskingEnabled) {
@@ -77,12 +82,12 @@ public class PayloadExtractor {
      */
     public String extractBodyForLogging(Exchange exchange, Set<String> maskedFields, boolean maskingEnabled) {
         String maskedBody = MessageHelper.extractBody(exchange);
-        MimeType contentType = extractContentType(exchange);
+        MediaType contentType = extractContentType(exchange);
 
         if (maskingEnabled && !maskedFields.isEmpty() && StringUtils.isNotEmpty(maskedBody) && contentType != null) {
             try {
                 maskedBody = maskingService.maskFields(maskedBody, maskedFields, contentType);
-            } catch (LoggingMaskingException | UnsupportedMediaTypeException e) {
+            } catch (LoggingMaskingException | NotSupportedException e) {
                 if (log.isDebugEnabled()) {
                     log.debug("Failed to mask fields in body");
                 }
@@ -152,9 +157,9 @@ public class PayloadExtractor {
         return HttpUtil.determineResponseCode(exchange, exchange.getMessage().getBody());
     }
 
-    public static MimeType extractContentType(Exchange exchange) {
+    public static MediaType extractContentType(Exchange exchange) {
         Object contentType = exchange.getMessage().getHeaders().getOrDefault(
                 HttpHeaders.CONTENT_TYPE, null);
-        return contentType == null ? null : MimeType.valueOf(String.valueOf(contentType));
+        return contentType == null ? null : MediaType.valueOf(String.valueOf(contentType));
     }
 }

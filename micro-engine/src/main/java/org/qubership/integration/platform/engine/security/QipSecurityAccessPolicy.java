@@ -16,31 +16,25 @@
 
 package org.qubership.integration.platform.engine.security;
 
-import org.springframework.security.access.ConfigAttribute;
-import org.springframework.security.access.SecurityConfig;
+import lombok.Getter;
 
 import java.util.Collection;
 import java.util.List;
-
-import static java.util.stream.Collectors.toList;
 
 /**
     Warning: Class is specified in http trigger template.hbs file by full name (with package).
     Do not move this class.
  */
+@Getter
 public class QipSecurityAccessPolicy {
-    private final List<ConfigAttribute> configAttributes;
+    private final List<String> configAttributes;
 
-    public QipSecurityAccessPolicy(List<ConfigAttribute> configAttributes) {
+    public QipSecurityAccessPolicy(List<String> configAttributes) {
         this.configAttributes = configAttributes;
     }
 
-    public List<ConfigAttribute> getConfigAttributes() {
-        return configAttributes;
-    }
-
     public static QipSecurityAccessPolicy fromStrings(Collection<String> strings) {
-        List<ConfigAttribute> attributes = strings.stream().map(SecurityConfig::new).collect(toList());
+        List<String> attributes = strings.stream().toList();
         return new QipSecurityAccessPolicy(attributes);
     }
 }

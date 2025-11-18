@@ -17,22 +17,24 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.util.json.JsonObject;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
-@Component
+@ApplicationScoped
+@Named("graphQLVariablesProcessor")
 public class GraphQLVariablesProcessor implements Processor {
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public GraphQLVariablesProcessor(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
+    @Inject
+    public GraphQLVariablesProcessor(@Identifier("jsonMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 

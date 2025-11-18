@@ -16,23 +16,24 @@
 
 package org.qubership.integration.platform.engine.service;
 
+import io.vertx.mutiny.core.eventbus.EventBus;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.text.StringEscapeUtils;
 import org.apache.commons.text.StringSubstitutor;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jetbrains.annotations.NotNull;
-import org.qubership.integration.platform.engine.configuration.NamespaceProvider;
+import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEvent;
 import org.qubership.integration.platform.engine.events.SecuredVariablesUpdatedEvent;
+import org.qubership.integration.platform.engine.events.UpdateEvent;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,7 +45,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Slf4j
-@Component
+@ApplicationScoped
 public class VariablesService {
     private final String kubeSecretV2Name;
     private final Pair<String, String> kubeSecretsLabel;
@@ -54,9 +55,9 @@ public class VariablesService {
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
-    private final ApplicationEventPublisher applicationEventPublisher;
+    private final EventBus eventBus;
     private final KubeOperator operator;
-    private final NamespaceProvider namespaceProvider;
+    private final ApplicationConfiguration applicationConfiguration;
 
     private Map<String, String> commonVariables = Collections.emptyMap();
     private Map<String, String> securedVariables = Collections.emptyMap();
@@ -68,17 +69,20 @@ public class VariablesService {
     private boolean isInitialSecuredEvent = true;
     private boolean isInitialCommonEvent = true;
 
-    @Autowired
-    public VariablesService(ApplicationEventPublisher applicationEventPublisher,
-                            KubeOperator operator,
-                            NamespaceProvider namespaceProvider,
-                            @Value("${kubernetes.variables-secret.label}") String kubeSecretsLabel,
-                            @Value("${kubernetes.variables-secret.name}") String kubeSecretV2Name) {
-        this.applicationEventPublisher = applicationEventPublisher;
+    @Inject
+    public VariablesService(
+            EventBus eventBus,
+            KubeOperator operator,
+            ApplicationConfiguration applicationConfiguration,
+            @ConfigProperty(name = "kubernetes.variables-secret.label") String kubeSecretsLabel,
+            @ConfigProperty(name = "kubernetes.variables-secret.name") String kubeSecretV2Name
+    ) {
+        this.eventBus = eventBus;
         this.operator = operator;
-        this.namespaceProvider = namespaceProvider;
+        this.applicationConfiguration = applicationConfiguration;
         this.kubeSecretV2Name = kubeSecretV2Name;
         this.kubeSecretsLabel = Pair.of(kubeSecretsLabel, "secured");
+        updateSubstitutors(Collections.emptyMap());
     }
 
     public String injectVariables(String text) {
@@ -129,7 +133,8 @@ public class VariablesService {
     public void refreshSecuredVariables() {
         securedVariables = pollSecuredVariables();
         mergeVariables();
-        applicationEventPublisher.publishEvent(new SecuredVariablesUpdatedEvent(this, isInitialSecuredEvent));
+        eventBus.publish(UpdateEvent.EVENT_ADDRESS,
+                new SecuredVariablesUpdatedEvent(this, isInitialSecuredEvent));
         if (isInitialSecuredEvent) {
             isInitialSecuredEvent = false;
         }
@@ -140,17 +145,19 @@ public class VariablesService {
         this.commonVariables = variables;
 
         mergeVariables();
-        applicationEventPublisher.publishEvent(new CommonVariablesUpdatedEvent(this, isInitialCommonEvent));
+        eventBus.publish(UpdateEvent.EVENT_ADDRESS,
+                new CommonVariablesUpdatedEvent(this, isInitialCommonEvent));
         if (isInitialCommonEvent) {
             isInitialCommonEvent = false;
         }
     }
 
     private Map<String, String> patchNamespaceValue(@NotNull Map<String, String> variables) {
+        String namespace = applicationConfiguration.getNamespace();
         if (variables.isEmpty()) {
-            return Map.of(NAMESPACE_VARIABLE, namespaceProvider.getNamespace());
+            return Map.of(NAMESPACE_VARIABLE, namespace);
         } else {
-            variables.put(NAMESPACE_VARIABLE, namespaceProvider.getNamespace());
+            variables.put(NAMESPACE_VARIABLE, namespace);
             return variables;
         }
     }
@@ -191,13 +198,17 @@ public class VariablesService {
             mergedVariables.putAll(securedVariables);
 
             // build substitutors
-            substitutor = buildSubst(mergedVariables, "#{");
-            Map<String, String> variablesToEscape = new HashMap<>(mergedVariables);
-            variablesToEscape.forEach((k, v) -> variablesToEscape.replace(k, StringEscapeUtils.escapeXml10(v)));
-            substitutorEscaped = buildSubst(variablesToEscape, "#{");
+            updateSubstitutors(mergedVariables);
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    private void updateSubstitutors(Map<String, String> variables) {
+        substitutor = buildSubst(variables, "#{");
+        Map<String, String> variablesToEscape = new HashMap<>(variables);
+        variablesToEscape.forEach((k, v) -> variablesToEscape.replace(k, StringEscapeUtils.escapeXml10(v)));
+        substitutorEscaped = buildSubst(variablesToEscape, "#{");
     }
 
     private StringSubstitutor buildSubst(Map<String, String> variables, String prefix) {

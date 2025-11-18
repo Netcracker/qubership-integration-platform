@@ -21,6 +21,11 @@ import groovy.lang.GroovyObject;
 import groovy.lang.GroovyRuntimeException;
 import groovy.xml.XmlUtil;
 import groovy.xml.slurpersupport.GPathResult;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -31,9 +36,7 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Prope
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
@@ -45,22 +48,23 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Component
+@ApplicationScoped
+@Named("contextSaverProcessor")
 public class ContextSaverProcessor implements Processor {
 
     private final CheckpointSessionService checkpointSessionService;
     private final ObjectMapper checkpointMapper;
     private final Optional<ContextOperationsWrapper> contextOperations;
 
-    @Autowired
+    @Inject
     public ContextSaverProcessor(
             CheckpointSessionService checkpointSessionService,
-            @Qualifier("checkpointMapper") ObjectMapper checkpointMapper,
-            Optional<ContextOperationsWrapper> contextOperations
+            @Identifier("checkpointMapper") ObjectMapper checkpointMapper,
+            Instance<ContextOperationsWrapper> contextOperations
     ) {
         this.checkpointSessionService = checkpointSessionService;
         this.checkpointMapper = checkpointMapper;
-        this.contextOperations = contextOperations;
+        this.contextOperations = InjectUtil.injectOptional(contextOperations);
     }
 
     @Override

@@ -16,26 +16,30 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
 
-@Configuration
 @Slf4j
+@ApplicationScoped
 public class DeploymentThreadPoolConfiguration {
-    @Bean(name = "deploymentExecutor")
+    @Produces
+    @Named("deploymentExecutor")
     Executor deploymentExecutor(
-            @Value("${qip.deployments.thread-pool.core-size:3}") int corePoolSize,
-            @Value("${qip.deployments.thread-pool.max-size:3}") int maxPoolSize
+            @ConfigProperty(name = "qip.deployments.thread-pool.core-size", defaultValue = "3") int corePoolSize,
+            @ConfigProperty(name = "qip.deployments.thread-pool.max-size", defaultValue = "3") int maxPoolSize
     ) {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(corePoolSize);
-        executor.setMaxPoolSize(maxPoolSize);
         log.debug("Deployment task executor thread pool size: core = {}, max = {}", corePoolSize, maxPoolSize);
+        ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("deployment-%d")
+                .build();
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(corePoolSize, threadFactory);
+        executor.setMaximumPoolSize(maxPoolSize);
         return executor;
     }
 }

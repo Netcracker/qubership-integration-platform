@@ -20,6 +20,9 @@ import com.arakelian.json.ImmutableJsonFilterOptions;
 import com.arakelian.json.JsonFilter;
 import com.arakelian.json.JsonReader;
 import com.arakelian.json.JsonWriter;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -28,18 +31,17 @@ import org.apache.camel.http.common.DefaultHttpBinding;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.List;
 
-@Component
+@ApplicationScoped
 @Slf4j
+@Named("handlingHttpBinding")
 public class HandlingHttpBinding extends DefaultHttpBinding {
-    @Autowired    
+    @Inject
     public HandlingHttpBinding(ServletCustomFilterStrategy servletCustomFilterStrategy) {
         super();
         setHeaderFilterStrategy(servletCustomFilterStrategy);

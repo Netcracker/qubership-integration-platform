@@ -16,29 +16,28 @@
 
 package org.qubership.integration.platform.engine.persistence;
 
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 
-@Component
+@ApplicationScoped
 public class TransactionHandler {
 
-    @Transactional(value = "checkpointTransactionManager", propagation = Propagation.REQUIRED)
+    @Transactional(Transactional.TxType.REQUIRED)
     public void runInCheckpointTransaction(Runnable callback) {
         callback.run();
     }
 
-    @Transactional(value = "checkpointTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
     public void runInNewCheckpointTransaction(Runnable callback) {
         callback.run();
     }
 
-    @Transactional(value = "schedulerTransactionManager", propagation = Propagation.REQUIRED)
+    @Transactional(Transactional.TxType.REQUIRED)
     public void runInSchedulerTransaction(Runnable callback) {
         callback.run();
     }
 
-    @Transactional(value = "schedulerTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
     public void runInNewSchedulerTransaction(Runnable callback) {
         callback.run();
     }

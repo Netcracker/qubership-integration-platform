@@ -16,11 +16,13 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import org.apache.camel.Exchange;
 import org.apache.camel.http.common.HttpHeaderFilterStrategy;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.util.Collection;
 import java.util.List;
@@ -28,7 +30,7 @@ import java.util.Optional;
 
 import static java.util.Objects.nonNull;
 
-@Component
+@ApplicationScoped
 public class ServletCustomFilterStrategy extends HttpHeaderFilterStrategy {
     private static final Collection<String> FILTERED_HEADERS = List.of(
         "span-id",
@@ -38,9 +40,9 @@ public class ServletCustomFilterStrategy extends HttpHeaderFilterStrategy {
 
     private final Optional<ContextPropsProvider> contextPropsProvider;
 
-    @Autowired
-    public ServletCustomFilterStrategy(Optional<ContextPropsProvider> contextPropsProvider) {
-        this.contextPropsProvider = contextPropsProvider;
+    @Inject
+    public ServletCustomFilterStrategy(Instance<ContextPropsProvider> contextPropsProvider) {
+        this.contextPropsProvider = InjectUtil.injectOptional(contextPropsProvider);
         this.getOutFilter().addAll(FILTERED_HEADERS);
     }
 

@@ -1,155 +1,11 @@
-server:
-  address: 0.0.0.0
-  port: 8080
-  max-http-request-header-size: 16KB
-  tomcat:
-    max-http-response-header-size: 16KB
-    mbeanregistry:
-      enabled: ${MONITORING_ENABLED:false}
-
-spring:
-  autoconfigure:
-    exclude:
-    - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
-    - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
-    - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
-    - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
-    - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
-    - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
-    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
-    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
-    - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
-    - org.apache.camel.component.quartz.springboot.QuartzComponentAutoConfiguration
-  main:
-    allow-bean-definition-overriding: true
-  profiles:
-    active: default
-  application:
-    name: ${MICROSERVICE_NAME:qip-engine}
-    cloud_service_name: ${spring.application.name}-${spring.application.deployment_version}
-    deployment_version: ${DEPLOYMENT_VERSION:v1}
-    namespace: ${NAMESPACE:local}
-    default_integration_domain_microservice_name: qip-engine # custom param
-    default_integration_domain_name: default # custom param
-  config:
-    import: consul:${CONSUL_URL:http://consul:8500}
-  cloud:
-    discovery:
-      enabled: false
-    service-registry:
-      auto-registration:
-        enabled: false
-    consul:
-      enabled: true
-      config:
-        enabled: true
-        prefixes: config/${NAMESPACE}
-        acl-token: ${CONSUL_ADMIN_TOKEN}
-  jpa:
-    database: postgresql
-    properties:
-      hibernate:
-        physical_naming_strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
-        temp:
-          use_jdbc_metadata_defaults: false # disable connection during init
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        default_schema: engine
-        order_inserts: true
-        order_updates: true
-        jdbc:
-          batch_size: 30
-          time_zone: UTC
-          lob:
-            non_contextual_creation: true
-  flyway:
-    enabled: false
-  jackson:
-    serialization:
-      indent-output: true
-
-app:
+application:
   prefix: qip
-
-management:
-  endpoints:
-    probe:
-      readiness: deployments
-    web:
-      exposure:
-        exclude: shutdown
-        include: info, health, ready, env, loggers, metrics, prometheus
-  opentelemetry:
-    resource-attributes:
-      "service.name": ${spring.application.name}-${NAMESPACE:local}
-  tracing:
-    enabled: ${TRACING_ENABLED:false}
-    propagation:
-      type: B3_MULTI
-    sampling:
-      probability: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
-  otlp:
-    tracing:
-      endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318/v1/traces
-    metrics:
-      export:
-        enabled: false
-
-logging:
-  level:
-    root: ${ROOT_LOG_LEVEL:INFO}
-  config: classpath:logback-spring.xml
-
-db:
-  flyway:
-    checkpoints-datasource:
-      baselineOnMigrate: true
-      schemas: ${spring.jpa.properties.hibernate.default_schema}
-      defaultSchema: ${spring.jpa.properties.hibernate.default_schema}
-      createSchemas: true
-      outOfOrder: true
-      ignoreMigrationPatterns: '*:future,*:missing'
-      locations: 'classpath:db/migration/postgresql/static'
-      validateOnMigrate: true
-    qrtz-datasource:
-      baselineOnMigrate: true
-      schemas: ${spring.jpa.properties.hibernate.default_schema}
-      defaultSchema: ${spring.jpa.properties.hibernate.default_schema}
-      createSchemas: true
-      outOfOrder: true
-      ignoreMigrationPatterns: '*:future,*:missing'
-      locations: 'classpath:db/migration/postgresql/configs'
-  hikari:
-    datasources:
-      datasource:
-        driver-class-name: org.postgresql.Driver
-        username: ${POSTGRES_USER:postgres}
-        password: ${POSTGRES_PASSWORD:postgres}
-        maximum-pool-size: ${PG_MAX_POOL_SIZE:30}
-        minimum-idle: ${PG_MIN_IDLE:0}
-        idle-timeout: ${PG_IDLE_TIMEOUT:300000}
-        leak-detection-threshold: ${PG_LEAK_DETECTION_INTERVAL:30000}
-      checkpoints-datasource:
-        driver-class-name: ${db.hikari.datasources.datasource.driver-class-name}
-        jdbcUrl: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_checkpoints_db
-        username: ${db.hikari.datasources.datasource.username}
-        password: ${db.hikari.datasources.datasource.password}
-        schema: ${spring.jpa.properties.hibernate.default_schema}
-        maximum-pool-size: ${db.hikari.datasources.datasource.maximum-pool-size}
-        minimum-idle: ${db.hikari.datasources.datasource.minimum-idle}
-        idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
-        leak-detection-threshold: ${db.hikari.datasources.datasource.leak-detection-threshold}
-        dataSourceProperties:
-          reWriteBatchedInserts: true
-      qrtz-datasource:
-        driver-class-name: ${db.hikari.datasources.datasource.driver-class-name}
-        jdbcUrl: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_qrtz_db
-        username: ${db.hikari.datasources.datasource.username}
-        password: ${db.hikari.datasources.datasource.password}
-        schema: ${spring.jpa.properties.hibernate.default_schema}
-        maximum-pool-size: ${db.hikari.datasources.datasource.maximum-pool-size}
-        minimum-idle: ${db.hikari.datasources.datasource.minimum-idle}
-        idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
-        leak-detection-threshold: ${db.hikari.datasources.datasource.leak-detection-threshold}
+  name: ${MICROSERVICE_NAME:qip-engine}
+  cloud_service_name: ${application.name}-${application.deployment_version}
+  deployment_version: ${DEPLOYMENT_VERSION:v1}
+  namespace: ${NAMESPACE:local}
+  default_integration_domain_microservice_name: qip-engine # custom param
+  default_integration_domain_name: default # custom param
 
 security:
   role-prefix: 'ROLE_'
@@ -158,8 +14,8 @@ consul:
   url: ${CONSUL_URL:http://consul:8500}
   token: ${CONSUL_ADMIN_TOKEN}
   keys:
-    prefix: /config/${NAMESPACE}
-    engine-config-root: /${app.prefix}-engine-configurations
+    prefix: config/${NAMESPACE}
+    engine-config-root: /${application.prefix}-engine-configurations
     deployments-update: /deployments-update
     libraries-update: /libraries-update
     engines-state: /engines-state
@@ -170,13 +26,25 @@ consul:
     enabled: ${DYNAMIC_ENGINE_CONSUL_STATE_ENABLED:false}
 
 camel:
+  trace:
+    enabled: ${TRACING_ENABLED:false}
+  debug:
+    enabled: true
+  main:
+    name: Camel Context
+    autoStartup: false
+    messageHistory: true
+    streamCachingEnabled: true # enable exchange payload spooling
+    streamCachingBufferSize: 16384
+    globalOptions:
+      CamelJacksonEnableTypeConverter: true
+      CamelJacksonTypeConverterToPojo: true
+      inflightRepositoryBrowseEnabled: true
   component:
     kafka: # new parameters will not be automatically set to 'kafka-custom' element, need to change KafkaCustomComponentConfiguration
       ssl-truststore-location: ${qip.local-truststore.store.path}
       ssl-truststore-password: ${qip.local-truststore.store.password}
       ssl-truststore-type: JKS
-    metrics:
-      metric-registry: io.micrometer.prometheus.PrometheusMeterRegistry
     servlet:
       http-registry: '#gatewayHttpRegistry'
   servlet:
@@ -188,6 +56,7 @@ camel:
 
 qip:
   camel:
+    routes-prefix: /routes
     stream-caching:
       enabled: true # enable exchange payload spooling
       buffer:
@@ -200,7 +69,7 @@ qip:
       rabbitmq:
         predeploy-check-enabled: ${CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED:true}
   deployments:
-    retry-delay: 30000
+    retry-delay: 30s
     thread-pool:
       core-size: 3
       max-size: 3
@@ -215,7 +84,6 @@ qip:
       protocol: ${OPENSEARCH_PROTOCOL:http}
       user-name: ${OPENSEARCH_USERNAME:}
       password: ${OPENSEARCH_PASSWORD:}
-      connection-timeout: ${OPENSEARCH_CONNECTION_TIMEOUT:5000}
       prefix: ${OPENSEARCH_PREFIX:}
     write:
       batch:
@@ -226,7 +94,7 @@ qip:
           maximum: 300000
     index:
       elements:
-        name: qip-elements-${spring.application.namespace}
+        name: qip-elements-${application.namespace}
         shards: ${OPENSEARCH_INDEX_SHARDS:3}
     rollover:
       min_index_age: 1d
@@ -262,7 +130,7 @@ qip:
   local-truststore:
     store:
       path: /tmp/truststore/defaulttruststore.jks
-      password: ''
+      password: ""
     certs:
       location: :/tmp/cert/${SSL_SECRET:defaultsslcertificate}
   production-mode:
@@ -285,5 +153,165 @@ kubernetes:
     token-file-path: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
     cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
   variables-secret:
-    name: ${app.prefix}-secured-variables-v2
-    label: ${app.prefix}-variable-type
+    name: ${application.prefix}-secured-variables-v2
+    label: ${application.prefix}-variable-type
+
+quarkus:
+  application:
+    name: ${application.name}
+  log:
+    level: INFO
+    console:
+      level: INFO
+      format: "[%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-7p] [request_id=%-15X{requestId}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{X-B3-TraceId}] [spanId=%-16X{X-B3-SpanId}] [method=%-30.30M]  - %m%n"
+      filter: camel-job-filter
+    category:
+      "org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger":
+        level: INFO
+  http:
+    host: 0.0.0.0
+    port: 8080
+  rest-client:
+    checkpoints:
+      url: "http://localhost:8080${qip.camel.routes-prefix}"
+      scope: jakarta.inject.Singleton
+    runtime-catalog:
+      url: ${RUNTIME_CATALOG_SERVICE_URL:http://runtime-catalog:8080}
+      scope: jakarta.inject.Singleton
+      connect-timeout: 300000
+      read-timeout: 300000
+    consul:
+      url: ${CONSUL_URL:http://consul:8500}
+      scope: jakarta.inject.Singleton
+      connect-timeout: 25000
+      read-timeout: 25000
+  consul-config:
+    prefix: config/${NAMESPACE}
+    agent:
+      host-port: ${CONSUL_URL:consul:8500}
+      use-https: false
+      token: ${CONSUL_ADMIN_TOKEN}
+  datasource:
+    checkpoints:
+      db-kind: postgresql
+      active: true
+      username: ${POSTGRES_USER:postgres}
+      password: ${POSTGRES_PASSWORD:postgres}
+      jdbc:
+        driver: org.postgresql.Driver
+        url: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_checkpoints_db?reWriteBatchedInserts=true
+        min-size: ${PG_MIN_IDLE:0}
+        max-size: ${PG_MAX_POOL_SIZE:30}
+        idle-removal-interval: ${PG_IDLE_TIMEOUT:5M}
+        leak-detection-interval: ${PG_LEAK_DETECTION_INTERVAL:30000}
+    quartz:
+      db-kind: postgresql
+      active: true
+      username: ${POSTGRES_USER:postgres}
+      password: ${POSTGRES_PASSWORD:postgres}
+      jdbc:
+        driver: org.postgresql.Driver
+        url: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_qrtz_db
+        min-size: ${PG_MIN_IDLE:0}
+        max-size: ${PG_MAX_POOL_SIZE:30}
+        idle-removal-interval: ${PG_IDLE_TIMEOUT:5M}
+        leak-detection-interval: ${PG_LEAK_DETECTION_INTERVAL:30000}
+  flyway:
+    enabled: true
+    checkpoints:
+      schemas: engine
+      default-schema: engine
+      locations: 'classpath:db/migration/postgresql/static'
+      baseline-on-migrate: true
+      create-schemas: true
+      out-of-order: true
+      ignore-migration-patterns: '*:future,*:missing'
+      validate-on-migrate: true
+      active: true
+      migrate-at-start: true
+    quartz:
+      schemas: engine
+      default-schema: engine
+      locations: 'classpath:db/migration/postgresql/configs'
+      baseline-on-migrate: true
+      create-schemas: true
+      out-of-order: true
+      ignore-migration-patterns: '*:future,*:missing'
+      active: true
+      migrate-at-start: true
+  hibernate-orm:
+    checkpoints:
+      datasource: checkpoints
+      dialect: org.hibernate.dialect.PostgreSQLDialect
+      packages: org.qubership.integration.platform.engine.persistence.shared.entity
+      physical-naming-strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
+      database:
+        generation:
+          create-schemas: false
+        default-schema: engine
+      jdbc:
+        timezone: UTC
+        statement-batch-size: 30
+      unsupported-properties:
+        "hibernate.order_inserts": true
+        "hibernate.order_updates": true
+        "hibernate.jdbc.lob.non_contextual_creation": true
+        "hibernate.temp.use_jdbc_metadata_defaults": false # disable connection during init
+    quartz:
+      datasource: quartz
+      dialect: org.hibernate.dialect.PostgreSQLDialect
+      packages: org.qubership.integration.platform.engine.persistence.configs.entity
+      physical-naming-strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
+      database:
+        generation:
+          create-schemas: false
+        default-schema: engine
+      jdbc:
+        timezone: UTC
+        statement-batch-size: 30
+      unsupported-properties:
+        "hibernate.order_inserts": true
+        "hibernate.order_updates": true
+        "hibernate.jdbc.lob.non_contextual_creation": true
+        "hibernate.temp.use_jdbc_metadata_defaults": false # disable connection during init
+  smallrye-openapi:
+    enable: true
+  camel:
+    servlet:
+      servlet-name: CamelServlet
+      servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
+      url-patterns:
+        - "${qip.camel.routes-prefix}/*"
+    debug:
+      enabled: true
+    trace:
+      enabled: ${TRACING_ENABLED:false}
+  quartz:
+    clustered: true
+    store-type: jdbc-tx
+    datasource: quartz
+    table-prefix: engine.QRTZ_
+    misfire-threshold: 15S
+    thread-count: 10
+  otel:
+    propagators: b3multi
+    service:
+      name: ${application.name}-${NAMESPACE:local}
+    enabled: true
+    exporter:
+      otlp:
+        protocol: http/protobuf
+        endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318
+    traces:
+      enabled: ${TRACING_ENABLED:false}
+      sampler:
+        name: traceidratio
+        arg: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
+    metrics:
+      enabled: false
+    logs:
+      enabled: false
+  micrometer:
+    export:
+      prometheus:
+        path: /metrics

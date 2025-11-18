@@ -16,23 +16,25 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.language.simple.SimpleLanguage;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 
-@Component
+@ApplicationScoped
+@Named("headerModificationProcessor")
 public class HeaderModificationProcessor implements Processor {
 
     private final SimpleLanguage simpleInterpreter;
 
-    @Autowired
+    @Inject
     public HeaderModificationProcessor(SimpleLanguage simpleInterpreter) {
         this.simpleInterpreter = simpleInterpreter;
     }

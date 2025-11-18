@@ -16,22 +16,24 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 
-@Component
+@ApplicationScoped
+@Named("kafkaTriggerProcessor")
 public class KafkaTriggerProcessor implements Processor {
 
     private final JsonMessageValidator validator;
 
-    @Autowired
+    @Inject
     public KafkaTriggerProcessor(JsonMessageValidator jsonMessageValidator) {
         this.validator = jsonMessageValidator;
     }

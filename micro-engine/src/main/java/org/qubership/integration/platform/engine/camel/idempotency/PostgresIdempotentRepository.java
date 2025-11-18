@@ -1,25 +1,27 @@
 package org.qubership.integration.platform.engine.camel.idempotency;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.api.management.ManagedOperation;
 import org.apache.camel.spi.IdempotentRepository;
 import org.apache.camel.support.service.ServiceSupport;
 import org.qubership.integration.platform.engine.service.IdempotencyRecordService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.SYSTEM_PROPERTY_PREFIX;
 
 @Slf4j
-@Component("idempotentRepository")
+@ApplicationScoped
+@Named("idempotentRepository")
 public class PostgresIdempotentRepository extends ServiceSupport implements IdempotentRepository {
     private static final Integer DEFAULT_KEY_EXPIRY = 600;
     private static final String EXPIRY_PROPERTY = SYSTEM_PROPERTY_PREFIX + "keyExpiry";
 
     private final IdempotencyRecordService idempotencyRecordService;
 
-    @Autowired
+    @Inject
     public PostgresIdempotentRepository(IdempotencyRecordService idempotencyRecordService) {
         this.idempotencyRecordService = idempotencyRecordService;
     }

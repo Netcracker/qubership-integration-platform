@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
+import jakarta.enterprise.inject.spi.CDI;
 import jakarta.servlet.ServletConfig;
 import jakarta.servlet.ServletException;
 import org.apache.camel.component.servlet.CamelHttpTransportServlet;
@@ -35,7 +36,7 @@ public class CustomCamelHttpTransportServlet extends CamelHttpTransportServlet {
     public void init(ServletConfig config) throws ServletException {
         log.debug("CustomCamelHttpTransportServlet init");
         super.init(config);
-        this.setServletResolveConsumerStrategy(new CustomHttpRestServletResolveConsumerStrategy());
+        this.setServletResolveConsumerStrategy(CDI.current().select(CustomHttpRestServletResolveConsumerStrategy.class).get());
     }
 
     @Override

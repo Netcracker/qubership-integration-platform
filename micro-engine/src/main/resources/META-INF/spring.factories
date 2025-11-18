@@ -1,2 +1,0 @@
-org.springframework.boot.context.config.ConfigDataLocationResolver=\
-org.qubership.integration.platform.engine.consul.ConsulUrlWithSchemaDataLocationResolver

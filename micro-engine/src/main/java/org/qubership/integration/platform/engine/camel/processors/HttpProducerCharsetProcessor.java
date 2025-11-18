@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.ExchangePropertyKey;
 import org.apache.camel.Processor;
@@ -23,14 +25,14 @@ import org.apache.camel.component.http.HttpProducer;
 import org.apache.camel.support.ExchangeHelper;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.entity.ContentType;
-import org.springframework.stereotype.Component;
 
 import java.nio.charset.Charset;
 
 /**
  * Allows replacing incorrect default request encoding in a component {@link HttpProducer}
  */
-@Component
+@ApplicationScoped
+@Named("httpProducerCharsetProcessor")
 public class HttpProducerCharsetProcessor implements Processor {
     private static final String DEFAULT_REQUEST_CHARSET = "UTF-8";
 

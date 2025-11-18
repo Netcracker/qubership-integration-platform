@@ -16,17 +16,19 @@
 
 package org.qubership.integration.platform.engine.camel.processors.session;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.springframework.stereotype.Component;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Component
+@ApplicationScoped
 @Slf4j
+@Named("chainStartProcessor")
 public class ChainStartProcessor implements Processor {
     @Override
     public void process(Exchange exchange) throws Exception {

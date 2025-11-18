@@ -17,12 +17,12 @@
 package org.qubership.integration.platform.engine.configuration;
 
 import com.jcraft.jsch.JSch;
-import jakarta.annotation.PostConstruct;
-import org.springframework.context.annotation.Configuration;
+import io.quarkus.runtime.Startup;
+import jakarta.enterprise.context.ApplicationScoped;
 
-@Configuration
+@ApplicationScoped
 public class JschConfiguration {
-    @PostConstruct
+    @Startup
     public void init() {
         JSch.setConfig("server_host_key",  JSch.getConfig("server_host_key") + ",ssh-rsa");
         JSch.setConfig("PubkeyAcceptedAlgorithms", JSch.getConfig("PubkeyAcceptedAlgorithms") + ",ssh-rsa");
