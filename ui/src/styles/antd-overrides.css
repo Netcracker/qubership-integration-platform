@@ -206,16 +206,6 @@ pre[class*="language-"] .token.punctuation {
   -webkit-user-select: text !important;
 }
 
-.monaco-editor .overflow-guard {
-  position: relative !important;
-}
-
-.monaco-editor .lines-content {
-  position: absolute !important;
-  left: 0 !important;
-  top: 0 !important;
-}
-
 /* Tooltip theming for FloatButton and other components */
 .ant-tooltip {
   background-color: var(--vscode-panel-background) !important;

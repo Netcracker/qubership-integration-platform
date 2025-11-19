@@ -3,7 +3,7 @@ import Navigation from "./components/Navigation.tsx";
 import { Navigate, Route, createBrowserRouter, createRoutesFromElements, RouterProvider } from "react-router";
 import Chains from "./pages/Chains";
 import ChainPage from "./pages/ChainPage.tsx";
-import { ConfigProvider, Layout } from "antd";
+import { App as AntdApp, ConfigProvider, Layout } from "antd";
 
 import styles from "./App.module.css";
 import { Modals } from "./Modals.tsx";
@@ -108,20 +108,22 @@ const App = () => {
 
   return (
     <ConfigProvider theme={antdConfig}>
-      <IconProvider icons={getIcons()}>
-      <Layout className={styles.layout}>
-        <EventNotification>
-          <Modals>
-            <Header className={styles.header}>
-              <Navigation showThemeSwitcher currentTheme={theme} onThemeChange={setTheme} />
-            </Header>
-            <Content className={styles.content}>
-              <RouterProvider router={router}/>
-            </Content>
-          </Modals>
-        </EventNotification>
-      </Layout>
-    </IconProvider>
+      <AntdApp>
+        <IconProvider icons={getIcons()}>
+          <Layout className={styles.layout}>
+            <EventNotification>
+              <Modals>
+                <Header className={styles.header}>
+                  <Navigation showThemeSwitcher currentTheme={theme} onThemeChange={setTheme} />
+                </Header>
+                <Content className={styles.content}>
+                  <RouterProvider router={router}/>
+                </Content>
+              </Modals>
+            </EventNotification>
+          </Layout>
+        </IconProvider>
+      </AntdApp>
     </ConfigProvider>
   );
 }

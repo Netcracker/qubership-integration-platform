@@ -8,6 +8,7 @@ export type ConnectionAnchorProps = React.HTMLAttributes<HTMLElement> & {
   tooltipPlacement?: TooltipProps["placement"];
   invalid?: boolean;
   connected: boolean;
+  required?: boolean;
   showSettingIcon?: boolean;
   onClick?: (connected: boolean) => void;
 };
@@ -20,6 +21,7 @@ export const ConnectionAnchor = forwardRef<
     {
       invalid,
       connected,
+      required,
       onClick,
       tooltipPlacement,
       tooltipTitle,
@@ -40,8 +42,11 @@ export const ConnectionAnchor = forwardRef<
       if (invalid) {
         classNames.push(styles["invalid"]);
       }
+      if (required) {
+        classNames.push(styles["required"]);
+      }
       setClassName(classNames.join(" "));
-    }, [invalid, connected]);
+    }, [invalid, connected, required]);
 
     return (
       <Tooltip title={tooltipTitle ?? ""} placement={tooltipPlacement}>

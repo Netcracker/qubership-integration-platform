@@ -55,3 +55,21 @@
   height: 6px;
   border-radius: 50%;
 }
+
+.required {
+  border-color: var(--vscode-errorForeground, #ff4d4f);
+  background: color-mix(
+    in srgb,
+    var(--vscode-errorForeground, #ff4d4f) 15%,
+    transparent
+  );
+
+  .inner-circle {
+    visibility: visible;
+    background-color: var(--vscode-errorForeground, #ff4d4f);
+  }
+}
+
+.required:hover {
+  border-color: var(--vscode-errorForeground, #ff4d4f);
+}

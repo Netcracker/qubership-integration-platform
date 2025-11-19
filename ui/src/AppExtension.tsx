@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Route, createMemoryRouter, createRoutesFromElements, RouterProvider } from "react-router";
 import ChainPage from "./pages/ChainPage.tsx";
-import { ConfigProvider, Layout } from "antd";
+import { App as AntdApp, ConfigProvider, Layout } from "antd";
 import styles from "./App.module.css";
 import { Modals } from "./Modals.tsx";
 import { ChainGraph } from "./pages/ChainGraph.tsx";
@@ -70,17 +70,19 @@ const AppExtension = () => {
 
   return (
     <ConfigProvider theme={antdConfig}>
-      <IconProvider icons={getIcons()}>
-        <Layout className={styles.layout}>
-          <EventNotification>
-            <Modals>
-              <Content className={styles.content}>
-                <RouterProvider router={router}/>
-              </Content>
-            </Modals>
-          </EventNotification>
-        </Layout>
-      </IconProvider>
+      <AntdApp>
+        <IconProvider icons={getIcons()}>
+          <Layout className={styles.layout}>
+            <EventNotification>
+              <Modals>
+                <Content className={styles.content}>
+                  <RouterProvider router={router}/>
+                </Content>
+              </Modals>
+            </EventNotification>
+          </Layout>
+        </IconProvider>
+      </AntdApp>
     </ConfigProvider>
   );
 };

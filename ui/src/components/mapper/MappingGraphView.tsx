@@ -652,6 +652,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
                 getBodyFormat(mappingDescription, SchemaKind.SOURCE) ===
                 SourceFormat.XML.toString()
               }
+              schemaKind={SchemaKind.SOURCE}
               onEdit={() => {
                 if (isAttributeItem(item)) {
                   showModal({
@@ -1067,6 +1068,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
                   tooltipPlacement={"left"}
                   invalid={errors.length > 0}
                   connected={item.actions.length > 0}
+                  required={Boolean(item.attribute.required)}
                   onDragOver={(e) => e.preventDefault()}
                   onDragStart={(event) => {
                     const reference: AttributeReference = {
@@ -1199,6 +1201,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
                 getBodyFormat(mappingDescription, SchemaKind.TARGET) ===
                 SourceFormat.XML.toString()
               }
+              schemaKind={SchemaKind.TARGET}
               onEdit={() => {
                 if (isAttributeItem(item)) {
                   showModal({

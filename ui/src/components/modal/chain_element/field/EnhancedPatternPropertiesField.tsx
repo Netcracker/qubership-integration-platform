@@ -397,6 +397,9 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     }
   }, [loadedSpec, loadedSpecOperationId, formContext?.integrationOperationProtocolType, formContext?.integrationOperationId, paramType, autoFilledOperationId, formData, onChange, isMaasEnvironment]);
 
+  const elementType = formContext?.elementType;
+  const isAsyncApiTrigger = elementType === 'async-api-trigger';
+
   const mergedParameters = useMemo((): EnhancedParameter[] => {
     const result: EnhancedParameter[] = [];
     const processed = new Set<string>();
@@ -407,7 +410,8 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       if (isMaasEnvironment) {
         return name === 'topic';
       } else {
-        return name.startsWith('maas.');
+        const shouldHideGroupId = name === 'groupId' && !isAsyncApiTrigger;
+        return shouldHideGroupId || name.startsWith('maas.');
       }
     };
 
@@ -476,7 +480,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     });
 
     return result;
-  }, [specParameters, envParameters, formData, paramType, isMaasEnvironment]);
+  }, [specParameters, envParameters, formData, paramType, isMaasEnvironment, isAsyncApiTrigger]);
 
   function isOverridden(name: string, formData: Record<string, string>, envParams: Map<string, string>): boolean {
     return envParams.has(name) &&
@@ -577,8 +581,16 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
               </tr>
             </thead>
             <tbody>
-              {mergedParameters.map((param, idx) => (
-                <tr key={idx} className={param.required ? styles.requiredRow : ''}>
+              {mergedParameters.map((param, idx) => {
+                const displayedValue = localValues[param.name] ?? param.value;
+                const hasValue =
+                  displayedValue !== undefined &&
+                  String(displayedValue).trim().length > 0;
+                const rowClass =
+                  param.required && !hasValue ? styles.requiredRow : '';
+
+                return (
+                  <tr key={idx} className={rowClass}>
                   <td className={styles.td}>
                     <div className={styles.nameCell}>
                       {param.canDelete && param.source === 'custom' ? (
@@ -631,8 +643,9 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
                       )}
                     </div>
                   </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ))}

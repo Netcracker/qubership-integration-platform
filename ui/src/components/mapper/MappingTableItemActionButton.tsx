@@ -10,14 +10,14 @@ import {
 } from "./MappingTableView.tsx";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import { ItemType } from "antd/es/menu/interface";
-import { Button, Dropdown, Modal } from "antd";
+import { App, Button, Dropdown } from "antd";
 import { DataTypes } from "../../mapper/util/types.ts";
 import { ChainContext } from "../../pages/ChainPage.tsx";
 import { LoadSchemaDialog } from "./LoadSchemaDialog.tsx";
 import { XmlNamespace } from "../../mapper/model/metadata.ts";
 import { NamespacesEditDialog } from "./NamespacesEditDialog.tsx";
 import { useModalsContext } from "../../Modals.tsx";
-import { DataType } from "../../mapper/model/model.ts";
+import { DataType, SchemaKind } from "../../mapper/model/model.ts";
 import { Icon } from "../../IconProvider.tsx";
 
 export type MappingTableItemActionButtonProps = {
@@ -26,6 +26,7 @@ export type MappingTableItemActionButtonProps = {
   readonly: boolean;
   enableEdit: boolean;
   enableXmlNamespaces: boolean;
+  schemaKind: SchemaKind;
   onEdit?: () => void;
   onLoad?: (type: DataType) => void;
   onExport?: () => void;
@@ -43,6 +44,7 @@ export const MappingTableItemActionButton: React.FC<
   readonly,
   enableEdit,
   enableXmlNamespaces,
+  schemaKind,
   onEdit,
   onLoad,
   onExport,
@@ -52,6 +54,7 @@ export const MappingTableItemActionButton: React.FC<
   onDelete,
 }) => {
   const chainContext = useContext(ChainContext);
+  const { modal } = App.useApp();
   const { showModal } = useModalsContext();
   const [items, setItems] = useState<ItemType[]>([]);
 
@@ -84,6 +87,7 @@ export const MappingTableItemActionButton: React.FC<
               <ChainContext.Provider value={chainContext}>
                 <LoadSchemaDialog
                   elementId={elementId}
+                  schemaKind={schemaKind}
                   onSubmit={(type) => onLoad?.(type)}
                 />
               </ChainContext.Provider>
@@ -154,7 +158,7 @@ export const MappingTableItemActionButton: React.FC<
           label: "Clear",
           icon: <Icon name="clear" />,
           onClick: () => {
-            Modal.confirm({
+            modal.confirm({
               title: "Clear tree",
               content: "Are you sure you want to clear the whole tree?",
               onOk: () => onClear?.(),
@@ -171,7 +175,7 @@ export const MappingTableItemActionButton: React.FC<
         onClick: () => {
           const title = `Delete ${isConstantItem(item) ? "constant" : "attribute"}`;
           const content = `Are you sure you want to delete this ${isConstantItem(item) ? "constant" : "attribute"} and all related connections?`;
-          Modal.confirm({
+          modal.confirm({
             title,
             content,
             onOk: () => {
@@ -188,6 +192,7 @@ export const MappingTableItemActionButton: React.FC<
     enableEdit,
     enableXmlNamespaces,
     item,
+    modal,
     onAdd,
     onClear,
     onDelete,
@@ -196,6 +201,7 @@ export const MappingTableItemActionButton: React.FC<
     onLoad,
     onUpdateXmlNamespaces,
     readonly,
+    schemaKind,
     showModal,
   ]);
 
