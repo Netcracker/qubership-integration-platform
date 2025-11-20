@@ -10,7 +10,7 @@ import {
 } from "antd";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { InlineEdit } from "../../../InlineEdit";
-import { KeyValuePair, makeString, parse } from "./key-value-text-util";
+import {KeyValuePair, makeArray, parse, sliceParameter} from "./key-value-text-util";
 import { TextValueEdit } from "../../../table/TextValueEdit";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { editor, languages, MarkerSeverity } from "monaco-editor";
@@ -61,7 +61,12 @@ function configureMapperDictionaryLanguage(monaco: Monaco) {
 
 export type DictionaryEditorProps = {
   value?: string;
-  onChange?: (value: string) => void;
+  onChange?: (value: KeyValuePair[]) => void;
+};
+
+export type DictionaryAdapterProps = {
+  value?: string[];
+  onChange?: (value: string[]) => void;
 };
 
 function removeDuplicateKeys(data: KeyValuePair[]): KeyValuePair[] {
@@ -100,7 +105,7 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
         const result =
           data?.map((r, idx) => (idx === index ? { ...r, ...changes } : r)) ??
           [];
-        onChange?.(makeString(result));
+        onChange?.(result);
         return result;
       });
     },
@@ -113,7 +118,7 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
         return data;
       }
       const result = [...(data ?? []), { key: "", value: "" }];
-      onChange?.(makeString(result));
+      onChange?.(result);
       return result;
     });
   }, [onChange]);
@@ -123,7 +128,7 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
       setTableData((data) => {
         const result =
           data?.slice(0, index)?.concat(data?.slice(index + 1)) ?? [];
-        onChange?.(makeString(result));
+        onChange?.(result);
         return result;
       });
     },
@@ -132,7 +137,7 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
 
   const clearRecords = useCallback(() => {
     setTableData([]);
-    onChange?.(makeString([]));
+    onChange?.([]);
   }, [onChange]);
 
   return (
@@ -300,8 +305,8 @@ const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
         const v = value ?? "";
         setText(v);
         try {
-          parse(v);
-          onChange?.(v);
+          const parsed = parse(v);
+          onChange?.(parsed);
           clearMarkers();
         } catch (error) {
           if (isParseError(error)) {
@@ -316,10 +321,19 @@ const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
   );
 };
 
-const DictionaryEditor: React.FC<DictionaryEditorProps> = ({
+const DictionaryEditor: React.FC<DictionaryAdapterProps> = ({
   onChange,
   value,
 }) => {
+  const safeValue = value ?? [];
+  const base = safeValue[0] ?? "";
+  const parameters = sliceParameter(safeValue);
+
+  const handleChange = (updatedParams: KeyValuePair[])=> {
+      const merged = makeArray(updatedParams);
+      onChange?.(merged.length ? [base, ...merged] : [base]);
+  }
+
   return (
     <Tabs
       style={{ height: "100%", width: "100%" }}
@@ -331,12 +345,12 @@ const DictionaryEditor: React.FC<DictionaryEditorProps> = ({
         {
           key: "table",
           label: "Table",
-          children: <DictionaryTableEditor value={value} onChange={onChange} />,
+          children: <DictionaryTableEditor value={parameters} onChange={handleChange} />,
         },
         {
           key: "text",
           label: "Text",
-          children: <DictionaryTextEditor value={value} onChange={onChange} />,
+          children: <DictionaryTextEditor value={parameters} onChange={handleChange} />,
         },
       ]}
     />
@@ -346,10 +360,10 @@ const DictionaryEditor: React.FC<DictionaryEditorProps> = ({
 export const DictionaryParameters: React.FC = () => {
   return (
     <>
-      <Form.Item name={["parameters", 0]} label="Default">
+      <Form.Item name={["parameters", 0]} label="Default" initialValue={""}>
         <Input />
       </Form.Item>
-      <Form.Item className={"flex-form-item"} name={["parameters", 1]}>
+      <Form.Item className={"flex-form-item"} name={["parameters"]}>
         <DictionaryEditor />
       </Form.Item>
     </>
