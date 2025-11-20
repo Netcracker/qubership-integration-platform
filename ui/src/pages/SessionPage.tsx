@@ -15,7 +15,7 @@ import { useModalsContext } from "../Modals.tsx";
 import { SessionElementDetails } from "../components/modal/SessionElementDetails.tsx";
 import { downloadFile } from "../misc/download-utils.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
-import { Icon } from "../IconProvider.tsx";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 
 function cleanUpChildren(element: SessionElement) {
   if (element.children?.length === 0) {
@@ -94,7 +94,7 @@ export const SessionPage: React.FC = () => {
             {element.elementName}
           </a>
           {session?.chainId && element.chainElementId ? (
-            <Icon name="link"
+            <OverridableIcon name="link"
               onClick={() =>
                 window.open(
                   `/chains/${session?.chainId}/graph/${element.chainElementId}`,
@@ -178,7 +178,7 @@ export const SessionPage: React.FC = () => {
       />
       <FloatButton
         tooltip={{ title: "Export session", placement: "left" }}
-        icon={<Icon name="cloudDownload" />}
+        icon={<OverridableIcon name="cloudDownload" />}
         onClick={() => void onExportBtnClick()}
       />
     </Flex>

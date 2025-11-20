@@ -12,7 +12,7 @@ import {
 import { copyToClipboard } from "../../misc/clipboard-util.ts";
 import { SessionElementBodyChangesView } from "../sessions/SessionElementBodyChangesView.tsx";
 import { traverseElementsDepthFirst } from "../../misc/tree-utils.ts";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 type SessionElementDetailsProps = {
   session: Session;
@@ -210,7 +210,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
       title={
         <>
           <span style={{ marginRight: 8 }}>{element?.elementName}</span>
-          <Icon name="link"
+          <OverridableIcon name="link"
             onClick={() =>
               window.open(
                 `/chains/${session.chainId}/graph/${element?.chainElementId}`,
@@ -235,7 +235,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
                 !element || !elementOrderMap.get(element.elementId)?.previous
               }
               iconPosition="start"
-              icon={<Icon name="left" />}
+              icon={<OverridableIcon name="left" />}
               onClick={() =>
                 setElement(
                   elementOrderMap.get(element?.elementId ?? "")?.previous,
@@ -249,7 +249,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
                 !element || !elementOrderMap.get(element.elementId)?.next
               }
               iconPosition="end"
-              icon={<Icon name="right" />}
+              icon={<OverridableIcon name="right" />}
               onClick={() =>
                 setElement(elementOrderMap.get(element?.elementId ?? "")?.next)
               }

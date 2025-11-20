@@ -3,7 +3,7 @@ import { ItemType } from "antd/es/menu/interface";
 import { FilterCondition, FilterColumn, FilterConditions, FilterValueType } from "./filter";
 import { useCallback, useEffect, useState } from "react";
 import { FilterValue } from "./value/FilterValue";
-import { Icon } from "../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 
 export type FilterItemState = {
@@ -58,11 +58,11 @@ export const FilterItem = (props: FilterItemProps) => {
   const actionItems: ItemType[] = [
     {
       key: 'remove',
-      label: <><Icon name="delete" /> Remove</>,
+      label: <><OverridableIcon name="delete" /> Remove</>,
     },
     {
       key: 'duplicate',
-      label: <><Icon name="copy" /> Duplicate</>,
+      label: <><OverridableIcon name="copy" /> Duplicate</>,
     },
   ];
 
@@ -128,7 +128,7 @@ export const FilterItem = (props: FilterItemProps) => {
     </Col>
     <Col>
       <Dropdown menu={actionProps}>
-        <Button icon={<Icon name="ellipsis" />} />
+        <Button icon={<OverridableIcon name="ellipsis" />} />
       </Dropdown>
     </Col>
   </Row>

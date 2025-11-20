@@ -6,7 +6,7 @@ import styles from "./ImportSessions.module.css";
 import { api } from "../../api/api.ts";
 import { Session } from "../../api/apiTypes.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 type ImportSessionsProps = {
   onSuccess?: (sessions: Session[]) => void;
@@ -70,13 +70,13 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({
         onChange={(info) => setFileList(info.fileList)}
       >
         <p className="ant-upload-drag-icon">
-          <Icon name="inbox" />
+          <OverridableIcon name="inbox" />
         </p>
         <p className="ant-upload-text">
           Click or drag file to this area to upload
         </p>
         <p className="ant-upload-hint">
-          <Icon name="exclamationCircle" style={{ marginRight: 8 }} />
+          <OverridableIcon name="exclamationCircle" style={{ marginRight: 8 }} />
           You are about to import outbound session details to the table. Please
           note, that imported sessions are supported via read-only mode and
           references to the chain elements, as well as navigation buttons,

@@ -11,7 +11,7 @@ import { ChainColumn } from './ChainColumn';
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useLocation } from "react-router-dom";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { environmentLabels } from "./utils.tsx";
 import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 import {
@@ -293,7 +293,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         <Tooltip title="Delete">
           <Button
             type="text"
-            icon={<Icon name="delete" />}
+            icon={<OverridableIcon name="delete" />}
             danger
             onClick={() => handleDelete(record.id)}
           />

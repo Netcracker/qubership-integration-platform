@@ -2,7 +2,7 @@ import { ChildElement, LibraryElement } from "../../api/apiTypes.ts";
 import React from "react";
 
 interface DraggableElementProps {
-  element:  LibraryElement | ChildElement;
+  element:  LibraryElement;
 }
 
 export function isElement(obj: unknown): obj is LibraryElement {
@@ -27,15 +27,9 @@ const DraggableElement: React.FC<DraggableElementProps> = ({ element }) => {
     event.dataTransfer.effectAllowed = "move";
   };
 
-  const getLabel = () => {
-    if (isElement(element)) return element.title;
-    if (isChildElement(element)) return element.name;
-    return "";
-  };
-
   return (
     <div draggable onDragStart={onDragStart}>
-      {getLabel()}
+      {element.title}
     </div>
   );
 };

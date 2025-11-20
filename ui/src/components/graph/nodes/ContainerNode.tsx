@@ -3,8 +3,8 @@ import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
 import { Badge, Button, Tooltip } from "antd";
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EllipsisLabel } from "./EllipsisLabel";
-import { Icon } from "../../../IconProvider.tsx";
 import styles from "./ContainerNode.module.css";
+import { IconName, OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 function useElementWidth(ref: React.RefObject<HTMLElement>) {
   const [width, setWidth] = useState(0);
@@ -39,7 +39,7 @@ export function ContainerNode({
 
   return (
     <div className={`${styles.container} ${selected ? styles.selected : ''}`}>
-      <div 
+      <div
         className={styles.header}
         style={{ paddingRight: actionsWidth ? actionsWidth + 8 : 32 }}
       >
@@ -48,7 +48,7 @@ export function ContainerNode({
             <Button
               size="small"
               type="text"
-              icon={isCollapsed ? <Icon name="caretRightFilled" /> : <Icon name="caretDownFilled" />}
+              icon={isCollapsed ? <OverridableIcon name="caretRightFilled" /> : <OverridableIcon name="caretDownFilled" />}
               onClick={() => data.onToggleCollapse?.()}
               tabIndex={-1}
             />
@@ -56,6 +56,13 @@ export function ContainerNode({
         </div>
 
         <div className={styles.labelWrapper}>
+          <OverridableIcon name={data.elementType as IconName} style={{ fontSize: 16 }} />
+
+          <EllipsisLabel
+            text={trimmedLabel}
+            style={{ flex: 1, minWidth: 0, display: "block" }}
+          />
+
           {data.unitCount! > 0 && (
             <Badge
               count={data.unitCount}
@@ -65,11 +72,6 @@ export function ContainerNode({
               className={styles.badge}
             />
           )}
-
-          <EllipsisLabel
-            text={trimmedLabel}
-            style={{ flex: 1, minWidth: 0, display: "block" }}
-          />
         </div>
       </div>
 

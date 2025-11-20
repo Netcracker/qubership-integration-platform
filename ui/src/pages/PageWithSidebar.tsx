@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Divider, Layout } from "antd";
 import { AnimatePresence, motion } from "framer-motion";
 import styles from "./PageWithSidebar.module.css";
-import { Icon } from "../IconProvider.tsx";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 
 const { Sider, Content } = Layout;
 
@@ -49,9 +49,9 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
             onClick={() => setCollapsed(!collapsed)}
           >
             {collapsed ? (
-              <Icon name="doubleRight" />
+              <OverridableIcon name="doubleRight" />
             ) : (
-              <Icon name="doubleLeft" />
+              <OverridableIcon name="doubleLeft" />
             )}
           </div>
         </div>

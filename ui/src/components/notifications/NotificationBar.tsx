@@ -5,7 +5,7 @@ import {
   useNotificationLog,
 } from "./contexts/NotificationLogContext.tsx";
 import { NotificationBarElement } from "./NotificationBarElement.tsx";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 export const NotificationBar: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -33,7 +33,7 @@ export const NotificationBar: React.FC = () => {
       <Button
         type="text"
         style={{ fontSize: "18px" }}
-        icon={<Icon name="bell" />}
+        icon={<OverridableIcon name="bell" />}
         onClick={showDrawer}
       />
       <Drawer

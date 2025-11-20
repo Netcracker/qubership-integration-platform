@@ -1,5 +1,3 @@
-import React, { createContext, useContext, ReactNode } from "react";
-import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
 import {
   DeleteOutlined,
   PlusOutlined,
@@ -71,18 +69,38 @@ import {
   SolutionOutlined,
   ColumnHeightOutlined,
   VerticalAlignMiddleOutlined,
+  FolderOpenFilled,
+  FlagOutlined,
+  FileSearchOutlined,
+  UploadOutlined,
+  LayoutOutlined,
+  NodeIndexOutlined,
+  BlockOutlined,
+  ProfileOutlined,
+  ReloadOutlined,
+  BranchesOutlined,
+  ForkOutlined,
+  NodeCollapseOutlined,
+  NodeExpandOutlined,
+  MailOutlined,
+  CloudServerOutlined,
+  FileSyncOutlined,
+  DiffOutlined,
+  ShareAltOutlined,
+  InteractionOutlined,
+  ScheduleOutlined,
+  LoginOutlined,
+  LogoutOutlined,
+  StepForwardOutlined,
+  StepBackwardOutlined,
+  PullRequestOutlined,
+  SisternodeOutlined,
+  CheckCircleOutlined,
+  DeliveredProcedureOutlined,
+  DeleteRowOutlined,
 } from "@ant-design/icons";
 
-export type IconSource =
-  | React.ComponentType<AntdIconProps>
-  | string
-  | React.ReactElement;
-
-export type IconSet = {
-  [iconName: string]: IconSource;
-};
-
-const defaultIcons: IconSet = {
+export const commonIcons = {
   plus: PlusOutlined,
   delete: DeleteOutlined,
   inbox: InboxOutlined,
@@ -141,6 +159,7 @@ const defaultIcons: IconSet = {
   file: FileOutlined,
   folderAdd: FolderAddOutlined,
   folder: FolderOutlined,
+  folderOpenFilled: FolderOpenFilled,
   apartment: ApartmentOutlined,
   api: ApiOutlined,
   group: GroupOutlined,
@@ -155,54 +174,51 @@ const defaultIcons: IconSet = {
   verticalAlignMiddle: VerticalAlignMiddleOutlined,
 };
 
-const IconContext = createContext<IconSet>(defaultIcons);
-
-export const IconProvider: React.FC<{
-  icons: IconSet;
-  children: ReactNode;
-}> = ({ icons, children }) => {
-  const mergedIcons = { ...defaultIcons, ...icons };
-
-  return (
-    <IconContext.Provider value={mergedIcons}>{children}</IconContext.Provider>
-  );
-};
-
-export const useIcons = () => {
-  const context = useContext(IconContext);
-  if (!context) {
-    throw new Error("useIcons must be used within IconProvider");
-  }
-  return context;
-};
-
-interface IconProps extends Omit<AntdIconProps, "name"> {
-  name: IconName;
-}
-
-export type IconName = keyof typeof defaultIcons;
-
-export type IconOverrides = {
-  [K in IconName]?: IconSource;
-};
-
-export const Icon: React.FC<IconProps> = ({ name, ...props }) => {
-  const icons = useIcons();
-  const IconComponent = icons[name];
-
-  if (!IconComponent) {
-    console.warn(`Icon "${name}" not found in IconProvider`);
-    return null;
-  }
-
-  if (React.isValidElement(IconComponent)) {
-    return React.cloneElement(IconComponent, props);
-  }
-
-  if (typeof IconComponent === "string") {
-    return <span {...props} dangerouslySetInnerHTML={{ __html: IconComponent }} />;
-  }
-
-  // @ts-expect-error all cases covered
-  return <IconComponent {...props} />;
+export const elementIcons = {
+  checkpoint: FlagOutlined,
+  "file-read": FileSearchOutlined,
+  "file-write": FileTextOutlined,
+  "sftp-download": DownloadOutlined,
+  "sftp-upload": UploadOutlined,
+  swimlane: LayoutOutlined,
+  "chain-call-2": NodeIndexOutlined,
+  "circuit-breaker-2": ApiOutlined,
+  condition: BlockOutlined,
+  "log-record": ProfileOutlined,
+  "loop-2": ReloadOutlined,
+  reuse: NodeCollapseOutlined,
+  "reuse-reference": NodeExpandOutlined,
+  "split-2": ForkOutlined,
+  "split-async-2": BranchesOutlined,
+  "try-catch-finally-2": DeploymentUnitOutlined,
+  "graphql-sender": RadarChartOutlined,
+  "http-sender": LogoutOutlined,
+  "kafka-sender-2": CloudDownloadOutlined,
+  "pubsub-sender": CloudDownloadOutlined,
+  "rabbitmq-sender-2": CloudDownloadOutlined,
+  "mail-sender": MailOutlined,
+  "service-call": ClusterOutlined,
+  "context-storage": FileSyncOutlined,
+  "header-modification": DiffOutlined,
+  "mapper-2": ShareAltOutlined,
+  script: CodeOutlined,
+  xslt: FileTextOutlined,
+  "kafka-trigger-2": CloudUploadOutlined,
+  "pubsub-trigger": CloudUploadOutlined,
+  "rabbitmq-trigger-2": CloudUploadOutlined,
+  "async-api-trigger": CloudServerOutlined,
+  "chain-trigger-2": InteractionOutlined,
+  "quartz-scheduler": ScheduleOutlined,
+  "sftp-trigger-2": FileAddOutlined,
+  "http-trigger": LoginOutlined,
+  if: StepForwardOutlined,
+  else: StepBackwardOutlined,
+  "main-split-element-2": GroupOutlined,
+  "split-element-2": PullRequestOutlined,
+  "async-split-element-2": SisternodeOutlined,
+  "try-2": CheckCircleOutlined,
+  "catch-2": CloseCircleOutlined,
+  "finally-2": QuestionCircleOutlined,
+  "circuit-breaker-configuration-2": DeliveredProcedureOutlined,
+  "on-fallback-2": DeleteRowOutlined,
 };

@@ -84,7 +84,7 @@ export function getNodeFromElement(
   };
 }
 
-function getElementColor(libraryElement: LibraryElement | undefined): string {
+export function getElementColor(libraryElement: LibraryElement | undefined): string {
   if (!libraryElement) {
     return '#fdf39d';
   }

@@ -16,7 +16,7 @@ import { Editor, Monaco } from "@monaco-editor/react";
 import { editor, languages, MarkerSeverity } from "monaco-editor";
 import { isParseError } from "../../../../mapper/actions-text/parser.ts";
 import { LocationRange } from "pegjs";
-import { Icon } from "../../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 
 const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
 
@@ -142,14 +142,14 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
         <Flex wrap="wrap" vertical={false} gap={8}>
           <Button
             size="small"
-            icon={<Icon name="plusCircle" />}
+            icon={<OverridableIcon name="plusCircle" />}
             onClick={() => addRecord()}
           >
             Add rule
           </Button>
           <Button
             size="small"
-            icon={<Icon name="delete" />}
+            icon={<OverridableIcon name="delete" />}
             onClick={() => clearRecords()}
           >
             Clear rules
@@ -224,7 +224,7 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
                 return (
                   <Button
                     type="text"
-                    icon={<Icon name="delete" />}
+                    icon={<OverridableIcon name="delete" />}
                     onClick={() => deleteRecord(index)}
                   />
                 );

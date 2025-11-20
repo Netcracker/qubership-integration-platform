@@ -1,7 +1,7 @@
 import React, { forwardRef, useEffect, useState } from "react";
 import styles from "./ConnectionAnchor.module.css";
 import { Tooltip, TooltipProps } from "antd";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 export type ConnectionAnchorProps = React.HTMLAttributes<HTMLElement> & {
   tooltipTitle?: TooltipProps["title"];
@@ -57,7 +57,7 @@ export const ConnectionAnchor = forwardRef<
           onClick={() => onClick?.(connected)}
         >
           {showSettingIcon ? (
-            <Icon name="settings" />
+            <OverridableIcon name="settings" />
           ) : (
             <div className={styles["inner-circle"]}></div>
           )}

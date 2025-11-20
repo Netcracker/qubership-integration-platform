@@ -13,7 +13,7 @@ import {
 import type { FilterDropdownProps } from "antd/lib/table/interface";
 import { Variable } from "../../../api/admin-tools/variables/types";
 import { ResizableTitle } from "../../ResizableTitle.tsx";
-import { Icon } from "../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 interface VariablesTableProps {
   variables: Variable[];
@@ -176,12 +176,12 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
               />
               <div className={styles["editing-buttons"]}>
                 <Button
-                  icon={<Icon name="check" />}
+                  icon={<OverridableIcon name="check" />}
                   type="text"
                   onClick={() => onConfirmEdit(record.key, editingValue)}
                 />
                 <Button
-                  icon={<Icon name="close" />}
+                  icon={<OverridableIcon name="close" />}
                   type="text"
                   onClick={onCancelEditing}
                 />
@@ -220,7 +220,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
               />
               <div className={styles["editing-buttons"]}>
                 <Button
-                  icon={<Icon name="check" />}
+                  icon={<OverridableIcon name="check" />}
                   type="text"
                   onClick={() => {
                     if (
@@ -233,7 +233,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
                   }}
                 />
                 <Button
-                  icon={<Icon name="close" />}
+                  icon={<OverridableIcon name="close" />}
                   type="text"
                   onClick={onCancelEditing}
                 />
@@ -253,11 +253,11 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
                 : `${record.value.split("\n")[0]}${record.value.includes("\n") || record.value.length > 40 ? "..." : ""}`}
             </div>
             {record.value.includes("\n") && (
-              <Icon name="fileText"
+              <OverridableIcon name="fileText"
                 className={`${styles["inline-icon"]} ${styles["multiline-icon"]}`}
               />
             )}
-            <Icon name="edit"
+            <OverridableIcon name="edit"
               className={styles["inline-icon"]}
             />
           </div>
@@ -277,7 +277,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
             onConfirm={() => onDelete(record.key)}
           >
             <Button
-              icon={<Icon name="delete" />}
+              icon={<OverridableIcon name="delete" />}
               size="small"
               type="text"
               className={styles["delete-button"]}

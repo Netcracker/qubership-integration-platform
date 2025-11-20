@@ -6,7 +6,7 @@ import { useModalContext } from "../../../ModalContextProvider.tsx";
 import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { VariableImportPreview } from "../../../api/apiTypes.ts";
-import { Icon } from "../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 interface Props {
   onSuccess?: () => void;
@@ -116,7 +116,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
           showUploadList={file ? { showRemoveIcon: true } : false}
         >
           <p className="ant-upload-drag-icon">
-            <Icon name="inbox" />
+            <OverridableIcon name="inbox" />
           </p>
           <p className="ant-upload-text">Drag a YAML file or click to choose</p>
         </Upload.Dragger>

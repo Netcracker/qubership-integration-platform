@@ -1,21 +1,21 @@
 import { Menu } from "antd";
 import { useLocation } from "react-router-dom";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 const menuItems = [
   {
     key: "#external",
-    icon: <Icon name="global" />,
+    icon: <OverridableIcon name="global" />,
     label: "External",
   },
   {
     key: "#internal",
-    icon: <Icon name="cloud" />,
+    icon: <OverridableIcon name="cloud" />,
     label: "Inner Cloud",
   },
   {
     key: "#implemented",
-    icon: <Icon name="cluster" />,
+    icon: <OverridableIcon name="cluster" />,
     label: "Implemented",
   },
 ];

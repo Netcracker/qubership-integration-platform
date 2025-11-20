@@ -2,6 +2,7 @@ import { Handle, NodeProps, Position } from "@xyflow/react";
 import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
 import { useMemo } from "react";
 import { EllipsisLabel } from "./EllipsisLabel";
+import { IconName, OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 export function UnitNode({
   data,
@@ -31,7 +32,10 @@ export function UnitNode({
         style={{
           width: "100%",
           height: "100%",
-          display: "grid",
+          flexDirection: "row",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
           placeItems: "center",
           userSelect: "none",
           textAlign: "center",
@@ -39,11 +43,13 @@ export function UnitNode({
           padding: "6px 8px",
         }}
       >
+        <OverridableIcon name={data.elementType as IconName} style={{ fontSize: 16 }} />
         <EllipsisLabel
           text={trimmedLabel}
           style={{
             maxWidth: "100%",
             minWidth: 0,
+            fontSize: 12,
           }}
         />
       </div>

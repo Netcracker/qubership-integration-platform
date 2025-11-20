@@ -2,8 +2,8 @@ import { Menu } from "antd";
 import styles from "./Navigation.module.css";
 import type { MenuProps } from "antd";
 import { NotificationBar } from "./notifications/NotificationBar.tsx";
-import { Icon } from "../IconProvider.tsx";
 import { SettingsPanel } from "./SettingsPanel.tsx";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 
 type MenuItem = Required<MenuProps>["items"][number];
 
@@ -11,17 +11,17 @@ const items: MenuItem[] = [
   {
     label: <a href="/chains">Chains</a>,
     key: "chains",
-    icon: <Icon name="unorderedList" />,
+    icon: <OverridableIcon name="unorderedList" />,
   },
   {
     label: <a href="/services">Services</a>,
     key: "services",
-    icon: <Icon name="appstore" />,
+    icon: <OverridableIcon name="appstore" />,
   },
   {
     label: <a href="/admintools">Admin Tools</a>,
     key: "admintools",
-    icon: <Icon name="desktop" />,
+    icon: <OverridableIcon name="desktop" />,
   },
 ];
 
@@ -33,7 +33,7 @@ interface NavigationProps {
 
 const Navigation = ({ showThemeSwitcher = false, currentTheme, onThemeChange }: NavigationProps) => {
   const shouldShowDevTools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEV_TOOLS === 'true';
-  
+
   return (
     <nav className={styles.navigation}>
       <Menu

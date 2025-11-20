@@ -18,7 +18,7 @@ import { XmlNamespace } from "../../mapper/model/metadata.ts";
 import { NamespacesEditDialog } from "./NamespacesEditDialog.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 import { DataType, SchemaKind } from "../../mapper/model/model.ts";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 export type MappingTableItemActionButtonProps = {
   elementId: string;
@@ -80,7 +80,7 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "load",
         label: "Load",
-        icon: <Icon name="cloudUpload" />,
+        icon: <OverridableIcon name="cloudUpload" />,
         onClick: () => {
           showModal({
             component: (
@@ -100,7 +100,7 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "edit",
         label: "Edit",
-        icon: <Icon name="edit" />,
+        icon: <OverridableIcon name="edit" />,
         onClick: () => {
           onEdit?.();
         },
@@ -110,7 +110,7 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "export",
         label: "Export",
-        icon: <Icon name="cloudDownload" />,
+        icon: <OverridableIcon name="cloudDownload" />,
         onClick: () => {
           onExport?.();
         },
@@ -148,7 +148,7 @@ export const MappingTableItemActionButton: React.FC<
         {
           key: "add",
           label: "Add",
-          icon: <Icon name="plusCircle" />,
+          icon: <OverridableIcon name="plusCircle" />,
           onClick: () => {
             onAdd?.();
           },
@@ -156,7 +156,7 @@ export const MappingTableItemActionButton: React.FC<
         {
           key: "clear",
           label: "Clear",
-          icon: <Icon name="clear" />,
+          icon: <OverridableIcon name="clear" />,
           onClick: () => {
             modal.confirm({
               title: "Clear tree",
@@ -171,7 +171,7 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "delete",
         label: "Delete",
-        icon: <Icon name="delete" />,
+        icon: <OverridableIcon name="delete" />,
         onClick: () => {
           const title = `Delete ${isConstantItem(item) ? "constant" : "attribute"}`;
           const content = `Are you sure you want to delete this ${isConstantItem(item) ? "constant" : "attribute"} and all related connections?`;
@@ -211,7 +211,7 @@ export const MappingTableItemActionButton: React.FC<
 
   return (
     <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
-      <Button size="small" type="text" icon={<Icon name="more" />} />
+      <Button size="small" type="text" icon={<OverridableIcon name="more" />} />
     </Dropdown>
   );
 };

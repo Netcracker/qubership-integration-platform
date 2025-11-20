@@ -7,7 +7,7 @@ import { createContext, useCallback, useEffect, useState } from "react";
 import { Chain } from "../api/apiTypes.ts";
 import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
-import { Icon } from "../IconProvider.tsx";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 
 export type ChainContextData = {
   chain: Chain | undefined;
@@ -48,7 +48,7 @@ const ChainPage = () => {
       }));
 
     setPathItems([
-      { href: "/chains", title: <Icon name="home" /> },
+      { href: "/chains", title: <OverridableIcon name="home" /> },
       ...navigationItems,
       ...(sessionId
         ? [

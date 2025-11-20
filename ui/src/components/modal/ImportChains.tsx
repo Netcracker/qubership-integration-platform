@@ -40,7 +40,7 @@ import { SelectEdit } from "../table/SelectEdit.tsx";
 import Checkbox from "antd/lib/checkbox";
 import { ImportStatus } from "../labels/ImportStatus.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 type ImportChainsProps = {
   onSuccess?: () => void;
@@ -376,7 +376,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                 },
               }}
             >
-              <Icon name="down" />
+              <OverridableIcon name="down" />
             </Dropdown>
           </Space>
         ),
@@ -616,7 +616,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
               onChange={(info) => setFileList(info.fileList)}
             >
               <p className="ant-upload-drag-icon">
-                <Icon name="inbox" />
+                <OverridableIcon name="inbox" />
               </p>
               <p className="ant-upload-text">
                 Click or drag file to this area to upload

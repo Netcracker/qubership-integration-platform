@@ -21,7 +21,7 @@ import type { SpecificationGroup, Specification, SystemOperation } from '../../a
 import { InlineEdit } from '../InlineEdit';
 import { LabelsEdit } from '../table/LabelsEdit';
 import { ChainColumn } from './ChainColumn';
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { HttpMethod } from './HttpMethod.tsx';
 
 export type ServiceEntity = IntegrationSystem | SpecificationGroup | Specification | SystemOperation;
@@ -98,20 +98,20 @@ function getIcon(record: ServiceEntity): React.JSX.Element | null {
   if (isIntegrationSystem(record)) {
     switch (record.type) {
       case IntegrationSystemType.EXTERNAL:
-        return <Icon name="global" style={iconStyle} />;
+        return <OverridableIcon name="global" style={iconStyle} />;
       case IntegrationSystemType.INTERNAL:
-        return <Icon name="cloud" style={iconStyle} />;
+        return <OverridableIcon name="cloud" style={iconStyle} />;
       case IntegrationSystemType.IMPLEMENTED:
-        return <Icon name="cluster" style={iconStyle} />;
+        return <OverridableIcon name="cluster" style={iconStyle} />;
       default:
-        return <Icon name="global" style={iconStyle} />;
+        return <OverridableIcon name="global" style={iconStyle} />;
     }
   }
   if (isSpecificationGroup(record)) {
-    return <Icon name="inbox" style={iconStyle}/>
+    return <OverridableIcon name="inbox" style={iconStyle}/>
   }
   if (isSpecification(record)) {
-    return <Icon name="fileText" style={iconStyle} />;
+    return <OverridableIcon name="fileText" style={iconStyle} />;
   }
   return null;
 }
@@ -393,7 +393,7 @@ function ActionMenu<T>({ record, actions }: { record: T; actions: ActionConfig<T
       trigger={["click"]}
       placement="bottomRight"
     >
-      <Button type="text" icon={<Icon name="more" />} />
+      <Button type="text" icon={<OverridableIcon name="more" />} />
     </Dropdown>
   );
 }
@@ -435,13 +435,13 @@ export function getServiceActions({
       {
         key: 'edit',
         label: 'Edit',
-        icon: <Icon name="edit" />,
+        icon: <OverridableIcon name="edit" />,
         onClick: onEdit,
       },
       {
         key: 'delete',
         label: 'Delete',
-        icon: <Icon name="delete" />,
+        icon: <OverridableIcon name="delete" />,
         onClick: onDelete,
         confirm: {
           title: 'Are you sure you want to delete this service?',
@@ -452,13 +452,13 @@ export function getServiceActions({
       {
         key: 'expandAll',
         label: 'Expand All',
-        icon: <Icon name="columnHeight" />,
+        icon: <OverridableIcon name="columnHeight" />,
         onClick: onExpandAll,
       },
       {
         key: 'collapseAll',
         label: 'Collapse All',
-        icon: <Icon name="verticalAlignMiddle" />,
+        icon: <OverridableIcon name="verticalAlignMiddle" />,
         onClick: onCollapseAll,
       },
     ];
@@ -466,7 +466,7 @@ export function getServiceActions({
       actions.push({
         key: 'export',
         label: 'Export',
-        icon: <Icon name="cloudDownload" />,
+        icon: <OverridableIcon name="cloudDownload" />,
         onClick: (rec) => onExportSelected([rec]),
       });
     }
@@ -534,7 +534,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
       )}
       trigger={['click']}
     >
-      <Button icon={<Icon name="settings" />}/>
+      <Button icon={<OverridableIcon name="settings" />}/>
     </Dropdown>
   );
 

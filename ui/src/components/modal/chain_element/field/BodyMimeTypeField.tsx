@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Select, Input, Button } from "antd";
 import styles from "./BodyParametersField.module.css";
-import { Icon } from "../../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import { FormContext } from "../ChainElementModification";
 
 interface BodyFormEntry {
@@ -28,15 +28,15 @@ const BodyMimeTypeField: React.FC<FieldProps<string, any, FormContext>> = ({
   readonly,
 }) => {
   const bodyMimeType = formData;
-  
+
   // Get bodyFormData from formContext (synced by ChainElementModification)
   const bodyFormData = (formContext as any)?.bodyFormData || [];
-  
+
   const [collapsed, setCollapsed] = useState(bodyFormData.length === 0);
 
   const handleMimeTypeChange = (value: string) => {
     onChange(value);
-    
+
     // Clear form data if switching to None or Inherit
     if (!value || value === 'None') {
       formContext?.updateContext?.({ bodyFormData: [] });
@@ -50,7 +50,7 @@ const BodyMimeTypeField: React.FC<FieldProps<string, any, FormContext>> = ({
       fileName: '',
       mimeType: 'text/plain',
     };
-    
+
     const newFormData = [...bodyFormData, newEntry];
     formContext?.updateContext?.({ bodyFormData: newFormData });
   };
@@ -100,7 +100,7 @@ const BodyMimeTypeField: React.FC<FieldProps<string, any, FormContext>> = ({
               onClick={() => setCollapsed(s => !s)}
             >
               <span className={styles.iconWrapper}>
-                {collapsed ? <Icon name="right" /> : <Icon name="down" />}
+                {collapsed ? <OverridableIcon name="right" /> : <OverridableIcon name="down" />}
               </span>
               <span>Form Data</span>
               <span className={styles.badge}>{bodyFormData.length}</span>
@@ -109,7 +109,7 @@ const BodyMimeTypeField: React.FC<FieldProps<string, any, FormContext>> = ({
               <Button
                 size="small"
                 type="text"
-                icon={<Icon name="plus" />}
+                icon={<OverridableIcon name="plus" />}
                 onClick={handleAddRow}
                 disabled={disabled || readonly}
                 style={{ marginLeft: 8 }}
@@ -176,7 +176,7 @@ const BodyMimeTypeField: React.FC<FieldProps<string, any, FormContext>> = ({
                         <Button
                           size="small"
                           type="text"
-                          icon={<Icon name="delete" />}
+                          icon={<OverridableIcon name="delete" />}
                           onClick={() => handleDeleteRow(idx)}
                           disabled={disabled || readonly}
                           className={styles.deleteBtn}

@@ -27,7 +27,7 @@ import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
 import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
-import { Icon } from "../IconProvider.tsx";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -265,19 +265,19 @@ export const Snapshots: React.FC = () => {
               items: [
                 {
                   key: "delete",
-                  icon: <Icon name="delete" />,
+                  icon: <OverridableIcon name="delete" />,
                   label: "Delete",
                   onClick: () => deleteSnapshotWithConfirmation(snapshot),
                 },
                 {
                   key: "revert",
-                  icon: <Icon name="rollback" />,
+                  icon: <OverridableIcon name="rollback" />,
                   label: "Revert to",
                   onClick: () => revertToSnapshotWithConfirmation(snapshot),
                 },
                 {
                   key: "showXml",
-                  icon: <Icon name="fileText" />,
+                  icon: <OverridableIcon name="fileText" />,
                   label: "Show XML",
                   onClick: () => showSnapshotXml(snapshot),
                 },
@@ -292,7 +292,7 @@ export const Snapshots: React.FC = () => {
             trigger={["click"]}
             placement="bottomRight"
           >
-            <Button size="small" type="text" icon={<Icon name="more" />} />
+            <Button size="small" type="text" icon={<OverridableIcon name="more" />} />
           </Dropdown>
         </>
       ),
@@ -323,7 +323,7 @@ export const Snapshots: React.FC = () => {
         style={{ height: "100%" }}
         scroll={{ y: "" }}
       />
-      <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+      <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
         <FloatButton
           tooltip={{ title: "Compare selected snapshots", placement: "left" }}
           icon={<>⇄</>}
@@ -331,12 +331,12 @@ export const Snapshots: React.FC = () => {
         />
         <FloatButton
           tooltip={{ title: "Delete selected snapshots", placement: "left" }}
-          icon={<Icon name="delete" />}
+          icon={<OverridableIcon name="delete" />}
           onClick={onDeleteBtnClick}
         />
         <FloatButton
           tooltip={{ title: "Create snapshot", placement: "left" }}
-          icon={<Icon name="plus" />}
+          icon={<OverridableIcon name="plus" />}
           onClick={onCreateBtnClick}
         />
       </FloatButtonGroup>

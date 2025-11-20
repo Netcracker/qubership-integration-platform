@@ -9,7 +9,7 @@ import type { ElementWithChainName, SpecApiFile } from "../../api/apiTypes";
 import { ApiSpecificationType, ApiSpecificationFormat } from "../../api/apiTypes";
 import styles from "./Services.module.css";
 import { validateFiles } from "./utils";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { VSCodeExtensionApi } from "../../api/rest/vscodeExtensionApi.ts";
 import { SourceFlagTag } from "./SourceFlagTag";
 
@@ -457,7 +457,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                   fileList={files}
                 >
                   <p className="ant-upload-drag-icon">
-                    <Icon name="inbox" />
+                    <OverridableIcon name="inbox" />
                   </p>
                   <p className="ant-upload-text">
                     Drag one or more specification files or click to choose
@@ -600,7 +600,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       {validationError && (
         <div className={styles.validationErrorContainer}>
           <div className={styles.validationErrorHeader}>
-            <Icon name="exclamationCircle" className={styles.validationErrorIcon} />
+            <OverridableIcon name="exclamationCircle" className={styles.validationErrorIcon} />
             <span className={styles.validationErrorTitle}>{validationError.message}</span>
           </div>
           <ul className={styles.validationErrorList}>

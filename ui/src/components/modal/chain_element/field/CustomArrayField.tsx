@@ -8,7 +8,7 @@ import { isHttpProtocol } from "../../../../misc/protocol-utils.ts";
 import { Script } from "../../../Script.tsx";
 import { FormContext } from "../ChainElementModification.tsx";
 import styles from "./CustomArrayField.module.css";
-import { Icon } from "../../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 
 type BaseItem = {
   id: string;
@@ -218,7 +218,7 @@ const CustomArrayField: React.FC<Props> = ({
           />
           <Button
             type="primary"
-            icon={<Icon name="plus" />}
+            icon={<OverridableIcon name="plus" />}
             onClick={handleAdd}
             disabled={
               !selectedCode ||
@@ -255,7 +255,7 @@ const CustomArrayField: React.FC<Props> = ({
                   size="small"
                   type="text"
                   danger
-                  icon={<Icon name="delete" />}
+                  icon={<OverridableIcon name="delete" />}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDelete(idx);

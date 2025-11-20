@@ -5,7 +5,7 @@ import { Environment, EnvironmentRequest } from '../../api/apiTypes';
 import { useServiceContext } from './ServiceParametersPage';
 import { Segmented } from 'antd';
 import { EnvironmentSourceType } from '../../api/apiTypes';
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { environmentLabelOptions } from "./utils.tsx";
 import {
   isAmqpProtocol,
@@ -216,7 +216,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
           />
           {(currentSourceType === EnvironmentSourceType.MAAS || currentSourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER) && (
             <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, color: mutedColor }}>
-              <Icon name="questionCircle" style={{ marginRight: 8, fontSize: 18 }} />
+              <OverridableIcon name="questionCircle" style={{ marginRight: 8, fontSize: 18 }} />
               <span>This type allows the use of the MaaS classifier to obtain connection parameters when creating a chain snapshot.</span>
             </div>
           )}
@@ -253,7 +253,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
             {showProperties && (
               <>
                 <Button
-                  icon={<Icon name="plus" />}
+                  icon={<OverridableIcon name="plus" />}
                   size="small"
                   style={{ marginLeft: 16 }}
                   onClick={() => {
@@ -350,14 +350,14 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                             onClick={() => setEditingValueKey(key)}
                           >
                             <span style={{ flex: 1 }}>{value}</span>
-                            {hoverValueKey === key && <Icon name="edit" style={{ marginLeft: 8, color: mutedColor }} />}
+                            {hoverValueKey === key && <OverridableIcon name="edit" style={{ marginLeft: 8, color: mutedColor }} />}
                           </div>
                         )}
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'center' }}>
                         <Button
                           type="text"
-                          icon={<Icon name="delete" />}
+                          icon={<OverridableIcon name="delete" />}
                           danger
                           style={iconBtnStyle}
                           onClick={() => {
@@ -397,7 +397,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                       <td style={{ ...cellStyle, textAlign: 'center' }}>
                         <Button
                           type="text"
-                          icon={<Icon name="delete" />}
+                          icon={<OverridableIcon name="delete" />}
                           danger
                           style={iconBtnStyle}
                           onClick={() => {

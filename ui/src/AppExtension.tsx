@@ -15,10 +15,9 @@ import { STARTUP_EVENT, VSCodeExtensionApi } from "./api/rest/vscodeExtensionApi
 import { api } from "./api/api.ts";
 
 import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
-import { IconProvider } from "./IconProvider.tsx";
-import { getIcons } from "./appConfig.ts";
 import { useVSCodeTheme } from "./hooks/useVSCodeTheme.ts";
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
+import { IconProvider } from "./icons/IconProvider.tsx";
 
 const router = createMemoryRouter(
   createRoutesFromElements(
@@ -71,7 +70,7 @@ const AppExtension = () => {
   return (
     <ConfigProvider theme={antdConfig}>
       <AntdApp>
-        <IconProvider icons={getIcons()}>
+        <IconProvider>
           <Layout className={styles.layout}>
             <EventNotification>
               <Modals>

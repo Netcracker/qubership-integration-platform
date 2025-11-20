@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
 import Navigation from "./components/Navigation.tsx";
-import { Navigate, Route, createBrowserRouter, createRoutesFromElements, RouterProvider } from "react-router";
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  Navigate,
+  Route,
+  RouterProvider,
+} from "react-router";
 import Chains from "./pages/Chains";
 import ChainPage from "./pages/ChainPage.tsx";
 import { App as AntdApp, ConfigProvider, Layout } from "antd";
@@ -28,10 +33,14 @@ import Services from "./pages/Services.tsx";
 import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
 import AdminTools from "./pages/AdminTools.tsx";
 import { Masking } from "./pages/Masking.tsx";
-import { getIcons } from "./appConfig.ts";
-import { IconProvider } from "./IconProvider.tsx";
-import { initializeBrowserTheme, setupThemeListener, ThemeMode } from "./theme/themeInit.ts";
+import {
+  initializeBrowserTheme,
+  setupThemeListener,
+  ThemeMode,
+} from "./theme/themeInit.ts";
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
+import { IconProvider } from "./icons/IconProvider.tsx";
+import { useEffect, useState } from "react";
 
 const { Header } = Layout;
 
@@ -99,25 +108,28 @@ const App = () => {
   const [theme, setTheme] = useState<ThemeMode>(() => initializeBrowserTheme());
 
   useEffect(() => {
-    const cleanup = setupThemeListener(setTheme);
-    return cleanup;
+    return setupThemeListener(setTheme);
   }, []);
 
-  const isDark = theme === 'dark' || theme === 'high-contrast';
+  const isDark = theme === "dark" || theme === "high-contrast";
   const antdConfig = getAntdThemeConfig(isDark);
 
   return (
     <ConfigProvider theme={antdConfig}>
       <AntdApp>
-        <IconProvider icons={getIcons()}>
+        <IconProvider>
           <Layout className={styles.layout}>
             <EventNotification>
               <Modals>
                 <Header className={styles.header}>
-                  <Navigation showThemeSwitcher currentTheme={theme} onThemeChange={setTheme} />
+                  <Navigation
+                    showThemeSwitcher
+                    currentTheme={theme}
+                    onThemeChange={setTheme}
+                  />
                 </Header>
                 <Content className={styles.content}>
-                  <RouterProvider router={router}/>
+                  <RouterProvider router={router} />
                 </Content>
               </Modals>
             </EventNotification>
@@ -126,5 +138,5 @@ const App = () => {
       </AntdApp>
     </ConfigProvider>
   );
-}
+};
 export default App;

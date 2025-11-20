@@ -3,7 +3,7 @@ import { Dropdown, Button, Menu } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { isVsCode, VSCodeExtensionApi } from '../../api/rest/vscodeExtensionApi';
 import { api } from '../../api/api';
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 interface Chain {
   id: string;
@@ -47,7 +47,7 @@ export const ChainColumn: React.FC<ChainColumnProps> = ({ chains }) => {
     <Dropdown overlay={menu} trigger={['click']} open={open} onOpenChange={setOpen}>
       <Button type="link">
         {chains.length > 0
-          ? (<>{chains.length} {chains.length === 1 ? 'chain' : 'chains'} <Icon name="down" /></>)
+          ? (<>{chains.length} {chains.length === 1 ? 'chain' : 'chains'} <OverridableIcon name="down" /></>)
           : 'No chains'}
       </Button>
     </Dropdown>

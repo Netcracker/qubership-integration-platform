@@ -5,7 +5,7 @@ import { useDomains } from "../../../hooks/useDomains";
 import commonStyles from "../CommonStyle.module.css";
 import React from "react";
 import { Flex } from "antd";
-import { Icon } from "../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 export const Domains: React.FC = () => {
   const { domains, isLoading } = useDomains();
@@ -13,7 +13,7 @@ export const Domains: React.FC = () => {
   return (
     <Flex vertical className={commonStyles["container"]}>
       <Title level={4} className={commonStyles["title"]}>
-        <Icon name="appstore" className={commonStyles["icon"]} />
+        <OverridableIcon name="appstore" className={commonStyles["icon"]} />
         Domains
       </Title>
       {isLoading ? (

@@ -9,7 +9,7 @@ import styles from "./TransformationValue.module.css";
 import { VerificationError } from "../../mapper/verification/model.ts";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
 import { TransformationInfoTooltip } from "./TransformationInfoTooltip.tsx";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 export type TransformationValueProps = {
   transformation?: Transformation;
@@ -67,7 +67,7 @@ export const TransformationValue: React.FC<TransformationValueProps> = ({
             </Flex>
           }
         >
-          <Icon name="exclamationCircle" style={{ color: "red" }} />
+          <OverridableIcon name="exclamationCircle" style={{ color: "red" }} />
         </Tooltip>
       ) : (
         <></>

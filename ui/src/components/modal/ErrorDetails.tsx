@@ -5,7 +5,7 @@ import styles from "./ErrorDetails.module.css";
 import React from "react";
 import { downloadFile } from "../../misc/download-utils.ts";
 import { copyToClipboard } from "../../misc/clipboard-util.ts";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 type ErrorDetailsProps = {
   service: string;
@@ -47,7 +47,7 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
       footer={[
         <Button
           key="download"
-          icon={<Icon name="download" />}
+          icon={<OverridableIcon name="download" />}
           type="text"
           onClick={downloadErrorDetails}
         >
@@ -55,7 +55,7 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
         </Button>,
         <Button
           key="copy"
-          icon={<Icon name="copy" />}
+          icon={<OverridableIcon name="copy" />}
           type="text"
           onClick={() => void copyToClipboard(getErrorDetailsText())}
         >

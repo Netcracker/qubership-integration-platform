@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Input, Button } from "antd";
 import styles from "./PatternPropertiesField.module.css";
-import { Icon } from "../../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 
 const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
   formData = {},
@@ -48,7 +48,7 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
           onClick={() => setCollapsed((s) => !s)}
         >
           <span className={styles.iconWrapper}>
-            {collapsed ? <Icon name="right" /> : <Icon name="down" />}
+            {collapsed ? <OverridableIcon name="right" /> : <OverridableIcon name="down" />}
           </span>
           <span>{schema?.title || uiSchema?.["ui:title"] || "Items"}</span>
           <span className={styles.badge}>{rowCount}</span>
@@ -58,7 +58,7 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
           <Button
             size="small"
             type="text"
-            icon={<Icon name="plus" />}
+            icon={<OverridableIcon name="plus" />}
             onClick={handleAdd}
             disabled={disabled || readonly}
             style={{ marginLeft: 8 }}
@@ -102,7 +102,7 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
                     <Button
                       size="small"
                       type="text"
-                      icon={<Icon name="delete" />}
+                      icon={<OverridableIcon name="delete" />}
                       onClick={() => handleDelete(key)}
                       disabled={disabled || readonly}
                       className={styles.deleteBtn}

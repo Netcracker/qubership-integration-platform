@@ -20,7 +20,7 @@ import {
   TimestampColumnFilterDropdown,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
-import { Icon } from "../IconProvider.tsx";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 
 export const Masking: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -203,18 +203,18 @@ export const Masking: React.FC = () => {
         style={{ height: "100%" }}
         scroll={{ y: "" }}
       />
-      <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+      <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
         <FloatButton
           tooltip={{
             title: "Delete selected masked fields",
             placement: "left",
           }}
-          icon={<Icon name="delete" />}
+          icon={<OverridableIcon name="delete" />}
           onClick={() => void onDeleteBtnClick()}
         />
         <FloatButton
           tooltip={{ title: "Add new masked field", placement: "left" }}
-          icon={<Icon name="plus" />}
+          icon={<OverridableIcon name="plus" />}
           onClick={() => void onCreateBtnClick()}
         />
       </FloatButtonGroup>

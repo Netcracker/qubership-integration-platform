@@ -30,8 +30,8 @@ import { makeEnumColumnFilterDropdown } from "../EnumColumnFilterDropdown.tsx";
 import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 import { ResizableTitle } from "../ResizableTitle.tsx";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
-import { Icon } from "../../IconProvider.tsx";
 import commonStyles from "./CommonStyle.module.css";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 export enum OperationType {
   READ = "read",
@@ -48,33 +48,33 @@ export const OperationTypeColour: { [key: string]: string } = {
 };
 
 export const EntityTypeIconsMap: { [key: string]: React.ReactNode } = {
-  [EntityType.FOLDER]: <Icon name="folder" />,
-  [EntityType.CHAIN]: <Icon name="apartment" />,
-  [EntityType.CHAINS]: <Icon name="apartment" />,
-  [EntityType.SNAPSHOT]: <Icon name="save" />,
-  [EntityType.SNAPSHOT_CLEANUP]: <Icon name="save" />,
-  [EntityType.DEPLOYMENT]: <Icon name="send" />,
-  [EntityType.ELEMENT]: <Icon name="settings" />,
-  [EntityType.MASKED_FIELD]: <Icon name="eyeInvisible" />,
-  [EntityType.CHAIN_RUNTIME_PROPERTIES]: <Icon name="settings" />,
+  [EntityType.FOLDER]: <OverridableIcon name="folder" />,
+  [EntityType.CHAIN]: <OverridableIcon name="apartment" />,
+  [EntityType.CHAINS]: <OverridableIcon name="apartment" />,
+  [EntityType.SNAPSHOT]: <OverridableIcon name="save" />,
+  [EntityType.SNAPSHOT_CLEANUP]: <OverridableIcon name="save" />,
+  [EntityType.DEPLOYMENT]: <OverridableIcon name="send" />,
+  [EntityType.ELEMENT]: <OverridableIcon name="settings" />,
+  [EntityType.MASKED_FIELD]: <OverridableIcon name="eyeInvisible" />,
+  [EntityType.CHAIN_RUNTIME_PROPERTIES]: <OverridableIcon name="settings" />,
 
-  [EntityType.SERVICE_DISCOVERY]: <Icon name="radarChart" />,
-  [EntityType.EXTERNAL_SERVICE]: <Icon name="global" />,
-  [EntityType.SERVICES]: <Icon name="global" />,
-  [EntityType.INNER_CLOUD_SERVICE]: <Icon name="cloud" />,
-  [EntityType.IMPLEMENTED_SERVICE]: <Icon name="cluster" />,
-  [EntityType.ENVIRONMENT]: <Icon name="api" />,
-  [EntityType.SPECIFICATION]: <Icon name="fileDone" />,
-  [EntityType.SPECIFICATION_GROUP]: <Icon name="group" />,
+  [EntityType.SERVICE_DISCOVERY]: <OverridableIcon name="radarChart" />,
+  [EntityType.EXTERNAL_SERVICE]: <OverridableIcon name="global" />,
+  [EntityType.SERVICES]: <OverridableIcon name="global" />,
+  [EntityType.INNER_CLOUD_SERVICE]: <OverridableIcon name="cloud" />,
+  [EntityType.IMPLEMENTED_SERVICE]: <OverridableIcon name="cluster" />,
+  [EntityType.ENVIRONMENT]: <OverridableIcon name="api" />,
+  [EntityType.SPECIFICATION]: <OverridableIcon name="fileDone" />,
+  [EntityType.SPECIFICATION_GROUP]: <OverridableIcon name="group" />,
 
-  [EntityType.SECRET]: <Icon name="fileUnknown" />,
-  [EntityType.SECURED_VARIABLE]: <Icon name="unorderedList" />,
-  [EntityType.COMMON_VARIABLE]: <Icon name="unorderedList" />,
-  [EntityType.MAAS_KAFKA]: <Icon name="deploymentUnit" />,
-  [EntityType.MAAS_RABBITMQ]: <Icon name="deploymentUnit" />,
-  [EntityType.DETAILED_DESIGN_TEMPLATE]: <Icon name="fileText" />,
-  [EntityType.IMPORT_INSTRUCTION]: <Icon name="solution" />,
-  [EntityType.IMPORT_INSTRUCTIONS]: <Icon name="solution" />,
+  [EntityType.SECRET]: <OverridableIcon name="fileUnknown" />,
+  [EntityType.SECURED_VARIABLE]: <OverridableIcon name="unorderedList" />,
+  [EntityType.COMMON_VARIABLE]: <OverridableIcon name="unorderedList" />,
+  [EntityType.MAAS_KAFKA]: <OverridableIcon name="deploymentUnit" />,
+  [EntityType.MAAS_RABBITMQ]: <OverridableIcon name="deploymentUnit" />,
+  [EntityType.DETAILED_DESIGN_TEMPLATE]: <OverridableIcon name="fileText" />,
+  [EntityType.IMPORT_INSTRUCTION]: <OverridableIcon name="solution" />,
+  [EntityType.IMPORT_INSTRUCTIONS]: <OverridableIcon name="solution" />,
 };
 
 export const OperationTypeMap: { [key: string]: OperationType } = {
@@ -453,7 +453,7 @@ export const ActionsLog: React.FC = () => {
   };
 
   const getIconByEntityType = (type: EntityType): React.ReactNode => {
-    const icon = EntityTypeIconsMap[type] ?? <Icon name="question" />;
+    const icon = EntityTypeIconsMap[type] ?? <OverridableIcon name="question" />;
     return React.cloneElement(icon as React.ReactElement, {
       style: { marginRight: 10 },
     });
@@ -467,7 +467,7 @@ export const ActionsLog: React.FC = () => {
     <Flex vertical className={commonStyles["container"]}>
       <Flex className={commonStyles["header"]}>
         <Title level={4} className={commonStyles["title"]}>
-          <Icon name="audit" className={commonStyles["icon"]} />
+          <OverridableIcon name="audit" className={commonStyles["icon"]} />
           Audit
         </Title>
         <Flex vertical={false} gap={8} className={commonStyles["actions"]}>
@@ -481,7 +481,7 @@ export const ActionsLog: React.FC = () => {
               onDeselect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
             }}
           >
-            <Button icon={<Icon name="settings" />} />
+            <Button icon={<OverridableIcon name="settings" />} />
           </Dropdown>
         </Flex>
       </Flex>
@@ -577,10 +577,10 @@ export const ActionsLog: React.FC = () => {
                 };
               }}
             />
-            <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+            <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
               <FloatButton
                 tooltip={{ title: "Refresh", placement: "left" }}
-                icon={<Icon name="redo" />}
+                icon={<OverridableIcon name="redo" />}
                 onClick={() => void refresh()}
               />
               {isLoading || isFetching ? (
@@ -593,7 +593,7 @@ export const ActionsLog: React.FC = () => {
                         title: "Export action logs",
                         placement: "left",
                       }}
-                      icon={<Icon name="cloudDownload" />}
+                      icon={<OverridableIcon name="cloudDownload" />}
                     />
                   }
                   onRangeApply={(from, to) => {

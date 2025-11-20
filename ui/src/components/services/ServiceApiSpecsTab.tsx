@@ -23,7 +23,7 @@ import styles from "./Services.module.css";
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { useServiceContext } from "./ServiceParametersPage";
 import { IntegrationSystemType } from "../../api/apiTypes";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 const STORAGE_KEY = "systemParameters";
 
@@ -69,7 +69,7 @@ const getGroupActions = (
     {
       key: expandedRowKeys.includes(group.id) ? 'collapse' : 'expand',
       label: expandedRowKeys.includes(group.id) ? 'Collapse' : 'Expand',
-      icon: expandedRowKeys.includes(group.id) ? <Icon name="up" /> : <Icon name="down" />,
+      icon: expandedRowKeys.includes(group.id) ? <OverridableIcon name="up" /> : <OverridableIcon name="down" />,
       onClick: () => {
         setExpandedRowKeys(
           expandedRowKeys.includes(group.id)
@@ -81,7 +81,7 @@ const getGroupActions = (
     {
       key: 'add',
       label: 'Add Specification',
-      icon: <Icon name="plus" />,
+      icon: <OverridableIcon name="plus" />,
       onClick: () => {
         showModal({
           component: (
@@ -102,7 +102,7 @@ const getGroupActions = (
     {
       key: 'delete',
       label: 'Delete',
-      icon: <Icon name="delete" />,
+      icon: <OverridableIcon name="delete" />,
       onClick: async () => {
         try {
           await api.deleteSpecificationGroup(group.id);
@@ -133,7 +133,7 @@ const getSpecActions = (
     {
       key: expandedRowKeys.includes(spec.id) ? 'collapse' : 'expand',
       label: expandedRowKeys.includes(spec.id) ? 'Collapse' : 'Expand',
-      icon: expandedRowKeys.includes(spec.id) ? <Icon name="up" /> : <Icon name="down" />,
+      icon: expandedRowKeys.includes(spec.id) ? <OverridableIcon name="up" /> : <OverridableIcon name="down" />,
       onClick: () => {
         setExpandedRowKeys(
           expandedRowKeys.includes(spec.id)
@@ -146,7 +146,7 @@ const getSpecActions = (
       ? [{
           key: 'delete',
           label: 'Delete',
-          icon: <Icon name="delete" />,
+          icon: <OverridableIcon name="delete" />,
           onClick: async () => {
             try {
               await api.deleteSpecificationModel(spec.id);
@@ -167,7 +167,7 @@ const getSpecActions = (
       ? [{
           key: 'deprecate',
           label: 'Deprecate',
-          icon: <Icon name="stop" />,
+          icon: <OverridableIcon name="stop" />,
           onClick: async () => {
             try {
               await api.deprecateModel(spec.id);
@@ -187,7 +187,7 @@ const getSpecActions = (
     {
       key: 'export',
       label: 'Export',
-      icon: <Icon name="export" />,
+      icon: <OverridableIcon name="export" />,
       onClick: () => handleExportSpecifications([spec], notify),
     },
   ];
@@ -429,7 +429,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
               {isVsCode && (
                 <Tooltip title="Import Specifications">
                   <Button
-                    icon={<Icon name="cloudUpload" />}
+                    icon={<OverridableIcon name="cloudUpload" />}
                     onClick={onImportSpecGroupClick}
                   />
                 </Tooltip>
@@ -442,7 +442,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
               {isVsCode && (
                 <Tooltip title="Import Specifications">
                   <Button
-                    icon={<Icon name="cloudUpload" />}
+                    icon={<OverridableIcon name="cloudUpload" />}
                     onClick={onImportSpecClick}
                   />
                 </Tooltip>
@@ -461,15 +461,15 @@ export const ServiceApiSpecsTab: React.FC = () => {
         <>
           <serviceGroupsTable.Table />
           {!isVsCode && (
-            <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+            <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
               <FloatButton
                 tooltip={{ title: "Import Specifications", placement: "left" }}
-                icon={<Icon name="cloudUpload" />}
+                icon={<OverridableIcon name="cloudUpload" />}
                 onClick={onImportSpecGroupClick}
               />
               <FloatButton
                 tooltip={{ title: "Export all groups", placement: "left" }}
-                icon={<Icon name="cloudDownload" />}
+                icon={<OverridableIcon name="cloudDownload" />}
                 onClick={() => {
                   void (async () => {
                     if (!(serviceSpecData ?? []).length) {
@@ -494,10 +494,10 @@ export const ServiceApiSpecsTab: React.FC = () => {
         <>
           <modelsTable.Table />
           {!isVsCode && (
-            <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+            <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
               <FloatButton
                 tooltip={{ title: "Import Specification", placement: "left" }}
-                icon={<Icon name="cloudUpload" />}
+                icon={<OverridableIcon name="cloudUpload" />}
                 onClick={onImportSpecClick}
               />
               <FloatButton
@@ -505,7 +505,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                   title: "Export selected specifications",
                   placement: "left",
                 }}
-                icon={<Icon name="cloudDownload" />}
+                icon={<OverridableIcon name="cloudDownload" />}
                 onClick={() => {
                   void (async () => {
                     if (selectedSpecRowKeys.length === 0) {
@@ -527,10 +527,10 @@ export const ServiceApiSpecsTab: React.FC = () => {
         <>
           <operationsTable.Table />
           {!isVsCode && (
-            <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+            <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
               <FloatButton
                 tooltip={{ title: "Export", placement: "left" }}
-                icon={<Icon name="cloudDownload" />}
+                icon={<OverridableIcon name="cloudDownload" />}
                 onClick={() => {
                   void (async () => {
                     try {

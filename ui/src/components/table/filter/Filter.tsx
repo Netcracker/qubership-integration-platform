@@ -3,7 +3,7 @@ import { useModalContext } from "../../../ModalContextProvider";
 import { FilterItem, FilterItemState } from "./FilterItem";
 import { useState } from "react";
 import { FilterColumn, FilterCondition } from "./filter";
-import { Icon } from "../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 export type FilterProps = {
   filterColumns: FilterColumn[];
@@ -123,8 +123,8 @@ export const Filter = (props: FilterProps) => {
       form={form}
     >
       {filterItems}
-      <Button type="link" onClick={addFilterItem}><Icon name="plus" /> Add Filter</Button>
-      <Button type="link" onClick={clearAll}><Icon name="clear" /> Clear All</Button>
+      <Button type="link" onClick={addFilterItem}><OverridableIcon name="plus" /> Add Filter</Button>
+      <Button type="link" onClick={clearAll}><OverridableIcon name="clear" /> Clear All</Button>
     </Form>
   </Modal>
 };

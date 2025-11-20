@@ -11,7 +11,7 @@ import { useNotificationService } from "../../../hooks/useNotificationService.ts
 import { ResizeCallbackData } from "react-resizable";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { ApiResponse, Variable } from "../../../api/admin-tools/variables/types.ts";
-import { Icon } from "../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 const { Title } = Typography;
 
@@ -90,7 +90,7 @@ export const CommonVariables = () => {
     <Flex vertical className={styles["container"]}>
       <Flex vertical={false}>
         <Title level={4} className={styles["title"]}>
-          <Icon name="table" className={styles["icon"]} />
+          <OverridableIcon name="table" className={styles["icon"]} />
           Common Variables
         </Title>
       </Flex>
@@ -116,10 +116,10 @@ export const CommonVariables = () => {
         columnsWidth={columnsWidth}
         onResize={handleResize}
       />
-      <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+      <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
         <FloatButton
           tooltip={{ title: "Import variables", placement: "left" }}
-          icon={<Icon name="cloudUpload" />}
+          icon={<OverridableIcon name="cloudUpload" />}
           onClick={() =>
             showModal({
               component: (
@@ -130,7 +130,7 @@ export const CommonVariables = () => {
         />
         <FloatButton
           tooltip={{ title: "Export selected variables", placement: "left" }}
-          icon={<Icon name="cloudDownload" />}
+          icon={<OverridableIcon name="cloudDownload" />}
           onClick={() => {
             if (!selectedRowKeys.length) return;
             void onExport(selectedRowKeys);
@@ -141,7 +141,7 @@ export const CommonVariables = () => {
             title: "Delete selected variables",
             placement: "left",
           }}
-          icon={<Icon name="delete" />}
+          icon={<OverridableIcon name="delete" />}
           onClick={() => {
             if (!selectedRowKeys.length) return;
             Modal.confirm({
@@ -153,7 +153,7 @@ export const CommonVariables = () => {
         />
         <FloatButton
           tooltip={{ title: "Add variable", placement: "left" }}
-          icon={<Icon name="plus" />}
+          icon={<OverridableIcon name="plus" />}
           onClick={() => setIsAddingNew(true)}
         />
       </FloatButtonGroup>

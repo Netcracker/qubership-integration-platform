@@ -25,7 +25,7 @@ import { useNotificationService } from "../../../hooks/useNotificationService.ts
 import { ResizeCallbackData } from "react-resizable";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { LongActionButton } from "../../LongActionButton.tsx";
-import { Icon } from "../../../IconProvider.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 const { Title } = Typography;
 
@@ -336,7 +336,7 @@ export const SecuredVariables: React.FC = () => {
     <Flex vertical className={commonStyles["container"]}>
       <Flex vertical={false}>
         <Title level={4} className={commonStyles["title"]}>
-          <Icon name="lock" className={commonStyles["icon"]} />
+          <OverridableIcon name="lock" className={commonStyles["icon"]} />
           Secured Variables
         </Title>
       </Flex>
@@ -400,13 +400,13 @@ export const SecuredVariables: React.FC = () => {
                     <LongActionButton
                       size="small"
                       type="text"
-                      icon={<Icon name="cloudDownload" />}
+                      icon={<OverridableIcon name="cloudDownload" />}
                       onSubmit={async () => exportHelmChart(secret)}
                     />
                   </Tooltip>
                   <Tooltip placement="topRight" title="Add variable">
                     <Button
-                      icon={<Icon name="plus" />}
+                      icon={<OverridableIcon name="plus" />}
                       size="small"
                       type="text"
                       onClick={() =>
@@ -432,13 +432,13 @@ export const SecuredVariables: React.FC = () => {
         sticky
         scroll={{ y: "" }}
       />
-      <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+      <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
         <FloatButton
           tooltip={{
             title: "Delete selected variables",
             placement: "left",
           }}
-          icon={<Icon name="delete" />}
+          icon={<OverridableIcon name="delete" />}
           onClick={() => {
             if (!hasSelected) return;
             Modal.confirm({
@@ -450,7 +450,7 @@ export const SecuredVariables: React.FC = () => {
         />
         <FloatButton
           tooltip={{ title: "Add secret", placement: "left" }}
-          icon={<Icon name="plus" />}
+          icon={<OverridableIcon name="plus" />}
           onClick={() => setCreateModalVisible(true)}
         />
       </FloatButtonGroup>

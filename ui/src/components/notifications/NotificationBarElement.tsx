@@ -1,7 +1,7 @@
 import React from "react";
 import { List } from "antd";
 import { NotificationItem } from "./contexts/NotificationLogContext.tsx";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 type NotificationBarElementProps = {
   value: NotificationItem;
@@ -16,14 +16,14 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({
     const baseStyle = { fontSize: "18", marginTop: 4 };
     const errorColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-errorForeground').trim() || '#ff4d4f';
     const infoColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-textLink-foreground').trim() || '#1890ff';
-    
+
     switch (type) {
       case "error":
-        return <Icon name="closeCircle" style={{ ...baseStyle, color: errorColor }} />;
+        return <OverridableIcon name="closeCircle" style={{ ...baseStyle, color: errorColor }} />;
       case "info":
       default:
         return (
-          <Icon name="exclamationCircle" style={{ ...baseStyle, color: infoColor }} />
+          <OverridableIcon name="exclamationCircle" style={{ ...baseStyle, color: infoColor }} />
         );
     }
   };
@@ -31,7 +31,7 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({
   return (
     <List.Item
       actions={[
-        <Icon name="close"
+        <OverridableIcon name="close"
           key="close"
           style={{ cursor: "pointer" }}
           onClick={() => onRemove(value)}

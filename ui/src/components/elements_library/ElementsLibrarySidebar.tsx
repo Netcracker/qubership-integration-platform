@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { ReactElement, useEffect, useState } from "react";
 import { Menu, Spin } from "antd";
 import { LibraryElement, LibraryData } from "../../api/apiTypes.ts";
 import DraggableElement from "./DraggableElement.tsx";
@@ -7,6 +7,8 @@ import Sider from "antd/lib/layout/Sider";
 import styles from "./ElementsLibrarySidebar.module.css";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useLibraryContext } from "../LibraryContext.tsx";
+import { IconName, OverridableIcon } from "../../icons/IconProvider.tsx";
+import { getElementColor } from "../../misc/chain-graph-utils.ts";
 
 export const ElementsLibrarySidebar = () => {
   const [, setElementsList] = useState<LibraryData | null>(null);
@@ -18,6 +20,7 @@ export const ElementsLibrarySidebar = () => {
   type MenuItem = {
     key: string;
     label: React.ReactNode;
+    icon?: ReactElement<any, any>;
     children?: MenuItem[];
   };
 
@@ -34,6 +37,7 @@ export const ElementsLibrarySidebar = () => {
             folderMap.set(element.folder, {
               key: element.folder,
               label: prettifyName(element.folder),
+              icon: <OverridableIcon name="folderOpenFilled" style={{ fontSize: 18, color: getElementColor(element) }} />,
               children: [],
             });
           }
@@ -41,13 +45,15 @@ export const ElementsLibrarySidebar = () => {
           element.designContainerParameters?.children.map((child) => {
             const childMenuItem = {
               key: child.name,
-              label: <DraggableElement element={child} />,
+              label: <DraggableElement element={libraryData.childElements[child.name]} />,
+              icon: <OverridableIcon name={child.name as IconName} style={{ fontSize: 18 }} />,
             };
             childrenMenuItems.push(childMenuItem);
           });
           const elementMenuItem: MenuItem = {
             key: element.name,
             label: <DraggableElement element={element} />,
+            icon: <OverridableIcon name={element.name as IconName} style={{ fontSize: 18 }} />,
           };
           if (childrenMenuItems.length !== 0) {
             elementMenuItem.children = childrenMenuItems.sort((a, b) =>
@@ -83,7 +89,7 @@ export const ElementsLibrarySidebar = () => {
   };
 
   return (
-    <Sider width={200} theme="light" className={styles.sideMenu}>
+    <Sider width={230} theme="light" className={styles.sideMenu}>
       {isLibraryLoading && loading ? (
         <Spin />
       ) : (
@@ -92,6 +98,7 @@ export const ElementsLibrarySidebar = () => {
           mode="inline"
           theme="light"
           items={items}
+          inlineIndent={8}
         />
       )}
     </Sider>

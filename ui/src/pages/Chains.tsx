@@ -50,8 +50,8 @@ import { FilterButton } from "../components/table/filter/FilterButton.tsx";
 import { FilterItemState } from "../components/table/filter/FilterItem.tsx";
 import { GenerateDdsModal } from "../components/modal/GenerateDdsModal.tsx";
 import { DdsPreview } from "../components/modal/DdsPreview.tsx";
-import { Icon } from "../IconProvider.tsx";
 import styles from "./Chains.module.css";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -111,7 +111,7 @@ function buildPathItems(path: FolderItem[]): BreadcrumbProps["items"] {
   return [
     {
       href: "/chains",
-      title: <Icon name="home" />,
+      title: <OverridableIcon name="home" />,
     },
     ...items,
   ];
@@ -776,9 +776,9 @@ const Chains = () => {
       render: (_, item) => (
         <Flex vertical={false} gap={4}>
           {item.itemType === CatalogItemType.FOLDER ? (
-            <Icon name="folder" />
+            <OverridableIcon name="folder" />
           ) : (
-            <Icon name="file" />
+            <OverridableIcon name="file" />
           )}
           <a
             onClick={(event) => {
@@ -899,7 +899,7 @@ const Chains = () => {
             trigger={["click"]}
             placement="bottomRight"
           >
-            <Button size="small" type="text" icon={<Icon name="more" />} />
+            <Button size="small" type="text" icon={<OverridableIcon name="more" />} />
           </Dropdown>
         </>
       ),
@@ -944,7 +944,7 @@ const Chains = () => {
               onDeselect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
             }}
           >
-            <Button icon={<Icon name="settings" />} />
+            <Button icon={<OverridableIcon name="settings" />} />
           </Dropdown>
           <FilterButton count={filterItemStates.length} onClick={addFilter} />
         </Flex>
@@ -971,15 +971,15 @@ const Chains = () => {
             },
           }}
         />
-        <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+        <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
           <FloatButton
             tooltip={{ title: "Deploy selected chains", placement: "left" }}
-            icon={<Icon name="send" />}
+            icon={<OverridableIcon name="send" />}
             // onClick={onDeployBtnClick}
           />
           <FloatButton
             tooltip={{ title: "Paste", placement: "left" }}
-            icon={<Icon name="carryOut" />}
+            icon={<OverridableIcon name="carryOut" />}
             onClick={() => void pasteItem(getFolderId())}
           />
           <FloatButton
@@ -989,12 +989,12 @@ const Chains = () => {
           />
           <FloatButton
             tooltip={{ title: "Import chains", placement: "left" }}
-            icon={<Icon name="cloudUpload" />}
+            icon={<OverridableIcon name="cloudUpload" />}
             onClick={onImportBtnClick}
           />
           <FloatButton
             tooltip={{ title: "Export selected chains", placement: "left" }}
-            icon={<Icon name="cloudDownload" />}
+            icon={<OverridableIcon name="cloudDownload" />}
             onClick={onExportBtnClick}
           />
           <FloatButton
@@ -1002,17 +1002,17 @@ const Chains = () => {
               title: "Delete selected chains and folders",
               placement: "left",
             }}
-            icon={<Icon name="delete" />}
+            icon={<OverridableIcon name="delete" />}
             onClick={onDeleteBtnClick}
           />
           <FloatButton
             tooltip={{ title: "Create folder", placement: "left" }}
-            icon={<Icon name="folderAdd" />}
+            icon={<OverridableIcon name="folderAdd" />}
             onClick={() => onCreateFolderBtnClick(getFolderId())}
           />
           <FloatButton
             tooltip={{ title: "Create chain", placement: "left" }}
-            icon={<Icon name="fileAdd" />}
+            icon={<OverridableIcon name="fileAdd" />}
             onClick={() => onCreateChainBtnClick(getFolderId())}
           />
         </FloatButtonGroup>

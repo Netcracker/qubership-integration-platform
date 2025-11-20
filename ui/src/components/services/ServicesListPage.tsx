@@ -34,7 +34,7 @@ import { useModalsContext } from "../../Modals";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useAsyncRequest } from './useAsyncRequest';
 import type { ExpandableConfig } from 'antd/es/table/interface';
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 const STORAGE_KEY = "servicesListTable";
 
@@ -158,7 +158,7 @@ export const ServicesListPage: React.FC = () => {
           }}
           style={{ cursor: "pointer", fontSize: 11, color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))', display: 'inline-flex', alignItems: 'center', verticalAlign: 'sub', marginRight: 6 }}
         >
-          {expanded ? <Icon name="down" /> : <Icon name="right" />}
+          {expanded ? <OverridableIcon name="down" /> : <OverridableIcon name="right" />}
         </span>
       ) : null,
   };
@@ -352,10 +352,10 @@ export const ServicesListPage: React.FC = () => {
           <Typography.Title level={4} className={styles["title"]}>
             {(() => {
               switch (tab) {
-                case "external": return <Icon name="global" className={styles["icon"]} />;
-                case "internal": return <Icon name="cloud" className={styles["icon"]} />;
-                case "implemented": return <Icon name="cluster" className={styles["icon"]} />;
-                default: return <Icon name="table" className={styles["icon"]} />;
+                case "external": return <OverridableIcon name="global" className={styles["icon"]} />;
+                case "internal": return <OverridableIcon name="cloud" className={styles["icon"]} />;
+                case "implemented": return <OverridableIcon name="cluster" className={styles["icon"]} />;
+                default: return <OverridableIcon name="table" className={styles["icon"]} />;
               }
             })()}
             {(() => {
@@ -379,10 +379,10 @@ export const ServicesListPage: React.FC = () => {
           <servicesTable.Table />
           {error && <div style={{ color: "var(--vscode-errorForeground, #d73a49)" }}>Error: {error}</div>}
 
-          <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+          <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
             <FloatButton
               tooltip={{ title: "Download selected services", placement: "left" }}
-              icon={<Icon name="cloudDownload" />}
+              icon={<OverridableIcon name="cloudDownload" />}
               onClick={() => {
                 void (async () => {
                   if (selectedRowKeys.length === 0) {
@@ -398,7 +398,7 @@ export const ServicesListPage: React.FC = () => {
             />
             <FloatButton
               tooltip={{ title: "Upload services", placement: "left" }}
-              icon={<Icon name="cloudUpload" />}
+              icon={<OverridableIcon name="cloudUpload" />}
               onClick={() => {
                 showModal({
                   component: <ImportServicesModal onSuccess={() => { void loadServices(); }} />,
@@ -407,7 +407,7 @@ export const ServicesListPage: React.FC = () => {
             />
             <FloatButton
               tooltip={{ title: "Create service", placement: "left" }}
-              icon={<Icon name="plus" />}
+              icon={<OverridableIcon name="plus" />}
               onClick={() => setCreateModalOpen(true)} />
           </FloatButtonGroup>
         </div>

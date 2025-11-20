@@ -44,7 +44,7 @@ import {
 } from "../components/table/TextColumnFilterDropdown.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { parseJson } from "../misc/json-helper.ts";
-import { Icon } from "../IconProvider.tsx";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 
 type SessionTableItem = Session & {
   children?: SessionTableItem[];
@@ -315,7 +315,7 @@ export const Sessions: React.FC = () => {
                 <Button
                   size="small"
                   type="text"
-                  icon={<Icon name="redo" />}
+                  icon={<OverridableIcon name="redo" />}
                   onClick={() =>
                     void retryFromLastCheckpoint(item.chainId, item.id)
                   }
@@ -541,27 +541,27 @@ export const Sessions: React.FC = () => {
           onScroll={(event) => void onScroll(event)}
           onChange={(_, tableFilters) => setTableFilters(tableFilters)}
         />
-        <FloatButtonGroup trigger="hover" icon={<Icon name="more" />}>
+        <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
           <FloatButton
             tooltip={{ title: "Retry selected sessions", placement: "left" }}
-            icon={<Icon name="redo" />}
+            icon={<OverridableIcon name="redo" />}
             onClick={() => void onRetryBtnClick()}
           />
           {chainId ? null : (
             <FloatButton
               tooltip={{ title: "Import sessions", placement: "left" }}
-              icon={<Icon name="cloudUpload" />}
+              icon={<OverridableIcon name="cloudUpload" />}
               onClick={onImportBtnClick}
             />
           )}
           <FloatButton
             tooltip={{ title: "Export selected sessions", placement: "left" }}
-            icon={<Icon name="cloudDownload" />}
+            icon={<OverridableIcon name="cloudDownload" />}
             onClick={() => void onExportBtnClick()}
           />
           <FloatButton
             tooltip={{ title: "Delete selected sessions", placement: "left" }}
-            icon={<Icon name="delete" />}
+            icon={<OverridableIcon name="delete" />}
             onClick={onDeleteBtnClick}
           />
         </FloatButtonGroup>

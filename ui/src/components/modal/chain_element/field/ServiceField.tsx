@@ -6,7 +6,7 @@ import { IntegrationSystem } from "../../../../api/apiTypes";
 import { FormContext } from "../ChainElementModification";
 import { JSONSchema7 } from "json-schema";
 import { useNotificationService } from "../../../../hooks/useNotificationService";
-import { Icon } from "../../../../IconProvider";
+import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import { VSCodeExtensionApi } from "../../../../api/rest/vscodeExtensionApi";
 import { api } from "../../../../api/api";
 import { ServiceTag } from "./ServiceTag";
@@ -122,7 +122,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
         />
         <Tooltip title="Go to service">
           <Button
-            icon={<Icon name="send" />}
+            icon={<OverridableIcon name="send" />}
             disabled={!serviceId}
             onClick={onNavigationButtonClick}
           />

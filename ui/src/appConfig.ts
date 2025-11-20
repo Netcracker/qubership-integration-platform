@@ -1,7 +1,7 @@
-import { IconSet } from "./IconProvider.tsx";
+import { IconOverrides } from "../dist-lib/types";
 
 let appNameValue: string = import.meta.env.VITE_API_APP;
-let appIcons: IconSet = {};
+let appIcons: IconOverrides = {};
 
 /**
  * Sets the application name once on bootstrap. Subsequent reads use getAppName().
@@ -13,7 +13,7 @@ function setAppName(name: string | undefined | null): void {
   }
 }
 
-export function setIcons(icons?: IconSet) {
+export function setIcons(icons?: IconOverrides) {
   if (icons) {
     appIcons = icons;
   }
@@ -26,13 +26,13 @@ export function getAppName(): string {
   return appNameValue;
 }
 
-export function getIcons(): IconSet {
+export function getIcons(): IconOverrides {
   return appIcons;
 }
 
 export type AppExtensionProps = {
   appName?: string;
-  icons?: IconSet;
+  icons?: IconOverrides;
 };
 
 export function configureAppExtension(message: AppExtensionProps) {

@@ -1,53 +1,53 @@
 import { Menu } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 const menuItems = [
   {
     key: "/admintools/domains",
-    icon: <Icon name="appstore" />,
+    icon: <OverridableIcon name="appstore" />,
     label: "Domains",
   },
   {
     key: "variables",
-    icon: <Icon name="code" />,
+    icon: <OverridableIcon name="code" />,
     label: "Variables",
     children: [
       {
         key: "/admintools/variables/common",
-        icon: <Icon name="table" />,
+        icon: <OverridableIcon name="table" />,
         label: "Common",
       },
       {
         key: "/admintools/variables/secured",
-        icon: <Icon name="lock" />,
+        icon: <OverridableIcon name="lock" />,
         label: "Secured",
       },
     ],
   },
   {
     key: "/admintools/audit",
-    icon: <Icon name="audit" />,
+    icon: <OverridableIcon name="audit" />,
     label: "Audit",
   },
   {
     key: "/admintools/import-instructions",
-    icon: <Icon name="cloudUpload" />,
+    icon: <OverridableIcon name="cloudUpload" />,
     label: "Import Instructions",
   },
   {
     key: "/admintools/sessions",
-    icon: <Icon name="user" />,
+    icon: <OverridableIcon name="user" />,
     label: "Sessions",
   },
   {
     key: "/admintools/roles",
-    icon: <Icon name="settings" />,
+    icon: <OverridableIcon name="settings" />,
     label: "Roles",
   },
   {
     key: "/admintools/design-templates",
-    icon: <Icon name="fileText" />,
+    icon: <OverridableIcon name="fileText" />,
     label: "Design Templates",
   },
 ];

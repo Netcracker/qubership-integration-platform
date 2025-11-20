@@ -7,7 +7,7 @@ import { ImportSystemResult, SystemImportStatus } from "../../api/apiTypes";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { validateFiles } from "./utils";
-import { Icon } from "../../IconProvider.tsx";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 interface Props {
   onSuccess?: () => void;
@@ -110,7 +110,7 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess }) => {
               fileList={files}
             >
               <p className="ant-upload-drag-icon">
-                <Icon name="inbox" />
+                <OverridableIcon name="inbox" />
               </p>
               <p className="ant-upload-text">
                 Drag a Zip file or click to choose
