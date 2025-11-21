@@ -733,7 +733,10 @@ export const useChainGraph = (
           if (prevNode.id === node.id) {
             const updatedNode: ChainGraphNode = {
               ...prevNode,
-              data: getDataFromElement(element),
+              data: {
+                ...prevNode.data,
+                ...getDataFromElement(element),
+              }
             };
             return updatedNode;
           }

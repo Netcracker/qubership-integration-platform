@@ -19,7 +19,8 @@ export function UnitNode({
   return (
     <div
       style={{
-        border: selected ? "2px solid #000" : undefined,
+        border: "2px solid transparent",
+        borderColor: selected ? "#000" : "transparent",
         borderRadius: 5,
         width: "100%",
         height: "100%",
@@ -34,24 +35,50 @@ export function UnitNode({
           height: "100%",
           flexDirection: "row",
           display: "flex",
-          alignItems: "center",
           gap: 6,
-          placeItems: "center",
           userSelect: "none",
           textAlign: "center",
           lineHeight: 1.2,
-          padding: "6px 8px",
+          paddingTop: "8px",
+          paddingBottom: "6px",
+          paddingLeft: "8px",
         }}
       >
-        <OverridableIcon name={data.elementType as IconName} style={{ fontSize: 16 }} />
-        <EllipsisLabel
-          text={trimmedLabel}
-          style={{
-            maxWidth: "100%",
-            minWidth: 0,
-            fontSize: 12,
-          }}
+        <OverridableIcon
+          name={data.elementType as IconName}
+          style={{ fontSize: 16 }}
         />
+        <div
+          style={{
+            width: "100%",
+          }}
+        >
+          <EllipsisLabel
+            text={trimmedLabel}
+            style={{
+              minWidth: 0,
+              fontSize: 12,
+              textAlign: "left",
+            }}
+          />
+          <div
+            style={{
+              textAlign: "right",
+              marginTop: 2,
+            }}
+          >
+            <span
+              style={{
+                background: "rgba(0, 0, 0, 0.15)",
+                padding: "2px 5px",
+                borderRadius: 3,
+                fontSize: 8,
+              }}
+            >
+              {data.typeTitle}
+            </span>
+          </div>
+        </div>
       </div>
 
       {data.inputEnabled !== false && (

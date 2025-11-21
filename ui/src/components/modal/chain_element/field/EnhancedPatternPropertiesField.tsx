@@ -7,7 +7,6 @@ import { FormContext } from "../ChainElementModification";
 import { api } from "../../../../api/api";
 import {
   isAmqpProtocol,
-  isAsyncProtocol,
   isKafkaProtocol,
   normalizeProtocol,
 } from "../../../../misc/protocol-utils";
@@ -559,7 +558,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
           <Button
             size="small"
             type="text"
-            icon={<Icon name="plus" />}
+            icon={<OverridableIcon name="plus" />}
             onClick={handleAdd}
             disabled={disabled || readonly}
             style={{ marginLeft: 8 }}

@@ -10,14 +10,22 @@ export function getDataFromElement(
   element: Element,
   libraryElement?: LibraryElement,
 ): ChainGraphNodeData {
-  return {
+  let node = {
     elementType: element.type,
     label: element.name,
     description: element.description,
     properties: element.properties,
-    inputEnabled: libraryElement?.inputEnabled ?? true,
-    outputEnabled: libraryElement?.outputEnabled ?? true,
-  };
+  } as ChainGraphNodeData;
+
+  if (libraryElement) {
+    node = {
+      ...node,
+      inputEnabled: libraryElement?.inputEnabled,
+      outputEnabled: libraryElement?.outputEnabled,
+      typeTitle: libraryElement?.title,
+    };
+  }
+  return node;
 }
 
 export function getLibraryElement(
