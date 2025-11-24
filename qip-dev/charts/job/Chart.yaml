@@ -1,0 +1,4 @@
+apiVersion: v2
+name: my-chart
+description: A Helm chart for a Kubernetes Job and a Persistent Volume
+version: 0.1.0

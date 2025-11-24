@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fetch-job
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: archive-storage
+          persistentVolumeClaim:
+            claimName: archive-pvc
+      containers:
+        - name: fetch
+          image: curlimages/curl:latest
+          command: ["sh", "-c"]
+          args:
+            - "curl -o /import/data.zip https://download.eu-central-1.fromsmash.co/transfer/ZFh7mznE47-dt/file/f362e0b04bd91087b250f0890aa4712a59fb895a?identity=d81b7bd9b3601422e7d08adba0adaa19-e58962e81e8a1888519d9525ce2ff18e6afef81ff75d60b2b1660b7fa945b2881360fa0cd1f7cd5c04839f6350e5699daccccae0392a3794139dc02190309de04591d5d7ed83d8fa858c62395090245e&Expires=1741075638&Key-Pair-Id=APKAIM76HR2FWFZRN3HA&Signature=ME3LOQftycqm4sCc2wvK7pSns8tW2~05P4zeRsPpv8ab~49pCDkoGkhnCkzYn-UyE9-NTHM~53pldI0wUeCa5GunmQfuAdaw9TmvnyIxQ7lQ9GwZ80-B8y80BXOqcIZad8JDZogngbLbdAzAxU~yv6~SMGCr0UDgdOBWymwDftFAxfdRZuy-dbTAZZMUfYVU-Bl-5dH9B45Fc8nShH2ankyxN5xsrmLTWPGLOqdN7r6Ud66G3eULiavCsijQBkuBuy4tzvoCEL6cQNOp9PNFhILV8TAU~5ELCJb~iqsk14DZMGEJ5SJOjSHdpBA9VkYp9lI5FslpFIFQMzWsj33nPA__"
+          volumeMounts:
+            - name: archive-storage
+              mountPath: /import
