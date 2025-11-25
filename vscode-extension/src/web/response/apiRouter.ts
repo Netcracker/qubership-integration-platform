@@ -6,7 +6,10 @@ import {
     createMaskedField,
     deleteConnections,
     deleteElements,
-    deleteMaskedFields, transferElement,
+    deleteMaskedFields,
+    groupElements,
+    ungroupElements,
+    transferElement,
     updateChain,
     updateElement,
     updateMaskedField
@@ -112,6 +115,8 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
         case 'deleteMaskedFields': return await deleteMaskedFields(fileUri, message.payload.chainId, message.payload.maskedFieldIds);
         case 'updateMaskedField': return await updateMaskedField(fileUri, message.payload.id, message.payload.chainId, message.payload.maskedField);
         case 'moveChain': return await changeFolder(fileUri, message.payload.chainId, message.payload.folder);
+        case 'groupElements': return await groupElements(fileUri, message.payload.chainId, message.payload.elementIds);
+        case 'ungroupElements': return await ungroupElements(fileUri, message.payload.chainId, message.payload.groupId);
 
 
         // Service operations
