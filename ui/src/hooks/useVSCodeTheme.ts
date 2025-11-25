@@ -121,15 +121,28 @@ const detectVSCodeEnvironment = (): boolean => {
   return typeof globalWindow.acquireVsCodeApi === 'function';
 };
 
-export const useVSCodeTheme = () => {
-  const [themeData, setThemeData] = useState<ThemeData | null>(null);
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('vscode-theme-isdark');
+function detectInitialIsDark(): boolean {
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('vscode-theme-isdark');
+    if (saved === 'true' || saved === 'false') {
       return saved === 'true';
     }
-    return false;
-  });
+  }
+  if (typeof document !== 'undefined') {
+    const themeAttr = document.documentElement.getAttribute('data-theme');
+    if (themeAttr === 'dark' || themeAttr === 'high-contrast') {
+      return true;
+    }
+    if (themeAttr === 'light') {
+      return false;
+    }
+  }
+  return false;
+}
+
+export const useVSCodeTheme = () => {
+  const [themeData, setThemeData] = useState<ThemeData | null>(null);
+  const [isDark, setIsDark] = useState(detectInitialIsDark);
 
   // Use VS Code API singleton
   const vscodeApiSingleton = VSCodeApiSingleton.getInstance();
@@ -221,6 +234,10 @@ export const useVSCodeTheme = () => {
     root.classList.add('theme-switching');
     setTimeout(() => {
       root.classList.remove('theme-switching');
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('theme-variables-updated', { detail: { theme: themeClass } }));
+      }
     }, 250);
   }, [isVSCodeWebview]);
 

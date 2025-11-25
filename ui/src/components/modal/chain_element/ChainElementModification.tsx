@@ -39,6 +39,8 @@ import SystemOperationField from "./field/SystemOperationField.tsx";
 import CustomOneOfField from "./field/CustomOneOfField.tsx";
 import EnhancedPatternPropertiesField from "./field/EnhancedPatternPropertiesField.tsx";
 import BodyMimeTypeField from "./field/BodyMimeTypeField.tsx";
+import type { BodyFormEntry } from "./field/bodyFormDataUtils.ts";
+import { toBodyFormData } from "./field/bodyFormDataUtils.ts";
 import { useModalsContext } from "../../../Modals.tsx";
 import { UnsavedChangesModal } from "../UnsavedChangesModal.tsx";
 import {
@@ -90,7 +92,7 @@ export type FormContext = {
   integrationSpecificationGroupId?: string;
   integrationSpecificationId?: string;
   systemType?: string;
-  bodyFormData?: unknown;
+  bodyFormData?: BodyFormEntry[];
   synchronousGrpcCall?: boolean;
   updateContext?: (newContext: Record<string, unknown>) => void;
 };
@@ -206,7 +208,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         integrationOperationMethod: getOptionalString(
           formProperties.integrationOperationMethod,
         ),
-        bodyFormData: formProperties.bodyFormData,
+        bodyFormData: toBodyFormData(formProperties.bodyFormData),
         synchronousGrpcCall: Boolean(formProperties.synchronousGrpcCall),
         updateContext: (updatedProperties: Record<string, unknown>) => {
           if (updatedProperties.integrationOperationProtocolType !== undefined) {

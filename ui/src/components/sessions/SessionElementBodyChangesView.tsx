@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Col, Flex, Row, Switch } from "antd";
 import {
   getContentType,
@@ -6,9 +6,9 @@ import {
   SessionElementBodyView,
   setUpDocumentFormatting,
 } from "./SessionElementBodyView.tsx";
-import { DiffEditor } from "@monaco-editor/react";
+import { DiffEditor, Monaco } from "@monaco-editor/react";
 import { editor as editor_ } from "monaco-editor";
-import { useMonacoTheme } from "../../hooks/useMonacoTheme";
+import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../hooks/useMonacoTheme";
 
 export type SessionElementBodyChangesViewProps =
   React.HTMLAttributes<HTMLElement> & {
@@ -25,6 +25,7 @@ export const SessionElementBodyChangesView: React.FC<
   const [originalLanguage, setOriginalLanguage] = useState<string>();
   const [modifiedLanguage, setModifiedLanguage] = useState<string>();
   const monacoTheme = useMonacoTheme();
+  const monacoRef = useRef<Monaco | null>(null);
 
   useEffect(() => {
     setOriginalLanguage(
@@ -38,10 +39,21 @@ export const SessionElementBodyChangesView: React.FC<
     );
   }, [headersAfter]);
 
-  const handleDiffEditorDidMount = (editor: editor_.IStandaloneDiffEditor) => {
+  const handleDiffEditorDidMount = (
+    editor: editor_.IStandaloneDiffEditor,
+    monaco: Monaco,
+  ) => {
+    monacoRef.current = monaco;
     setUpDocumentFormatting(editor.getOriginalEditor());
     setUpDocumentFormatting(editor.getModifiedEditor());
+    applyVSCodeThemeToMonaco(monaco);
   };
+
+  useEffect(() => {
+    if (monacoRef.current) {
+      applyVSCodeThemeToMonaco(monacoRef.current);
+    }
+  }, [monacoTheme]);
 
   return (
     <Flex {...rest} vertical gap={8}>
@@ -62,7 +74,7 @@ export const SessionElementBodyChangesView: React.FC<
             originalAriaLabel: "Body Before",
             modifiedAriaLabel: "Body After",
           }}
-          onMount={handleDiffEditorDidMount}
+          onMount={(editor, monaco) => handleDiffEditorDidMount(editor, monaco)}
         />
       ) : (
         <>

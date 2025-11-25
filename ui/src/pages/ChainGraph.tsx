@@ -52,6 +52,32 @@ import {
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
+import { getElementColor } from "../misc/chain-graph-utils.ts";
+
+const readTheme = () => {
+  if (typeof document === "undefined") return "light";
+  const candidates: (globalThis.Element | null)[] = [
+    document.documentElement,
+    document.body,
+    document.querySelector(".vscode-webview"),
+  ];
+
+  for (const target of candidates) {
+    if (!target) continue;
+    const value = target.getAttribute("data-theme");
+    if (value !== null && typeof value === 'string') return value;
+  }
+
+  if (document.body?.classList.contains("vscode-dark")) {
+    return "dark";
+  }
+
+  if (document.body?.classList.contains("vscode-high-contrast")) {
+    return "high-contrast";
+  }
+
+  return "light";
+};
 
 const ChainGraphInner: React.FC = () => {
   const { chainId, elementId } = useParams<string>();
@@ -59,9 +85,11 @@ const ChainGraphInner: React.FC = () => {
   const { showModal } = useModalsContext();
   const reactFlowWrapper = useRef(null);
   const [isPageLoaded, setIsPageLoaded] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState<string>(() => readTheme());
+  const currentThemeRef = useRef(currentTheme);
   const navigate = useNavigate();
   const notificationService = useNotificationService();
-  const { isLibraryLoading } = useLibraryContext();
+  const { isLibraryLoading, libraryElements } = useLibraryContext();
   const [selectedNodes, setSelectedNodes] = useState<Node<ChainGraphNodeData>[]>([]);
 
   const refreshChain = useCallback(async () => {
@@ -112,7 +140,7 @@ const ChainGraphInner: React.FC = () => {
   const onSelectionChange = useCallback(({ nodes }: OnSelectionChangeParams<Node<ChainGraphNodeData>, Edge>) => {
     closeMenu();
     setSelectedNodes(nodes);
-  }, []);
+  }, [closeMenu]);
 
   const onContextMenu = (
     event: MouseEvent
@@ -121,20 +149,20 @@ const ChainGraphInner: React.FC = () => {
     if (selectedNodes?.length > 0) {
       elements.push(...selectedNodes);
     }
-    onContextMenuCall(event, elements);
+    (onContextMenuCall as (event: MouseEvent, elements: Node<ChainGraphNodeData>[]) => void)(event, elements);
   };
 
   const onNodeContextMenu = (
     event: MouseEvent,
     node: Node<ChainGraphNodeData>
   ) => {
-    const elements = [];
+    const elements: Node<ChainGraphNodeData>[] = [];
     if (selectedNodes?.length > 0) {
       elements.push(...selectedNodes);
     } else if (node) {
       elements.push(node);
     }
-    onContextMenuCall(event, elements);
+    (onContextMenuCall as (event: MouseEvent, elements: Node<ChainGraphNodeData>[]) => void)(event, elements);
   };
 
   const setElementPath = useCallback(
@@ -252,6 +280,109 @@ const ChainGraphInner: React.FC = () => {
     openElementModal,
   ]);
 
+  useEffect(() => {
+    currentThemeRef.current = currentTheme;
+  }, [currentTheme]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const updateTheme = () => {
+      const theme = readTheme();
+      if (!theme || typeof theme !== 'string') return;
+      if (currentThemeRef.current === theme) {
+        if (document.body.dataset.theme !== theme) {
+          document.body.dataset.theme = theme;
+        }
+        return;
+      }
+      currentThemeRef.current = theme;
+      setCurrentTheme(theme);
+      if (document.body.dataset.theme !== theme) {
+        document.body.dataset.theme = theme;
+      }
+    };
+
+    updateTheme();
+
+    const observer = new MutationObserver(updateTheme);
+    const targets: (globalThis.Element | null)[] = [
+      document.documentElement,
+      document.body,
+      document.querySelector(".vscode-webview"),
+    ];
+
+    targets
+      .filter((target): target is globalThis.Element => !!target)
+      .forEach((target) =>
+        observer.observe(target, {
+          attributes: true,
+          attributeFilter: ["data-theme"],
+        }),
+      );
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  const getCssVariableValue = useCallback(
+    (variableName: string, fallback: string) => {
+      if (typeof window === "undefined") return fallback;
+      const rootElement =
+        document.querySelector(".vscode-webview") || document.documentElement;
+      const value = getComputedStyle(rootElement).getPropertyValue(variableName);
+      return value?.trim() || fallback;
+    },
+    [],
+  );
+
+  const getMinimapNodeColor = useCallback((node: Node<ChainGraphNodeData>) => {
+    if (node.type === "container") {
+      if (currentTheme === "dark") {
+        return "#1f1f1f";
+      }
+      if (currentTheme === "high-contrast") {
+        return "#000000";
+      }
+      return getCssVariableValue(
+        "--container-header-background",
+        "#fff9e6",
+      );
+    }
+    
+    if (node.style?.backgroundColor) {
+      return node.style.backgroundColor;
+    }
+    
+    if (node.data?.elementType && libraryElements) {
+      const libraryElement = libraryElements.find(
+        (el) => el.name === node.data.elementType
+      );
+      return getElementColor(libraryElement);
+    }
+    
+    return "#fdf39d";
+  }, [libraryElements, currentTheme, getCssVariableValue]);
+
+  const getMinimapNodeStrokeColor = useCallback(
+    (node?: Node<ChainGraphNodeData>) => {
+      if (node?.type === "container") {
+        return getCssVariableValue(
+          "--vscode-foreground",
+          currentTheme === "dark" ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
+        );
+      }
+      return getCssVariableValue(
+        "--vscode-border",
+        currentTheme === "dark" ? "#303030" : "#d9d9d9",
+      );
+    },
+    [currentTheme, getCssVariableValue],
+  );
+
   return (
     <Flex className={styles["graph-wrapper"]}>
       <ElementsLibrarySidebar />
@@ -286,7 +417,14 @@ const ChainGraphInner: React.FC = () => {
             fitView
           >
             <Background variant={BackgroundVariant.Dots} />
-            <MiniMap zoomable pannable position="top-right" />
+            <MiniMap 
+              zoomable 
+              pannable 
+              position="top-right" 
+              nodeColor={getMinimapNodeColor}
+              nodeStrokeColor={getMinimapNodeStrokeColor}
+              nodeStrokeWidth={1}
+            />
             <CustomControls />
             {menu && (<ContextMenu menu = {menu} closeMenu = {closeMenu} />)}
           </ReactFlow>

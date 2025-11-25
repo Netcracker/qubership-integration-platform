@@ -5,7 +5,6 @@ import type { WidgetProps } from '@rjsf/utils';
 export const DebouncedTextWidget: React.FC<WidgetProps> = (props) => {
   const {
     id,
-    value,
     disabled,
     readonly,
     autofocus,
@@ -16,13 +15,26 @@ export const DebouncedTextWidget: React.FC<WidgetProps> = (props) => {
     placeholder,
     required,
   } = props;
+  
+  const rawValue = props.value as unknown;
+  
+  const convertToString = (val: unknown): string => {
+    if (typeof val === 'string') return val;
+    if (val == null) return '';
+    if (typeof val === 'object') return JSON.stringify(val);
+    if (typeof val === 'number' || typeof val === 'boolean' || typeof val === 'bigint') return String(val);
+    if (typeof val === 'symbol') return val.toString();
+    return '';
+  };
 
-  const [localValue, setLocalValue] = useState(value || '');
+  const stringValue = convertToString(rawValue);
+  const [localValue, setLocalValue] = useState(stringValue);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    setLocalValue(value || '');
-  }, [value]);
+    const newStringValue = convertToString(rawValue);
+    setLocalValue(newStringValue);
+  }, [rawValue]);
 
   useEffect(() => {
     return () => {
@@ -72,3 +84,5 @@ export const DebouncedTextWidget: React.FC<WidgetProps> = (props) => {
     />
   );
 };
+
+

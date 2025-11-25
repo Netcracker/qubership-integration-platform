@@ -3,9 +3,50 @@
  * Manages VS Code API instance to avoid "already acquired" errors
  */
 
+type AcquireVsCodeApi = () => VsCodeApi;
+
+type ExtensionContextLike = {
+  vscode?: VsCodeApi;
+} & Record<string, unknown>;
+
+type VsCodeApi = {
+  postMessage: (message: unknown) => void;
+  setState?: (state: unknown) => void;
+  getState?: () => unknown;
+} & Record<string, unknown>;
+
+type WindowRecord = Window &
+  typeof globalThis &
+  Record<string, unknown> & {
+    vscode?: VsCodeApi;
+    vscodeApi?: VsCodeApi;
+    __vscode?: VsCodeApi;
+    __vscodeApi?: VsCodeApi;
+    vscodeWebview?: VsCodeApi;
+    acquireVsCodeApi?: AcquireVsCodeApi | VsCodeApi;
+    extensionContext?: ExtensionContextLike;
+  };
+
+type GlobalRecord = typeof globalThis &
+  Record<string, unknown> & {
+    vscode?: VsCodeApi;
+    vscodeApi?: VsCodeApi;
+    __vscode?: VsCodeApi;
+    __vscodeApi?: VsCodeApi;
+    vscodeWebview?: VsCodeApi;
+    acquireVsCodeApi?: AcquireVsCodeApi | VsCodeApi;
+    extensionContext?: ExtensionContextLike;
+  };
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+const isVsCodeApi = (value: unknown): value is VsCodeApi => isRecord(value) && typeof value.postMessage === 'function';
+
+const isAcquireVsCodeApi = (value: unknown): value is AcquireVsCodeApi => typeof value === 'function';
+
 class VSCodeApiSingleton {
   private static instance: VSCodeApiSingleton;
-  private api: any = null;
+  private api: VsCodeApi | null = null;
   private isInitialized = false;
 
   private constructor() {}
@@ -17,8 +58,8 @@ class VSCodeApiSingleton {
     return VSCodeApiSingleton.instance;
   }
 
-  public getApi(): any {
-    if (this.api && this.api.postMessage) {
+  public getApi(): VsCodeApi | null {
+    if (this.api) {
       return this.api;
     }
 
@@ -31,6 +72,44 @@ class VSCodeApiSingleton {
     return this.api;
   }
 
+  public isAvailable(): boolean {
+    return this.api !== null;
+  }
+
+  public sendMessage(message: unknown): void {
+    if (!this.api) {
+      console.error('VSCodeApiSingleton: Cannot send message, API not available');
+      return;
+    }
+
+    this.api.postMessage(message);
+    console.log('VSCodeApiSingleton: Message sent:', message);
+  }
+
+  public reset(): void {
+    this.api = null;
+    this.isInitialized = false;
+    const win = this.getWindowRecord();
+    if ('vscodeApi' in win) {
+      win.vscodeApi = undefined;
+    }
+    console.log('VSCodeApiSingleton: Reset');
+  }
+
+  public forceFindApi(): boolean {
+    console.log('VSCodeApiSingleton: Force searching for API...');
+    this.reset();
+    this.findExistingApi();
+
+    if (this.api) {
+      console.log('VSCodeApiSingleton: API found after force search');
+      return true;
+    }
+
+    console.warn('VSCodeApiSingleton: API not found after force search');
+    return false;
+  }
+
   private initializeApi(): void {
     if (this.isInitialized) {
       return;
@@ -38,343 +117,179 @@ class VSCodeApiSingleton {
 
     try {
       console.log('VSCodeApiSingleton: Initializing VS Code API...', {
-        hasWindowVscode: !!(window as any).vscode,
-        hasAcquireVsCodeApi: !!(window as any).acquireVsCodeApi,
-        hasGlobalVscodeApi: !!(window as any).vscodeApi
+        hasWindowVscode: Boolean(this.getWindowRecord().vscode),
+        hasAcquireVsCodeApi: isAcquireVsCodeApi(this.getWindowRecord().acquireVsCodeApi),
+        hasGlobalVscodeApi: Boolean(this.getWindowRecord().vscodeApi)
       });
 
-      // Try to get existing API first
-      if ((window as any).vscodeApi) {
-        this.api = (window as any).vscodeApi;
-        console.log('VSCodeApiSingleton: Using existing global vscodeApi');
-      } else if ((window as any).vscode) {
-        this.api = (window as any).vscode;
-        console.log('VSCodeApiSingleton: Using window.vscode');
-        // Store globally for other components
-        (window as any).vscodeApi = this.api;
-      } else if ((window as any).acquireVsCodeApi) {
-        try {
-          this.api = (window as any).acquireVsCodeApi();
-          console.log('VSCodeApiSingleton: Successfully acquired VS Code API');
-          // Store globally for other components
-          (window as any).vscodeApi = this.api;
-        } catch (e) {
-          console.warn('VSCodeApiSingleton: acquireVsCodeApi failed, API already acquired:', e.message);
-          // Try to find existing API in other locations
-          this.findExistingApi();
-        }
-      } else {
-        console.error('VSCodeApiSingleton: No VS Code API available');
+      if (!this.tryKnownLocations() && !this.tryAcquireApi()) {
+        console.warn('VSCodeApiSingleton: No VS Code API available during init, searching fallback sources');
+        this.findExistingApi();
       }
 
       this.isInitialized = true;
 
-      if (this.api && this.api.postMessage) {
+      if (this.api) {
         console.log('VSCodeApiSingleton: API initialized successfully');
       } else {
         console.error('VSCodeApiSingleton: API initialization failed');
       }
-    } catch (e) {
-      console.error('VSCodeApiSingleton: Error initializing API:', e);
+    } catch (error) {
+      console.error('VSCodeApiSingleton: Error initializing API:', error);
       this.isInitialized = true;
     }
   }
 
-  private findExistingApi(): void {
-    console.log('VSCodeApiSingleton: Searching for existing API...');
-    
-    // Get all window keys for debugging
-    const allKeys = Object.keys(window);
-    const vscodeKeys = allKeys.filter(k => k.toLowerCase().includes('vscode') || k.toLowerCase().includes('acquire'));
-    console.log('VSCodeApiSingleton: Available keys:', { allKeys: allKeys.slice(0, 10), vscodeKeys });
-    
-    // Check if there are any functions that might return the API
-    const functionKeys = allKeys.filter(k => typeof (window as any)[k] === 'function');
-    console.log('VSCodeApiSingleton: Function keys:', functionKeys.slice(0, 5));
-    
-    // Search for any object with postMessage method
-    console.log('VSCodeApiSingleton: Searching for objects with postMessage...');
-    for (const key of allKeys) {
+  private getWindowRecord(): WindowRecord {
+    return window as WindowRecord;
+  }
+
+  private getGlobalRecord(): GlobalRecord {
+    return globalThis as GlobalRecord;
+  }
+
+  private assignApi(candidate: unknown, source: string): boolean {
+    if (!isVsCodeApi(candidate)) {
+      return false;
+    }
+
+    this.api = candidate;
+    this.isInitialized = true;
+
+    const win = this.getWindowRecord();
+    win.vscodeApi = candidate;
+
+    console.log(`VSCodeApiSingleton: Found VS Code API at ${source}`);
+    return true;
+  }
+
+  private describeError(error: unknown): string {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+    return String(error);
+  }
+
+  private tryAcquireApi(): boolean {
+    const win = this.getWindowRecord();
+    const acquireCandidate = win.acquireVsCodeApi;
+
+    if (isAcquireVsCodeApi(acquireCandidate)) {
       try {
-        const value = (window as any)[key];
-        if (value && typeof value === 'object' && typeof value.postMessage === 'function') {
-          console.log(`VSCodeApiSingleton: Found object with postMessage at window.${key}:`, {
-            hasPostMessage: true,
-            type: typeof value
-          });
-          
-          // Check if this looks like VS Code API (avoid accessing properties that might cause security errors)
-          if (value.postMessage && key.toLowerCase().includes('vscode')) {
-            this.api = value;
-            (window as any).vscodeApi = this.api;
-            console.log(`VSCodeApiSingleton: Found VS Code API at window.${key}`);
-            return;
+        const api = acquireCandidate();
+        return this.assignApi(api, 'window.acquireVsCodeApi()');
+      } catch (error) {
+        console.warn('VSCodeApiSingleton: acquireVsCodeApi failed:', this.describeError(error));
+        return false;
+      }
+    }
+
+    return this.assignApi(acquireCandidate, 'window.acquireVsCodeApi');
+  }
+
+  private tryExtensionContext(context: ExtensionContextLike | undefined, source: string): boolean {
+    if (!context) {
+      return false;
+    }
+
+    return this.assignApi(context.vscode, `${source}.vscode`);
+  }
+
+  private tryKnownLocations(): boolean {
+    const win = this.getWindowRecord();
+    const knownWindowKeys = ['vscodeApi', 'vscode', '__vscode', '__vscodeApi', 'vscodeWebview'] as const;
+
+    for (const key of knownWindowKeys) {
+      if (this.assignApi(win[key], `window.${key}`)) {
+        return true;
+      }
+    }
+
+    if (this.tryExtensionContext(win.extensionContext, 'window.extensionContext')) {
+      return true;
+    }
+
+    const globalRecord = this.getGlobalRecord();
+
+    for (const key of knownWindowKeys) {
+      if (this.assignApi(globalRecord[key], `globalThis.${key}`)) {
+        return true;
+      }
+    }
+
+    return this.tryExtensionContext(globalRecord.extensionContext, 'globalThis.extensionContext');
+  }
+
+  private scanRecord(record: Record<string, unknown>, source: string): boolean {
+    const keys = Object.keys(record);
+    console.log('VSCodeApiSingleton: Available keys sample:', {
+      source,
+      keys: keys.slice(0, 10)
+    });
+
+    for (const key of keys) {
+      try {
+        const value = record[key];
+        if (this.assignApi(value, `${source}.${key}`)) {
+          return true;
+        }
+
+        if (isRecord(value)) {
+          const nestedCandidate = value['vscode'];
+          if (this.assignApi(nestedCandidate, `${source}.${key}.vscode`)) {
+            return true;
           }
         }
-      } catch (e) {
-        // Skip objects that cause security errors
-        console.warn(`VSCodeApiSingleton: Skipping window.${key} due to security error:`, e.message);
-      }
-    }
-    
-    // Check common locations where API might be stored
-    const possibleLocations = [
-      'vscodeApi',
-      '__vscodeApi',
-      'vscode',
-      '__vscode',
-      'acquireVsCodeApi'
-    ];
-
-    for (const location of possibleLocations) {
-      const value = (window as any)[location];
-      console.log(`VSCodeApiSingleton: Checking window.${location}:`, { 
-        exists: !!value, 
-        hasPostMessage: !!(value && value.postMessage),
-        type: typeof value
-      });
-      
-      if (value && value.postMessage) {
-        this.api = value;
-        (window as any).vscodeApi = this.api;
-        console.log(`VSCodeApiSingleton: Found existing API at window.${location}`);
-        return;
+      } catch (error) {
+        console.warn(`VSCodeApiSingleton: Skipping ${source}.${key} due to error:`, this.describeError(error));
       }
     }
 
-    // Check if acquireVsCodeApi is a function that returns the API
-    if ((window as any).acquireVsCodeApi && typeof (window as any).acquireVsCodeApi === 'function') {
-      try {
-        // Try to get the API without calling acquireVsCodeApi again
-        console.log('VSCodeApiSingleton: acquireVsCodeApi is available but already called');
-        // Check if there's a way to get the existing instance
-        const apiInstance = (window as any).acquireVsCodeApi;
-        if (apiInstance && apiInstance.postMessage) {
-          this.api = apiInstance;
-          (window as any).vscodeApi = this.api;
-          console.log('VSCodeApiSingleton: Found API instance from acquireVsCodeApi');
-          return;
-        }
-      } catch (e) {
-        console.warn('VSCodeApiSingleton: Error checking acquireVsCodeApi:', e.message);
+    return false;
+  }
+
+  private tryParentWindow(): boolean {
+    try {
+      if (window.parent && window.parent !== window) {
+        const parentRecord = window.parent as WindowRecord;
+        return (
+          this.assignApi(parentRecord.vscode, 'window.parent.vscode') ||
+          this.scanRecord(parentRecord, 'window.parent')
+        );
       }
+    } catch (error) {
+      console.warn('VSCodeApiSingleton: Error checking parent window:', this.describeError(error));
     }
 
-    // Check globalThis
-    if ((globalThis as any).vscode && (globalThis as any).vscode.postMessage) {
-      this.api = (globalThis as any).vscode;
-      (window as any).vscodeApi = this.api;
-      console.log('VSCodeApiSingleton: Found existing API in globalThis.vscode');
+    return false;
+  }
+
+  private findExistingApi(): void {
+    console.log('VSCodeApiSingleton: Searching for existing API...');
+
+    if (this.tryKnownLocations()) {
       return;
     }
 
-    // Check if there's a global variable set by the extension
-    const globalVars = ['vscode', 'vscodeApi', '__vscode', '__vscodeApi'];
-    for (const varName of globalVars) {
-      if ((globalThis as any)[varName] && (globalThis as any)[varName].postMessage) {
-        this.api = (globalThis as any)[varName];
-        (window as any).vscodeApi = this.api;
-        console.log(`VSCodeApiSingleton: Found existing API in globalThis.${varName}`);
-        return;
-      }
+    const win = this.getWindowRecord();
+    const allKeys = Object.keys(win);
+    const functionKeys = allKeys.filter(key => typeof win[key] === 'function');
+
+    console.log('VSCodeApiSingleton: Function keys sample:', functionKeys.slice(0, 5));
+
+    if (this.scanRecord(win, 'window')) {
+      return;
     }
 
-    // Last resort: try to find API in the extension's context
-    try {
-      // Check if there's a way to access the API through the extension's context
-      const extensionContext = (window as any).extensionContext || (globalThis as any).extensionContext;
-      if (extensionContext && extensionContext.vscode && extensionContext.vscode.postMessage) {
-        this.api = extensionContext.vscode;
-        (window as any).vscodeApi = this.api;
-        console.log('VSCodeApiSingleton: Found API in extension context');
-        return;
-      }
-    } catch (e) {
-      console.warn('VSCodeApiSingleton: Error checking extension context:', e.message);
+    if (this.tryParentWindow()) {
+      return;
     }
 
-    // Try to find API in the webview's parent context
-    try {
-      if (window.parent && window.parent !== window) {
-        const parentVscode = (window.parent as any).vscode;
-        if (parentVscode && parentVscode.postMessage) {
-          this.api = parentVscode;
-          (window as any).vscodeApi = this.api;
-          console.log('VSCodeApiSingleton: Found API in parent window');
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('VSCodeApiSingleton: Error checking parent window:', e.message);
+    if (this.scanRecord(this.getGlobalRecord(), 'globalThis')) {
+      return;
     }
 
-    // Try to find API in all global variables (with security error handling)
-    console.log('VSCodeApiSingleton: Searching all global variables...');
-    try {
-      // Check if there's a global variable that might contain the API
-      const globalVars = ['vscode', 'vscodeApi', '__vscode', '__vscodeApi', 'acquireVsCodeApi'];
-      for (const varName of globalVars) {
-        try {
-          if ((globalThis as any)[varName]) {
-            const value = (globalThis as any)[varName];
-            console.log(`VSCodeApiSingleton: Checking globalThis.${varName}:`, {
-              exists: !!value,
-              type: typeof value,
-              hasPostMessage: !!(value && value.postMessage)
-            });
-            
-            if (value && value.postMessage) {
-              this.api = value;
-              (window as any).vscodeApi = this.api;
-              console.log(`VSCodeApiSingleton: Found API in globalThis.${varName}`);
-              return;
-            }
-          }
-        } catch (e) {
-          console.warn(`VSCodeApiSingleton: Security error checking globalThis.${varName}:`, e.message);
-        }
-      }
-    } catch (e) {
-      console.warn('VSCodeApiSingleton: Error checking global variables:', e.message);
-    }
-
-    // Try to create a new API instance if none found
-    console.log('VSCodeApiSingleton: Attempting to create new API instance...');
-    try {
-      // Check if we can get a fresh API instance
-      if ((window as any).acquireVsCodeApi && typeof (window as any).acquireVsCodeApi === 'function') {
-        // Try to get a new instance (this might fail if already acquired)
-        try {
-          const newApi = (window as any).acquireVsCodeApi();
-          if (newApi && newApi.postMessage) {
-            this.api = newApi;
-            (window as any).vscodeApi = this.api;
-            console.log('VSCodeApiSingleton: Successfully created new API instance');
-            return;
-          }
-        } catch (e) {
-          console.warn('VSCodeApiSingleton: Cannot create new API instance:', e.message);
-          // If API is already acquired, try to find it in a different way
-          console.log('VSCodeApiSingleton: API already acquired, trying alternative approach...');
-          
-          // Try to find the API in the extension's context
-          try {
-            // Check if there's a way to access the existing API
-            const extensionContext = (window as any).extensionContext;
-            if (extensionContext && extensionContext.vscode && extensionContext.vscode.postMessage) {
-              this.api = extensionContext.vscode;
-              (window as any).vscodeApi = this.api;
-              console.log('VSCodeApiSingleton: Found API in extension context');
-              return;
-            }
-          } catch (contextError) {
-            console.warn('VSCodeApiSingleton: Error checking extension context:', contextError.message);
-          }
-          
-          // Try to find API in other common locations
-          console.log('VSCodeApiSingleton: Trying to find API in other locations...');
-          
-          // Check if there's a global variable that might contain the API
-          const possibleGlobals = ['vscode', 'vscodeApi', '__vscode', '__vscodeApi'];
-          for (const globalName of possibleGlobals) {
-            try {
-              if ((window as any)[globalName] && (window as any)[globalName].postMessage) {
-                this.api = (window as any)[globalName];
-                (window as any).vscodeApi = this.api;
-                console.log(`VSCodeApiSingleton: Found API in window.${globalName}`);
-                return;
-              }
-            } catch (e) {
-              console.warn(`VSCodeApiSingleton: Error checking window.${globalName}:`, e.message);
-            }
-          }
-          
-          // Check if there's a way to get the API from the extension's webview context
-          try {
-            // Try to access the API through the extension's webview API
-            if ((window as any).vscodeWebview && (window as any).vscodeWebview.postMessage) {
-              this.api = (window as any).vscodeWebview;
-              (window as any).vscodeApi = this.api;
-              console.log('VSCodeApiSingleton: Found API in vscodeWebview');
-              return;
-            }
-          } catch (e) {
-            console.warn('VSCodeApiSingleton: Error checking vscodeWebview:', e.message);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('VSCodeApiSingleton: Error creating new API instance:', e.message);
-    }
-
-    // Last resort: try to find API in any possible location
-    console.log('VSCodeApiSingleton: Last resort - searching all possible locations...');
-    
-    // Check all possible global variables that might contain the API
-    const possibleGlobals = [
-      'vscode', 'vscodeApi', '__vscode', '__vscodeApi',
-      'webviewContext', 'webviewApi', 'extensionContext',
-      'vscodeWebview', 'webview', 'extension'
-    ];
-    
-    for (const globalName of possibleGlobals) {
-      try {
-        const value = (window as any)[globalName];
-        if (value && value.postMessage) {
-          this.api = value;
-          (window as any).vscodeApi = this.api;
-          console.log(`VSCodeApiSingleton: Found API in window.${globalName}`);
-          return;
-        }
-        
-        // Check if it's an object with nested vscode property
-        if (value && typeof value === 'object' && value.vscode && value.vscode.postMessage) {
-          this.api = value.vscode;
-          (window as any).vscodeApi = this.api;
-          console.log(`VSCodeApiSingleton: Found API in window.${globalName}.vscode`);
-          return;
-        }
-      } catch (e) {
-        console.warn(`VSCodeApiSingleton: Error checking window.${globalName}:`, e.message);
-      }
-    }
-    
     console.warn('VSCodeApiSingleton: No existing API found in any location');
-  }
-
-  public isAvailable(): boolean {
-    return this.api && this.api.postMessage;
-  }
-
-  public sendMessage(message: any): void {
-    if (this.isAvailable()) {
-      this.api.postMessage(message);
-      console.log('VSCodeApiSingleton: Message sent:', message);
-    } else {
-      console.error('VSCodeApiSingleton: Cannot send message, API not available');
-    }
-  }
-
-  public reset(): void {
-    this.api = null;
-    this.isInitialized = false;
-    console.log('VSCodeApiSingleton: Reset');
-  }
-
-  public forceFindApi(): boolean {
-    console.log('VSCodeApiSingleton: Force searching for API...');
-    
-    // Reset and try to find API again
-    this.reset();
-    this.findExistingApi();
-    
-    if (this.api && this.api.postMessage) {
-      console.log('VSCodeApiSingleton: API found after force search');
-      return true;
-    }
-    
-    console.warn('VSCodeApiSingleton: API not found after force search');
-    return false;
   }
 }
 

@@ -1,0 +1,15 @@
+.modal :global(.ant-modal-title),
+.modal :global(.ant-modal-body),
+.checkbox {
+  color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+}
+
+.checkbox :global(.ant-checkbox-inner) {
+  background-color: transparent;
+  border-color: var(--vscode-border, #d9d9d9);
+}
+
+.checkbox :global(.ant-checkbox-inner)::after {
+  border-color: var(--vscode-editor-foreground, #fff);
+}
+

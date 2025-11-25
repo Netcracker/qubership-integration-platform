@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Editor } from "@monaco-editor/react";
+import React, { useEffect, useRef, useState } from "react";
+import { Editor, Monaco } from "@monaco-editor/react";
 import { editor as editor_ } from "monaco-editor";
 import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../hooks/useMonacoTheme";
 
@@ -39,7 +39,7 @@ export async function formatDocumentInEditor(
     .then(() => editor?.updateOptions({ readOnly: true }));
 }
 
-export function setUpDocumentFormatting(editor: editor_.IStandaloneCodeEditor, monaco?: any) {
+export function setUpDocumentFormatting(editor: editor_.IStandaloneCodeEditor, monaco?: Monaco) {
   const formatDocument = () => formatDocumentInEditor(editor);
 
   // on first initialization
@@ -63,10 +63,17 @@ export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
 }) => {
   const [language, setLanguage] = useState<string | undefined>(undefined);
   const monacoTheme = useMonacoTheme();
+  const monacoRef = useRef<Monaco | null>(null);
 
   useEffect(() => {
     setLanguage(guessLanguageFromContentType(getContentType(headers)));
   }, [headers]);
+
+  useEffect(() => {
+    if (monacoRef.current) {
+      applyVSCodeThemeToMonaco(monacoRef.current);
+    }
+  }, [monacoTheme]);
 
   return (
     <Editor
@@ -75,7 +82,10 @@ export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
       value={body}
       theme={monacoTheme}
       options={{ readOnly: true, fixedOverflowWidgets: true }}
-      onMount={(editor, monaco) => setUpDocumentFormatting(editor, monaco)}
+      onMount={(editor, monaco) => {
+        monacoRef.current = monaco;
+        setUpDocumentFormatting(editor, monaco);
+      }}
     />
   );
 };

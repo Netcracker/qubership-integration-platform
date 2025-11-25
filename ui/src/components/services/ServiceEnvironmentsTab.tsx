@@ -17,7 +17,6 @@ import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 import {
   isAmqpProtocol,
   isKafkaProtocol,
-  isHttpProtocol,
   normalizeProtocol,
 } from "../../misc/protocol-utils";
 
@@ -267,7 +266,8 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
                   : typeof label === 'object' && label && 'name' in label
                     ? String((label as { name?: unknown }).name)
                     : String(label);
-              name = environmentLabels[name] || name;
+              const labelKey = name as keyof typeof environmentLabels;
+              name = environmentLabels[labelKey] || name;
 
               return <Tag color="blue" key={`${name}-${idx}`}>{name}</Tag>;
             })}

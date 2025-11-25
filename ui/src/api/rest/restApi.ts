@@ -1332,12 +1332,12 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  getSpecApiFiles = async (): Promise<SpecApiFile[]> => {
-    return [];
+  getSpecApiFiles = (): Promise<SpecApiFile[]> => {
+    return Promise.resolve([]);
   };
 
-  readSpecificationFileContent = async (): Promise<string> => {
-    throw new Error("Method readSpecificationFileContent not implemented in RestApi");
+  readSpecificationFileContent = (): Promise<string> => {
+    return Promise.reject(new Error("Method readSpecificationFileContent not implemented in RestApi"));
   };
 
   groupElements = async (

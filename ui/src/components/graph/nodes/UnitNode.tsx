@@ -19,8 +19,7 @@ export function UnitNode({
   return (
     <div
       style={{
-        border: "2px solid transparent",
-        borderColor: selected ? "#000" : "transparent",
+        border: selected ? "2px solid var(--vscode-focusBorder)" : undefined,
         borderRadius: 5,
         width: "100%",
         height: "100%",

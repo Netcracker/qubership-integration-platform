@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { Button, Form, Modal } from "antd";
 import Checkbox from "antd/lib/checkbox";
+import styles from "./ExportChains.module.css";
 
 export type ExportChainOptions = {
   exportSubchains: boolean;
@@ -23,6 +24,7 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
 
   return (
     <Modal
+      className={styles.modal}
       title={multiple ? "Export Chains" : "Export Chain"}
       open={true}
       onCancel={closeContainingModal}
@@ -68,7 +70,7 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
           label={null}
           style={{ marginBottom: 0 }}
         >
-          <Checkbox>Export related sub-chains</Checkbox>
+          <Checkbox className={styles.checkbox}>Export related sub-chains</Checkbox>
         </Form.Item>
         <Form.Item
           name="exportServices"
@@ -76,7 +78,7 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
           label={null}
           style={{ marginBottom: 0 }}
         >
-          <Checkbox>Export related services</Checkbox>
+          <Checkbox className={styles.checkbox}>Export related services</Checkbox>
         </Form.Item>
         <Form.Item
           name="exportVariables"
@@ -84,7 +86,7 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
           label={null}
           style={{ marginBottom: 0 }}
         >
-          <Checkbox>Export related variables</Checkbox>
+          <Checkbox className={styles.checkbox}>Export related variables</Checkbox>
         </Form.Item>
       </Form>
     </Modal>

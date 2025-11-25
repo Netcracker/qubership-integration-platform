@@ -788,6 +788,11 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
   );
 
   const monacoTheme = useMonacoTheme();
+  useEffect(() => {
+    if (monacoRef.current) {
+      applyVSCodeThemeToMonaco(monacoRef.current);
+    }
+  }, [monacoTheme]);
 
   return (
     <Editor

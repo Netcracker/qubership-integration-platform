@@ -10,13 +10,14 @@ import {
 } from "antd";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { InlineEdit } from "../../../InlineEdit";
-import {KeyValuePair, makeArray, parse, sliceParameter} from "./key-value-text-util";
+import { KeyValuePair, makeArray, parse, sliceParameter } from "./key-value-text-util";
 import { TextValueEdit } from "../../../table/TextValueEdit";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { editor, languages, MarkerSeverity } from "monaco-editor";
 import { isParseError } from "../../../../mapper/actions-text/parser.ts";
 import { LocationRange } from "pegjs";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
+import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../../../hooks/useMonacoTheme";
 
 const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
 
@@ -257,6 +258,12 @@ const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
 
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
   const monacoRef = useRef<Monaco>();
+  const monacoTheme = useMonacoTheme();
+  useEffect(() => {
+    if (monacoRef.current) {
+      applyVSCodeThemeToMonaco(monacoRef.current);
+    }
+  }, [monacoTheme]);
 
   const setMarkers = useCallback((markers: editor.IMarkerData[]) => {
     const model = editorRef.current?.getModel();
@@ -294,12 +301,14 @@ const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
   return (
     <Editor
       className="qip-editor"
+      theme={monacoTheme}
       value={text}
       language={MAPPER_DICTIONARY_LANGUAGE_ID}
       onMount={(editor, monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
         configureMapperDictionaryLanguage(monaco);
+        applyVSCodeThemeToMonaco(monaco);
       }}
       onChange={(value) => {
         const v = value ?? "";

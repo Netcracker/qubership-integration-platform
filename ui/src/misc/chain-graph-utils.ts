@@ -84,11 +84,19 @@ export function getNodeFromElement(
     ...(element.parentElementId && {
       parentId: element.parentElementId,
     }),
-    style: {
-      backgroundColor: getElementColor(libraryElement),
-      borderRadius: 5,
-      fontWeight: 500,
-    },
+    ...(isContainer ? {
+      className: 'container-node',
+      style: {
+        borderRadius: 5,
+        fontWeight: 500,
+      },
+    } : {
+      style: {
+        backgroundColor: getElementColor(libraryElement),
+        borderRadius: 5,
+        fontWeight: 500,
+      },
+    }),
   };
 }
 

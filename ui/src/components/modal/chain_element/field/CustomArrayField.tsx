@@ -9,6 +9,7 @@ import { Script } from "../../../Script.tsx";
 import { FormContext } from "../ChainElementModification.tsx";
 import styles from "./CustomArrayField.module.css";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
+import { useVSCodeTheme } from "../../../../hooks/useVSCodeTheme.ts";
 
 type BaseItem = {
   id: string;
@@ -86,6 +87,45 @@ const CustomArrayField: React.FC<Props> = ({
     Record<string, AfterValidation>
   >({});
 
+  const { isDark, themeData } = useVSCodeTheme();
+
+  const themeColors = useMemo(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return {
+        activeBackground: '#f0f6ff',
+        activeBorder: '#0b66ff',
+      };
+    }
+    const style = getComputedStyle(document.documentElement);
+    const getColorFromThemeOrCss = (themeKey: string, cssVar: string, fallback: string): string => {
+      if (themeData?.colors?.[themeKey]) {
+        return themeData.colors[themeKey];
+      }
+      const value = style.getPropertyValue(cssVar).trim();
+      return value || fallback;
+    };
+    return {
+      activeBackground: getColorFromThemeOrCss(
+        'list.activeSelectionBackground',
+        '--vscode-list-activeSelectionBackground',
+        getColorFromThemeOrCss(
+          'list.hoverBackground',
+          '--vscode-list-hoverBackground',
+          isDark ? '#264f78' : '#f0f6ff'
+        )
+      ),
+      activeBorder: getColorFromThemeOrCss(
+        'focusBorder',
+        '--vscode-focusBorder',
+        getColorFromThemeOrCss(
+          'button.background',
+          '--vscode-button-background',
+          isDark ? '#007acc' : '#0b66ff'
+        )
+      ),
+    };
+  }, [isDark, themeData]);
+
   const operationId = formContext?.integrationOperationId;
 
   useEffect(() => {
@@ -151,7 +191,7 @@ const CustomArrayField: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [operationId]);
+  }, [operationId, readOnlyMode, availableCodes, formData]);
 
   const handleAdd = () => {
     if (!selectedCode) return;
@@ -241,9 +281,9 @@ const CustomArrayField: React.FC<Props> = ({
                 style={{
                   cursor: "pointer",
                   padding: "6px 8px",
-                  background: active ? "#f0f6ff" : undefined,
+                  background: active ? themeColors.activeBackground : undefined,
                   borderLeft: active
-                    ? "3px solid #0b66ff"
+                    ? `3px solid ${themeColors.activeBorder}`
                     : "3px solid transparent",
                   marginBottom: 6,
                   display: "flex",

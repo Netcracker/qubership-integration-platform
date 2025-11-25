@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 
 export const useChain = (chainId?: string) => {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(Boolean(chainId));
   const [chain, setChain] = useState<Chain>();
   const [error, setError] = useState<Error | null>(null);
   const notificationService = useNotificationService();

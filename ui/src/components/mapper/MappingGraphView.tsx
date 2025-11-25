@@ -219,9 +219,10 @@ const SchemaTreeItemView: React.FC<SchemaTreeItemViewProps> = ({
   schemaKind,
   onBodyFormatChange,
 }) => {
+  const groupLabelClass = (styles["group-label"] as string | undefined) ?? "";
   return isBodyGroup(item) ? (
     <Space>
-      <span className={styles["group-label"]}>body</span>
+      <span className={groupLabelClass}>body</span>
       {mappingDescription[schemaKind].body ? (
         <Select<string>
           size={"small"}
@@ -232,11 +233,12 @@ const SchemaTreeItemView: React.FC<SchemaTreeItemViewProps> = ({
             { value: SourceFormat.XML, label: "XML" },
           ]}
           onChange={(value) => {
-            if (!mappingDescription[schemaKind].body) {
+            const body = mappingDescription[schemaKind].body;
+            if (!body) {
               return;
             }
-            const type = MetadataUtil.setValue(
-              mappingDescription[schemaKind].body,
+            const type = MetadataUtil.setValue<typeof body, string>(
+              body,
               METADATA_DATA_FORMAT_KEY,
               value,
             );
@@ -248,11 +250,11 @@ const SchemaTreeItemView: React.FC<SchemaTreeItemViewProps> = ({
       )}
     </Space>
   ) : isConstantGroup(item) ? (
-    <span className={styles["group-label"]}>constants</span>
+    <span className={groupLabelClass}>constants</span>
   ) : isHeaderGroup(item) ? (
-    <span className={styles["group-label"]}>headers</span>
+    <span className={groupLabelClass}>headers</span>
   ) : isPropertyGroup(item) ? (
-    <span className={styles["group-label"]}>properties</span>
+    <span className={groupLabelClass}>properties</span>
   ) : isAttributeItem(item) ? (
     <Flex vertical={false} justify="space-between" align="center" gap={8}>
       <Space>

@@ -81,7 +81,7 @@ const SpecificationField: React.FC<
       }
     };
 
-    loadSpecificationGroups();
+    void loadSpecificationGroups();
   }, [systemId, notificationService]);
 
   const title = props.uiSchema?.["ui:title"] ?? props.schema?.title ?? "";

@@ -19,7 +19,7 @@
     "build": "vite build",
     "build:lib": "vite build --config vite.config.lib.ts",
     "check-types": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint src",
     "preview": "vite preview",
     "test": "jest",
     "prepublishOnly": "rimraf dist-lib && npm run build:lib",

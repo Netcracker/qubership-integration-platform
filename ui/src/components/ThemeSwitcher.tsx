@@ -1,8 +1,6 @@
-import { Button, Space, Typography } from 'antd';
+import { Button, Space } from 'antd';
 import { applyThemeToDOM, getSavedTheme, saveTheme, ThemeMode, getSystemTheme, resetToSystemTheme, isAutoThemeEnabled } from '../theme/themeInit';
 import { AutoThemeIndicator } from './AutoThemeIndicator';
-
-const { Text } = Typography;
 
 interface ThemeSwitcherProps {
   currentTheme?: ThemeMode;

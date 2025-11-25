@@ -284,10 +284,12 @@ export const Script: React.FC<ScriptProps> = ({
         value={value}
         language={mode}
         theme={monacoTheme}
-        onMount={(_editor, monaco) => {
-          monacoRef.current = monaco;
+        beforeMount={(monaco) => {
           configureGroovyLanguage(monaco);
           applyVSCodeThemeToMonaco(monaco);
+        }}
+        onMount={(_editor, monaco) => {
+          monacoRef.current = monaco;
         }}
         onChange={(value) => {
           if (!readOnly) {

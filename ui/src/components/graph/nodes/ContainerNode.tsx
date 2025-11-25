@@ -37,8 +37,16 @@ export function ContainerNode({
   const actionsRef = useRef<HTMLDivElement>(null);
   const actionsWidth = useElementWidth(actionsRef);
 
+  const borderStyle = selected
+    ? "2px solid var(--vscode-focusBorder, #007acc)"
+    : "1px solid var(--container-border-color, #dedacd)";
+
   return (
-    <div className={`${styles.container} ${selected ? styles.selected : ''}`}>
+    <div 
+      className={styles.container}
+      style={{ border: borderStyle }}
+      data-node-type="container"
+    >
       <div
         className={styles.header}
         style={{ paddingRight: actionsWidth ? actionsWidth + 8 : 32 }}
@@ -68,7 +76,6 @@ export function ContainerNode({
               count={data.unitCount}
               status="default"
               size="small"
-              color="#fff3bf"
               className={styles.badge}
             />
           )}

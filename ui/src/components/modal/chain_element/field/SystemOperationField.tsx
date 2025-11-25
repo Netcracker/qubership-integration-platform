@@ -94,14 +94,19 @@ const SystemOperationField: React.FC<
         const protocolType = normalizeProtocol(proto) ?? "http";
 
         // Initialize query parameters from specification (for HTTP/SOAP)
-        let queryParams = {};
+        const queryParams: Record<string, string> = {};
         if (isHttpProtocol(protocolType)) {
           try {
             const opInfo = await api.getOperationInfo(newValue);
-            if (opInfo.specification?.parameters) {
-              const queryParamNames = opInfo.specification.parameters
-                .filter((p: any) => p.in === 'query')
-                .map((p: any) => p.name);
+            if (opInfo.specification?.parameters && Array.isArray(opInfo.specification.parameters)) {
+              interface Parameter {
+                in?: string;
+                name?: string;
+              }
+              const parameters = opInfo.specification.parameters as Parameter[];
+              const queryParamNames = parameters
+                .filter((p): p is Parameter & { in: 'query'; name: string } => p.in === 'query' && typeof p.name === 'string')
+                .map((p) => p.name);
 
               queryParamNames.forEach((name: string) => {
                 queryParams[name] = '';

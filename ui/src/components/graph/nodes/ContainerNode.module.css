@@ -1,27 +1,31 @@
 .container {
-  background: #fff;
-  border: 1px solid #FFB02E;
+  background: var(--vscode-editor-background, #ffffff);
+  border: 1px solid var(--container-border-color, #dedacd);
   border-radius: 5px;
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.container.selected {
-  border-width: 2px;
+  transition: 
+    background-color var(--transition-duration, 0.25s) ease,
+    border-color var(--transition-duration, 0.25s) ease;
 }
 
 .header {
   position: relative;
   padding: 4px 10px 8px 10px;
-  background: #fff;
-  border-bottom: 1px solid #fff;
-  font-weight: bold;
+  background: var(--container-header-background, #fff9e6);
+  border-bottom: 1px solid var(--vscode-border);
+  font-weight: normal;
   font-size: 12px;
   line-height: 1.2;
   flex-shrink: 0;
+  color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+  transition: 
+    background-color var(--transition-duration, 0.25s) ease,
+    border-color var(--transition-duration, 0.25s) ease,
+    color var(--transition-duration, 0.25s) ease;
 }
 
 .actions {
@@ -43,7 +47,14 @@
 
 .badge {
   display: inline-flex;
-  color: black;
+  color: var(--vscode-foreground);
+}
+
+.badge :global(.ant-badge-count) {
+  background-color: var(--container-header-background, #fff9e6);
+  color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+  border-color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.88);
 }
 
 

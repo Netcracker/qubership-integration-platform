@@ -206,6 +206,11 @@ pre[class*="language-"] .token.punctuation {
   -webkit-user-select: text !important;
 }
 
+.monaco-editor .margin,
+.monaco-editor .line-numbers {
+  background-color: var(--vscode-editor-background) !important;
+}
+
 /* Tooltip theming for FloatButton and other components */
 .ant-tooltip {
   background-color: var(--vscode-panel-background) !important;
@@ -363,5 +368,95 @@ pre[class*="language-"] .token.punctuation {
 
 .ant-tabs-nav::before {
   border-bottom-color: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+}
+
+/* Modal theming */
+.ant-modal,
+.ant-modal-content {
+  background-color: var(--vscode-modal-background, var(--vscode-panel-background)) !important;
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-header {
+  background-color: var(--vscode-modal-background, var(--vscode-panel-background)) !important;
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+  border-bottom-color: var(--vscode-border) !important;
+}
+
+.ant-modal-title {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-body {
+  background-color: var(--vscode-modal-background, var(--vscode-panel-background)) !important;
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-footer {
+  background-color: var(--vscode-modal-background, var(--vscode-panel-background)) !important;
+  border-top-color: var(--vscode-border) !important;
+}
+
+.ant-modal-close {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-close:hover {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-root .ant-modal-wrap {
+  background: transparent !important;
+  backdrop-filter: blur(1px);
+}
+
+.ant-modal {
+  margin: 0 auto !important;
+  min-width: 0;
+  transform-origin: center !important;
+}
+
+.ant-modal-content {
+  box-shadow: var(--modal-shadow, 0 12px 32px rgba(0, 0, 0, 0.16)) !important;
+  background-clip: padding-box;
+  border: 1px solid color-mix(in srgb, var(--vscode-border, #000000) 25%, transparent);
+}
+
+.ant-modal-mask {
+  background-color: color-mix(in srgb, var(--vscode-editor-background, #000000) 75%, transparent) !important;
+  opacity: 0.5 !important;
+}
+
+/* Modal confirm theming */
+.ant-modal-confirm-title,
+.ant-modal-confirm-content {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-confirm-btns .ant-btn-primary {
+  border: none !important;
+  border-color: transparent !important;
+}
+
+.ant-modal-confirm-btns .ant-btn-primary:hover {
+  border: none !important;
+  border-color: transparent !important;
+}
+
+/* Message theming */
+.ant-message-notice {
+  background-color: var(--vscode-panel-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-message-notice-content {
+  background-color: var(--vscode-panel-background) !important;
+  color: var(--vscode-foreground) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.ant-message-custom-content {
+  color: var(--vscode-foreground) !important;
 }
 

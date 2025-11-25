@@ -108,28 +108,41 @@ export function applyThemeToDOM(theme: ThemeMode): void {
 
   const applyInlineVariables = () => {
     const computedStyle = getComputedStyle(root);
+    let hasChanges = false;
+
     importantVariables.forEach((cssVariable) => {
       const value = computedStyle.getPropertyValue(cssVariable).trim();
       if (value) {
         root.style.setProperty(cssVariable, value);
+        hasChanges = true;
       } else {
         root.style.removeProperty(cssVariable);
       }
     });
+
+    root.classList.add('theme-switching');
+    setTimeout(() => {
+      root.classList.remove('theme-switching');
+
+      if (hasWindow && hasChanges) {
+        window.dispatchEvent(new CustomEvent('theme-variables-updated', { detail: { theme } }));
+      }
+    }, 250);
   };
 
   if (hasWindow) {
     if (typeof window.requestAnimationFrame === 'function') {
-      window.requestAnimationFrame(applyInlineVariables);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(applyInlineVariables);
+      });
     } else {
-      setTimeout(applyInlineVariables, 0);
+      setTimeout(() => {
+        setTimeout(applyInlineVariables, 0);
+      }, 0);
     }
+  } else {
+    applyInlineVariables();
   }
-
-  root.classList.add('theme-switching');
-  setTimeout(() => {
-    root.classList.remove('theme-switching');
-  }, 250);
 }
 
 export function initializeBrowserTheme(): ThemeMode {

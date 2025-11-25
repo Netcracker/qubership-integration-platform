@@ -42,6 +42,9 @@
   --vscode-list-activeSelectionBackground: #0078d4;
   --vscode-list-activeSelectionForeground: #ffffff;
   --vscode-list-hoverBackground: #f5f5f5;
+
+  /* Shadows */
+  --modal-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
   
   /* Font Settings */
   --vscode-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -51,11 +54,15 @@
   
   /* Animation Control */
   --transition-duration: 0.25s;
+  
+  /* Container Node Colors */
+  --container-border-color: #dedacd;
+  --container-header-background: #fff9e6;
 }
 
 /* UI token mappings removed - use --vscode-* variables directly for better maintainability */
 
-/* Dark Theme Override (for Browser) */
+/* Dark Theme Override (Browser fallback only) */
 :root:not(.vscode-webview)[data-theme="dark"] {
   --vscode-editor-background: #1f1f1f;
   --vscode-editor-foreground: rgba(255, 255, 255, 0.85);
@@ -81,11 +88,17 @@
   --vscode-warningForeground: #ffcc02;
   --vscode-textLink-foreground: #69b1ff;
   --vscode-terminal-ansiGreen: #4ec9b0;
+  --vscode-list-activeSelectionBackground: #264f78;
+  --vscode-list-activeSelectionForeground: #ffffff;
   --vscode-list-hoverBackground: #262626;
   --modal-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  
+  /* Container Node Colors */
+  --container-border-color: #fff9e6;
+  --container-header-background: #fff9e6;
 }
 
-/* High Contrast Theme Override */
+/* High Contrast Theme Override (Browser fallback only) */
 :root:not(.vscode-webview)[data-theme="high-contrast"] {
   --vscode-editor-background: #000000;
   --vscode-editor-foreground: #ffffff;
@@ -108,7 +121,14 @@
   --vscode-warningForeground: #ffff00;
   --vscode-textLink-foreground: #00ffff;
   --vscode-terminal-ansiGreen: #00ff00;
+  --vscode-list-activeSelectionBackground: #ffff00;
+  --vscode-list-activeSelectionForeground: #000000;
+  --vscode-list-hoverBackground: #333333;
   --modal-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
+  
+  /* Container Node Colors */
+  --container-border-color: #fff9e6;
+  --container-header-background: #fff9e6;
 }
 
 /* Smooth theme transitions */
@@ -157,6 +177,25 @@ body {
 .vscode-focusable:focus {
   outline: 2px solid var(--vscode-focusBorder);
   outline-offset: 2px;
+}
+
+/* Container Node Colors - available in webview too */
+.vscode-webview,
+.vscode-webview[data-theme="light"],
+.vscode-webview[data-theme="dark"],
+.vscode-webview[data-theme="high-contrast"] {
+  --container-border-color: var(--vscode-border, #dedacd);
+  --container-header-background: #fff9e6;
+}
+
+.vscode-webview[data-theme="dark"] {
+  --container-border-color: #fff9e6;
+  --container-header-background: #fff9e6;
+}
+
+.vscode-webview[data-theme="high-contrast"] {
+  --container-border-color: #fff9e6;
+  --container-header-background: #fff9e6;
 }
 
 

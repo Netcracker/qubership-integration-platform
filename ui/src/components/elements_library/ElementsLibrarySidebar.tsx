@@ -20,7 +20,7 @@ export const ElementsLibrarySidebar = () => {
   type MenuItem = {
     key: string;
     label: React.ReactNode;
-    icon?: ReactElement<any, any>;
+    icon?: ReactElement;
     children?: MenuItem[];
   };
 

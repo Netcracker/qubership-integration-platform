@@ -1,12 +1,12 @@
 import { ErrorDetails } from "../components/modal/ErrorDetails";
 import { useModalsContext } from "../Modals";
-import { notification } from "antd";
 import {
   NotificationItem,
   useNotificationLog,
 } from "../components/notifications/contexts/NotificationLogContext.tsx";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ApiError } from "../api/admin-tools/variables/types.ts";
+import { useNotificationApi } from "../components/notifications/contexts/NotificationApiContext.tsx";
 
 type DescriptionWithDetailsProps = {
   description: string;
@@ -41,6 +41,7 @@ interface NotificationService {
 export const useNotificationService = (): NotificationService => {
   const { showModal } = useModalsContext();
   const { addToHistory } = useNotificationLog();
+  const notificationApi = useNotificationApi();
   const addToHistoryRef = useRef(addToHistory);
 
   useEffect(() => {
@@ -101,7 +102,7 @@ export const useNotificationService = (): NotificationService => {
           error,
         );
         addToHistory(item);
-        notification.error(item);
+        notificationApi.error(item);
       },
       errorWithDetails: (
         message: string,
@@ -110,14 +111,14 @@ export const useNotificationService = (): NotificationService => {
       ) => {
         const item = buildErrorNotification(message, description, error);
         addToHistory(item);
-        notification.error(item);
+        notificationApi.error(item);
       },
       info: (message: string, description: string) => {
         const item = buildInfoNotification(message, description);
         addToHistory(item);
-        notification.info(item);
+        notificationApi.info(item);
       },
     }),
-    [addToHistory, buildErrorNotification, buildInfoNotification],
+    [addToHistory, buildErrorNotification, buildInfoNotification, notificationApi],
   );
 };

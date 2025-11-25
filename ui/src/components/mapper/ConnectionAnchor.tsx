@@ -1,7 +1,7 @@
 import React, { forwardRef, useEffect, useState } from "react";
 import styles from "./ConnectionAnchor.module.css";
 import { Tooltip, TooltipProps } from "antd";
-import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { OverridableIcon as Icon } from "../../icons/IconProvider.tsx";
 
 export type ConnectionAnchorProps = React.HTMLAttributes<HTMLElement> & {
   tooltipTitle?: TooltipProps["title"];
@@ -31,19 +31,19 @@ export const ConnectionAnchor = forwardRef<
     ref,
   ) => {
     const [className, setClassName] = useState<string>(
-      `${styles["connection-anchor"]} ${styles["disconnected"]}`,
+      `${styles["connection-anchor"] as string} ${styles.disconnected}`,
     );
 
     useEffect(() => {
-      const classNames: (keyof typeof styles)[] = [
-        styles["connection-anchor"],
-        styles[connected ? "connected" : "disconnected"],
+      const classNames: string[] = [
+        styles["connection-anchor"] as string,
+        connected ? styles.connected : styles.disconnected,
       ];
       if (invalid) {
-        classNames.push(styles["invalid"]);
+        classNames.push(styles.invalid as string);
       }
-      if (required) {
-        classNames.push(styles["required"]);
+      if (required && !connected) {
+        classNames.push(styles.required as string);
       }
       setClassName(classNames.join(" "));
     }, [invalid, connected, required]);
@@ -57,7 +57,7 @@ export const ConnectionAnchor = forwardRef<
           onClick={() => onClick?.(connected)}
         >
           {showSettingIcon ? (
-            <OverridableIcon name="settings" />
+            <Icon name="settings" />
           ) : (
             <div className={styles["inner-circle"]}></div>
           )}
