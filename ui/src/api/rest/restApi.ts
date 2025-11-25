@@ -1339,4 +1339,25 @@ export class RestApi implements Api {
   readSpecificationFileContent = async (): Promise<string> => {
     throw new Error("Method readSpecificationFileContent not implemented in RestApi");
   };
+
+  groupElements = async (
+    chainId: string,
+    elementIds: string[]
+  ): Promise<Element> => {
+    const response = await this.instance.post<Element>(
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements/groups`,
+      elementIds,
+    );
+    return response.data;
+  }
+
+  ungroupElements = async (
+    chainId: string,
+    groupId: string
+  ): Promise<Element[]> => {
+    const response = await this.instance.delete<Element[]>(
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements/groups/${groupId}`
+    );
+    return response.data;
+  }
 }

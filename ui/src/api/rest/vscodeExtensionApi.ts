@@ -709,6 +709,30 @@ export class VSCodeExtensionApi implements Api {
       (await this.sendMessageToExtension("readSpecificationFileContent", { fileUri, specificationFilePath })).payload
     );
   };
+
+  groupElements = async (
+    chainId: string,
+    elementIds: string[],
+  ): Promise<Element> => {
+    return <Element>(
+      await this.sendMessageToExtension("groupElements", {
+        chainId,
+        elementIds,
+      })
+    ).payload;
+  };
+
+  ungroupElements = async (
+    chainId: string,
+    groupId: string,
+  ): Promise<Element[]> => {
+    return <Element[]>(
+      await this.sendMessageToExtension("ungroupElements", {
+        chainId,
+        groupId,
+      })
+    ).payload;
+  };
 }
 
 interface VSCodeApi<T> {

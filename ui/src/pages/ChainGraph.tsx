@@ -1,10 +1,12 @@
 import {
   Background,
   BackgroundVariant,
+  Edge,
   MiniMap,
   Node,
+  OnSelectionChangeParams,
   ReactFlow,
-  ReactFlowProvider,
+  ReactFlowProvider
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
@@ -15,7 +17,7 @@ import React, {
   useContext,
   useEffect,
   useRef,
-  useState,
+  useState
 } from "react";
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
@@ -45,10 +47,11 @@ import { ChainContext } from "./ChainPage.tsx";
 import {
   ChainGraphNode,
   ChainGraphNodeData,
-  nodeTypes,
+  nodeTypes
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
+import ContextMenu from "../components/graph/ContextMenu.tsx";
 
 const ChainGraphInner: React.FC = () => {
   const { chainId, elementId } = useParams<string>();
@@ -59,6 +62,7 @@ const ChainGraphInner: React.FC = () => {
   const navigate = useNavigate();
   const notificationService = useNotificationService();
   const { isLibraryLoading } = useLibraryContext();
+  const [selectedNodes, setSelectedNodes] = useState<Node<ChainGraphNodeData>[]>([]);
 
   const refreshChain = useCallback(async () => {
     if (!chainContext?.refresh) return;
@@ -84,6 +88,9 @@ const ChainGraphInner: React.FC = () => {
     direction,
     toggleDirection,
     updateNodeData,
+    menu,
+    closeMenu,
+    onContextMenuCall,
     isLoading,
   } = useChainGraph(chainId, refreshChain);
 
@@ -100,6 +107,34 @@ const ChainGraphInner: React.FC = () => {
     node: Node<ChainGraphNodeData>,
   ) => {
     openElementModal(node);
+  };
+
+  const onSelectionChange = useCallback(({ nodes }: OnSelectionChangeParams<Node<ChainGraphNodeData>, Edge>) => {
+    closeMenu();
+    setSelectedNodes(nodes);
+  }, []);
+
+  const onContextMenu = (
+    event: MouseEvent
+  ) => {
+    const elements: Node<ChainGraphNodeData>[] = [];
+    if (selectedNodes?.length > 0) {
+      elements.push(...selectedNodes);
+    }
+    onContextMenuCall(event, elements);
+  };
+
+  const onNodeContextMenu = (
+    event: MouseEvent,
+    node: Node<ChainGraphNodeData>
+  ) => {
+    const elements = [];
+    if (selectedNodes?.length > 0) {
+      elements.push(...selectedNodes);
+    } else if (node) {
+      elements.push(node);
+    }
+    onContextMenuCall(event, elements);
   };
 
   const setElementPath = useCallback(
@@ -244,11 +279,16 @@ const ChainGraphInner: React.FC = () => {
             zoomOnDoubleClick={false}
             deleteKeyCode={["Backspace", "Delete"]}
             proOptions={{ hideAttribution: true }}
+            onSelectionChange={onSelectionChange}
+            onContextMenu={onContextMenu}
+            onNodeContextMenu={onNodeContextMenu}
+            onPaneClick={closeMenu}
             fitView
           >
             <Background variant={BackgroundVariant.Dots} />
             <MiniMap zoomable pannable position="top-right" />
             <CustomControls />
+            {menu && (<ContextMenu menu = {menu} closeMenu = {closeMenu} />)}
           </ReactFlow>
         </ElkDirectionContextProvider>
       </div>

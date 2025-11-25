@@ -27,7 +27,7 @@ export const useLibraryElement = (elementType?: string) => {
   );
 
   useEffect(() => {
-    if (!elementType) return;
+    if (!elementType || elementType === 'container') return;
     void getLibraryElement(elementType).then(setLibraryElement);
   }, [elementType, getLibraryElement]);
 

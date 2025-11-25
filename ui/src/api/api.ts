@@ -420,6 +420,16 @@ export interface Api {
     fileUri: string,
     specificationFilePath: string
   ): Promise<string>;
+
+  groupElements(
+    chainId: string,
+    elementIds: string[],
+  ): Promise<Element>;
+
+  ungroupElements(
+    chainId: string,
+    groupId: string,
+  ): Promise<Element[]>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

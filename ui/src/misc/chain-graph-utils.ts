@@ -52,7 +52,7 @@ export function getNodeFromElement(
   position?: XYPosition,
 ): ChainGraphNode {
   const defaultPosition: XYPosition = { x: 0, y: 0 };
-  const nodeType = libraryElement?.container ? "container" : "unit";
+  const nodeType = libraryElement?.container || element.type === 'container' ? "container" : "unit";
   const isHorizontal = direction === "RIGHT";
   const isContainer = nodeType === "container";
 
@@ -178,6 +178,8 @@ export function getIntersectionParent(
       )
         ? parentCandidate
         : parentNode;
+  } else if (parentCandidate.data.elementType == 'container') {
+    parentNode = parentCandidate;
   }
   return parentNode;
 }
