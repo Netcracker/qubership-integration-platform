@@ -55,6 +55,9 @@ export async function updateChain(fileUri: Uri, chainId: string, chainRequest: P
 async function checkRestrictions(element: ElementSchema, elements: ElementSchema[]) {
     const elementType = element.type as unknown as string;
     const libraryData = await getLibraryElementByType(elementType);
+    if (!libraryData) {
+        return;
+    }
     const parentElementId = findElementById(elements, element.id)?.parentId; // More consistent way instead of parentElementId field
 
     if (parentElementId) {
@@ -65,7 +68,8 @@ async function checkRestrictions(element: ElementSchema, elements: ElementSchema
 
         const parentElement = findElementById(elements, parentElementId)?.element;
         if (parentElement) {
-            const libraryParentData = await getLibraryElementByType(parentElement.type as unknown as string);
+            const libraryParentData = parentElement.type as unknown as string === 'container'
+                ? undefined : await getLibraryElementByType(parentElement.type as unknown as string);
 
             if (libraryData.parentRestriction?.length > 0) {
                 if (!libraryData.parentRestriction.find(type => type === parentElement.type as unknown as string)) {
@@ -75,7 +79,7 @@ async function checkRestrictions(element: ElementSchema, elements: ElementSchema
             }
 
             // Check for allowed children inside parent element
-            if (libraryParentData.allowedChildren && Object.keys(libraryParentData.allowedChildren).length > 0) {
+            if (libraryParentData?.allowedChildren && Object.keys(libraryParentData.allowedChildren).length > 0) {
                 const amount = libraryParentData.allowedChildren[elementType];
                 if (!amount) {
                     console.error(`Invalid type for parent element`);
@@ -703,4 +707,70 @@ function trimSlashes(value: string): string {
         value = value.slice(0, -1);
     }
     return value;
+}
+
+export async function groupElements(fileUri: Uri, chainId: string, elementIds: string[]): Promise<Element> {
+    const chain = await getMainChain(fileUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    const groupedElements: any[] = [];
+    const chainElements = chain.content.elements as ElementSchema[];
+    for (const elementId of elementIds) {
+        const parentElementId = findElementById(chainElements, elementId)?.parentId;
+        if (parentElementId) {
+            console.error(`Elements with non-null parent cannot be grouped`);
+            throw Error("Elements with non-null parent cannot be grouped");
+        }
+        const element = findAndRemoveElementById(chainElements, elementId);
+        if (!element) {
+            console.error(`ElementId not found`);
+            throw Error("ElementId not found");
+        }
+        groupedElements.push(element);
+    }
+
+    const containerElement: ElementSchema = {
+        id: crypto.randomUUID(),
+        name: 'Container',
+        type: 'container' as unknown as DataType,
+        children: groupedElements,
+        swimlaneId: groupedElements?.length > 0 ? groupedElements[0].swimlaneId : undefined
+    };
+    chainElements.push(containerElement);
+
+    for (const element of groupedElements) {
+        await checkRestrictions(element, chainElements);
+    }
+
+    await fileApi.writeMainChain(fileUri, chain);
+
+    return await getElement(fileUri, chainId, containerElement.id);
+}
+
+export async function ungroupElements(fileUri: Uri, chainId: string, elementId: string): Promise<Element[]> {
+    const chain = await getMainChain(fileUri);
+    if (chain.id !== chainId) {
+        console.error(`ChainId mismatch`);
+        throw Error("ChainId mismatch");
+    }
+
+    const chainElements = chain.content.elements as ElementSchema[];
+    const containerElement = findAndRemoveElementById(chainElements, elementId);
+    if (!containerElement) {
+        console.error(`ElementId not found`);
+        throw Error("ElementId not found");
+    }
+    chainElements.push(...containerElement.children);
+
+    await fileApi.writeMainChain(fileUri, chain);
+
+    const updatedElements: Element[] = [];
+    for (const element of containerElement.children) {
+        updatedElements.push(await getElement(fileUri, chainId, element.id));
+    }
+
+    return updatedElements;
 }

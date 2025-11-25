@@ -172,7 +172,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@netcracker/qip-ui": "0.0.21",
+    "@netcracker/qip-ui": "0.0.22",
     "@apidevtools/swagger-parser": "^12.0.0",
     "@asyncapi/parser": "^3.4.0",
     "@types/js-yaml": "^4.0.9",
@@ -180,9 +180,9 @@
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "graphql": "^16.12.0",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.1.1",
     "protobufjs": "^7.5.4",
-    "tar": "^7.4.3",
+    "tar": "7.5.2",
     "yaml": "^2.8.1",
     "yauzl": "^3.2.0"
   }
