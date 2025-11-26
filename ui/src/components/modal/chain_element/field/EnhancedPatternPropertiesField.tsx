@@ -87,9 +87,9 @@ function determineParamType(idSchema?: EnhancedIdSchema | null): ParamType {
   return 'custom';
 }
 
-function parseParametersFromSpec(specification: SpecificationNode, paramType: ParamType, protocolType?: string): ParameterMetadata[] {
+function parseParametersFromSpec(specification: SpecificationNode, paramType: ParamType, protocolType?: string, elementType?: string): ParameterMetadata[] {
   if (paramType === 'async') {
-    return parseAsyncAPIParameters(protocolType);
+    return parseAsyncAPIParameters(protocolType, elementType);
   }
 
   if (!specification) {
@@ -123,8 +123,9 @@ function parseOpenAPIParameters(spec: OperationSpecFragment, paramType: ParamTyp
     });
 }
 
-function parseAsyncAPIParameters(protocolType?: string): ParameterMetadata[] {
+function parseAsyncAPIParameters(protocolType?: string, elementType?: string): ParameterMetadata[] {
   const params: ParameterMetadata[] = [];
+  const isAsyncApiTrigger = elementType === 'async-api-trigger';
 
   if (isKafkaProtocol(protocolType) || isAmqpProtocol(protocolType)) {
     params.push({
@@ -142,7 +143,7 @@ function parseAsyncAPIParameters(protocolType?: string): ParameterMetadata[] {
     });
     params.push({
       name: 'groupId',
-      required: true,
+      required: isAsyncApiTrigger,
       source: 'specification',
     });
   }
@@ -264,6 +265,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
         specFragment,
         paramType,
         protocolType ?? undefined,
+        formContext?.elementType,
       );
       setSpecParameters(params);
       setLoadedSpec(specFragment);
@@ -277,7 +279,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       setLoadedSpecOperationId(null);
       setAutoFilledOperationId(null);
     }
-  }, [formContext?.integrationOperationId, formContext?.integrationOperationProtocolType, paramType]);
+  }, [formContext?.integrationOperationId, formContext?.integrationOperationProtocolType, formContext?.elementType, paramType]);
 
   const loadEnvironmentParameters = useCallback(async () => {
     const systemId = formContext?.integrationSystemId;
@@ -325,6 +327,9 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       return;
     }
 
+    const elementType = formContext?.elementType;
+    const isAsyncApiTrigger = elementType === 'async-api-trigger';
+
     let updatedData: Record<string, string> | null = null;
 
     if (isMaasEnvironment && formData.topic !== undefined) {
@@ -337,10 +342,15 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       delete updatedData['maas.classifier.name'];
     }
 
+    if (!isAsyncApiTrigger && formData.groupId !== undefined) {
+      updatedData = { ...(updatedData ?? formData) };
+      delete updatedData.groupId;
+    }
+
     if (updatedData) {
       onChange(updatedData);
     }
-  }, [formData, isMaasEnvironment, onChange, paramType, isEnvironmentLoaded]);
+  }, [formData, isMaasEnvironment, onChange, paramType, isEnvironmentLoaded, formContext?.elementType]);
 
   useEffect(() => {
     if (!loadedSpec) return;
@@ -386,7 +396,9 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       }
     }
 
-    if (isKafkaProtocol(protocolType) && !formData['groupId'] && loadedSpec?.groupId) {
+    const elementType = formContext?.elementType;
+    const isAsyncApiTrigger = elementType === 'async-api-trigger';
+    if (isKafkaProtocol(protocolType) && isAsyncApiTrigger && !formData['groupId'] && loadedSpec?.groupId) {
       updates['groupId'] = loadedSpec.groupId;
     }
 
@@ -394,7 +406,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       onChange({ ...formData, ...updates });
       setAutoFilledOperationId(operationId);
     }
-  }, [loadedSpec, loadedSpecOperationId, formContext?.integrationOperationProtocolType, formContext?.integrationOperationId, paramType, autoFilledOperationId, formData, onChange, isMaasEnvironment]);
+  }, [loadedSpec, loadedSpecOperationId, formContext?.integrationOperationProtocolType, formContext?.integrationOperationId, formContext?.elementType, paramType, autoFilledOperationId, formData, onChange, isMaasEnvironment]);
 
   const elementType = formContext?.elementType;
   const isAsyncApiTrigger = elementType === 'async-api-trigger';
@@ -406,11 +418,14 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     const isHiddenParameter = (name: string): boolean => {
       if (paramType !== 'async') return false;
 
+      if (name === 'groupId' && !isAsyncApiTrigger) {
+        return true;
+      }
+
       if (isMaasEnvironment) {
         return name === 'topic';
       } else {
-        const shouldHideGroupId = name === 'groupId' && !isAsyncApiTrigger;
-        return shouldHideGroupId || name.startsWith('maas.');
+        return name.startsWith('maas.');
       }
     };
 
