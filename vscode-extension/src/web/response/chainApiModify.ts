@@ -763,12 +763,13 @@ export async function ungroupElements(fileUri: Uri, chainId: string, elementId: 
         console.error(`ElementId not found`);
         throw Error("ElementId not found");
     }
-    chainElements.push(...containerElement.children);
+    const containerChildren = containerElement.children as ElementSchema[];
+    chainElements.push(...containerChildren);
 
     await fileApi.writeMainChain(fileUri, chain);
 
     const updatedElements: Element[] = [];
-    for (const element of containerElement.children) {
+    for (const element of containerChildren) {
         updatedElements.push(await getElement(fileUri, chainId, element.id));
     }
 
