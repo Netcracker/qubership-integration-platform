@@ -4,9 +4,10 @@ import {
   Edge,
   MiniMap,
   Node,
-  OnSelectionChangeParams,
+  OnSelectionChangeFunc,
   ReactFlow,
-  ReactFlowProvider
+  ReactFlowProvider,
+  useOnSelectionChange,
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
@@ -137,10 +138,17 @@ const ChainGraphInner: React.FC = () => {
     openElementModal(node);
   };
 
-  const onSelectionChange = useCallback(({ nodes }: OnSelectionChangeParams<Node<ChainGraphNodeData>, Edge>) => {
-    closeMenu();
-    setSelectedNodes(nodes);
-  }, [closeMenu]);
+  const handleSelectionChange = useCallback<OnSelectionChangeFunc<Node<ChainGraphNodeData>, Edge>>(
+    ({ nodes }) => {
+      closeMenu();
+      setSelectedNodes(nodes);
+    },
+    [closeMenu],
+  );
+
+  useOnSelectionChange<Node<ChainGraphNodeData>, Edge>({
+    onChange: handleSelectionChange,
+  });
 
   const onContextMenu = (
     event: MouseEvent
@@ -410,7 +418,6 @@ const ChainGraphInner: React.FC = () => {
             zoomOnDoubleClick={false}
             deleteKeyCode={["Backspace", "Delete"]}
             proOptions={{ hideAttribution: true }}
-            onSelectionChange={onSelectionChange}
             onContextMenu={onContextMenu}
             onNodeContextMenu={onNodeContextMenu}
             onPaneClick={closeMenu}

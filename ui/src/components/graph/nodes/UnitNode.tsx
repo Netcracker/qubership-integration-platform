@@ -37,7 +37,7 @@ export function UnitNode({
           gap: 6,
           userSelect: "none",
           textAlign: "center",
-          lineHeight: 1.2,
+          lineHeight: 1.35,
           paddingTop: "8px",
           paddingBottom: "6px",
           paddingLeft: "8px",

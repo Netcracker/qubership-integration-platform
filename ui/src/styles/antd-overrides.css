@@ -262,6 +262,10 @@ pre[class*="language-"] .token.punctuation {
 }
 
 .ant-notification-notice-icon {
+  color: var(--vscode-textLink-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-notification-notice-error .ant-notification-notice-icon {
   color: var(--vscode-errorForeground, #f87171) !important;
 }
 
@@ -389,6 +393,27 @@ pre[class*="language-"] .token.punctuation {
 
 .ant-modal-body {
   background-color: var(--vscode-modal-background, var(--vscode-panel-background)) !important;
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal .ant-form,
+.ant-modal .ant-form-item,
+.ant-modal .ant-form-item-label,
+.ant-modal .ant-form-item-label > label,
+.ant-modal .ant-form-item .ant-form-item-control-input-content,
+.ant-modal .ant-form-item .ant-form-item-extra,
+.ant-modal .ant-form-item-explain,
+.ant-modal .ant-form-item-explain-error,
+.ant-modal .ant-tabs,
+.ant-modal .ant-tabs-tab,
+.ant-modal .ant-tabs-tab-btn,
+.ant-modal .ant-checkbox-wrapper,
+.ant-modal .ant-checkbox + span,
+.ant-modal .ant-typography,
+.ant-modal label,
+.ant-modal .ant-select-selection-item,
+.ant-modal .ant-select-selection-placeholder,
+.ant-modal .ant-select-selection-search-input {
   color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
 }
 
