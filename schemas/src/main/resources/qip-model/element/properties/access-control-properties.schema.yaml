@@ -22,7 +22,7 @@ allOf:
         roles:
           title: Roles
           type: array
-          minItems: 1
+          minItems: 0
           items:
             type: string
       required:
