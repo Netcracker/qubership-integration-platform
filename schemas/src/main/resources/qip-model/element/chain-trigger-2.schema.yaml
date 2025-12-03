@@ -15,6 +15,9 @@ properties:
       elementId:
         type: string
         title: Element Id
+        readOnly: true
+    required:
+      - elementId
     additionalProperties: false
 required:
   - type
