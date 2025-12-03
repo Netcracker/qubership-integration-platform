@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qip-ui-nginx-conf
+data:
+  nginx.conf: |-
+    #worker_processes  1;
+    worker_processes auto;
+    pid /var/run/nginx.pid;
+
+    events {
+      worker_connections  1024;
+    }
+
+    http {
+
+      sendfile            on;
+      keepalive_timeout   65;
+      types_hash_max_size 2048;
+
+      client_max_body_size 850m;
+      client_body_timeout  120s;
+
+      proxy_connect_timeout 3s;
+      proxy_send_timeout    3s;
+      proxy_read_timeout    90s;
+      fastcgi_send_timeout  3s;
+      fastcgi_read_timeout  90s;
+
+      default_type  application/octet-stream;
+
+
+      ##
+      # Logging Settings
+      ##
+      log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+      '$status $body_bytes_sent "$http_referer" '
+      '"$http_user_agent" "$http_x_forwarded_for"';
+      access_log /var/log/nginx/access.log  main;
+      error_log  /var/log/nginx/error.log warn;
+
+
+      include /etc/nginx/routes.conf;
+    }
+
+  routes.conf: |-
+    server {
+      listen 8080;
+
+      error_page 502 503 504 @error;
+
+      location / {
+        proxy_pass  http://host.docker.internal:4200;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      }
+
+      location /assets/route.js {
+        root /usr/share/nginx/html;
+        try_files $uri $uri$args $uri$args/ $uri/ /index.html;
+      }
+
+      location ~ ^/api/(v\d+)/.*/catalog/chains/(((?![/]).)*)/(deployments|snapshots) {
+        rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/catalog/chains/(deployments|roles) {
+        rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/catalog/(chains|detailed-design|design-generator|library|folders) {
+        rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/$2  break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/catalog/ {
+        rewrite ^^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/.*/(v\d+)/maas-actions {
+        rewrite ^^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/.*/(v\d+)/import {
+        rewrite ^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/systems-catalog/ {
+        rewrite ^/api/(v\d+)/.*/systems-catalog/(.*)$  /$1/$2  break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/sessions-management {
+        rewrite ^/api/(v\d+)/.*/sessions-management/(.*)$  /$1/$2  break;
+        proxy_pass  http://qip-sessions-management:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/variables-management {
+        rewrite ^/api/(v\d+)/.*/variables-management/(.*)$  /$1/$2  break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/.*/(v\d+)/(secured-variables|secret|common-variables/import) {
+        rewrite ^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/engine {
+        rewrite ^/api/(v\d+)/.*/engine/(.*)$  /$1/engine/$2  break;
+        proxy_pass  http://qip-engine:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~* \.(jpg|jpeg|gif|png|ico|bmp|swf|txt)$ {
+        root /usr/share/nginx/html;
+      }
+
+      location @error {
+        internal;
+        return 200 "";
+      }
+    }
