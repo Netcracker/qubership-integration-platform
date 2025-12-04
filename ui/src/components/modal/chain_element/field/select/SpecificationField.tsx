@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Button, Flex, Select, SelectProps, Tooltip } from "antd";
-import { FormContext } from "../ChainElementModification";
-import { api } from "../../../../api/api";
-import { useNotificationService } from "../../../../hooks/useNotificationService";
-import { Specification, SpecificationGroup } from "../../../../api/apiTypes";
+import { FormContext } from "../../ChainElementModification.tsx";
+import { api } from "../../../../../api/api.ts";
+import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
+import { Specification, SpecificationGroup } from "../../../../../api/apiTypes.ts";
 import { JSONSchema7 } from "json-schema";
-import { VSCodeExtensionApi } from "../../../../api/rest/vscodeExtensionApi";
-import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
+import { VSCodeExtensionApi } from "../../../../../api/rest/vscodeExtensionApi.ts";
+import { OverridableIcon } from "../../../../../icons/IconProvider.tsx";
 
 const SpecificationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>

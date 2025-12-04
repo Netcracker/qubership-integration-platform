@@ -17,7 +17,7 @@ import {
 import type { JSONSchema7 } from "json-schema";
 import validator from "@rjsf/validator-ajv8";
 import StringAsMultipleSelectWidget from "./widget/StringAsMultipleSelectWidget.tsx";
-import CustomSelectWidget from "./widget/CustomSelectWidget.tsx";
+import MultipleSelectWidget from "./widget/MultipleSelectWidget.tsx";
 import { DebouncedTextareaWidget } from "./widget/DebouncedTextareaWidget.tsx";
 import { DebouncedTextWidget } from "./widget/DebouncedTextWidget.tsx";
 import OneOfAsSingleInputField from "./field/OneOfAsSingleInputField.tsx";
@@ -28,14 +28,14 @@ import {
   desiredTabOrder,
 } from "./ChainElementModificationConstants.ts";
 import { ChainGraphNode } from "../../graph/nodes/ChainGraphNodeTypes.ts";
-import AnyOfAsSingleSelectField from "./field/AnyOfAsSingleSelectField.tsx";
+import AnyOfAsSingleSelectField from "./field/select/AnyOfAsSingleSelectField.tsx";
 import MappingField from "./field/MappingField.tsx";
 import CustomArrayField from "./field/CustomArrayField.tsx";
 import ScriptField from "./field/ScriptField.tsx";
 import JsonField from "./field/JsonField.tsx";
-import ServiceField from "./field/ServiceField.tsx";
-import SpecificationField from "./field/SpecificationField.tsx";
-import SystemOperationField from "./field/SystemOperationField.tsx";
+import ServiceField from "./field/select/ServiceField.tsx";
+import SpecificationField from "./field/select/SpecificationField.tsx";
+import SystemOperationField from "./field/select/SystemOperationField.tsx";
 import EnhancedPatternPropertiesField from "./field/EnhancedPatternPropertiesField.tsx";
 import BodyMimeTypeField from "./field/BodyMimeTypeField.tsx";
 import type { BodyFormEntry } from "../../../misc/body-form-data-utils.ts";
@@ -47,6 +47,7 @@ import {
   normalizeProtocol,
 } from "../../../misc/protocol-utils.ts";
 import CustomOneOfField from "./field/CustomOneOfField.tsx";
+import SingleSelectField from "./field/select/SingleSelectField.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -97,6 +98,7 @@ export type FormContext = {
   systemType?: string;
   bodyFormData?: BodyFormEntry[];
   synchronousGrpcCall?: boolean;
+  chainId?: string;
   updateContext?: (newContext: Record<string, unknown>) => void;
 };
 
@@ -225,6 +227,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         ),
         bodyFormData: toBodyFormData(formProperties.bodyFormData),
         synchronousGrpcCall: Boolean(formProperties.synchronousGrpcCall),
+        chainId: chainId,
         updateContext: (updatedProperties: Record<string, unknown>) => {
           if (
             updatedProperties.integrationOperationProtocolType !== undefined
@@ -544,7 +547,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
   const widgets: RegistryWidgetsType = {
     stringAsMultipleSelectWidget: StringAsMultipleSelectWidget,
-    customSelectWidget: CustomSelectWidget,
+    multipleSelectWidget: MultipleSelectWidget,
     debouncedTextareaWidget: DebouncedTextareaWidget,
     TextWidget: DebouncedTextWidget,
     textarea: DebouncedTextareaWidget,
@@ -675,6 +678,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               specificationField: SpecificationField,
               systemOperationField: SystemOperationField,
               bodyMimeTypeField: BodyMimeTypeField,
+              singleSelectField: SingleSelectField,
             }}
             widgets={widgets}
             onChange={(e) => {

@@ -5,7 +5,7 @@ type ServiceTagProps = {
   width?: number;
 };
 
-export const ServiceTag: React.FC<ServiceTagProps> = (props: ServiceTagProps) => {
+export const SelectTag: React.FC<ServiceTagProps> = (props: ServiceTagProps) => {
   return (
     <Tag
       style={{

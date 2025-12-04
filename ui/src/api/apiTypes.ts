@@ -101,6 +101,7 @@ export type Element = BaseEntity & {
   children?: Element[];
   swimlaneId?: string;
   mandatoryChecksPassed: boolean;
+  chainName?: string;
 };
 
 export type LibraryElement = {

@@ -9,19 +9,19 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { FormContext } from "../ChainElementModification";
-import { api } from "../../../../api/api";
-import { useNotificationService } from "../../../../hooks/useNotificationService";
-import { SystemOperation } from "../../../../api/apiTypes";
+import { FormContext } from "../../ChainElementModification.tsx";
+import { api } from "../../../../../api/api.ts";
+import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
+import { SystemOperation } from "../../../../../api/apiTypes.ts";
 import { JSONSchema7 } from "json-schema";
-import { VSCodeExtensionApi } from "../../../../api/rest/vscodeExtensionApi";
-import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
-import { HttpMethod } from "../../../services/HttpMethod";
-import { ServiceTag } from "./ServiceTag";
+import { VSCodeExtensionApi } from "../../../../../api/rest/vscodeExtensionApi.ts";
+import { OverridableIcon } from "../../../../../icons/IconProvider.tsx";
+import { HttpMethod } from "../../../../services/HttpMethod.tsx";
+import { SelectTag } from "./SelectTag.tsx";
 import {
   isHttpProtocol,
   normalizeProtocol,
-} from "../../../../misc/protocol-utils";
+} from "../../../../../misc/protocol-utils.ts";
 
 const SystemOperationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -57,7 +57,7 @@ const SystemOperationField: React.FC<
             operations?.map((operation) => ({
               label: (
                 <>
-                  <ServiceTag value={operation.name} width={200} />
+                  <SelectTag value={operation.name} width={200} />
                   <HttpMethod value={operation.method} width={110} />
                   {operation.path}
                 </>

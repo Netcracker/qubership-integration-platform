@@ -28,7 +28,7 @@
   "dependencies": {
     "@lightenna/react-mermaid-diagram": "^1.0.21",
     "@monaco-editor/react": "^4.7.0",
-    "@netcracker/qip-schemas": "0.2.13",
+    "@netcracker/qip-schemas": "0.2.14",
     "@rjsf/antd": "^6.1.2",
     "@rjsf/core": "^6.1.2",
     "@rjsf/utils": "^6.1.2",

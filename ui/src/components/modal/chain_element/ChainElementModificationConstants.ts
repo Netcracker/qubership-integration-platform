@@ -116,7 +116,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:field": "jsonField",
     },
     roles: {
-      "ui:widget": "customSelectWidget",
+      "ui:widget": "multipleSelectWidget",
     },
     script: {
       "ui:field": "scriptField",
@@ -125,28 +125,28 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:field": "mappingField",
     },
     allowedContentTypes: {
-      "ui:widget": "customSelectWidget",
+      "ui:widget": "multipleSelectWidget",
     },
     httpMethodRestrict: {
       "ui:widget": "stringAsMultipleSelectWidget",
     },
     replyTo: {
-      "ui:widget": "customSelectWidget",
+      "ui:widget": "multipleSelectWidget",
     },
     cc: {
-      "ui:widget": "customSelectWidget",
+      "ui:widget": "multipleSelectWidget",
     },
     bcc: {
-      "ui:widget": "customSelectWidget",
+      "ui:widget": "multipleSelectWidget",
     },
     to: {
-      "ui:widget": "customSelectWidget",
+      "ui:widget": "multipleSelectWidget",
     },
     headerModificationToRemove: {
-      "ui:widget": "customSelectWidget",
+      "ui:widget": "multipleSelectWidget",
     },
     synchronousPullRetryableCodes: {
-      "ui:widget": "customSelectWidget",
+      "ui:widget": "multipleSelectWidget",
     },
     overrideContextParams: {
       "ui:field": "patternPropertiesField",
@@ -242,6 +242,10 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:fieldReplacesAnyOrOneOf": true,
       "ui:field": "oneOfAsSingleInputField",
     },
+    connectionTimeout: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
     maxMessagesPerPoll: {
       "ui:fieldReplacesAnyOrOneOf": true,
       "ui:field": "oneOfAsSingleInputField",
@@ -300,6 +304,12 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     },
     integrationSpecificationGroupId: {
       "ui:widget": "hidden",
+    },
+    elementId: {
+      "ui:field": "singleSelectField",
+    },
+    reuseElementId: {
+      "ui:field": "singleSelectField",
     },
     abacParameters: {
       resourceMap: {

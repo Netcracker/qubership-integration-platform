@@ -1,24 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Button, Flex, Select, SelectProps, Tooltip } from "antd";
-import { useServices } from "../../../../hooks/useServices";
+import { useServices } from "../../../../../hooks/useServices.ts";
 import {
   IntegrationSystem,
   IntegrationSystemType,
-} from "../../../../api/apiTypes";
-import { FormContext } from "../ChainElementModification";
+} from "../../../../../api/apiTypes.ts";
+import { FormContext } from "../../ChainElementModification.tsx";
 import { JSONSchema7 } from "json-schema";
-import { useNotificationService } from "../../../../hooks/useNotificationService";
-import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
-import { VSCodeExtensionApi } from "../../../../api/rest/vscodeExtensionApi";
-import { api } from "../../../../api/api";
-import { ServiceTag } from "./ServiceTag";
-import { capitalize } from "../../../../misc/format-utils";
+import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
+import { OverridableIcon } from "../../../../../icons/IconProvider.tsx";
+import { VSCodeExtensionApi } from "../../../../../api/rest/vscodeExtensionApi.ts";
+import { api } from "../../../../../api/api.ts";
+import { SelectTag } from "./SelectTag.tsx";
+import { capitalize } from "../../../../../misc/format-utils.ts";
 import {
   isAsyncProtocol,
   isHttpProtocol,
   normalizeProtocol,
-} from "../../../../misc/protocol-utils";
+} from "../../../../../misc/protocol-utils.ts";
 
 const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
   id,
@@ -75,7 +75,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
         filteredServices?.map((service: IntegrationSystem) => ({
           label: (
             <>
-              <ServiceTag value={capitalize(service.type)} />
+              <SelectTag value={capitalize(service.type)} />
               {service.name}
             </>
           ),
