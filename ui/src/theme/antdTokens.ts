@@ -5,7 +5,7 @@ function getCSSVariable(name: string, fallback: string = ''): string {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return fallback;
   }
-  
+
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return value || fallback;
 }
@@ -27,30 +27,30 @@ export function getThemeTokens(isDark: boolean): Partial<AliasToken> {
     colorBgElevated: panelBg,
     colorBgLayout: panelBg,
     colorBgSpotlight: panelBg,
-    
+
     colorTextBase: foreground,
     colorText: foreground,
     colorTextSecondary: getCSSVariable('--vscode-descriptionForeground', isDark ? '#9ca3af' : '#9ca3af'),
-    
+
     colorBorder: border,
     colorBorderSecondary: border,
-    
+
     colorPrimary: buttonBg,
     colorPrimaryHover: buttonHover,
     colorLink: linkColor,
     colorLinkHover: buttonHover,
-    
+
     colorError: errorColor,
     colorWarning: warningColor,
     colorSuccess: getCSSVariable('--vscode-terminal-ansiGreen', isDark ? '#4ec9b0' : '#28a745'),
     colorInfo: linkColor,
-    
+
     colorBgTextHover: getCSSVariable('--vscode-list-hoverBackground', isDark ? '#262626' : '#f5f5f5'),
-    
+
     fontFamily: getCSSVariable('--vscode-font-family', 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif'),
     fontSize: 13,
     lineHeight: 1.5,
-    
+
     borderRadius: 4,
     controlHeight: 32,
   };
@@ -62,7 +62,7 @@ export function getAntdThemeConfig(isDark: boolean): ThemeConfig {
   const modalForeground = getCSSVariable('--vscode-modal-foreground', tokens.colorText ?? (isDark ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.88)'));
   const borderColor = getCSSVariable('--vscode-border', isDark ? '#303030' : '#d9d9d9');
   const iconHover = getCSSVariable('--vscode-button-hoverBackground', '#106ebe');
-  
+
   return {
     algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     token: tokens,

@@ -7,11 +7,11 @@ import { MappingDescription } from "../../../../mapper/model/model.ts";
 const MappingField: React.FC<FieldProps> = ({
   formData,
   onChange,
-  idSchema,
+  fieldPathId,
 }) => {
   return (
     <Mapping
-      elementId={idSchema?.$id || "mapping"}
+      elementId={fieldPathId?.$id || "mapping"}
       mapping={
         formData &&
         typeof formData === "object" &&
@@ -19,7 +19,7 @@ const MappingField: React.FC<FieldProps> = ({
           ? (formData as MappingDescription)
           : MappingUtil.emptyMapping()
       }
-      onChange={onChange}
+      onChange={(value) => onChange(value, fieldPathId.path)}
     />
   );
 };

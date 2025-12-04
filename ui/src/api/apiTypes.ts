@@ -1067,7 +1067,7 @@ export interface SystemOperation {
 
 export interface OperationInfo {
   id: string;
-  specification: unknown;
+  specification: Record<string, unknown>;
   requestSchema: Record<string, unknown>;
   responseSchemas: Record<string, unknown>;
 }

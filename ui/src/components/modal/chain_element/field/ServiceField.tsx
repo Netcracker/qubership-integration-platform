@@ -1,8 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Button, Flex, Select, SelectProps, Tooltip } from "antd";
 import { useServices } from "../../../../hooks/useServices";
-import { IntegrationSystem } from "../../../../api/apiTypes";
+import {
+  IntegrationSystem,
+  IntegrationSystemType,
+} from "../../../../api/apiTypes";
 import { FormContext } from "../ChainElementModification";
 import { JSONSchema7 } from "json-schema";
 import { useNotificationService } from "../../../../hooks/useNotificationService";
@@ -23,8 +26,9 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
   schema,
   required,
   uiSchema,
-  formContext,
+  registry,
 }) => {
+  const elementType = registry.formContext.elementType;
   const { services } = useServices();
   const [serviceId, setServiceId] = useState(formData);
   const [servicesMap, setServicesMap] = useState<
@@ -34,14 +38,47 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
   const notificationService = useNotificationService();
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  const filteredServices = useMemo(() => {
+    if (!services) return [];
+
+    switch (elementType) {
+      case "http-trigger":
+        return services.filter(
+          (s) => s.type === IntegrationSystemType.IMPLEMENTED,
+        );
+
+      case "async-api-trigger":
+        return services.filter(
+          (s) =>
+            s.type !== IntegrationSystemType.IMPLEMENTED &&
+            (s.protocol === "amqp" || s.protocol === "kafka"),
+        );
+
+      case "service-call":
+        return services.filter(
+          (s) => s.type !== IntegrationSystemType.IMPLEMENTED,
+        );
+
+      default:
+        return services;
+    }
+  }, [services, elementType]);
+
   useEffect(() => {
     setIsLoading(true);
     try {
-      setServicesMap(new Map(services.map((service) => [service.id, service])));
+      setServicesMap(
+        new Map(filteredServices.map((service) => [service.id, service])),
+      );
 
       const serviceOptions: SelectProps["options"] =
-        services?.map((service: IntegrationSystem) => ({
-          label: <><ServiceTag value={capitalize(service.type)}/>{service.name}</>,
+        filteredServices?.map((service: IntegrationSystem) => ({
+          label: (
+            <>
+              <ServiceTag value={capitalize(service.type)} />
+              {service.name}
+            </>
+          ),
           value: service.id,
         })) ?? [];
       setOptions(serviceOptions);
@@ -52,7 +89,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [services, notificationService]);
+  }, [filteredServices, notificationService]);
 
   const title = uiSchema?.["ui:title"] ?? schema?.title ?? "";
 
@@ -75,7 +112,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
       const isAsync = isAsyncProtocol(protocol);
       const isHttp = isHttpProtocol(protocol);
 
-      formContext?.updateContext({
+      registry.formContext?.updateContext?.({
         integrationSystemId: newValue,
         systemType: newService.type.toString(),
         integrationOperationProtocolType: protocol,
@@ -95,7 +132,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
         integrationGqlVariablesHeader: undefined,
       });
     },
-    [formContext, servicesMap],
+    [registry, servicesMap],
   );
 
   const onNavigationButtonClick = useCallback(() => {

@@ -1,11 +1,14 @@
 import React from "react";
 import { FieldProps, RJSFSchema } from "@rjsf/utils";
 import { FormContext } from "../ChainElementModification";
-import OriginalMultiSchemaField from "@rjsf/core/lib/components/fields/MultiSchemaField";
 import {
   isHttpProtocol,
   normalizeProtocol,
 } from "../../../../misc/protocol-utils";
+import { getDefaultRegistry } from "@rjsf/core";
+
+const defaultRegistry = getDefaultRegistry();
+const OriginalOneOfField = defaultRegistry.fields.OneOfField;
 
 interface OneOfOption {
   properties?: {
@@ -15,30 +18,30 @@ interface OneOfOption {
     [key: string]: unknown;
   };
   oneOf?: OneOfOption[];
+
   [key: string]: unknown;
 }
 
-const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema, FormContext>> = (props) => {
-  const {
-    registry,
-    schema,
-    uiSchema,
-    idSchema,
-    formContext,
-    formData,
-  } = props;
+const CustomOneOfField: React.FC<
+  FieldProps<Record<string, unknown>, RJSFSchema, FormContext>
+> = (props) => {
+  const { registry, schema, uiSchema, fieldPathId, formData } = props;
 
   const { fields } = registry;
-  const context = formContext;
-  const isPropertiesField = idSchema?.$id === 'root_properties';
+  const context = registry.formContext;
 
-  if (isPropertiesField && Array.isArray(schema.oneOf)) {
+  const isPropertiesField = fieldPathId.$id === "root_properties";
+  if (
+    isPropertiesField &&
+    Array.isArray(schema.oneOf) &&
+    context?.elementType !== "http-trigger"
+  ) {
     const oneOfOptions = schema.oneOf as OneOfOption[];
     const protocolType = (() => {
       const value =
         context?.integrationOperationProtocolType ??
         (formData as Record<string, unknown>)?.integrationOperationProtocolType;
-      return normalizeProtocol(value);
+      return normalizeProtocol(value as string);
     })();
 
     if (protocolType === "grpc") {
@@ -47,7 +50,7 @@ const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema,
         <SchemaField
           {...props}
           schema={{
-            type: 'object',
+            type: "object",
             properties: {},
           }}
           uiSchema={uiSchema}
@@ -57,7 +60,7 @@ const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema,
 
     const matchingIndex = oneOfOptions.findIndex((option: OneOfOption) => {
       const protocolConst = normalizeProtocol(
-        option?.properties?.integrationOperationProtocolType?.const,
+        option?.properties?.integrationOperationProtocolType?.const as string,
       );
 
       if (protocolType) {
@@ -67,11 +70,7 @@ const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema,
         return protocolConst === protocolType;
       }
 
-      if (protocolConst) {
-        return false;
-      }
-
-      return true;
+      return !protocolConst;
     });
 
     if (matchingIndex >= 0) {
@@ -81,10 +80,12 @@ const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema,
 
       if (Array.isArray(matchedOption.oneOf) && isHttpProtocol(protocolType)) {
         const nestedOptions = matchedOption.oneOf;
-        const nestedIndex = nestedOptions.findIndex((opt: OneOfOption) =>
-          normalizeProtocol(
-            opt?.properties?.integrationOperationProtocolType?.const,
-          ) === protocolType,
+        const nestedIndex = nestedOptions.findIndex(
+          (opt: OneOfOption) =>
+            normalizeProtocol(
+              opt?.properties?.integrationOperationProtocolType
+                ?.const as string,
+            ) === protocolType,
         );
 
         if (nestedIndex >= 0) {
@@ -111,8 +112,7 @@ const CustomOneOfField: React.FC<FieldProps<Record<string, unknown>, RJSFSchema,
     }
   }
 
-  return <OriginalMultiSchemaField {...props} />;
+  return <OriginalOneOfField {...props} />;
 };
 
 export default CustomOneOfField;
-

@@ -149,15 +149,6 @@ export const useVSCodeTheme = () => {
   const [isVSCodeWebview, setIsVSCodeWebview] = useState<boolean>(() => detectVSCodeEnvironment());
 
   useEffect(() => {
-    // Initialize VS Code API through singleton
-    if (vscodeApiSingleton.isAvailable()) {
-      console.log('useVSCodeTheme: VS Code API available through singleton');
-    } else {
-      console.warn('useVSCodeTheme: VS Code API not available through singleton');
-    }
-  }, [vscodeApiSingleton]);
-
-  useEffect(() => {
     if (!isVSCodeWebview) {
       const api = vscodeApiSingleton.getApi?.();
       if (api && typeof api.postMessage === 'function') {
@@ -288,7 +279,6 @@ export const useVSCodeTheme = () => {
     // Request initial theme if API is available
     if (vscodeApiSingleton.isAvailable()) {
       vscodeApiSingleton.sendMessage({ command: 'requestTheme' });
-      console.log('useVSCodeTheme: Requested initial theme via singleton');
     }
 
     return () => {

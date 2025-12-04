@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Input, Button } from "antd";
 import styles from "./PatternPropertiesField.module.css";
@@ -11,14 +11,21 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
   uiSchema,
   disabled,
   readonly,
+  fieldPathId,
 }) => {
+  const changeValue = useCallback(
+    (value: Record<string, string>) => {
+      onChange(value, fieldPathId?.path);
+    },
+    [fieldPathId?.path, onChange],
+  );
   const rowCount = Object.entries(formData).length;
   const [collapsed, setCollapsed] = useState(!(rowCount > 0));
 
   const handleAdd = () => {
     const newKey = "";
     const newData = { ...formData, [newKey]: "" };
-    onChange(newData);
+    changeValue(newData);
   };
 
   const handleKeyChange = (oldKey: string, newKey: string) => {
@@ -27,17 +34,17 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
     const value = updated[oldKey];
     delete updated[oldKey];
     updated[newKey] = value;
-    onChange(updated);
+    changeValue(updated);
   };
 
   const handleValueChange = (key: string, value: string) => {
-    onChange({ ...formData, [key]: value });
+    changeValue({ ...formData, [key]: value });
   };
 
   const handleDelete = (key: string) => {
     const updated = { ...formData };
     delete updated[key];
-    onChange(updated);
+    changeValue(updated);
   };
 
   return (
@@ -48,7 +55,11 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
           onClick={() => setCollapsed((s) => !s)}
         >
           <span className={styles.iconWrapper}>
-            {collapsed ? <OverridableIcon name="right" /> : <OverridableIcon name="down" />}
+            {collapsed ? (
+              <OverridableIcon name="right" />
+            ) : (
+              <OverridableIcon name="down" />
+            )}
           </span>
           <span>{schema?.title || uiSchema?.["ui:title"] || "Items"}</span>
           <span className={styles.badge}>{rowCount}</span>

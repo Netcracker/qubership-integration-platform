@@ -9,6 +9,7 @@ const OneOfAsSingleInputField: React.FC<FieldProps<string>> = ({
   schema,
   uiSchema,
   required,
+  fieldPathId,
 }) => {
   const title = uiSchema?.["ui:title"] ?? schema?.title ?? "";
 
@@ -36,7 +37,7 @@ const OneOfAsSingleInputField: React.FC<FieldProps<string>> = ({
         value={formData ?? ""}
         onChange={(e) => {
           const val = e.target.value;
-          onChange(val);
+          onChange(val, fieldPathId.path);
         }}
         placeholder={schema.default as string | undefined}
       />

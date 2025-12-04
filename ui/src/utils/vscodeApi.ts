@@ -83,7 +83,6 @@ class VSCodeApiSingleton {
     }
 
     this.api.postMessage(message);
-    console.log('VSCodeApiSingleton: Message sent:', message);
   }
 
   public reset(): void {

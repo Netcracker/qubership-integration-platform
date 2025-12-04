@@ -9,41 +9,43 @@ import {
   BodyFormEntry,
   createEmptyBodyFormEntry,
   toBodyFormData,
-} from "./bodyFormDataUtils.ts";
+} from "../../../../misc/body-form-data-utils.ts";
 
 const MIME_TYPE_OPTIONS = [
-  { label: 'Inherit', value: undefined },
-  { label: 'None', value: 'None' },
-  { label: 'multipart/form-data', value: 'multipart/form-data' },
-  { label: 'application/x-www-form-urlencoded', value: 'application/x-www-form-urlencoded' },
+  { label: "Inherit", value: undefined },
+  { label: "None", value: "None" },
+  { label: "multipart/form-data", value: "multipart/form-data" },
+  {
+    label: "application/x-www-form-urlencoded",
+    value: "application/x-www-form-urlencoded",
+  },
 ];
 
-const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, FormContext>> = ({
-  formData,
-  onChange,
-  formContext,
-  disabled,
-  readonly,
-}) => {
+const BodyMimeTypeField: React.FC<
+  FieldProps<string | undefined, RJSFSchema, FormContext>
+> = ({ formData, onChange, disabled, readonly, fieldPathId, registry }) => {
   const bodyMimeType = formData;
+  const formContext = registry.formContext;
 
   const bodyFormData = useMemo(
-    () => toBodyFormData(formContext?.bodyFormData),
-    [formContext?.bodyFormData],
+    () => toBodyFormData(formContext.bodyFormData),
+    [formContext.bodyFormData],
   );
 
-  const [collapsed, setCollapsed] = useState(bodyFormData.length === 0);
+  const [collapsed, setCollapsed] = useState(formData?.length === 0);
 
   const updateBodyFormData = (nextFormData: BodyFormEntry[]) => {
-    formContext?.updateContext?.({ bodyFormData: nextFormData });
+    formContext.updateContext?.({
+      bodyFormData: nextFormData,
+    });
   };
 
   const handleMimeTypeChange = (value: string | undefined) => {
-    onChange(value);
+    onChange(value, fieldPathId.path);
 
     // Clear form data if switching to None or Inherit
-    if (!value || value === 'None') {
-      formContext?.updateContext?.({ bodyFormData: [] });
+    if (!value || value === "None") {
+      formContext.updateContext?.({ bodyFormData: [] });
     }
   };
 
@@ -58,15 +60,19 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
     updateBodyFormData(newFormData);
   };
 
-  const handleFieldChange = (index: number, field: keyof BodyFormEntry, value: string) => {
+  const handleFieldChange = (
+    index: number,
+    field: keyof BodyFormEntry,
+    value: string,
+  ) => {
     const newFormData = [...bodyFormData];
     const entry = newFormData[index] ?? createEmptyBodyFormEntry();
     newFormData[index] = { ...entry, [field]: value };
     updateBodyFormData(newFormData);
   };
 
-  const showTable = Boolean(bodyMimeType && bodyMimeType !== 'None');
-  const isMultipartFormData = bodyMimeType === 'multipart/form-data';
+  const showTable = Boolean(bodyMimeType && bodyMimeType !== "None");
+  const isMultipartFormData = bodyMimeType === "multipart/form-data";
 
   return (
     <div>
@@ -92,10 +98,14 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
           <div className={styles.tableHeader}>
             <div
               className={styles.tableHeaderLeft}
-              onClick={() => setCollapsed(s => !s)}
+              onClick={() => setCollapsed((s) => !s)}
             >
               <span className={styles.iconWrapper}>
-                {collapsed ? <OverridableIcon name="right" /> : <OverridableIcon name="down" />}
+                {collapsed ? (
+                  <OverridableIcon name="right" />
+                ) : (
+                  <OverridableIcon name="down" />
+                )}
               </span>
               <span>Form Data</span>
               <span className={styles.badge}>{bodyFormData.length}</span>
@@ -112,8 +122,8 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
             </div>
           </div>
 
-          {!collapsed && (
-            bodyFormData.length === 0 ? (
+          {!collapsed &&
+            (bodyFormData.length === 0 ? (
               <div className={styles.noEntries}>
                 No entries. Click <b>+</b> to add.
               </div>
@@ -122,8 +132,12 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
                 <thead>
                   <tr>
                     <th className={styles.th}>Name</th>
-                    {isMultipartFormData && <th className={styles.th}>MIME Type</th>}
-                    {isMultipartFormData && <th className={styles.th}>File Name</th>}
+                    {isMultipartFormData && (
+                      <th className={styles.th}>MIME Type</th>
+                    )}
+                    {isMultipartFormData && (
+                      <th className={styles.th}>File Name</th>
+                    )}
                     <th className={styles.th}>Value</th>
                     <th className={styles.th}></th>
                   </tr>
@@ -134,7 +148,9 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
                       <td className={styles.td}>
                         <Input
                           value={entry.name}
-                          onChange={(e) => handleFieldChange(idx, 'name', e.target.value)}
+                          onChange={(e) =>
+                            handleFieldChange(idx, "name", e.target.value)
+                          }
                           disabled={disabled || readonly}
                           placeholder="Name"
                         />
@@ -143,7 +159,9 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
                         <td className={styles.td}>
                           <Input
                             value={entry.mimeType}
-                            onChange={(e) => handleFieldChange(idx, 'mimeType', e.target.value)}
+                            onChange={(e) =>
+                              handleFieldChange(idx, "mimeType", e.target.value)
+                            }
                             disabled={disabled || readonly}
                             placeholder="text/plain"
                           />
@@ -153,7 +171,9 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
                         <td className={styles.td}>
                           <Input
                             value={entry.fileName}
-                            onChange={(e) => handleFieldChange(idx, 'fileName', e.target.value)}
+                            onChange={(e) =>
+                              handleFieldChange(idx, "fileName", e.target.value)
+                            }
                             disabled={disabled || readonly}
                             placeholder="File Name"
                           />
@@ -162,7 +182,9 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
                       <td className={styles.td}>
                         <Input
                           value={entry.value}
-                          onChange={(e) => handleFieldChange(idx, 'value', e.target.value)}
+                          onChange={(e) =>
+                            handleFieldChange(idx, "value", e.target.value)
+                          }
                           disabled={disabled || readonly}
                           placeholder="Value"
                         />
@@ -181,8 +203,7 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
                   ))}
                 </tbody>
               </table>
-            )
-          )}
+            ))}
         </div>
       )}
     </div>
@@ -190,4 +211,3 @@ const BodyMimeTypeField: React.FC<FieldProps<string | undefined, RJSFSchema, For
 };
 
 export default BodyMimeTypeField;
-

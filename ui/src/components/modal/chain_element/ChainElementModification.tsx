@@ -36,17 +36,17 @@ import JsonField from "./field/JsonField.tsx";
 import ServiceField from "./field/ServiceField.tsx";
 import SpecificationField from "./field/SpecificationField.tsx";
 import SystemOperationField from "./field/SystemOperationField.tsx";
-import CustomOneOfField from "./field/CustomOneOfField.tsx";
 import EnhancedPatternPropertiesField from "./field/EnhancedPatternPropertiesField.tsx";
 import BodyMimeTypeField from "./field/BodyMimeTypeField.tsx";
-import type { BodyFormEntry } from "./field/bodyFormDataUtils.ts";
-import { toBodyFormData } from "./field/bodyFormDataUtils.ts";
+import type { BodyFormEntry } from "../../../misc/body-form-data-utils.ts";
+import { toBodyFormData } from "../../../misc/body-form-data-utils.ts";
 import { useModalsContext } from "../../../Modals.tsx";
 import { UnsavedChangesModal } from "../UnsavedChangesModal.tsx";
 import {
   isKafkaProtocol,
   normalizeProtocol,
 } from "../../../misc/protocol-utils.ts";
+import CustomOneOfField from "./field/CustomOneOfField.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -70,11 +70,14 @@ const validateKafkaGroupId = (
   elementType?: string,
 ) => {
   if (!properties || elementType !== "async-api-trigger") return;
-  if (!isKafkaProtocol(properties["integrationOperationProtocolType"])) return;
+  if (
+    !isKafkaProtocol(properties["integrationOperationProtocolType"] as string)
+  )
+    return;
 
-  const asyncProperties = properties[
-    "integrationOperationAsyncProperties"
-  ] as Record<string, unknown> | undefined;
+  const asyncProperties = properties["integrationOperationAsyncProperties"] as
+    | Record<string, unknown>
+    | undefined;
   const groupIdValue = asyncProperties?.["groupId"];
   const groupId = typeof groupIdValue === "string" ? groupIdValue.trim() : "";
   if (!groupId) {
@@ -117,7 +120,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   onSubmit,
   onClose,
 }) => {
-  console.log(`[ChainElementModification] Component RENDER for element: ${elementId}, type: ${node.data.elementType}`);
 
   const { isLoading: libraryElementIsLoading, libraryElement } =
     useLibraryElement(node.data.elementType);
@@ -138,23 +140,26 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     setTitle(constructTitle(`${node.data.label}`, libraryElement?.title));
   }, [libraryElement, node]);
 
-  const enrichProperties = useCallback((
-    targetProperties: Record<string, unknown>,
-    sourceProperties: Record<string, unknown>,
-  ): Record<string, unknown> => {
-    const result = { ...targetProperties };
-    Object.entries(sourceProperties).forEach(([key, value]) => {
-      if (key === "integrationOperationProtocolType") {
-        value = normalizeProtocol(value);
-      }
-      if (value === undefined) {
-        delete result[key];
-      } else {
-        result[key] = value === null ? undefined : value;
-      }
-    });
-    return result;
-  }, []);
+  const enrichProperties = useCallback(
+    (
+      targetProperties: Record<string, unknown>,
+      sourceProperties: Record<string, unknown>,
+    ): Record<string, unknown> => {
+      const result = { ...targetProperties };
+      Object.entries(sourceProperties).forEach(([key, value]) => {
+        if (key === "integrationOperationProtocolType") {
+          value = normalizeProtocol(value as string);
+        }
+        if (value === undefined) {
+          delete result[key];
+        } else {
+          result[key] = value === null ? undefined : value;
+        }
+      });
+      return result;
+    },
+    [],
+  );
 
   const schemaModules = useMemo(
     () =>
@@ -189,32 +194,45 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       };
       setFormData(initialFormData);
 
-      const formProperties = initialFormData.properties as Record<string, unknown>;
+      const formProperties = initialFormData.properties as Record<
+        string,
+        unknown
+      >;
 
       setFormContext({
-        integrationOperationId: getOptionalString(formProperties.integrationOperationId),
+        integrationOperationId: getOptionalString(
+          formProperties.integrationOperationId,
+        ),
         integrationOperationProtocolType: normalizeProtocol(
-          formProperties.integrationOperationProtocolType,
+          formProperties.integrationOperationProtocolType as string,
         ),
         elementType: node.data.elementType,
-        integrationSystemId: getOptionalString(formProperties.integrationSystemId),
+        integrationSystemId: getOptionalString(
+          formProperties.integrationSystemId,
+        ),
         systemType: getOptionalString(formProperties.systemType),
-        integrationSpecificationGroupId:
-          getOptionalString(formProperties.integrationSpecificationGroupId),
+        integrationSpecificationGroupId: getOptionalString(
+          formProperties.integrationSpecificationGroupId,
+        ),
         integrationSpecificationId: getOptionalString(
           formProperties.integrationSpecificationId,
         ),
-        integrationOperationPath: getOptionalString(formProperties.integrationOperationPath),
+        integrationOperationPath: getOptionalString(
+          formProperties.integrationOperationPath,
+        ),
         integrationOperationMethod: getOptionalString(
           formProperties.integrationOperationMethod,
         ),
         bodyFormData: toBodyFormData(formProperties.bodyFormData),
         synchronousGrpcCall: Boolean(formProperties.synchronousGrpcCall),
         updateContext: (updatedProperties: Record<string, unknown>) => {
-          if (updatedProperties.integrationOperationProtocolType !== undefined) {
-            updatedProperties.integrationOperationProtocolType = normalizeProtocol(
-              updatedProperties.integrationOperationProtocolType
-            );
+          if (
+            updatedProperties.integrationOperationProtocolType !== undefined
+          ) {
+            updatedProperties.integrationOperationProtocolType =
+              normalizeProtocol(
+                updatedProperties.integrationOperationProtocolType as string,
+              );
           }
           setFormContext((prevContext) =>
             enrichProperties(prevContext, updatedProperties),
@@ -238,7 +256,13 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         err,
       );
     }
-  }, [node.data, node.id, notificationService, schemaModules, enrichProperties]);
+  }, [
+    node.data,
+    node.id,
+    notificationService,
+    schemaModules,
+    enrichProperties,
+  ]);
 
   const handleClose = useCallback(() => {
     closeContainingModal();
@@ -317,60 +341,67 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     handleClose,
   ]);
 
-  const collectTabFields = useCallback((
-    schema: JSONSchema7,
-    path: string[] = [],
-    acc: TabField[] = [],
-  ): TabField[] => {
-    const currentPath = path.join(".");
+  const collectTabFields = useCallback(
+    (
+      schema: JSONSchema7,
+      path: string[] = [],
+      acc: TabField[] = [],
+    ): TabField[] => {
+      const currentPath = path.join(".");
 
-    if (schema.properties && typeof schema.properties === "object") {
-      for (const [key, subSchema] of Object.entries(schema.properties)) {
-        collectTabFields(subSchema as JSONSchema7, [...path, key], acc);
+      if (schema.properties && typeof schema.properties === "object") {
+        for (const [key, subSchema] of Object.entries(schema.properties)) {
+          collectTabFields(subSchema as JSONSchema7, [...path, key], acc);
+        }
       }
-    }
 
-    const combinators = ["allOf", "anyOf", "oneOf"] as const;
-    for (const keyword of combinators) {
-      if (Array.isArray(schema[keyword])) {
-        for (const subSchema of schema[keyword]) {
-          if (typeof subSchema === "object" && subSchema !== null) {
-            collectTabFields(subSchema, path, acc);
+      const combinators = ["allOf", "anyOf", "oneOf"] as const;
+      for (const keyword of combinators) {
+        if (Array.isArray(schema[keyword])) {
+          for (const subSchema of schema[keyword]) {
+            if (typeof subSchema === "object" && subSchema !== null) {
+              collectTabFields(subSchema, path, acc);
+            }
           }
         }
       }
-    }
 
-    if (schema.type === "array" && schema.items) {
-      if (Array.isArray(schema.items)) {
-        for (let i = 0; i < schema.items.length; i++) {
+      if (schema.type === "array" && schema.items) {
+        if (Array.isArray(schema.items)) {
+          for (let i = 0; i < schema.items.length; i++) {
+            collectTabFields(
+              schema.items[i] as JSONSchema7,
+              [...path, `${i}`],
+              acc,
+            );
+          }
+        } else {
           collectTabFields(
-            schema.items[i] as JSONSchema7,
-            [...path, `${i}`],
+            schema.items as JSONSchema7,
+            [...path, "items"],
             acc,
           );
         }
-      } else {
-        collectTabFields(schema.items as JSONSchema7, [...path, "items"], acc);
       }
-    }
 
-    if (schema.if) {
-      if (schema.then) {
-        collectTabFields(schema.then as JSONSchema7, path, acc);
+      if (schema.if) {
+        if (schema.then) {
+          collectTabFields(schema.then as JSONSchema7, path, acc);
+        }
+        if (schema.else) {
+          collectTabFields(schema.else as JSONSchema7, path, acc);
+        }
       }
-      if (schema.else) {
-        collectTabFields(schema.else as JSONSchema7, path, acc);
+
+      if (path.length > 0) {
+        const tab = pathToTabMap[currentPath] || "Parameters";
+        acc.push({ tab, path, schema });
       }
-    }
 
-    if (path.length > 0) {
-      const tab = pathToTabMap[currentPath] || "Parameters";
-      acc.push({ tab, path, schema });
-    }
-
-    return acc;
-  }, []);
+      return acc;
+    },
+    [],
+  );
 
   const tabFields = useMemo(() => {
     if (!schema) return [];
@@ -393,7 +424,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       const newContextProperties = {
         ...formContext,
         integrationOperationProtocolType: normalizeProtocol(
-          formContext?.integrationOperationProtocolType
+          formContext?.integrationOperationProtocolType as string,
         ),
         updateContext: undefined,
       };
@@ -403,7 +434,10 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       );
 
       // Only update if properties actually changed
-      if (JSON.stringify(enrichedProps) === JSON.stringify(prevFormData.properties)) {
+      if (
+        JSON.stringify(enrichedProps) ===
+        JSON.stringify(prevFormData.properties)
+      ) {
         return prevFormData;
       }
 
@@ -414,94 +448,99 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     });
   }, [formContext, enrichProperties]);
 
-  const applyHiddenUiSchema = useCallback((target: UiSchema, hidden: UiSchema) => {
-    for (const key in hidden) {
-      if (
-        hidden[key] &&
-        typeof hidden[key] === "object" &&
-        !Array.isArray(hidden[key])
-      ) {
-        if (!target[key]) target[key] = {};
-        applyHiddenUiSchema(target[key] as UiSchema, hidden[key] as UiSchema);
-      } else {
-        target[key] = hidden[key] as UiSchema;
+  const applyHiddenUiSchema = useCallback(
+    (target: UiSchema, hidden: UiSchema) => {
+      for (const key in hidden) {
+        if (
+          hidden[key] &&
+          typeof hidden[key] === "object" &&
+          !Array.isArray(hidden[key])
+        ) {
+          if (!target[key]) target[key] = {};
+          applyHiddenUiSchema(target[key] as UiSchema, hidden[key] as UiSchema);
+        } else {
+          target[key] = hidden[key] as UiSchema;
+        }
       }
-    }
-  }, []);
+    },
+    [],
+  );
 
-  const buildUiSchemaForTab = useCallback((
-    tabFields: TabField[],
-    tab: string,
-    schema: JSONSchema7,
-    initialUiSchema: UiSchema,
-  ): UiSchema => {
-    const hiddenUiSchema: UiSchema = {};
+  const buildUiSchemaForTab = useCallback(
+    (
+      tabFields: TabField[],
+      tab: string,
+      schema: JSONSchema7,
+      initialUiSchema: UiSchema,
+    ): UiSchema => {
+      const hiddenUiSchema: UiSchema = {};
 
-    function setPath(obj: UiSchema, path: string[], value: object) {
-      let curr = obj;
-      for (let i = 0; i < path.length - 1; i++) {
-        curr[path[i]] = (curr[path[i]] as UiSchema) || {};
-        curr = (curr[path[i]] as UiSchema) || {};
+      function setPath(obj: UiSchema, path: string[], value: object) {
+        let curr = obj;
+        for (let i = 0; i < path.length - 1; i++) {
+          curr[path[i]] = (curr[path[i]] as UiSchema) || {};
+          curr = (curr[path[i]] as UiSchema) || {};
+        }
+        curr[path[path.length - 1]] = value;
       }
-      curr[path[path.length - 1]] = value;
-    }
 
-    const visiblePaths = tabFields
-      .filter((f) => f.tab === tab)
-      .map((f) => f.path.map((p) => ["properties", p]).flat());
+      const visiblePaths = tabFields
+        .filter((f) => f.tab === tab)
+        .map((f) => f.path.map((p) => ["properties", p]).flat());
 
-    function buildHiddenUiSchema(schema: JSONSchema7, path: string[] = []) {
-      const combinators = ["allOf", "anyOf", "oneOf"] as const;
-      for (const keyword of combinators) {
-        if (Array.isArray(schema[keyword])) {
-          for (const subSchema of schema[keyword]) {
-            if (typeof subSchema === "object" && subSchema !== null) {
-              buildHiddenUiSchema(subSchema, path);
+      function buildHiddenUiSchema(schema: JSONSchema7, path: string[] = []) {
+        const combinators = ["allOf", "anyOf", "oneOf"] as const;
+        for (const keyword of combinators) {
+          if (Array.isArray(schema[keyword])) {
+            for (const subSchema of schema[keyword]) {
+              if (typeof subSchema === "object" && subSchema !== null) {
+                buildHiddenUiSchema(subSchema, path);
+              }
+            }
+          }
+        }
+
+        if (schema.if) {
+          if (schema.then) {
+            buildHiddenUiSchema(schema.then as JSONSchema7, path);
+          }
+          if (schema.else) {
+            buildHiddenUiSchema(schema.else as JSONSchema7, path);
+          }
+        }
+
+        if (schema && schema.properties) {
+          for (const key of Object.keys(schema.properties)) {
+            const currentPath = [...path, key];
+            const fullPath = currentPath.map((p) => ["properties", p]).flat();
+
+            const isVisible = visiblePaths.some(
+              (v) => v.join(".") === fullPath.join("."),
+            );
+
+            const subSchema = schema.properties[key];
+            const isObjectSchema =
+              typeof subSchema === "object" &&
+              "type" in subSchema &&
+              subSchema.type === "object";
+
+            if ((isObjectSchema && isVisible) || key === "properties") {
+              buildHiddenUiSchema(subSchema as JSONSchema7, currentPath);
+            } else if (!isVisible) {
+              setPath(hiddenUiSchema, currentPath, { "ui:widget": "hidden" });
             }
           }
         }
       }
 
-      if (schema.if) {
-        if (schema.then) {
-          buildHiddenUiSchema(schema.then as JSONSchema7, path);
-        }
-        if (schema.else) {
-          buildHiddenUiSchema(schema.else as JSONSchema7, path);
-        }
-      }
+      buildHiddenUiSchema(schema);
 
-      if (schema && schema.properties) {
-        for (const key of Object.keys(schema.properties)) {
-          const currentPath = [...path, key];
-          const fullPath = currentPath.map((p) => ["properties", p]).flat();
-
-          const isVisible = visiblePaths.some(
-            (v) => v.join(".") === fullPath.join("."),
-          );
-
-          const subSchema = schema.properties[key];
-          const isObjectSchema = typeof subSchema === 'object' &&
-                                 'type' in subSchema && subSchema.type === "object";
-
-          if ((isObjectSchema && isVisible) || key === "properties") {
-            buildHiddenUiSchema(
-              subSchema as JSONSchema7,
-              currentPath,
-            );
-          } else if (!isVisible) {
-            setPath(hiddenUiSchema, currentPath, { "ui:widget": "hidden" });
-          }
-        }
-      }
-    }
-
-    buildHiddenUiSchema(schema);
-
-    const finalUiSchema: UiSchema = structuredClone(initialUiSchema || {});
-    applyHiddenUiSchema(finalUiSchema, hiddenUiSchema);
-    return finalUiSchema;
-  }, [applyHiddenUiSchema]);
+      const finalUiSchema: UiSchema = structuredClone(initialUiSchema || {});
+      applyHiddenUiSchema(finalUiSchema, hiddenUiSchema);
+      return finalUiSchema;
+    },
+    [applyHiddenUiSchema],
+  );
 
   const widgets: RegistryWidgetsType = {
     stringAsMultipleSelectWidget: StringAsMultipleSelectWidget,
@@ -511,40 +550,46 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     textarea: DebouncedTextareaWidget,
   };
 
-  const uiSchemaForTab = useCallback((initialUiSchema: UiSchema, activeKey?: string) => {
-    const ui = structuredClone(initialUiSchema || {});
+  const uiSchemaForTab = useCallback(
+    (initialUiSchema: UiSchema, activeKey?: string) => {
+      const ui = structuredClone(initialUiSchema || {});
 
-    if (!ui.properties || typeof ui.properties !== "object") {
-      ui.properties = {};
-    }
+      if (!ui.properties || typeof ui.properties !== "object") {
+        ui.properties = {};
+      }
 
-    const props = ui.properties as Record<string, unknown>;
+      const props = ui.properties as Record<string, unknown>;
 
-    if (node.data.elementType === "checkpoint") {
-      props["httpMethodRestrict"] = { "ui:widget": "hidden" };
-    }
+      if (node.data.elementType === "checkpoint") {
+        props["httpMethodRestrict"] = { "ui:widget": "hidden" };
+      }
 
-     if (activeKey && activeKey !== "Endpoint") {
-      props["ui:fieldReplacesAnyOrOneOf"] = true;
-      props["ui:field"] = "hidden";
-    } else if (activeKey === "Endpoint" && node.data.elementType === "service-call") {
-      props["ui:fieldReplacesAnyOrOneOf"] = true;
-      // eslint-disable-next-line react/prop-types
-      delete props["ui:field"];
-    } else {
-      // eslint-disable-next-line react/prop-types
-      delete props["ui:fieldReplacesAnyOrOneOf"];
-      // eslint-disable-next-line react/prop-types
-      delete props["ui:field"];
-    }
+      if (activeKey && activeKey !== "Endpoint") {
+        props["ui:fieldReplacesAnyOrOneOf"] = true;
+        props["ui:field"] = "hidden";
+      } else if (
+        activeKey === "Endpoint" &&
+        node.data.elementType === "service-call"
+      ) {
+        props["ui:fieldReplacesAnyOrOneOf"] = true;
+        // eslint-disable-next-line react/prop-types
+        delete props["ui:field"];
+      } else {
+        // eslint-disable-next-line react/prop-types
+        delete props["ui:fieldReplacesAnyOrOneOf"];
+        // eslint-disable-next-line react/prop-types
+        delete props["ui:field"];
+      }
 
-    ui.properties = props;
+      ui.properties = props;
 
-    return ui;
-  }, [node.data.elementType]);
+      return ui;
+    },
+    [node.data.elementType],
+  );
 
   const uiSchema = useMemo(() => {
-    if (!schema) return [];
+    if (!schema) return undefined;
 
     const baseUi: UiSchema = uiSchemaForTab(INITIAL_UI_SCHEMA, activeKey);
     return buildUiSchemaForTab(tabFields, activeKey ?? "", schema, baseUi);
@@ -598,9 +643,11 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             uiSchema={uiSchema}
             transformErrors={(errors) => {
               // Suppress oneOf error when protocol is grpc (no matching oneOf branch by design)
-              const proto = normalizeProtocol(formContext?.integrationOperationProtocolType);
-              if (proto === 'grpc') {
-                return errors.filter((e) => e.name !== 'oneOf');
+              const proto = normalizeProtocol(
+                formContext?.integrationOperationProtocolType as string,
+              );
+              if (proto === "grpc") {
+                return errors.filter((e) => e.name !== "oneOf");
               }
               return errors;
             }}
@@ -609,21 +656,18 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               allOf: "populateDefaults",
               mergeDefaultsIntoFormData: "useFormDataIfPresent",
             }}
-            formContext={
-              formContext
-            }
+            formContext={formContext}
             templates={{
               ObjectFieldTemplate: CustomObjectFieldTemplate,
               ErrorListTemplate,
             }}
             fields={{
-              OneOfField: CustomOneOfField,
+              OneOfField: CustomOneOfField,  //Rewrite default oneOfField
               oneOfAsSingleInputField: OneOfAsSingleInputField,
               anyOfAsSingleSelectField: AnyOfAsSingleSelectField,
               patternPropertiesField: PatternPropertiesField,
               enhancedPatternPropertiesField: EnhancedPatternPropertiesField,
               mappingField: MappingField,
-              // @ts-expect-error - CustomArrayField has incompatible prop types
               customArrayField: CustomArrayField,
               scriptField: ScriptField,
               jsonField: JsonField,

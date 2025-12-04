@@ -1,28 +1,24 @@
-type AnyProtocol = unknown;
-
-const normalizeProtocol = (value: AnyProtocol): string | undefined => {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed.toLowerCase() : undefined;
+const normalizeProtocol = (value: string): string => {
+  return value?.trim().toLowerCase();
 };
 
-const matchesProtocol = (value: AnyProtocol, candidates: string[]) => {
+const matchesProtocol = (value: string, candidates: string[]) => {
   const normalized = normalizeProtocol(value);
   return normalized ? candidates.includes(normalized) : false;
 };
 
-const isKafkaProtocol = (value: AnyProtocol) => matchesProtocol(value, ["kafka"]);
+const isKafkaProtocol = (value: string) => matchesProtocol(value, ["kafka"]);
 
-const isAmqpProtocol = (value: AnyProtocol) =>
+const isAmqpProtocol = (value: string) =>
   matchesProtocol(value, ["amqp", "rabbit"]);
 
-const isHttpProtocol = (value: AnyProtocol) =>
+const isHttpProtocol = (value: string) =>
   matchesProtocol(value, ["http", "soap"]);
 
-const isAsyncProtocol = (value: AnyProtocol) =>
+const isAsyncProtocol = (value: string) =>
   isKafkaProtocol(value) || isAmqpProtocol(value);
 
-const isGrpcProtocol = (value: AnyProtocol) => matchesProtocol(value, ["grpc"]);
+const isGrpcProtocol = (value: string) => matchesProtocol(value, ["grpc"]);
 
 export {
   normalizeProtocol,

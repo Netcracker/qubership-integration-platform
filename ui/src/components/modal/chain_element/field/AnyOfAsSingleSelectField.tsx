@@ -10,6 +10,7 @@ const AnyOfAsSingleSelectField: React.FC<FieldProps<string>> = ({
   schema,
   uiSchema,
   required,
+  fieldPathId,
 }) => {
   const title = uiSchema?.["ui:title"] ?? schema?.title ?? "";
 
@@ -42,7 +43,7 @@ const AnyOfAsSingleSelectField: React.FC<FieldProps<string>> = ({
   }
 
   const handleChange = (selected: string[]) => {
-    onChange(selected[0] ?? "");
+    onChange(selected[0] ?? "", fieldPathId.path);
   };
 
   return (

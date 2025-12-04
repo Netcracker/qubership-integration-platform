@@ -24,8 +24,8 @@ const SpecificationField: React.FC<
   );
   const [specificationGroupId, setSpecificationGroupId] = useState<
     string | undefined
-  >(props.formContext?.integrationSpecificationGroupId);
-  const systemId = props.formContext!.integrationSystemId;
+  >(props.registry.formContext?.integrationSpecificationGroupId);
+  const systemId = props.registry.formContext?.integrationSystemId as string;
 
   const buildSpecificationOptions = (
     specifications: Specification[] | undefined,
@@ -110,9 +110,9 @@ const SpecificationField: React.FC<
         integrationOperationMethod: null,
       };
 
-      props.formContext!.updateContext(context);
+      props.registry.formContext.updateContext?.(context);
     },
-    [props.formContext, specIdToGroupIdMap],
+    [props.registry.formContext, specIdToGroupIdMap],
   );
 
   const onNavigationButtonClick = useCallback(() => {

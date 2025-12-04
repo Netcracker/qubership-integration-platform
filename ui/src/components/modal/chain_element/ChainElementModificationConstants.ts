@@ -6,8 +6,6 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
   },
   "ui:order": ["*", "name", "description"],
   properties: {
-    "ui:fieldReplacesAnyOrOneOf": true,
-    "ui:field": "hidden",
     "ui:order": [
       "contextPath",
       "httpBinding",

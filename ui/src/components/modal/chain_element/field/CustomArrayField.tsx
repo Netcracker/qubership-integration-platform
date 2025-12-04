@@ -10,6 +10,7 @@ import { FormContext } from "../ChainElementModification.tsx";
 import styles from "./CustomArrayField.module.css";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import { useVSCodeTheme } from "../../../../hooks/useVSCodeTheme.ts";
+import { FieldProps, RJSFSchema } from "@rjsf/utils";
 
 type BaseItem = {
   id: string;
@@ -46,29 +47,25 @@ const defaultCodeOptions = [
   { value: "Default" },
 ];
 
-type Props = {
-  name?: string;
-  formData?: ArrayItem[];
-  onChange: (data: ArrayItem[]) => void;
-  disabled?: boolean;
-  readonly?: boolean;
-  formContext?: FormContext;
-};
-
-const CustomArrayField: React.FC<Props> = ({
+const CustomArrayField: React.FC<
+  FieldProps<ArrayItem[], RJSFSchema, FormContext>
+> = ({
   name,
   formData = [],
   onChange,
   disabled,
   readonly,
-  formContext,
+  registry,
+  fieldPathId,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(
     formData.length > 0 ? 0 : null,
   );
 
+  const formContext = registry.formContext;
+
   const readOnlyMode = useMemo(() => {
-    if (formContext?.elementType === "async-api-trigger") {
+    if (formContext.elementType === "async-api-trigger") {
       return true;
     }
 
@@ -77,7 +74,7 @@ const CustomArrayField: React.FC<Props> = ({
 
   const [availableCodes, setAvailableCodes] = useState<{ value: string }[]>(
     readOnlyMode ||
-      !isHttpProtocol(formContext?.integrationOperationProtocolType)
+      !isHttpProtocol(formContext?.integrationOperationProtocolType as string)
       ? []
       : defaultCodeOptions,
   );
@@ -90,14 +87,18 @@ const CustomArrayField: React.FC<Props> = ({
   const { isDark, themeData } = useVSCodeTheme();
 
   const themeColors = useMemo(() => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
+    if (typeof window === "undefined" || typeof document === "undefined") {
       return {
-        activeBackground: '#f0f6ff',
-        activeBorder: '#0b66ff',
+        activeBackground: "#f0f6ff",
+        activeBorder: "#0b66ff",
       };
     }
     const style = getComputedStyle(document.documentElement);
-    const getColorFromThemeOrCss = (themeKey: string, cssVar: string, fallback: string): string => {
+    const getColorFromThemeOrCss = (
+      themeKey: string,
+      cssVar: string,
+      fallback: string,
+    ): string => {
       if (themeData?.colors?.[themeKey]) {
         return themeData.colors[themeKey];
       }
@@ -106,22 +107,22 @@ const CustomArrayField: React.FC<Props> = ({
     };
     return {
       activeBackground: getColorFromThemeOrCss(
-        'list.activeSelectionBackground',
-        '--vscode-list-activeSelectionBackground',
+        "list.activeSelectionBackground",
+        "--vscode-list-activeSelectionBackground",
         getColorFromThemeOrCss(
-          'list.hoverBackground',
-          '--vscode-list-hoverBackground',
-          isDark ? '#264f78' : '#f0f6ff'
-        )
+          "list.hoverBackground",
+          "--vscode-list-hoverBackground",
+          isDark ? "#264f78" : "#f0f6ff",
+        ),
       ),
       activeBorder: getColorFromThemeOrCss(
-        'focusBorder',
-        '--vscode-focusBorder',
+        "focusBorder",
+        "--vscode-focusBorder",
         getColorFromThemeOrCss(
-          'button.background',
-          '--vscode-button-background',
-          isDark ? '#007acc' : '#0b66ff'
-        )
+          "button.background",
+          "--vscode-button-background",
+          isDark ? "#007acc" : "#0b66ff",
+        ),
       ),
     };
   }, [isDark, themeData]);
@@ -191,7 +192,8 @@ const CustomArrayField: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [operationId, readOnlyMode, availableCodes, formData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [operationId, readOnlyMode]);
 
   const handleAdd = () => {
     if (!selectedCode) return;
@@ -219,7 +221,7 @@ const CustomArrayField: React.FC<Props> = ({
     }
 
     const newArray = [...formData, newItem];
-    onChange(newArray);
+    onChange(newArray, fieldPathId.path);
     setSelectedIndex(newArray.length - 1);
     setSelectedCode(undefined);
     setAvailableCodes(
@@ -236,7 +238,7 @@ const CustomArrayField: React.FC<Props> = ({
     ]);
     const newArray = [...formData];
     newArray.splice(index, 1);
-    onChange(newArray);
+    onChange(newArray, fieldPathId.path);
 
     if (selectedIndex === index) {
       setSelectedIndex(newArray.length > 0 ? 0 : null);
@@ -324,6 +326,7 @@ const CustomArrayField: React.FC<Props> = ({
                           ? ({ ...item, type: value } as object)
                           : (item as object),
                       ) as [],
+                      fieldPathId.path,
                     );
                   }}
                   options={actionOptions}
@@ -336,8 +339,8 @@ const CustomArrayField: React.FC<Props> = ({
                 <Script
                   value={formData[selectedIndex].script ?? ""}
                   onChange={(value) => {
-                    formData[selectedIndex].script = value;
-                    onChange(formData);
+                    formData[selectedIndex].script = value as string;
+                    onChange(formData, fieldPathId.path);
                   }}
                 />
               </div>
@@ -367,8 +370,9 @@ const CustomArrayField: React.FC<Props> = ({
                       : MappingUtil.emptyMapping()
                   }
                   onChange={(value) => {
-                    formData[selectedIndex].mappingDescription = value;
-                    onChange(formData);
+                    formData[selectedIndex].mappingDescription =
+                      value as MappingDescription;
+                    onChange(formData, fieldPathId.path);
                   }}
                 />
               </div>

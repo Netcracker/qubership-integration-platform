@@ -1,4 +1,4 @@
-import { IconOverrides } from "../dist-lib/types";
+import { IconOverrides } from "./icons/IconProvider";
 
 let appNameValue: string = import.meta.env.VITE_API_APP;
 let appIcons: IconOverrides = {};
