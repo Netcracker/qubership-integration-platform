@@ -14,6 +14,50 @@ const allIcons = {
   ...elementIcons,
 };
 
+function normalizeSvgForTheme(svgString: string): string {
+  let normalized = svgString;
+  
+  normalized = normalized.replace(
+    /fill\s*=\s*["']#[0-9a-fA-F]{3,8}["']/gi,
+    'fill="currentColor"'
+  );
+  
+  normalized = normalized.replace(
+    /stroke\s*=\s*["']#[0-9a-fA-F]{3,8}["']/gi,
+    'stroke="currentColor"'
+  );
+  
+  normalized = normalized.replace(
+    /style\s*=\s*["']([^"']*)["']/gi,
+    (_match: string, styleContent: string): string => {
+      const newStyle = styleContent
+        .replace(/fill:\s*#[0-9a-fA-F]{3,8}/gi, "fill: currentColor")
+        .replace(/stroke:\s*#[0-9a-fA-F]{3,8}/gi, "stroke: currentColor");
+      return `style="${newStyle}"`;
+    },
+  );
+  
+  const elementsWithFill = ["path", "circle", "rect", "ellipse", "polygon"];
+  elementsWithFill.forEach((tag: string) => {
+    const regex = new RegExp(`<${tag}([^>]*)>`, "gi");
+    normalized = normalized.replace(
+      regex,
+      (match: string, attributes: string): string => {
+        if (
+          !attributes.includes("fill=") &&
+          !attributes.includes("fill:") &&
+          !attributes.includes('fill="none"')
+        ) {
+          return `<${tag}${attributes} fill="currentColor">`;
+        }
+        return match;
+      },
+    );
+  });
+  
+  return normalized;
+}
+
 export interface IconContextType {
   icons: IconOverrides;
   setIcons: (icons: IconOverrides) => void;
@@ -78,7 +122,8 @@ export const OverridableIcon: React.FC<OverridableIconProps> = ({
   }
 
   if (typeof IconComponent === "string") {
-    const parsed = parse(IconComponent);
+    const normalizedSvg = normalizeSvgForTheme(IconComponent);
+    const parsed = parse(normalizedSvg);
     if (!React.isValidElement(parsed)) {
       console.warn("Parsed icon is not a React element:", parsed);
       return null;
