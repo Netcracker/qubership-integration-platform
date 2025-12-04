@@ -131,6 +131,43 @@ export async function getElements(fileUri: Uri, chainId: string): Promise<Elemen
     return await parseElements(fileUri, chain.content.elements as ElementSchema[], chain.id);
 }
 
+export async function getElementsByType(fileUri: Uri, chainId: string, elementType: string): Promise<Element[]> {
+    if (elementType === "reuse") {
+        const chain = await getMainChain(fileUri);
+        console.log("chain", chain);
+        return await parseElementsForType(fileUri, chain.content.elements as ElementSchema[], chain.id, elementType, chain.name);
+    }
+
+    if (elementType === "chain-trigger-2") {
+        const extensions = getExtensionsForUri(fileUri);
+        const chainFiles = await fileApi.findFiles(extensions.chain);
+        const result: Element[] = [];
+
+        for (const chainFile of chainFiles) {
+            try {
+                const chain = await fileApi.parseFile(chainFile) as ChainSchema;
+                if (!chain?.content?.elements) {
+                    continue;
+                }
+                const parsedElements = await parseElementsForType(
+                    chainFile,
+                    chain.content.elements as ElementSchema[],
+                    chain.id,
+                    elementType,
+                    chain.name
+                );
+                result.push(...parsedElements);
+            } catch (error) {
+                console.error(`Failed to parse chain file ${chainFile.path}`, error);
+            }
+        }
+
+        return result;
+    }
+
+    return [];
+}
+
 export async function getElement(fileUri: Uri, chainId: string, elementId: string): Promise<Element> {
     const chain = await getMainChain(fileUri);
     if (chain.id !== chainId) {
@@ -234,6 +271,19 @@ async function parseElements(fileUri: Uri, elements: ElementSchema[], chainId: s
         for (const element of elements) {
             const parsedElement = await parseElement(fileUri, element, chainId);
             result.push(parsedElement);
+            result.push(...getParsedElementChildren(parsedElement.children));
+        }
+    }
+    return result;
+}
+
+async function parseElementsForType(fileUri: Uri, elements: ElementSchema[], chainId: string, type: string, chainName: string): Promise<Element[]> {
+    const result: Element[] = [];
+
+    if (elements && elements.length) {
+        for (const element of elements.filter(elem => String(elem.type) === type)) {
+            const parsedElement = await parseElement(fileUri, element, chainId);
+            result.push({...parsedElement, chainName});
             result.push(...getParsedElementChildren(parsedElement.children));
         }
     }

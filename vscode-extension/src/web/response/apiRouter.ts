@@ -19,6 +19,7 @@ import {
     getChainFileUri,
     getConnections,
     getElements,
+    getElementsByType,
     getLibrary,
     getLibraryElementByType,
     getMaskedFields
@@ -57,7 +58,7 @@ import {
     handleReadSpecificationFileContent,
     QipFileType
 } from "./serviceApiUtils";
-import {VSCodeMessage, AppExtensionProps} from "@netcracker/qip-ui";
+import {VSCodeMessage, AppExtensionProps, IconOverrides} from "@netcracker/qip-ui";
 import { getAndClearNavigationStateValue } from "./navigationUtils";
 
 let lastWebviewPath: string | undefined = undefined;
@@ -99,7 +100,7 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
         case 'getChain': return await getChain(fileUri, message.payload);
         case 'openChainInNewTab': return await getChainFileUri(message.payload);
         case 'getElements': return await getElements(fileUri, message.payload);
-        case 'getElementsByType': return [];
+        case 'getElementsByType': return await getElementsByType(fileUri, message.payload.chainId, message.payload.elementType);
         case 'getConnections': return await getConnections(fileUri, message.payload);
         case 'getLibrary': return await getLibrary();
         case 'getLibraryElementByType': return await getLibraryElementByType(message.payload);
