@@ -19,12 +19,13 @@ package org.qubership.integration.platform.engine.service.deployment.processing.
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
-//import jakarta.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 import org.apache.camel.CamelContext;
 import org.apache.camel.component.jms.JmsComponent;
 import org.apache.camel.component.jms.JmsConfiguration;
 import org.apache.camel.spi.ThreadPoolProfile;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.engine.jms.weblogic.JndiDestinationResolver;
 import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecureThreadFactory;
 import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecurityBean;
 import org.qubership.integration.platform.engine.jms.weblogic.WeblogicSecurityInterceptStrategy;
@@ -34,8 +35,6 @@ import org.qubership.integration.platform.engine.model.deployment.update.Deploym
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.deployment.processing.ElementProcessingAction;
-//import org.springframework.jms.support.destination.JndiDestinationResolver;
-//import org.springframework.jndi.JndiObjectFactoryBean;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeRoutesCreated;
 import org.springframework.jndi.JndiTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -43,7 +42,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.Map;
 import java.util.Properties;
 import javax.naming.Context;
-//import javax.naming.NamingException;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
 
 @ApplicationScoped
 @OnBeforeRoutesCreated
@@ -80,7 +80,6 @@ public class JmsElementDependencyBinder extends ElementProcessingAction {
         ElementProperties elementProperties,
         DeploymentInfo deploymentInfo
     ) {
-        // FIXME
         String elementId = elementProperties.getElementId();
         Map<String, String> properties = elementProperties.getProperties();
         Properties environment = new Properties();
@@ -105,29 +104,23 @@ public class JmsElementDependencyBinder extends ElementProcessingAction {
             environment.put(Context.SECURITY_CREDENTIALS, password);
         }
 
-        JndiTemplate jmsJndiTemplate = new JndiTemplate(environment);
-
-        /*
-        JndiObjectFactoryBean jmsConnectionFactory = new JndiObjectFactoryBean();
-        jmsConnectionFactory.setJndiTemplate(jmsJndiTemplate);
-        jmsConnectionFactory.setJndiName(jmsConnectionFactoryName);
-        jmsConnectionFactory.setProxyInterface(ConnectionFactory.class);
-        jmsConnectionFactory.setLookupOnStartup(false);
-        jmsConnectionFactory.setExposeAccessContext(true);
+        Context initialContext;
+        ConnectionFactory connectionFactory;
         try {
-            jmsConnectionFactory.afterPropertiesSet();
-        } catch (NamingException exception) {
-            throw new RuntimeException("Failed to create JMS connection factory", exception);
+            initialContext = new InitialContext(environment);
+            connectionFactory = (ConnectionFactory) initialContext.lookup(jmsConnectionFactoryName);
+        } catch (NamingException e) {
+            throw new RuntimeException("Unable to create JMS connection", e);
         }
-         */
 
-        //JndiDestinationResolver jndiDestinationResolver = new JndiDestinationResolver();
-        //jndiDestinationResolver.setJndiTemplate(jmsJndiTemplate);
-        //jndiDestinationResolver.setFallbackToDynamicDestination(true);
+        JndiTemplate jmsJndiTemplate = new JndiTemplate(environment);
+        JndiDestinationResolver jndiDestinationResolver = new JndiDestinationResolver();
+        jndiDestinationResolver.setJndiTemplate(jmsJndiTemplate);
+        jndiDestinationResolver.setFallbackToDynamicDestination(true);
 
         JmsConfiguration jmsConfiguration = new JmsConfiguration();
-        //jmsConfiguration.setConnectionFactory((ConnectionFactory) jmsConnectionFactory.getObject());
-        //jmsConfiguration.setDestinationResolver(jndiDestinationResolver);
+        jmsConfiguration.setConnectionFactory(connectionFactory);
+        jmsConfiguration.setDestinationResolver(jndiDestinationResolver);
 
         WeblogicSecurityBean wlSecurityBean = wlSecurityBeanProvider.isUnsatisfied() ? null : wlSecurityBeanProvider.get();
         WeblogicSecureThreadFactory wlSecureThreadFactory = wlSecureThreadFactoryProvider.isUnsatisfied() ? null : wlSecureThreadFactoryProvider.get();

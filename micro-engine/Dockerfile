@@ -1,10 +1,12 @@
 FROM maven:3.9.11-amazoncorretto-21-alpine AS build
 
 WORKDIR /app
+COPY lib ./lib
 COPY pom.xml .
+RUN mvn clean
 RUN mvn -B dependency:go-offline
 COPY src ./src
-RUN mvn clean package -B -Dgpg.skip
+RUN mvn package -B -Dgpg.skip
 
 FROM alpine/java:21-jdk
 
