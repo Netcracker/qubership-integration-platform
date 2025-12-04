@@ -1,0 +1,92 @@
+name: jms-sender
+title: JMS Sender
+description: Produce message to JMS queue or topic.
+folder: senders
+inputEnabled: true
+colorType: sender
+outputEnabled: true
+container: false
+designParameters:
+  externalParticipantId: 'JNDI service provider ##{providerUrl}'
+  externalParticipantName: 'JNDI service provider ##{providerUrl}'
+  requestLineTitle: 'Put message to ##{destinationType}: ##{destinationName}'
+  directionToChain: false
+  hasResponse: false
+properties:
+  common:
+    - name: initialContextFactory
+      title: Initial context factory
+      description: JNDI initial context factory
+      type: string
+      mandatory: true
+    - name: providerUrl
+      title: Provider URL
+      description: JNDI service provider URL
+      type: string
+      mandatory: true
+    - name: connectionFactoryName
+      title: Connection factory
+      description: JMS connection factory object name for lookup via JNDI
+      type: string
+      mandatory: true
+    - name: destinationName
+      title: Destination
+      description: JMS queue or topic object name for lookup via JNDI
+      type: string
+      mandatory: true
+    - name: destinationType
+      title: Type
+      description: Destination type
+      type: string
+      default: queue
+      allowedValues:
+        - queue
+        - topic
+    - name: acknowledgmentMode
+      title: Acknowledgment mode
+      description: The JMS acknowledgement mode
+      type: string
+      default: AUTO_ACKNOWLEDGE
+      allowedValues:
+        - AUTO_ACKNOWLEDGE
+        - CLIENT_ACKNOWLEDGE
+        - DUPS_OK_ACKNOWLEDGE
+        - SESSION_TRANSACTED
+    - name: jmsMessageType
+      title: Message type
+      description: Message type for sending JMS messages
+      type: string
+      default: Bytes
+      allowedValues:
+        - Bytes
+        - Map
+        - Object
+        - Stream
+        - Text
+    - name: username
+      title: Username
+      type: string
+      query: true
+    - name: password
+      title: Password
+      description: For security purposes, use reference to secured variables when entering passwords
+      type: string
+      query: true
+  advanced:
+    - name: propagateContext
+      title: Propagate context
+      description: Propagate context to headers before sending message
+      type: boolean
+      default: true
+      query: false
+    - name: overrideContextComponent
+      title: Override Context Component
+      type: custom
+      uiComponent: context-override
+  hidden:
+    - name: overrideContextParams
+      title: Override context parameters
+      description: Propagate props to headers before sending message
+      type: string # map<string, string>
+      query: false
+
