@@ -44,8 +44,8 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.discovery.
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.discovery.DiscoveryErrorDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.discovery.DiscoveryResultDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DiscoveryServiceMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.SpecificationImportService;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;

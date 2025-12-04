@@ -128,7 +128,7 @@ public class CommonVariablesController {
             return ResponseEntity.noContent().build();
         }
 
-        return ExportImportUtils.bytesAsResponse(response.getContent(), response.getFileName());
+        return ExportImportUtils.convertFileToResponse(response.getContent(), response.getFileName());
     }
 
     @Deprecated(since = "24.4")

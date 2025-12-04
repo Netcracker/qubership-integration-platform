@@ -30,6 +30,7 @@ import java.net.URI;
 @Jacksonized
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonPropertyOrder({ "id", "schema", "name", "content" })
 public class ChainExternalEntity {
     @JsonProperty(value = "$schema", index = 0)
     private URI schema;

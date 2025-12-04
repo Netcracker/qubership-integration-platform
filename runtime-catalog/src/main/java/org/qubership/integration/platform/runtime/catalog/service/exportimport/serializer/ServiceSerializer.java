@@ -23,10 +23,10 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.sys
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

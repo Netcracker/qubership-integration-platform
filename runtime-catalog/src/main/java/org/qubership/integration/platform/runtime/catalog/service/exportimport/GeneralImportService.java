@@ -38,6 +38,7 @@ import org.qubership.integration.platform.runtime.catalog.service.difference.Cha
 import org.qubership.integration.platform.runtime.catalog.service.difference.EntityDifferenceResult;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.variables.CommonVariablesService;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;

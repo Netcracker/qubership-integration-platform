@@ -52,6 +52,7 @@ public class SystemModelContentDto {
     @JsonProperty("parentId")
     private String parentId;
 
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @Builder.Default
     private List<SpecificationSourceDto> specificationSources = new ArrayList<>();
 

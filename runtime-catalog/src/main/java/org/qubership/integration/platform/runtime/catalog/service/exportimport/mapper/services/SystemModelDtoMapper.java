@@ -22,8 +22,8 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.sys
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModelLabel;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -84,6 +84,7 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
                         .labels(systemModel.getLabels().stream().map(SystemModelLabel::getName).toList())
                         .specificationSources(systemModel.getSpecificationSources()
                                 .stream()
+                                .filter(model -> model.getSource() != null)
                                 .map(this::toSpecificationSourceDto)
                                 .toList())
                         .build())

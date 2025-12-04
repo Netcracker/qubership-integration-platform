@@ -46,6 +46,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.d
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ContextServiceSerializer;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,9 +62,10 @@ import java.sql.Timestamp;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.*;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.extractSystemIdFromFileName;
+import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.*;
+import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.extractSystemIdFromFileName;
 import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
 
 
@@ -157,7 +159,7 @@ public class ContextExportImportService {
             List<File> extractedSystemFiles = new ArrayList<>();
 
             try (InputStream fs = file.getInputStream()) {
-                extractedSystemFiles = extractContextServiceFromZip(fs, exportDirectory);
+                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, CONTEXT_SERVICE_YAML_NAME_POSTFIX);
             } catch (ServicesNotFoundException e) {
                 deleteFile(exportDirectory);
             } catch (IOException e) {
@@ -184,7 +186,7 @@ public class ContextExportImportService {
     public List<ImportSystemResult> getContextServiceImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
         List<File> systemsFiles;
         try {
-            systemsFiles = extractContextServiceFromImportDirectory(importDirectory.getAbsolutePath());
+            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), CONTEXT_SERVICE_YAML_NAME_POSTFIX);
         } catch (Exception e) {
             throw new RuntimeException("Error while extracting context service", e);
         }
@@ -254,7 +256,7 @@ public class ContextExportImportService {
             List<File> extractedSystemFiles;
 
             try (InputStream fs = importFile.getInputStream()) {
-                extractedSystemFiles = extractContextServiceFromZip(fs, exportDirectory);
+                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, CONTEXT_SERVICE_YAML_NAME_POSTFIX);
             } catch (IOException e) {
                 deleteFile(exportDirectory);
                 throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
@@ -307,7 +309,7 @@ public class ContextExportImportService {
 
         List<File> systemsFiles;
         try {
-            systemsFiles = extractContextServiceFromImportDirectory(importDirectory.getAbsolutePath());
+            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), CONTEXT_SERVICE_YAML_NAME_POSTFIX);
         } catch (IOException e) {
             throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
         }

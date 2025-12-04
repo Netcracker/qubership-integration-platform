@@ -56,6 +56,6 @@ public class SecretControllerV2 {
     @GetMapping("/template/{secretName}")
     public ResponseEntity<Object> downloadSecretHelmChart(@PathVariable @Parameter(description = "Name of secret") String secretName) {
         String secretYaml = secretService.getSecretTemplate(secretName);
-        return ExportImportUtils.bytesAsResponse(secretYaml.getBytes(), secretName + ".yaml");
+        return ExportImportUtils.convertFileToResponse(secretYaml.getBytes(), secretName + ".yaml");
     }
 }

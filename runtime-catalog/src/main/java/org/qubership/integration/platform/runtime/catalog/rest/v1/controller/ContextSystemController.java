@@ -33,7 +33,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imp
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ContextSystemMapper;
 import org.qubership.integration.platform.runtime.catalog.service.ContextSystemService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ContextExportImportService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.HttpStatus;

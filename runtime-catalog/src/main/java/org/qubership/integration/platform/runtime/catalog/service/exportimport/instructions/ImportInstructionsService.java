@@ -43,8 +43,8 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequ
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.DeleteInstructionsRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
 import org.qubership.integration.platform.runtime.catalog.service.*;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.qubership.integration.platform.runtime.catalog.service.filter.ImportInstructionFilterSpecificationBuilder;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.qubership.integration.platform.runtime.catalog.validation.EntityValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
