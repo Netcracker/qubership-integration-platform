@@ -74,9 +74,10 @@ public class MapperAutoConfiguration {
     }
 
     @Bean("yamlMapper")
-    public YAMLMapper yamlMapper() {
+    public YAMLMapper yamlMapper(KubeSecretSerializer kubeSecretSerializer) {
         YAMLMapper yamlMapper = new YAMLMapper(createCustomYamlFactory());
         SimpleModule serializeModule = new SimpleModule();
+        serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
         yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         yamlMapper.registerModule(serializeModule);
         yamlMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
