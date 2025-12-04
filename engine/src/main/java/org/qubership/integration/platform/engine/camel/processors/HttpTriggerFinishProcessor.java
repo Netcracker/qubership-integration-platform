@@ -109,7 +109,7 @@ public class HttpTriggerFinishProcessor implements Processor {
                     MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), runtimeProperties.isMaskingEnabled());
         }
 
-        if (runtimeProperties.getLogPayload() != null && !runtimeProperties.getLogPayload().isEmpty()) {
+        if (runtimeProperties.getLogPayload() != null) {
             Set<LogPayload> logPayloadSettings = runtimeProperties.getLogPayload();
             headersForLogging = logPayloadSettings.contains(LogPayload.HEADERS) ? headersForLogging : "<headers not logged>";
 

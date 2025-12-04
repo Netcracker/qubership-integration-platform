@@ -27,14 +27,15 @@ import org.apache.camel.tracing.ActiveSpanManager;
 import org.apache.camel.tracing.SpanAdapter;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.ChainElementType;
-import org.qubership.integration.platform.engine.model.SessionElementProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.constants.CamelNames;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
+import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
 import org.qubership.integration.platform.engine.model.logging.ElementRetryProperties;
+import org.qubership.integration.platform.engine.model.logging.LogPayload;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.debugger.tracing.TracingService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
@@ -49,6 +50,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import javax.annotation.Nullable;
 
 @Slf4j
@@ -98,8 +100,8 @@ public class ChainLogger {
         Exchange exchange,
         CamelDebuggerProperties dbgProperties,
         String bodyForLogging,
-        Map<String, String> headersForLogging,
-        Map<String, SessionElementProperty> exchangePropertiesForLogging,
+        Object headersForLogging,
+        Object exchangePropertiesForLogging,
         String nodeId
     ) {
         bodyForLogging = DebuggerUtils.chooseLogPayload(exchange, bodyForLogging, dbgProperties);
@@ -107,6 +109,14 @@ public class ChainLogger {
             ChainElementType type = ChainElementType.fromString(
                 dbgProperties.getElementProperty(nodeId).get(
                     ChainProperties.ELEMENT_TYPE));
+
+            DeploymentRuntimeProperties runtimeProperties = dbgProperties.getRuntimeProperties(exchange);
+            if (runtimeProperties.getLogPayload() != null) {
+                Set<LogPayload> logPayloadSettings = runtimeProperties.getLogPayload();
+                headersForLogging = logPayloadSettings.contains(LogPayload.HEADERS) ? headersForLogging : "<headers not logged>";
+                exchangePropertiesForLogging = logPayloadSettings.contains(LogPayload.PROPERTIES) ? exchangePropertiesForLogging : "<properties not logged>";
+                bodyForLogging = logPayloadSettings.contains(LogPayload.BODY) ? bodyForLogging : "<body not logged>";
+            }
 
             switch (type) {
                 case SCHEDULER, QUARTZ_SCHEDULER -> chainLogger.info("Scheduled chain trigger started");
@@ -144,8 +154,8 @@ public class ChainLogger {
         Exchange exchange,
         CamelDebuggerProperties dbgProperties,
         String bodyForLogging,
-        Map<String, String> headersForLogging,
-        Map<String, SessionElementProperty> exchangePropertiesForLogging,
+        Object headersForLogging,
+        Object exchangePropertiesForLogging,
         String nodeId,
         long timeTaken
     ) {
@@ -157,6 +167,14 @@ public class ChainLogger {
             ChainElementType type = ChainElementType.fromString(
                 dbgProperties.getElementProperty(nodeId).get(
                     ChainProperties.ELEMENT_TYPE));
+
+            DeploymentRuntimeProperties runtimeProperties = dbgProperties.getRuntimeProperties(exchange);
+            if (runtimeProperties.getLogPayload() != null) {
+                Set<LogPayload> logPayloadSettings = runtimeProperties.getLogPayload();
+                headersForLogging = logPayloadSettings.contains(LogPayload.HEADERS) ? headersForLogging : "<headers not logged>";
+                exchangePropertiesForLogging = logPayloadSettings.contains(LogPayload.PROPERTIES) ? exchangePropertiesForLogging : "<properties not logged>";
+                bodyForLogging = logPayloadSettings.contains(LogPayload.BODY) ? bodyForLogging : "<body not logged>";
+            }
 
             switch (type) {
                 case HTTP_SENDER:
@@ -380,8 +398,8 @@ public class ChainLogger {
     public void logRequest(
         Exchange exchange,
         String bodyForLogging,
-        Map<String, String> headersForLogging,
-        Map<String, SessionElementProperty> exchangePropertiesForLogging,
+        Object headersForLogging,
+        Object exchangePropertiesForLogging,
         String externalServiceName,
         String externalServiceEnvName
     ) {
@@ -465,8 +483,8 @@ public class ChainLogger {
 
     private void logFailedHttpOperation(
         String bodyForLogging,
-        Map<String, String> headersForLogging,
-        Map<String, SessionElementProperty> exchangePropertiesForLogging,
+        Object headersForLogging,
+        Object exchangePropertiesForLogging,
         HttpOperationFailedException httpException,
         long duration
     ) {
@@ -482,8 +500,8 @@ public class ChainLogger {
 
     private void logFailedOperation(
         String bodyForLogging,
-        Map<String, String> headersForLogging,
-        Map<String, SessionElementProperty> exchangePropertiesForLogging,
+        Object headersForLogging,
+        Object exchangePropertiesForLogging,
         Exception exception,
         long duration
     ) {
