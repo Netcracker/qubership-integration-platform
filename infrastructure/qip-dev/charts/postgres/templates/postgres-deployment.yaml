@@ -1,27 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postgres
+  name: {{ .Release.Name }}-postgres
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: postgres
+      app: {{ .Release.Name }}-postgres
   template:
     metadata:
       labels:
-        app: postgres
+        app: {{ .Release.Name }}-postgres
     spec:
       containers:
         - name: postgres
           image: postgres:17.2
           env:
             - name: POSTGRES_DB
-              value: postgres
+              value: {{ coalesce .Values.database .Values.global.postgres.database | default "postgres" }}
             - name: POSTGRES_PASSWORD
-              value: postgres
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: password
             - name: POSTGRES_USER
-              value: postgres
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: username
           ports:
             - containerPort: 5432
           volumeMounts:
@@ -48,7 +54,7 @@ spec:
       volumes:
         - name: init-db-script
           configMap:
-            name: init-db-script
+            name: {{ .Release.Name }}-init-db-script
         - name: postgres-storage
           persistentVolumeClaim:
-            claimName: postgres-pvc
+            claimName: {{ .Release.Name }}-postgres-pvc
