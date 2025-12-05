@@ -3,23 +3,24 @@ kind: Deployment
 metadata:
   labels:
     qip_engine_app: "true"
-    name: qip-engine
-    app: qip-engine
-  name: qip-engine
+    name: {{ .Release.Name }}-engine
+    app: {{ .Release.Name }}-engine
+  name: {{ .Release.Name }}-engine
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: qip-engine
+      app: {{ .Release.Name }}-engine
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         qip_engine_app: "true"
-        name: qip-engine
-        app: qip-engine
+        name: {{ .Release.Name }}-engine
+        app: {{ .Release.Name }}-engine
     spec:
+      serviceAccountName: {{ .Release.Name }}-service-account
       containers:
         - args:
             - /opt/java/openjdk/bin/java
@@ -42,64 +43,64 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   key: CONSUL_ADMIN_TOKEN
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: CONSUL_URL
               valueFrom:
                 configMapKeyRef:
                   key: CONSUL_URL
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: DYNAMIC_ENGINE_CONSUL_STATE_ENABLED
               valueFrom:
                 configMapKeyRef:
                   key: DYNAMIC_ENGINE_CONSUL_STATE_ENABLED
-                  name: engine-dev-env
+                  name: {{ .Release.Name }}-engine-env
             - name: KUBE_DEV_MODE
               valueFrom:
                 configMapKeyRef:
                   key: KUBE_DEV_MODE
-                  name: engine-dev-env
+                  name: {{ .Release.Name }}-engine-env
             - name: RUNTIME_CATALOG_SERVICE_URL
               valueFrom:
                 configMapKeyRef:
                   key: RUNTIME_CATALOG_SERVICE_URL
-                  name: engine-dev-env
+                  name: {{ .Release.Name }}-engine-env
             - name: NAMESPACE
               valueFrom:
                 configMapKeyRef:
                   key: NAMESPACE
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: OPENSEARCH_HOST
               valueFrom:
                 configMapKeyRef:
                   key: OPENSEARCH_HOST
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: OPENSEARCH_PORT
               valueFrom:
                 configMapKeyRef:
                   key: OPENSEARCH_PORT
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: POSTGRES_PASSWORD
               valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_PASSWORD
-                  name: qip-dev-env
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: password
             - name: POSTGRES_URL
               valueFrom:
                 configMapKeyRef:
                   key: POSTGRES_URL
-                  name: engine-dev-env
+                  name: {{ .Release.Name }}-engine-env
             - name: POSTGRES_USER
               valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_USER
-                  name: qip-dev-env
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: username
             - name: TRACING_ENABLED
               valueFrom:
                 configMapKeyRef:
                   key: TRACING_ENABLED
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: MICROSERVICE_NAME
-              value: qip-engine
+              value: {{ .Release.Name }}-engine
           image: qubership-integration-platform-qip-engine:latest
           imagePullPolicy: Never
           livenessProbe:

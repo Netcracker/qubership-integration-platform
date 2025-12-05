@@ -1,18 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: qip-runtime-catalog
+  name: {{ .Release.Name }}-runtime-catalog
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: qip-runtime-catalog
+      app: {{ .Release.Name }}-runtime-catalog
   strategy: {}
   template:
     metadata:
       labels:
-        app: qip-runtime-catalog
+        app: {{ .Release.Name }}-runtime-catalog
     spec:
+      serviceAccountName: {{ .Release.Name }}-service-account
       containers:
         - args:
             - /opt/java/openjdk/bin/java
@@ -31,47 +32,47 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   key: CONSUL_ADMIN_TOKEN
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: CONSUL_URL
               valueFrom:
                 configMapKeyRef:
                   key: CONSUL_URL
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: NAMESPACE
               valueFrom:
                 configMapKeyRef:
                   key: NAMESPACE
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: OPENSEARCH_HOST
               valueFrom:
                 configMapKeyRef:
                   key: OPENSEARCH_HOST
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: OPENSEARCH_PORT
               valueFrom:
                 configMapKeyRef:
                   key: OPENSEARCH_PORT
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: POSTGRES_PASSWORD
               valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_PASSWORD
-                  name: qip-dev-env
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: password
             - name: POSTGRES_URL
               valueFrom:
                 configMapKeyRef:
                   key: POSTGRES_URL
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: POSTGRES_USER
               valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_USER
-                  name: qip-dev-env
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: username
             - name: TRACING_ENABLED
               valueFrom:
                 configMapKeyRef:
                   key: TRACING_ENABLED
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
           image: qubership-integration-platform-qip-runtime-catalog:latest
           imagePullPolicy: Never
           livenessProbe:
