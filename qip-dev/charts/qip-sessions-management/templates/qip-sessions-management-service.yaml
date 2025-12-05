@@ -2,12 +2,12 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: qip-sessions-management
-  name: qip-sessions-management
+    app: {{ .Release.Name }}-sessions-management
+  name: {{ .Release.Name }}-sessions-management
 spec:
   ports:
     - name: "8080"
       port: 8080
       targetPort: 8080
   selector:
-    app: qip-sessions-management
+    app: {{ .Release.Name }}-sessions-management

@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: consul
+  name: {{ .Release.Name }}-consul
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: consul
+      app: {{ .Release.Name }}-consul
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        app: consul
+        app: {{ .Release.Name }}-consul
     spec:
       containers:
         - args:
@@ -39,4 +39,4 @@ spec:
       volumes:
         - name: consul-config-volume
           configMap:
-            name: consul-config
+            name: {{ .Release.Name }}-consul-config

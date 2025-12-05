@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: opensearch-pvc
+  name: {{ .Release.Name }}-opensearch-pvc
 spec:
   accessModes:
     - ReadWriteOnce
