@@ -5,6 +5,10 @@ import {createService} from "./serviceApiModify";
 import {SpecificationImportApiHandler} from "../api-services/SpecificationImportApiHandler";
 import {SerializedFile} from "../api-services/importApiTypes";
 
+export async function getContextServiceUri(serviceFileUri: vscode.Uri): Promise<string> {
+    return `/services/context/${await getCurrentServiceId(serviceFileUri)}/parameters`;
+}
+
 export async function getServiceUri(serviceFileUri: vscode.Uri): Promise<string> {
     return `/services/systems/${await getCurrentServiceId(serviceFileUri)}/parameters`;
 }
@@ -53,6 +57,7 @@ export async function handleCreateService(context: ExtensionContext | undefined,
 export enum QipFileType {
     CHAIN = "CHAIN",
     SERVICE = "SERVICE",
+    CONTEXT_SERVICE = "CONTEXT_SERVICE",
     FOLDER = "FOLDER",
     UNKNOWN = "UNKNOWN"
 }
@@ -138,7 +143,7 @@ export async function handleReadSpecificationFileContent(fileUri: string, specif
     const apiFileUri = vscode.Uri.parse(fileUri);
     const apiFileDir = apiFileUri.with({ path: apiFileUri.path.substring(0, apiFileUri.path.lastIndexOf('/')) });
     const specFileUri = vscode.Uri.joinPath(apiFileDir, specificationFilePath);
-    
+
     try {
         return await fileApi.readFileContent(specFileUri);
     } catch (error) {

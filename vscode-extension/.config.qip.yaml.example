@@ -4,22 +4,26 @@ configs:
   qip:
     extensions:
       chain: .chain.${appName}.yaml
+      contextService: .context-service.${appName}.yaml
       service: .service.${appName}.yaml
       specificationGroup: .specification-group.${appName}.yaml
       specification: .specification.${appName}.yaml
     schemaUrls:
+      contextService: http://qubership.org/schemas/product/${appName}/context-service
       service: http://qubership.org/schemas/product/${appName}/service
       chain: http://qubership.org/schemas/product/${appName}/chain
       specification: http://qubership.org/schemas/product/${appName}/specification
       specificationGroup: http://qubership.org/schemas/product/${appName}/specification-group
-  
+
   pip:
     extensions:
       chain: .chain.${appName}.yaml
+      contextService: .context-service.${appName}.yaml
       service: .service.${appName}.yaml
       specificationGroup: .specification-group.${appName}.yaml
       specification: .specification.${appName}.yaml
     schemaUrls:
+      contextService: http://qubership.org/schemas/product/${appName}/context-service
       service: http://qubership.org/schemas/product/${appName}/service
       chain: http://qubership.org/schemas/product/${appName}/chain
       specification: http://qubership.org/schemas/product/${appName}/specification

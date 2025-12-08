@@ -10,6 +10,7 @@ interface CacheEntry {
 export class FileCacheService {
     private static instance: FileCacheService;
     private serviceCache: Map<string, CacheEntry> = new Map();
+    private contextServiceCache: Map<string, CacheEntry> = new Map();
     private chainCache: Map<string, CacheEntry> = new Map();
     private specificationGroupCache: Map<string, CacheEntry> = new Map();
     private specificationCache: Map<string, CacheEntry> = new Map();
@@ -37,25 +38,45 @@ export class FileCacheService {
         return Date.now() - entry.timestamp > ttl;
     }
 
-    getServiceUri(serviceId: string): Uri | null {
-        const entry = this.serviceCache.get(serviceId);
+    private setUri(id: string, uri: Uri, cache: Map<string, CacheEntry>) {
+        cache.set(id, {
+            uri,
+            timestamp: Date.now(),
+        });
+    }
+
+    private getUri(id: string, cache: Map<string, CacheEntry>): Uri | null {
+        const entry = cache.get(id);
         if (!entry) {
             return null;
         }
-        
+
         if (this.isExpired(entry)) {
-            this.serviceCache.delete(serviceId);
+            cache.delete(id);
             return null;
         }
-        
+
         return entry.uri;
     }
 
+    setContextServiceUri(serviceId: string, uri: Uri): void {
+        this.setUri(serviceId, uri, this.contextServiceCache);
+    }
+
+    getContextServiceUri(serviceId: string): Uri | null {
+        return this.getUri(serviceId, this.contextServiceCache);
+    }
+
+    clearContextServiceCache(): void {
+        this.contextServiceCache.clear();
+    }
+
+    getServiceUri(serviceId: string): Uri | null {
+        return this.getUri(serviceId, this.serviceCache);
+    }
+
     setServiceUri(serviceId: string, uri: Uri): void {
-        this.serviceCache.set(serviceId, {
-            uri,
-            timestamp: Date.now()
-        });
+        this.setUri(serviceId, uri, this.serviceCache);
     }
 
     invalidateService(serviceId: string): void {
@@ -67,24 +88,11 @@ export class FileCacheService {
     }
 
     getChainUri(chainId: string): Uri | null {
-        const entry = this.chainCache.get(chainId);
-        if (!entry) {
-            return null;
-        }
-        
-        if (this.isExpired(entry)) {
-            this.chainCache.delete(chainId);
-            return null;
-        }
-        
-        return entry.uri;
+        return this.getUri(chainId, this.chainCache);
     }
 
     setChainUri(chainId: string, uri: Uri): void {
-        this.chainCache.set(chainId, {
-            uri,
-            timestamp: Date.now()
-        });
+        this.setUri(chainId, uri, this.chainCache);
     }
 
     invalidateChain(chainId: string): void {
@@ -96,24 +104,11 @@ export class FileCacheService {
     }
 
     getSpecificationGroupUri(groupId: string): Uri | null {
-        const entry = this.specificationGroupCache.get(groupId);
-        if (!entry) {
-            return null;
-        }
-        
-        if (this.isExpired(entry)) {
-            this.specificationGroupCache.delete(groupId);
-            return null;
-        }
-        
-        return entry.uri;
+        return this.getUri(groupId, this.specificationGroupCache);
     }
 
     setSpecificationGroupUri(groupId: string, uri: Uri): void {
-        this.specificationGroupCache.set(groupId, {
-            uri,
-            timestamp: Date.now()
-        });
+        this.setUri(groupId, uri, this.specificationGroupCache);
     }
 
     invalidateSpecificationGroup(groupId: string): void {
@@ -125,24 +120,11 @@ export class FileCacheService {
     }
 
     getSpecificationUri(specificationId: string): Uri | null {
-        const entry = this.specificationCache.get(specificationId);
-        if (!entry) {
-            return null;
-        }
-        
-        if (this.isExpired(entry)) {
-            this.specificationCache.delete(specificationId);
-            return null;
-        }
-        
-        return entry.uri;
+        return this.getUri(specificationId, this.specificationCache);
     }
 
     setSpecificationUri(specificationId: string, uri: Uri): void {
-        this.specificationCache.set(specificationId, {
-            uri,
-            timestamp: Date.now()
-        });
+        this.setUri(specificationId, uri, this.specificationCache);
     }
 
     invalidateSpecification(specificationId: string): void {
@@ -157,18 +139,25 @@ export class FileCacheService {
         try {
             const filename = extractFilename(uri);
             const config = ProjectConfigService.getConfig();
-            
+
             if (filename.endsWith(config.extensions.service)) {
                 this.invalidateByUriInCache(this.serviceCache, uri);
+            } else if (filename.endsWith(config.extensions.contextService)) {
+                this.invalidateByUriInCache(this.contextServiceCache, uri);
             } else if (filename.endsWith(config.extensions.chain)) {
                 this.invalidateByUriInCache(this.chainCache, uri);
-            } else if (filename.endsWith(config.extensions.specificationGroup)) {
+            } else if (
+                filename.endsWith(config.extensions.specificationGroup)
+            ) {
                 this.invalidateByUriInCache(this.specificationGroupCache, uri);
             } else if (filename.endsWith(config.extensions.specification)) {
                 this.invalidateByUriInCache(this.specificationCache, uri);
             }
         } catch (error) {
-            console.error('[FileCacheService] Error invalidating cache by URI:', error);
+            console.error(
+                "[FileCacheService] Error invalidating cache by URI:",
+                error,
+            );
         }
     }
 
@@ -189,9 +178,11 @@ export class FileCacheService {
 
         try {
             const config = ProjectConfigService.getConfig();
-            
+
             if (extension === config.extensions.service) {
                 return this.getServiceUri(id);
+            } else if (extension === config.extensions.contextService) {
+                return this.getContextServiceUri(id);
             } else if (extension === config.extensions.chain) {
                 return this.getChainUri(id);
             } else if (extension === config.extensions.specificationGroup) {
@@ -200,7 +191,7 @@ export class FileCacheService {
                 return this.getSpecificationUri(id);
             }
         } catch (error) {
-            console.error('[FileCacheService] Error getting file URI:', error);
+            console.error("[FileCacheService] Error getting file URI:", error);
         }
 
         return null;
@@ -213,9 +204,11 @@ export class FileCacheService {
 
         try {
             const config = ProjectConfigService.getConfig();
-            
+
             if (extension === config.extensions.service) {
                 this.setServiceUri(id, uri);
+            } else if (extension === config.extensions.contextService) {
+                this.setContextServiceUri(id, uri);
             } else if (extension === config.extensions.chain) {
                 this.setChainUri(id, uri);
             } else if (extension === config.extensions.specificationGroup) {
@@ -224,12 +217,13 @@ export class FileCacheService {
                 this.setSpecificationUri(id, uri);
             }
         } catch (error) {
-            console.error('[FileCacheService] Error setting file URI:', error);
+            console.error("[FileCacheService] Error setting file URI:", error);
         }
     }
 
     clearAll(): void {
         this.clearServiceCache();
+        this.clearContextServiceCache();
         this.clearChainCache();
         this.clearSpecificationGroupCache();
         this.clearSpecificationCache();

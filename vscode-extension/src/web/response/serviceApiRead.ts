@@ -1,10 +1,10 @@
-import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo, BaseEntity} from "../api-services/servicesTypes";
+import {IntegrationSystem, Environment, SpecificationGroup, Specification, SystemOperation, OperationInfo, BaseEntity, IntegrationSystemType} from "../api-services/servicesTypes";
 import {Uri} from "vscode";
 import * as vscode from "vscode";
 import {fileApi} from "./file/fileApiProvider";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { getExtensionsForUri } from './file/fileExtensions';
-import { Chain } from "@netcracker/qip-ui";
+import { Chain, ContextSystem } from "@netcracker/qip-ui";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 
 export async function getCurrentServiceId(serviceFileUri: Uri): Promise<string> {
@@ -46,6 +46,20 @@ export async function getService(serviceFileUri: Uri, serviceId: string): Promis
         specification: service.content?.specification || "",
         environments: service.content?.environments || [],
         labels: LabelUtils.toEntityLabels(service.content?.labels || [])
+    };
+}
+
+export async function getContextService(
+    serviceFileUri: Uri,
+    serviceId: string,
+): Promise<ContextSystem> {
+    let service = await fileApi.getContextService(serviceFileUri, serviceId);
+
+    return {
+        id: service.id,
+        name: service.name,
+        description: service.content?.description || "",
+        type: IntegrationSystemType.CONTEXT,
     };
 }
 

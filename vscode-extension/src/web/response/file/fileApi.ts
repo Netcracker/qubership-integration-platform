@@ -34,6 +34,8 @@ export interface FileApi {
 
     getService(serviceFileUri: Uri, serviceId: string): Promise<any>;
 
+    getContextService(serviceFileUri: Uri, serviceId: string): Promise<any>;
+
     writeMainService(serviceFileUri: Uri, serviceData: any): Promise<void>;
 
     writeServiceFile(fileUri: Uri, serviceData: any): Promise<void>;

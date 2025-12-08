@@ -36,12 +36,12 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
             element.label,
             element.collapsibleState
         );
-        
+
         treeItem.description = element.description;
         treeItem.iconPath = element.iconPath;
         treeItem.contextValue = element.contextValue;
         treeItem.tooltip = element.description || element.label;
-        
+
         if (element.fileUri) {
             treeItem.command = {
                 command: 'qip.revealInExplorer',
@@ -49,7 +49,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                 arguments: [element]
             };
         }
-        
+
         return treeItem;
     }
 
@@ -57,7 +57,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
         if (!element) {
             return this.getRootItems();
         }
-        
+
         switch (element.type) {
             case 'category':
                 if (element.label === 'Chains') {
@@ -105,7 +105,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
         console.log(`QIP Explorer: Found ${workspaceFolders.length} workspace folders`);
 
         const chains: QipExplorerItem[] = [];
-        
+
         for (const folder of workspaceFolders) {
             try {
                 console.log(`QIP Explorer: Searching for chains in folder: ${folder.uri.fsPath}`);
@@ -122,7 +122,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
     private async findChainFilesRecursively(folderUri: vscode.Uri, chains: QipExplorerItem[]): Promise<void> {
         try {
             const entries = await readDirectory(folderUri);
-            
+
             const ext = getExtensionsForFile();
             for (const [name, type] of entries) {
                 if (type === vscode.FileType.File && name.endsWith(ext.chain)) {
@@ -134,11 +134,11 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                         if (chainData && chainData.content) {
                             const elementsCount = chainData.content.elements?.length || 0;
                             const connectionsCount = chainData.content.dependencies?.length || 0;
-                            
+
                             // Format: ${name}-${uuid}
                             const displayName = chainData.name || chainData.id;
                             const label = `${displayName}-${chainData.id}`;
-                            
+
                             const chainItem: QipExplorerItem = {
                                 id: chainData.id,
                                 label: label,
@@ -175,7 +175,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
         console.log(`QIP Explorer: Searching for services in ${workspaceFolders.length} workspace folders`);
 
         const services: QipExplorerItem[] = [];
-        
+
         for (const folder of workspaceFolders) {
             try {
                 console.log(`QIP Explorer: Searching for services in folder: ${folder.uri.fsPath}`);
@@ -192,10 +192,10 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
     private async findServiceFilesRecursively(folderUri: vscode.Uri, services: QipExplorerItem[]): Promise<void> {
         try {
             const entries = await readDirectory(folderUri);
-            
+
             const ext = getExtensionsForFile();
             for (const [name, type] of entries) {
-                if (type === vscode.FileType.File && name.endsWith(ext.service)) {
+                if (type === vscode.FileType.File && (name.endsWith(ext.service) || name.endsWith(ext.contextService))) {
                     try {
                         const fileUri = vscode.Uri.joinPath(folderUri, name);
                         console.log(`QIP Explorer: Found service file: ${name}`);
@@ -205,9 +205,13 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                             // Format: ${name}-${protocol}-${uuid}
                             const displayName = serviceData.name || serviceData.id;
                             const protocol = serviceData.content?.protocol || 'Unknown';
-                            const serviceType = serviceData.content?.integrationSystemType || 'Unknown';
-                            const label = `${displayName}-${protocol}-${serviceData.id}`;
-                            
+                            const serviceType =
+                                serviceData.content?.integrationSystemType ||
+                                (name.endsWith(ext.contextService)
+                                    ? "CONTEXT"
+                                    : "Unknown");
+                            const label = `${displayName}${serviceType === "CONTEXT" ? "" : "-" + protocol}-${serviceData.id}`;
+
                             // Choose icon based on service type
                             let iconName = 'server';
                             switch (serviceType) {
@@ -223,7 +227,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                                 default:
                                     iconName = 'server';
                             }
-                            
+
                             const serviceItem: QipExplorerItem = {
                                 id: serviceData.id,
                                 label: label,
@@ -258,7 +262,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
         }
 
         const children: QipExplorerItem[] = [];
-        
+
         for (const folder of workspaceFolders) {
             try {
                 const fileUri = chainElement.fileUri;

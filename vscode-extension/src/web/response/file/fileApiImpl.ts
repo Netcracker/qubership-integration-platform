@@ -5,7 +5,7 @@ import * as yaml from 'yaml';
 import {LibraryData} from "@netcracker/qip-ui";
 import {QipFileType} from "../serviceApiUtils";
 import { FileFilter } from '../fileFilteringUtils';
-import { getExtensionsForFile, extractFilename } from './fileExtensions';
+import { getExtensionsForFile, extractFilename, FileExtensionsConfig } from './fileExtensions';
 import {Chain as ChainSchema} from "@netcracker/qip-schemas";
 import { ContentParser } from '../../api-services/parsers/ContentParser';
 import { ServiceNormalizer } from '../../api-services/ServiceNormalizer';
@@ -158,6 +158,7 @@ export class VSCodeFileApi implements FileApi {
 
         const extensions = getExtensionsForFile();
         const typesToTry = [
+            extensions.contextService,
             extensions.service,
             extensions.chain,
             extensions.specificationGroup,
@@ -327,6 +328,20 @@ export class VSCodeFileApi implements FileApi {
 
             if (parsed && parsed.id === serviceId) {
                 return ServiceNormalizer.normalizeService(parsed);
+            }
+            throw Error('Invalid service file content or service ID mismatch');
+        } catch (e) {
+            console.error(`Service file ${serviceFileUri} can't be parsed from QIP Extension API`, e);
+            throw e;
+        }
+    }
+
+    async getContextService(serviceFileUri: Uri, serviceId: string): Promise<any> {
+        try {
+            const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
+
+            if (parsed && parsed.id === serviceId) {
+                return parsed;
             }
             throw Error('Invalid service file content or service ID mismatch');
         } catch (e) {
@@ -530,13 +545,80 @@ export class VSCodeFileApi implements FileApi {
         }
     }
 
+    async createEmptyContextService(): Promise<{ folderUri: Uri, serviceId: string } | null> {
+        try {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders) {
+                vscode.window.showErrorMessage('Open a workspace folder first');
+                return null;
+            }
+
+            const serviceName = await vscode.window.showInputBox({
+                prompt: 'Enter new context service name',
+                placeHolder: 'My Context Service',
+                validateInput: (value: string) => {
+                    if (!value || value.trim().length === 0) {
+                        return 'Service name cannot be empty';
+                    }
+                    if (value.trim().length > 128) {
+                        return 'Service name cannot be longer than 128 characters';
+                    }
+                    return null;
+                }
+            });
+
+            if (!serviceName) {
+                return null;
+            }
+
+            const serviceDescription = await vscode.window.showInputBox({
+                prompt: 'Enter service description (optional)',
+                placeHolder: 'Description of the service',
+                validateInput: (value: string) => {
+                    if (value && value.trim().length > 512) {
+                        return 'Description cannot be longer than 512 characters';
+                    }
+                    return null;
+                }
+            });
+
+            const serviceId = crypto.randomUUID();
+
+            const config = ProjectConfigService.getConfig();
+
+            const service = {
+                $schema: config.schemaUrls.contextService,
+                id: serviceId,
+                name: serviceName.trim(),
+                content: {
+                    description: serviceDescription?.trim() || "",
+                    migrations: [],
+                },
+            };
+
+            // Create service file (folder will be created automatically)
+            const serviceFolderUri = vscode.Uri.joinPath(workspaceFolders[0].uri, serviceId);
+            const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, `${serviceId}${config.extensions.contextService}`);
+            await this.writeServiceFile(serviceFileUri, service);
+
+            vscode.window.showInformationMessage(`Context service "${serviceName}" created successfully in folder ${serviceId}`);
+            return { folderUri: serviceFolderUri, serviceId };
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to create context service: ${err}`);
+            return null;
+        }
+    }
+
     async getFileType(fileUri: Uri): Promise<string> {
         try {
             const stat = await vscode.workspace.fs.stat(fileUri);
-            const extensions = this.getExtensionsForContext(fileUri);
+            const extensions: FileExtensionsConfig = this.getExtensionsForContext(fileUri);
 
             if (stat.type === vscode.FileType.File) {
                 const name = extractFilename(fileUri);
+                if (name.endsWith(extensions.contextService)) {
+                    return QipFileType.CONTEXT_SERVICE;
+                }
                 if (name.endsWith(extensions.service)) {
                     return QipFileType.SERVICE;
                 }
@@ -548,8 +630,8 @@ export class VSCodeFileApi implements FileApi {
 
             // Directory: infer by contents
             const entries = await this.readDirectoryInternal(fileUri);
-            const hasChainFile = entries.some(([name]: [string, number]) => name.endsWith(extensions.chain));
-            const hasServiceFile = entries.some(([name]: [string, number]) => name.endsWith(extensions.service));
+            const hasChainFile = this.hasFileWithExtension(entries, extensions.chain);
+            const hasServiceFile = this.hasFileWithExtension(entries, extensions.service);
 
             if (hasServiceFile) {
                 return QipFileType.SERVICE;
@@ -557,10 +639,17 @@ export class VSCodeFileApi implements FileApi {
             if (hasChainFile) {
                 return QipFileType.CHAIN;
             }
+            if (this.hasFileWithExtension(entries, extensions.contextService)) {
+                return QipFileType.CONTEXT_SERVICE;
+            }
             return QipFileType.FOLDER;
         } catch (e) {
             return QipFileType.UNKNOWN;
         }
+    }
+
+    private hasFileWithExtension(entries: [string, number][], extension: string) {
+        return entries.some(([name]: [string, number]) => name.endsWith(extension));
     }
 
     private async readDirectoryInternal(mainFolderUri: Uri): Promise<[string, number][]> {
