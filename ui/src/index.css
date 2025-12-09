@@ -151,6 +151,10 @@ button:focus-visible {
 }
 
 .flex-tabs {
+  min-height: 0;
+  flex-grow: 1;
+  flex-shrink: 1;
+
   .ant-tabs-content-holder {
     display: flex;
     flex-direction: column;
@@ -161,15 +165,18 @@ button:focus-visible {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
 
   .ant-tabs-tabpane {
     flex-grow: 1;
     flex-shrink: 1;
+    min-height: 0;
   }
 }
 
 .flex-table {
+  min-height: 0;
   flex-grow: 1;
   flex-shrink: 1;
 
@@ -186,6 +193,10 @@ button:focus-visible {
           height: 100%;
           display: flex;
           flex-direction: column;
+
+          > .ant-table-header {
+            flex-shrink: 0;
+          }
 
           > .ant-table-body {
             min-height: 0;
@@ -258,6 +269,12 @@ button:focus-visible {
 
   .ant-form-item-control-input-content {
     width: 100%;
+    height: 100%;
+  }
+}
+
+.flex-form-item-h100 {
+  .ant-form-item-control {
     height: 100%;
   }
 }

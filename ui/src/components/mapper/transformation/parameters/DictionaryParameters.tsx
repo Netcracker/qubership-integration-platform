@@ -372,7 +372,7 @@ export const DictionaryParameters: React.FC = () => {
       <Form.Item name={["parameters", 0]} label="Default" initialValue={""}>
         <Input />
       </Form.Item>
-      <Form.Item className={"flex-form-item"} name={["parameters"]}>
+      <Form.Item className={"flex-form-item flex-form-item-h100"} name={["parameters"]}>
         <DictionaryEditor />
       </Form.Item>
     </>
