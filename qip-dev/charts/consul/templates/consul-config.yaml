@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: consul-config
+  name: {{ .Release.Name}}-consul-config
 data:
   server.json: |
     {

@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: opensearch
+  name: {{ .Release.Name }}-opensearch
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: opensearch
+      app: {{ .Release.Name }}-opensearch
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        app: opensearch
+        app: {{ .Release.Name }}-opensearch
     spec:
       containers:
         - env:
@@ -52,7 +52,7 @@ spec:
       volumes:
         - name: opensearch-config-volume
           configMap:
-            name: opensearch-config
+            name: {{ .Release.Name }}-opensearch-config
         - name: opensearch-data
           persistentVolumeClaim:
-            claimName: opensearch-pvc
+            claimName: {{ .Release.Name }}-opensearch-pvc

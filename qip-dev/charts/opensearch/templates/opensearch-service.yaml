@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: opensearch
+  name: {{ .Release.Name }}-opensearch
 spec:
   ports:
     - name: "9200"
@@ -11,4 +11,4 @@ spec:
       port: 9300
       targetPort: 9300
   selector:
-    app: opensearch
+    app: {{ .Release.Name }}-opensearch

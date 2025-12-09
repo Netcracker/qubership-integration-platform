@@ -2,18 +2,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: qip-sessions-management
-  name: qip-sessions-management
+    app: {{ .Release.Name }}-sessions-management
+  name: {{ .Release.Name }}-sessions-management
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: qip-sessions-management
+      app: {{ .Release.Name }}-sessions-management
   strategy: {}
   template:
     metadata:
       labels:
-        app: qip-sessions-management
+        app: {{ .Release.Name }}-sessions-management
     spec:
       containers:
         - args:
@@ -35,47 +35,32 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   key: CONSUL_ADMIN_TOKEN
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: CONSUL_URL
               valueFrom:
                 configMapKeyRef:
                   key: CONSUL_URL
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: NAMESPACE
               valueFrom:
                 configMapKeyRef:
                   key: NAMESPACE
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: OPENSEARCH_HOST
               valueFrom:
                 configMapKeyRef:
                   key: OPENSEARCH_HOST
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: OPENSEARCH_PORT
               valueFrom:
                 configMapKeyRef:
                   key: OPENSEARCH_PORT
-                  name: qip-dev-env
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_PASSWORD
-                  name: qip-dev-env
-            - name: POSTGRES_URL
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_URL
-                  name: qip-dev-env
-            - name: POSTGRES_USER
-              valueFrom:
-                configMapKeyRef:
-                  key: POSTGRES_USER
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
             - name: TRACING_ENABLED
               valueFrom:
                 configMapKeyRef:
                   key: TRACING_ENABLED
-                  name: qip-dev-env
+                  name: {{ .Release.Name }}-env
           image: qubership-integration-platform-qip-sessions-management:latest
           imagePullPolicy: Never
           livenessProbe:
