@@ -157,7 +157,7 @@ public class ElementService extends ElementBaseService {
                 case ASYNC_API_TRIGGER_COMPONENT:
                 case HTTP_TRIGGER_COMPONENT:
                     systemId = element.getProperties() == null ? null
-                           : (String) element.getProperties().get(SYSTEM_ID);
+                            : (String) element.getProperties().get(SYSTEM_ID);
                     break;
                 default:
                     continue;
@@ -192,8 +192,15 @@ public class ElementService extends ElementBaseService {
         return elementRepository.findAllBySnapshotId(snapshotId);
     }
 
-    public List<Pair<String, ChainElement>> findAllElementsWithChainNameByElementType(String type) {
-        return elementRepository.findAllByTypeInAndChainNotNull(Collections.singletonList(type))
+    public List<Pair<String, ChainElement>> findAllElementsWithChainNameByElementType(String chainId, String type) {
+        List<ChainElement> chainElements;
+        try {
+            UUID.fromString(chainId);
+            chainElements = elementRepository.findAllByChainIdAndTypeIn(chainId, Collections.singletonList(type));
+        } catch (IllegalArgumentException exception) {
+            chainElements = elementRepository.findAllByTypeInAndChainNotNull(Collections.singletonList(type));
+        }
+        return chainElements
                 .stream()
                 .map(element -> Pair.of(element.getChain().getName(), element))
                 .collect(Collectors.toList());

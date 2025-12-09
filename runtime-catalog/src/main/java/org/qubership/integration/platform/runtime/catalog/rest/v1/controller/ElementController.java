@@ -103,7 +103,7 @@ public class ElementController {
         if (log.isDebugEnabled()) {
             log.debug("Request to find all elements with type: {}", type);
         }
-        List<Pair<String, ChainElement>> elements = transferableElementService.findAllElementsWithChainNameByElementType(type);
+        List<Pair<String, ChainElement>> elements = transferableElementService.findAllElementsWithChainNameByElementType(chainId, type);
         List<ElementWithChainNameResponse> response = elementMapper.toElementWithChainNameResponses(elements);
         return ResponseEntity.ok(response);
     }
