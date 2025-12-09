@@ -9,7 +9,7 @@
 
          <encoder>
              <pattern>
-                 [%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-5p] [request_id=%-15X{requestId:--}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{X-B3-TraceId:--}] [spanId=%-16X{X-B3-SpanId:--}] [method=%-30.30M]  - %m%n
+                 [%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-5p] [request_id=%-15X{requestId:--}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{X-B3-TraceId:--}] [spanId=%-16X{X-B3-SpanId:--}] [method=%-30.30M] [log_type=%-3X{logType:--}] [session_id=%-36X{internalProperty_sessionId:--}] [chain_id=%-36X{chainId:--}] [chain=%-30X{chainName:--}] [chain_element_id=%-36X{elementId:--}] [chain_element=%-15X{elementName:--}] - %m%n
              </pattern>
          </encoder>
      </appender>
