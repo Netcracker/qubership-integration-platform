@@ -203,7 +203,7 @@ async function handleExportSpecifications(selected: Specification[], notify: Ret
       const ids = selected.map((s) => s.id);
       const groupIds = Array.from(new Set(selected.map((s) => s.specificationGroupId).filter(Boolean)));
       const file = await api.exportSpecifications(ids, groupIds);
-      downloadFile(prepareFile(file));
+      downloadFile(file.name ? file : prepareFile(file));
     } catch (e) {
       notify.requestFailed('Export error', e);
     }
@@ -468,17 +468,15 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 onClick={onImportSpecGroupClick}
               />
               <FloatButton
-                tooltip={{ title: "Export all groups", placement: "left" }}
+                tooltip={{ title: "Export service", placement: "left" }}
                 icon={<OverridableIcon name="cloudDownload" />}
                 onClick={() => {
                   void (async () => {
-                    if (!(serviceSpecData ?? []).length) {
-                      message.info("No groups to export");
+                    if (!systemId) {
                       return;
                     }
-                    const groupIds = (serviceSpecData ?? []).map((g) => g.id);
                     try {
-                      const file = await api.exportServices([], groupIds);
+                      const file = await api.exportServices([systemId], []);
                       downloadFile(prepareFile(file));
                     } catch (e) {
                       notify.requestFailed("Export error", e);
@@ -529,7 +527,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
           {!isVsCode && (
             <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
               <FloatButton
-                tooltip={{ title: "Export", placement: "left" }}
+                tooltip={{ title: "Export specification", placement: "left" }}
                 icon={<OverridableIcon name="cloudDownload" />}
                 onClick={() => {
                   void (async () => {
@@ -543,8 +541,8 @@ export const ServiceApiSpecsTab: React.FC = () => {
                         message.info('No model to export');
                         return;
                       }
-                      const file = await api.exportServices([specId], []);
-                      downloadFile(prepareFile(file));
+                      const file = await api.exportSpecifications([specId], []);
+                      downloadFile(file.name ? file : prepareFile(file));
                     } catch (e) {
                       notify.requestFailed('Export error', e);
                     }

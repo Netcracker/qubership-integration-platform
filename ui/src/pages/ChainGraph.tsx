@@ -54,6 +54,9 @@ import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
 import { getElementColor } from "../misc/chain-graph-utils.ts";
+import { ExportChainOptions, ExportChains } from "../components/modal/ExportChains.tsx";
+import { commonVariablesApi } from "../api/admin-tools/variables/commonVariablesApi.ts";
+import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
 
 const readTheme = () => {
   if (typeof document === "undefined") return "light";
@@ -250,6 +253,66 @@ const ChainGraphInner: React.FC = () => {
     });
   };
 
+  const exportChain = async (
+    chainId: string | undefined,
+    options: ExportChainOptions,
+  ) => {
+    try {
+      if (!chainId) {
+        return;
+      }
+      const chainsFile = await api.exportChains(
+        [chainId],
+        options.exportSubchains,
+      );
+      const data = [chainsFile];
+
+      if (options.exportServices) {
+        const usedServices = await api.getServicesUsedByChains(
+          [chainId],
+        );
+        if (usedServices.length > 0) {
+          const serviceIds = usedServices.map((i) => i.systemId);
+          const modelIds = usedServices.flatMap(
+            (i) => i.usedSystemModelIds ?? [],
+          );
+          const servicesData = await api.exportServices(serviceIds, modelIds);
+          data.push(servicesData);
+        }
+      }
+
+      if (options.exportVariables) {
+        const variablesData = await commonVariablesApi.exportVariables(
+          [],
+          true,
+        );
+        data.push(variablesData);
+      }
+
+      const nonEmptyData = data.filter((d) => d.size !== 0);
+      const archiveData = await mergeZipArchives(nonEmptyData);
+      const file = new File([archiveData], chainsFile.name, {
+        type: "application/zip",
+      });
+      downloadFile(file);
+    } catch (error) {
+      notificationService.requestFailed("Failed to export chains", error);
+    }
+  };
+
+  const openExportDialog = () => {
+    showModal({
+      component: (
+        <ExportChains
+          multiple={false}
+          onSubmit={(options) => {
+            void exportChain(chainId, options);
+          }}
+        />
+      ),
+    });
+  };
+
   const openSequenceDiagram = () => {
     showModal({
       component: (
@@ -360,18 +423,18 @@ const ChainGraphInner: React.FC = () => {
         "#fff9e6",
       );
     }
-    
+
     if (node.style?.backgroundColor) {
       return node.style.backgroundColor;
     }
-    
+
     if (node.data?.elementType && libraryElements) {
       const libraryElement = libraryElements.find(
         (el) => el.name === node.data.elementType
       );
       return getElementColor(libraryElement);
     }
-    
+
     return "#fdf39d";
   }, [libraryElements, currentTheme, getCssVariableValue]);
 
@@ -424,10 +487,10 @@ const ChainGraphInner: React.FC = () => {
             fitView
           >
             <Background variant={BackgroundVariant.Dots} />
-            <MiniMap 
-              zoomable 
-              pannable 
-              position="top-right" 
+            <MiniMap
+              zoomable
+              pannable
+              position="top-right"
               nodeColor={getMinimapNodeColor}
               nodeStrokeColor={getMinimapNodeStrokeColor}
               nodeStrokeWidth={1}
@@ -454,6 +517,14 @@ const ChainGraphInner: React.FC = () => {
               placement: "left",
             }}
             onClick={openSaveAndDeployDialog}
+          />
+          <FloatButton
+            icon={<OverridableIcon name="cloudDownload" />}
+            tooltip={{
+              title: "Export chain",
+              placement: "left",
+            }}
+            onClick={openExportDialog}
           />
         </FloatButtonGroup>
       )}

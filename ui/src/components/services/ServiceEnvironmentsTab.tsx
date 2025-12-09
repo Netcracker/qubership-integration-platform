@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { Table, Spin, Flex, Button, Tooltip, message, Tag, Modal } from "antd";
+import { Table, Spin, Flex, Button, Tooltip, message, Tag, Modal, FloatButton } from "antd";
 import { Radio } from "antd";
 import { Environment, EnvironmentSourceType, IntegrationSystemType } from "../../api/apiTypes";
 import { useServiceContext, useChainsContext } from "./ServiceParametersPage";
@@ -12,13 +12,15 @@ import { useNotificationService } from "../../hooks/useNotificationService";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useLocation } from "react-router-dom";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { environmentLabels } from "./utils.tsx";
+import { environmentLabels, prepareFile } from "./utils.tsx";
 import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 import {
   isAmqpProtocol,
   isKafkaProtocol,
   normalizeProtocol,
 } from "../../misc/protocol-utils";
+import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
+import { downloadFile } from "../../misc/download-utils.ts";
 
 interface ServiceEnvironmentsTabProps {
   formatTimestamp: (val: number) => string;
@@ -313,6 +315,29 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
             Add Environment
           </Button>
       )}
+      <>
+        {!isVsCode && (
+          <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
+            <FloatButton
+              tooltip={{ title: "Export service", placement: "left" }}
+              icon={<OverridableIcon name="cloudDownload" />}
+              onClick={() => {
+                void (async () => {
+                  if (!systemId) {
+                    return;
+                  }
+                  try {
+                    const file = await api.exportServices([systemId], []);
+                    downloadFile(prepareFile(file));
+                  } catch (e) {
+                    notificationService.requestFailed("Export error", e);
+                  }
+                })();
+              }}
+            />
+          </FloatButtonGroup>
+        )}
+      </>
       <Table
         dataSource={environments}
         rowKey="id"

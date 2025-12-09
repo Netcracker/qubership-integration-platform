@@ -1,14 +1,18 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Form, Input, Button, Select, Tag, Descriptions, Spin } from "antd";
+import { Form, Input, Button, Select, Tag, Descriptions, Spin, FloatButton } from "antd";
 import { IntegrationSystem, IntegrationSystemType } from "../../api/apiTypes";
 import { api } from "../../api/api";
 import { useAsyncRequest } from './useAsyncRequest';
-import { SourceFlagTag } from './SourceFlagTag';
-import {serviceCache} from "./utils.tsx";
+import { SourceFlagTag } from "./SourceFlagTag";
+import { prepareFile, serviceCache } from "./utils.tsx";
 import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 import { useBlocker } from "react-router-dom";
 import { useModalsContext } from "../../Modals.tsx";
 import { UnsavedChangesModal } from "../modal/UnsavedChangesModal.tsx";
+import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { downloadFile } from "../../misc/download-utils.ts";
+import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 
 interface ServiceParametersTabProps {
   systemId: string;
@@ -39,6 +43,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   const [hasChanges, setHasChanges] = useState<boolean>(false);
   const blocker = useBlocker(hasChanges);
   const { showModal } = useModalsContext();
+  const notificationService = useNotificationService();
 
   const setLabelsAndForm = useCallback((data: IntegrationSystem) => {
     setTechnicalLabels(data.labels?.filter(l => l.technical).map(l => l.name) || []);
@@ -130,6 +135,29 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
 
   return (
     <div style={{ paddingLeft: sidePadding, maxWidth: 900 }}>
+      <>
+        {!isVsCode && (
+          <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
+            <FloatButton
+              tooltip={{ title: "Export service", placement: "left" }}
+              icon={<OverridableIcon name="cloudDownload" />}
+              onClick={() => {
+                void (async () => {
+                  if (!systemId) {
+                    return;
+                  }
+                  try {
+                    const file = await api.exportServices([systemId], []);
+                    downloadFile(prepareFile(file));
+                  } catch (e) {
+                    notificationService.requestFailed("Export error", e);
+                  }
+                })();
+              }}
+            />
+          </FloatButtonGroup>
+        )}
+      </>
       <Form form={form} layout="vertical" onChange={() => setHasChanges(true)}>
         <Form.Item
           label="Name"

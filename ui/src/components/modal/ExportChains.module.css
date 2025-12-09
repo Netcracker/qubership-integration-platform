@@ -13,3 +13,6 @@
   border-color: var(--vscode-editor-foreground, #fff);
 }
 
+.modal {
+    padding-bottom: 0;
+}
