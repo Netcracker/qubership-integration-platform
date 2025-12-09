@@ -97,7 +97,7 @@ export const SessionPage: React.FC = () => {
             <OverridableIcon name="link"
               onClick={() =>
                 window.open(
-                  `/chains/${session?.chainId}/graph/${element.chainElementId}`,
+                  `/chains/${element.actualElementChainId ?? session?.chainId}/graph/${element.chainElementId}`,
                   "_blank",
                 )
               }
