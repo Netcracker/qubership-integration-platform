@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: opensearch-config
+  name: {{ .Release.Name }}-opensearch-config
 data:
   opensearch.yml: |
     cluster.name: "docker-cluster"
