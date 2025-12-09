@@ -8,7 +8,7 @@ on:
 jobs:
   mvn-with-sonar:
     name: Build with Sonar analysis
-    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.1
+    #uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.1
     with:
       maven-command: >
         --batch-mode deploy
