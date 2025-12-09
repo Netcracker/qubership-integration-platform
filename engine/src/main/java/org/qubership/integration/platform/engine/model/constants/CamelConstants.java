@@ -173,6 +173,7 @@ public final class CamelConstants {
     }
 
     public static final class ChainProperties {
+        public static final String SESSION_ID = "sessionId";
         public static final String CHAIN_ID = "chainId";
         public static final String CHAIN_NAME = "chainName";
         public static final String SNAPSHOT_NAME = "snapshotName";
