@@ -75,17 +75,19 @@ public class MetricsService {
                     break;
                 case HTTP_TRIGGER:
                 case HTTP_SENDER:
-                    distributionSummary = metricsStore.processHttpPayloadSize(
-                            true,
-                            deploymentInfo.getChainId(),
-                            deploymentInfo.getChainName(),
-                            stepProperties.get(ChainProperties.ELEMENT_ID),
-                            stepProperties.get(ChainProperties.ELEMENT_NAME),
-                            stepProperties.get(ChainProperties.ELEMENT_TYPE));
-                    distributionSummary.record(calculatePayloadSize(exchange));
+                    if (metricsStore.isHttpPayloadMetricsEnabled()) {
+                        distributionSummary = metricsStore.processHttpPayloadSize(
+                                true,
+                                deploymentInfo.getChainId(),
+                                deploymentInfo.getChainName(),
+                                stepProperties.get(ChainProperties.ELEMENT_ID),
+                                stepProperties.get(ChainProperties.ELEMENT_NAME),
+                                stepProperties.get(ChainProperties.ELEMENT_TYPE));
+                        distributionSummary.record(calculatePayloadSize(exchange));
+                    }
                     break;
                 case SERVICE_CALL:
-                    if (metricNeedsToBeRecorded(stepProperties)) {
+                    if (metricNeedsToBeRecorded(stepProperties) && metricsStore.isHttpPayloadMetricsEnabled()) {
                         distributionSummary = metricsStore.processHttpPayloadSize(
                                 true,
                                 deploymentInfo.getChainId(),
@@ -152,17 +154,19 @@ public class MetricsService {
                         stepProperties.get(ChainProperties.PARENT_ELEMENT_NAME));
                     break;
                 case HTTP_SENDER:
-                    distributionSummary = metricsStore.processHttpPayloadSize(
-                            false,
-                            deploymentInfo.getChainId(),
-                            deploymentInfo.getChainName(),
-                            stepProperties.get(ChainProperties.ELEMENT_ID),
-                            stepProperties.get(ChainProperties.ELEMENT_NAME),
-                            stepProperties.get(ChainProperties.ELEMENT_TYPE));
-                    distributionSummary.record(calculatePayloadSize(exchange));
+                    if (metricsStore.isHttpPayloadMetricsEnabled()) {
+                        distributionSummary = metricsStore.processHttpPayloadSize(
+                                false,
+                                deploymentInfo.getChainId(),
+                                deploymentInfo.getChainName(),
+                                stepProperties.get(ChainProperties.ELEMENT_ID),
+                                stepProperties.get(ChainProperties.ELEMENT_NAME),
+                                stepProperties.get(ChainProperties.ELEMENT_TYPE));
+                        distributionSummary.record(calculatePayloadSize(exchange));
+                    }
                     break;
                 case SERVICE_CALL:
-                    if (metricNeedsToBeRecorded(stepProperties)) {
+                    if (metricNeedsToBeRecorded(stepProperties) && metricsStore.isHttpPayloadMetricsEnabled()) {
                         distributionSummary = metricsStore.processHttpPayloadSize(
                                 false,
                                 deploymentInfo.getChainId(),
@@ -210,7 +214,7 @@ public class MetricsService {
     }
 
     public void processHttpTriggerPayloadSize(Exchange exchange, CamelDebuggerProperties dbgProperties) {
-        if (metricsStore.isMetricsEnabled()) {
+        if (metricsStore.isMetricsEnabled() && metricsStore.isHttpPayloadMetricsEnabled()) {
             DeploymentInfo deploymentInfo = dbgProperties.getDeploymentInfo();
 
             Map<String, String> elementProperties = dbgProperties.getElementProperty(exchange.getProperty(Properties.HTTP_TRIGGER_STEP_ID).toString());
