@@ -26,6 +26,7 @@ import {
 } from "./chainApiRead";
 import {
     getApiSpecifications,
+    getContextService,
     getEnvironments,
     getOperationInfo,
     getOperations,
@@ -40,6 +41,7 @@ import {
     deleteSpecificationModel,
     deprecateModel,
     updateApiSpecificationGroup,
+    updateContextService,
     updateEnvironment,
     updateService,
     updateSpecificationModel
@@ -56,7 +58,8 @@ import {
     handleImportSpecificationGroup,
     handleGetSpecApiFiles,
     handleReadSpecificationFileContent,
-    QipFileType
+    QipFileType,
+    getContextServiceUri
 } from "./serviceApiUtils";
 import {VSCodeMessage, AppExtensionProps, IconOverrides} from "@netcracker/qip-ui";
 import { getAndClearNavigationStateValue } from "./navigationUtils";
@@ -119,6 +122,9 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
         case 'groupElements': return await groupElements(fileUri, message.payload.chainId, message.payload.elementIds);
         case 'ungroupElements': return await ungroupElements(fileUri, message.payload.chainId, message.payload.groupId);
 
+        // Context service operations
+        case 'getContextService': return await getContextService(fileUri, message.payload);
+        case 'updateContextService': return await updateContextService(fileUri, message.payload.id, message.payload.service);
 
         // Service operations
         case 'getService': return await getService(fileUri, message.payload);
@@ -169,6 +175,8 @@ export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
         const fileType = await fileApi.getFileType(fileUri);
 
         switch (fileType) {
+            case QipFileType.CONTEXT_SERVICE:
+                return await getContextServiceUri(fileUri);
             case QipFileType.SERVICE:
                 return await getServiceUri(fileUri);
             case QipFileType.CHAIN:
@@ -183,6 +191,7 @@ export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
 }
 
 export const SERVICE_ROUTES: RegExp[] = [
+  /^\/services\/context\/[^/]+\/parameters$/,
   /^\/services\/systems\/[^/]+\/parameters$/,
   /^\/services\/systems\/[^/]+\/specificationGroups$/,
   /^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications$/,

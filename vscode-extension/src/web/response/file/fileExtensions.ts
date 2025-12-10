@@ -6,6 +6,7 @@ export type FileExtensionsConfig = {
     appName: string;
     chain: string;
     service: string;
+    contextService: string;
     specificationGroup: string;
     specification: string;
 };
@@ -15,6 +16,7 @@ export function buildDefaultExtensions(appName: string): FileExtensionsConfig {
         appName,
         chain: `.chain.${appName}.yaml`,
         service: `.service.${appName}.yaml`,
+        contextService: `.context-service.${appName}.yaml`,
         specificationGroup: `.specification-group.${appName}.yaml`,
         specification: `.specification.${appName}.yaml`
     };
@@ -51,18 +53,20 @@ export function getCurrentFileContext(): string | null {
 
 export function extractAppNameFromExtension(filename: string): string {
     const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-    
+
+    const filenamePattern = /\.(service\d*|context-service\d*|chain\d*|specification-group\d*|specification\d*)\.([^.]+)\.yaml$/;
+
     if (workspaceUri) {
         try {
             const configService = ProjectConfigService.getInstance();
-            
+
             if (!configService.isConfigLoaded()) {
-                const match = filename.match(/\.(service\d*|chain\d*|specification-group\d*|specification\d*)\.([^.]+)\.yaml$/);
+                const match = filename.match(filenamePattern);
                 return match ? match[2] : defaultAppName;
             }
-            
+
             const allConfigs = configService.getAllConfigs();
-            
+
             for (const config of allConfigs) {
                 for (const extension of Object.values(config.extensions)) {
                     if (filename.endsWith(extension)) {
@@ -73,8 +77,8 @@ export function extractAppNameFromExtension(filename: string): string {
         } catch (error) {
         }
     }
-    
-    const match = filename.match(/\.(service\d*|chain\d*|specification-group\d*|specification\d*)\.([^.]+)\.yaml$/);
+
+    const match = filename.match(filenamePattern);
     return match ? match[2] : defaultAppName;
 }
 
@@ -82,18 +86,19 @@ export function getExtensionsForFile(filename?: string): FileExtensionsConfig {
     const contextFile = filename || currentFileContext;
     if (contextFile) {
         const appName = extractAppNameFromExtension(contextFile);
-        
+
         try {
             const configService = ProjectConfigService.getInstance();
-            
+
             if (configService.isConfigLoaded()) {
                 const allConfigs = configService.getAllConfigs();
-                
+
                 const foundConfig = allConfigs.find(cfg => cfg.appName === appName);
                 if (foundConfig) {
                     return {
                         appName: foundConfig.appName,
                         chain: foundConfig.extensions.chain,
+                        contextService: foundConfig.extensions.contextService,
                         service: foundConfig.extensions.service,
                         specificationGroup: foundConfig.extensions.specificationGroup,
                         specification: foundConfig.extensions.specification
@@ -102,7 +107,7 @@ export function getExtensionsForFile(filename?: string): FileExtensionsConfig {
             }
         } catch (error) {
         }
-        
+
         return buildDefaultExtensions(appName);
     }
     return getDefaultExtensions();
@@ -126,17 +131,18 @@ export function getExtensionsForUri(fileUri?: { path: string }): FileExtensionsC
 export async function initializeContextFromFile(fileUri: Uri): Promise<void> {
     const filename = extractFilename(fileUri);
     const appName = extractAppNameFromExtension(filename);
-    
+
     const configService = ProjectConfigService.getInstance();
     const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-    
+
     await configService.setCurrentContext(appName, workspaceUri);
     setCurrentFileContext(filename);
-    
+
     const config = configService.getCurrentConfig();
     memoizedDefaultExtensions = {
         appName: config.appName,
         chain: config.extensions.chain,
+        contextService: config.extensions.contextService,
         service: config.extensions.service,
         specificationGroup: config.extensions.specificationGroup,
         specification: config.extensions.specification
@@ -145,11 +151,12 @@ export async function initializeContextFromFile(fileUri: Uri): Promise<void> {
 
 export function getExtensionsFromConfig(): FileExtensionsConfig {
     const config = ProjectConfigService.getConfig();
-    
+
     return {
         appName: config.appName,
         chain: config.extensions.chain,
         service: config.extensions.service,
+        contextService: config.extensions.contextService,
         specificationGroup: config.extensions.specificationGroup,
         specification: config.extensions.specification
     };

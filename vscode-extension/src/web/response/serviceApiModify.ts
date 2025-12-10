@@ -8,7 +8,7 @@ import {
     SystemRequest
 } from "../api-services/servicesTypes";
 import * as yaml from 'yaml';
-import {getMainService, getService} from "./serviceApiRead";
+import {getContextService, getMainService, getService} from "./serviceApiRead";
 import vscode, {ExtensionContext, Uri} from "vscode";
 import {ContentParser} from '../api-services/parsers/ContentParser';
 import {getExtensionsForFile} from './file/fileExtensions';
@@ -16,6 +16,27 @@ import {fileApi} from "./file/fileApiProvider";
 import {refreshQipExplorer} from "../extension";
 import {LabelUtils} from "../api-services/LabelUtils";
 import {ProjectConfigService} from "../services/ProjectConfigService";
+import { ContextSystem } from "@netcracker/qip-ui";
+
+export async function updateContextService(serviceFileUri: Uri, serviceId: string, serviceRequest: Partial<ContextSystem>): Promise<ContextSystem> {
+    const service = await fileApi.getContextService(serviceFileUri, serviceId);
+
+    if (!service.content) {
+        service.content = {};
+    }
+
+    if (serviceRequest.name !== undefined) {
+        service.name = serviceRequest.name;
+    }
+    if (serviceRequest.description !== undefined) {
+        service.content.description = serviceRequest.description;
+    }
+
+    await writeMainService(serviceFileUri, service);
+    const updatedService = await getContextService(serviceFileUri, serviceId);
+
+    return updatedService;
+}
 
 export async function updateService(serviceFileUri: Uri, serviceId: string, serviceRequest: Partial<IntegrationSystem>): Promise<IntegrationSystem> {
     const service: any = await getMainService(serviceFileUri);

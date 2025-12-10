@@ -18,6 +18,7 @@ export enum IntegrationSystemType {
   EXTERNAL = "EXTERNAL",
   INTERNAL = "INTERNAL",
   IMPLEMENTED = "IMPLEMENTED",
+  CONTEXT = "CONTEXT",
 }
 
 export type IntegrationSystem = BaseEntity & {

@@ -447,16 +447,18 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
         vscode.window.registerTreeDataProvider('qip-main', qipProvider)
     );
 
+    const editorParams = {
+        webviewOptions: {
+            retainContextWhenHidden: true,
+        },
+        supportsMultipleEditorsPerDocument: false,
+    };
+
     context.subscriptions.push(
         vscode.window.registerCustomEditorProvider(
             'qip.chainFile.editor',
             new ChainFileEditorProvider(context),
-            {
-                webviewOptions: {
-                    retainContextWhenHidden: true
-                },
-                supportsMultipleEditorsPerDocument: false
-            }
+            editorParams
         )
     );
 
@@ -464,12 +466,15 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
         vscode.window.registerCustomEditorProvider(
             'qip.serviceFile.editor',
             new ChainFileEditorProvider(context),
-            {
-                webviewOptions: {
-                    retainContextWhenHidden: true
-                },
-                supportsMultipleEditorsPerDocument: false
-            }
+            editorParams
+        )
+    );
+
+    context.subscriptions.push(
+        vscode.window.registerCustomEditorProvider(
+            'qip.contextServiceFile.editor',
+            new ChainFileEditorProvider(context),
+            editorParams
         )
     );
 
@@ -520,6 +525,18 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
             if (result) {
                 const ext = getExtensionsForUri();
                 const serviceFileUri = vscode.Uri.joinPath(result.folderUri, `${result.serviceId}${ext.service}`);
+                openWebviewForElement(context, serviceFileUri, 'service');
+            }
+        }
+    ));
+
+    context.subscriptions.push(vscode.commands.registerCommand('qip.createContextService',
+        async () => {
+            const result = await fileApiImpl.createEmptyContextService();
+            qipProvider.refresh();
+            if (result) {
+                const ext = getExtensionsForUri();
+                const serviceFileUri = vscode.Uri.joinPath(result.folderUri, `${result.serviceId}${ext.contextService}`);
                 openWebviewForElement(context, serviceFileUri, 'service');
             }
         }
