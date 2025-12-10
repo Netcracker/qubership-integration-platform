@@ -66,6 +66,8 @@ import {
   Element,
   SystemOperation,
   SpecApiFile,
+  ContextSystem,
+  IntegrationSystemType,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
@@ -1031,6 +1033,68 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  getContextServices = async(): Promise<ContextSystem[]> => {
+    const response = await this.instance.get<ContextSystem[]>(
+      `/api/v1/${getAppName()}/catalog/context-system`,
+    );
+    const result = response.data;
+    response.data.map(system => system.type = IntegrationSystemType.CONTEXT);
+    return result;
+  }
+
+  getContextService = async (id: string): Promise<ContextSystem> => {
+    const response = await this.instance.get<ContextSystem>(
+      `/api/v1/${getAppName()}/catalog/context-system/${id}`,
+    );
+    return response.data;
+  }
+
+  createContextService = async(system: Pick<ContextSystem, 'name' | 'description'>): Promise<ContextSystem> => {
+    const response = await this.instance.post<ContextSystem>(
+      `/api/v1/${getAppName()}/catalog/context-system`,
+      system,
+    );
+    return response.data;
+  }
+
+  updateContextService = async (
+    id: string,
+    data: Partial<ContextSystem>,
+  ): Promise<ContextSystem> => {
+    const response = await this.instance.put<ContextSystem>(
+      `/api/v1/${getAppName()}/catalog/context-system/${id}`,
+      data,
+    );
+    return response.data;
+  };
+
+  deleteContextService = async (serviceId: string): Promise<void> => {
+    await this.instance.delete(
+      `/api/v1/${getAppName()}/catalog/context-system/${serviceId}`,
+    );
+  };
+
+  exportContextServices = async (
+    serviceIds: string[],
+  ): Promise<File> => {
+    const formData: FormData = new FormData();
+    if (serviceIds?.length) {
+      formData.append("systemIds", serviceIds.join(","));
+    }
+    const response = await this.instance.post<Blob>(
+      `/api/v1/${getAppName()}/catalog/context-system/export`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          accept: "*/*",
+        },
+        responseType: "blob",
+      },
+    );
+    return getFileFromResponse(response);
+  };
+
   getService = async (id: string): Promise<IntegrationSystem> => {
     const response = await this.instance.get<IntegrationSystem>(
       `/api/v1/${getAppName()}/systems-catalog/systems/${id}`,
@@ -1159,6 +1223,7 @@ export class RestApi implements Api {
 
   importSystems = async (
     file: File,
+    systemType: IntegrationSystemType,
     systemIds?: string[],
     deployLabel?: string,
     packageName?: string,
@@ -1166,7 +1231,7 @@ export class RestApi implements Api {
     packagePartOf?: string,
   ): Promise<ImportSystemResult[]> => {
     const formData = new FormData();
-    formData.append("files", file);
+    formData.append(systemType == IntegrationSystemType.CONTEXT ? "file" : "files", file);
     if (systemIds && systemIds.length > 0) {
       for (const id of systemIds) {
         formData.append("systemIds", id);
@@ -1179,8 +1244,12 @@ export class RestApi implements Api {
     if (packageName) headers["X-SR-PACKAGE-NAME"] = packageName;
     if (packageVersion) headers["X-SR-PACKAGE-VERSION"] = packageVersion;
     if (packagePartOf) headers["X-SR-PACKAGE-PART-OF"] = packagePartOf;
+
+    const url = IntegrationSystemType.CONTEXT
+      ? `/api/v1/${getAppName()}/catalog/context-system/import`
+      : `/api/v1/${getAppName()}/systems-catalog/import/system`;
     const response = await this.instance.post<ImportSystemResult[]>(
-      `/api/v1/${getAppName()}/systems-catalog/import/system`,
+      url,
       formData,
       {
         headers: {

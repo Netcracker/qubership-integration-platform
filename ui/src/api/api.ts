@@ -59,6 +59,8 @@ import {
   Element,
   SystemOperation,
   SpecApiFile,
+  ContextSystem,
+  IntegrationSystemType,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -317,6 +319,7 @@ export interface Api {
 
   importSystems(
     file: File,
+    systemType: IntegrationSystemType,
     systemIds?: string[],
     deployLabel?: string,
     packageName?: string,
@@ -349,6 +352,21 @@ export interface Api {
     id: string,
     data: Partial<IntegrationSystem>,
   ): Promise<IntegrationSystem>;
+
+  getContextServices(): Promise<ContextSystem[]>;
+
+  getContextService(id: string): Promise<ContextSystem>;
+
+  createContextService(system: Pick<ContextSystem, 'name' | 'description'>): Promise<ContextSystem>;
+
+  updateContextService(
+    id: string,
+    data: Partial<ContextSystem>,
+  ): Promise<ContextSystem>;
+
+  deleteContextService(serviceId: string): Promise<void>;
+
+  exportContextServices(serviceIds: string[]): Promise<File>;
 
   getEnvironments(systemId: string): Promise<Environment[]>;
 

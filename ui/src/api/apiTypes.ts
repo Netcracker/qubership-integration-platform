@@ -973,10 +973,21 @@ export type IntegrationSystem = {
   modifiedWhen?: string;
 };
 
+export type ContextSystem = {
+  id: string;
+  name: string;
+  type: IntegrationSystemType;
+  description?: string;
+  createdWhen?: string;
+  createdBy?: User;
+  modifiedWhen?: string;
+};
+
 export enum IntegrationSystemType {
   INTERNAL = "INTERNAL",
   EXTERNAL = "EXTERNAL",
   IMPLEMENTED = "IMPLEMENTED",
+  CONTEXT = "CONTEXT",
 }
 
 export type SystemRequest = {

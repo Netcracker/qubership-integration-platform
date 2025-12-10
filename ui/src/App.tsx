@@ -41,6 +41,7 @@ import {
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
 import { IconProvider } from "./icons/IconProvider.tsx";
 import { useEffect, useMemo, useState } from "react";
+import { ContextServiceParametersPage } from "./components/services/context/ContextServiceParametersPage.tsx";
 
 const { Header } = Layout;
 
@@ -97,6 +98,10 @@ const router = createBrowserRouter(
       <Route
         path="/services/systems/:systemId/environments"
         element={<ServiceParametersPage />}
+      />
+      <Route
+        path="/services/context/:systemId/parameters"
+        element={<ContextServiceParametersPage />}
       />
       <Route path="*" element={<NotFound />} />
       <Route path="/not-implemented" element={<NotImplemented />} />

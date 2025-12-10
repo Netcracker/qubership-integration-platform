@@ -46,7 +46,9 @@ import {
   Element,
   MaskedFields, TransferElementRequest,
   SystemOperation,
-  SpecApiFile
+  SpecApiFile,
+  IntegrationSystemType,
+  ContextSystem
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
@@ -356,6 +358,7 @@ export class VSCodeExtensionApi implements Api {
 
   importSystems = async (
     file: File,
+    systemType: IntegrationSystemType,
     systemIds?: string[],
     deployLabel?: string,
     packageName?: string,
@@ -364,6 +367,7 @@ export class VSCodeExtensionApi implements Api {
   ): Promise<ImportSystemResult[]> => {
     const response = await this.sendMessageToExtension("importSystems", {
       file,
+      systemType,
       systemIds,
       deployLabel,
       packageName,
@@ -464,6 +468,47 @@ export class VSCodeExtensionApi implements Api {
       ).payload
     );
   };
+
+  getContextServices = async (): Promise<ContextSystem[]> => {
+    return <ContextSystem[]>(
+      (await this.sendMessageToExtension("getContextServices")).payload
+    );
+  };
+
+  getContextService = async (systemId: string): Promise<ContextSystem> => {
+    const response = await this.sendMessageToExtension("getContextService", systemId);
+    return <ContextSystem>response.payload;
+  };
+
+  createContextService = async (
+    system: Pick<ContextSystem, 'name' | 'description'>,
+  ): Promise<ContextSystem> => {
+    return <ContextSystem>(
+      (await this.sendMessageToExtension("createContextService", system)).payload
+    );
+  };
+
+  updateContextService = async (
+    id: string,
+    service: Partial<ContextSystem>,
+  ): Promise<ContextSystem> => {
+    return <ContextSystem>(
+      (
+        await this.sendMessageToExtension("updateContextService", {
+          id: id,
+          service,
+        })
+      ).payload
+    );
+  };
+
+  deleteContextService(): Promise<void> {
+    throw new Error("Method deleteContextService not implemented.");
+  }
+
+  exportContextServices(): Promise<File> {
+    throw new Error("Method exportContextServices not implemented.");
+  }
 
   getEnvironments = async (systemId: string): Promise<Environment[]> => {
     const result = <Environment[]>(

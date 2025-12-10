@@ -14,7 +14,7 @@ import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { downloadFile } from "../../misc/download-utils.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 
-interface ServiceParametersTabProps {
+export interface ServiceParametersTabProps {
   systemId: string;
   activeTab: string
   formatTimestamp: (val: string) => string;

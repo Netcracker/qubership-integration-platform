@@ -17,17 +17,17 @@ import { ColumnsFilter } from '../table/ColumnsFilter';
 import { OperationInfoModal } from './OperationInfoModal';
 import { api } from '../../api/api';
 import { TextColumnFilterDropdown, getTextColumnFilterFn } from '../table/TextColumnFilterDropdown.tsx';
-import type { SpecificationGroup, Specification, SystemOperation } from '../../api/apiTypes';
+import type { SpecificationGroup, Specification, SystemOperation, ContextSystem } from '../../api/apiTypes';
 import { InlineEdit } from '../InlineEdit';
 import { LabelsEdit } from '../table/LabelsEdit';
 import { ChainColumn } from './ChainColumn';
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { HttpMethod } from './HttpMethod.tsx';
 
-export type ServiceEntity = IntegrationSystem | SpecificationGroup | Specification | SystemOperation;
+export type ServiceEntity = IntegrationSystem | SpecificationGroup | Specification | SystemOperation | ContextSystem;
 
 export function isIntegrationSystem(record: ServiceEntity): record is IntegrationSystem {
-  return 'type' in record;
+  return 'type' in record && record['type'] !== IntegrationSystemType.CONTEXT;
 }
 
 export function isSpecificationGroup(record: ServiceEntity): record is SpecificationGroup {
@@ -40,6 +40,10 @@ export function isSpecification(record: ServiceEntity): record is Specification 
 
 export function isSystemOperation(record: ServiceEntity): record is SystemOperation {
   return 'method' in record && 'path' in record && 'modelId' in record;
+}
+
+export function isContextSystem(record: ServiceEntity): record is ContextSystem {
+  return 'type' in record && record['type'] === IntegrationSystemType.CONTEXT;
 }
 
 export interface ServicesTableColumn<T extends ServiceEntity = ServiceEntity> {
@@ -103,6 +107,8 @@ function getIcon(record: ServiceEntity): React.JSX.Element | null {
         return <OverridableIcon name="cloud" style={iconStyle} />;
       case IntegrationSystemType.IMPLEMENTED:
         return <OverridableIcon name="cluster" style={iconStyle} />;
+      case IntegrationSystemType.CONTEXT:
+        return <OverridableIcon name="database" style={iconStyle} />;
       default:
         return <OverridableIcon name="global" style={iconStyle} />;
     }
@@ -420,6 +426,7 @@ export function getServiceActions({
   onExpandAll,
   onCollapseAll,
   isRootEntity,
+  isExpandAvailable,
   onExportSelected,
 }: {
   onEdit: (record: ServiceEntity) => void;
@@ -427,6 +434,7 @@ export function getServiceActions({
   onExpandAll: (record: ServiceEntity) => void;
   onCollapseAll: (record: ServiceEntity) => void;
   isRootEntity: (record: ServiceEntity) => boolean;
+  isExpandAvailable: (record: ServiceEntity) => boolean;
   onExportSelected?: (selected: ServiceEntity[]) => void;
 }) {
   return (record: ServiceEntity): ActionConfig<ServiceEntity>[] => {
@@ -448,20 +456,24 @@ export function getServiceActions({
           okText: 'Delete',
           cancelText: 'Cancel',
         },
-      },
-      {
-        key: 'expandAll',
-        label: 'Expand All',
-        icon: <OverridableIcon name="columnHeight" />,
-        onClick: onExpandAll,
-      },
-      {
-        key: 'collapseAll',
-        label: 'Collapse All',
-        icon: <OverridableIcon name="verticalAlignMiddle" />,
-        onClick: onCollapseAll,
-      },
-    ];
+      }];
+      if (isExpandAvailable(record)) {
+        actions.push(
+          {
+            key: "expandAll",
+            label: "Expand All",
+            icon: <OverridableIcon name="columnHeight" />,
+            onClick: onExpandAll,
+          },
+          {
+            key: "collapseAll",
+            label: "Collapse All",
+            icon: <OverridableIcon name="verticalAlignMiddle" />,
+            onClick: onCollapseAll,
+          },
+        );
+      }
+
     if (onExportSelected) {
       actions.push({
         key: 'export',

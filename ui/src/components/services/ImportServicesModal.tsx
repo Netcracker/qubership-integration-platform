@@ -3,7 +3,7 @@ import { Modal, Upload, Table, Button, message, Typography, Tag } from "antd";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../ModalContextProvider";
 import { api } from "../../api/api";
-import { ImportSystemResult, SystemImportStatus } from "../../api/apiTypes";
+import { ImportSystemResult, IntegrationSystemType, SystemImportStatus } from "../../api/apiTypes";
 import { getErrorMessage } from '../../misc/error-utils';
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { validateFiles } from "./utils";
@@ -11,6 +11,7 @@ import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 interface Props {
   onSuccess?: () => void;
+  systemType: IntegrationSystemType;
 }
 
 const SUPPORTED_EXTENSIONS = ['.zip'];
@@ -23,7 +24,7 @@ const statusColor = {
   IGNORED: "default",
 };
 
-const ImportServicesModal: React.FC<Props> = ({ onSuccess }) => {
+const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
   const { closeContainingModal } = useModalContext();
   const notify = useNotificationService();
   const [files, setFiles] = useState<RcFile[]>([]);
@@ -42,7 +43,7 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess }) => {
     }
     setLoading(true);
     try {
-      const res = await api.importSystems(files[0]);
+      const res = await api.importSystems(files[0], systemType);
       setResult(res);
       onSuccess?.();
     } catch (e: unknown) {

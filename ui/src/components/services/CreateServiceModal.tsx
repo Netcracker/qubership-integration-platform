@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, Input, Button, Form, Select } from "antd";
 import { IntegrationSystemType } from "../../api/apiTypes";
 import { getErrorMessage } from "../../misc/error-utils";
+import { capitalize } from "../../misc/format-utils";
 
 interface CreateServiceModalProps {
   open: boolean;
@@ -19,12 +20,8 @@ type CreateServiceFormValues = {
 };
 
 const getServiceTypeLabel = (type: IntegrationSystemType): string => {
-  switch (type) {
-    case IntegrationSystemType.EXTERNAL: return "External";
-    case IntegrationSystemType.INTERNAL: return "Internal";
-    case IntegrationSystemType.IMPLEMENTED: return "Implemented";
-    default: return "Service";
-  }
+  const result: string | undefined = IntegrationSystemType[type];
+  return result ? capitalize(result) : "Service";
 };
 
 export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
@@ -97,6 +94,7 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
             <Select.Option value={IntegrationSystemType.EXTERNAL}>External</Select.Option>
             <Select.Option value={IntegrationSystemType.INTERNAL}>Internal</Select.Option>
             <Select.Option value={IntegrationSystemType.IMPLEMENTED}>Implemented</Select.Option>
+            <Select.Option value={IntegrationSystemType.CONTEXT}>Content</Select.Option>
           </Select>
         </Form.Item>
         {error && <div style={{ color: 'var(--vscode-errorForeground, #d73a49)', marginBottom: 8 }}>{error}</div>}

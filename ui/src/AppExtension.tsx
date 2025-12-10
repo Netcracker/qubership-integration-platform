@@ -18,6 +18,7 @@ import { ServiceParametersPage } from "./components/services/ServiceParametersPa
 import { useVSCodeTheme } from "./hooks/useVSCodeTheme.ts";
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
 import { IconProvider } from "./icons/IconProvider.tsx";
+import { ContextServiceParametersPage } from "./components/services/context/ContextServiceParametersPage.tsx";
 
 const router = createMemoryRouter(
   createRoutesFromElements(
@@ -30,6 +31,10 @@ const router = createMemoryRouter(
         <Route path="masking" element={<Masking />} />
         <Route path="properties" element={<ChainProperties />} />
       </Route>
+      <Route
+        path="/services/context/:systemId/parameters"
+        element={<ContextServiceParametersPage />}
+      />
       <Route
         path="/services/systems/:systemId/parameters"
         element={<ServiceParametersPage />}

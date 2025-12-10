@@ -25,8 +25,9 @@ import {
   isSpecification,
   isSpecificationGroup,
   isIntegrationSystem,
+  isContextSystem,
 } from "./ServicesTreeTable";
-import type { IntegrationSystem, SpecificationGroup } from "../../api/apiTypes";
+import type { ContextSystem, IntegrationSystem, SpecificationGroup } from "../../api/apiTypes";
 import { downloadFile } from '../../misc/download-utils';
 import { prepareFile } from "./utils.tsx";
 import ImportServicesModal from "./ImportServicesModal";
@@ -45,10 +46,12 @@ const visibleColumns: string[] = [
   "source",
   "labels",
   "usedBy",
+  "createdWhen",
+  "createdBy",
 ];
 
 export const ServicesListPage: React.FC = () => {
-  type TabType = "external" | "internal" | "implemented";
+  type TabType = "external" | "internal" | "implemented" | "context";
   const [tab] = useHashTab("implemented") as [TabType, (tab: TabType) => void];
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -58,10 +61,12 @@ export const ServicesListPage: React.FC = () => {
     external: IntegrationSystem[];
     internal: IntegrationSystem[];
     implemented: IntegrationSystem[];
+    context: ContextSystem[];
   }>({
     external: [],
     internal: [],
     implemented: [],
+    context: [],
   });
   const [specGroupsByService, setSpecGroupsByService] = useState<Record<string, SpecificationGroup[]>>({});
   const [specsByGroup, setSpecsByGroup] = useState<Record<string, Specification[]>>({});
@@ -81,6 +86,7 @@ export const ServicesListPage: React.FC = () => {
       external: all.filter((s) => s.type === IntegrationSystemType.EXTERNAL),
       internal: all.filter((s) => s.type === IntegrationSystemType.INTERNAL),
       implemented: all.filter((s) => s.type === IntegrationSystemType.IMPLEMENTED),
+      context: await api.getContextServices(),
     });
   }, { initialValue: undefined });
 
@@ -89,13 +95,13 @@ export const ServicesListPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const getServicesByTab = useCallback(() => {
+  const getServicesByTab = useCallback((): IntegrationSystem[] | ContextSystem[] => {
     if (tab === "internal") return servicesByType["internal"];
     return servicesByType[tab] ?? [];
   },[servicesByType, tab]);
 
   const buildDataSource = useMemo((): ServiceEntity[] => {
-    return getServicesByTab().map((service: IntegrationSystem) => {
+    return getServicesByTab().map((service: IntegrationSystem | ContextSystem) => {
       const groups = specGroupsByService[service.id];
       return {
         ...service,
@@ -164,12 +170,18 @@ export const ServicesListPage: React.FC = () => {
   };
 
   const isRootEntity = (record: ServiceEntity) => {
-    return isIntegrationSystem(record)
+    return isIntegrationSystem(record) || isContextSystem(record)
+  };
+
+  const isExpandAvailable = (record: ServiceEntity) => {
+    return !isContextSystem(record)
   };
 
   const handleEdit = (record: ServiceEntity) => {
     if (isIntegrationSystem(record)) {
       void navigate(`/services/systems/${record.id}/specificationGroups`);
+    } else if (isContextSystem(record)) {
+      void navigate(`/services/context/${record.id}/parameters`);
     }
   };
 
@@ -220,6 +232,8 @@ export const ServicesListPage: React.FC = () => {
   const handleDeleteWithConfirm = (record: ServiceEntity) => {
     if (isIntegrationSystem(record)) {
       void handleDelete(record.id);
+    } else if (isContextSystem(record)) {
+      void handleDeleteContext(record.id);
     }
   };
 
@@ -230,6 +244,7 @@ export const ServicesListPage: React.FC = () => {
       onExpandAll: () => { void handleExpandAll(); },
       onCollapseAll: handleCollapseAll,
       isRootEntity,
+      isExpandAvailable,
       onExportSelected:  (selected) => { void handleExportSelected(selected); },
     })
   );
@@ -287,6 +302,8 @@ export const ServicesListPage: React.FC = () => {
           setSpecsByGroup((prev) => ({ ...prev, [record.id]: record.specifications }));
           setLoadingRows((rows) => rows.filter((id) => id !== record.id));
         }
+      } else if (isContextSystem(record)) {
+        void navigate(`/services/context/${record.id}/parameters`);
       }
     },
   });
@@ -298,7 +315,9 @@ export const ServicesListPage: React.FC = () => {
     }
     try {
       const systemIds = selected.map(s => s.id)
-      const file = await api.exportServices(systemIds, []);
+      const file = isContextSystem(selected[0])
+        ? await api.exportContextServices(systemIds)
+        : await api.exportServices(systemIds, []);
       downloadFile(prepareFile(file));
     } catch (e: unknown) {
       notify.requestFailed(getErrorMessage(e, 'Export error'), e);
@@ -309,14 +328,19 @@ export const ServicesListPage: React.FC = () => {
     setCreateLoading(true);
     setCreateError(null);
     try {
-      const service = await api.createService({ name, description, type });
+      const service: IntegrationSystem | ContextSystem =
+        type === IntegrationSystemType.CONTEXT
+          ? await api.createContextService({ name, description})
+          : await api.createService({ name, description, type });
       if (type === IntegrationSystemType.INTERNAL || type === IntegrationSystemType.IMPLEMENTED) {
         await api.createEnvironment(service.id, { name, address: "/" });
       }
       void loadServices();
       setCreateModalOpen(false);
       message.success("Service created");
-      void navigate(`/services/systems/${service.id}/parameters`);
+      void navigate(
+        `/services/${type === IntegrationSystemType.CONTEXT ? "context" : "systems"}/${service.id}/parameters`,
+      );
     } catch (e: unknown) {
       setCreateError(getErrorMessage(e, "Service creation error"));
       notify.requestFailed(getErrorMessage(e, "Service creation error"), e);
@@ -335,6 +359,16 @@ export const ServicesListPage: React.FC = () => {
     }
   };
 
+  const handleDeleteContext = async (id: string) => {
+    try {
+      await api.deleteContextService(id);
+      void loadServices();
+      message.success("Service deleted");
+    } catch (e: unknown) {
+      notify.requestFailed(getErrorMessage(e, "Service deletion error"), e);
+    }
+  };
+
   function updateLabelsInMap<T extends { id: string; labels?: import("../../api/apiTypes").EntityLabel[] }>(
     map: Record<string, T[]>,
     updated: T
@@ -346,6 +380,12 @@ export const ServicesListPage: React.FC = () => {
     return newMap;
   }
 
+  const getDefaultType = (tab: string): IntegrationSystemType => {
+    return IntegrationSystemType[
+      tab.toUpperCase() as keyof typeof IntegrationSystemType
+    ];
+  };
+
   return (
     <Flex vertical className={styles["container"]}>
         <div className={styles["header"]}>
@@ -355,6 +395,7 @@ export const ServicesListPage: React.FC = () => {
                 case "external": return <OverridableIcon name="global" className={styles["icon"]} />;
                 case "internal": return <OverridableIcon name="cloud" className={styles["icon"]} />;
                 case "implemented": return <OverridableIcon name="cluster" className={styles["icon"]} />;
+                case "context": return <OverridableIcon name="database" className={styles["icon"]} />;
                 default: return <OverridableIcon name="table" className={styles["icon"]} />;
               }
             })()}
@@ -363,6 +404,7 @@ export const ServicesListPage: React.FC = () => {
                 case "external": return "External Services";
                 case "internal": return "Internal Services";
                 case "implemented": return "Implemented Services";
+                case "context": return "Context Services";
                 default: return "Services";
               }
             })()}
@@ -401,7 +443,7 @@ export const ServicesListPage: React.FC = () => {
               icon={<OverridableIcon name="cloudUpload" />}
               onClick={() => {
                 showModal({
-                  component: <ImportServicesModal onSuccess={() => { void loadServices(); }} />,
+                  component: <ImportServicesModal onSuccess={() => { void loadServices(); }} systemType={getDefaultType(tab)}/>,
                 });
               }}
             />
@@ -421,7 +463,7 @@ export const ServicesListPage: React.FC = () => {
           onCreate={handleCreate}
           loading={createLoading}
           error={createError}
-          defaultType={tab === "external" ? IntegrationSystemType.EXTERNAL : (tab === "internal" ? IntegrationSystemType.INTERNAL : IntegrationSystemType.IMPLEMENTED)}
+          defaultType={getDefaultType(tab)}
         />
     </Flex>
   );

@@ -98,6 +98,7 @@ import {
   CheckCircleOutlined,
   DeliveredProcedureOutlined,
   DeleteRowOutlined,
+  DatabaseOutlined,
 } from "@ant-design/icons";
 
 export const commonIcons = {
@@ -172,6 +173,7 @@ export const commonIcons = {
   solution: SolutionOutlined,
   columnHeight: ColumnHeightOutlined,
   verticalAlignMiddle: VerticalAlignMiddleOutlined,
+  database: DatabaseOutlined,
 };
 
 export const elementIcons = {

@@ -1,7 +1,7 @@
 import React from "react";
 import { Tag } from "antd";
 import { isSpecification, ServiceEntity } from "./ServicesTreeTable";
-import {IntegrationSystem, Specification} from "../../api/apiTypes.ts";
+import {ContextSystem, IntegrationSystem, Specification} from "../../api/apiTypes.ts";
 import { RcFile } from "antd/es/upload";
 
 export type UsageStatus = 'Deprecated' | 'In use' | 'New';
@@ -88,3 +88,5 @@ export const invalidateServiceCache = (systemId: string) => {
     delete serviceCache[systemId];
     console.log(`Service cache invalidated for: ${systemId}`);
 };
+
+export const contextServiceCache: { [key: string]: ContextSystem } = {};
