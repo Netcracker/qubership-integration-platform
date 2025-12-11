@@ -6,11 +6,19 @@ on:
     types: [ opened, synchronize, reopened ]
 
 jobs:
-  mvn:
-    uses: netcracker/qubership-core-infra/.github/workflows/maven-build-with-sonar.yaml@v1.0.5
+  mvn-with-sonar:
+    name: Build with Sonar analysis
+    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.1
     with:
-      event-name: ${{ github.event_name }}
-      actor: ${{ github.actor }}
-      sonar-project-key: ${{ vars.SONAR_PROJECT_KEY }}
+      maven-command: >
+        --batch-mode verify
+        -Dgpg.skip=true
+        org.sonarsource.scanner.maven:sonar-maven-plugin:${{ vars.SONAR_PLUGIN_VERSION }}:sonar
+        -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+        -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+        -Dsonar.host.url=${{ vars.SONAR_HOST_URL }}
+      server-id: github
+      java-version: 21
     secrets:
+      maven-token: ${{ secrets.GITHUB_TOKEN }}
       sonar-token: ${{ secrets.SONAR_TOKEN }}
