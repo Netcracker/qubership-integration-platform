@@ -360,7 +360,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
     "body-group",
   ]);
 
-  const [controlsStateMap, /* setControlsStateMap */] = useState<
+  const [controlsStateMap /*, setControlsStateMap */] = useState<
     Map<SchemaKind, TableControlsState>
   >(
     new Map<SchemaKind, TableControlsState>([
@@ -1314,10 +1314,26 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
     setTargetColumns(buildTargetColumns());
   }, [buildTargetColumns]);
 
+  useEffect(() => {
+    const handleAnimationEnd = (event: AnimationEvent) => {
+      if (
+        event.target instanceof Element &&
+        event.target.contains(containerRef.current)
+      ) {
+        refreshConnectionLines();
+      }
+    };
+
+    window.addEventListener("animationend", handleAnimationEnd);
+    return () => {
+      window.removeEventListener("animationend", handleAnimationEnd);
+    };
+  }, [refreshConnectionLines, containerRef]);
+
   return (
     <ArcherContainer
       ref={archerContainerRef}
-      style={{ height: "100%"}}
+      style={{ height: "100%" }}
       strokeWidth={3}
       strokeColor={"#FFB02E"}
       endShape={{ arrow: { arrowLength: 3, arrowThickness: 3 } }}
