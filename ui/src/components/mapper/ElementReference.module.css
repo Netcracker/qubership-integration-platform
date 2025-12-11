@@ -1,8 +1,23 @@
+[data-theme="light"] .element-reference {
+  --element-reference-bg-color: #ECEDEF;
+  --element-reference-type-bg-color: #D5DCE3;
+}
+
+[data-theme="dark"] .element-reference {
+  --element-reference-bg-color: #5b5b5c;
+  --element-reference-type-bg-color: #424445;
+}
+
+[data-theme="high-contrast"] .element-reference {
+  --element-reference-bg-color: #000000;
+  --element-reference-type-bg-color: #000000;
+}
+
 .element-reference {
   padding-left: 0;
   display: flex;
   align-items: center;
-  background-color: #ECEDEF;
+  background-color: var(--element-reference-bg-color);
   margin-right: 0;
   min-width: 0;
 }
@@ -11,7 +26,7 @@
   text-transform: capitalize;
   font-weight: 600;
   font-style: italic;
-  background-color: #D5DCE3;
+  background-color: var(--element-reference-type-bg-color);
   padding-left: 8px;
   padding-right: 8px;
   border-bottom-left-radius: 3px;
