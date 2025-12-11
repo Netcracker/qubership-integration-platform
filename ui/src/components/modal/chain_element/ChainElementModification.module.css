@@ -50,3 +50,7 @@
     height: 33vh;
 }
 
+.parameters-form {
+  min-height: 0;
+  overflow-y: auto;
+}

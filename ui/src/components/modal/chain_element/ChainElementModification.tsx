@@ -122,7 +122,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   onSubmit,
   onClose,
 }) => {
-
   const { isLoading: libraryElementIsLoading, libraryElement } =
     useLibraryElement(node.data.elementType);
   const [isLoading, setIsLoading] = useState(false);
@@ -265,6 +264,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     notificationService,
     schemaModules,
     enrichProperties,
+    chainId,
   ]);
 
   const handleClose = useCallback(() => {
@@ -636,10 +636,10 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           <Tabs
             activeKey={activeKey}
             onChange={handleTabChange}
-            className={"flex-tabs"}
             items={uniqueTabs.map((tab) => ({ key: tab, label: tab }))}
           />
           <Form
+            className={styles["parameters-form"]}
             schema={schema}
             formData={formData}
             validator={validator}
@@ -665,7 +665,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               ErrorListTemplate,
             }}
             fields={{
-              OneOfField: CustomOneOfField,  //Rewrite default oneOfField
+              OneOfField: CustomOneOfField, //Rewrite default oneOfField
               oneOfAsSingleInputField: OneOfAsSingleInputField,
               anyOfAsSingleSelectField: AnyOfAsSingleSelectField,
               patternPropertiesField: PatternPropertiesField,
