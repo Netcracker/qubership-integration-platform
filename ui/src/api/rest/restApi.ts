@@ -66,6 +66,7 @@ import {
   Element,
   SystemOperation,
   SpecApiFile,
+  LiveExchange,
   ContextSystem,
   IntegrationSystemType,
 } from "../apiTypes.ts";
@@ -102,7 +103,7 @@ export class RestApi implements Api {
           if (isErrorResponse(data)) {
             responseBody = data;
             message = responseBody?.errorMessage;
-          } else if (typeof Blob !== 'undefined' && data instanceof Blob) {
+          } else if (typeof Blob !== "undefined" && data instanceof Blob) {
             try {
               const text = await data.text();
               const parsed: unknown = JSON.parse(text);
@@ -831,7 +832,10 @@ export class RestApi implements Api {
         responseType: "blob",
       },
     );
-    const contentType = (response.headers?.["content-type"] as string | undefined)?.toLowerCase() ?? "";
+    const contentType =
+      (
+        response.headers?.["content-type"] as string | undefined
+      )?.toLowerCase() ?? "";
     if (contentType.includes("application/json")) {
       try {
         const text = await response.data.text();
@@ -841,7 +845,10 @@ export class RestApi implements Api {
         }
       } catch (e) {
         if (e instanceof RestApiError) throw e;
-        throw new RestApiError("Failed to generate API specification", response.status);
+        throw new RestApiError(
+          "Failed to generate API specification",
+          response.status,
+        );
       }
     }
     return getFileFromResponse(response);
@@ -1033,29 +1040,33 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  getContextServices = async(): Promise<ContextSystem[]> => {
+  getContextServices = async (): Promise<ContextSystem[]> => {
     const response = await this.instance.get<ContextSystem[]>(
       `/api/v1/${getAppName()}/catalog/context-system`,
     );
     const result = response.data;
-    response.data.map(system => system.type = IntegrationSystemType.CONTEXT);
+    response.data.map(
+      (system) => (system.type = IntegrationSystemType.CONTEXT),
+    );
     return result;
-  }
+  };
 
   getContextService = async (id: string): Promise<ContextSystem> => {
     const response = await this.instance.get<ContextSystem>(
       `/api/v1/${getAppName()}/catalog/context-system/${id}`,
     );
     return response.data;
-  }
+  };
 
-  createContextService = async(system: Pick<ContextSystem, 'name' | 'description'>): Promise<ContextSystem> => {
+  createContextService = async (
+    system: Pick<ContextSystem, "name" | "description">,
+  ): Promise<ContextSystem> => {
     const response = await this.instance.post<ContextSystem>(
       `/api/v1/${getAppName()}/catalog/context-system`,
       system,
     );
     return response.data;
-  }
+  };
 
   updateContextService = async (
     id: string,
@@ -1074,9 +1085,7 @@ export class RestApi implements Api {
     );
   };
 
-  exportContextServices = async (
-    serviceIds: string[],
-  ): Promise<File> => {
+  exportContextServices = async (serviceIds: string[]): Promise<File> => {
     const formData: FormData = new FormData();
     if (serviceIds?.length) {
       formData.append("systemIds", serviceIds.join(","));
@@ -1231,7 +1240,10 @@ export class RestApi implements Api {
     packagePartOf?: string,
   ): Promise<ImportSystemResult[]> => {
     const formData = new FormData();
-    formData.append(systemType == IntegrationSystemType.CONTEXT ? "file" : "files", file);
+    formData.append(
+      systemType == IntegrationSystemType.CONTEXT ? "file" : "files",
+      file,
+    );
     if (systemIds && systemIds.length > 0) {
       for (const id of systemIds) {
         formData.append("systemIds", id);
@@ -1406,27 +1418,53 @@ export class RestApi implements Api {
   };
 
   readSpecificationFileContent = (): Promise<string> => {
-    return Promise.reject(new Error("Method readSpecificationFileContent not implemented in RestApi"));
+    return Promise.reject(
+      new Error(
+        "Method readSpecificationFileContent not implemented in RestApi",
+      ),
+    );
   };
 
   groupElements = async (
     chainId: string,
-    elementIds: string[]
+    elementIds: string[],
   ): Promise<Element> => {
     const response = await this.instance.post<Element>(
       `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements/groups`,
       elementIds,
     );
     return response.data;
-  }
+  };
 
   ungroupElements = async (
     chainId: string,
-    groupId: string
+    groupId: string,
   ): Promise<Element[]> => {
     const response = await this.instance.delete<Element[]>(
-      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements/groups/${groupId}`
+      `/api/v1/${getAppName()}/catalog/chains/${chainId}/elements/groups/${groupId}`,
     );
     return response.data;
-  }
+  };
+
+  getExchanges = async (limit: number): Promise<LiveExchange[]> => {
+    const response = await this.instance.get<LiveExchange[]>(
+      `/api/v1/${getAppName()}/catalog/live-exchanges`,
+      {
+        params: {
+          limit: limit,
+        },
+      },
+    );
+    return (response.status === 204) ? [] : response.data;
+  };
+
+  terminateExchange = async (
+    podIp: string,
+    deploymentId: string,
+    exchangeId: string,
+  ): Promise<void> => {
+    await this.instance.delete<void>(
+      `/api/v1/${getAppName()}/catalog/live-exchanges/${podIp}/${deploymentId}/${exchangeId}`,
+    );
+  };
 }

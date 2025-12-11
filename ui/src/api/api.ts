@@ -59,6 +59,7 @@ import {
   Element,
   SystemOperation,
   SpecApiFile,
+  LiveExchange,
   ContextSystem,
   IntegrationSystemType,
 } from "./apiTypes.ts";
@@ -357,7 +358,9 @@ export interface Api {
 
   getContextService(id: string): Promise<ContextSystem>;
 
-  createContextService(system: Pick<ContextSystem, 'name' | 'description'>): Promise<ContextSystem>;
+  createContextService(
+    system: Pick<ContextSystem, "name" | "description">,
+  ): Promise<ContextSystem>;
 
   updateContextService(
     id: string,
@@ -436,18 +439,20 @@ export interface Api {
 
   readSpecificationFileContent(
     fileUri: string,
-    specificationFilePath: string
+    specificationFilePath: string,
   ): Promise<string>;
 
-  groupElements(
-    chainId: string,
-    elementIds: string[],
-  ): Promise<Element>;
+  groupElements(chainId: string, elementIds: string[]): Promise<Element>;
 
-  ungroupElements(
-    chainId: string,
-    groupId: string,
-  ): Promise<Element[]>;
+  ungroupElements(chainId: string, groupId: string): Promise<Element[]>;
+
+  getExchanges(limit: number): Promise<LiveExchange[]>;
+
+  terminateExchange(
+    podIp: string,
+    deploymentId: string,
+    exchangeId: string,
+  ): Promise<void>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

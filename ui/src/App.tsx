@@ -41,6 +41,7 @@ import {
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
 import { IconProvider } from "./icons/IconProvider.tsx";
 import { useEffect, useMemo, useState } from "react";
+import { LiveExchanges } from "./components/admin_tools/exchanges/LiveExchanges.tsx";
 import { ContextServiceParametersPage } from "./components/services/context/ContextServiceParametersPage.tsx";
 
 const { Header } = Layout;
@@ -59,6 +60,7 @@ const router = createBrowserRouter(
         <Route path="variables/secured" element={<SecuredVariables />} />
         <Route path="audit" element={<ActionsLog />} />
         <Route path="sessions" element={<SessionsPage />} />
+        <Route path="exchanges" element={<LiveExchanges />} />
       </Route>
       <Route index path="/" element={<Navigate to="/chains" />} />
       <Route index path="/chains" element={<Chains />} />
@@ -119,18 +121,27 @@ const App = () => {
 
   useEffect(() => {
     const handleThemeVariablesUpdated = () => {
-      setThemeUpdateKey(prev => prev + 1);
+      setThemeUpdateKey((prev) => prev + 1);
     };
 
-    window.addEventListener("theme-variables-updated", handleThemeVariablesUpdated);
+    window.addEventListener(
+      "theme-variables-updated",
+      handleThemeVariablesUpdated,
+    );
     return () => {
-      window.removeEventListener("theme-variables-updated", handleThemeVariablesUpdated);
+      window.removeEventListener(
+        "theme-variables-updated",
+        handleThemeVariablesUpdated,
+      );
     };
   }, []);
 
   const isDark = theme === "dark" || theme === "high-contrast";
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const antdConfig = useMemo(() => getAntdThemeConfig(isDark), [isDark, themeUpdateKey]);
+  const antdConfig = useMemo(
+    () => getAntdThemeConfig(isDark),
+    [isDark, themeUpdateKey],
+  );
 
   return (
     <ConfigProvider theme={antdConfig}>

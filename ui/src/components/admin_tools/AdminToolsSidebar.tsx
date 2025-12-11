@@ -50,6 +50,11 @@ const menuItems = [
     icon: <OverridableIcon name="fileText" />,
     label: "Design Templates",
   },
+  {
+    key: "/admintools/exchanges",
+    icon: <OverridableIcon name="unorderedList" />,
+    label: "Live Exchanges",
+  },
 ];
 
 export const AdminToolsSidebar = ({ collapsed }: { collapsed: boolean }) => {

@@ -44,11 +44,13 @@ import {
   SystemRequest,
   UsedService,
   Element,
-  MaskedFields, TransferElementRequest,
+  MaskedFields,
+  TransferElementRequest,
   SystemOperation,
   SpecApiFile,
+  LiveExchange,
   IntegrationSystemType,
-  ContextSystem
+  ContextSystem,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
@@ -273,13 +275,11 @@ export class VSCodeExtensionApi implements Api {
     elementType: string,
   ): Promise<ElementWithChainName[]> => {
     return <ElementWithChainName[]>(
-      (
-        await this.sendMessageToExtension("getElementsByType", {
-          chainId,
-          elementType,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("getElementsByType", {
+        chainId,
+        elementType,
+      })
+    ).payload;
   };
 
   getRootFolders = (): Promise<FolderItem[]> => {
@@ -317,13 +317,11 @@ export class VSCodeExtensionApi implements Api {
     request: EnvironmentRequest,
   ): Promise<Environment> => {
     return <Environment>(
-      (
-        await this.sendMessageToExtension("createEnvironment", {
-          serviceId: systemId,
-          environment: request,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("createEnvironment", {
+        serviceId: systemId,
+        environment: request,
+      })
+    ).payload;
   };
 
   updateEnvironment = async (
@@ -332,14 +330,12 @@ export class VSCodeExtensionApi implements Api {
     request: EnvironmentRequest,
   ): Promise<Environment> => {
     return <Environment>(
-      (
-        await this.sendMessageToExtension("updateEnvironment", {
-          serviceId: systemId,
-          environmentId,
-          environment: request,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("updateEnvironment", {
+        serviceId: systemId,
+        environmentId,
+        environment: request,
+      })
+    ).payload;
   };
 
   deleteEnvironment = async (
@@ -393,26 +389,22 @@ export class VSCodeExtensionApi implements Api {
     );
 
     return <ImportSpecificationResult>(
-      (
-        await this.sendMessageToExtension("importSpecification", {
-          specificationGroupId,
-          files: serializedFiles,
-          systemId,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("importSpecification", {
+        specificationGroupId,
+        files: serializedFiles,
+        systemId,
+      })
+    ).payload;
   };
 
   getImportSpecificationResult = async (
     importId: string,
   ): Promise<ImportSpecificationResult> => {
     return <ImportSpecificationResult>(
-      (
-        await this.sendMessageToExtension("getImportSpecificationResult", {
-          importId,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("getImportSpecificationResult", {
+        importId,
+      })
+    ).payload;
   };
 
   importSpecificationGroup = async (
@@ -460,13 +452,11 @@ export class VSCodeExtensionApi implements Api {
     service: Partial<IntegrationSystem>,
   ): Promise<IntegrationSystem> => {
     return <IntegrationSystem>(
-      (
-        await this.sendMessageToExtension("updateService", {
-          id: systemId,
-          service,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("updateService", {
+        id: systemId,
+        service,
+      })
+    ).payload;
   };
 
   getContextServices = async (): Promise<ContextSystem[]> => {
@@ -476,15 +466,19 @@ export class VSCodeExtensionApi implements Api {
   };
 
   getContextService = async (systemId: string): Promise<ContextSystem> => {
-    const response = await this.sendMessageToExtension("getContextService", systemId);
+    const response = await this.sendMessageToExtension(
+      "getContextService",
+      systemId,
+    );
     return <ContextSystem>response.payload;
   };
 
   createContextService = async (
-    system: Pick<ContextSystem, 'name' | 'description'>,
+    system: Pick<ContextSystem, "name" | "description">,
   ): Promise<ContextSystem> => {
     return <ContextSystem>(
-      (await this.sendMessageToExtension("createContextService", system)).payload
+      (await this.sendMessageToExtension("createContextService", system))
+        .payload
     );
   };
 
@@ -493,13 +487,11 @@ export class VSCodeExtensionApi implements Api {
     service: Partial<ContextSystem>,
   ): Promise<ContextSystem> => {
     return <ContextSystem>(
-      (
-        await this.sendMessageToExtension("updateContextService", {
-          id: id,
-          service,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("updateContextService", {
+        id: id,
+        service,
+      })
+    ).payload;
   };
 
   deleteContextService(): Promise<void> {
@@ -531,13 +523,11 @@ export class VSCodeExtensionApi implements Api {
     group: Partial<SpecificationGroup>,
   ): Promise<SpecificationGroup> => {
     return <SpecificationGroup>(
-      (
-        await this.sendMessageToExtension("updateApiSpecificationGroup", {
-          id: groupId,
-          group,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("updateApiSpecificationGroup", {
+        id: groupId,
+        group,
+      })
+    ).payload;
   };
 
   getSpecificationModel = async (
@@ -545,13 +535,11 @@ export class VSCodeExtensionApi implements Api {
     groupId: string,
   ): Promise<Specification[]> => {
     return <Specification[]>(
-      (
-        await this.sendMessageToExtension("getSpecificationModel", {
-          serviceId: systemId,
-          groupId,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("getSpecificationModel", {
+        serviceId: systemId,
+        groupId,
+      })
+    ).payload;
   };
 
   getSpecificationModelSource = async (id: string): Promise<string> => {
@@ -566,13 +554,11 @@ export class VSCodeExtensionApi implements Api {
     model: Partial<Specification>,
   ): Promise<Specification> => {
     return <Specification>(
-      (
-        await this.sendMessageToExtension("updateSpecificationModel", {
-          id: modelId,
-          model,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("updateSpecificationModel", {
+        id: modelId,
+        model,
+      })
+    ).payload;
   };
 
   getOperations = async (modelId: string): Promise<SystemOperation[]> => {
@@ -598,12 +584,10 @@ export class VSCodeExtensionApi implements Api {
 
   navigateToSpecifications = async (groupId: string): Promise<string> => {
     return <string>(
-      (
-        await this.sendMessageToExtension("navigateToSpecifications", {
-          groupId,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("navigateToSpecifications", {
+        groupId,
+      })
+    ).payload;
   };
 
   navigateToOperations = async (
@@ -611,13 +595,11 @@ export class VSCodeExtensionApi implements Api {
     specId: string,
   ): Promise<string> => {
     return <string>(
-      (
-        await this.sendMessageToExtension("navigateToOperations", {
-          groupId,
-          specId,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("navigateToOperations", {
+        groupId,
+        specId,
+      })
+    ).payload;
   };
 
   deprecateModel = async (modelId: string): Promise<Specification> => {
@@ -790,78 +772,103 @@ export class VSCodeExtensionApi implements Api {
   getSessions(): Promise<SessionSearchResponse> {
     throw new Error("Method getSessions not implemented.");
   }
+
   deleteSessions(): Promise<void> {
     throw new Error("Method deleteSessions not implemented.");
   }
+
   deleteSessionsByChainId(): Promise<void> {
     throw new Error("Method deleteSessionsByChainId not implemented.");
   }
+
   exportSessions(): Promise<File> {
     throw new Error("Method exportSessions not implemented.");
   }
+
   importSessions(): Promise<Session[]> {
     throw new Error("Method importSessions not implemented.");
   }
+
   retryFromLastCheckpoint(): Promise<void> {
     throw new Error("Method retryFromLastCheckpoint not implemented.");
   }
+
   getSession(): Promise<Session> {
     throw new Error("Method getSession not implemented.");
   }
+
   getCheckpointSessions(): Promise<CheckpointSession[]> {
     throw new Error("Method getCheckpointSessions not implemented.");
   }
+
   retrySessionFromLastCheckpoint(): Promise<void> {
     throw new Error("Method retrySessionFromLastCheckpoint not implemented.");
   }
+
   getNestedChains(): Promise<Chain[]> {
     throw new Error("Method getNestedChains not implemented.");
   }
+
   getServicesUsedByChains(): Promise<UsedService[]> {
     throw new Error("Method getServicesUsedByChains not implemented.");
   }
+
   exportServices(): Promise<File> {
     throw new Error("Method exportServices not implemented.");
   }
+
   getImportPreview(): Promise<ImportPreview> {
     throw new Error("Method getImportPreview not implemented.");
   }
+
   commitImport(): Promise<ImportCommitResponse> {
     throw new Error("Method commitImport not implemented.");
   }
+
   getImportStatus(): Promise<ImportStatusResponse> {
     throw new Error("Method getImportStatus not implemented.");
   }
+
   getEvents(): Promise<EventsUpdate> {
     throw new Error("Method getEvents not implemented.");
   }
+
   deleteChains(): Promise<void> {
     throw new Error("Method deleteChains not implemented.");
   }
+
   getFolder(): Promise<FolderItem> {
     throw new Error("Method getFolder not implemented.");
   }
+
   getPathToFolder(): Promise<FolderItem[]> {
     throw new Error("Method getPathToFolder not implemented.");
   }
+
   getPathToFolderByName(): Promise<FolderItem[]> {
     throw new Error("Method getPathToFolder not implemented.");
   }
+
   listFolder(): Promise<(FolderItem | ChainItem)[]> {
     throw new Error("Method listFolder not implemented.");
   }
+
   createFolder(): Promise<FolderItem> {
     throw new Error("Method createFolder not implemented.");
   }
+
   updateFolder(): Promise<FolderItem> {
     throw new Error("Method updateFolder not implemented.");
   }
+
   deleteFolder(): Promise<void> {
     throw new Error("Method deleteFolder not implemented.");
   }
+
   deleteFolders(): Promise<void> {
     throw new Error("Method deleteFolders not implemented.");
   }
+
   moveFolder(): Promise<FolderItem> {
     throw new Error("Method moveFolder not implemented.");
   }
@@ -877,13 +884,11 @@ export class VSCodeExtensionApi implements Api {
     specificationFilePath: string,
   ): Promise<string> => {
     return <string>(
-      (
-        await this.sendMessageToExtension("readSpecificationFileContent", {
-          fileUri,
-          specificationFilePath,
-        })
-      ).payload
-    );
+      await this.sendMessageToExtension("readSpecificationFileContent", {
+        fileUri,
+        specificationFilePath,
+      })
+    ).payload;
   };
 
   groupElements = async (
@@ -909,6 +914,14 @@ export class VSCodeExtensionApi implements Api {
       })
     ).payload;
   };
+
+  getExchanges(): Promise<LiveExchange[]> {
+    throw new Error("Method getExchanges not implemented.");
+  }
+
+  terminateExchange(): Promise<void> {
+    throw new Error("Method terminateExchange not implemented.");
+  }
 }
 
 interface VSCodeApi<T> {
