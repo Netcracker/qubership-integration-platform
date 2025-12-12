@@ -63,6 +63,27 @@ export async function getContextService(
     };
 }
 
+export async function getContextServices(serviceFileUri: Uri): Promise<ContextSystem[]> {
+    const ext = getExtensionsForUri(serviceFileUri);
+    if (serviceFileUri.path.endsWith(ext.contextService)) {
+        const service: any = await getMainService(serviceFileUri);
+        if (!service) {
+            return [];
+        }
+
+        return [await getContextService(serviceFileUri, service.id)];
+    } else {
+        const result: ContextSystem[] = [];
+        const serviceFiles = await fileApi.findFiles(ext.contextService);
+        for (const serviceFile of serviceFiles) {
+            const service: any = await getMainService(serviceFile);
+            result.push(await getContextService(serviceFile, service.id));
+        }
+
+        return result;
+    }
+}
+
 export async function getEnvironments(serviceFileUri: Uri, serviceId: string): Promise<Environment[]> {
     let actualServiceFileUri = serviceFileUri;
     let service: any = await getMainService(serviceFileUri);

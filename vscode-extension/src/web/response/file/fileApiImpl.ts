@@ -11,7 +11,7 @@ import { ContentParser } from '../../api-services/parsers/ContentParser';
 import { ServiceNormalizer } from '../../api-services/ServiceNormalizer';
 import { ProjectConfigService } from '../../services/ProjectConfigService';
 import { FileCacheService } from '../../services/FileCacheService';
-import { CHAIN_ROUTES, SERVICE_ROUTES } from '../apiRouter';
+import { CHAIN_ROUTES, CONTEXT_SERVICE_ROUTES, SERVICE_ROUTES } from '../apiRouter';
 import { extractEntityId } from '../navigationUtils';
 const RESOURCES_FOLDER = 'resources';
 
@@ -50,6 +50,12 @@ export class VSCodeFileApi implements FileApi {
         for(const regexp of CHAIN_ROUTES ) {
             if (regexp.test(path)) {
                 extension = extensions.chain;
+            }
+        }
+
+        for(const regexp of CONTEXT_SERVICE_ROUTES ) {
+            if (regexp.test(path)) {
+                extension = extensions.contextService;
             }
         }
 

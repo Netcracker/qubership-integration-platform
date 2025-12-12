@@ -294,6 +294,8 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: 
                     editor = 'qip.chainFile.editor';
                 } else if (documentUri.path.endsWith(fileExtensions.service)){
                     editor = 'qip.serviceFile.editor';
+                } else if (documentUri.path.endsWith(fileExtensions.contextService)){
+                    editor = 'qip.contextServiceFile.editor';
                 }
                 if (!editor) {
                     throw new Error(`Unable to find an editor for document: ${documentUri}`);
