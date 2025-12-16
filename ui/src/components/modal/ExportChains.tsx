@@ -50,9 +50,9 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
       <Form<ExportChainOptions>
         id="exportOptionsForm"
         initialValues={{
-          exportSubchains: true,
-          exportServices: true,
-          exportVariables: true,
+          exportSubchains: false,
+          exportServices: false,
+          exportVariables: false,
         }}
         onFinish={(values) => {
           setConfirmLoading(true);
@@ -86,7 +86,7 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
           label={null}
           style={{ marginBottom: 0 }}
         >
-          <Checkbox className={styles.checkbox}>Export related variables</Checkbox>
+          <Checkbox className={styles.checkbox}>Export all common variables</Checkbox>
         </Form.Item>
       </Form>
     </Modal>
