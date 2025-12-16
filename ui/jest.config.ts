@@ -20,13 +20,20 @@ const config: Config = {
   clearMocks: true,
 
   // Indicates whether the coverage information should be collected while executing the test
-  // collectCoverage: false,
+   collectCoverage: true,
 
   // An array of glob patterns indicating a set of files for which coverage information should be collected
-  // collectCoverageFrom: undefined,
+    collectCoverageFrom: [
+        "src/**/*.{ts,tsx}",
+        "!src/**/*.d.ts",
+        "!src/**/__tests__/**",
+        "!src/**/*.{spec,test}.{ts,tsx}",
+        "!src/main.{ts,tsx}",
+        "!src/vite-env.d.ts",
+    ],
 
   // The directory where Jest should output its coverage files
-  // coverageDirectory: undefined,
+   coverageDirectory: "coverage",
 
   // An array of regexp pattern strings used to skip coverage collection
   // coveragePathIgnorePatterns: [
@@ -37,12 +44,12 @@ const config: Config = {
   // coverageProvider: "babel",
 
   // A list of reporter names that Jest uses when writing coverage reports
-  // coverageReporters: [
-  //   "json",
-  //   "text",
-  //   "lcov",
-  //   "clover"
-  // ],
+  coverageReporters: [
+    "json",
+    "text",
+    "lcov",
+    "clover"
+  ],
 
   // An object that configures minimum threshold enforcement for coverage results
   // coverageThreshold: undefined,
