@@ -54,3 +54,14 @@
   min-height: 0;
   overflow-y: auto;
 }
+
+.field-label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.field-required {
+    color: #ff4d4f;
+    margin-right: 4px;
+}

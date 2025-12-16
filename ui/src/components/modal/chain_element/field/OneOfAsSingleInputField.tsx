@@ -1,6 +1,7 @@
 import React from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Input } from "antd";
+import styles from "../ChainElementModification.module.css";
 
 const OneOfAsSingleInputField: React.FC<FieldProps<string>> = ({
   id,
@@ -13,21 +14,11 @@ const OneOfAsSingleInputField: React.FC<FieldProps<string>> = ({
 }) => {
   const title = uiSchema?.["ui:title"] ?? schema?.title ?? "";
 
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    marginBottom: 6,
-    fontWeight: 500,
-  };
-  const requiredStyle: React.CSSProperties = {
-    color: "#ff4d4f",
-    marginRight: 4,
-  };
-
   return (
     <div>
       {title ? (
-        <label htmlFor={id} style={labelStyle}>
-          {required ? <span style={requiredStyle}> *</span> : null}
+        <label htmlFor={id} className={styles["field-label"]}>
+          {required ? <span className={styles["field-required"]}> *</span> : null}
           {title}
         </label>
       ) : null}

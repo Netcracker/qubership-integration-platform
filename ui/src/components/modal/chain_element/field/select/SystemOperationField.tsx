@@ -1,12 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import {
-  Button,
   Flex,
-  Select,
   SelectProps,
   Switch,
-  Tooltip,
   Typography,
 } from "antd";
 import { FormContext } from "../../ChainElementModification.tsx";
@@ -15,13 +12,13 @@ import { useNotificationService } from "../../../../../hooks/useNotificationServ
 import { SystemOperation } from "../../../../../api/apiTypes.ts";
 import { JSONSchema7 } from "json-schema";
 import { VSCodeExtensionApi } from "../../../../../api/rest/vscodeExtensionApi.ts";
-import { OverridableIcon } from "../../../../../icons/IconProvider.tsx";
 import { HttpMethod } from "../../../../services/HttpMethod.tsx";
 import { SelectTag } from "./SelectTag.tsx";
 import {
   isHttpProtocol,
   normalizeProtocol,
 } from "../../../../../misc/protocol-utils.ts";
+import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 
 const SystemOperationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -85,17 +82,6 @@ const SystemOperationField: React.FC<
   }, [specificationId, notificationService]);
 
   const title = uiSchema?.["ui:title"] ?? schema?.title ?? "";
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    marginBottom: 6,
-    fontWeight: 500,
-  };
-
-  const requiredStyle: React.CSSProperties = {
-    color: "#ff4d4f",
-    marginRight: 4,
-  };
 
   const handleChange = useCallback(
     (newValue: string) => {
@@ -186,27 +172,18 @@ const SystemOperationField: React.FC<
 
   return (
     <div>
-      <label htmlFor={id} style={labelStyle}>
-        {required ? <span style={requiredStyle}> *</span> : null}
-        {title}
-      </label>
-      <Flex gap={4}>
-        <Select
-          value={formData}
-          options={options}
-          onChange={handleChange}
-          disabled={isLoading}
-        />
-        <Tooltip title="Go to operation">
-          <Button
-            icon={<OverridableIcon name="send" />}
-            disabled={
-              !(systemId && specGroupId && specificationId && operationId)
-            }
-            onClick={onNavigationButtonClick}
-          />
-        </Tooltip>
-      </Flex>
+      <SelectAndNavigateField
+        id={id}
+        title={title}
+        required={required}
+        selectValue={formData}
+        selectOptions={options}
+        selectOnChange={handleChange}
+        selectDisabled={isLoading}
+        buttonTitle="Go to operation"
+        buttonDisabled={!(systemId && specGroupId && specificationId && operationId)}
+        buttonOnClick={onNavigationButtonClick}
+      />
       {isGrpcOperation && (
         <Flex align="center" gap={8} style={{ marginTop: 12, marginBottom: 8 }}>
           <Typography.Text strong>Synchronous call</Typography.Text>

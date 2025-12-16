@@ -48,6 +48,7 @@ import {
 } from "../../../misc/protocol-utils.ts";
 import CustomOneOfField from "./field/CustomOneOfField.tsx";
 import SingleSelectField from "./field/select/SingleSelectField.tsx";
+import ContextServiceField from "./field/select/ContextServiceField.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -87,6 +88,7 @@ const validateKafkaGroupId = (
 };
 
 export type FormContext = {
+  contextServiceId?: string;
   integrationOperationId?: string;
   integrationOperationPath?: string;
   integrationOperationMethod?: string;
@@ -201,6 +203,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       >;
 
       setFormContext({
+        contextServiceId: getOptionalString(
+          formProperties.contextServiceId,
+        ),
         integrationOperationId: getOptionalString(
           formProperties.integrationOperationId,
         ),
@@ -679,6 +684,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               systemOperationField: SystemOperationField,
               bodyMimeTypeField: BodyMimeTypeField,
               singleSelectField: SingleSelectField,
+              contextServiceField: ContextServiceField,
             }}
             widgets={widgets}
             onChange={(e) => {

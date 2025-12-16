@@ -6,6 +6,7 @@ import { JSONSchema7 } from "json-schema";
 import { FormContext } from "../../ChainElementModification.tsx";
 import { SelectTag } from "./SelectTag.tsx";
 import { ElementWithChainName } from "../../../../../api/apiTypes.ts";
+import styles from "../../ChainElementModification.module.css";
 
 type OptionType = {
   value: string;
@@ -72,14 +73,8 @@ const SingleSelectField: React.FC<
     void load();
   }, [name, chainId, schema.readOnly]);
 
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    marginBottom: 6,
-    fontWeight: 500,
-  };
-
   const requiredMark = required ? (
-    <span style={{ color: "#ff4d4f", marginRight: 4 }}>*</span>
+    <span className={styles["field-required"]}>*</span>
   ) : null;
 
   const handleChange = (selected: string) => {
@@ -88,7 +83,7 @@ const SingleSelectField: React.FC<
 
   return (
     <div>
-      <label htmlFor={id} style={labelStyle}>
+      <label htmlFor={id} className={styles["field-label"]}>
         {requiredMark}
         {title}
       </label>

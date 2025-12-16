@@ -16,6 +16,8 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "integrationSystemId",
       "integrationSpecificationId",
       "integrationOperationId",
+      "contextServiceId",
+      "contextId",
       "*",
     ],
     contextPath: {
@@ -278,6 +280,10 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:fieldReplacesAnyOrOneOf": true,
       "ui:field": "oneOfAsSingleInputField",
     },
+    contextServiceId: {
+      "ui:title": "Context Storage",
+      "ui:field": "contextServiceField",
+    },
     integrationSystemId: {
       "ui:title": "Service",
       "ui:field": "serviceField",
@@ -329,6 +335,17 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
 };
 
 export const pathToTabMap: Record<string, string> = {
+  "properties.contextServiceId": "Operation",
+  "properties.useCorrelationId": "Operation",
+  "properties.contextId": "Operation",
+  "properties.operation": "Operation",
+  "properties.ttl": "Operation",
+  "properties.key": "Operation",
+  "properties.value": "Operation",
+  "properties.keys": "Operation",
+  "properties.target": "Operation",
+  "properties.targetName": "Operation",
+  "properties.unwrap": "Operation",
   "properties.contextPath": "Endpoint",
   "properties.integrationOperationId": "Endpoint",
   "properties.integrationSpecificationGroupId": "Endpoint",
@@ -391,6 +408,7 @@ export const pathToTabMap: Record<string, string> = {
 };
 
 export const desiredTabOrder = [
+  "Operation",
   "Endpoint",
   "Prepare Request",
   "Authorization",
