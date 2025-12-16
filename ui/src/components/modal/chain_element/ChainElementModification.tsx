@@ -98,6 +98,7 @@ export type FormContext = {
   integrationSpecificationGroupId?: string;
   integrationSpecificationId?: string;
   systemType?: string;
+  integrationOperationSkipEmptyQueryParameters?: boolean;
   bodyFormData?: BodyFormEntry[];
   synchronousGrpcCall?: boolean;
   chainId?: string;
@@ -232,6 +233,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         bodyFormData: toBodyFormData(formProperties.bodyFormData),
         synchronousGrpcCall: Boolean(formProperties.synchronousGrpcCall),
         chainId: chainId,
+        integrationOperationSkipEmptyQueryParameters: formProperties.integrationOperationSkipEmptyQueryParameters as boolean | undefined,
         updateContext: (updatedProperties: Record<string, unknown>) => {
           if (
             updatedProperties.integrationOperationProtocolType !== undefined
