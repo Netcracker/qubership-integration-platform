@@ -171,6 +171,8 @@ consul:
 
 camel:
   component:
+    bean:
+      bean-info-cache-size: 30 # until took the fix from https://issues.apache.org/jira/browse/CAMEL-22775
     kafka: # new parameters will not be automatically set to 'kafka-custom' element, need to change KafkaCustomComponentConfiguration
       ssl-truststore-location: ${qip.local-truststore.store.path}
       ssl-truststore-password: ${qip.local-truststore.store.password}
