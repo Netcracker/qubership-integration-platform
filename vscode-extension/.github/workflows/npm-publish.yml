@@ -75,7 +75,7 @@
               run: npm ci --legacy-peer-deps
 
             - name: Test with coverage
-              run: npm test -- --coverage
+              run: npm run test:unit:coverage
 
             - name: Sonar scan (SonarQube Cloud)
               if: ${{ github.ref_name == github.event.repository.default_branch }}

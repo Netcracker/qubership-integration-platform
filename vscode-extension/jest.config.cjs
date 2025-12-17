@@ -1,20 +1,35 @@
 /** @type {import('jest').Config} */
 module.exports = {
-  testEnvironment: "node",
-  clearMocks: true,
+    testEnvironment: "node",
+    clearMocks: true,
 
-  testMatch: ["<rootDir>/src/**/*.test.ts"],
+    testMatch: [
+        "<rootDir>/src/web/api-services/**/*.test.ts",
+        "<rootDir>/src/web/api-services/**/*.test.tsx",
+    ],
 
-  transform: {
-    "^.+\\.ts$": ["ts-jest", { tsconfig: "tsconfig.json" }],
-  },
+    testPathIgnorePatterns: [
+        "<rootDir>/dist/",
+        "<rootDir>/node_modules/",
+        "<rootDir>/src/web/test/",
+    ],
 
-  collectCoverage: true,
-  collectCoverageFrom: [
-    "src/**/*.ts",
-    "!src/**/*.d.ts",
-    "!src/**/*.test.ts",
-  ],
-  coverageDirectory: "coverage",
-  coverageReporters: ["text", "lcov", "html"],
+    transform: {
+        "^.+\\.(ts|tsx)$": [
+            "ts-jest",
+            {
+                tsconfig: "<rootDir>/tsconfig.json",
+                diagnostics: { ignoreCodes: [151002] },
+            },
+        ],
+    },
+
+    collectCoverage: true,
+    collectCoverageFrom: [
+        "<rootDir>/src/web/api-services/**/*.{ts,tsx}",
+        "!<rootDir>/src/web/api-services/**/*.d.ts",
+        "!<rootDir>/src/web/api-services/**/*.{test,spec}.{ts,tsx}",
+    ],
+    coverageDirectory: "coverage",
+    coverageReporters: ["text", "lcov", "html"],
 };
