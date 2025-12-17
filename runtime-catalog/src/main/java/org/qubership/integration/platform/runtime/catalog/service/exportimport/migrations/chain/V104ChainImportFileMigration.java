@@ -46,51 +46,45 @@ public class V104ChainImportFileMigration implements ChainImportFileMigration {
     @Override
     public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
         log.debug("Applying chain migration: {}", getVersion());
-        processElementsAction(fileNode.get(ELEMENTS));
-
-        return fileNode;
+        ObjectNode rootNode = fileNode.deepCopy();
+        rootNode.path("content").path("elements").forEach(this::processElementsAction);
+        return rootNode;
     }
 
-    private void processElementsAction(JsonNode elements) {
-        if (elements == null || elements.isEmpty()) {
+    private void processElementsAction(JsonNode element) {
+        element.path("children").forEach(this::processElementsAction);
+        JsonNode typeNode = element.path("type");
+        if (typeNode.isMissingNode() || typeNode.isNull()) {
+            typeNode = element.path("element-type");
+        }
+        String type = typeNode.asText();
+        if (!"http-trigger".equals(type)) {
             return;
         }
-
-        for (JsonNode element : elements) {
-            processElementsAction(element.get(CHILDREN));
-            JsonNode elemType = element.get(ELEMENT_TYPE);
-            ObjectNode properties = (ObjectNode) element.get(PROPERTIES);
-
-            if (elemType == null || !"http-trigger".equals(elemType.asText())) {
-                continue;
-            }
-
-            if (properties == null || !properties.has("accessControlType") || !"ABAC".equals(properties.get("accessControlType").asText())) {
-                continue;
-            }
-
-            ObjectNode abacParameters = properties.has("abacParameters") && properties.get("abacParameters").isObject()
-                    ? (ObjectNode) properties.get("abacParameters")
-                    : yamlMapper.createObjectNode();
-
-            if (!abacParameters.has("resourceType")) {
-                abacParameters.put("resourceType", "CHAIN");
-            }
-            if (!abacParameters.has("operation")) {
-                abacParameters.put("operation", "ALL");
-            }
-            if (!abacParameters.has("resourceDataType")) {
-                abacParameters.put("resourceDataType", "String");
-            }
-
-            if (properties.has("abacResource")) {
-                String abacResource = properties.get("abacResource").asText();
-
-                abacParameters.put("resourceString", abacResource);
-                properties.remove("abacResource");
-            }
-
-            properties.set("abacParameters", abacParameters);
+        JsonNode propsNode = element.path("properties");
+        if (!(propsNode instanceof ObjectNode properties)) {
+            return;
         }
+        if (!"ABAC".equals(properties.path("accessControlType").asText())) {
+            return;
+        }
+        ObjectNode abacParameters = properties.has("abacParameters") && properties.get("abacParameters").isObject()
+                ? (ObjectNode) properties.get("abacParameters")
+                : yamlMapper.createObjectNode();
+        if (!abacParameters.has("resourceType")) {
+            abacParameters.put("resourceType", "CHAIN");
+        }
+        if (!abacParameters.has("operation")) {
+            abacParameters.put("operation", "ALL");
+        }
+        if (!abacParameters.has("resourceDataType")) {
+            abacParameters.put("resourceDataType", "String");
+        }
+        if (properties.has("abacResource")) {
+            String abacResource = properties.get("abacResource").asText();
+            abacParameters.put("resourceString", abacResource);
+            properties.remove("abacResource");
+        }
+        properties.set("abacParameters", abacParameters);
     }
 }
