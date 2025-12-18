@@ -47,21 +47,17 @@ public class V104ChainImportFileMigration implements ChainImportFileMigration {
     public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
         log.debug("Applying chain migration: {}", getVersion());
         ObjectNode rootNode = fileNode.deepCopy();
-        rootNode.path("content").path("elements").forEach(this::processElementsAction);
+        rootNode.path(CONTENT).path(ELEMENTS).forEach(this::processElementsAction);
         return rootNode;
     }
 
     private void processElementsAction(JsonNode element) {
-        element.path("children").forEach(this::processElementsAction);
-        JsonNode typeNode = element.path("type");
-        if (typeNode.isMissingNode() || typeNode.isNull()) {
-            typeNode = element.path("element-type");
-        }
-        String type = typeNode.asText();
-        if (!"http-trigger".equals(type)) {
+        element.path(CHILDREN).forEach(this::processElementsAction);
+        JsonNode typeNode = element.path(TYPE);
+        if (typeNode == null || !"http-trigger".equals(typeNode.asText())) {
             return;
         }
-        JsonNode propsNode = element.path("properties");
+        JsonNode propsNode = element.path(PROPERTIES);
         if (!(propsNode instanceof ObjectNode properties)) {
             return;
         }
