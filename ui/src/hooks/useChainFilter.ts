@@ -49,7 +49,14 @@ export const methodValues: ListValue[] = [
 ];
 
 function buildDomainValues(domains: EngineDomain[]): ListValue[] {
-  return domains.map((domain) => ({ value: domain.id, label: domain.name }));
+  if (!Array.isArray(domains)) {
+    return [];
+  }
+  try {
+    return domains.map((domain) => ({ value: domain.id, label: domain.name }));
+  } catch {
+    return [];
+  }
 }
 
 function buildLoggingValues(): ListValue[] {
@@ -69,10 +76,17 @@ export const useChainFilters = () => {
   const { services } = useServiceFilterValues();
 
   const buildElementTypes = useCallback((): ListValue[] => {
-    return elementTypes.map((item) => ({
-      value: item.elementType,
-      label: `${item.elementTitle} (${item.elementType})`,
-    }));
+    if (!Array.isArray(elementTypes)) {
+      return [];
+    }
+    try {
+      return elementTypes.map((item) => ({
+        value: item.elementType,
+        label: `${item.elementTitle} (${item.elementType})`,
+      }));
+    } catch {
+      return [];
+    }
   }, [elementTypes]);
 
   const filterColumns: FilterColumn[] = useMemo(
@@ -101,7 +115,7 @@ export const useChainFilters = () => {
         id: "DOMAINS",
         name: "Domains",
         conditions: ListFilterConditions,
-        allowedValues: buildDomainValues(domains ?? []),
+        allowedValues: buildDomainValues(Array.isArray(domains) ? domains : []),
       },
       {
         id: "LOGGING",

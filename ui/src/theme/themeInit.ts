@@ -146,9 +146,7 @@ export function applyThemeToDOM(theme: ThemeMode): void {
 }
 
 export function initializeBrowserTheme(): ThemeMode {
-  // Always start with system theme, ignore saved theme on first load
   const theme = getSystemTheme();
-  
   applyThemeToDOM(theme);
   
   return theme;

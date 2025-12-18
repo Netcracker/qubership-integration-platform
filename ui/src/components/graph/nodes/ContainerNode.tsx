@@ -37,14 +37,9 @@ export function ContainerNode({
   const actionsRef = useRef<HTMLDivElement>(null);
   const actionsWidth = useElementWidth(actionsRef);
 
-  const borderStyle = selected
-    ? "2px solid var(--vscode-focusBorder, #007acc)"
-    : "1px solid var(--container-border-color, #dedacd)";
-
   return (
     <div 
-      className={styles.container}
-      style={{ border: borderStyle }}
+      className={`${styles.container} ${selected ? styles.containerSelected : ''}`}
       data-node-type="container"
     >
       <div

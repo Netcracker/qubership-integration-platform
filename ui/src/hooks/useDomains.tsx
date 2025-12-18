@@ -12,9 +12,14 @@ export const useDomains = () => {
     try {
       setIsLoading(true);
       const data = await api.getDomains();
+      if (!Array.isArray(data)) {
+        setDomains([]);
+        return;
+      }
       setDomains(data);
     } catch (error) {
       notificationService.requestFailed("Failed to load domains", error);
+      setDomains([]);
     } finally {
       setIsLoading(false);
     }
@@ -24,5 +29,5 @@ export const useDomains = () => {
     void getDomains();
   }, [getDomains]);
 
-  return { isLoading, domains };
+  return { isLoading, domains: Array.isArray(domains) ? domains : [] };
 };

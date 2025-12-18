@@ -116,7 +116,7 @@ export const ElementsLibrarySidebar = () => {
   };
 
   return (
-    <Sider width={230} theme="light" className={styles.sideMenu}>
+    <Sider width={230} className={styles.sideMenu}>
       {isLibraryLoading && loading ? (
         <Spin />
       ) : (
@@ -133,7 +133,6 @@ export const ElementsLibrarySidebar = () => {
           <Menu
             className={styles.libraryElements}
             mode="inline"
-            theme="light"
             items={items}
             inlineIndent={8}
             openKeys={openKeysState}

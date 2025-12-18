@@ -82,11 +82,21 @@ export const ServicesListPage: React.FC = () => {
     execute: loadServices,
   } = useAsyncRequest(async () => {
     const all = await api.getServices("", false);
+    const servicesArray = Array.isArray(all) ? all : [];
+    let contextServices: ContextSystem[] = [];
+    try {
+      contextServices = await api.getContextServices();
+      if (!Array.isArray(contextServices)) {
+        contextServices = [];
+      }
+    } catch {
+      contextServices = [];
+    }
     setServicesByType({
-      external: all.filter((s) => s.type === IntegrationSystemType.EXTERNAL),
-      internal: all.filter((s) => s.type === IntegrationSystemType.INTERNAL),
-      implemented: all.filter((s) => s.type === IntegrationSystemType.IMPLEMENTED),
-      context: await api.getContextServices(),
+      external: servicesArray.filter((s) => s.type === IntegrationSystemType.EXTERNAL),
+      internal: servicesArray.filter((s) => s.type === IntegrationSystemType.INTERNAL),
+      implemented: servicesArray.filter((s) => s.type === IntegrationSystemType.IMPLEMENTED),
+      context: contextServices,
     });
   }, { initialValue: undefined });
 
@@ -478,7 +488,7 @@ function useHashTab(defaultTab: string): [string, (tab: string) => void] {
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, [defaultTab, tab]);
+  }, [defaultTab]);
 
   const navigate = (nextTab: string) => {
     window.location.hash = nextTab;

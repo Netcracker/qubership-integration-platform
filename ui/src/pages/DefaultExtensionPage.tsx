@@ -5,7 +5,7 @@ import {
   VSCodeExtensionApi,
   VSCodeResponse,
 } from "../api/rest/vscodeExtensionApi.ts";
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { Result } from "antd";
 import { AppExtensionProps, configureAppExtension } from "../appConfig.ts";
 import { api } from "../api/api.ts";
@@ -14,31 +14,42 @@ import { IconContext } from "../icons/IconProvider.tsx";
 const DefaultExtensionPage: React.FC = () => {
   const navigate = useNavigate();
   const { setIcons } = useContext(IconContext);
-  // Listener for messages from extension to navigate to the start (chain_ page
-  window.addEventListener(
-    "message",
-    (event: MessageEvent<VSCodeResponse<AppExtensionProps>>) => {
 
-      const message: VSCodeResponse<AppExtensionProps> = event.data;
-      const { type, payload } = message;
-      if (type == STARTUP_EVENT && payload) {
-        console.log("Received startup message from vscode extension", message);
-        configureAppExtension(payload);
+  useEffect(() => {
+    const onMessage = (
+      event: MessageEvent<VSCodeResponse<AppExtensionProps | string>>,
+    ) => {
+      const { type, payload } = event.data;
 
-        if (payload.icons) {
-          setIcons(payload.icons);
+      if (type === STARTUP_EVENT && payload && typeof payload === "object") {
+        const startupPayload = payload;
+
+        void configureAppExtension(startupPayload).catch((error) => {
+          console.warn("Failed to configure app extension:", error);
+        });
+
+        if (startupPayload.icons) {
+          setIcons(startupPayload.icons);
         }
 
         if (api instanceof VSCodeExtensionApi) {
           void api.sendMessageToExtension(NAVIGATE_EVENT);
         }
+
+        return;
       }
-      if (type == NAVIGATE_EVENT && payload) {
-        console.log("Received navigate message from vscode extension", message);
+
+      if (type === NAVIGATE_EVENT && typeof payload === "string") {
         void navigate(payload);
       }
-    },
-  );
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+    };
+  }, [navigate, setIcons]);
+
   return <Result title="Loading" subTitle="The extension is loading" />;
 };
 

@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import AppExtension from "./AppExtension.tsx";
-import { ThemeProvider } from "./contexts/ThemeContext";
 
 import "./styles/theme-variables.css";
 import "./styles/antd-overrides.css";
@@ -15,9 +14,7 @@ const initializeVSCodeApp = () => {
     if (rootElement) {
       createRoot(rootElement).render(
         <StrictMode>
-          <ThemeProvider>
-            <AppExtension />
-          </ThemeProvider>
+          <AppExtension />
         </StrictMode>,
       );
       console.log('QIP UI: React app initialized successfully');

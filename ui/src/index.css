@@ -100,16 +100,6 @@ button:focus-visible {
   cursor: pointer;
 }
 
-/*React flow styles*/
-.react-flow-container {
-  height: 100%;
-  flex-grow: 1;
-  display: flex;
-  border-radius: 12px;
-  border: black 4px;
-}
-
-
 .dndnode {
   outline: black solid 1px;
   border-radius: 4px;

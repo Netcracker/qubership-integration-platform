@@ -15,7 +15,11 @@ export const EventPooling: React.FC = () => {
 
   const fetchEvents = async () => {
     const lastEventIdRequestParam = lastEventId ? lastEventId : "";
-    return await api.getEvents(lastEventIdRequestParam);
+    const result = await api.getEvents(lastEventIdRequestParam);
+    if (!result || typeof result !== "object" || !Array.isArray(result.events)) {
+      throw new Error("Invalid response format: expected EventsUpdate object");
+    }
+    return result;
   };
 
   const { data, error } = useQuery({
@@ -34,7 +38,7 @@ export const EventPooling: React.FC = () => {
       return;
     }
 
-    if (data && data?.events.length > 0) {
+    if (data && typeof data === 'object' && Array.isArray(data.events) && data.events.length > 0) {
       setRefetchInterval(
         refetchInterval !== REFRESH_TIME_MS ? REFRESH_TIME_MS : refetchInterval,
       );

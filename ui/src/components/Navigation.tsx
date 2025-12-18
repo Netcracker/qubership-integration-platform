@@ -4,6 +4,7 @@ import type { MenuProps } from "antd";
 import { NotificationBar } from "./notifications/NotificationBar.tsx";
 import { SettingsPanel } from "./SettingsPanel.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
+import { isDev } from "../appConfig.ts";
 
 type MenuItem = Required<MenuProps>["items"][number];
 
@@ -32,7 +33,8 @@ interface NavigationProps {
 }
 
 const Navigation = ({ showThemeSwitcher = false, currentTheme, onThemeChange }: NavigationProps) => {
-  const shouldShowDevTools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEV_TOOLS === 'true';
+  const devMode = isDev();
+  const shouldShowDevTools = devMode;
 
   return (
     <nav className={styles.navigation}>

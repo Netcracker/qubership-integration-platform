@@ -156,7 +156,7 @@ const config: Config = {
   // snapshotSerializers: [],
 
   // The test environment that will be used for testing
-  // testEnvironment: "node",
+  testEnvironment: "node",
 
   // Options that will be passed to the testEnvironment
   // testEnvironmentOptions: {},
@@ -186,7 +186,12 @@ const config: Config = {
 
   // A map from regular expressions to paths to transformers
   transform: {
-      '^.+\\.tsx?$': 'ts-jest'
+      '^.+\\.tsx?$': ['ts-jest', {
+        tsconfig: {
+          target: 'ES2021',
+          lib: ['ES2021', 'DOM'],
+        },
+      }]
   },
 
   // An array of regexp pattern strings that are matched against all source file paths, matched files will skip transformation

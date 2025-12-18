@@ -1,6 +1,24 @@
 import { theme as antdTheme, ThemeConfig } from 'antd';
 import type { AliasToken } from 'antd/es/theme/internal';
 
+type UnknownRecord = Record<string, unknown>;
+
+function isPlainObject(value: unknown): value is UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function mergeComponentConfig(baseValue: unknown, overrideValue: unknown): unknown {
+  if (overrideValue === undefined) {
+    return baseValue;
+  }
+
+  if (isPlainObject(baseValue) && isPlainObject(overrideValue)) {
+    return { ...baseValue, ...overrideValue };
+  }
+
+  return overrideValue;
+}
+
 function getCSSVariable(name: string, fallback: string = ''): string {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return fallback;
@@ -56,14 +74,48 @@ export function getThemeTokens(isDark: boolean): Partial<AliasToken> {
   };
 }
 
-export function getAntdThemeConfig(isDark: boolean): ThemeConfig {
+export function deepMergeThemeConfig(
+  base: ThemeConfig,
+  overrides: Partial<ThemeConfig>
+): ThemeConfig {
+  const merged: ThemeConfig = {
+    ...base,
+    ...overrides,
+  };
+
+  if (overrides.token) {
+    merged.token = {
+      ...(base.token ?? {}),
+      ...overrides.token,
+    } as ThemeConfig["token"];
+  }
+
+  if (overrides.components) {
+    const baseComponents = (base.components ?? {}) as UnknownRecord;
+    const overrideComponents = overrides.components as unknown as UnknownRecord;
+    const mergedComponents: UnknownRecord = { ...baseComponents };
+
+    for (const [componentName, overrideValue] of Object.entries(overrideComponents)) {
+      mergedComponents[componentName] = mergeComponentConfig(
+        baseComponents[componentName],
+        overrideValue,
+      );
+    }
+
+    merged.components = mergedComponents as ThemeConfig["components"];
+  }
+
+  return merged;
+}
+
+export function getAntdThemeConfig(isDark: boolean, themeOverrides?: Partial<ThemeConfig>): ThemeConfig {
   const tokens = getThemeTokens(isDark);
   const modalBg = getCSSVariable('--vscode-modal-background', tokens.colorBgElevated ?? tokens.colorBgBase ?? (isDark ? '#1f1f1f' : '#fafafa'));
   const modalForeground = getCSSVariable('--vscode-modal-foreground', tokens.colorText ?? (isDark ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.88)'));
   const borderColor = getCSSVariable('--vscode-border', isDark ? '#303030' : '#d9d9d9');
   const iconHover = getCSSVariable('--vscode-button-hoverBackground', '#106ebe');
 
-  return {
+  const baseConfig: ThemeConfig = {
     algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     token: tokens,
     components: {
@@ -162,5 +214,11 @@ export function getAntdThemeConfig(isDark: boolean): ThemeConfig {
       },
     },
   };
+
+  if (themeOverrides) {
+    return deepMergeThemeConfig(baseConfig, themeOverrides);
+  }
+
+  return baseConfig;
 }
 

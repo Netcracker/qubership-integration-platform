@@ -12,6 +12,10 @@
     border-color var(--transition-duration, 0.25s) ease;
 }
 
+.containerSelected {
+  border: 2px solid var(--vscode-focusBorder, #007acc);
+}
+
 .header {
   position: relative;
   padding: 4px 10px 8px 10px;

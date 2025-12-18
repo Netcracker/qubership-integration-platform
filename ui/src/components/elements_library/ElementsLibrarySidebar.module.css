@@ -2,8 +2,31 @@
     overflow: auto;
     scrollbar-gutter: auto;
     border-radius: 0 0 0 15px;
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background, #ffffff)) !important;
+}
+
+.sideMenu :global(.ant-layout-sider-children) {
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background, #ffffff)) !important;
 }
 
 .libraryElements {
     border: none !important;
+    background: transparent !important;
+    color: var(--vscode-foreground, rgba(0, 0, 0, 0.88)) !important;
+}
+
+.libraryElements :global(.ant-menu-item),
+.libraryElements :global(.ant-menu-submenu-title) {
+    color: var(--vscode-foreground, rgba(0, 0, 0, 0.88)) !important;
+}
+
+.libraryElements :global(.ant-menu-item:hover),
+.libraryElements :global(.ant-menu-submenu-title:hover) {
+    background-color: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.04)) !important;
+    color: var(--vscode-foreground, rgba(0, 0, 0, 0.88)) !important;
+}
+
+.libraryElements :global(.ant-menu-item-selected) {
+    background-color: var(--vscode-list-activeSelectionBackground, #e6f7ff) !important;
+    color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground, rgba(0, 0, 0, 0.88))) !important;
 }

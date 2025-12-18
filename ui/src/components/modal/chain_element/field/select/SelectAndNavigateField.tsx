@@ -1,6 +1,6 @@
 import { Button, Flex, Select, Tooltip } from "antd";
 import { OverridableIcon } from "../../../../../icons/IconProvider";
-import { SelectProps } from "rc-select/lib/Select";
+import type { SelectProps } from "antd";
 import React, { MouseEventHandler } from "react";
 import styles from "../../ChainElementModification.module.css";
 
@@ -8,9 +8,9 @@ type SelectFieldProps = {
   id?: string;
   title: string;
   required?: boolean;
-  selectValue: SelectProps["value"];
-  selectOptions: SelectProps["options"];
-  selectOnChange: SelectProps["onChange"];
+  selectValue: SelectProps<string>["value"];
+  selectOptions: SelectProps<string>["options"];
+  selectOnChange: SelectProps<string>["onChange"];
   selectDisabled: boolean;
   selectOptionLabelProp?: string;
   buttonTitle: string;
@@ -26,7 +26,7 @@ export const SelectAndNavigateField: React.FC<SelectFieldProps> = (props) => {
         {props.title}
       </label>
       <Flex gap={4}>
-        <Select
+        <Select<string>
           value={props.selectValue}
           options={props.selectOptions}
           optionLabelProp={props.selectOptionLabelProp}

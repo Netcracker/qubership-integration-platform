@@ -73,15 +73,17 @@ import {
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
 import qs from "qs";
-import { getAppName } from "../../appConfig.ts";
+import { getAppName, getConfig } from "../../appConfig.ts";
 
 export class RestApi implements Api {
   instance: AxiosInstance;
 
   constructor() {
+    const config = getConfig();
+    const gateway = config.apiGateway || import.meta.env.VITE_GATEWAY;
     this.instance = rateLimit(
       axios.create({
-        baseURL: import.meta.env.VITE_GATEWAY,
+        baseURL: gateway,
         timeout: 2000,
         headers: { "content-type": "application/json" },
       }),
@@ -1474,4 +1476,8 @@ export class RestApi implements Api {
       `/api/v1/${getAppName()}/catalog/live-exchanges/${podIp}/${deploymentId}/${exchangeId}`,
     );
   };
+
+  reconfigure(newGateway: string): void {
+    this.instance.defaults.baseURL = newGateway;
+  }
 }
