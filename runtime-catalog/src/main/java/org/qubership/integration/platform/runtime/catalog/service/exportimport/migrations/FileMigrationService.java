@@ -21,8 +21,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.RevertMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -30,13 +32,21 @@ import java.util.*;
 @Slf4j
 @Service
 public class FileMigrationService {
+
+    @Value("${qip.export.legacy-format}")
+    private boolean isLegacyExport;
+
     private final YAMLMapper yamlMapper;
     private final VersionsGetterService versionsGetterService;
+    private final List<RevertMigration> revertMigration;
 
     @Autowired
-    public FileMigrationService(YAMLMapper yamlMapper, VersionsGetterService versionsGetterService) {
+    public FileMigrationService(YAMLMapper yamlMapper,
+                                VersionsGetterService versionsGetterService,
+                                List<RevertMigration> revertMigration) {
         this.yamlMapper = yamlMapper;
         this.versionsGetterService = versionsGetterService;
+        this.revertMigration = revertMigration;
     }
 
     Collection<Integer> getMigrationVersions(Collection<ImportFileMigration> migrations) {
@@ -98,6 +108,22 @@ public class FileMigrationService {
         }
 
         return documentNode;
+    }
+
+    public ObjectNode revertMigrationIfNeeded(ObjectNode node) {
+        if (node == null) {
+            return null;
+        }
+
+        if (isLegacyExport) {
+            return revertMigration.stream()
+                    .filter(m -> m.getVersion() == 101)
+                    .findFirst()
+                    .map(m -> m.revert(node))
+                    .orElse(node);
+        }
+
+        return node;
     }
 
     private Collection<Integer> getDocumentVersions(ObjectNode node) throws MigrationException {

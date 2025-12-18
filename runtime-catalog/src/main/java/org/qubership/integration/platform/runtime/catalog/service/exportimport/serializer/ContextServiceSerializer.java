@@ -23,6 +23,7 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.sys
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ContextServiceDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -40,18 +41,22 @@ public class ContextServiceSerializer {
     private final YAMLMapper yamlMapper;
     private final ExportableObjectWriterVisitor exportableObjectWriterVisitor;
     private final ContextServiceDtoMapper contextServiceDtoMapper;
+    private final FileMigrationService fileMigrationService;
 
     @Autowired
     public ContextServiceSerializer(YAMLMapper yamlExportImportMapper,
-                                    ExportableObjectWriterVisitor exportableObjectWriterVisitor, ContextServiceDtoMapper contextServiceDtoMapper) {
+                                    ExportableObjectWriterVisitor exportableObjectWriterVisitor,
+                                    ContextServiceDtoMapper contextServiceDtoMapper,
+                                    FileMigrationService fileMigrationService) {
         this.yamlMapper = yamlExportImportMapper;
         this.exportableObjectWriterVisitor = exportableObjectWriterVisitor;
         this.contextServiceDtoMapper = contextServiceDtoMapper;
+        this.fileMigrationService = fileMigrationService;
     }
 
     public ExportedSystemObject serialize(ContextSystem system) throws JsonProcessingException {
         ContextServiceDto contextServiceDto = contextServiceDtoMapper.toExternalEntity(system);
-        ObjectNode systemNode = yamlMapper.valueToTree(contextServiceDto);
+        ObjectNode systemNode = fileMigrationService.revertMigrationIfNeeded(yamlMapper.valueToTree(contextServiceDto));
 
         return new ExportedContextService(system.getId(), systemNode);
     }

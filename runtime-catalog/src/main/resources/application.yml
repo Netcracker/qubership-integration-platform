@@ -148,6 +148,7 @@ qip:
       check:
         enabled: true
   export:
+    legacy-format: ${QIP_EXPORT_LEGACY_FORMAT:false} # Deprecated since 25.3
     remove-unused-specifications: ${QIP_EXPORT_REMOVE_UNUSED_SPECS:true}
   import:
     session-lifetime-minutes: 300

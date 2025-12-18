@@ -38,6 +38,9 @@ public class ExportableObjectWriterVisitor {
     @Value("${app.prefix}")
     private String appName;
 
+    @Value("${qip.export.legacy-format}")
+    private boolean isLegacyExport;
+
     @Autowired
     public ExportableObjectWriterVisitor(YAMLMapper yamlExportImportMapper) {
         this.yamlMapper = yamlExportImportMapper;
@@ -45,21 +48,21 @@ public class ExportableObjectWriterVisitor {
 
     public void visit(ExportedIntegrationSystem exportedIntegrationSystem, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
-                entryPath + ExportImportUtils.generateMainSystemFileExportName(exportedIntegrationSystem.getId(), appName),
+                entryPath + ExportImportUtils.generateMainSystemFileExportName(exportedIntegrationSystem.getId(), appName, isLegacyExport),
                 yamlMapper.writeValueAsString(exportedIntegrationSystem.getObjectNode()));
     }
 
     public void visit(ExportedSpecificationGroup exportedSpecificationGroup, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath
-                        + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId(), appName),
+                + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId(), appName, isLegacyExport),
                 yamlMapper.writeValueAsString(exportedSpecificationGroup.getObjectNode()));
     }
 
     public void visit(ExportedSpecification exportedSpecification, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath
-                        + ExportImportUtils.generateSpecificationFileExportName(exportedSpecification.getId(), appName),
+                + ExportImportUtils.generateSpecificationFileExportName(exportedSpecification.getId(), appName, isLegacyExport),
                 yamlMapper.writeValueAsString(exportedSpecification.getObjectNode()));
     }
 
@@ -75,7 +78,7 @@ public class ExportableObjectWriterVisitor {
 
     public void visit(ExportedContextService exportedContextService, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
-                entryPath + ExportImportUtils.generateMainContextServiceFileExportName(exportedContextService.getId(), appName),
+                entryPath + ExportImportUtils.generateMainContextServiceFileExportName(exportedContextService.getId(), appName, isLegacyExport),
                 yamlMapper.writeValueAsString(exportedContextService.getObjectNode()));
     }
 }

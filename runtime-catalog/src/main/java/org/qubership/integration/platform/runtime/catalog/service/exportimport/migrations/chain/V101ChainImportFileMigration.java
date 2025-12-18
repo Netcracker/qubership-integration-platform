@@ -20,7 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.V101MigrationUtil;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -36,7 +36,7 @@ public class V101ChainImportFileMigration implements ChainImportFileMigration {
         log.debug("Applying chain migration: {}", getVersion());
 
         // Move all fields except id and name to the content node
-        ObjectNode result = V101MigrationUtil.moveFieldsToContentField(fileNode.deepCopy());
+        ObjectNode result = MigrationUtil.moveFieldsToContentField(fileNode.deepCopy());
 
         // Rename properties-filename property to propertiesFilename
         renameField(result, "properties-filename", "propertiesFilename", true);
