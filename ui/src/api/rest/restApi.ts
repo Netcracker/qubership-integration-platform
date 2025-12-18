@@ -139,6 +139,13 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  findChainByElementId = async (elementId: string): Promise<Chain> => {
+    const response = await this.instance.get<Chain>(
+      `/api/v1/${getAppName()}/catalog/chains/find-by-element/${elementId}`,
+    );
+    return response.data;
+  }
+
   updateChain = async (id: string, chain: Partial<Chain>): Promise<Chain> => {
     const response = await this.instance.put<Chain>(
       `/api/v1/${getAppName()}/catalog/chains/${id}`,

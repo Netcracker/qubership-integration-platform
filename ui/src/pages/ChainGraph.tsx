@@ -18,7 +18,7 @@ import React, {
   useContext,
   useEffect,
   useRef,
-  useState
+  useState,
 } from "react";
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
@@ -30,33 +30,35 @@ import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { useModalsContext } from "../Modals.tsx";
 import { ChainElementModification } from "../components/modal/chain_element/ChainElementModification.tsx";
 import styles from "./ChainGraph.module.css";
-import { LibraryProvider } from "../components/LibraryContext.tsx";
+import {
+  LibraryProvider,
+  useLibraryContext,
+} from "../components/LibraryContext.tsx";
 
 import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
 import { ElkDirectionContextProvider } from "./ElkDirectionContext.tsx";
 import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
-import {
-  CreateDeploymentRequest,
-  DiagramMode,
-  Element,
-} from "../api/apiTypes.ts";
+import { CreateDeploymentRequest, Element } from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
-import { useLibraryContext } from "../components/LibraryContext.tsx";
 import { ChainContext } from "./ChainPage.tsx";
 import {
   ChainGraphNode,
   ChainGraphNodeData,
-  nodeTypes
+  nodeTypes,
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
 import { getElementColor } from "../misc/chain-graph-utils.ts";
-import { ExportChainOptions, ExportChains } from "../components/modal/ExportChains.tsx";
+import {
+  ExportChainOptions,
+  ExportChains,
+} from "../components/modal/ExportChains.tsx";
 import { commonVariablesApi } from "../api/admin-tools/variables/commonVariablesApi.ts";
 import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
+import { generateSequenceDiagrams } from "../diagrams/main.ts";
 
 const readTheme = () => {
   if (typeof document === "undefined") return "light";
@@ -69,7 +71,7 @@ const readTheme = () => {
   for (const target of candidates) {
     if (!target) continue;
     const value = target.getAttribute("data-theme");
-    if (value !== null && typeof value === 'string') return value;
+    if (value !== null && typeof value === "string") return value;
   }
 
   if (document.body?.classList.contains("vscode-dark")) {
@@ -94,7 +96,9 @@ const ChainGraphInner: React.FC = () => {
   const navigate = useNavigate();
   const notificationService = useNotificationService();
   const { isLibraryLoading, libraryElements } = useLibraryContext();
-  const [selectedNodes, setSelectedNodes] = useState<Node<ChainGraphNodeData>[]>([]);
+  const [selectedNodes, setSelectedNodes] = useState<
+    Node<ChainGraphNodeData>[]
+  >([]);
 
   const refreshChain = useCallback(async () => {
     if (!chainContext?.refresh) return;
@@ -141,7 +145,9 @@ const ChainGraphInner: React.FC = () => {
     openElementModal(node);
   };
 
-  const handleSelectionChange = useCallback<OnSelectionChangeFunc<Node<ChainGraphNodeData>, Edge>>(
+  const handleSelectionChange = useCallback<
+    OnSelectionChangeFunc<Node<ChainGraphNodeData>, Edge>
+  >(
     ({ nodes }) => {
       closeMenu();
       setSelectedNodes(nodes);
@@ -153,19 +159,22 @@ const ChainGraphInner: React.FC = () => {
     onChange: handleSelectionChange,
   });
 
-  const onContextMenu = (
-    event: MouseEvent
-  ) => {
+  const onContextMenu = (event: MouseEvent) => {
     const elements: Node<ChainGraphNodeData>[] = [];
     if (selectedNodes?.length > 0) {
       elements.push(...selectedNodes);
     }
-    (onContextMenuCall as (event: MouseEvent, elements: Node<ChainGraphNodeData>[]) => void)(event, elements);
+    (
+      onContextMenuCall as (
+        event: MouseEvent,
+        elements: Node<ChainGraphNodeData>[],
+      ) => void
+    )(event, elements);
   };
 
   const onNodeContextMenu = (
     event: MouseEvent,
-    node: Node<ChainGraphNodeData>
+    node: Node<ChainGraphNodeData>,
   ) => {
     const elements: Node<ChainGraphNodeData>[] = [];
     if (selectedNodes?.length > 0) {
@@ -173,7 +182,12 @@ const ChainGraphInner: React.FC = () => {
     } else if (node) {
       elements.push(node);
     }
-    (onContextMenuCall as (event: MouseEvent, elements: Node<ChainGraphNodeData>[]) => void)(event, elements);
+    (
+      onContextMenuCall as (
+        event: MouseEvent,
+        elements: Node<ChainGraphNodeData>[],
+      ) => void
+    )(event, elements);
   };
 
   const setElementPath = useCallback(
@@ -268,9 +282,7 @@ const ChainGraphInner: React.FC = () => {
       const data = [chainsFile];
 
       if (options.exportServices) {
-        const usedServices = await api.getServicesUsedByChains(
-          [chainId],
-        );
+        const usedServices = await api.getServicesUsedByChains([chainId]);
         if (usedServices.length > 0) {
           const serviceIds = usedServices.map((i) => i.systemId);
           const modelIds = usedServices.flatMap(
@@ -321,13 +333,11 @@ const ChainGraphInner: React.FC = () => {
           fileNamePrefix={"chain"}
           entityId={chainId}
           diagramProvider={async () => {
-            if (!chainId) {
+            if (chainContext?.chain) {
+              return generateSequenceDiagrams(chainContext?.chain);
+            } else {
               return Promise.reject(new Error("Chain is not specified"));
             }
-            return api.getChainSequenceDiagram(chainId, [
-              DiagramMode.FULL,
-              DiagramMode.SIMPLE,
-            ]);
           }}
         />
       ),
@@ -362,7 +372,7 @@ const ChainGraphInner: React.FC = () => {
 
     const updateTheme = () => {
       const theme = readTheme();
-      if (!theme || typeof theme !== 'string') return;
+      if (!theme || typeof theme !== "string") return;
       if (currentThemeRef.current === theme) {
         if (document.body.dataset.theme !== theme) {
           document.body.dataset.theme = theme;
@@ -404,46 +414,49 @@ const ChainGraphInner: React.FC = () => {
       if (typeof window === "undefined") return fallback;
       const rootElement =
         document.querySelector(".vscode-webview") || document.documentElement;
-      const value = getComputedStyle(rootElement).getPropertyValue(variableName);
+      const value =
+        getComputedStyle(rootElement).getPropertyValue(variableName);
       return value?.trim() || fallback;
     },
     [],
   );
 
-  const getMinimapNodeColor = useCallback((node: Node<ChainGraphNodeData>) => {
-    if (node.type === "container") {
-      if (currentTheme === "dark") {
-        return "#1f1f1f";
+  const getMinimapNodeColor = useCallback(
+    (node: Node<ChainGraphNodeData>) => {
+      if (node.type === "container") {
+        if (currentTheme === "dark") {
+          return "#1f1f1f";
+        }
+        if (currentTheme === "high-contrast") {
+          return "#000000";
+        }
+        return getCssVariableValue("--container-header-background", "#fff9e6");
       }
-      if (currentTheme === "high-contrast") {
-        return "#000000";
+
+      if (node.style?.backgroundColor) {
+        return node.style.backgroundColor;
       }
-      return getCssVariableValue(
-        "--container-header-background",
-        "#fff9e6",
-      );
-    }
 
-    if (node.style?.backgroundColor) {
-      return node.style.backgroundColor;
-    }
+      if (node.data?.elementType && libraryElements) {
+        const libraryElement = libraryElements.find(
+          (el) => el.name === node.data.elementType,
+        );
+        return getElementColor(libraryElement);
+      }
 
-    if (node.data?.elementType && libraryElements) {
-      const libraryElement = libraryElements.find(
-        (el) => el.name === node.data.elementType
-      );
-      return getElementColor(libraryElement);
-    }
-
-    return "#fdf39d";
-  }, [libraryElements, currentTheme, getCssVariableValue]);
+      return "#fdf39d";
+    },
+    [libraryElements, currentTheme, getCssVariableValue],
+  );
 
   const getMinimapNodeStrokeColor = useCallback(
     (node?: Node<ChainGraphNodeData>) => {
       if (node?.type === "container") {
         return getCssVariableValue(
           "--vscode-foreground",
-          currentTheme === "dark" ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
+          currentTheme === "dark"
+            ? "rgba(255, 255, 255, 0.85)"
+            : "rgba(0, 0, 0, 0.88)",
         );
       }
       return getCssVariableValue(
@@ -496,38 +509,40 @@ const ChainGraphInner: React.FC = () => {
               nodeStrokeWidth={1}
             />
             <CustomControls />
-            {menu && (<ContextMenu menu = {menu} closeMenu = {closeMenu} />)}
+            {menu && <ContextMenu menu={menu} closeMenu={closeMenu} />}
           </ReactFlow>
         </ElkDirectionContextProvider>
       </div>
-      {!isVsCode && (
-        <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
-          <FloatButton
-            icon={<>⭾</>}
-            tooltip={{
-              title: "Show sequence diagram",
-              placement: "left",
-            }}
-            onClick={openSequenceDiagram}
-          />
-          <FloatButton
-            icon={<OverridableIcon name="send" />}
-            tooltip={{
-              title: "Save and deploy",
-              placement: "left",
-            }}
-            onClick={openSaveAndDeployDialog}
-          />
-          <FloatButton
-            icon={<OverridableIcon name="cloudDownload" />}
-            tooltip={{
-              title: "Export chain",
-              placement: "left",
-            }}
-            onClick={openExportDialog}
-          />
-        </FloatButtonGroup>
-      )}
+      <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
+        <FloatButton
+          icon={<>⭾</>}
+          tooltip={{
+            title: "Show sequence diagram",
+            placement: "left",
+          }}
+          onClick={openSequenceDiagram}
+        />
+        {!isVsCode && (
+          <>
+            <FloatButton
+              icon={<OverridableIcon name="send" />}
+              tooltip={{
+                title: "Save and deploy",
+                placement: "left",
+              }}
+              onClick={openSaveAndDeployDialog}
+            />
+            <FloatButton
+              icon={<OverridableIcon name="cloudDownload" />}
+              tooltip={{
+                title: "Export chain",
+                placement: "left",
+              }}
+              onClick={openExportDialog}
+            />
+          </>
+        )}
+      </FloatButtonGroup>
     </Flex>
   );
 };

@@ -71,6 +71,8 @@ export interface Api {
 
   getChain(id: string): Promise<Chain>;
 
+  findChainByElementId(elementId: string): Promise<Chain>;
+
   updateChain(id: string, chain: Partial<Chain>): Promise<Chain>;
 
   createChain(chain: ChainCreationRequest): Promise<Chain>;
