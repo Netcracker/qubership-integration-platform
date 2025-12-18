@@ -22,7 +22,8 @@ import {
     getElementsByType,
     getLibrary,
     getLibraryElementByType,
-    getMaskedFields
+    getMaskedFields,
+    findChainByElementId,
 } from "./chainApiRead";
 import {
     getApiSpecifications,
@@ -121,6 +122,7 @@ export async function getApiResponse(message: VSCodeMessage<any>, openedDocument
         case 'moveChain': return await changeFolder(fileUri, message.payload.chainId, message.payload.folder);
         case 'groupElements': return await groupElements(fileUri, message.payload.chainId, message.payload.elementIds);
         case 'ungroupElements': return await ungroupElements(fileUri, message.payload.chainId, message.payload.groupId);
+        case 'findChainByElementId': return await findChainByElementId(message.payload);
 
         // Context service operations
         case 'getContextService': return await getContextService(fileUri, message.payload);
