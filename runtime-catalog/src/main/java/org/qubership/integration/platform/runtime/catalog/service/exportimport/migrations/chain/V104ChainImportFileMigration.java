@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
@@ -29,13 +30,17 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 @Slf4j
 @Component
 public class V104ChainImportFileMigration implements ChainImportFileMigration {
-    YAMLMapper yamlMapper;
+
+    private final YAMLMapper yamlMapper;
+    private final String resourceType;
 
     @Autowired
     public V104ChainImportFileMigration(
-            YAMLMapper yamlMapper
+            YAMLMapper yamlMapper,
+            @Value("${qip.access-control.resource-type.chain}") String resourceType
     ) {
         this.yamlMapper = yamlMapper;
+        this.resourceType = resourceType;
     }
 
     @Override
@@ -68,7 +73,7 @@ public class V104ChainImportFileMigration implements ChainImportFileMigration {
                 ? (ObjectNode) properties.get("abacParameters")
                 : yamlMapper.createObjectNode();
         if (!abacParameters.has("resourceType")) {
-            abacParameters.put("resourceType", "CHAIN");
+            abacParameters.put("resourceType", resourceType);
         }
         if (!abacParameters.has("operation")) {
             abacParameters.put("operation", "ALL");
