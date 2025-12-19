@@ -44,8 +44,8 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
     private static final String INTEGRATION_OPERATION_PATH_PROPERTY = "integrationOperationPath";
     private static final String INTEGRATION_SPECIFICATION_ID = "integrationSpecificationId";
     private static final String ACCESS_CONTROL_TYPE_PROPERTY = "accessControlType";
-    private static final String ABAC_RESOURCE_PROPERTY = "abacResource";
-    private static final Set<String> PROPERTIES_FILTER = Set.of(ROLES_PROPERTY, CONTEXT_PATH_PROPERTY, PRIVATE_ROUTE_PROPERTY, EXTERNAL_ROUTE_PROPERTY, INTEGRATION_OPERATION_PATH_PROPERTY, INTEGRATION_SPECIFICATION_ID, ACCESS_CONTROL_TYPE_PROPERTY, ABAC_RESOURCE_PROPERTY);
+    private static final String ABAC_PARAMETERS = "abacParameters";
+    private static final Set<String> PROPERTIES_FILTER = Set.of(ROLES_PROPERTY, CONTEXT_PATH_PROPERTY, PRIVATE_ROUTE_PROPERTY, EXTERNAL_ROUTE_PROPERTY, INTEGRATION_OPERATION_PATH_PROPERTY, INTEGRATION_SPECIFICATION_ID, ACCESS_CONTROL_TYPE_PROPERTY, ABAC_PARAMETERS);
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -366,7 +366,7 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
 
     private Predicate getContainsRolesResourcePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
         Expression<String> rolesExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ROLES_PROPERTY, false);
-        Expression<String> abacResourceExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ABAC_RESOURCE_PROPERTY, false);
+        Expression<String> abacResourceExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ABAC_PARAMETERS, false);
         Predicate rolesContains = builder.like(rolesExpression, "%" + filterValue.toLowerCase() + "%");
         Predicate abacResourceContains = builder.like(abacResourceExpression, "%" + filterValue.toLowerCase() + "%");
         return builder.or(rolesContains, abacResourceContains);
@@ -374,7 +374,7 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
 
     private Predicate getIsRolesResourcePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
         Expression<String> rolesExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ROLES_PROPERTY, true);
-        Expression<String> abacResourceExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ABAC_RESOURCE_PROPERTY, true);
+        Expression<String> abacResourceExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ABAC_PARAMETERS, true);
         Predicate rolesEquals = builder.equal(rolesExpression, filterValue.toLowerCase());
         Predicate abacResourceEquals = builder.equal(abacResourceExpression, filterValue.toLowerCase());
         return builder.or(rolesEquals, abacResourceEquals);
@@ -382,7 +382,7 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
 
     private Predicate getEmptyRolesResourcePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot) {
         Expression<String> rolesExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ROLES_PROPERTY, false);
-        Expression<String> abacResourceExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ABAC_RESOURCE_PROPERTY, false);
+        Expression<String> abacResourceExpression = getJsonPropertyStringExpression(builder, chainElementRoot, ABAC_PARAMETERS, false);
         Predicate rolesEmpty = builder.or(builder.isNull(rolesExpression), builder.like(rolesExpression, ""));
         Predicate abacResourceEmpty = builder.or(builder.isNull(abacResourceExpression), builder.like(abacResourceExpression, ""));
         return builder.and(rolesEmpty, abacResourceEmpty);

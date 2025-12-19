@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElementSearchCriteria;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRolesResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.UpdateRolesRequest;
+import org.qubership.integration.platform.runtime.catalog.service.ChainRolesService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -33,34 +34,38 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/catalog/chains/roles", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = "/v1/catalog/chains/access-control", produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
-@Tag(name = "chain-roles-controller", description = "Chain Roles Controller")
-public class ChainRolesController {
+@Tag(name = "chain-access-control-controller", description = "Chain Access Control Controller")
+public class ChainAccessControlController {
 
-    private final ChainAccessControlController chainAccessControlController;
+    private final ChainRolesService chainRolesService;
 
     @Autowired
-    public ChainRolesController(ChainAccessControlController chainAccessControlController) {
-        this.chainAccessControlController = chainAccessControlController;
+    public ChainAccessControlController(ChainRolesService chainRolesService) {
+        this.chainRolesService = chainRolesService;
     }
 
     @PostMapping("")
-    @Operation(description = "Get all chains with http trigger roles")
+    @Operation(description = "Get all chains with http trigger access control")
     public ResponseEntity<ChainRolesResponse> findBySearchRequest(@RequestBody @Parameter(description = "Search criteria for chain element") ChainElementSearchCriteria request,
                                                                   @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether include only http triggers with selected implemented service") boolean isImplementedOnly) {
-        return chainAccessControlController.findBySearchRequest(request, isImplementedOnly);
+        ChainRolesResponse response = chainRolesService.findAllChainByHttpTrigger(request, isImplementedOnly);
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("")
-    @Operation(description = "Make a bulk update on roles configuration for http triggers")
-    public ResponseEntity<ChainRolesResponse> updateRoles(@RequestBody @Parameter(description = "Http trigger roles update request object") List<UpdateRolesRequest> request) {
-        return chainAccessControlController.updateAccessControl(request);
+    @Operation(description = "Make a bulk update on access control configuration for http triggers")
+    public ResponseEntity<ChainRolesResponse> updateAccessControl(@RequestBody @Parameter(description = "Http trigger access control update request object") List<UpdateRolesRequest> request) {
+        ChainRolesResponse response = chainRolesService.updateRoles(request);
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/redeploy")
     @Operation(description = "Make a bulk redeploy for chains specified in the request")
-    public ResponseEntity<ChainRolesResponse> bulkRedeploy(@RequestBody @Parameter(description = "Http trigger roles update request object") List<UpdateRolesRequest> request) {
-        return chainAccessControlController.bulkRedeploy(request);
+    public ResponseEntity<ChainRolesResponse> bulkRedeploy(@RequestBody @Parameter(description = "Http trigger access control update request object") List<UpdateRolesRequest> request) {
+        ChainRolesResponse response = chainRolesService.redeploy(request);
+        return ResponseEntity.ok(response);
     }
 }
+

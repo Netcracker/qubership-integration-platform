@@ -53,6 +53,10 @@ import java.util.stream.Collectors;
 @Service
 public class ChainRolesService {
     private static final String ROLES = "roles";
+    private static final String ACCESS_CONTROL_TYPE = "accessControlType";
+    public static final String ACCESS_CONTROL_TYPE_ABAC = "ABAC";
+    public static final String ACCESS_CONTROL_TYPE_NONE = "NONE";
+    public static final String ACCESS_CONTROL_TYPE_RBAC = "RBAC";
     private final ElementService elementService;
     private final DeploymentService deploymentService;
     private final RuntimeDeploymentService runtimeDeploymentService;
@@ -117,7 +121,23 @@ public class ChainRolesService {
         for (UpdateRolesRequest updateReq : request) {
             try {
                 ChainElement element = elementService.findById(updateReq.getElementId());
-                element.getProperties().put(ROLES, Lists.newArrayList(updateReq.getRoles()));
+                Map<String, Object> properties = element.getProperties();
+                List<String> newRoles = Lists.newArrayList(updateReq.getRoles());
+
+                String accessControlType = (String) properties.get("accessControlType");
+                if (accessControlType.equals(ACCESS_CONTROL_TYPE_ABAC)) {
+                    throw new RuntimeException("You cannot change roles for ABAC endpoint");
+                }
+
+                if (accessControlType.equals(ACCESS_CONTROL_TYPE_NONE) && !newRoles.isEmpty()) {
+                    element.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_RBAC);
+                }
+
+                if (accessControlType.equals(ACCESS_CONTROL_TYPE_RBAC) && newRoles.isEmpty()) {
+                    element.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_NONE);
+                }
+
+                element.getProperties().put(ROLES, newRoles);
                 element.getChain().setUnsavedChanges(true);
                 UpdateRolesRequest updateRolesRequest = new UpdateRolesRequest(element.getChain().isUnsavedChanges(),
                         element.getChain().getId());
@@ -134,6 +154,11 @@ public class ChainRolesService {
                         .parentName(element.getChain().getName())
                         .operation(LogOperation.UPDATE)
                         .build());
+            } catch (RuntimeException exception) {
+                if (exception.getMessage() != null && exception.getMessage().contains("You cannot change roles for ABAC endpoint")) {
+                    throw exception;
+                }
+                log.error("Error when updating roles: {}", exception.getLocalizedMessage());
             } catch (Exception exception) {
                 log.error("Error when updating roles: {}", exception.getLocalizedMessage());
             }
