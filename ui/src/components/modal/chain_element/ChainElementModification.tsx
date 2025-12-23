@@ -92,6 +92,8 @@ export type FormContext = {
   integrationOperationId?: string;
   integrationOperationPath?: string;
   integrationOperationMethod?: string;
+  integrationOperationPathParameters?: Record<string, string>;
+  integrationOperationQueryParameters?: Record<string, string>;
   integrationOperationProtocolType?: string;
   elementType?: string;
   integrationSystemId?: string;
@@ -230,6 +232,16 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         integrationOperationMethod: getOptionalString(
           formProperties.integrationOperationMethod,
         ),
+        integrationOperationPathParameters:
+          formProperties.integrationOperationPathParameters as Record<
+            string,
+            string
+          >,
+        integrationOperationQueryParameters:
+          formProperties.integrationOperationQueryParameters as Record<
+            string,
+            string
+          >,
         bodyFormData: toBodyFormData(formProperties.bodyFormData),
         synchronousGrpcCall: Boolean(formProperties.synchronousGrpcCall),
         chainId: chainId,

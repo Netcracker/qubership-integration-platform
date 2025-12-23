@@ -12,6 +12,7 @@ type SelectFieldProps = {
   selectOptions: SelectProps["options"];
   selectOnChange: SelectProps["onChange"];
   selectDisabled: boolean;
+  selectOptionLabelProp?: string;
   buttonTitle: string;
   buttonDisabled: boolean;
   buttonOnClick: MouseEventHandler<HTMLElement>;
@@ -28,6 +29,7 @@ export const SelectAndNavigateField: React.FC<SelectFieldProps> = (props) => {
         <Select
           value={props.selectValue}
           options={props.selectOptions}
+          optionLabelProp={props.selectOptionLabelProp}
           onChange={props.selectOnChange}
           disabled={props.selectDisabled}
         />

@@ -19,11 +19,13 @@ import {
   normalizeProtocol,
 } from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
+import { OperationPath } from "../../../../services/OperationPath.tsx";
 
 const SystemOperationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
 > = ({ id, formData, schema, required, uiSchema, registry }) => {
   const notificationService = useNotificationService();
+  const [operations, setOperations] = useState<SystemOperation[]>([]);
   const [options, setOptions] = useState<SelectProps["options"]>([]);
   const [operationsMap, setOperationsMap] = useState<
     Map<string, SystemOperation>
@@ -33,7 +35,7 @@ const SystemOperationField: React.FC<
   const systemId = registry.formContext?.integrationSystemId as string;
   const specGroupId = registry.formContext
     ?.integrationSpecificationGroupId as string;
-  const specificationId = registry.formContext
+  const specificationId: string = registry.formContext
     ?.integrationSpecificationId as string;
   const [operationId, setOperationId] = useState<string | undefined>(formData);
   const protocolType = normalizeProtocol(
@@ -49,37 +51,54 @@ const SystemOperationField: React.FC<
       try {
         if (specificationId) {
           const operations = await api.getOperations(specificationId);
-
-          const operationOptions: SelectProps["options"] =
-            operations?.map((operation) => ({
-              label: (
-                <>
-                  <SelectTag value={operation.name} width={200} />
-                  <HttpMethod value={operation.method} width={110} />
-                  {operation.path}
-                </>
-              ),
-              value: operation.id,
-            })) ?? [];
+          setOperations(operations);
           setOperationsMap(
             new Map(operations.map((operation) => [operation.id, operation])),
           );
-          setOptions(operationOptions);
-        } else {
-          setOperationsMap(new Map());
-          setOptions([]);
         }
       } catch (error) {
+        setOperations([]);
         setOperationsMap(new Map());
-        setOptions([]);
         notificationService.requestFailed("Failed to load operations", error);
       } finally {
         setIsLoading(false);
       }
     };
-
     void loadOperations();
   }, [specificationId, notificationService]);
+
+  useEffect(() => {
+    const operationOptions: SelectProps["options"] =
+      operations?.map((operation) => ({
+        label: (
+          <>
+            <SelectTag value={operation.name} width={200} />
+            <HttpMethod value={operation.method} width={110} />
+            <OperationPath path={operation.path} />
+          </>
+        ),
+        value: operation.id,
+        selectedLabel: formData === operation.id && (
+          <>
+            <SelectTag value={operation.name} width={200} />
+            <HttpMethod value={operation.method} width={110} />
+            <OperationPath
+              path={operation.path}
+              pathParams={registry.formContext?.integrationOperationPathParameters}
+              queryParams={
+                registry.formContext?.integrationOperationQueryParameters
+              }
+            />
+          </>
+        ),
+      })) ?? [];
+    setOptions(operationOptions);
+  }, [
+    operations,
+    formData,
+    registry.formContext?.integrationOperationQueryParameters,
+    registry.formContext?.integrationOperationPathParameters,
+  ]);
 
   const title = uiSchema?.["ui:title"] ?? schema?.title ?? "";
 
@@ -180,6 +199,7 @@ const SystemOperationField: React.FC<
         selectOptions={options}
         selectOnChange={handleChange}
         selectDisabled={isLoading}
+        selectOptionLabelProp="selectedLabel"
         buttonTitle="Go to operation"
         buttonDisabled={!(systemId && specGroupId && specificationId && operationId)}
         buttonOnClick={onNavigationButtonClick}

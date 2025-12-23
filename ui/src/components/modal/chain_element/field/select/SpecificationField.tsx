@@ -8,6 +8,7 @@ import { Specification, SpecificationGroup } from "../../../../../api/apiTypes.t
 import { JSONSchema7 } from "json-schema";
 import { VSCodeExtensionApi } from "../../../../../api/rest/vscodeExtensionApi.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
+import { SelectTag } from "./SelectTag.tsx";
 
 const SpecificationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -28,11 +29,17 @@ const SpecificationField: React.FC<
   const systemId = props.registry.formContext?.integrationSystemId as string;
 
   const buildSpecificationOptions = (
+    groupName: string,
     specifications: Specification[] | undefined,
   ): SelectProps["options"] => {
     return (
       specifications?.map((spec) => ({
         label: spec.name,
+        selectedLabel: (
+          <>
+            <SelectTag value={groupName} width={200} /> {spec.name}
+          </>
+        ),
         value: spec.id,
       })) ?? []
     );
@@ -61,7 +68,7 @@ const SpecificationField: React.FC<
             groups?.map((group) => ({
               label: <span>{group.name}</span>,
               title: group.name,
-              options: buildSpecificationOptions(group.specifications),
+              options: buildSpecificationOptions(group.name, group.specifications),
             })) ?? [];
           setSpecIdToGroupIdMap(buildSpecToGroupMap(groups));
           setOptions(groupOptions);
@@ -122,6 +129,7 @@ const SpecificationField: React.FC<
       selectOptions={options}
       selectOnChange={handleChange}
       selectDisabled={isLoading}
+      selectOptionLabelProp="selectedLabel"
       buttonTitle="Go to specification"
       buttonDisabled={!(specificationGroupId && specificationId)}
       buttonOnClick={onNavigationButtonClick}

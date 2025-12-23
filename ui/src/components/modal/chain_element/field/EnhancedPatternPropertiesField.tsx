@@ -225,14 +225,25 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
   const [isEnvironmentLoaded, setIsEnvironmentLoaded] = useState<boolean>(false);
   const formContext = registry.formContext;
 
+  const paramType = useMemo(() => determineParamType(fieldPathId.$id), [fieldPathId.$id]);
+  const updateContext = registry.formContext.updateContext;
+
   const emitChange = useCallback(
     (value: Record<string, string>) => {
-      onChange(value, fieldPathId.path);
+      if (paramType === "query") {
+        updateContext?.({
+          integrationOperationQueryParameters: { ...value },
+        });
+      } else if (paramType == "path") {
+        updateContext?.({
+          integrationOperationPathParameters: { ...value },
+        });
+      } else {
+        onChange(value, fieldPathId.path);
+      }
     },
-    [fieldPathId.path, onChange],
+    [fieldPathId.path, onChange, updateContext, paramType],
   );
-
-  const paramType = useMemo(() => determineParamType(fieldPathId.$id), [fieldPathId.$id]);
 
   const title = useMemo(() => {
     if (paramType === 'async') {
@@ -246,7 +257,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       }
     }
     return schema?.title || uiSchema?.["ui:title"] || "Items";
-  }, [paramType, formContext, schema?.title, uiSchema]);
+  }, [paramType, formContext.integrationOperationProtocolType, schema?.title, uiSchema]);
 
   const rowCount = Object.entries(formData).length;
   const [collapsed, setCollapsed] = useState(!(rowCount > 0));
@@ -319,7 +330,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       setIsMaasEnvironment(false);
       setIsEnvironmentLoaded(true);
     }
-  }, [formContext]);
+  }, [formContext.integrationSystemId]);
 
   useEffect(() => {
     void loadOperationSpecification();
