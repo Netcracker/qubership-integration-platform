@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Build and Publish current SNAPSHOT (dry run)"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@v1.0.5
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@v2.0.5
         with:
           version-type: ${{ github.event.inputs.version-type }}
           ref: ${{ github.ref }}
