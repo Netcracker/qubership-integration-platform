@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @QuarkusTest
 @TestProfile(DeploymentTestProfile.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
-class DeploymentProcessingServiceComponentTest {
+class DeploymentProcessingServiceComponentIT {
 
     @Inject
     DeploymentProcessingService deploymentProcessingService;

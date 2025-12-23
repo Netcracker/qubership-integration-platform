@@ -13,6 +13,8 @@ jobs:
       maven-command: >
         --batch-mode verify
         -Dgpg.skip=true
+        -DrunITs=true
+        -DskipITs=false
         org.sonarsource.scanner.maven:sonar-maven-plugin:${{ vars.SONAR_PLUGIN_VERSION }}:sonar
         -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
         -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
