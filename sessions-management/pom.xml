@@ -41,7 +41,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
 
-        <revision>0.3.5-SNAPSHOT</revision>
+        <revision>0.3.5</revision>
 
         <!-- BOMs -->
 
