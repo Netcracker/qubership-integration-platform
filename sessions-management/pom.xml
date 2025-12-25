@@ -4,7 +4,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-sessions-management</artifactId>
-    <version>${revision</version>
+    <version>${revision}</version>
     <name>QIP Sessions Management</name>
     <description>Managing recorded sessions of integration flows' execution stored in OpenSearch index</description>
     <url>https://github.com/Netcracker/qubership-integration-sessions-management</url>
