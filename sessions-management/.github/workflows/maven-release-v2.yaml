@@ -149,7 +149,7 @@ jobs:
         id: docker_build
         uses: netcracker/qubership-workflow-hub/actions/docker-action@main
         with:
-          ref: v${{ needs.deploy.outputs.release-version }}
+          ref: ${{ needs.deploy.outputs.release-version }}
           download-artifact: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
