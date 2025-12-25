@@ -61,7 +61,7 @@ permissions:
   packages: write
 
 jobs:
-  dry-run-build:
+  build-and-publish:
     runs-on: ubuntu-latest
     steps:
       - name: "Build and Publish current SNAPSHOT (dry run)"
@@ -79,45 +79,45 @@ jobs:
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           dry-run: 'true'
-  deploy:
-    needs: dry-run-build
-    if: ${{ needs.dry-run-build.result == 'success' }}
-    outputs:
-      release-version: ${{ steps.build-and-publish.outputs.release-version }}
-    runs-on: ubuntu-latest
-    steps:
-      # This step is needed if there is a GitHub App used for authentication to bypass the protected branch rule
-      - name: "Prepare app token"
-        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v2.1.1
-        id: app-token
-        with:
-          app-id: ${{ vars.GH_BUMP_VERSION_APP_ID }}
-          private-key: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
-      - name: "Build and Publish"
-        id: build-and-publish
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@v1.0.5
-        with:
-          version-type: ${{ github.event.inputs.version-type }}
-          ref: ${{ github.ref }}
-          module: ${{ github.event.repository.name }}
-          maven-args: ${{ inputs.mvn-args }}
-          profile: ${{ inputs.profile }}
-          server-id: ${{ inputs.profile }}
-          token: ${{ steps.app-token.outputs.token }} # It can be ${{ secrets.GITHUB_TOKEN }} if default branch isn't protected
-          maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
-          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-          dry-run: 'false'
-      - name: Upload all Maven target directories
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ${{ github.event.repository.name }}
-          path: '**/target'
+#  deploy:
+#    needs: dry-run-build
+#    if: ${{ needs.dry-run-build.result == 'success' }}
+#    outputs:
+#      release-version: ${{ steps.build-and-publish.outputs.release-version }}
+#    runs-on: ubuntu-latest
+#    steps:
+#      # This step is needed if there is a GitHub App used for authentication to bypass the protected branch rule
+#      - name: "Prepare app token"
+#        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v2.1.1
+#        id: app-token
+#        with:
+#          app-id: ${{ vars.GH_BUMP_VERSION_APP_ID }}
+#          private-key: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+#      - name: "Build and Publish"
+#        id: build-and-publish
+#        uses: netcracker/qubership-workflow-hub/actions/maven-release@v1.0.5
+#        with:
+#          version-type: ${{ github.event.inputs.version-type }}
+#          ref: ${{ github.ref }}
+#          module: ${{ github.event.repository.name }}
+#          maven-args: ${{ inputs.mvn-args }}
+#          profile: ${{ inputs.profile }}
+#          server-id: ${{ inputs.profile }}
+#          token: ${{ steps.app-token.outputs.token }} # It can be ${{ secrets.GITHUB_TOKEN }} if default branch isn't protected
+#          maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
+#          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
+#          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+#          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+#          dry-run: 'false'
+#      - name: Upload all Maven target directories
+#        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+#        with:
+#          name: ${{ github.event.repository.name }}
+#          path: '**/target'
   check-dockerfile:
     if: ${{ github.event.inputs.build-docker == 'true' }}
     runs-on: ubuntu-latest
-    needs: [deploy]
+    needs: build-and-publish
     outputs:
       dockerfile_exists: ${{ steps.check_dockerfile.outputs.df_exists }}
     steps:
@@ -143,7 +143,7 @@ jobs:
       contents: write
       packages: write
     runs-on: ubuntu-latest
-    needs: [check-dockerfile, deploy]
+    needs: check-dockerfile
     steps:
       - name: "Docker Build"
         id: docker_build
@@ -153,11 +153,11 @@ jobs:
           download-artifact: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
-
-  github-release:
-    needs: [deploy]
-    if: ${{ needs.deploy.result == 'success' }}
-    uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@v1.0.5
-    with:
-      version: ${{ needs.deploy.outputs.release-version }}
-      publish: true
+#
+#  github-release:
+#    needs: [deploy]
+#    if: ${{ needs.deploy.result == 'success' }}
+#    uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@v1.0.5
+#    with:
+#      version: ${{ needs.deploy.outputs.release-version }}
+#      publish: true
