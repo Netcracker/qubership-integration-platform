@@ -320,55 +320,7 @@
                 <configuration>
                     <skip>false</skip>
                     <profiles>
-                        <!-- Maven Central -->
-                        <!-- mvn deploy -P central -->
-                        <profile>
-                            <id>central</id>
-                            <activation>
-                                <activeByDefault>true</activeByDefault>
-                            </activation>
-                            <build>
-                                <plugins>
-                                    <plugin>
-                                        <groupId>org.sonatype.central</groupId>
-                                        <artifactId>central-publishing-maven-plugin</artifactId>
-                                        <version>0.7.0</version>
-                                        <extensions>true</extensions>
-                                        <configuration>
-                                            <publishingServerId>central</publishingServerId>
-                                            <autoPublish>true</autoPublish>
-                                            <waitUntil>published</waitUntil>
-                                        </configuration>
-                                    </plugin>
-                                </plugins>
-                            </build>
-                            <distributionManagement>
-                                <repository>
-                                    <id>central</id>
-                                    <name>Central Maven Repository</name>
-                                    <snapshots>
-                                        <enabled>true</enabled>
-                                    </snapshots>
-                                </repository>
-                            </distributionManagement>
-                        </profile>
-                        <!-- GitHub packages -->
-                        <!-- mvn deploy -P github -->
-                        <profile>
-                            <id>github</id>
-                            <activation>
-                                <activeByDefault>false</activeByDefault>
-                            </activation>
-                            <distributionManagement>
-                                <repository>
-                                    <id>github</id>
-                                    <name>GitHub Packages</name>
-                                    <url>
-                                        https://maven.pkg.github.com/Netcracker/qubership-integration-sessions-management
-                                    </url>
-                                </repository>
-                            </distributionManagement>
-                        </profile>
+                        <profile>development</profile>
                     </profiles>
                     <jvmArguments>-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=18085</jvmArguments>
                 </configuration>
@@ -559,4 +511,56 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Maven Central -->
+        <!-- mvn deploy -P central -->
+        <profile>
+            <id>central</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.7.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>published</waitUntil>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+            <distributionManagement>
+                <repository>
+                    <id>central</id>
+                    <name>Central Maven Repository</name>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+            </distributionManagement>
+        </profile>
+        <!-- GitHub packages -->
+        <!-- mvn deploy -P github -->
+        <profile>
+            <id>github</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <distributionManagement>
+                <repository>
+                    <id>github</id>
+                    <name>GitHub Packages</name>
+                    <url>
+                        https://maven.pkg.github.com/Netcracker/qubership-integration-sessions-management
+                    </url>
+                </repository>
+            </distributionManagement>
+        </profile>
+    </profiles>
 </project>
