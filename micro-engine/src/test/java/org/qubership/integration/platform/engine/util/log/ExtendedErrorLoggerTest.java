@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.engine.unit.utils.log;
+package org.qubership.integration.platform.engine.util.log;
 
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
@@ -22,8 +22,6 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
-import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

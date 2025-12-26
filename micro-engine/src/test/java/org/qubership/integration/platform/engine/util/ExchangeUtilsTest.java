@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.engine.unit.utils;
+package org.qubership.integration.platform.engine.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import jakarta.ws.rs.core.MediaType;
@@ -30,7 +30,6 @@ import org.qubership.integration.platform.engine.model.SessionElementProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.util.ExchangeUtils;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -153,7 +152,21 @@ class ExchangeUtilsTest {
     }
 
     @Test
-    void shouldReturnNullPropertyWhenSerializationThrowsJsonProcessingException() throws Exception {
+    void shouldReturnNullPropertyWhenPropertyIsNull() {
+        Exchange exchange = mock(Exchange.class);
+
+        Map<String, Object> props = new HashMap<>();
+        props.put("nullProperty", null);
+        when(exchange.getProperties()).thenReturn(props);
+
+        Map<String, SessionElementProperty> out = ExchangeUtils.prepareExchangePropertiesForLogging(exchange);
+
+        assertSame(SessionElementProperty.NULL_PROPERTY, out.get("nullProperty"));
+
+    }
+
+    @Test
+    void shouldReturnNullPropertyWhenSerializationThrowsJsonProcessingException() {
         Exchange exchange = mock(Exchange.class);
         DummyPojo pojo = new DummyPojo();
 

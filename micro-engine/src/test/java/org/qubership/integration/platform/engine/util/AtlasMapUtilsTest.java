@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.engine.unit.utils;
+package org.qubership.integration.platform.engine.util;
 
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.util.AtlasMapUtils;
 
 import java.time.ZoneId;
 import java.time.temporal.TemporalQueries;
@@ -212,5 +211,87 @@ class AtlasMapUtilsTest {
         assertEquals("a=1&b=2", AtlasMapUtils.getQueryParameters("http://host/path?a=1&b=2"));
         assertEquals("", AtlasMapUtils.getQueryParameters("http://host/path"));
         assertEquals("", AtlasMapUtils.getQueryParameters("/x?"));
+    }
+
+
+    @Test
+    void shouldFormatDateTimeUsingActionWrapper() {
+        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        action.setReturnUnixTimeInput(true);
+        action.setInputFormat("");
+        action.setInputLocale("");
+        action.setInputTimezone("");
+        action.setReturnUnixTimeOutput(false);
+        action.setOutputFormat("yyyy-MM-dd HH:mm:ss");
+        action.setOutputLocale("");
+        action.setOutputTimezone("UTC");
+
+        String result = AtlasMapUtils.formatDateTime(action, "0");
+
+        assertEquals("1970-01-01 00:00:00", result);
+    }
+
+
+    @Test
+    void shouldReturnUnixSecondsForCurrentTimeWhenUnixOutput() {
+        AtlasMapUtils.QIPCurrentTime action = new AtlasMapUtils.QIPCurrentTime();
+        action.setReturnUnixTimeOutput(true);
+        action.setOutputFormat("");
+        action.setOutputLocale("");
+        action.setOutputTimezone("");
+
+        String result = AtlasMapUtils.currentTime(action, null);
+
+        assertDoesNotThrow(() -> Long.parseLong(result));
+    }
+
+    @Test
+    void shouldUseExplicitLocaleWhenProvided() {
+        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        action.setReturnUnixTimeInput(false);
+        action.setInputFormat("MMM dd, uuuu");
+        action.setInputLocale("en_US");
+        action.setInputTimezone("UTC");
+        action.setReturnUnixTimeOutput(false);
+        action.setOutputFormat("yyyy-MM-dd");
+        action.setOutputLocale("en_US");
+        action.setOutputTimezone("UTC");
+
+        String result = AtlasMapUtils.convertDateFormat(
+                action.getReturnUnixTimeInput(), action.getInputFormat(), action.getInputLocale(), action.getInputTimezone(),
+                action.getReturnUnixTimeOutput(), action.getOutputFormat(), action.getOutputLocale(), action.getOutputTimezone(),
+                "May 01, 2024"
+        );
+
+        assertEquals("2024-05-01", result);
+    }
+
+    @Test
+    void shouldReturnNullForUnknownTemporalQueryWhenResultIsNull() {
+        var base = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd").parse("2024-11-18");
+        var wrapped = new AtlasMapUtils.TemporalAccessorWithDefaultTimeAndZone(base);
+
+        java.time.temporal.TemporalQuery<Object> customQuery = temporal -> null;
+
+        assertNull(wrapped.query(customQuery));
+    }
+
+    @Test
+    void shouldFormatCurrentTimeWhenUnixOutputIsFalse() {
+        AtlasMapUtils.QIPCurrentTime action = new AtlasMapUtils.QIPCurrentTime();
+        action.setReturnUnixTimeOutput(false);
+        action.setOutputFormat("yyyy-MM-dd");
+        action.setOutputLocale("");
+        action.setOutputTimezone("");
+
+        String result = AtlasMapUtils.currentTime(action, null);
+
+        assertEquals(10, result.length());
+        assertDoesNotThrow(() ->
+                java.time.LocalDate.parse(
+                        result,
+                        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                )
+        );
     }
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.engine.unit.utils;
+package org.qubership.integration.platform.engine.util;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.camel.CorrelationIdSetter;
 import org.qubership.integration.platform.engine.camel.context.propagation.constant.BusinessIds;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.slf4j.MDC;
 
 import java.util.LinkedHashMap;
