@@ -79,6 +79,14 @@ jobs:
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           dry-run: 'true'
+      - name: "Docker Build"
+        id: docker_build
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@main
+        with:
+          ref: ${{ needs.deploy.outputs.release-version }}
+          download-artifact: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 #  deploy:
 #    needs: dry-run-build
 #    if: ${{ needs.dry-run-build.result == 'success' }}
@@ -114,45 +122,45 @@ jobs:
 #        with:
 #          name: ${{ github.event.repository.name }}
 #          path: '**/target'
-  check-dockerfile:
-    if: ${{ github.event.inputs.build-docker == 'true' }}
-    runs-on: ubuntu-latest
-    needs: build-and-publish
-    outputs:
-      dockerfile_exists: ${{ steps.check_dockerfile.outputs.df_exists }}
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-      - name: "Check Dockerfile existence"
-        id: check_dockerfile
-        shell: bash
-        run: |
-          if [[ -f Dockerfile ]]; then
-            echo "df_exists=exists" >> "$GITHUB_OUTPUT"
-          else
-            echo "Dockerfile does not exist. Docker build stage will be skipped"
-            echo "df_exists=notexists" >> "$GITHUB_OUTPUT"
-          fi
-          echo "GITHUB_OUTPUT:"
-          cat "$GITHUB_OUTPUT"
-
-  docker-build:
-    if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
-    permissions:
-      contents: write
-      packages: write
-    runs-on: ubuntu-latest
-    needs: check-dockerfile
-    steps:
-      - name: "Docker Build"
-        id: docker_build
-        uses: netcracker/qubership-workflow-hub/actions/docker-action@main
-        with:
-          ref: ${{ needs.deploy.outputs.release-version }}
-          download-artifact: true
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+#  check-dockerfile:
+#    if: ${{ github.event.inputs.build-docker == 'true' }}
+#    runs-on: ubuntu-latest
+#    needs: build-and-publish
+#    outputs:
+#      dockerfile_exists: ${{ steps.check_dockerfile.outputs.df_exists }}
+#    steps:
+#      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+#        with:
+#          persist-credentials: false
+#      - name: "Check Dockerfile existence"
+#        id: check_dockerfile
+#        shell: bash
+#        run: |
+#          if [[ -f Dockerfile ]]; then
+#            echo "df_exists=exists" >> "$GITHUB_OUTPUT"
+#          else
+#            echo "Dockerfile does not exist. Docker build stage will be skipped"
+#            echo "df_exists=notexists" >> "$GITHUB_OUTPUT"
+#          fi
+#          echo "GITHUB_OUTPUT:"
+#          cat "$GITHUB_OUTPUT"
+#
+#  docker-build:
+#    if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
+#    permissions:
+#      contents: write
+#      packages: write
+#    runs-on: ubuntu-latest
+#    needs: check-dockerfile
+#    steps:
+#      - name: "Docker Build"
+#        id: docker_build
+#        uses: netcracker/qubership-workflow-hub/actions/docker-action@main
+#        with:
+#          ref: ${{ needs.deploy.outputs.release-version }}
+#          download-artifact: true
+#        env:
+#          GITHUB_TOKEN: ${{ github.token }}
 #
 #  github-release:
 #    needs: [deploy]
