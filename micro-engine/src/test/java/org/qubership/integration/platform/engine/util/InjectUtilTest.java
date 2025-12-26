@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.engine.unit.utils;
+package org.qubership.integration.platform.engine.util;
 
 import jakarta.enterprise.inject.AmbiguousResolutionException;
 import jakarta.enterprise.inject.Instance;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.util.Optional;
 import java.util.stream.Stream;

@@ -14,31 +14,36 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.engine.unit.utils.log;
+package org.qubership.integration.platform.engine.util;
 
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
-import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
+import java.lang.reflect.Field;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
-class ExtendedErrorLoggerFactoryTest {
+class DevModeUtilTest {
 
     @Test
-    void shouldCreateNewInstanceEachTimeWhenGetLoggerByName() {
-        ExtendedErrorLogger a = ExtendedErrorLoggerFactory.getLogger("x");
-        ExtendedErrorLogger b = ExtendedErrorLoggerFactory.getLogger("x");
-        assertNotSame(a, b);
+    void shouldReturnTrueWhenProfileIsDev() throws Exception {
+        DevModeUtil util = new DevModeUtil();
+        set(util, "activeProfile", "dev");
+        assertTrue(util.isDevMode());
     }
 
-
     @Test
-    void shouldCreateLoggerForClassWhenGetLoggerByClass() {
-        ExtendedErrorLogger log = ExtendedErrorLoggerFactory.getLogger(Integer.class);
-        assertNotNull(log);
+    void shouldReturnFalseWhenProfileIsNotDev() throws Exception {
+        DevModeUtil util = new DevModeUtil();
+        set(util, "activeProfile", "prod");
+        assertFalse(util.isDevMode());
+    }
+
+    private static void set(Object target, String field, Object value) throws Exception {
+        Field f = target.getClass().getDeclaredField(field);
+        f.setAccessible(true);
+        f.set(target, value);
     }
 }

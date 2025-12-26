@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.engine.unit.utils;
+package org.qubership.integration.platform.engine.util;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.impl.DefaultCamelContext;
@@ -23,7 +23,6 @@ import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.util.CheckpointUtils;
 
 import static org.apache.camel.Exchange.HTTP_PATH;
 import static org.junit.jupiter.api.Assertions.*;

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.engine.unit.utils;
+package org.qubership.integration.platform.engine.util;
 
 import io.grpc.stub.StreamObserver;
 import org.apache.camel.CamelContext;
@@ -33,7 +33,6 @@ import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
 import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.util.GrpcProcessorUtils;
 
 import java.util.Optional;
 
