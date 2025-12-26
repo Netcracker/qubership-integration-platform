@@ -100,6 +100,8 @@ import {
   DeleteRowOutlined,
   DatabaseOutlined,
   ContainerOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
 } from "@ant-design/icons";
 
 export const commonIcons = {
@@ -175,6 +177,8 @@ export const commonIcons = {
   columnHeight: ColumnHeightOutlined,
   verticalAlignMiddle: VerticalAlignMiddleOutlined,
   database: DatabaseOutlined,
+  fullscreen: FullscreenOutlined,
+  fullscreenExit: FullscreenExitOutlined,
 };
 
 export const elementIcons = {
