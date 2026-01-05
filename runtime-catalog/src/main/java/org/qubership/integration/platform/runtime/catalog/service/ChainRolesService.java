@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.AbacRoleChangeException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
@@ -126,7 +127,7 @@ public class ChainRolesService {
 
                 String accessControlType = (String) properties.get("accessControlType");
                 if (accessControlType.equals(ACCESS_CONTROL_TYPE_ABAC)) {
-                    throw new RuntimeException("You cannot change roles for ABAC endpoint");
+                    throw new AbacRoleChangeException();
                 }
 
                 if (accessControlType.equals(ACCESS_CONTROL_TYPE_NONE) && !newRoles.isEmpty()) {
@@ -154,11 +155,8 @@ public class ChainRolesService {
                         .parentName(element.getChain().getName())
                         .operation(LogOperation.UPDATE)
                         .build());
-            } catch (RuntimeException exception) {
-                if (exception.getMessage() != null && exception.getMessage().contains("You cannot change roles for ABAC endpoint")) {
-                    throw exception;
-                }
-                log.error("Error when updating roles: {}", exception.getLocalizedMessage());
+            } catch (AbacRoleChangeException exception) {
+                throw exception;
             } catch (Exception exception) {
                 log.error("Error when updating roles: {}", exception.getLocalizedMessage());
             }
@@ -202,7 +200,7 @@ public class ChainRolesService {
                         throw new DeploymentProcessingException("Unable to redeploy chain " + chainId + ":" + exception.getMessage(), exception);
                     }
                 });
-            return chainRolesAndFilters;
+        return chainRolesAndFilters;
     }
 
 
