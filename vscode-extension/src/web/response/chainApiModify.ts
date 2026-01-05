@@ -54,7 +54,9 @@ export async function updateChain(fileUri: Uri, chainId: string, chainRequest: P
 
 async function checkRestrictions(element: ElementSchema, elements: ElementSchema[]) {
     const elementType = element.type as unknown as string;
-    const libraryData = await getLibraryElementByType(elementType);
+    const libraryData = elementType === 'container'
+        ? undefined
+        : await getLibraryElementByType(elementType);
     if (!libraryData) {
         return;
     }
