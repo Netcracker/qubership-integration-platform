@@ -35,6 +35,8 @@ public class ExportImportConstants {
     @Deprecated
     public static final String SERVICE_YAML_NAME_PREFIX = "service-";
     public static final String SERVICE_YAML_NAME_POSTFIX = ".service.";
+    @Deprecated
+    public static final String CONTEXT_SERVICE_YAML_NAME_PREFIX = "context-service-";
     public static final String CONTEXT_SERVICE_YAML_NAME_POSTFIX = ".context-service.";
     public static final String SOURCE_YAML_NAME_PREFIX =  "source-";
     public static final String EXPORT_FILE_NAME_PREFIX = "export-";
@@ -111,4 +113,5 @@ public class ExportImportConstants {
     public static final String BUSINESS_DESCRIPTION = "businessDescription";
     public static final String ASSUMPTIONS = "assumptions";
     public static final String OUT_OF_SCOPE = "outOfScope";
+    public static final String CONTENT = "content";
 }

@@ -67,6 +67,8 @@ db:
       outOfOrder: true
       locations: 'classpath:db/migration/postgresql/configs'
       ignoreMigrationPatterns: '*:future,*:missing'
+      placeholders:
+        abacResourceType: ${qip.access-control.resource-type.chain}
   hikari:
     datasources:
       datasource:
@@ -153,6 +155,7 @@ qip:
       check:
         enabled: true
   export:
+    legacy-format: ${QIP_EXPORT_LEGACY_FORMAT:false} # Deprecated since 25.3
     remove-unused-specifications: ${QIP_EXPORT_REMOVE_UNUSED_SPECS:true}
   import:
     session-lifetime-minutes: 300
@@ -184,6 +187,9 @@ qip:
     # These properties are injected in element descriptors
     properties:
       filter-header-allowlist-name: ${camel.constants.request-filter-header.name}
+  access-control:
+    resource-type:
+      chain: 'QIP-CHAIN'
 
 protoc:
   work-directory: /tmp/tmp-data

@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
@@ -29,13 +30,17 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 @Slf4j
 @Component
 public class V104ChainImportFileMigration implements ChainImportFileMigration {
-    YAMLMapper yamlMapper;
+
+    private final YAMLMapper yamlMapper;
+    private final String resourceType;
 
     @Autowired
     public V104ChainImportFileMigration(
-            YAMLMapper yamlMapper
+            YAMLMapper yamlMapper,
+            @Value("${qip.access-control.resource-type.chain}") String resourceType
     ) {
         this.yamlMapper = yamlMapper;
+        this.resourceType = resourceType;
     }
 
     @Override
@@ -46,51 +51,41 @@ public class V104ChainImportFileMigration implements ChainImportFileMigration {
     @Override
     public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
         log.debug("Applying chain migration: {}", getVersion());
-        processElementsAction(fileNode.get(ELEMENTS));
-
-        return fileNode;
+        ObjectNode rootNode = fileNode.deepCopy();
+        rootNode.path(CONTENT).path(ELEMENTS).forEach(this::processElementsAction);
+        return rootNode;
     }
 
-    private void processElementsAction(JsonNode elements) {
-        if (elements == null || elements.isEmpty()) {
+    private void processElementsAction(JsonNode element) {
+        element.path(CHILDREN).forEach(this::processElementsAction);
+        JsonNode typeNode = element.path(TYPE);
+        if (typeNode == null || !"http-trigger".equals(typeNode.asText())) {
             return;
         }
-
-        for (JsonNode element : elements) {
-            processElementsAction(element.get(CHILDREN));
-            JsonNode elemType = element.get(ELEMENT_TYPE);
-            ObjectNode properties = (ObjectNode) element.get(PROPERTIES);
-
-            if (elemType == null || !"http-trigger".equals(elemType.asText())) {
-                continue;
-            }
-
-            if (properties == null || !properties.has("accessControlType") || !"ABAC".equals(properties.get("accessControlType").asText())) {
-                continue;
-            }
-
-            ObjectNode abacParameters = properties.has("abacParameters") && properties.get("abacParameters").isObject()
-                    ? (ObjectNode) properties.get("abacParameters")
-                    : yamlMapper.createObjectNode();
-
-            if (!abacParameters.has("resourceType")) {
-                abacParameters.put("resourceType", "CHAIN");
-            }
-            if (!abacParameters.has("operation")) {
-                abacParameters.put("operation", "ALL");
-            }
-            if (!abacParameters.has("resourceDataType")) {
-                abacParameters.put("resourceDataType", "String");
-            }
-
-            if (properties.has("abacResource")) {
-                String abacResource = properties.get("abacResource").asText();
-
-                abacParameters.put("resourceString", abacResource);
-                properties.remove("abacResource");
-            }
-
-            properties.set("abacParameters", abacParameters);
+        JsonNode propsNode = element.path(PROPERTIES);
+        if (!(propsNode instanceof ObjectNode properties)) {
+            return;
         }
+        if (!"ABAC".equals(properties.path("accessControlType").asText())) {
+            return;
+        }
+        ObjectNode abacParameters = properties.has("abacParameters") && properties.get("abacParameters").isObject()
+                ? (ObjectNode) properties.get("abacParameters")
+                : yamlMapper.createObjectNode();
+        if (!abacParameters.has("resourceType")) {
+            abacParameters.put("resourceType", resourceType);
+        }
+        if (!abacParameters.has("operation")) {
+            abacParameters.put("operation", "ALL");
+        }
+        if (!abacParameters.has("resourceDataType")) {
+            abacParameters.put("resourceDataType", "String");
+        }
+        if (properties.has("abacResource")) {
+            String abacResource = properties.get("abacResource").asText();
+            abacParameters.put("resourceString", abacResource);
+            properties.remove("abacResource");
+        }
+        properties.set("abacParameters", abacParameters);
     }
 }
