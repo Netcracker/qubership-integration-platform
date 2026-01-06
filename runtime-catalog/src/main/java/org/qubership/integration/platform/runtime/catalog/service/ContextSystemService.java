@@ -22,11 +22,13 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.context.ContextSystemRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemSearchRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.context.ContextSystemRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.context.ContextSystemUpdateRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ContextSystemMapper;
 import org.qubership.integration.platform.runtime.catalog.service.filter.SystemFilterSpecificationBuilder;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -42,11 +45,12 @@ public class ContextSystemService extends AbstractContextSystemService {
     private final SystemFilterSpecificationBuilder systemFilterSpecificationBuilder;
     private final ContextSystemMapper contextSystemMapper;
     private final ChainService chainService;
+    private final ElementHelperService elementHelperService;
 
     public ContextSystemService(ContextSystemRepository contextSystemRepository,
                                 ContextSystemMapper contextSystemMapper,
                                 ActionsLogService actionLogger,
-                                SystemFilterSpecificationBuilder systemFilterSpecificationBuilder, @Lazy ChainService chainService) {
+                                SystemFilterSpecificationBuilder systemFilterSpecificationBuilder, @Lazy ChainService chainService, ElementHelperService elementHelperService) {
         super(
                 contextSystemRepository,
                 actionLogger
@@ -54,6 +58,15 @@ public class ContextSystemService extends AbstractContextSystemService {
         this.systemFilterSpecificationBuilder = systemFilterSpecificationBuilder;
         this.contextSystemMapper = contextSystemMapper;
         this.chainService = chainService;
+        this.elementHelperService = elementHelperService;
+    }
+
+    public List<ContextSystem> getContextSystemService() {
+        List<ContextSystem> contextSystems = findAll();
+        return contextSystems.stream()
+                .peek(this::enrichContextSystemWithChains)
+                .sorted((sg1, sg2) -> sg2.getName().compareTo(sg1.getName()))
+                .collect(Collectors.toList());
     }
 
 
@@ -95,5 +108,9 @@ public class ContextSystemService extends AbstractContextSystemService {
         Specification<ContextSystem> specification = systemFilterSpecificationBuilder.buildContextFilter(filters);
 
         return contextSystemRepository.findAll(specification);
+    }
+    private void enrichContextSystemWithChains(ContextSystem contextSystem) {
+        List<Chain> chain = elementHelperService.findChainByContextServiceId(contextSystem.getId());
+        contextSystem.setChains(chain);
     }
 }

@@ -108,6 +108,16 @@ public class ElementHelperService {
         ));
     }
 
+    public List<ChainElement> findByContextServiceId(String contextServiceId) {
+        return elementRepository.findAll((root, query, builder) -> builder.and(
+                builder.isNotNull(root.get("chain")),
+                builder.equal(builder.function("jsonb_extract_path_text", String.class,
+                                root.<String>get("properties"), builder.literal(CamelOptions.CONTEXT_SYSTEM_ID)),
+                        contextServiceId
+                )
+        ));
+    }
+
     public List<Chain> findBySystemAndModelId(String systemId, String modelId) {
         List<ChainElement> elements = elementRepository.findAll((root, query, builder) -> builder.and(
                 builder.isNotNull(root.get("chain")),
@@ -132,6 +142,11 @@ public class ElementHelperService {
 
     public List<Chain> findChainBySystemId(String systemId) {
         List<ChainElement> elements = findBySystemId(systemId);
+        return getElementsChains(elements);
+    }
+
+    public List<Chain> findChainByContextServiceId(String contextServiceId) {
+        List<ChainElement> elements = findByContextServiceId(contextServiceId);
         return getElementsChains(elements);
     }
 
