@@ -85,7 +85,7 @@ jobs:
         with:
           ref: ${{ needs.deploy.outputs.release-version }}
           checkout: false
-          context: "./qubership-integration-sessions-management"
+          context: "./qubership-integration-sessions-management/qubership-integration-sessions-management"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 #  deploy:
