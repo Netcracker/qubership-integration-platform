@@ -84,7 +84,14 @@ jobs:
         uses: netcracker/qubership-workflow-hub/actions/docker-action@main
         with:
           ref: ${{ needs.deploy.outputs.release-version }}
-          download-artifact: true
+          component: |
+            [
+              {
+                "name": "qip-sessions-management",
+                "file": "./Dockerfile",
+                "context": "./qubership-integration-sessions-management/qubership-integration-sessions-management"
+              }
+            ]
         env:
           GITHUB_TOKEN: ${{ github.token }}
 #  deploy:
