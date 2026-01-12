@@ -69,7 +69,8 @@ jobs:
         with:
           version-type: ${{ github.event.inputs.version-type }}
           ref: ${{ github.ref }}
-          module: ${{ github.event.repository.name }}
+#          module: ${{ github.event.repository.name }}
+          module: ""
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           server-id: ${{ inputs.profile }}
@@ -78,20 +79,13 @@ jobs:
           maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-          dry-run: true
+          dry-run: 'true'
       - name: "Docker Build"
         id: docker_build
         uses: netcracker/qubership-workflow-hub/actions/docker-action@main
         with:
           ref: ${{ needs.deploy.outputs.release-version }}
-          component: |
-            [
-              {
-                "name": "qip-sessions-management",
-                "file": "./Dockerfile",
-                "context": "./qubership-integration-sessions-management/qubership-integration-sessions-management"
-              }
-            ]
+          checkout: 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
 #  deploy:
