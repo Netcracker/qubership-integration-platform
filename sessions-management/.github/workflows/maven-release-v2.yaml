@@ -69,8 +69,7 @@ jobs:
         with:
           version-type: ${{ github.event.inputs.version-type }}
           ref: ${{ github.ref }}
-#          module: ${{ github.event.repository.name }}
-          module: ""
+          module: ${{ github.event.repository.name }}
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           server-id: ${{ inputs.profile }}
@@ -85,7 +84,8 @@ jobs:
         uses: netcracker/qubership-workflow-hub/actions/docker-action@main
         with:
           ref: ${{ needs.deploy.outputs.release-version }}
-          checkout: 'true'
+          checkout: false
+          context: "./qubership-integration-sessions-management"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 #  deploy:
