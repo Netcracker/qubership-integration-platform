@@ -49,6 +49,7 @@ import {
 import CustomOneOfField from "./field/CustomOneOfField.tsx";
 import SingleSelectField from "./field/select/SingleSelectField.tsx";
 import ContextServiceField from "./field/select/ContextServiceField.tsx";
+import { FullscreenButton } from "../FullscreenButton.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -141,6 +142,11 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const [activeKey, setActiveKey] = useState<string>();
   const { showModal } = useModalsContext();
   const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  const handleFullscreen = useCallback(() => {
+    setIsFullscreen((prevValue) => !prevValue);
+  }, []);
 
   useEffect(() => {
     setTitle(constructTitle(`${node.data.label}`, libraryElement?.title));
@@ -628,6 +634,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       onCancel={handleCheckUnsavedAndClose}
       maskClosable={false}
       loading={libraryElementIsLoading}
+      style={isFullscreen ? { top: 0, margin: 0, padding: 0 } : {}}
       footer={[
         <Button
           key="submit"
@@ -645,13 +652,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       ]}
       classNames={{
         footer: styles["modal-footer"],
-        content: styles["modal"],
-        body: styles["modal-body"],
+        content: isFullscreen ?  [styles["modal"], styles["modal-fullscreen"]].join(' ') : styles["modal"],
+        body: isFullscreen ? [styles["modal-body"], styles["modal-body-fullscreen"]].join(' ') : styles["modal-body"],
         header: styles["modal-header"],
       }}
     >
       {schema && activeKey && (
         <>
+          <FullscreenButton isFullscreen={isFullscreen} onClick={handleFullscreen} />
           <Tabs
             activeKey={activeKey}
             onChange={handleTabChange}

@@ -11,6 +11,11 @@
     border: 1px solid var(--vscode-border);
 }
 
+.modal-fullscreen {
+    width: 100vw;
+    height: 100vh;
+}
+
 .modal-header {
     background: var(--vscode-modal-background, var(--vscode-panel-background));
     color: var(--vscode-modal-foreground, var(--vscode-foreground));
@@ -28,6 +33,10 @@
     flex-direction: column;
     background: var(--vscode-modal-background, var(--vscode-panel-background));
     color: var(--vscode-modal-foreground, var(--vscode-foreground));
+}
+
+.modal-body-fullscreen {
+    height: calc(100vh - 130px);
 }
 
 .modal-body :global(.rjsf) {
