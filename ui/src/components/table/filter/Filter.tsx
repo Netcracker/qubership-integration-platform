@@ -123,7 +123,7 @@ export const Filter = (props: FilterProps) => {
       form={form}
     >
       {filterItems}
-      <Button type="link" onClick={addFilterItem}><OverridableIcon name="plus" /> Add Filter</Button>
+      <Button type="link" onClick={addFilterItem} style={{ marginRight: 8 }}><OverridableIcon name="plus" /> Add Filter</Button>
       <Button type="link" onClick={clearAll}><OverridableIcon name="clear" /> Clear All</Button>
     </Form>
   </Modal>

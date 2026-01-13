@@ -49,12 +49,18 @@ import { getConfig } from "./appConfig.ts";
 import { reapplyCssVariables } from "./config/initConfig.ts";
 import { LiveExchanges } from "./components/admin_tools/exchanges/LiveExchanges.tsx";
 import { ContextServiceParametersPage } from "./components/services/context/ContextServiceParametersPage.tsx";
+import DevTools from "./pages/DevTools.tsx";
+import { DiagnosticValidationPage } from "./components/dev_tools/DiagnosticValidationPage.tsx";
 
 const { Header } = Layout;
 
 const router = createBrowserRouter(
   createRoutesFromElements(
     <>
+      <Route path="/devtools" element={<DevTools />}>
+        <Route path="" element={<Navigate to="diagnostic/validations" />} />
+        <Route path="diagnostic/validations" element={<DiagnosticValidationPage />} />
+      </Route>
       <Route path="/admintools" element={<AdminTools />}>
         <Route path="" element={<Navigate to="domains" />} />
         <Route path="domains" element={<Domains />} />

@@ -102,6 +102,9 @@ import {
   ContainerOutlined,
   FullscreenOutlined,
   FullscreenExitOutlined,
+  BulbOutlined,
+  BarChartOutlined,
+  ToolOutlined,
 } from "@ant-design/icons";
 
 export const commonIcons = {
@@ -179,6 +182,9 @@ export const commonIcons = {
   database: DatabaseOutlined,
   fullscreen: FullscreenOutlined,
   fullscreenExit: FullscreenExitOutlined,
+  bulb: BulbOutlined,
+  barChart: BarChartOutlined,
+  tool: ToolOutlined,
 };
 
 export const elementIcons = {
