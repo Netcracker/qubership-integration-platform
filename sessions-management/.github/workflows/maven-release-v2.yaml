@@ -83,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v6.0.0
         with:
           name: app-jar
-          path: ${{ inputs.module }}/target/*-exec.jar
+          path: ${{ github.event.repository.name }}/**/target/*-exec.jar
       - name: "Docker Build"
         id: docker_build
         uses: netcracker/qubership-workflow-hub/actions/docker-action@main
