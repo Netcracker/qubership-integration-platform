@@ -63,7 +63,7 @@ on:
       create-github-release:
         description: 'Create release'
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -82,7 +82,7 @@ jobs:
         uses: netcracker/qubership-workflow-hub/actions/tag-action@v2.0.6
         with:
           ref: ${{ github.ref }}
-          tag-name: 'v${{ github.event.inputs.version }}'
+          tag-name: 'v${{ inputs.version }}'
           create-tag: 'false'
           check-tag: 'true'
         env:
@@ -132,13 +132,20 @@ jobs:
     needs: build-and-publish
     runs-on: ubuntu-latest
     steps:
-      - name: "Create release"
-        id: create_release
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@v2.0.6
+      - name: Checkout code
+        uses: actions/checkout@v6
         with:
-          ref: ${{ github.ref }}
-          tag-name: 'v${{ github.event.inputs.version }}'
-          create-tag: 'false'
-          create-release: 'true'
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ inputs.ref ||  github.ref_name }}
+      - name: Run Release Drafter
+        uses: netcracker/release-drafter@master
+        with:
+          config-name: ${{ inputs.config-name }}
+          publish: false
+          name: ${{ inputs.version }}
+          tag: 'v${{ inputs.version }}'
+          version: 'v${{ inputs.version }}'
+#          latest: ${{ inputs.latest == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
