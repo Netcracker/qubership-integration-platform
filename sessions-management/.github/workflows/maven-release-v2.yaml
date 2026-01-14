@@ -60,6 +60,11 @@ on:
         required: false
         default: true
         type: boolean
+      create-github-release:
+        description: 'Create release'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -107,21 +112,6 @@ jobs:
         with:
           name: app-jar
           path: ${{ github.event.repository.name }}/**/target/*-exec.jar
-  create-tag:
-    needs: build-and-publish
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Create tag
-        id: create_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@v2.0.6
-        with:
-          ref: ${{ github.ref }}
-          tag-name: 'v${{ github.event.inputs.version }}'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   publish-image:
     if: ${{ github.event.inputs.build-docker == 'true' }}
     needs: build-and-publish
@@ -136,3 +126,19 @@ jobs:
           download-artifact-name: app-jar
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+  create-release:
+    if: ${{ github.event.inputs.create-github-release == 'true' }}
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Create release"
+        id: create_release
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@v2.0.6
+        with:
+          ref: ${{ github.ref }}
+          tag-name: 'v${{ github.event.inputs.version }}'
+          create-tag: 'false'
+          create-release: 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
