@@ -9,10 +9,15 @@ export const useElementTypes = () => {
 
   const getLibraryElement = useCallback(async () => {
     try {
-      const types: ElementFilter[] = await api.getElementTypes()
+      const types: ElementFilter[] = await api.getElementTypes();
+      if (!Array.isArray(types)) {
+        setElementTypes([]);
+        return;
+      }
       setElementTypes(types);
     } catch (error) {
       notificationService.requestFailed("Failed to load element types", error);
+      setElementTypes([]);
     }
   }, [notificationService]);
 
@@ -20,5 +25,5 @@ export const useElementTypes = () => {
     void getLibraryElement();
   }, [getLibraryElement]);
 
-  return { elementTypes };
+  return { elementTypes: Array.isArray(elementTypes) ? elementTypes : [] };
 }

@@ -1,8 +1,9 @@
-import React, { createContext, useContext, ReactNode, useState } from "react";
+import React, { createContext, useContext, ReactNode, useState, useEffect } from "react";
 import Icon from "@ant-design/icons";
 import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
 import parse from "html-react-parser";
 import { commonIcons, elementIcons } from "./IconDefenitions";
+import { getConfig } from "../appConfig.ts";
 
 export type IconSource =
   | React.ComponentType<AntdIconProps>
@@ -71,7 +72,17 @@ export const IconContext = createContext<IconContextType>({
 export const IconProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [icons, setIconsState] = useState<IconOverrides>(allIcons);
+  const [icons, setIconsState] = useState<IconOverrides>(() => {
+    const config = getConfig();
+    return config.icons ? { ...allIcons, ...config.icons } : allIcons;
+  });
+
+  useEffect(() => {
+    const config = getConfig();
+    if (config.icons) {
+      setIconsState(prev => ({ ...allIcons, ...prev, ...config.icons }));
+    }
+  }, []);
 
   const setIcons = (overrides: IconOverrides) => {
     setIconsState((prev) => ({

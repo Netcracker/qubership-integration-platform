@@ -25,7 +25,3 @@ export const useNotificationApi = (): NotificationInstance => {
 
   return api;
 };
-
-
-
-

@@ -16,24 +16,25 @@ export default defineConfig({
         })
     ],
     build: {
-        outDir: 'dist-lib',
+        outDir: "dist-lib",
         emptyOutDir: true,
         minify: true,
         sourcemap: false,
-      rollupOptions: {
-        input: path.resolve(__dirname, 'src/main.tsx'),
-        external: [],
-        output: {
-          format: 'es',
-          entryFileNames: 'index.es.js',
-          inlineDynamicImports: true,
-          assetFileNames: (assetInfo) => {
-            if (assetInfo.name?.endsWith('.css')) {
-              return 'qip-ui.css';
-            }
-            return assetInfo.name || '[name].[ext]';
-          },
+        rollupOptions: {
+            input: path.resolve(__dirname, "src/index.ts"),
+            external: ["react", "react-dom", "react/jsx-runtime"],
+            preserveEntrySignatures: "exports-only",
+            output: {
+                format: "es",
+                entryFileNames: "index.es.js",
+                inlineDynamicImports: true,
+                assetFileNames: (assetInfo) => {
+                    if (assetInfo.name?.endsWith(".css")) {
+                        return "qip-ui.css";
+                    }
+                    return assetInfo.name || "[name].[ext]";
+                },
+            },
         },
-      }
     },
 });

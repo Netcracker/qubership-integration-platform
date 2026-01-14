@@ -26,11 +26,9 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     const stored = localStorage.getItem(`${storageKey}_columnsVisible`);
-    console.log("visibleColumns stored " + storageKey, stored);
     return stored ? (JSON.parse(stored) as string[]) : initialColumns;
   });
   useEffect(() => {
-    console.log("set visibleColumns " + storageKey, visibleColumns);
     localStorage.setItem(`${storageKey}_columnsOrder`, JSON.stringify(columnsOrder));
     localStorage.setItem(`${storageKey}_columnsVisible`, JSON.stringify(visibleColumns));
     onChange?.(columnsOrder, visibleColumns);
@@ -42,8 +40,6 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
     setColumnsOrder(allColumns);
     setVisibleColumns(initialColumns);
   };
-
-  console.log("visibleColumns " + storageKey, visibleColumns);
 
   const humanizeKey = (key: string): string => {
     const withSpaces = key

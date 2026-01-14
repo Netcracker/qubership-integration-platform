@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import AppExtension from "./AppExtension";
-import { ThemeProvider } from "./contexts/ThemeContext";
 
 // Initialize React app for VS Code extension
 export function initializeVSCodeApp() {
@@ -9,9 +8,7 @@ export function initializeVSCodeApp() {
   if (rootElement) {
     createRoot(rootElement).render(
       <StrictMode>
-        <ThemeProvider>
-          <AppExtension />
-        </ThemeProvider>
+        <AppExtension />
       </StrictMode>,
     );
   } else {

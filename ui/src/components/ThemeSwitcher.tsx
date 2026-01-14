@@ -64,6 +64,3 @@ export const ThemeSwitcher = ({ currentTheme, onThemeChange }: ThemeSwitcherProp
     </Space>
   );
 };
-
-
-

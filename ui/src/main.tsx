@@ -8,18 +8,33 @@ import "./index.css";
 import "./components/graph/nodes/Node.component.css";
 import { isVsCode } from "./api/rest/vscodeExtensionApi.ts";
 import AppExtension from "./AppExtension.tsx";
+import { initializeConfig } from "./config/configLoader.ts";
+import { initializeConfiguration } from "./config/initConfig.ts";
 
-if (isVsCode) {
-  createRoot(document.getElementById("app-root") as HTMLElement).render(
-    <StrictMode>
-      <AppExtension />
-    </StrictMode>,
-  );
-} else {
-  createRoot(document.getElementById("root") as HTMLElement).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  );
+async function init() {
+  if (!isVsCode) {
+    try {
+      await initializeConfig();
+      await initializeConfiguration();
+    } catch (error) {
+      console.warn("Configuration initialization failed, using defaults:", error);
+    }
+  }
+
+  if (isVsCode) {
+    createRoot(document.getElementById("app-root") as HTMLElement).render(
+      <StrictMode>
+        <AppExtension />
+      </StrictMode>,
+    );
+  } else {
+    createRoot(document.getElementById("root") as HTMLElement).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+  }
 }
+
+void init();
 
