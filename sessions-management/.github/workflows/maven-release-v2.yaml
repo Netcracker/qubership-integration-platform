@@ -74,7 +74,7 @@ jobs:
 
       - name: Check if tag exists
         id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@v1.0.6
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@v2.0.6
         with:
           ref: ${{ github.ref }}
           tag-name: 'v${{ github.event.inputs.version }}'
@@ -84,8 +84,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-and-publish:
-    runs-on: ubuntu-latest
     needs: check-tag
+    runs-on: ubuntu-latest
     steps:
       - name: "Build and Publish"
         uses: netcracker/qubership-workflow-hub/actions/maven-release@v2.0.6
@@ -107,6 +107,21 @@ jobs:
         with:
           name: app-jar
           path: ${{ github.event.repository.name }}/**/target/*-exec.jar
+  create-tag:
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Create tag
+        id: create_tag
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@v2.0.6
+        with:
+          ref: ${{ github.ref }}
+          tag-name: 'v${{ github.event.inputs.version }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   publish-image:
     if: ${{ github.event.inputs.build-docker == 'true' }}
     needs: build-and-publish
@@ -114,7 +129,7 @@ jobs:
     steps:
       - name: "Docker Build"
         id: docker_build
-        uses: netcracker/qubership-workflow-hub/actions/docker-action@main
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@v2.0.6
         with:
           ref: ${{ needs.deploy.outputs.release-version }}
           download-artifact: true
