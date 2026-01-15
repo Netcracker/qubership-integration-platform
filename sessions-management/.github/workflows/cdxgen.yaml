@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: "cdxgen"
         uses: netcracker/qubership-workflow-hub/actions/cdxgen@main
+        with:
+          generate_cdx_report: 'true'
   deploy-pages:
     permissions:
       id-token: write
