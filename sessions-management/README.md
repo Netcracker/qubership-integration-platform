@@ -1,7 +1,7 @@
 # Qubership Integration Platform — Sessions Management
 
 Sessions Management Service is a part of Qubership Integration Platform.
-It provides an API to manage recorded sessions of integration flows' execution stored in OpenSearch index.
+It provides an API to manage recorded sessions of integration flows execution stored in OpenSearch index.
 This service is designed for debugging, monitoring, and analytical purpose and allows full text search in sessions along with complex session filtering.
 
 ## Installation
@@ -42,7 +42,7 @@ Application has 'development' Spring profile to run service locally with minimum
 
 ## Dependencies
 
-This service relies on [Design-Time Catalog Service](https://github.com/Netcracker/qubership-integration-designtime-catalog), which is used to provide integration chain names.
+This service relies on [Runtime Catalog Service](https://github.com/Netcracker/qubership-integration-runtime-catalog), which is used to provide integration chain names.
 It also requires Consul and OpenSearch services.
 
 ## Contribution
