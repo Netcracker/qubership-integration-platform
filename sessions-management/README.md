@@ -8,7 +8,7 @@ This service is designed for debugging, monitoring, and analytical purpose and a
 
 Sessions Management Service is a Spring Boot Application and requires Java 21 and Maven to build.
 [Dockerfile](Dockerfile) is provided to build a containerized application.
-It can be run locally using a [docker compose configuration](https://github.com/Netcracker/qubership-integration-platform).
+It can be run locally using a [Docker compose configuration](https://github.com/Netcracker/qubership-integration-platform).
 
 ## Configuration
 
