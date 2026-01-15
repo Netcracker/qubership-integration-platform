@@ -141,7 +141,7 @@ jobs:
       - name: Run Release Drafter
         uses: netcracker/release-drafter@master
         with:
-          config-name: ${{ inputs.config-name }}
+          config-name: "release-drafter-config.yml"
           publish: false
           name: ${{ inputs.version }}
           tag: 'v${{ inputs.version }}'
