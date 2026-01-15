@@ -28,6 +28,11 @@ run-name: ${{ github.event.inputs.version-type }} release for ${{ github.event.r
 on:
   workflow_dispatch:
     inputs:
+      version:
+        required: true
+        default: '1.0.0'
+        type: string
+        description: 'Release version (e.g., 1.0.0)'
       version-type:
         description: 'Version type to release'
         type: choice
@@ -45,27 +50,50 @@ on:
           - 'central'
         required: false
         default: 'central'
+      build-docker:
+        description: 'Build Docker image'
+        required: false
+        default: true
+        type: boolean
+      create-github-release:
+        description: 'Create release'
+        required: false
+        default: true
+        type: boolean
       mvn-args:
         description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
         required: false
         default: ''
         type: string
-      build-docker:
-        description: 'Build Docker image'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: write
   packages: write
 
 jobs:
-  dry-run-build:
+  check-tag:
     runs-on: ubuntu-latest
     steps:
-      - name: "Build and Publish current SNAPSHOT (dry run)"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@v1.0.5
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check if tag exists
+        id: check_tag
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@v2.0.6
+        with:
+          ref: ${{ github.ref }}
+          tag-name: 'v${{ inputs.version }}'
+          create-tag: 'false'
+          check-tag: 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-publish:
+    needs: check-tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Build and Publish"
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@v2.0.6
         with:
           version-type: ${{ github.event.inputs.version-type }}
           ref: ${{ github.ref }}
@@ -78,86 +106,46 @@ jobs:
           maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-          dry-run: 'true'
-  deploy:
-    needs: dry-run-build
-    if: ${{ needs.dry-run-build.result == 'success' }}
-    outputs:
-      release-version: ${{ steps.build-and-publish.outputs.release-version }}
-    runs-on: ubuntu-latest
-    steps:
-      # This step is needed if there is a GitHub App used for authentication to bypass the protected branch rule
-      - name: "Prepare app token"
-        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v2.1.1
-        id: app-token
-        with:
-          app-id: ${{ vars.GH_BUMP_VERSION_APP_ID }}
-          private-key: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
-      - name: "Build and Publish"
-        id: build-and-publish
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@v1.0.5
-        with:
-          version-type: ${{ github.event.inputs.version-type }}
-          ref: ${{ github.ref }}
-          module: ${{ github.event.repository.name }}
-          maven-args: ${{ inputs.mvn-args }}
-          profile: ${{ inputs.profile }}
-          server-id: ${{ inputs.profile }}
-          token: ${{ steps.app-token.outputs.token }} # It can be ${{ secrets.GITHUB_TOKEN }} if default branch isn't protected
-          maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
-          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           dry-run: 'false'
-      - name: Upload all Maven target directories
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Upload JAR
+        uses: actions/upload-artifact@v6.0.0
         with:
-          name: ${{ github.event.repository.name }}
-          path: '**/target'
-  check-dockerfile:
+          name: app-jar
+          path: ${{ github.event.repository.name }}/**/target/*-exec.jar
+  publish-image:
     if: ${{ github.event.inputs.build-docker == 'true' }}
+    needs: build-and-publish
     runs-on: ubuntu-latest
-    needs: [deploy]
-    outputs:
-      dockerfile_exists: ${{ steps.check_dockerfile.outputs.df_exists }}
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-      - name: "Check Dockerfile existence"
-        id: check_dockerfile
-        shell: bash
-        run: |
-          if [[ -f Dockerfile ]]; then
-            echo "df_exists=exists" >> "$GITHUB_OUTPUT"
-          else
-            echo "Dockerfile does not exist. Docker build stage will be skipped"
-            echo "df_exists=notexists" >> "$GITHUB_OUTPUT"
-          fi
-          echo "GITHUB_OUTPUT:"
-          cat "$GITHUB_OUTPUT"
-
-  docker-build:
-    if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
-    permissions:
-      contents: write
-      packages: write
-    runs-on: ubuntu-latest
-    needs: [check-dockerfile, deploy]
     steps:
       - name: "Docker Build"
         id: docker_build
-        uses: netcracker/qubership-workflow-hub/actions/docker-action@main
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@v2.0.6
         with:
-          ref: v${{ needs.deploy.outputs.release-version }}
+          ref: ${{ needs.deploy.outputs.release-version }}
           download-artifact: true
+          download-artifact-name: app-jar
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-  github-release:
-    needs: [deploy]
-    if: ${{ needs.deploy.result == 'success' }}
-    uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@v1.0.5
-    with:
-      version: ${{ needs.deploy.outputs.release-version }}
-      publish: true
+  create-release:
+    if: ${{ github.event.inputs.create-github-release == 'true' }}
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ inputs.ref ||  github.ref_name }}
+      - name: Run Release Drafter
+        uses: netcracker/release-drafter@master
+        with:
+          config-name: "release-drafter-config.yml"
+          publish: true
+          prerelease: ${{ github.ref_name != 'main' }}
+          name: ${{ inputs.version }}
+          tag: 'v${{ inputs.version }}'
+          version: 'v${{ inputs.version }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

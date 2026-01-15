@@ -1,7 +1,7 @@
 # Qubership Integration Platform - Runtime Catalog
 
 Runtime Catalog Service is a part of Qubership Integration Platform.
-It provides an API to manage integration flows (so-called integration chains) snapshots and deployment.
+It provides an API to manage integration flows (so-called integration chains) snapshots and deployments.
 Service publishes information about integration chain deployments to Consul from where it is fetched by [Engine](https://github.com/Netcracker/qubership-integration-engine).  
 All operations on integration chains are being logged, and an API is provided to get the action journal.
 
