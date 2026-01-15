@@ -9,7 +9,7 @@ All operations on integration chains are being logged, and an API is provided to
 
 Runtime Catalog Service is a Spring Boot Application and requires Java 21 and Maven to build.
 [Dockerfile](Dockerfile) is provided to build a containerized application.
-It can be run locally using a [docker compose configuration](https://github.com/Netcracker/qubership-integration-platform).
+It can be run locally using a [Docker compose configuration](https://github.com/Netcracker/qubership-integration-platform).
 
 ## Configuration
 

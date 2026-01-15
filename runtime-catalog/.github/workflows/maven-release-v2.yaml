@@ -76,7 +76,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Check if tag exists
         id: check_tag
         uses: netcracker/qubership-workflow-hub/actions/tag-action@v2.0.6
@@ -121,7 +123,7 @@ jobs:
         id: docker_build
         uses: netcracker/qubership-workflow-hub/actions/docker-action@v2.0.6
         with:
-          ref: ${{ needs.deploy.outputs.release-version }}
+          ref: ${{ github.ref }}
           download-artifact: true
           download-artifact-name: app-jar
         env:
@@ -137,7 +139,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ inputs.ref ||  github.ref_name }}
+          ref: ${{ github.ref }}
       - name: Run Release Drafter
         uses: netcracker/release-drafter@master
         with:
