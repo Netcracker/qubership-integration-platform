@@ -142,10 +142,10 @@ jobs:
         uses: netcracker/release-drafter@master
         with:
           config-name: "release-drafter-config.yml"
-          publish: false
+          publish: true
+          prerelease: ${{ github.ref_name != 'main' }}
           name: ${{ inputs.version }}
           tag: 'v${{ inputs.version }}'
           version: 'v${{ inputs.version }}'
-#          latest: ${{ inputs.latest == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
