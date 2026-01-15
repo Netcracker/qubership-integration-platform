@@ -50,11 +50,6 @@ on:
           - 'central'
         required: false
         default: 'central'
-      mvn-args:
-        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
-        required: false
-        default: ''
-        type: string
       build-docker:
         description: 'Build Docker image'
         required: false
@@ -65,6 +60,11 @@ on:
         required: false
         default: true
         type: boolean
+      mvn-args:
+        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write
