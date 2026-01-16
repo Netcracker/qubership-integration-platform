@@ -66,22 +66,23 @@ on:
         default: ''
         type: string
 
-permissions:
-  contents: write
-  packages: write
+permissions: {}
 
 jobs:
   check-tag:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
+
       - name: Check if tag exists
         id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@v2.0.6
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
         with:
           ref: ${{ github.ref }}
           tag-name: 'v${{ inputs.version }}'
@@ -93,9 +94,12 @@ jobs:
   build-and-publish:
     needs: check-tag
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
       - name: "Build and Publish"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@v2.0.6
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
         with:
           version-type: ${{ github.event.inputs.version-type }}
           ref: ${{ github.ref }}
@@ -118,30 +122,34 @@ jobs:
     if: ${{ github.event.inputs.build-docker == 'true' }}
     needs: build-and-publish
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       - name: "Docker Build"
         id: docker_build
-        uses: netcracker/qubership-workflow-hub/actions/docker-action@v2.0.6
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
         with:
           ref: ${{ github.ref }}
           download-artifact: true
           download-artifact-name: app-jar
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   create-release:
     if: ${{ github.event.inputs.create-github-release == 'true' }}
     needs: build-and-publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
           ref: ${{ github.ref }}
       - name: Run Release Drafter
-        uses: netcracker/release-drafter@master
+        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 #v1.0.0
         with:
           config-name: "release-drafter-config.yml"
           publish: true
