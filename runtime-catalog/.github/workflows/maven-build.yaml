@@ -4,20 +4,33 @@ on:
   pull_request:
     types: [ opened, synchronize, reopened ]
 
+permissions:
+  contents: read
+
 jobs:
   mvn-with-sonar:
-    name: Build with Sonar analysis
-    uses: netcracker/qubership-workflow-hub/.github/workflows/maven-publish.yml@v1.0.1
-    with:
-      maven-command: >
-        --batch-mode verify
-        -Dgpg.skip=true
-        org.sonarsource.scanner.maven:sonar-maven-plugin:${{ vars.SONAR_PLUGIN_VERSION }}:sonar
-        -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-        -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-        -Dsonar.host.url=${{ vars.SONAR_HOST_URL }}
-      server-id: github
-      java-version: 21
-    secrets:
-      maven-token: ${{ secrets.GITHUB_TOKEN }}
-      sonar-token: ${{ secrets.SONAR_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Code quality/security scan on SonarQube
+        uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          target-store: 'github'
+          java-version: '21'
+          maven-username: ${{ github.actor }}
+          maven-token: ${{ github.token }}
+          sonar-token: ${{ env.SONAR_TOKEN }}
+          maven-command: >
+            --batch-mode verify
+            -Dgpg.skip=true
+            org.sonarsource.scanner.maven:sonar-maven-plugin:${{ vars.SONAR_PLUGIN_VERSION }}:sonar
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.host.url=${{ vars.SONAR_HOST_URL }}
