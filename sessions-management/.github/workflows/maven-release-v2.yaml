@@ -66,9 +66,13 @@ on:
         default: ''
         type: string
 
+permissions: {}
+
 jobs:
   check-tag:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -129,7 +133,7 @@ jobs:
           download-artifact: true
           download-artifact-name: app-jar
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   create-release:
     if: ${{ github.event.inputs.create-github-release == 'true' }}
