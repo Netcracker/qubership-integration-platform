@@ -99,7 +99,10 @@ public class ContextSystemService extends AbstractContextSystemService {
     }
 
     public List<ContextSystem> searchContextService(String searchString) {
-        return contextSystemRepository.findByNameContaining(searchString);
+        return contextSystemRepository.findByNameContaining(searchString).stream()
+                .peek(this::enrichContextSystemWithChains)
+                .sorted((sg1, sg2) -> sg2.getName().compareTo(sg1.getName()))
+                .collect(Collectors.toList());
     }
 
 
@@ -107,7 +110,10 @@ public class ContextSystemService extends AbstractContextSystemService {
     public List<ContextSystem> findByFilterRequest(List<FilterRequestDTO> filters) {
         Specification<ContextSystem> specification = systemFilterSpecificationBuilder.buildContextFilter(filters);
 
-        return contextSystemRepository.findAll(specification);
+        return contextSystemRepository.findAll(specification).stream()
+                .peek(this::enrichContextSystemWithChains)
+                .sorted((sg1, sg2) -> sg2.getName().compareTo(sg1.getName()))
+                .collect(Collectors.toList());
     }
     private void enrichContextSystemWithChains(ContextSystem contextSystem) {
         List<Chain> chain = elementHelperService.findChainByContextServiceId(contextSystem.getId());
