@@ -8,6 +8,12 @@ jobs:
   mvn-with-sonar:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Code quality/security scan on SonarQube
         uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
         env:
