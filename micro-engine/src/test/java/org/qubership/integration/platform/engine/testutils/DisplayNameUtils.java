@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.testutils;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.DisplayNameGenerator;
 
 import java.lang.reflect.Method;
@@ -39,25 +40,14 @@ public class DisplayNameUtils {
         @Override
         public String generateDisplayNameForMethod(List<Class<?>> enclosingInstanceTypes, Class<?> testClass,
                                                    Method testMethod) {
-            return this.replaceCamelCase(testMethod.getName())
-                    // TODO Are we need () at the end of displayed method name+ DisplayNameGenerator.parameterTypesAsString(testMethod)
-                    ;
+            return this.replaceCamelCase(testMethod.getName());
         }
 
-        //TODO Deal with abbreviation like MDC
-        String replaceCamelCase(String camelCase) {
-            StringBuilder result = new StringBuilder();
-            result.append(camelCase.charAt(0));
-            for (int i = 1; i < camelCase.length(); i++) {
-                if (Character.isUpperCase(camelCase.charAt(i))) {
-                    //TODO do we need capital letters ???
-                    result.append(' ');
-                    result.append(Character.toLowerCase(camelCase.charAt(i)));
-                } else {
-                    result.append(camelCase.charAt(i));
-                }
-            }
-            return result.toString();
+        private String replaceCamelCase(String camelCase) {
+            return StringUtils.capitalize(StringUtils.join(
+                    StringUtils.splitByCharacterTypeCamelCase(camelCase),
+                    ' '
+            ));
         }
     }
 }
