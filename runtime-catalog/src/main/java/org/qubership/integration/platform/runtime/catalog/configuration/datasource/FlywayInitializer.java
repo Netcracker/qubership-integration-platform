@@ -31,7 +31,7 @@ import java.util.List;
 import javax.sql.DataSource;
 
 @AutoConfiguration
-@ConditionalOnBean(PersistenceAutoConfiguration.class)
+@ConditionalOnBean(PersistenceStandaloneAutoConfiguration.class)
 @EnableConfigurationProperties(FlywayConfigProperties.class)
 public class FlywayInitializer {
     private final DataSource configsDataSource;

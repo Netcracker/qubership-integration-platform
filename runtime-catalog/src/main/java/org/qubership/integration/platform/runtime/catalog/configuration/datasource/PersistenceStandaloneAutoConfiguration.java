@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.orm.jpa.JpaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -44,13 +45,10 @@ import javax.sql.DataSource;
 @EnableJpaAuditing
 @EnableConfigurationProperties({JpaProperties.class, HikariConfigProperties.class})
 @EnableJpaRepositories(
-        basePackages = {
-                "org.qubership.integration.platform.catalog.persistence.configs.repository",
-                "org.qubership.integration.platform.runtime.catalog.persistence.configs.repository"
-        },
+        basePackages = "org.qubership.integration.platform.runtime.catalog.persistence.configs.repository",
         transactionManagerRef = "configsTransactionManager"
 )
-public class PersistenceAutoConfiguration {
+public class PersistenceStandaloneAutoConfiguration {
 
     private static final String[] JPA_ENTITIES_PACKAGES_SCAN = {
             "org.qubership.integration.platform.catalog.persistence.configs.entity",
@@ -60,14 +58,14 @@ public class PersistenceAutoConfiguration {
     private final HikariConfigProperties properties;
 
     @Autowired
-    public PersistenceAutoConfiguration(JpaProperties jpaProperties, HikariConfigProperties properties) {
+    public PersistenceStandaloneAutoConfiguration(JpaProperties jpaProperties, HikariConfigProperties properties) {
         this.jpaProperties = jpaProperties;
         this.properties = properties;
     }
 
     @Primary
     @Bean("configsDataSource")
-    @ConditionalOnMissingBean(value = DataSource.class, name = "configsDataSource")
+    @ConditionalOnProperty(value = "qip.standalone", havingValue = "true")
     public DataSource configsDataSource() {
         return new HikariDataSource(properties.getDatasource("configs-datasource"));
     }

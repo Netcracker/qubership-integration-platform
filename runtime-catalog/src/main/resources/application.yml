@@ -86,6 +86,10 @@ db:
         idle-timeout: ${PG_IDLE_TIMEOUT:300000}
         leak-detection-threshold: ${PG_LEAK_DETECTION_INTERVAL:30000}
 
+maas:
+  local-dev:
+    enabled: ${qip.standalone}
+
 consul:
   url: ${CONSUL_URL:http://consul:8500}
   token: ${CONSUL_ADMIN_TOKEN}
@@ -142,6 +146,7 @@ kubernetes:
     label: ${app.prefix}-variable-type
 
 qip:
+  standalone: true
   snapshots:
     cleanup:
       interval: ${SNAPSHOTS_CLEANUP_INTERVAL:14} # snapshots older than interval will be deleted
