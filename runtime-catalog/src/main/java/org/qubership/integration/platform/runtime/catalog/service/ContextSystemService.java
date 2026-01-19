@@ -19,10 +19,10 @@ package org.qubership.integration.platform.runtime.catalog.service;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SystemDeleteException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.context.ContextSystemRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemSearchRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.context.ContextSystemRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.context.ContextSystemUpdateRequestDTO;
@@ -109,12 +109,12 @@ public class ContextSystemService extends AbstractContextSystemService {
     @Transactional
     public List<ContextSystem> findByFilterRequest(List<FilterRequestDTO> filters) {
         Specification<ContextSystem> specification = systemFilterSpecificationBuilder.buildContextFilter(filters);
-
         return contextSystemRepository.findAll(specification).stream()
                 .peek(this::enrichContextSystemWithChains)
                 .sorted((sg1, sg2) -> sg2.getName().compareTo(sg1.getName()))
                 .collect(Collectors.toList());
     }
+
     private void enrichContextSystemWithChains(ContextSystem contextSystem) {
         List<Chain> chain = elementHelperService.findChainByContextServiceId(contextSystem.getId());
         contextSystem.setChains(chain);
