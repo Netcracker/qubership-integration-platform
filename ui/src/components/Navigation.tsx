@@ -1,10 +1,11 @@
-import { Menu } from "antd";
+import { Menu, Button } from "antd";
 import styles from "./Navigation.module.css";
 import type { MenuProps } from "antd";
 import { NotificationBar } from "./notifications/NotificationBar.tsx";
 import { SettingsPanel } from "./SettingsPanel.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isDev } from "../appConfig.ts";
+import { useDocumentation } from "../hooks/useDocumentation.ts";
 
 type MenuItem = Required<MenuProps>["items"][number];
 
@@ -40,6 +41,7 @@ interface NavigationProps {
 const Navigation = ({ showThemeSwitcher = false, currentTheme, onThemeChange }: NavigationProps) => {
   const devMode = isDev();
   const shouldShowDevTools = devMode;
+  const { openContextDoc } = useDocumentation();
 
   return (
     <nav className={styles.navigation}>
@@ -51,6 +53,12 @@ const Navigation = ({ showThemeSwitcher = false, currentTheme, onThemeChange }: 
         className={styles.menu}
       ></Menu>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <Button
+          icon={<OverridableIcon name="questionCircle" />}
+          onClick={openContextDoc}
+          type="text"
+          title="Help"
+        />
         {(showThemeSwitcher && shouldShowDevTools) && (
           <SettingsPanel currentTheme={currentTheme} onThemeChange={onThemeChange} />
         )}

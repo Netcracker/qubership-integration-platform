@@ -1,0 +1,9 @@
+{
+  "documentation": {
+    "source": "git",
+    "repository": "https://git.example.com/docs-repo.git",
+    "branch": "master",
+    "path": "docs",
+    "destination": "public/doc"
+  }
+}

@@ -21,7 +21,8 @@ export default defineConfig({
         emptyOutDir: true,
         minify: true,
         sourcemap: false,
-        rollupOptions: {
+        copyPublicDir: false,
+      rollupOptions: {
             input: path.resolve(__dirname, "src/index.ts"),
             external: [
                 "react",
@@ -29,11 +30,11 @@ export default defineConfig({
                 "react/jsx-runtime"
             ],
             preserveEntrySignatures: "exports-only",
-            output: {
+        output: {
                 format: "es",
                 entryFileNames: "index.es.js",
-                inlineDynamicImports: true,
-                assetFileNames: (assetInfo) => {
+          inlineDynamicImports: true,
+          assetFileNames: (assetInfo) => {
                     if (assetInfo.name?.endsWith(".css")) {
                         return "qip-ui.css";
                     }

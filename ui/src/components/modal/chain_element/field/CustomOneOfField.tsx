@@ -30,7 +30,7 @@ const CustomOneOfField: React.FC<
   const { fields } = registry;
   const context = registry.formContext;
 
-  const isPropertiesField = fieldPathId.$id === "root_properties";
+  const isPropertiesField = fieldPathId?.$id === "root_properties";
   if (
     isPropertiesField &&
     Array.isArray(schema.oneOf) &&
