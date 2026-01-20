@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.camel.components.directvm;
 
 import org.apache.camel.AsyncCallback;
+import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.support.DefaultAsyncProducer;
 import org.apache.camel.support.task.ForegroundTask;
@@ -75,7 +76,7 @@ public class ChainBlockingProducer extends DefaultAsyncProducer {
             if (endpoint.isFailIfNoConsumers()) {
                 throw new ChainConsumerNotAvailableException("No consumers available on endpoint: " + endpoint, exchange);
             } else {
-                answer = awaitConsumer();
+                answer = awaitConsumer(exchange.getContext());
                 if (answer == null) {
                     throw new ChainConsumerNotAvailableException(
                             "No consumers available on endpoint: " + endpoint, exchange);
@@ -86,7 +87,7 @@ public class ChainBlockingProducer extends DefaultAsyncProducer {
         return answer;
     }
 
-    private ChainConsumer awaitConsumer() {
+    private ChainConsumer awaitConsumer(CamelContext camelContext) throws Exception {
         ForegroundTask task = Tasks.foregroundTask().withBudget(Budgets.iterationTimeBudget()
                 .withMaxIterations(IterationBoundedBudget.UNLIMITED_ITERATIONS)
                 .withMaxDuration(Duration.ofMillis(endpoint.getTimeout()))
@@ -95,7 +96,7 @@ public class ChainBlockingProducer extends DefaultAsyncProducer {
                 .build();
 
         StopWatch watch = new StopWatch();
-        ChainConsumer answer = task.run(endpoint::getConsumer, Objects::nonNull)
+        ChainConsumer answer = task.run(camelContext, endpoint::getConsumer, Objects::nonNull)
                 .orElse(null);
         LOG.debug("Waited {} for consumer to be ready", watch.taken());
 
