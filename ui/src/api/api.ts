@@ -1,3 +1,4 @@
+import { EntityFilterModel } from "../components/table/filter/filter.ts";
 import {
   Chain,
   ChainCreationRequest,
@@ -62,6 +63,7 @@ import {
   LiveExchange,
   ContextSystem,
   IntegrationSystemType,
+  DiagnosticValidation,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -455,6 +457,17 @@ export interface Api {
     deploymentId: string,
     exchangeId: string,
   ): Promise<void>;
+
+  getValidations(
+    filters: EntityFilterModel[],
+    searchString: string,
+  ): Promise<DiagnosticValidation[]>;
+
+  getValidation(
+    validationId: string,
+  ): Promise<DiagnosticValidation>;
+
+  runValidations(ids: string[]): Promise<void>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

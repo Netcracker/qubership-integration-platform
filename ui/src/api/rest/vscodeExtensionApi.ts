@@ -51,6 +51,7 @@ import {
   LiveExchange,
   IntegrationSystemType,
   ContextSystem,
+  DiagnosticValidation,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
@@ -925,6 +926,16 @@ export class VSCodeExtensionApi implements Api {
 
   terminateExchange(): Promise<void> {
     throw new Error("Method terminateExchange not implemented.");
+  }
+
+  getValidations(): Promise<DiagnosticValidation[]> {
+    throw new Error("Method getValidations not implemented.");
+  }
+  getValidation(): Promise<DiagnosticValidation> {
+    throw new Error("Method getValidation not implemented.");
+  }
+  runValidations(): Promise<void> {
+    throw new Error("Method runValidations not implemented.");
   }
 }
 

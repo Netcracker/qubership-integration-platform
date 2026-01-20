@@ -12,10 +12,11 @@ import {
   ListValue,
   StringFilterConditions,
   FilterColumn,
+  EntityFilterModel,
 } from "../components/table/filter/filter";
 import { useFilter } from "../components/table/filter/useFilter";
 import { capitalize } from "../misc/format-utils.ts";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { useServiceFilterValues } from "./useServices.ts";
 
 export const LabelsStringTableFilter: FilterConditions = {
@@ -69,25 +70,13 @@ function buildLoggingValues(): ListValue[] {
   return result;
 }
 
-export const useChainFilters = () => {
+export const useChainFilters = (): {
+  filters: EntityFilterModel[];
+  filterButton: JSX.Element;
+} => {
   const { domains } = useDomains();
-  const { elementTypes } = useElementTypes();
-  const [filterItemStates, setFilterItemStates] = useFilter();
+  const { buildFilterValues } = useElementTypes();
   const { services } = useServiceFilterValues();
-
-  const buildElementTypes = useCallback((): ListValue[] => {
-    if (!Array.isArray(elementTypes)) {
-      return [];
-    }
-    try {
-      return elementTypes.map((item) => ({
-        value: item.elementType,
-        label: `${item.elementTitle} (${item.elementType})`,
-      }));
-    } catch {
-      return [];
-    }
-  }, [elementTypes]);
 
   const filterColumns: FilterColumn[] = useMemo(
     () => [
@@ -109,7 +98,7 @@ export const useChainFilters = () => {
         id: "ELEMENT",
         name: "Element",
         conditions: ListFilterConditions,
-        allowedValues: buildElementTypes(),
+        allowedValues: buildFilterValues(),
       },
       {
         id: "DOMAINS",
@@ -144,8 +133,8 @@ export const useChainFilters = () => {
         conditions: ListFilterConditions,
       },
     ],
-    [buildElementTypes, domains, services],
+    [buildFilterValues, domains, services],
   );
 
-  return { filterColumns, filterItemStates, setFilterItemStates };
+  return useFilter(filterColumns);
 };

@@ -24,6 +24,11 @@ const items: MenuItem[] = [
     key: "admintools",
     icon: <OverridableIcon name="desktop" />,
   },
+  {
+    label: <a href="/devtools">Dev Tools</a>,
+    key: "devtools",
+    icon: <OverridableIcon name="tool" />,
+  },
 ];
 
 interface NavigationProps {
