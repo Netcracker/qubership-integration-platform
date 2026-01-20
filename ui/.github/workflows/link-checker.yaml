@@ -3,68 +3,23 @@ name: Link Checker
 
 on:
   push: null
-  repository_dispatch:
-    types: [schemas-update]
+  repository_dispatch: null
   workflow_dispatch: null
 permissions:
-  contents: write
-  actions: read
+  contents: read
 jobs:
-  update-schemas-version:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Update schemas
-        run: npm pkg set dependencies.@netcracker/qip-schemas=${{ github.event.client_payload.version }}
-
-      - name: Commit Changes
-        run: |
-          git config --global user.name "qubership-actions[bot]"
-          git config --global user.email "qubership-actions[bot]@users.noreply.github.com"
-          git fetch origin
-          git checkout new-actions-assumption
-          git add package.json
-          git commit -m "chore: bump qip-schemas to ${{ github.event.client_payload.version }}"
-          git push origin new-actions-assumption
-
   linkChecker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Restore lychee cache
-        uses: actions/cache@v4
-        id: restore-cache
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          path: .lycheecache
-          key: cache-lychee-${{ github.sha }}
-          restore-keys: cache-lychee-
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Link Checker
         id: lychee
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@a8c4c7cb88f0c7386610c35eb25108e448569cb0 # v2.7.0
         with:
-          args: >-
-            './**/*.md'
-            --verbose
-            --no-progress
-            --user-agent 'Mozilla/5.0 (X11; Linux x86_64) Chrome/134.0.0.0'
-            --retry-wait-time 60
-            --max-retries 8
-            --accept 100..=103,200..=299,429
-            --cookie-jar cookies.json
-            --exclude-all-private
-            --max-concurrency 4
-            --cache
-            --cache-exclude-status '429, 500..502'
-            --max-cache-age 1d
+          args: --root-dir ${{ github.workspace }} --verbose --no-progress './**/*.md' --accept 100..=103,200..=299,429
           format: markdown
           fail: true
