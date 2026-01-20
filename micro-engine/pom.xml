@@ -23,8 +23,8 @@
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.20.2.2</quarkus.platform.version>
-        <camel.version>4.10.6</camel.version>
+        <quarkus.platform.version>3.27.1</quarkus.platform.version>
+        <camel.version>4.14.4</camel.version>
 
         <lombok.version>1.18.38</lombok.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
@@ -39,7 +39,7 @@
         <opensearch.version>2.14.0</opensearch.version>
         <kubernetes-client-java.version>19.0.2</kubernetes-client-java.version>
         <reflections.version>0.10.2</reflections.version>
-        <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
+        <hypersistence-utils-hibernate.version>3.14.1</hypersistence-utils-hibernate.version>
         <groovy.xml.version>5.0.2</groovy.xml.version>
 
         <skipITs>true</skipITs>
@@ -182,7 +182,7 @@
 
             <dependency>
                 <groupId>io.hypersistence</groupId>
-                <artifactId>hypersistence-utils-hibernate-63</artifactId>
+                <artifactId>hypersistence-utils-hibernate-71</artifactId>
                 <version>${hypersistence-utils-hibernate.version}</version>
             </dependency>
 
@@ -251,7 +251,7 @@
 
         <dependency>
             <groupId>io.hypersistence</groupId>
-            <artifactId>hypersistence-utils-hibernate-63</artifactId>
+            <artifactId>hypersistence-utils-hibernate-71</artifactId>
         </dependency>
 
         <dependency>

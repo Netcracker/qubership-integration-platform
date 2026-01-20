@@ -10,6 +10,7 @@ import org.apache.camel.observation.MicrometerObservationTracer;
 import org.apache.camel.spi.CamelContextCustomizer;
 import org.apache.camel.support.DefaultRegistry;
 import org.qubership.integration.platform.engine.camel.repository.PerDeploymentBeanRepository;
+import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 
 @Slf4j
 @ApplicationScoped
@@ -22,6 +23,9 @@ public class ContextCustomizer implements CamelContextCustomizer {
     @Inject
     PerDeploymentBeanRepository perDeploymentBeanRepository;
 
+    @Inject
+    CamelDebugger debugger;
+
     @Override
     public void configure(CamelContext camelContext) {
         // Forcing initialization of tracer to prevent its lazy
@@ -31,5 +35,9 @@ public class ContextCustomizer implements CamelContextCustomizer {
         // Adding per deployment bean repository to camel bean registry
         DefaultRegistry registry = (DefaultRegistry) camelContext.getRegistry();
         registry.addBeanRepository(perDeploymentBeanRepository);
+
+        // Setting up debugger
+        camelContext.setDebugger(debugger);
+        camelContext.setDebugging(true);
     }
 }
