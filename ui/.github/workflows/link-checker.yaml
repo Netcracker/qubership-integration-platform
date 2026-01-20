@@ -3,11 +3,38 @@ name: Link Checker
 
 on:
   push: null
-  repository_dispatch: null
+  repository_dispatch:
+    types: [schemas-update]
   workflow_dispatch: null
 permissions:
-  contents: read
+  contents: write
+  actions: read
 jobs:
+  update-schemas-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Update schemas
+        run: npm pkg set dependencies.@netcracker/qip-schemas=${{ github.event.client_payload.version }}
+
+      - name: Commit Changes
+        run: |
+          git config --global user.name "qubership-actions[bot]"
+          git config --global user.email "qubership-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout new-actions-assumption
+          git add package.json
+          git commit -m "chore: bump qip-schemas to ${{ github.event.client_payload.version }}"
+          git push origin new-actions-assumption
+
   linkChecker:
     runs-on: ubuntu-latest
     steps:
