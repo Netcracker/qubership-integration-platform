@@ -162,7 +162,7 @@ const App = () => {
 
   const isDark = theme === "dark" || theme === "high-contrast";
   const config = getConfig();
-  
+
   useEffect(() => {
     if (config.themeOverrides) {
       setThemeUpdateKey((prev) => prev + 1);
@@ -171,7 +171,7 @@ const App = () => {
       reapplyCssVariables();
     }
   }, [config.themeOverrides, config.cssVariables]);
-  
+
   const antdConfig = getAntdThemeConfig(isDark, config.themeOverrides);
 
   return (

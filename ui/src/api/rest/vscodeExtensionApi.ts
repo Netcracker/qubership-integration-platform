@@ -217,8 +217,11 @@ export class VSCodeExtensionApi implements Api {
   };
 
   findChainByElementId = async (elementId: string): Promise<Chain> => {
-    return <Chain>(await this.sendMessageToExtension("findChainByElementId", elementId)).payload;
-  }
+    return <Chain>(
+      (await this.sendMessageToExtension("findChainByElementId", elementId))
+        .payload
+    );
+  };
 
   updateChain = async (id: string, chain: Partial<Chain>): Promise<Chain> => {
     return <Chain>(

@@ -5,7 +5,7 @@ It provides a unified user interface to manage integration logic.
 
 ## Installation
 
-The application is built using [React](https://react.dev/) and [Ant Design](https://ant.design/) libraries and requires [npm](https://www.npmjs.com/) to build and run.
+The application is built using [React](https://react.dev/) and [Ant Design](https://ant.design/) libraries and requires npm to build and run.
 
 ## Dependencies
 
