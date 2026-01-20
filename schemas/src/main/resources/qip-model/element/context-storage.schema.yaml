@@ -15,64 +15,82 @@ properties:
       contextServiceId:
         type: string
         title: Context Service
-      contextId:
-        type: string
-        title: Context ID
       useCorrelationId:
         type: boolean
-        title: Use correlation ID as session context ID
+        title: Use correlation ID as context ID
       operation:
         type: string
-        enum:
-          - GET
-          - DELETE
-          - SET
+        oneOf: [
+          {
+            "const": "SET",
+            "title": "Create context"
+          },
+          {
+            "const": "GET",
+            "title": "Get context"
+          },
+          {
+            "const": "DELETE",
+            "title": "Delete context"
+          }
+        ]
         title: Operation
-      ttl:
-        type: integer
-        title: Time to live
-        description: Session context life time (in seconds).
-
-    if:
-      properties:
-        operation:
-          const: SET
-    then:
-      properties:
-        key:
-          type: string
-          title: Key
-        value:
-          type: string
-          title: Value
-      required:
-        - key
-        - value
-    else:
-      if:
-        properties:
-          operation:
-            const: GET
-      then:
-        properties:
-          keys:
-            type: string
-            title: Keys
-          target:
-            type: string
-            enum:
-              - BODY
-              - HEADER
-              - PROPERTY
-            title: Target
-          targetName:
-            type: string
-            title: Target name
-          unwrap:
-            type: boolean
-            title: Unwrap
-        required:
-          - target
+    allOf:
+      - if:
+          properties:
+            useCorrelationId:
+              const: false
+        then:
+          properties:
+            contextId:
+              type: string
+              title: Context ID
+          required:
+            - contextId
+      - if:
+          properties:
+            operation:
+              const: SET
+        then:
+          properties:
+            key:
+              type: string
+              title: Key
+            value:
+              type: string
+              title: Value
+            ttl:
+              type: integer
+              title: Lifetime (s)
+              description: Session context life time (in seconds).
+          required:
+            - key
+            - value
+        else:
+          if:
+            properties:
+              operation:
+                const: GET
+          then:
+            properties:
+              keys:
+                type: string
+                title: Keys
+              target:
+                type: string
+                enum:
+                  - BODY
+                  - HEADER
+                  - PROPERTY
+                title: Target
+              targetName:
+                type: string
+                title: Target field's name
+              unwrap:
+                type: boolean
+                title: Unwrap
+            required:
+              - target
     required:
       - contextServiceId
       - useCorrelationId
