@@ -327,6 +327,24 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
         "ui:title": "Resource Map",
       },
     },
+    queryHeader: {
+      "ui:widget": "hidden",
+    },
+    variablesHeader: {
+      "ui:widget": "hidden",
+    },
+    query: {
+      "ui:widget": "debouncedTextareaWidget",
+      "ui:options": {
+        rows: 10,
+      },
+    },
+    variablesJSON: {
+      "ui:widget": "debouncedTextareaWidget",
+      "ui:options": {
+        rows: 6,
+      },
+    },
   },
   id: { "ui:widget": "hidden" },
   elementType: { "ui:widget": "hidden" },
