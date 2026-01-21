@@ -38,6 +38,8 @@ properties:
         type: string
         title: Variables JSON
         description: Operation variables in JSON format.
+      uri:
+        title: GraphQL server URI
     required:
       - query
 required:
