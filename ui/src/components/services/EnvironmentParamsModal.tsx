@@ -11,6 +11,7 @@ import {
   isAmqpProtocol,
   isKafkaProtocol,
 } from "../../misc/protocol-utils";
+import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
 
 interface EnvironmentParamsModalProps {
   open: boolean;
@@ -216,7 +217,9 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
           />
           {(currentSourceType === EnvironmentSourceType.MAAS || currentSourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER) && (
             <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, color: mutedColor }}>
-              <OverridableIcon name="questionCircle" style={{ marginRight: 8, fontSize: 18 }} />
+              {!isVsCode && (
+                <OverridableIcon name="questionCircle" style={{ marginRight: 8, fontSize: 18 }} />
+              )}
               <span>This type allows the use of the MaaS classifier to obtain connection parameters when creating a chain snapshot.</span>
             </div>
           )}

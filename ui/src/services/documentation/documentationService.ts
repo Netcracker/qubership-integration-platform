@@ -22,7 +22,7 @@ import {
   extractWords,
 } from './documentationHighlightUtils';
 
-import type elasticlunr from 'elasticlunr';
+import elasticlunr from 'elasticlunr';
 
 type ElasticlunrModule = typeof elasticlunr;
 
@@ -36,21 +36,10 @@ export class DocumentationService {
   > | null = null;
   private contextMappingPromise: Promise<DocumentMappingRule[]> | null = null;
   private elementMappingPromise: Promise<DocumentMappingRule[]> | null = null;
-  private elasticlunrPromise: Promise<ElasticlunrModule> | null = null;
   private elementTypeMappingCache: Record<string, string> | null = null;
 
-  private async getElasticlunr(): Promise<ElasticlunrModule> {
-    if (!this.elasticlunrPromise) {
-      this.elasticlunrPromise = (async () => {
-        const lunrModule = await import('lunr');
-        const lunr = lunrModule.default ?? lunrModule;
-        (globalThis as Record<string, unknown>).lunr = lunr;
-
-        const elasticlunrModule = await import('elasticlunr');
-        return elasticlunrModule.default ?? elasticlunrModule;
-      })();
-    }
-    return this.elasticlunrPromise;
+  private getElasticlunr(): ElasticlunrModule {
+    return elasticlunr;
   }
 
   private getDocRoot(): string {
@@ -97,8 +86,8 @@ export class DocumentationService {
   > {
     if (!this.searchIndexPromise) {
       this.searchIndexPromise = this.loadResource<unknown>('search-index.json').then(
-        async (indexDump) => {
-          const elasticlunr = await this.getElasticlunr();
+        (indexDump) => {
+          const elasticlunr = this.getElasticlunr();
           return elasticlunr.Index.load(indexDump);
         },
       );
@@ -128,7 +117,7 @@ export class DocumentationService {
    */
   private async buildElementMappingRules(): Promise<DocumentMappingRule[]> {
     const mapping = await this.buildElementTypeMapping();
-    
+
     return Object.entries(mapping).map(([elementType, docPath]) => ({
       pattern: `^${this.escapeRegExp(elementType)}$`, // Exact match pattern
       doc: docPath,
@@ -153,23 +142,23 @@ export class DocumentationService {
 
     const paths = await this.loadPaths();
     const autoMapping: Record<string, string> = {};
-    
+
     // Auto-generate mapping from file/folder names
     paths.forEach((path) => {
       if (!path.includes('QIP_Elements_Library')) return;
-      
+
       const parts = path.split('/');
       const fileName = parts[parts.length - 1].replace('.md', '');
       const folderName = parts[parts.length - 2];
-      
+
       // Extract element types from both file name and folder name
       const elementTypes: string[] = [];
-      
+
       // From file name: "http_trigger" → "http-trigger"
       if (fileName && fileName !== 'index') {
         elementTypes.push(fileName.replace(/_/g, '-'));
       }
-      
+
       // From folder name: "1__HTTP_Trigger" → "http-trigger"
       const folderPart = folderName.split('__')[1];
       if (folderPart) {
@@ -179,7 +168,7 @@ export class DocumentationService {
             .toLowerCase()
         );
       }
-      
+
       // Register all variants
       const docPath = `/doc/${path.replace('.md', '')}`;
       elementTypes.forEach((type) => {
@@ -188,11 +177,11 @@ export class DocumentationService {
         }
       });
     });
-    
+
     // Apply hardcoded aliases for elements with multiple IDs
     const aliases = this.getElementTypeAliases(autoMapping);
     const finalMapping = { ...autoMapping, ...aliases };
-    
+
     this.elementTypeMappingCache = finalMapping;
     return finalMapping;
   }
@@ -203,36 +192,36 @@ export class DocumentationService {
    */
   private getElementTypeAliases(baseMapping: Record<string, string>): Record<string, string> {
     const aliases: Record<string, string> = {};
-    
+
     // Condition element has multiple IDs
     if (baseMapping['condition']) {
       aliases['else'] = baseMapping['condition'];
       aliases['if'] = baseMapping['condition'];
     }
-    
+
     // Try-Catch-Finally element
     if (baseMapping['try-catch-finally']) {
       aliases['try'] = baseMapping['try-catch-finally'];
       aliases['catch'] = baseMapping['try-catch-finally'];
       aliases['finally'] = baseMapping['try-catch-finally'];
     }
-    
+
     // Headers modification variations
     if (baseMapping['headers-modification']) {
       aliases['header-modification'] = baseMapping['headers-modification'];
     }
-    
+
     // AsyncAPI trigger variations
     if (baseMapping['asyncapi-trigger']) {
       aliases['async-api-trigger'] = baseMapping['asyncapi-trigger'];
     }
-    
+
     // Scheduler alias
     if (baseMapping['scheduler']) {
       aliases['quartz'] = baseMapping['scheduler'];
       aliases['quartz-scheduler'] = baseMapping['scheduler'];
     }
-    
+
     return aliases;
   }
 
@@ -265,7 +254,7 @@ export class DocumentationService {
     ref: number,
     query: string
   ): Promise<HighlightSegment[][]> {
-    const elasticlunr = await this.getElasticlunr();
+    const elasticlunr = this.getElasticlunr();
     const index = await this.loadSearchIndex();
     const doc = index.documentStore.getDoc(ref.toString());
     if (!doc) {
@@ -348,12 +337,12 @@ export class DocumentationService {
   private async mapPathByElementType(elementType: string): Promise<string> {
     const mapping = await this.buildElementTypeMapping();
     const docPath = mapping[elementType];
-    
+
     if (docPath) {
       console.log('Documentation mapping:', elementType, '->', docPath);
       return docPath;
     }
-    
+
     console.log('Documentation mapping not found for:', elementType);
     const routeBase = DOCUMENTATION_ROUTE_BASE;
     return `${routeBase}/not-found`;

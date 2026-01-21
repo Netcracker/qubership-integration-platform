@@ -6,6 +6,7 @@ import { SettingsPanel } from "./SettingsPanel.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isDev } from "../appConfig.ts";
 import { useDocumentation } from "../hooks/useDocumentation.ts";
+import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 
 type MenuItem = Required<MenuProps>["items"][number];
 
@@ -53,12 +54,14 @@ const Navigation = ({ showThemeSwitcher = false, currentTheme, onThemeChange }: 
         className={styles.menu}
       ></Menu>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Button
-          icon={<OverridableIcon name="questionCircle" />}
-          onClick={openContextDoc}
-          type="text"
-          title="Help"
-        />
+        {!isVsCode && (
+          <Button
+            icon={<OverridableIcon name="questionCircle" />}
+            onClick={openContextDoc}
+            type="text"
+            title="Help"
+          />
+        )}
         {(showThemeSwitcher && shouldShowDevTools) && (
           <SettingsPanel currentTheme={currentTheme} onThemeChange={onThemeChange} />
         )}

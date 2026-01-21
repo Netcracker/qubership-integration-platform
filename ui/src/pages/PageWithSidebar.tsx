@@ -13,6 +13,7 @@ interface PageWithSidebarProps {
   sidebarWidth?: number;
   sidebarCollapsedWidth?: number;
   showDivider?: boolean;
+  contentClassName?: string;
 }
 
 export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
@@ -22,6 +23,7 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
   sidebarWidth = 240,
   sidebarCollapsedWidth = 80,
   showDivider = true,
+  contentClassName,
 }) => {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
 
@@ -59,7 +61,9 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
       {showDivider && (
         <Divider type="vertical" size="small" style={{ height: "100%", margin: 0 }} />
       )}
-      <Content className={styles.contentArea}>
+      <Content
+        className={[styles.contentArea, contentClassName].filter(Boolean).join(" ")}
+      >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             initial={{ opacity: 0, y: 8 }}

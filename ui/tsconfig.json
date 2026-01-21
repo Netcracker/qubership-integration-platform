@@ -27,7 +27,6 @@
     "global-definitions.d.ts",
     "vite-env.d.ts",
     "vite.config.ts",
-    "vite.config.lib.ts",
     "jest.config.ts"
   ],
   "types": ["vite/client"]

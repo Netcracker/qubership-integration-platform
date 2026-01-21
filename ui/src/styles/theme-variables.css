@@ -131,6 +131,28 @@
   --container-header-background: #fff9e6;
 }
 
+/* Documentation viewer variables (safe in webview too) */
+:root {
+  --doc-bg: #ffffff;
+  --doc-fg: rgba(0, 0, 0, 0.88);
+}
+
+:root[data-theme="dark"] {
+  --doc-bg: #1f1f1f;
+  --doc-fg: rgba(255, 255, 255, 0.85);
+}
+
+:root[data-theme="high-contrast"] {
+  --doc-bg: #000000;
+  --doc-fg: #ffffff;
+}
+
+/* In VS Code webview prefer live VS Code theme variables. */
+:root.vscode-webview {
+  --doc-bg: var(--vscode-editor-background, #ffffff);
+  --doc-fg: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+}
+
 /* Smooth theme transitions */
 .theme-switching * {
   transition: none !important;
