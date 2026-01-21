@@ -24,7 +24,7 @@
     "lint": "eslint src",
     "preview": "vite preview",
     "test": "jest",
-    "prepublishOnly": "rimraf dist-lib && npm run build:lib",
+    "prepublishOnly": "rimraf dist-lib && npm run build:lib && node scripts/fix-preload.js",
     "postpublish": "rimraf dist-lib"
   },
   "dependencies": {

@@ -12,7 +12,8 @@ export default defineConfig({
         dts({
             entryRoot: 'src',
             outDir: 'dist-lib/types',
-            insertTypesEntry: true
+            insertTypesEntry: true,
+            rollupTypes: true,
         })
     ],
     build: {
@@ -22,7 +23,11 @@ export default defineConfig({
         sourcemap: false,
         rollupOptions: {
             input: path.resolve(__dirname, "src/index.ts"),
-            external: ["react", "react-dom", "react/jsx-runtime"],
+            external: [
+                "react",
+                "react-dom",
+                "react/jsx-runtime"
+            ],
             preserveEntrySignatures: "exports-only",
             output: {
                 format: "es",
@@ -32,9 +37,9 @@ export default defineConfig({
                     if (assetInfo.name?.endsWith(".css")) {
                         return "qip-ui.css";
                     }
-                    return assetInfo.name || "[name].[ext]";
+                    return "assets/[name]-[hash][extname]";
                 },
-            },
+            }
         },
     },
 });
