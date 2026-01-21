@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { FilterItemState } from "./FilterItem";
-import { Filter } from "./Filter";
+import { Filter } from "./Filter.tsx";
 import { useModalsContext } from "../../../Modals";
 import { FilterButton } from "./FilterButton";
 import { EntityFilterModel, FilterColumn } from "./filter";
