@@ -76,6 +76,14 @@ properties:
       contentType:
         type: string
         title: Content Type
+        oneOf: [
+          {
+            "const": "text/plain"
+          },
+          {
+            "const": "text/html"
+          }
+        ]
         description: >
           The mail message content type. Use text/html for HTML mails.
         default: text/plain
