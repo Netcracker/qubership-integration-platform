@@ -345,6 +345,9 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
         rows: 6,
       },
     },
+    exchangePattern: {
+      "ui:widget": "hidden",
+    },
   },
   id: { "ui:widget": "hidden" },
   elementType: { "ui:widget": "hidden" },
