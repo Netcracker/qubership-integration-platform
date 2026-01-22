@@ -1,10 +1,7 @@
-/* eslint-disable
-  @typescript-eslint/no-unsafe-argument,
-  @typescript-eslint/no-unsafe-assignment,
-  @typescript-eslint/no-unsafe-call,
-  @typescript-eslint/no-unsafe-member-access,
-  @typescript-eslint/no-unsafe-return
-*/
+// Initialize lunr globally BEFORE importing elasticlunr
+// This ensures lunr is available when elasticlunr loads
+import '../../lunr-init';
+
 import type {
   DocumentMappingRule,
   TableOfContentNode,

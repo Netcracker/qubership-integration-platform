@@ -4,8 +4,7 @@ import sassDts from 'vite-plugin-sass-dts';
 import dts from "vite-plugin-dts";
 import * as path from "node:path";
 
-// Library build config for web applications - React is external (smaller bundle)
-// This is the default version published to npm for use in Vite/Webpack projects
+// Library build config for VS Code extensions - React is bundled (self-contained)
 export default defineConfig({
     plugins: [
         react(),
@@ -19,20 +18,16 @@ export default defineConfig({
     ],
     build: {
         outDir: "dist-lib",
-        emptyOutDir: true,
+        emptyOutDir: false, // Don't empty, we need to keep index.es.js from external build
         minify: true,
         sourcemap: false,
         rollupOptions: {
             input: path.resolve(__dirname, "src/index.ts"),
-            external: [
-                "react",
-                "react-dom",
-                "react/jsx-runtime"
-            ],
+            external: [], // React is bundled
             preserveEntrySignatures: "exports-only",
             output: {
                 format: "es",
-                entryFileNames: "index.es.js",
+                entryFileNames: "index.bundled.es.js",
                 inlineDynamicImports: true,
                 assetFileNames: (assetInfo) => {
                     if (assetInfo.name?.endsWith(".css")) {
