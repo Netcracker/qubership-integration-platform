@@ -28,6 +28,8 @@ properties:
           Specifies connection timeout in millis
           (default value will be used if nothing is given).
         default: 120000
+      uri:
+        title: URI
     required:
       - httpMethod
 definitions:
