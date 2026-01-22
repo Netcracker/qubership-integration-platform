@@ -24,10 +24,10 @@ then: # maas
   properties:
     vhostClassifierName:
       type: string
-      title: Vhost Classifier Name
+      title: Vhost Maas Classifier Name
     maasClassifierNamespace:
       type: string
-      title: Topic Classifier Namespace
+      title: Classifier Namespace
       description: >
         MaaS topic classifier namespace.
         By default used current namespace.
