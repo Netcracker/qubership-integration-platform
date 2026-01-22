@@ -12,4 +12,7 @@ export default defineConfig({
       clientPort: 4200
     }
   },
+  optimizeDeps: {
+    include: ['lunr', 'elasticlunr'],
+  },
 });
