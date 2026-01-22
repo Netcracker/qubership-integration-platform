@@ -1,0 +1,9 @@
+{
+  "documentation": {
+    "source": "npm",
+    "package": "@netcracker/qip-help",
+    "version": "^1.0.0",
+    "path": "docs",
+    "destination": "public/doc"
+  }
+}

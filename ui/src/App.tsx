@@ -36,6 +36,7 @@ import Services from "./pages/Services.tsx";
 import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
 import AdminTools from "./pages/AdminTools.tsx";
 import { Masking } from "./pages/Masking.tsx";
+import { DocumentationPage } from "./pages/DocumentationPage.tsx";
 import {
   initializeBrowserTheme,
   setupThemeListener,
@@ -117,6 +118,7 @@ const router = createBrowserRouter(
         path="/services/context/:systemId/parameters"
         element={<ContextServiceParametersPage />}
       />
+      <Route path="/doc/*" element={<DocumentationPage />} />
       <Route path="*" element={<NotFound />} />
       <Route path="/not-implemented" element={<NotImplemented />} />
     </>,

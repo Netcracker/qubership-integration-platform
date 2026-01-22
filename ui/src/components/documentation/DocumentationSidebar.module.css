@@ -1,0 +1,114 @@
+/* DocumentationSidebar styles - using Ant Design Tree with theme support */
+
+.sidebar {
+  padding: 8px 0;
+}
+
+/* Main tree background - use theme variable */
+.sidebar :global(.ant-tree) {
+  background: transparent !important;
+  color: var(--vscode-foreground, #000) !important;
+}
+
+.sidebar :global(.ant-tree .ant-tree-treenode) {
+  padding: 0 !important;
+}
+
+/* Tree node content wrapper */
+.sidebar :global(.ant-tree .ant-tree-node-content-wrapper) {
+  border-radius: 4px;
+  min-height: 28px;
+  line-height: 28px;
+  padding: 0 8px;
+  color: var(--vscode-foreground, #000) !important;
+}
+
+/* Indent units for hierarchy */
+.sidebar :global(.ant-tree .ant-tree-indent-unit) {
+  width: 12px !important;
+}
+
+/* Hover state */
+.sidebar :global(.ant-tree .ant-tree-node-content-wrapper:hover) {
+  background-color: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.04)) !important;
+}
+
+/* Selected node - ALWAYS blue in all themes */
+.sidebar :global(.ant-tree .ant-tree-node-selected) {
+  background-color: #1890ff !important;
+  color: #fff !important;
+}
+
+.sidebar :global(.ant-tree .ant-tree-node-selected:hover) {
+  background-color: #40a9ff !important;
+}
+
+/* Switcher (expand/collapse icon) */
+.sidebar :global(.ant-tree .ant-tree-switcher) {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 16px !important;
+  height: 28px !important;
+  margin-right: 4px;
+}
+
+.sidebar :global(.ant-tree .ant-tree-switcher-noop) {
+  visibility: hidden;
+}
+
+.sidebar :global(.ant-tree .ant-tree-switcher-icon) {
+  color: var(--vscode-foreground, #000) !important;
+  opacity: 0.6;
+  font-size: 12px;
+  transition: transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1), opacity 0.2s ease, color 0.2s ease;
+  display: inline-flex;
+  transform: rotate(90deg);
+}
+
+/* Rotate arrow down when expanded */
+.sidebar :global(.ant-tree .ant-tree-treenode-switcher-open > .ant-tree-switcher .ant-tree-switcher-icon) {
+  transform: rotate(90deg) scaleY(-1);
+}
+
+.sidebar :global(.ant-tree .ant-tree-switcher:hover .ant-tree-switcher-icon) {
+  opacity: 1;
+}
+
+.sidebar :global(.ant-tree .ant-tree-switcher-icon svg) {
+  width: 12px;
+  height: 12px;
+  display: block;
+  margin: auto;
+}
+
+/* Vertical lines for hierarchy - ONLY for nested elements (not root level) */
+.sidebar :global(.ant-tree-show-line .ant-tree-child-tree .ant-tree-indent-unit::before) {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-inline-end: 1px solid var(--vscode-editorIndentGuide-background, rgba(0, 0, 0, 0.15)) !important;
+  height: 100%;
+  content: '';
+  z-index: 0;
+}
+
+.sidebar :global(.ant-tree-show-line .ant-tree-child-tree .ant-tree-switcher-leaf-line::before) {
+  border-inline-end: 1px solid var(--vscode-editorIndentGuide-background, rgba(0, 0, 0, 0.15)) !important;
+}
+
+.sidebar :global(.ant-tree-show-line .ant-tree-child-tree .ant-tree-switcher-leaf-line::after) {
+  border-bottom: 1px solid var(--vscode-editorIndentGuide-background, rgba(0, 0, 0, 0.15)) !important;
+}
+
+/* Override any z-index issues */
+.sidebar :global(.ant-tree .ant-tree-indent-unit) {
+  position: relative;
+  z-index: 0;
+}
+
+.sidebar :global(.ant-tree .ant-tree-node-content-wrapper) {
+  position: relative;
+  z-index: 1;
+}

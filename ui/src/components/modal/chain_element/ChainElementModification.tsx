@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { Button, Modal, Tabs } from "antd";
+import { Button, Modal, Tabs, Flex } from "antd";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import styles from "./ChainElementModification.module.css";
 import { Element, PatchElementRequest } from "../../../api/apiTypes.ts";
@@ -50,6 +50,9 @@ import CustomOneOfField from "./field/CustomOneOfField.tsx";
 import SingleSelectField from "./field/select/SingleSelectField.tsx";
 import ContextServiceField from "./field/select/ContextServiceField.tsx";
 import { FullscreenButton } from "../FullscreenButton.tsx";
+import { useDocumentation } from "../../../hooks/useDocumentation.ts";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -134,6 +137,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const { closeContainingModal } = useModalContext();
   const { updateElement } = useElement();
   const notificationService = useNotificationService();
+  const { openElementDoc } = useDocumentation();
   const [title, setTitle] = useState(constructTitle(`${node.data.label}`));
   const [schema, setSchema] = useState<JSONSchema7>({});
   const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -630,7 +634,20 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   return (
     <Modal
       open
-      title={title}
+      title={
+        <Flex align="center" gap={8}>
+          <span>{title}</span>
+          {!isVsCode && (
+            <Button
+              icon={<OverridableIcon name="questionCircle" />}
+              onClick={() => openElementDoc(node.data.elementType)}
+              type="text"
+              title="Help"
+              size="small"
+            />
+          )}
+        </Flex>
+      }
       onCancel={handleCheckUnsavedAndClose}
       maskClosable={false}
       loading={libraryElementIsLoading}
