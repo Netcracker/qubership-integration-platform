@@ -6,5 +6,5 @@
   min-height: 0;
   max-height: 300px;
   overflow-y: auto;
-  word-wrap: normal;
+  overflow-wrap: normal;
 }

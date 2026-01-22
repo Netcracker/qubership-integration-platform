@@ -1,18 +1,23 @@
-declare module 'lunr' {
+declare module "lunr" {
   const lunr: unknown;
   export = lunr;
 }
 
-declare module 'elasticlunr' {
+declare module "elasticlunr" {
   namespace elasticlunr {
     interface Index<T> {
       search(query: string, config?: unknown): unknown;
+
       documentStore: {
         getDoc(ref: string): T | undefined;
       };
+
       setRef(field: string): void;
+
       addField(field: string): void;
+
       saveDocument(save: boolean): void;
+
       addDoc(doc: T): void;
     }
 

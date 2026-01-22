@@ -1,20 +1,23 @@
-import type { HighlightSegment } from './documentationTypes';
+import type { HighlightSegment } from "./documentationTypes";
 
 export function extractWords(s: string): string[] {
-  return s.trim().split(/\W+/).filter((w) => w.length > 0);
+  return s
+    .trim()
+    .split(/\W+/)
+    .filter((w) => w.length > 0);
 }
 
 export function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function escapeHtml(s: string): string {
   return s
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 export function highlightSegments(
@@ -41,8 +44,8 @@ export function highlightSegments(
   }
 
   const regex = new RegExp(
-    `(${wordsToHighlight.map(escapeRegExp).join('|')})`,
-    'gi',
+    `(${wordsToHighlight.map(escapeRegExp).join("|")})`,
+    "gi",
   );
 
   const segments: HighlightSegment[] = [];
@@ -56,7 +59,7 @@ export function highlightSegments(
     if (idx > lastIndex) {
       segments.push({ text: text.slice(lastIndex, idx), isHit: false });
     }
-    const value = match[0] ?? '';
+    const value = match[0] ?? "";
     if (value) {
       segments.push({ text: value, isHit: true });
     }
@@ -78,9 +81,9 @@ export function formatFragmentSegments(
 ): HighlightSegment[] {
   let formatted = text;
   if (formatted.length > maxLength) {
-    const idx = formatted.lastIndexOf(' ', maxLength);
+    const idx = formatted.lastIndexOf(" ", maxLength);
     if (idx >= 0) {
-      formatted = formatted.substring(0, idx) + '...';
+      formatted = formatted.substring(0, idx) + "...";
     }
   }
   return highlightSegments(formatted, query, stemmer);
@@ -89,6 +92,5 @@ export function formatFragmentSegments(
 export function segmentsToSafeHtml(segments: HighlightSegment[]): string {
   return segments
     .map((s) => (s.isHit ? `<b>${escapeHtml(s.text)}</b>` : escapeHtml(s.text)))
-    .join('');
+    .join("");
 }
-

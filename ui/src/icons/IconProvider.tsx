@@ -1,4 +1,10 @@
-import React, { createContext, useContext, ReactNode, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  ReactNode,
+  useState,
+  useEffect,
+} from "react";
 import Icon from "@ant-design/icons";
 import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
 import parse from "html-react-parser";
@@ -17,17 +23,17 @@ const allIcons = {
 
 function normalizeSvgForTheme(svgString: string): string {
   let normalized = svgString;
-  
+
   normalized = normalized.replace(
     /fill\s*=\s*["']#[0-9a-fA-F]{3,8}["']/gi,
-    'fill="currentColor"'
+    'fill="currentColor"',
   );
-  
+
   normalized = normalized.replace(
     /stroke\s*=\s*["']#[0-9a-fA-F]{3,8}["']/gi,
-    'stroke="currentColor"'
+    'stroke="currentColor"',
   );
-  
+
   normalized = normalized.replace(
     /style\s*=\s*["']([^"']*)["']/gi,
     (_match: string, styleContent: string): string => {
@@ -37,7 +43,7 @@ function normalizeSvgForTheme(svgString: string): string {
       return `style="${newStyle}"`;
     },
   );
-  
+
   const elementsWithFill = ["path", "circle", "rect", "ellipse", "polygon"];
   elementsWithFill.forEach((tag: string) => {
     const regex = new RegExp(`<${tag}([^>]*)>`, "gi");
@@ -55,7 +61,7 @@ function normalizeSvgForTheme(svgString: string): string {
       },
     );
   });
-  
+
   return normalized;
 }
 
@@ -80,7 +86,7 @@ export const IconProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     const config = getConfig();
     if (config.icons) {
-      setIconsState(prev => ({ ...allIcons, ...prev, ...config.icons }));
+      setIconsState((prev) => ({ ...allIcons, ...prev, ...config.icons }));
     }
   }, []);
 

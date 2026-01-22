@@ -66,9 +66,19 @@ function exportAction(
         participantIdGetter,
       );
     case "alternatives":
-      return exportMultiGroup("alt", "else", action.branches, participantIdGetter);
+      return exportMultiGroup(
+        "alt",
+        "else",
+        action.branches,
+        participantIdGetter,
+      );
     case "parallel":
-      return exportMultiGroup("par", "and", action.branches, participantIdGetter);
+      return exportMultiGroup(
+        "par",
+        "and",
+        action.branches,
+        participantIdGetter,
+      );
   }
 }
 
@@ -148,8 +158,6 @@ function mustBeEscaped(c: string): boolean {
 function _escape(text: string): string {
   return text
     .split("")
-    .map((c) =>
-      mustBeEscaped(c) ? `#${c.charCodeAt(0)};` : c,
-    )
+    .map((c) => (mustBeEscaped(c) ? `#${c.charCodeAt(0)};` : c))
     .join("");
 }

@@ -1,5 +1,5 @@
-import './lunr-init';
-import './vscode-entry';
+import "./lunr-init";
+import "./vscode-entry";
 
 export type * from "./api/apiTypes";
 export type {
@@ -7,8 +7,20 @@ export type {
   VSCodeResponse,
 } from "./api/rest/vscodeExtensionApi";
 export type { AppExtensionProps, AppConfig } from "./appConfig";
-export type { IconOverrides, IconName, IconSource } from "./icons/IconProvider.tsx";
+export type {
+  IconOverrides,
+  IconName,
+  IconSource,
+} from "./icons/IconProvider.tsx";
 export { default as App } from "./App";
 export { default as AppExtension } from "./AppExtension";
-export { configureAppExtension, loadConfigFromEnv, loadConfigFromJson, configure, getConfig, mergeConfigWithEnv, isDev } from "./appConfig";
+export {
+  configureAppExtension,
+  loadConfigFromEnv,
+  loadConfigFromJson,
+  configure,
+  getConfig,
+  mergeConfigWithEnv,
+  isDev,
+} from "./appConfig";
 export { isVsCode } from "./api/rest/vscodeExtensionApi";

@@ -1,12 +1,28 @@
 import React, { useState } from "react";
-import { Button, Card, Checkbox, Form, Input, message, Modal, Select, Spin, Tabs, Typography, Upload } from "antd";
+import {
+  Button,
+  Card,
+  Checkbox,
+  Form,
+  Input,
+  message,
+  Modal,
+  Select,
+  Spin,
+  Tabs,
+  Typography,
+  Upload,
+} from "antd";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../ModalContextProvider";
 import { api } from "../../api/api";
 import { getErrorMessage } from "../../misc/error-utils";
 import { useNotificationService } from "../../hooks/useNotificationService";
 import type { ElementWithChainName, SpecApiFile } from "../../api/apiTypes";
-import { ApiSpecificationType, ApiSpecificationFormat } from "../../api/apiTypes";
+import {
+  ApiSpecificationType,
+  ApiSpecificationFormat,
+} from "../../api/apiTypes";
 import styles from "./Services.module.css";
 import { validateFiles } from "./utils";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
@@ -17,7 +33,18 @@ const POLLING_INTERVAL = 1200;
 const DEFAULT_EXTERNAL_ROUTES_ONLY = true;
 const MODAL_WIDTH = 600;
 
-const SUPPORTED_EXTENSIONS = ['.json', '.yaml', '.yml', '.xml', '.wsdl', '.xsd', '.graphql', '.graphqls', '.proto', '.zip'];
+const SUPPORTED_EXTENSIONS = [
+  ".json",
+  ".yaml",
+  ".yml",
+  ".xml",
+  ".wsdl",
+  ".xsd",
+  ".graphql",
+  ".graphqls",
+  ".proto",
+  ".zip",
+];
 
 interface Props {
   systemId?: string;
@@ -27,7 +54,13 @@ interface Props {
   isImplementedService?: boolean;
 }
 
-const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGroupId, groupMode, onSuccess, isImplementedService }) => {
+const ImportSpecificationsModal: React.FC<Props> = ({
+  systemId,
+  specificationGroupId,
+  groupMode,
+  onSuccess,
+  isImplementedService,
+}) => {
   const { closeContainingModal } = useModalContext();
   const notify = useNotificationService();
   const [files, setFiles] = useState<RcFile[]>([]);
@@ -36,14 +69,20 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
   const [progressText, setProgressText] = useState<string | null>(null);
   const [name, setName] = useState<string>("");
   const [nameTouched, setNameTouched] = useState(false);
-  const [externalRoutesOnly, setExternalRoutesOnly] = useState(DEFAULT_EXTERNAL_ROUTES_ONLY);
+  const [externalRoutesOnly, setExternalRoutesOnly] = useState(
+    DEFAULT_EXTERNAL_ROUTES_ONLY,
+  );
   const [elements, setElements] = useState<ElementWithChainName[]>([]);
   const [selectedChainIds, setSelectedChainIds] = useState<string[]>([]);
   const [loadingChains, setLoadingChains] = useState(false);
-  const [validationError, setValidationError] = useState<null | { message: string; triggers: ElementWithChainName[] }>(null);
+  const [validationError, setValidationError] = useState<null | {
+    message: string;
+    triggers: ElementWithChainName[];
+  }>(null);
   const [specApiFiles, setSpecApiFiles] = useState<SpecApiFile[]>([]);
   const [loadingApiFiles, setLoadingApiFiles] = useState(false);
-  const [selectedSpecApiFile, setSelectedSpecApiFile] = useState<SpecApiFile | null>(null);
+  const [selectedSpecApiFile, setSelectedSpecApiFile] =
+    useState<SpecApiFile | null>(null);
 
   const isGroupMode = groupMode ?? (!!systemId && !specificationGroupId);
   const isVsCodeContext = api instanceof VSCodeExtensionApi;
@@ -72,16 +111,12 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
     try {
       let res;
       if (isGroupMode) {
-        res = await api.importSpecificationGroup(
-          systemId!,
-          name.trim(),
-          files,
-        );
+        res = await api.importSpecificationGroup(systemId!, name.trim(), files);
       } else {
         res = await api.importSpecification(
           specificationGroupId!,
           files,
-          systemId!
+          systemId!,
         );
       }
       setProgressText("Processing...");
@@ -91,7 +126,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       closeContainingModal();
       onSuccess?.();
     } catch (e: unknown) {
-      handleError(e, 'Import failed');
+      handleError(e, "Import failed");
     }
   };
 
@@ -100,14 +135,16 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       try {
         const result = await api.getImportSpecificationResult(importId);
         if (result.done) {
-          setProgressText(result.warningMessage ? result.warningMessage : "Import complete");
+          setProgressText(
+            result.warningMessage ? result.warningMessage : "Import complete",
+          );
           return result;
         }
       } catch (e: unknown) {
-        handleError(e, 'Failed to get import status');
+        handleError(e, "Failed to get import status");
         throw e;
       }
-      await new Promise(res => setTimeout(res, POLLING_INTERVAL));
+      await new Promise((res) => setTimeout(res, POLLING_INTERVAL));
     }
   };
 
@@ -153,9 +190,10 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       const triggers = await api.getElementsByType("any-chain", "http-trigger");
       const validTriggers = triggers.filter(
         (t) =>
-          (t.properties && (!t.properties["integrationOperationId"]
-            || !t.properties["integrationSpecificationGroupId"]))
-              && targetChainIds.includes(t.chainId),
+          t.properties &&
+          (!t.properties["integrationOperationId"] ||
+            !t.properties["integrationSpecificationGroupId"]) &&
+          targetChainIds.includes(t.chainId),
       );
       setElements(validTriggers);
     } catch (e) {
@@ -167,7 +205,6 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
 
   React.useEffect(() => {
     void fetchChainsWithHttpTriggers(externalRoutesOnly);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalRoutesOnly]);
 
   const fetchSpecApiFiles = async () => {
@@ -177,7 +214,10 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       const files = await api.getSpecApiFiles();
       setSpecApiFiles(files);
     } catch (e) {
-      notify.requestFailed(getErrorMessage(e, "Failed to load API contract files"), e);
+      notify.requestFailed(
+        getErrorMessage(e, "Failed to load API contract files"),
+        e,
+      );
     } finally {
       setLoadingApiFiles(false);
     }
@@ -187,7 +227,6 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
     if (isVsCodeContext) {
       void fetchSpecApiFiles();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVsCodeContext]);
 
   React.useEffect(() => {
@@ -206,11 +245,16 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
     try {
       const fileContent = await api.readSpecificationFileContent(
         selectedSpecApiFile.fileUri,
-        selectedSpecApiFile.specificationFilePath
+        selectedSpecApiFile.specificationFilePath,
       );
-      const fileName = selectedSpecApiFile.specificationFilePath.split('/').pop() || 'specification.yaml';
-      const blob = new Blob([fileContent], { type: 'text/yaml' });
-      const file = new File([blob], fileName, { type: 'text/yaml', lastModified: Date.now() });
+      const fileName =
+        selectedSpecApiFile.specificationFilePath.split("/").pop() ||
+        "specification.yaml";
+      const blob = new Blob([fileContent], { type: "text/yaml" });
+      const file = new File([blob], fileName, {
+        type: "text/yaml",
+        lastModified: Date.now(),
+      });
       const fileList: RcFile[] = [file as RcFile];
       setProgressText("Uploading...");
       let res;
@@ -224,7 +268,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
         res = await api.importSpecification(
           specificationGroupId!,
           fileList,
-          systemId!
+          systemId!,
         );
       }
       setProgressText("Processing...");
@@ -234,12 +278,14 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       closeContainingModal();
       onSuccess?.();
     } catch (e: unknown) {
-      handleError(e, 'Import from API failed');
+      handleError(e, "Import from API failed");
     }
   };
 
   const handleSpecApiSelect = (value: string | undefined) => {
-    const file = value ? specApiFiles.find((item) => item.id === value) ?? null : null;
+    const file = value
+      ? (specApiFiles.find((item) => item.id === value) ?? null)
+      : null;
     setSelectedSpecApiFile(file);
     if (file && isGroupMode && (!nameTouched || !name.trim())) {
       setName(file.name);
@@ -247,14 +293,17 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
   };
 
   React.useEffect(() => {
-    if (selectedSpecApiFile && !specApiFiles.some((file) => file.id === selectedSpecApiFile.id)) {
+    if (
+      selectedSpecApiFile &&
+      !specApiFiles.some((file) => file.id === selectedSpecApiFile.id)
+    ) {
       setSelectedSpecApiFile(null);
     }
   }, [selectedSpecApiFile, specApiFiles]);
 
   const handleChainSelect = (chainId: string, checked: boolean) => {
     setSelectedChainIds((prev) =>
-      checked ? [...prev, chainId] : prev.filter((id) => id !== chainId)
+      checked ? [...prev, chainId] : prev.filter((id) => id !== chainId),
     );
   };
 
@@ -264,48 +313,56 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       setNameTouched(true);
       return;
     }
-    const invalidTriggers: ElementWithChainName[] = elements
-      .filter(e => {
-        if (!selectedChainIds.includes(e.chainId) || !e.properties?.["httpMethodRestrict"]) {
-          return false;
-        }
-        const httpMethodRestrict = e.properties["httpMethodRestrict"];
-        if (typeof httpMethodRestrict !== "string") {
-          return false;
-        }
-        const httpMethods = httpMethodRestrict.split(",");
-        return httpMethods.length !== 1;
-      })
+    const invalidTriggers: ElementWithChainName[] = elements.filter((e) => {
+      if (
+        !selectedChainIds.includes(e.chainId) ||
+        !e.properties?.["httpMethodRestrict"]
+      ) {
+        return false;
+      }
+      const httpMethodRestrict = e.properties["httpMethodRestrict"];
+      if (typeof httpMethodRestrict !== "string") {
+        return false;
+      }
+      const httpMethods = httpMethodRestrict.split(",");
+      return httpMethods.length !== 1;
+    });
     if (invalidTriggers.length > 0) {
       setValidationError({
         message: "Single HTTP method has to be specified for next trigger(s):",
-        triggers: invalidTriggers
+        triggers: invalidTriggers,
       });
       return;
     }
     setLoading(true);
     setProgressText("Generating API specification...");
     try {
-      const selectedElements = elements.filter(e => selectedChainIds.includes(e.chainId));
-      const httpTriggerIds: string[] = selectedElements.map(e => e.id);
+      const selectedElements = elements.filter((e) =>
+        selectedChainIds.includes(e.chainId),
+      );
+      const httpTriggerIds: string[] = selectedElements.map((e) => e.id);
       const specFile = await api.generateApiSpecification(
-        [], [],
-        selectedElements.map(e => e.chainId),
+        [],
+        [],
+        selectedElements.map((e) => e.chainId),
         httpTriggerIds,
         externalRoutesOnly,
         ApiSpecificationType.OpenAPI,
-        ApiSpecificationFormat.YAML
+        ApiSpecificationFormat.YAML,
       );
       setProgressText("Importing generated specification...");
       if (!systemId) {
         resetLoadingState();
-        handleError(new Error("System ID is required for import"), "System ID is required for import");
+        handleError(
+          new Error("System ID is required for import"),
+          "System ID is required for import",
+        );
         return;
       }
       const importResult = await api.importSpecificationGroup(
         String(systemId),
         name.trim(),
-        [specFile]
+        [specFile],
       );
       setProgressText("Processing import...");
       setPolling(true);
@@ -313,7 +370,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
       await api.modifyHttpTriggerProperties(
         "any-chain",
         importResult.specificationGroupId,
-        httpTriggerIds
+        httpTriggerIds,
       );
       resetLoadingState();
       closeContainingModal();
@@ -326,7 +383,9 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
 
   return (
     <Modal
-      title={isGroupMode ? "Import Specification Group" : "Import Specification"}
+      title={
+        isGroupMode ? "Import Specification Group" : "Import Specification"
+      }
       open={true}
       onCancel={handleCancel}
       footer={null}
@@ -338,82 +397,100 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
         activeKey={activeTabKey}
         onChange={(key) => setActiveTabKey(key)}
         items={[
-          ...(hasApiTab ? [
-            {
-              key: "api",
-              label: "Import from API",
-              children: (
-                <div>
-                  {isGroupMode && (
-                    <Form.Item
-                      label="Name"
-                      required
-                      validateStatus={!name.trim() && nameTouched ? "error" : ""}
-                      help={!name.trim() && nameTouched ? "Name is required" : undefined}
-                      className={styles.formItemMargin}
-                    >
-                    <Input
-                        value={name}
-                        onChange={(e) => handleNameChange(e.target.value)}
-                        placeholder="Enter group name"
-                      />
-                    </Form.Item>
-                  )}
-                  {loadingApiFiles ? (
-                    <Spin className={styles.spinCenter} />
-                  ) : (
+          ...(hasApiTab
+            ? [
+                {
+                  key: "api",
+                  label: "Import from API",
+                  children: (
                     <div>
-                      {specApiFiles.length === 0 ? (
-                        <Typography.Text type="secondary">No API contract files found</Typography.Text>
-                      ) : (
+                      {isGroupMode && (
                         <Form.Item
-                          label="API Contract"
+                          label="Name"
+                          required
+                          validateStatus={
+                            !name.trim() && nameTouched ? "error" : ""
+                          }
+                          help={
+                            !name.trim() && nameTouched
+                              ? "Name is required"
+                              : undefined
+                          }
                           className={styles.formItemMargin}
                         >
-                          <Select
-                            showSearch
-                            placeholder="Select API contract"
-                            optionFilterProp="label"
-                            filterOption={(input, option) =>
-                              typeof option?.label === "string" &&
-                              option.label.toLowerCase().startsWith(input.toLowerCase())
-                            }
-                            value={selectedSpecApiFile?.id}
-                            onChange={handleSpecApiSelect}
-                            allowClear
-                          >
-                            {specApiFiles.map((file) => (
-                              <Select.Option
-                                key={file.id}
-                                value={file.id}
-                                label={file.name}
-                              >
-                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                  <span>{file.name}</span>
-                                  <SourceFlagTag source={file.protocol} />
-                                </div>
-                              </Select.Option>
-                            ))}
-                          </Select>
+                          <Input
+                            value={name}
+                            onChange={(e) => handleNameChange(e.target.value)}
+                            placeholder="Enter group name"
+                          />
                         </Form.Item>
                       )}
+                      {loadingApiFiles ? (
+                        <Spin className={styles.spinCenter} />
+                      ) : (
+                        <div>
+                          {specApiFiles.length === 0 ? (
+                            <Typography.Text type="secondary">
+                              No API contract files found
+                            </Typography.Text>
+                          ) : (
+                            <Form.Item
+                              label="API Contract"
+                              className={styles.formItemMargin}
+                            >
+                              <Select
+                                showSearch
+                                placeholder="Select API contract"
+                                optionFilterProp="label"
+                                filterOption={(input, option) =>
+                                  typeof option?.label === "string" &&
+                                  option.label
+                                    .toLowerCase()
+                                    .startsWith(input.toLowerCase())
+                                }
+                                value={selectedSpecApiFile?.id}
+                                onChange={handleSpecApiSelect}
+                                allowClear
+                              >
+                                {specApiFiles.map((file) => (
+                                  <Select.Option
+                                    key={file.id}
+                                    value={file.id}
+                                    label={file.name}
+                                  >
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                      }}
+                                    >
+                                      <span>{file.name}</span>
+                                      <SourceFlagTag source={file.protocol} />
+                                    </div>
+                                  </Select.Option>
+                                ))}
+                              </Select>
+                            </Form.Item>
+                          )}
+                        </div>
+                      )}
+                      {(loading || polling) && (
+                        <div className={styles.loadingContainer}>
+                          <Spin />
+                          <Typography.Text className={styles.loadingText}>
+                            {progressText}
+                          </Typography.Text>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {(loading || polling) && (
-                    <div className={styles.loadingContainer}>
-                      <Spin />
-                      <Typography.Text className={styles.loadingText}>
-                        {progressText}
-                      </Typography.Text>
-                    </div>
-                  )}
-                </div>
-              ),
-            }
-          ] : []),
-            {
-              key: "file",
-              label: "Import File",
+                  ),
+                },
+              ]
+            : []),
+          {
+            key: "file",
+            label: "Import File",
             children: (
               <div>
                 {isGroupMode && (
@@ -421,7 +498,11 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                     label="Name"
                     required
                     validateStatus={!name.trim() && nameTouched ? "error" : ""}
-                    help={!name.trim() && nameTouched ? "Name is required" : undefined}
+                    help={
+                      !name.trim() && nameTouched
+                        ? "Name is required"
+                        : undefined
+                    }
                     className={styles.formItemMargin}
                   >
                     <Input
@@ -434,7 +515,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                 )}
                 <div style={{ marginBottom: 16 }}>
                   <Typography.Text type="secondary">
-                    Supported file types: {SUPPORTED_EXTENSIONS.join(', ')}
+                    Supported file types: {SUPPORTED_EXTENSIONS.join(", ")}
                   </Typography.Text>
                   <br />
                   <Typography.Text type="secondary">
@@ -444,12 +525,14 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
                 <Upload.Dragger
                   name="files"
                   multiple
-                  accept={SUPPORTED_EXTENSIONS.join(',')}
+                  accept={SUPPORTED_EXTENSIONS.join(",")}
                   beforeUpload={(_file, fileList) => {
                     handleFilesChange(fileList);
                     return false;
                   }}
-                  showUploadList={files.length > 0 ? { showRemoveIcon: true } : false}
+                  showUploadList={
+                    files.length > 0 ? { showRemoveIcon: true } : false
+                  }
                   onRemove={(file) => {
                     setFiles((prev) => prev.filter((f) => f.uid !== file.uid));
                     return true;
@@ -474,87 +557,106 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
               </div>
             ),
           },
-          ...(isImplementedService ? [
-            {
-              key: "chains",
-              label: "Import from Chains",
-              children: (
-                <div>
-                  <Form.Item
-                    label="Name"
-                    required
-                    validateStatus={!name.trim() && nameTouched ? "error" : ""}
-                    help={!name.trim() && nameTouched ? "Name is required" : undefined}
-                    className={styles.formItemMargin}
-                  >
-                    <Input
-                      value={name}
-                      onChange={e => handleNameChange(e.target.value)}
-                      placeholder="Enter group name"
-                    />
-                  </Form.Item>
-                  <Checkbox
-                    checked={externalRoutesOnly}
-                    onChange={e => setExternalRoutesOnly(e.target.checked)}
-                    className={styles.checkboxMargin}
-                  >
-                    External routes only
-                  </Checkbox>
-                  {loadingChains ? (
-                    <Spin className={styles.spinCenter} />
-                  ) : (
-                    <div className={styles.chainsContainer}>
-                      {elements.length === 0 ? (
-                        <Typography.Text type="secondary">No chains found</Typography.Text>
+          ...(isImplementedService
+            ? [
+                {
+                  key: "chains",
+                  label: "Import from Chains",
+                  children: (
+                    <div>
+                      <Form.Item
+                        label="Name"
+                        required
+                        validateStatus={
+                          !name.trim() && nameTouched ? "error" : ""
+                        }
+                        help={
+                          !name.trim() && nameTouched
+                            ? "Name is required"
+                            : undefined
+                        }
+                        className={styles.formItemMargin}
+                      >
+                        <Input
+                          value={name}
+                          onChange={(e) => handleNameChange(e.target.value)}
+                          placeholder="Enter group name"
+                        />
+                      </Form.Item>
+                      <Checkbox
+                        checked={externalRoutesOnly}
+                        onChange={(e) =>
+                          setExternalRoutesOnly(e.target.checked)
+                        }
+                        className={styles.checkboxMargin}
+                      >
+                        External routes only
+                      </Checkbox>
+                      {loadingChains ? (
+                        <Spin className={styles.spinCenter} />
                       ) : (
-                        elements.map((element: ElementWithChainName) => (
-                           (
-                            <Card
-                              key={element.chainId}
-                              className={styles.chainCard}
-                              size="small"
-                              styles={{ body: {} }}
-                            >
-                              <div className={styles.chainCardBody}>
-                                <Checkbox
-                                  checked={selectedChainIds.includes(element.chainId)}
-                                  onChange={e => handleChainSelect(element.chainId, e.target.checked)}
-                                  className={styles.checkboxRightMargin}
-                                />
-                                <div>
-                                  <Typography.Text strong>
-                                    <a
-                                      href={`/chains/${element.chainId}/graph`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={styles.chainNameLink}
-                                    >
-                                      {element.chainName}
-                                    </a>
-                                  </Typography.Text>
-                                  <Typography.Text className={styles.chainId}>{element.chainId}</Typography.Text>
+                        <div className={styles.chainsContainer}>
+                          {elements.length === 0 ? (
+                            <Typography.Text type="secondary">
+                              No chains found
+                            </Typography.Text>
+                          ) : (
+                            elements.map((element: ElementWithChainName) => (
+                              <Card
+                                key={element.chainId}
+                                className={styles.chainCard}
+                                size="small"
+                                styles={{ body: {} }}
+                              >
+                                <div className={styles.chainCardBody}>
+                                  <Checkbox
+                                    checked={selectedChainIds.includes(
+                                      element.chainId,
+                                    )}
+                                    onChange={(e) =>
+                                      handleChainSelect(
+                                        element.chainId,
+                                        e.target.checked,
+                                      )
+                                    }
+                                    className={styles.checkboxRightMargin}
+                                  />
                                   <div>
-                                    <a
-                                      href={`/chains/${element.chainId}/graph/${element.id}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={styles.triggerNameLink}
-                                    >
-                                      {element.name}
-                                    </a>
+                                    <Typography.Text strong>
+                                      <a
+                                        href={`/chains/${element.chainId}/graph`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={styles.chainNameLink}
+                                      >
+                                        {element.chainName}
+                                      </a>
+                                    </Typography.Text>
+                                    <Typography.Text className={styles.chainId}>
+                                      {element.chainId}
+                                    </Typography.Text>
+                                    <div>
+                                      <a
+                                        href={`/chains/${element.chainId}/graph/${element.id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={styles.triggerNameLink}
+                                      >
+                                        {element.name}
+                                      </a>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </Card>
-                          )
-                        ))
+                              </Card>
+                            ))
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              ),
-            }
-          ] : [])
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
       <div className={styles.actionsContainer}>
@@ -579,7 +681,12 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
           <Button
             type="primary"
             onClick={() => void handleImport()}
-            disabled={!files.length || (isGroupMode && !name.trim()) || loading || polling}
+            disabled={
+              !files.length ||
+              (isGroupMode && !name.trim()) ||
+              loading ||
+              polling
+            }
           >
             Import {files.length > 1 ? `${files.length} Files` : "File"}
           </Button>
@@ -588,25 +695,37 @@ const ImportSpecificationsModal: React.FC<Props> = ({ systemId, specificationGro
           <Button
             type="primary"
             onClick={() => void handleImportFromApi()}
-            disabled={!selectedSpecApiFile || (isGroupMode && !name.trim()) || loading || polling}
+            disabled={
+              !selectedSpecApiFile ||
+              (isGroupMode && !name.trim()) ||
+              loading ||
+              polling
+            }
           >
             Import
           </Button>
         )}
-        <Button onClick={handleCancel}>
-          Cancel
-        </Button>
+        <Button onClick={handleCancel}>Cancel</Button>
       </div>
       {validationError && (
         <div className={styles.validationErrorContainer}>
           <div className={styles.validationErrorHeader}>
-            <OverridableIcon name="exclamationCircle" className={styles.validationErrorIcon} />
-            <span className={styles.validationErrorTitle}>{validationError.message}</span>
+            <OverridableIcon
+              name="exclamationCircle"
+              className={styles.validationErrorIcon}
+            />
+            <span className={styles.validationErrorTitle}>
+              {validationError.message}
+            </span>
           </div>
           <ul className={styles.validationErrorList}>
-            {validationError.triggers.map(t => (
+            {validationError.triggers.map((t) => (
               <li key={t.id}>
-                <a href={`/chains/${t.chainId}/graph/${t.id}`} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={`/chains/${t.chainId}/graph/${t.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   {t.name} on {t.chainName}
                 </a>
               </li>

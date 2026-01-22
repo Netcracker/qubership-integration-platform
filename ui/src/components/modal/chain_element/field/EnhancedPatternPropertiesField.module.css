@@ -21,8 +21,12 @@
   min-width: 22px;
   height: 22px;
   border-radius: 11px;
-  background: rgba(22, 119, 255, 0.15);
-  background: color-mix(in srgb, var(--vscode-textLink-foreground, #1677ff) 18%, transparent);
+  background: rgb(22 119 255 / 15%);
+  background: color-mix(
+    in srgb,
+    var(--vscode-textLink-foreground, #1677ff) 18%,
+    transparent
+  );
   color: var(--vscode-textLink-foreground, #1677ff);
   display: inline-flex;
   align-items: center;
@@ -32,13 +36,13 @@
 
 .noEntries {
   font-weight: 600;
-  color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  background: var(--table-bg, var(--vscode-editor-background, #ffffff));
+  background: var(--table-bg, var(--vscode-editor-background, #fff));
 }
 
 .th {
@@ -46,18 +50,23 @@
   border-bottom: 1px solid var(--vscode-border, #d9d9d9);
   padding: 8px 4px;
   font-weight: 500;
-  color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
 }
 
 .td {
-  border-bottom: 1px solid var(--vscode-editorGroup-border, var(--vscode-border, #d9d9d9));
+  border-bottom: 1px solid
+    var(--vscode-editorGroup-border, var(--vscode-border, #d9d9d9));
   padding: 4px;
-  color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
 }
 
 .requiredRow {
-  background-color: rgba(250, 173, 20, 0.12);
-  background-color: color-mix(in srgb, var(--vscode-warningForeground, #faad14) 15%, transparent);
+  background-color: rgb(250 173 20 / 12%);
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-warningForeground, #faad14) 15%,
+    transparent
+  );
 }
 
 .nameCell {
@@ -83,8 +92,12 @@
   padding: 0 4px;
   height: 16px;
   line-height: 14px;
-  background-color: rgba(250, 173, 20, 0.12);
-  background-color: color-mix(in srgb, var(--vscode-warningForeground, #faad14) 20%, transparent);
+  background-color: rgb(250 173 20 / 12%);
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-warningForeground, #faad14) 20%,
+    transparent
+  );
   border: 1px solid var(--vscode-warningForeground, #d46b08);
   color: var(--vscode-warningForeground, #d46b08);
   margin: 0;
@@ -95,8 +108,12 @@
   padding: 0 4px;
   height: 16px;
   line-height: 14px;
-  background-color: rgba(244, 114, 102, 0.15);
-  background-color: color-mix(in srgb, var(--vscode-errorForeground, #f87171) 20%, transparent);
+  background-color: rgb(244 114 102 / 15%);
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-errorForeground, #f87171) 20%,
+    transparent
+  );
   border: 1px solid var(--vscode-errorForeground, #cf1322);
   color: var(--vscode-errorForeground, #cf1322);
   margin: 0;
@@ -107,8 +124,12 @@
   padding: 0 4px;
   height: 16px;
   line-height: 14px;
-  background-color: rgba(99, 132, 255, 0.15);
-  background-color: color-mix(in srgb, var(--vscode-focusBorder, #2f54eb) 18%, transparent);
+  background-color: rgb(99 132 255 / 15%);
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-focusBorder, #2f54eb) 18%,
+    transparent
+  );
   border: 1px solid var(--vscode-focusBorder, #2f54eb);
   color: var(--vscode-focusBorder, #2f54eb);
   margin: 0;
@@ -134,4 +155,3 @@
 .checkboxRow {
   padding: 12px 4px;
 }
-

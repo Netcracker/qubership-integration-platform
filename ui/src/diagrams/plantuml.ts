@@ -111,7 +111,7 @@ function _escape(text: string): string {
     ['"', "<U+0022>"],
     ["\n", "\\n"],
     ["\r", "\\r"],
-    ["\t", "\\t"]
+    ["\t", "\\t"],
   ]);
   return text
     .split("")

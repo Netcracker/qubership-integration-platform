@@ -1,15 +1,35 @@
-import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { Table, Spin, Flex, Button, Tooltip, message, Tag, Modal, FloatButton } from "antd";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
+import {
+  Table,
+  Spin,
+  Flex,
+  Button,
+  Tooltip,
+  message,
+  Tag,
+  Modal,
+  FloatButton,
+} from "antd";
 import { Radio } from "antd";
-import { Environment, EnvironmentSourceType, IntegrationSystemType } from "../../api/apiTypes";
+import {
+  Environment,
+  EnvironmentSourceType,
+  IntegrationSystemType,
+} from "../../api/apiTypes";
 import { useServiceContext, useChainsContext } from "./ServiceParametersPage";
 import { api } from "../../api/api";
 import { EnvironmentParamsModal } from "./EnvironmentParamsModal.tsx";
 import { EnvironmentRequest } from "../../api/apiTypes";
-import type { ColumnsType } from 'antd/es/table';
-import { ChainColumn } from './ChainColumn';
+import type { ColumnsType } from "antd/es/table";
+import { ChainColumn } from "./ChainColumn";
 import { useNotificationService } from "../../hooks/useNotificationService";
-import { getErrorMessage } from '../../misc/error-utils';
+import { getErrorMessage } from "../../misc/error-utils";
 import { useLocation } from "react-router-dom";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { environmentLabels, prepareFile } from "./utils.tsx";
@@ -36,7 +56,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   const normalizedProtocol = normalizeProtocol(protocol);
   const systemId = system?.id || "";
   const activeEnvironmentId = system?.activeEnvironmentId;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   const chains = useChainsContext() || [];
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -102,10 +122,10 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   );
 
   const defaultNewEnv: Environment = {
-    id: '',
+    id: "",
     systemId,
-    name: 'New Environment',
-    address: '',
+    name: "New Environment",
+    address: "",
     labels: [],
     properties: getDefaultProperties(
       normalizedProtocol ?? "",
@@ -114,63 +134,72 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
     sourceType: EnvironmentSourceType.MANUAL,
   };
 
-  const handleSwitchEnvironment = useCallback((env: Environment) => {
-    Modal.confirm({
-      title: 'Are you sure you want to switch to this Environment?',
-      onOk: async () => {
-        setSwitchingEnvId(env.id);
-        try {
-          await api.updateService(systemId, {
-            activeEnvironmentId: env.id,
-            name: system?.name,
-            type: system?.type
-          });
-          delete cacheRef.current[systemId];
-          setLoading(true);
-          const newEnvs = await api.getEnvironments(systemId);
-          setEnvironments(newEnvs);
-          if (setSystem) {
-            const updatedSystem = await api.getService(systemId);
-            setSystem(updatedSystem);
+  const handleSwitchEnvironment = useCallback(
+    (env: Environment) => {
+      Modal.confirm({
+        title: "Are you sure you want to switch to this Environment?",
+        onOk: async () => {
+          setSwitchingEnvId(env.id);
+          try {
+            await api.updateService(systemId, {
+              activeEnvironmentId: env.id,
+              name: system?.name,
+              type: system?.type,
+            });
+            delete cacheRef.current[systemId];
+            setLoading(true);
+            const newEnvs = await api.getEnvironments(systemId);
+            setEnvironments(newEnvs);
+            if (setSystem) {
+              const updatedSystem = await api.getService(systemId);
+              setSystem(updatedSystem);
+            }
+            message.success("Active environment switched");
+          } catch (e: unknown) {
+            notificationService.requestFailed(
+              getErrorMessage(e, "Switch failed"),
+              e,
+            );
+          } finally {
+            setSwitchingEnvId(null);
+            setLoading(false);
           }
-          message.success('Active environment switched');
-        } catch (e: unknown) {
-          notificationService.requestFailed(getErrorMessage(e, 'Switch failed'), e);
-        } finally {
-          setSwitchingEnvId(null);
+        },
+      });
+    },
+    [systemId, system, setSystem, notificationService],
+  );
+
+  const loadEnvironments = useCallback(
+    async (silent = false) => {
+      if (!systemId) return;
+      if (!silent) {
+        setError(null);
+        setLoading(true);
+      }
+      try {
+        const data = await api.getEnvironments(systemId);
+        setEnvironments(data);
+        cacheRef.current[systemId] = data;
+      } catch (e: unknown) {
+        if (!silent) {
+          setError(getErrorMessage(e, "Environments load error"));
+        }
+      } finally {
+        if (!silent) {
           setLoading(false);
         }
-      },
-    });
-  }, [systemId, system, setSystem, notificationService]);
-
-  const loadEnvironments = useCallback(async (silent = false) => {
-    if (!systemId) return;
-    if (!silent) {
-      setError(null);
-      setLoading(true);
-    }
-    try {
-      const data = await api.getEnvironments(systemId);
-      setEnvironments(data);
-      cacheRef.current[systemId] = data;
-    } catch (e: unknown) {
-      if (!silent) {
-        setError(getErrorMessage(e, 'Environments load error'));
       }
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
-    }
-  }, [systemId]);
+    },
+    [systemId],
+  );
 
   useEffect(() => {
     void loadEnvironments();
   }, [loadEnvironments]);
 
   useEffect(() => {
-    if (systemId && location.pathname.includes('/environments')) {
+    if (systemId && location.pathname.includes("/environments")) {
       void loadEnvironments(true);
     }
   }, [location.pathname, systemId, loadEnvironments]);
@@ -180,144 +209,205 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
     setEditModalOpen(true);
   }, []);
 
-  const handleDelete = useCallback((envId: string) => {
-    Modal.confirm({
-      title: 'Are you sure you want to delete this Environment?',
-      onOk: async () => {
-        try {
-          setLoading(true);
-          await api.deleteEnvironment(systemId, envId);
-          setEnvironments(envs => envs.filter(e => e.id !== envId));
-          message.success('Environment deleted');
-        } catch (e: unknown) {
-          notificationService.requestFailed(getErrorMessage(e, 'Delete failed'), e);
-        } finally {
-          setLoading(false);
-        }
-      },
-    });
-  }, [systemId, notificationService]);
+  const handleDelete = useCallback(
+    (envId: string) => {
+      Modal.confirm({
+        title: "Are you sure you want to delete this Environment?",
+        onOk: async () => {
+          try {
+            setLoading(true);
+            await api.deleteEnvironment(systemId, envId);
+            setEnvironments((envs) => envs.filter((e) => e.id !== envId));
+            message.success("Environment deleted");
+          } catch (e: unknown) {
+            notificationService.requestFailed(
+              getErrorMessage(e, "Delete failed"),
+              e,
+            );
+          } finally {
+            setLoading(false);
+          }
+        },
+      });
+    },
+    [systemId, notificationService],
+  );
 
   const memoChains = useMemo(() => chains, [chains]);
 
-  const columns: ColumnsType<Environment> = useMemo(() => [
-    {
-      title: '',
-      key: 'select',
-      width: 48,
-      align: 'center',
-      render: (_: unknown, record: Environment) => (
-        <Radio
-          checked={record.id === activeEnvironmentId}
-          onChange={() => handleSwitchEnvironment(record)}
-          disabled={record.id === activeEnvironmentId || switchingEnvId === record.id}
-        />
-      ),
-    },
-    {
-      title: <b>Name</b>,
-      dataIndex: 'name',
-      key: 'name',
-      render: (text: string, record: Environment) => (
-        <span
-          style={{ fontWeight: 600, color: 'var(--vscode-textLink-foreground, #1677ff)', cursor: 'pointer' }}
-          onClick={() => handleEditClick(record)}
-        >
-          {text}
-        </span>
-      ),
-    },
-    {
-      title: 'Address',
-      dataIndex: 'address',
-      key: 'address',
-      render: (text?: string) => text || <span style={{ color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))' }}>/</span>,
-    },
-    {
-      title: 'Source',
-      dataIndex: 'sourceType',
-      key: 'sourceType',
-      render: (val?: string) => {
-        if (!val) return '-';
-        if (val === 'MAAS' || val === 'MAAS_BY_CLASSIFIER') return 'MaaS';
-        return val.charAt(0) + val.slice(1).toLowerCase();
-      },
-    },
-    {
-      title: 'Modified',
-      dataIndex: 'modifiedWhen',
-      key: 'modifiedWhen',
-      hidden: isVsCode,
-      render: (val?: number) => val ? formatTimestamp(val) : '',
-    },
-    {
-      title: 'Labels',
-      dataIndex: 'labels',
-      key: 'labels',
-      render: (labels?: unknown[]) => {
-        if (!Array.isArray(labels) || labels.length === 0) {
-          return <span style={{ color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))' }}>-</span>;
-        }
-
-        return (
-          <span>
-            {labels.map((label, idx) => {
-              let name =
-                typeof label === 'string'
-                  ? label
-                  : typeof label === 'object' && label && 'name' in label
-                    ? String((label as { name?: unknown }).name)
-                    : String(label);
-              const labelKey = name as keyof typeof environmentLabels;
-              name = environmentLabels[labelKey] || name;
-
-              return <Tag color="blue" key={`${name}-${idx}`}>{name}</Tag>;
-            })}
-          </span>
-        );
-      }
-    },
-    {
-      title: 'Used by',
-      key: 'usedBy',
-      align: 'center',
-      render: (_: unknown, record: Environment) => {
-        const isActive = system && record.id === system.activeEnvironmentId;
-        return <ChainColumn chains={isActive ? memoChains : []} />;
-      },
-    },
-    {
-      title: '',
-      key: 'actions',
-      width: 48,
-      align: 'center',
-      render: (_: unknown, record: Environment) => (
-        <Tooltip title="Delete">
-          <Button
-            type="text"
-            icon={<OverridableIcon name="delete" />}
-            danger
-            onClick={() => handleDelete(record.id)}
+  const columns: ColumnsType<Environment> = useMemo(
+    () => [
+      {
+        title: "",
+        key: "select",
+        width: 48,
+        align: "center",
+        render: (_: unknown, record: Environment) => (
+          <Radio
+            checked={record.id === activeEnvironmentId}
+            onChange={() => handleSwitchEnvironment(record)}
+            disabled={
+              record.id === activeEnvironmentId || switchingEnvId === record.id
+            }
           />
-        </Tooltip>
-      ),
-    },
-  ], [activeEnvironmentId, memoChains, formatTimestamp, handleDelete, handleEditClick, handleSwitchEnvironment, switchingEnvId, system]);
+        ),
+      },
+      {
+        title: <b>Name</b>,
+        dataIndex: "name",
+        key: "name",
+        render: (text: string, record: Environment) => (
+          <span
+            style={{
+              fontWeight: 600,
+              color: "var(--vscode-textLink-foreground, #1677ff)",
+              cursor: "pointer",
+            }}
+            onClick={() => handleEditClick(record)}
+          >
+            {text}
+          </span>
+        ),
+      },
+      {
+        title: "Address",
+        dataIndex: "address",
+        key: "address",
+        render: (text?: string) =>
+          text || (
+            <span
+              style={{
+                color:
+                  "var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))",
+              }}
+            >
+              /
+            </span>
+          ),
+      },
+      {
+        title: "Source",
+        dataIndex: "sourceType",
+        key: "sourceType",
+        render: (val?: string) => {
+          if (!val) return "-";
+          if (val === "MAAS" || val === "MAAS_BY_CLASSIFIER") return "MaaS";
+          return val.charAt(0) + val.slice(1).toLowerCase();
+        },
+      },
+      {
+        title: "Modified",
+        dataIndex: "modifiedWhen",
+        key: "modifiedWhen",
+        hidden: isVsCode,
+        render: (val?: number) => (val ? formatTimestamp(val) : ""),
+      },
+      {
+        title: "Labels",
+        dataIndex: "labels",
+        key: "labels",
+        render: (labels?: unknown[]) => {
+          if (!Array.isArray(labels) || labels.length === 0) {
+            return (
+              <span
+                style={{
+                  color:
+                    "var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))",
+                }}
+              >
+                -
+              </span>
+            );
+          }
+
+          return (
+            <span>
+              {labels.map((label, idx) => {
+                let name =
+                  typeof label === "string"
+                    ? label
+                    : typeof label === "object" && label && "name" in label
+                      ? String((label as { name?: unknown }).name)
+                      : String(label);
+                const labelKey = name as keyof typeof environmentLabels;
+                name = environmentLabels[labelKey] || name;
+
+                return (
+                  <Tag color="blue" key={`${name}-${idx}`}>
+                    {name}
+                  </Tag>
+                );
+              })}
+            </span>
+          );
+        },
+      },
+      {
+        title: "Used by",
+        key: "usedBy",
+        align: "center",
+        render: (_: unknown, record: Environment) => {
+          const isActive = system && record.id === system.activeEnvironmentId;
+          return <ChainColumn chains={isActive ? memoChains : []} />;
+        },
+      },
+      {
+        title: "",
+        key: "actions",
+        width: 48,
+        align: "center",
+        render: (_: unknown, record: Environment) => (
+          <Tooltip title="Delete">
+            <Button
+              type="text"
+              icon={<OverridableIcon name="delete" />}
+              danger
+              onClick={() => handleDelete(record.id)}
+            />
+          </Tooltip>
+        ),
+      },
+    ],
+    [
+      activeEnvironmentId,
+      memoChains,
+      formatTimestamp,
+      handleDelete,
+      handleEditClick,
+      handleSwitchEnvironment,
+      switchingEnvId,
+      system,
+    ],
+  );
 
   if (loading) return <Spin style={{ margin: 32 }} />;
-  if (error) return <div style={{ color: 'var(--vscode-errorForeground, #d73a49)', margin: 32 }}>{error}</div>;
+  if (error)
+    return (
+      <div
+        style={{ color: "var(--vscode-errorForeground, #d73a49)", margin: 32 }}
+      >
+        {error}
+      </div>
+    );
   if (!systemId) return null;
 
   return (
     <Flex vertical>
       {system?.type === IntegrationSystemType.EXTERNAL && (
-          <Button type="primary" style={{ marginBottom: 16, alignSelf: 'flex-start' }} onClick={() => setAddModalOpen(true)}>
-            Add Environment
-          </Button>
+        <Button
+          type="primary"
+          style={{ marginBottom: 16, alignSelf: "flex-start" }}
+          onClick={() => setAddModalOpen(true)}
+        >
+          Add Environment
+        </Button>
       )}
       <>
         {!isVsCode && (
-          <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
+          <FloatButtonGroup
+            trigger="hover"
+            icon={<OverridableIcon name="more" />}
+          >
             <FloatButton
               tooltip={{ title: "Export service", placement: "left" }}
               icon={<OverridableIcon name="cloudDownload" />}
@@ -344,7 +434,11 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         pagination={false}
         bordered
         size="small"
-        style={{ background: "var(--vscode-editor-background)", borderRadius: 12, width: '100%' }}
+        style={{
+          background: "var(--vscode-editor-background)",
+          borderRadius: 12,
+          width: "100%",
+        }}
         columns={columns}
       />
       <EnvironmentParamsModal
@@ -357,13 +451,22 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         onSave={async (envRequest: EnvironmentRequest) => {
           try {
             setSaving(true);
-            if (!editingEnv) throw new Error('No environment selected');
-            const updated = await api.updateEnvironment(systemId, editingEnv.id, envRequest);
-            setEnvironments(envs => envs.map(e => e.id === updated.id ? updated : e));
+            if (!editingEnv) throw new Error("No environment selected");
+            const updated = await api.updateEnvironment(
+              systemId,
+              editingEnv.id,
+              envRequest,
+            );
+            setEnvironments((envs) =>
+              envs.map((e) => (e.id === updated.id ? updated : e)),
+            );
             setEditModalOpen(false);
-            message.success('Environment updated');
+            message.success("Environment updated");
           } catch (e: unknown) {
-            notificationService.requestFailed(getErrorMessage(e, 'Update failed'), e);
+            notificationService.requestFailed(
+              getErrorMessage(e, "Update failed"),
+              e,
+            );
           } finally {
             setSaving(false);
           }
@@ -378,11 +481,14 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
           try {
             setSaving(true);
             const created = await api.createEnvironment(systemId, envRequest);
-            setEnvironments(envs => [...envs, created]);
+            setEnvironments((envs) => [...envs, created]);
             setAddModalOpen(false);
-            message.success('Environment created');
+            message.success("Environment created");
           } catch (e: unknown) {
-            notificationService.requestFailed(getErrorMessage(e, 'Create failed'), e);
+            notificationService.requestFailed(
+              getErrorMessage(e, "Create failed"),
+              e,
+            );
           } finally {
             setSaving(false);
           }

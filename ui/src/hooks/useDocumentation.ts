@@ -1,6 +1,9 @@
-import { useCallback } from 'react';
-import { documentationService } from '../services/documentation/documentationService';
-import type { HighlightSegment, SearchResult } from '../services/documentation/documentationTypes';
+import { useCallback } from "react";
+import { documentationService } from "../services/documentation/documentationService";
+import type {
+  HighlightSegment,
+  SearchResult,
+} from "../services/documentation/documentationTypes";
 
 export const useDocumentation = () => {
   const openElementDoc = useCallback((elementType: string) => {
@@ -23,14 +26,14 @@ export const useDocumentation = () => {
     async (ref: number, query: string): Promise<string[]> => {
       return documentationService.getSearchDetail(ref, query);
     },
-    []
+    [],
   );
 
   const getSearchDetailSegments = useCallback(
     async (ref: number, query: string): Promise<HighlightSegment[][]> => {
       return documentationService.getSearchDetailSegments(ref, query);
     },
-    []
+    [],
   );
 
   const loadPaths = useCallback(() => {

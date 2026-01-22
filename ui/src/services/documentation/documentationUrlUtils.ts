@@ -1,30 +1,30 @@
 type UrlLike = string;
 
-export const DOCUMENTATION_ROUTE_BASE = '/doc';
-export const DOCUMENTATION_ASSETS_BASE_URL = '/doc';
+export const DOCUMENTATION_ROUTE_BASE = "/doc";
+export const DOCUMENTATION_ASSETS_BASE_URL = "/doc";
 
 export function normalizeBasePath(basePath: string): string {
   const trimmed = basePath.trim();
   if (!trimmed) {
-    return '';
+    return "";
   }
-  return trimmed.replace(/\/+$/, '');
+  return trimmed.replace(/\/+$/, "");
 }
 
 export function joinUrl(base: UrlLike, relative: UrlLike): string {
   const b = normalizeBasePath(base);
-  const r = relative.startsWith('/') ? relative : `/${relative}`;
+  const r = relative.startsWith("/") ? relative : `/${relative}`;
   return `${b}${r}`;
 }
 
 export function isAbsoluteUrl(url: string): boolean {
   return (
-    url.startsWith('http://') ||
-    url.startsWith('https://') ||
-    url.startsWith('mailto:') ||
-    url.startsWith('tel:') ||
-    url.startsWith('data:') ||
-    url.startsWith('blob:')
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("mailto:") ||
+    url.startsWith("tel:") ||
+    url.startsWith("data:") ||
+    url.startsWith("blob:")
   );
 }
 
@@ -33,28 +33,33 @@ export function isSafeHref(href: string): boolean {
   if (!raw) {
     return false;
   }
-  if (raw.startsWith('#') || raw.startsWith('/')) {
+  if (raw.startsWith("#") || raw.startsWith("/")) {
     return true;
   }
 
   // Allow typical relative paths.
-  if (!isAbsoluteUrl(raw) && !raw.includes(':')) {
+  if (!isAbsoluteUrl(raw) && !raw.includes(":")) {
     return true;
   }
 
   try {
-    const parsed = new URL(raw, 'https://example.invalid');
-    return ['http:', 'https:', 'mailto:', 'tel:', 'data:', 'blob:'].includes(parsed.protocol);
+    const parsed = new URL(raw, "https://example.invalid");
+    return ["http:", "https:", "mailto:", "tel:", "data:", "blob:"].includes(
+      parsed.protocol,
+    );
   } catch {
     return false;
   }
 }
 
 export function stripLeadingSlashes(s: string): string {
-  return s.replace(/^\/+/, '');
+  return s.replace(/^\/+/, "");
 }
 
-export function toDocRoutePath(routeBase: string, docRelativePathNoExt: string): string {
+export function toDocRoutePath(
+  routeBase: string,
+  docRelativePathNoExt: string,
+): string {
   const rel = stripLeadingSlashes(docRelativePathNoExt);
   return joinUrl(routeBase, rel);
 }
@@ -62,9 +67,9 @@ export function toDocRoutePath(routeBase: string, docRelativePathNoExt: string):
 export function toDocMarkdownAssetPath(docRelativePathNoExt: string): string {
   const raw = docRelativePathNoExt.trim();
   if (!raw) {
-    return '';
+    return "";
   }
   const rel = stripLeadingSlashes(raw);
-  const withDocs = rel.startsWith('docs/') ? rel : `docs/${rel}`;
-  return withDocs.endsWith('.md') ? withDocs : `${withDocs}.md`;
+  const withDocs = rel.startsWith("docs/") ? rel : `docs/${rel}`;
+  return withDocs.endsWith(".md") ? withDocs : `${withDocs}.md`;
 }

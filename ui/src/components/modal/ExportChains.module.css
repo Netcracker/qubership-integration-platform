@@ -1,7 +1,7 @@
 .modal :global(.ant-modal-title),
 .modal :global(.ant-modal-body),
 .checkbox {
-  color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
 }
 
 .checkbox :global(.ant-checkbox-inner) {
@@ -14,5 +14,5 @@
 }
 
 .modal {
-    padding-bottom: 0;
+  padding-bottom: 0;
 }

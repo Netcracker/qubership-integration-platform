@@ -8,8 +8,8 @@
 
 .pageContainer {
   flex: 1;
-  background: var(--vscode-editor-background, #ffffff);
-  color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+  background: var(--vscode-editor-background, #fff);
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
   padding: 24px;
   border-radius: 8px;
   overflow-y: auto;
@@ -19,7 +19,7 @@
 .pageContainer :global(.ant-form-item-label > label),
 .pageContainer :global(.ant-checkbox-wrapper),
 .pageContainer :global(.ant-checkbox-wrapper span) {
-  color: var(--vscode-foreground, rgba(0, 0, 0, 0.88));
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
 }
 
 .formContent {

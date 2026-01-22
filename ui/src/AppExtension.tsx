@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { Route, createMemoryRouter, createRoutesFromElements, RouterProvider } from "react-router";
+import {
+  Route,
+  createMemoryRouter,
+  createRoutesFromElements,
+  RouterProvider,
+} from "react-router";
 import ChainPage from "./pages/ChainPage.tsx";
 import { App as AntdApp, ConfigProvider, Layout } from "antd";
 import styles from "./App.module.css";
@@ -11,7 +16,10 @@ import { EventNotification } from "./components/notifications/EventNotification.
 import DefaultExtensionPage from "./pages/DefaultExtensionPage.tsx";
 import { NotImplemented } from "./pages/NotImplemented.tsx";
 import { Masking } from "./pages/Masking.tsx";
-import { STARTUP_EVENT, VSCodeExtensionApi } from "./api/rest/vscodeExtensionApi.ts";
+import {
+  STARTUP_EVENT,
+  VSCodeExtensionApi,
+} from "./api/rest/vscodeExtensionApi.ts";
 import { api } from "./api/api.ts";
 
 import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
@@ -74,16 +82,22 @@ const AppExtension = () => {
 
   useEffect(() => {
     const handleThemeVariablesUpdated = () => {
-      setThemeUpdateKey(prev => prev + 1);
+      setThemeUpdateKey((prev) => prev + 1);
       reapplyCssVariables();
     };
 
-    window.addEventListener("theme-variables-updated", handleThemeVariablesUpdated);
+    window.addEventListener(
+      "theme-variables-updated",
+      handleThemeVariablesUpdated,
+    );
     return () => {
-      window.removeEventListener("theme-variables-updated", handleThemeVariablesUpdated);
+      window.removeEventListener(
+        "theme-variables-updated",
+        handleThemeVariablesUpdated,
+      );
     };
   }, []);
-  
+
   useEffect(() => {
     if (config.themeOverrides) {
       setThemeUpdateKey((prev) => prev + 1);
@@ -105,7 +119,7 @@ const AppExtension = () => {
             <EventNotification>
               <Modals>
                 <Content className={styles.content}>
-                  <RouterProvider router={router}/>
+                  <RouterProvider router={router} />
                 </Content>
               </Modals>
             </EventNotification>

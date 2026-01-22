@@ -101,7 +101,6 @@ export const ChainProperties: React.FC = () => {
       loadChainExtensionPropertiesToForm(chainContext, formData);
       form.setFieldsValue(formData);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFinish = async (values: FormData) => {

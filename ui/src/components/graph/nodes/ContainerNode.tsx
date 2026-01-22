@@ -38,8 +38,8 @@ export function ContainerNode({
   const actionsWidth = useElementWidth(actionsRef);
 
   return (
-    <div 
-      className={`${styles.container} ${selected ? styles.containerSelected : ''}`}
+    <div
+      className={`${styles.container} ${selected ? styles.containerSelected : ""}`}
       data-node-type="container"
     >
       <div
@@ -51,7 +51,13 @@ export function ContainerNode({
             <Button
               size="small"
               type="text"
-              icon={isCollapsed ? <OverridableIcon name="caretRightFilled" /> : <OverridableIcon name="caretDownFilled" />}
+              icon={
+                isCollapsed ? (
+                  <OverridableIcon name="caretRightFilled" />
+                ) : (
+                  <OverridableIcon name="caretDownFilled" />
+                )
+              }
               onClick={() => data.onToggleCollapse?.()}
               tabIndex={-1}
             />
@@ -59,7 +65,10 @@ export function ContainerNode({
         </div>
 
         <div className={styles.labelWrapper}>
-          <OverridableIcon name={data.elementType as IconName} style={{ fontSize: 16 }} />
+          <OverridableIcon
+            name={data.elementType as IconName}
+            style={{ fontSize: 16 }}
+          />
 
           <EllipsisLabel
             text={trimmedLabel}

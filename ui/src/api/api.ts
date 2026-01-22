@@ -463,9 +463,7 @@ export interface Api {
     searchString: string,
   ): Promise<DiagnosticValidation[]>;
 
-  getValidation(
-    validationId: string,
-  ): Promise<DiagnosticValidation>;
+  getValidation(validationId: string): Promise<DiagnosticValidation>;
 
   runValidations(ids: string[]): Promise<void>;
 }

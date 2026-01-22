@@ -17,7 +17,9 @@
   color: gray;
 }
 
-.attribute-name, .attribute-type, .attribute-default-value {
+.attribute-name,
+.attribute-type,
+.attribute-default-value {
   min-width: 0;
   text-overflow: ellipsis;
   text-wrap: nowrap;

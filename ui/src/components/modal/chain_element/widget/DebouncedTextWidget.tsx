@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Input } from 'antd';
-import type { WidgetProps } from '@rjsf/utils';
+import React, { useEffect, useRef, useState } from "react";
+import { Input } from "antd";
+import type { WidgetProps } from "@rjsf/utils";
 
 export const DebouncedTextWidget: React.FC<WidgetProps> = (props) => {
   const {
@@ -15,16 +15,21 @@ export const DebouncedTextWidget: React.FC<WidgetProps> = (props) => {
     placeholder,
     required,
   } = props;
-  
+
   const rawValue = props.value as unknown;
-  
+
   const convertToString = (val: unknown): string => {
-    if (typeof val === 'string') return val;
-    if (val == null) return '';
-    if (typeof val === 'object') return JSON.stringify(val);
-    if (typeof val === 'number' || typeof val === 'boolean' || typeof val === 'bigint') return String(val);
-    if (typeof val === 'symbol') return val.toString();
-    return '';
+    if (typeof val === "string") return val;
+    if (val == null) return "";
+    if (typeof val === "object") return JSON.stringify(val);
+    if (
+      typeof val === "number" ||
+      typeof val === "boolean" ||
+      typeof val === "bigint"
+    )
+      return String(val);
+    if (typeof val === "symbol") return val.toString();
+    return "";
   };
 
   const stringValue = convertToString(rawValue);
@@ -53,7 +58,7 @@ export const DebouncedTextWidget: React.FC<WidgetProps> = (props) => {
     }
 
     debounceTimerRef.current = setTimeout(() => {
-      onChange(newValue === '' ? options.emptyValue : newValue);
+      onChange(newValue === "" ? options.emptyValue : newValue);
     }, 300);
   };
 
@@ -62,7 +67,7 @@ export const DebouncedTextWidget: React.FC<WidgetProps> = (props) => {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
-    onChange(localValue === '' ? options.emptyValue : localValue);
+    onChange(localValue === "" ? options.emptyValue : localValue);
     onBlur(id, localValue);
   };
 
@@ -84,5 +89,3 @@ export const DebouncedTextWidget: React.FC<WidgetProps> = (props) => {
     />
   );
 };
-
-

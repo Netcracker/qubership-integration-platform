@@ -3,7 +3,7 @@
   --danger-color: #ff4d4f;
   --hover-color: #40a9ff;
   --danger-hover-color: #ff7875;
-  --text-color: rgba(0, 0, 0, 85%);
+  --text-color: rgb(0 0 0 / 85%);
   --border-color: #d9d9d9;
   --background-color: #f5f5f5;
   --transition-duration: 0.3s;
@@ -81,7 +81,7 @@
   box-shadow: none !important;
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .variables-header {
     flex-direction: column;
     align-items: stretch;
@@ -103,7 +103,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .variables-container {
     padding: 16px;
   }

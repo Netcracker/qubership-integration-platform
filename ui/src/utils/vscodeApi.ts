@@ -38,11 +38,14 @@ type GlobalRecord = typeof globalThis &
     extensionContext?: ExtensionContextLike;
   };
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
-const isVsCodeApi = (value: unknown): value is VsCodeApi => isRecord(value) && typeof value.postMessage === 'function';
+const isVsCodeApi = (value: unknown): value is VsCodeApi =>
+  isRecord(value) && typeof value.postMessage === "function";
 
-const isAcquireVsCodeApi = (value: unknown): value is AcquireVsCodeApi => typeof value === 'function';
+const isAcquireVsCodeApi = (value: unknown): value is AcquireVsCodeApi =>
+  typeof value === "function";
 
 class VSCodeApiSingleton {
   private static instance: VSCodeApiSingleton;
@@ -64,7 +67,9 @@ class VSCodeApiSingleton {
     }
 
     if (this.isInitialized) {
-      console.warn('VSCodeApiSingleton: API already initialized but not available');
+      console.warn(
+        "VSCodeApiSingleton: API already initialized but not available",
+      );
       return null;
     }
 
@@ -78,7 +83,9 @@ class VSCodeApiSingleton {
 
   public sendMessage(message: unknown): void {
     if (!this.api) {
-      console.error('VSCodeApiSingleton: Cannot send message, API not available');
+      console.error(
+        "VSCodeApiSingleton: Cannot send message, API not available",
+      );
       return;
     }
 
@@ -89,23 +96,23 @@ class VSCodeApiSingleton {
     this.api = null;
     this.isInitialized = false;
     const win = this.getWindowRecord();
-    if ('vscodeApi' in win) {
+    if ("vscodeApi" in win) {
       win.vscodeApi = undefined;
     }
-    console.log('VSCodeApiSingleton: Reset');
+    console.log("VSCodeApiSingleton: Reset");
   }
 
   public forceFindApi(): boolean {
-    console.log('VSCodeApiSingleton: Force searching for API...');
+    console.log("VSCodeApiSingleton: Force searching for API...");
     this.reset();
     this.findExistingApi();
 
     if (this.api) {
-      console.log('VSCodeApiSingleton: API found after force search');
+      console.log("VSCodeApiSingleton: API found after force search");
       return true;
     }
 
-    console.warn('VSCodeApiSingleton: API not found after force search');
+    console.warn("VSCodeApiSingleton: API not found after force search");
     return false;
   }
 
@@ -115,26 +122,30 @@ class VSCodeApiSingleton {
     }
 
     try {
-      console.log('VSCodeApiSingleton: Initializing VS Code API...', {
+      console.log("VSCodeApiSingleton: Initializing VS Code API...", {
         hasWindowVscode: Boolean(this.getWindowRecord().vscode),
-        hasAcquireVsCodeApi: isAcquireVsCodeApi(this.getWindowRecord().acquireVsCodeApi),
-        hasGlobalVscodeApi: Boolean(this.getWindowRecord().vscodeApi)
+        hasAcquireVsCodeApi: isAcquireVsCodeApi(
+          this.getWindowRecord().acquireVsCodeApi,
+        ),
+        hasGlobalVscodeApi: Boolean(this.getWindowRecord().vscodeApi),
       });
 
       if (!this.tryKnownLocations() && !this.tryAcquireApi()) {
-        console.warn('VSCodeApiSingleton: No VS Code API available during init, searching fallback sources');
+        console.warn(
+          "VSCodeApiSingleton: No VS Code API available during init, searching fallback sources",
+        );
         this.findExistingApi();
       }
 
       this.isInitialized = true;
 
       if (this.api) {
-        console.log('VSCodeApiSingleton: API initialized successfully');
+        console.log("VSCodeApiSingleton: API initialized successfully");
       } else {
-        console.error('VSCodeApiSingleton: API initialization failed');
+        console.error("VSCodeApiSingleton: API initialization failed");
       }
     } catch (error) {
-      console.error('VSCodeApiSingleton: Error initializing API:', error);
+      console.error("VSCodeApiSingleton: Error initializing API:", error);
       this.isInitialized = true;
     }
   }
@@ -176,17 +187,23 @@ class VSCodeApiSingleton {
     if (isAcquireVsCodeApi(acquireCandidate)) {
       try {
         const api = acquireCandidate();
-        return this.assignApi(api, 'window.acquireVsCodeApi()');
+        return this.assignApi(api, "window.acquireVsCodeApi()");
       } catch (error) {
-        console.warn('VSCodeApiSingleton: acquireVsCodeApi failed:', this.describeError(error));
+        console.warn(
+          "VSCodeApiSingleton: acquireVsCodeApi failed:",
+          this.describeError(error),
+        );
         return false;
       }
     }
 
-    return this.assignApi(acquireCandidate, 'window.acquireVsCodeApi');
+    return this.assignApi(acquireCandidate, "window.acquireVsCodeApi");
   }
 
-  private tryExtensionContext(context: ExtensionContextLike | undefined, source: string): boolean {
+  private tryExtensionContext(
+    context: ExtensionContextLike | undefined,
+    source: string,
+  ): boolean {
     if (!context) {
       return false;
     }
@@ -196,7 +213,13 @@ class VSCodeApiSingleton {
 
   private tryKnownLocations(): boolean {
     const win = this.getWindowRecord();
-    const knownWindowKeys = ['vscodeApi', 'vscode', '__vscode', '__vscodeApi', 'vscodeWebview'] as const;
+    const knownWindowKeys = [
+      "vscodeApi",
+      "vscode",
+      "__vscode",
+      "__vscodeApi",
+      "vscodeWebview",
+    ] as const;
 
     for (const key of knownWindowKeys) {
       if (this.assignApi(win[key], `window.${key}`)) {
@@ -204,7 +227,9 @@ class VSCodeApiSingleton {
       }
     }
 
-    if (this.tryExtensionContext(win.extensionContext, 'window.extensionContext')) {
+    if (
+      this.tryExtensionContext(win.extensionContext, "window.extensionContext")
+    ) {
       return true;
     }
 
@@ -216,14 +241,17 @@ class VSCodeApiSingleton {
       }
     }
 
-    return this.tryExtensionContext(globalRecord.extensionContext, 'globalThis.extensionContext');
+    return this.tryExtensionContext(
+      globalRecord.extensionContext,
+      "globalThis.extensionContext",
+    );
   }
 
   private scanRecord(record: Record<string, unknown>, source: string): boolean {
     const keys = Object.keys(record);
-    console.log('VSCodeApiSingleton: Available keys sample:', {
+    console.log("VSCodeApiSingleton: Available keys sample:", {
       source,
-      keys: keys.slice(0, 10)
+      keys: keys.slice(0, 10),
     });
 
     for (const key of keys) {
@@ -234,13 +262,16 @@ class VSCodeApiSingleton {
         }
 
         if (isRecord(value)) {
-          const nestedCandidate = value['vscode'];
+          const nestedCandidate = value["vscode"];
           if (this.assignApi(nestedCandidate, `${source}.${key}.vscode`)) {
             return true;
           }
         }
       } catch (error) {
-        console.warn(`VSCodeApiSingleton: Skipping ${source}.${key} due to error:`, this.describeError(error));
+        console.warn(
+          `VSCodeApiSingleton: Skipping ${source}.${key} due to error:`,
+          this.describeError(error),
+        );
       }
     }
 
@@ -252,19 +283,22 @@ class VSCodeApiSingleton {
       if (window.parent && window.parent !== window) {
         const parentRecord = window.parent as WindowRecord;
         return (
-          this.assignApi(parentRecord.vscode, 'window.parent.vscode') ||
-          this.scanRecord(parentRecord, 'window.parent')
+          this.assignApi(parentRecord.vscode, "window.parent.vscode") ||
+          this.scanRecord(parentRecord, "window.parent")
         );
       }
     } catch (error) {
-      console.warn('VSCodeApiSingleton: Error checking parent window:', this.describeError(error));
+      console.warn(
+        "VSCodeApiSingleton: Error checking parent window:",
+        this.describeError(error),
+      );
     }
 
     return false;
   }
 
   private findExistingApi(): void {
-    console.log('VSCodeApiSingleton: Searching for existing API...');
+    console.log("VSCodeApiSingleton: Searching for existing API...");
 
     if (this.tryKnownLocations()) {
       return;
@@ -272,11 +306,16 @@ class VSCodeApiSingleton {
 
     const win = this.getWindowRecord();
     const allKeys = Object.keys(win);
-    const functionKeys = allKeys.filter(key => typeof win[key] === 'function');
+    const functionKeys = allKeys.filter(
+      (key) => typeof win[key] === "function",
+    );
 
-    console.log('VSCodeApiSingleton: Function keys sample:', functionKeys.slice(0, 5));
+    console.log(
+      "VSCodeApiSingleton: Function keys sample:",
+      functionKeys.slice(0, 5),
+    );
 
-    if (this.scanRecord(win, 'window')) {
+    if (this.scanRecord(win, "window")) {
       return;
     }
 
@@ -284,11 +323,11 @@ class VSCodeApiSingleton {
       return;
     }
 
-    if (this.scanRecord(this.getGlobalRecord(), 'globalThis')) {
+    if (this.scanRecord(this.getGlobalRecord(), "globalThis")) {
       return;
     }
 
-    console.warn('VSCodeApiSingleton: No existing API found in any location');
+    console.warn("VSCodeApiSingleton: No existing API found in any location");
   }
 }
 

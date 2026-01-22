@@ -52,7 +52,10 @@ export function getNodeFromElement(
   position?: XYPosition,
 ): ChainGraphNode {
   const defaultPosition: XYPosition = { x: 0, y: 0 };
-  const nodeType = libraryElement?.container || element.type === 'container' ? "container" : "unit";
+  const nodeType =
+    libraryElement?.container || element.type === "container"
+      ? "container"
+      : "unit";
   const isHorizontal = direction === "RIGHT";
   const isContainer = nodeType === "container";
 
@@ -84,25 +87,29 @@ export function getNodeFromElement(
     ...(element.parentElementId && {
       parentId: element.parentElementId,
     }),
-    ...(isContainer ? {
-      className: 'container-node',
-      style: {
-        borderRadius: 5,
-        fontWeight: 500,
-      },
-    } : {
-      style: {
-        backgroundColor: getElementColor(libraryElement),
-        borderRadius: 5,
-        fontWeight: 500,
-      },
-    }),
+    ...(isContainer
+      ? {
+          className: "container-node",
+          style: {
+            borderRadius: 5,
+            fontWeight: 500,
+          },
+        }
+      : {
+          style: {
+            backgroundColor: getElementColor(libraryElement),
+            borderRadius: 5,
+            fontWeight: 500,
+          },
+        }),
   };
 }
 
-export function getElementColor(libraryElement: LibraryElement | undefined): string {
+export function getElementColor(
+  libraryElement: LibraryElement | undefined,
+): string {
   if (!libraryElement) {
-    return '#fdf39d';
+    return "#fdf39d";
   }
 
   switch (libraryElement.colorType) {
@@ -186,7 +193,7 @@ export function getIntersectionParent(
       )
         ? parentCandidate
         : parentNode;
-  } else if (parentCandidate.data.elementType == 'container') {
+  } else if (parentCandidate.data.elementType == "container") {
     parentNode = parentCandidate;
   }
   return parentNode;
@@ -406,30 +413,30 @@ export function expandWithParent(
 }
 
 export function mergeWithPinnedPositions(
-    base: ChainGraphNode[],
-    laidSubset: ChainGraphNode[],
-    pinnedIds: Set<string>,
+  base: ChainGraphNode[],
+  laidSubset: ChainGraphNode[],
+  pinnedIds: Set<string>,
 ): ChainGraphNode[] {
-    const baseMap = new Map(base.map((node) => [node.id, node]));
-    const laidMap = new Map(laidSubset.map((node) => [node.id, node]));
-    return base.map((node) => {
-        const laid = laidMap.get(node.id);
-        if (!laid) return node;
-        const merged: ChainGraphNode = { ...node, ...laid };
-        if (pinnedIds.has(node.id)) {
-            merged.position = baseMap.get(node.id)?.position ?? merged.position;
-        }
-        return merged;
-    });
+  const baseMap = new Map(base.map((node) => [node.id, node]));
+  const laidMap = new Map(laidSubset.map((node) => [node.id, node]));
+  return base.map((node) => {
+    const laid = laidMap.get(node.id);
+    if (!laid) return node;
+    const merged: ChainGraphNode = { ...node, ...laid };
+    if (pinnedIds.has(node.id)) {
+      merged.position = baseMap.get(node.id)?.position ?? merged.position;
+    }
+    return merged;
+  });
 }
 
 export function depthOf(id: string, byId: Map<string, ChainGraphNode>): number {
-    let depth = 0;
-    let parent = byId.get(id)?.parentId;
-    while (parent) {
-        depth++;
-        parent = byId.get(parent)?.parentId;
-        if (depth > 1000) break;
-    }
-    return depth;
+  let depth = 0;
+  let parent = byId.get(id)?.parentId;
+  while (parent) {
+    depth++;
+    parent = byId.get(parent)?.parentId;
+    if (depth > 1000) break;
+  }
+  return depth;
 }

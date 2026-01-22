@@ -1,25 +1,25 @@
 // Initialize lunr globally BEFORE importing elasticlunr
 // This ensures lunr is available when elasticlunr loads
-import '../../lunr-init';
+import "../../lunr-init";
 
 import type {
   DocumentMappingRule,
   TableOfContentNode,
   SearchResult,
   HighlightSegment,
-} from './documentationTypes';
+} from "./documentationTypes";
 import {
   DOCUMENTATION_ASSETS_BASE_URL,
   DOCUMENTATION_ROUTE_BASE,
   joinUrl,
-} from './documentationUrlUtils';
+} from "./documentationUrlUtils";
 import {
   formatFragmentSegments,
   segmentsToSafeHtml,
   extractWords,
-} from './documentationHighlightUtils';
+} from "./documentationHighlightUtils";
 
-import elasticlunr from 'elasticlunr';
+import elasticlunr from "elasticlunr";
 
 type ElasticlunrModule = typeof elasticlunr;
 
@@ -45,7 +45,7 @@ export class DocumentationService {
 
   private loadResource<T>(path: string): Promise<T> {
     const docRoot = this.getDocRoot();
-    const fullPath = joinUrl(docRoot, path.startsWith('/') ? path : `/${path}`);
+    const fullPath = joinUrl(docRoot, path.startsWith("/") ? path : `/${path}`);
 
     return fetch(fullPath)
       .then((response) => {
@@ -59,21 +59,21 @@ export class DocumentationService {
 
   public loadPaths(): Promise<string[]> {
     if (!this.pathsPromise) {
-      this.pathsPromise = this.loadResource<string[]>('paths.json');
+      this.pathsPromise = this.loadResource<string[]>("paths.json");
     }
     return this.pathsPromise;
   }
 
   public loadNames(): Promise<string[][]> {
     if (!this.namesPromise) {
-      this.namesPromise = this.loadResource<string[][]>('names.json');
+      this.namesPromise = this.loadResource<string[][]>("names.json");
     }
     return this.namesPromise;
   }
 
   public loadTOC(): Promise<TableOfContentNode> {
     if (!this.tocPromise) {
-      this.tocPromise = this.loadResource<TableOfContentNode>('toc.json');
+      this.tocPromise = this.loadResource<TableOfContentNode>("toc.json");
     }
     return this.tocPromise;
   }
@@ -82,12 +82,12 @@ export class DocumentationService {
     elasticlunr.Index<{ id: number; title: string; body: string }>
   > {
     if (!this.searchIndexPromise) {
-      this.searchIndexPromise = this.loadResource<unknown>('search-index.json').then(
-        (indexDump) => {
-          const elasticlunr = this.getElasticlunr();
-          return elasticlunr.Index.load(indexDump);
-        },
-      );
+      this.searchIndexPromise = this.loadResource<unknown>(
+        "search-index.json",
+      ).then((indexDump) => {
+        const elasticlunr = this.getElasticlunr();
+        return elasticlunr.Index.load(indexDump);
+      });
     }
     return this.searchIndexPromise;
   }
@@ -95,7 +95,7 @@ export class DocumentationService {
   public loadContextMapping(): Promise<DocumentMappingRule[]> {
     if (!this.contextMappingPromise) {
       this.contextMappingPromise = this.loadResource<DocumentMappingRule[]>(
-        'context-doc-mapping.json'
+        "context-doc-mapping.json",
       );
     }
     return this.contextMappingPromise;
@@ -125,7 +125,7 @@ export class DocumentationService {
    * Escapes special regex characters in a string for use in RegExp.
    */
   private escapeRegExp(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   /**
@@ -142,32 +142,28 @@ export class DocumentationService {
 
     // Auto-generate mapping from file/folder names
     paths.forEach((path) => {
-      if (!path.includes('QIP_Elements_Library')) return;
+      if (!path.includes("QIP_Elements_Library")) return;
 
-      const parts = path.split('/');
-      const fileName = parts[parts.length - 1].replace('.md', '');
+      const parts = path.split("/");
+      const fileName = parts[parts.length - 1].replace(".md", "");
       const folderName = parts[parts.length - 2];
 
       // Extract element types from both file name and folder name
       const elementTypes: string[] = [];
 
       // From file name: "http_trigger" → "http-trigger"
-      if (fileName && fileName !== 'index') {
-        elementTypes.push(fileName.replace(/_/g, '-'));
+      if (fileName && fileName !== "index") {
+        elementTypes.push(fileName.replace(/_/g, "-"));
       }
 
       // From folder name: "1__HTTP_Trigger" → "http-trigger"
-      const folderPart = folderName.split('__')[1];
+      const folderPart = folderName.split("__")[1];
       if (folderPart) {
-        elementTypes.push(
-          folderPart
-            .replace(/_/g, '-')
-            .toLowerCase()
-        );
+        elementTypes.push(folderPart.replace(/_/g, "-").toLowerCase());
       }
 
       // Register all variants
-      const docPath = `/doc/${path.replace('.md', '')}`;
+      const docPath = `/doc/${path.replace(".md", "")}`;
       elementTypes.forEach((type) => {
         if (type && !autoMapping[type]) {
           autoMapping[type] = docPath;
@@ -187,36 +183,38 @@ export class DocumentationService {
    * Returns hardcoded aliases for elements that have multiple type IDs.
    * These are edge cases where element type doesn't match file/folder name.
    */
-  private getElementTypeAliases(baseMapping: Record<string, string>): Record<string, string> {
+  private getElementTypeAliases(
+    baseMapping: Record<string, string>,
+  ): Record<string, string> {
     const aliases: Record<string, string> = {};
 
     // Condition element has multiple IDs
-    if (baseMapping['condition']) {
-      aliases['else'] = baseMapping['condition'];
-      aliases['if'] = baseMapping['condition'];
+    if (baseMapping["condition"]) {
+      aliases["else"] = baseMapping["condition"];
+      aliases["if"] = baseMapping["condition"];
     }
 
     // Try-Catch-Finally element
-    if (baseMapping['try-catch-finally']) {
-      aliases['try'] = baseMapping['try-catch-finally'];
-      aliases['catch'] = baseMapping['try-catch-finally'];
-      aliases['finally'] = baseMapping['try-catch-finally'];
+    if (baseMapping["try-catch-finally"]) {
+      aliases["try"] = baseMapping["try-catch-finally"];
+      aliases["catch"] = baseMapping["try-catch-finally"];
+      aliases["finally"] = baseMapping["try-catch-finally"];
     }
 
     // Headers modification variations
-    if (baseMapping['headers-modification']) {
-      aliases['header-modification'] = baseMapping['headers-modification'];
+    if (baseMapping["headers-modification"]) {
+      aliases["header-modification"] = baseMapping["headers-modification"];
     }
 
     // AsyncAPI trigger variations
-    if (baseMapping['asyncapi-trigger']) {
-      aliases['async-api-trigger'] = baseMapping['asyncapi-trigger'];
+    if (baseMapping["asyncapi-trigger"]) {
+      aliases["async-api-trigger"] = baseMapping["asyncapi-trigger"];
     }
 
     // Scheduler alias
-    if (baseMapping['scheduler']) {
-      aliases['quartz'] = baseMapping['scheduler'];
-      aliases['quartz-scheduler'] = baseMapping['scheduler'];
+    if (baseMapping["scheduler"]) {
+      aliases["quartz"] = baseMapping["scheduler"];
+      aliases["quartz-scheduler"] = baseMapping["scheduler"];
     }
 
     return aliases;
@@ -225,12 +223,12 @@ export class DocumentationService {
   public async search(query: string): Promise<SearchResult[]> {
     const searchConfiguration = {
       fields: {
-        title: { boost: 2, bool: 'AND' as const, expand: false },
-        body: { boost: 1, bool: 'OR' as const, expand: false },
+        title: { boost: 2, bool: "AND" as const, expand: false },
+        body: { boost: 1, bool: "OR" as const, expand: false },
       },
     };
     const index = await this.loadSearchIndex();
-    const raw = index.search(query, searchConfiguration) as unknown as Array<{
+    const raw = index.search(query, searchConfiguration) as Array<{
       ref: string;
       score: number;
     }>;
@@ -239,17 +237,14 @@ export class DocumentationService {
       .filter((r) => Number.isFinite(r.ref));
   }
 
-  public async getSearchDetail(
-    ref: number,
-    query: string
-  ): Promise<string[]> {
+  public async getSearchDetail(ref: number, query: string): Promise<string[]> {
     const segments = await this.getSearchDetailSegments(ref, query);
     return segments.map((fragment) => segmentsToSafeHtml(fragment));
   }
 
   public async getSearchDetailSegments(
     ref: number,
-    query: string
+    query: string,
   ): Promise<HighlightSegment[][]> {
     const elasticlunr = this.getElasticlunr();
     const index = await this.loadSearchIndex();
@@ -259,16 +254,26 @@ export class DocumentationService {
     }
 
     const paragraphs = this.extractParagraphs(doc.body);
-    const paragraphIndex = this.createParagraphSearchIndex(elasticlunr, paragraphs);
-    return this.searchInParagraphs(elasticlunr, paragraphIndex, paragraphs, query)
+    const paragraphIndex = this.createParagraphSearchIndex(
+      elasticlunr,
+      paragraphs,
+    );
+    return this.searchInParagraphs(
+      elasticlunr,
+      paragraphIndex,
+      paragraphs,
+      query,
+    )
       .slice(0, this.MAX_FOUND_DOCUMENT_FRAGMENTS)
       .sort((r0, r1) => parseInt(r0.ref) - parseInt(r1.ref))
       .map((searchResult) => {
         const par = paragraphIndex.documentStore.getDoc(searchResult.ref);
-        return par?.body ?? '';
+        return par?.body ?? "";
       })
       .filter((t) => t.length > 0)
-      .map((text) => this.formatFoundDocumentFragmentSegments(elasticlunr, text, query));
+      .map((text) =>
+        this.formatFoundDocumentFragmentSegments(elasticlunr, text, query),
+      );
   }
 
   private extractParagraphs(text: string): string[] {
@@ -280,23 +285,23 @@ export class DocumentationService {
     paragraphs: string[],
   ): elasticlunr.Index<{ id: number; body: string }> {
     const index = elasticlunr<{ id: number; body: string }>();
-    index.setRef('id');
-    index.addField('body');
+    index.setRef("id");
+    index.addField("body");
     index.saveDocument(true);
     paragraphs.forEach((p, i) => index.addDoc({ id: i, body: p }));
     return index;
   }
 
   private searchInParagraphs(
-    elasticlunr: typeof import('elasticlunr'),
+    elasticlunr: typeof import("elasticlunr"),
     index: elasticlunr.Index<{ id: number; body: string }>,
     paragraphs: string[],
-    query: string
+    query: string,
   ): Array<{ ref: string; score: number }> {
     const searchConfiguration = {
-      fields: { body: { boost: 1, bool: 'OR' as const, expand: false } },
+      fields: { body: { boost: 1, bool: "OR" as const, expand: false } },
     };
-    const result = index.search(query, searchConfiguration) as unknown as Array<{
+    const result = index.search(query, searchConfiguration) as Array<{
       ref: string;
       score: number;
     }>;
@@ -304,7 +309,7 @@ export class DocumentationService {
       return result;
     }
     const words = extractWords(query).map((word) =>
-      elasticlunr.stemmer(word.toLowerCase())
+      elasticlunr.stemmer(word.toLowerCase()),
     );
 
     // Fallback: stemmed substring scan over source paragraphs.
@@ -336,22 +341,24 @@ export class DocumentationService {
     const docPath = mapping[elementType];
 
     if (docPath) {
-      console.log('Documentation mapping:', elementType, '->', docPath);
+      console.log("Documentation mapping:", elementType, "->", docPath);
       return docPath;
     }
 
-    console.log('Documentation mapping not found for:', elementType);
+    console.log("Documentation mapping not found for:", elementType);
     const routeBase = DOCUMENTATION_ROUTE_BASE;
     return `${routeBase}/not-found`;
   }
 
-  public async openChainElementDocumentation(elementType: string): Promise<void> {
-    console.log('Opening', elementType, 'chain element documentation...');
+  public async openChainElementDocumentation(
+    elementType: string,
+  ): Promise<void> {
+    console.log("Opening", elementType, "chain element documentation...");
     try {
       const docPath = await this.mapPathByElementType(elementType);
       this.openPage(docPath);
     } catch (error) {
-      console.error('Failed to open element documentation:', error);
+      console.error("Failed to open element documentation:", error);
       // Fallback to documentation home
       const routeBase = DOCUMENTATION_ROUTE_BASE;
       this.openPage(routeBase);
@@ -359,46 +366,48 @@ export class DocumentationService {
   }
 
   public openContextDocumentation(): void {
-    console.log('Opening context documentation...');
+    console.log("Opening context documentation...");
     const path = window.location.pathname + window.location.hash;
-    void this.openMappedDocumentation(this.loadContextMapping(), path).catch(() => {
-      // Fallback to documentation home if context mapping fails
-      const routeBase = DOCUMENTATION_ROUTE_BASE;
-      this.openPage(routeBase);
-    });
+    void this.openMappedDocumentation(this.loadContextMapping(), path).catch(
+      () => {
+        // Fallback to documentation home if context mapping fails
+        const routeBase = DOCUMENTATION_ROUTE_BASE;
+        this.openPage(routeBase);
+      },
+    );
   }
 
   public openPage(url: string): void {
-    window.open(url, '_blank');
+    window.open(url, "_blank");
   }
 
   private async openMappedDocumentation(
     mappingRules: Promise<DocumentMappingRule[]>,
-    path: string
+    path: string,
   ): Promise<void> {
     try {
       const rules = await mappingRules;
       const mappedPath = this.mapPath(rules, path);
       this.openPage(mappedPath);
     } catch (error) {
-      console.error('Failed to open documentation:', error);
+      console.error("Failed to open documentation:", error);
       // Re-throw to allow caller to handle fallback
       throw error;
     }
   }
 
   private mapPath(mappingRules: DocumentMappingRule[], path: string): string {
-    const mappingRule = mappingRules.find(
-      (rule) => new RegExp(rule.pattern).test(path)
+    const mappingRule = mappingRules.find((rule) =>
+      new RegExp(rule.pattern).test(path),
     );
     if (mappingRule) {
-      console.log('Documentation mapping rule:', mappingRule);
+      console.log("Documentation mapping rule:", mappingRule);
     } else {
-      console.log('Documentation mapping rule not found');
+      console.log("Documentation mapping rule not found");
     }
     const routeBase = DOCUMENTATION_ROUTE_BASE;
     const mappedPath = mappingRule?.doc || `${routeBase}/not-found`;
-    console.log('Documentation mapping:', path, '->', mappedPath);
+    console.log("Documentation mapping:", path, "->", mappedPath);
     return mappedPath;
   }
 
@@ -416,7 +425,7 @@ export class DocumentationService {
 
   public async getDefaultDocumentPath(): Promise<string> {
     const paths = await this.loadPaths();
-    return paths.length ? paths[0] : '';
+    return paths.length ? paths[0] : "";
   }
 }
 

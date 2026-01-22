@@ -2,9 +2,9 @@ import React, { useRef, useEffect } from "react";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { editor, IRange, languages, Position } from "monaco-editor";
 import { Flex } from "antd";
-import { 
-  useMonacoTheme, 
-  useMonacoEditorOptions, 
+import {
+  useMonacoTheme,
+  useMonacoEditorOptions,
   applyVSCodeThemeToMonaco,
 } from "../hooks/useMonacoTheme";
 
@@ -93,35 +93,123 @@ function configureGroovyLanguage(monaco: Monaco): void {
     tokenPostfix: ".groovy",
 
     keywords: [
-      "abstract", "as", "assert", "boolean", "break", "byte", "case", "catch",
-      "char", "class", "const", "continue", "def", "default", "do", "double",
-      "else", "enum", "extends", "false", "final", "finally", "float", "for",
-      "goto", "if", "implements", "import", "in", "instanceof", "int", "interface",
-      "long", "native", "new", "null", "package", "private", "protected", "public",
-      "return", "short", "static", "strictfp", "super", "switch", "synchronized",
-      "this", "throw", "throws", "transient", "true", "try", "void", "volatile", "while",
+      "abstract",
+      "as",
+      "assert",
+      "boolean",
+      "break",
+      "byte",
+      "case",
+      "catch",
+      "char",
+      "class",
+      "const",
+      "continue",
+      "def",
+      "default",
+      "do",
+      "double",
+      "else",
+      "enum",
+      "extends",
+      "false",
+      "final",
+      "finally",
+      "float",
+      "for",
+      "goto",
+      "if",
+      "implements",
+      "import",
+      "in",
+      "instanceof",
+      "int",
+      "interface",
+      "long",
+      "native",
+      "new",
+      "null",
+      "package",
+      "private",
+      "protected",
+      "public",
+      "return",
+      "short",
+      "static",
+      "strictfp",
+      "super",
+      "switch",
+      "synchronized",
+      "this",
+      "throw",
+      "throws",
+      "transient",
+      "true",
+      "try",
+      "void",
+      "volatile",
+      "while",
     ],
 
     operators: [
-      "=", ">", "<", "!", "~", "?", ":",
-      "==", "<=", ">=", "!=", "&&", "||", "++", "--",
-      "+", "-", "*", "/", "&", "|", "^", "%", "<<",
-      ">>", ">>>", "+=", "-=", "*=", "/=", "&=", "|=",
-      "^=", "%=", "<<=", ">>=", ">>>=", "=>", "?.","**",
+      "=",
+      ">",
+      "<",
+      "!",
+      "~",
+      "?",
+      ":",
+      "==",
+      "<=",
+      ">=",
+      "!=",
+      "&&",
+      "||",
+      "++",
+      "--",
+      "+",
+      "-",
+      "*",
+      "/",
+      "&",
+      "|",
+      "^",
+      "%",
+      "<<",
+      ">>",
+      ">>>",
+      "+=",
+      "-=",
+      "*=",
+      "/=",
+      "&=",
+      "|=",
+      "^=",
+      "%=",
+      "<<=",
+      ">>=",
+      ">>>=",
+      "=>",
+      "?.",
+      "**",
     ],
 
     symbols: /[=><!~?:&|+*/^%-]+/,
-    escapes: /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})/,
+    escapes:
+      /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})/,
 
     tokenizer: {
       root: [
         // Identifiers and keywords
-        [/[a-z_$][\w$]*/, {
-          cases: {
-            "@keywords": "keyword",
-            "@default": "identifier",
+        [
+          /[a-z_$][\w$]*/,
+          {
+            cases: {
+              "@keywords": "keyword",
+              "@default": "identifier",
+            },
           },
-        }],
+        ],
         [/[A-Z][\w$]*/, "type.identifier"],
 
         // Whitespace
@@ -130,12 +218,15 @@ function configureGroovyLanguage(monaco: Monaco): void {
         // Delimiters and operators
         [/[{}()[\]]/, "@brackets"],
         [/[<>](?!@symbols)/, "@brackets"],
-        [/@symbols/, {
-          cases: {
-            "@operators": "operator",
-            "@default": "",
+        [
+          /@symbols/,
+          {
+            cases: {
+              "@operators": "operator",
+              "@default": "",
+            },
           },
-        }],
+        ],
 
         // Numbers
         [/\d*\d+[eE]([+-]?\d+)?/, "number.float"],
@@ -226,9 +317,23 @@ function configureGroovyLanguage(monaco: Monaco): void {
       ],
 
       regexp: [
-        [/(\{)(\d+(?:,\d*)?)(\})/, ["regexp.escape.control", "regexp.escape.control", "regexp.escape.control"]],
-        [/(\[)(\^?)(?=(?:[^\]\\/ ]|\\.)+)/, ["regexp.escape.control", "regexp.escape.control"], "@regexrange"],
-        [/(\()(\?:|\?=|\?!)/, ["regexp.escape.control", "regexp.escape.control"]],
+        [
+          /(\{)(\d+(?:,\d*)?)(\})/,
+          [
+            "regexp.escape.control",
+            "regexp.escape.control",
+            "regexp.escape.control",
+          ],
+        ],
+        [
+          /(\[)(\^?)(?=(?:[^\]\\/ ]|\\.)+)/,
+          ["regexp.escape.control", "regexp.escape.control"],
+          "@regexrange",
+        ],
+        [
+          /(\()(\?:|\?=|\?!)/,
+          ["regexp.escape.control", "regexp.escape.control"],
+        ],
         [/[()]/, "regexp.escape.control"],
         [/@escapes/, "regexp.escape"],
         [/[\\][^$]/, "regexp.escape"],

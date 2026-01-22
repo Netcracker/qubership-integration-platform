@@ -1,7 +1,7 @@
-name: schemas-update.yml
+name: Update schemas version
 on:
   repository_dispatch:
-    types: [schemas-update]
+    types: [schemas-dependency-update]
 
 permissions:
   contents: write
@@ -13,6 +13,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: main
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
@@ -21,14 +24,17 @@ jobs:
           cache: npm
 
       - name: Update schemas
-        run: npm pkg set dependencies.@netcracker/qip-schemas=${{ github.event.client_payload.version }}
+        env:
+          SCHEMAS_VERSION: ${{ github.event.client_payload.version }}
+        run: npm pkg set dependencies.@netcracker/qip-schemas="$SCHEMAS_VERSION"
 
       - name: Commit Changes
+        env:
+          SCHEMAS_VERSION: ${{ github.event.client_payload.version }}
         run: |
           git config --global user.name "qubership-actions[bot]"
           git config --global user.email "qubership-actions[bot]@users.noreply.github.com"
-          git fetch origin
-          git checkout new-actions-assumption
+
           git add package.json
-          git commit -m "chore: bump qip-schemas to ${{ github.event.client_payload.version }}"
-          git push origin new-actions-assumption
+          git commit -m "chore: bump qip-schemas to $SCHEMAS_VERSION"
+          git push origin main

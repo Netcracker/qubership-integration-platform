@@ -1,6 +1,6 @@
-import { PageWithSidebar } from './PageWithSidebar';
-import { AdminToolsSidebar } from '../components/admin_tools/AdminToolsSidebar';
-import { Outlet } from 'react-router-dom';
+import { PageWithSidebar } from "./PageWithSidebar";
+import { AdminToolsSidebar } from "../components/admin_tools/AdminToolsSidebar";
+import { Outlet } from "react-router-dom";
 
 export const AdminTools = () => (
   <PageWithSidebar sidebar={<AdminToolsSidebar collapsed={false} />}>
@@ -8,4 +8,4 @@ export const AdminTools = () => (
   </PageWithSidebar>
 );
 
-export default AdminTools; 
+export default AdminTools;

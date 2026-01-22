@@ -1,6 +1,6 @@
 [data-theme="light"] .element-reference {
-  --element-reference-bg-color: #ECEDEF;
-  --element-reference-type-bg-color: #D5DCE3;
+  --element-reference-bg-color: #ecedef;
+  --element-reference-type-bg-color: #d5dce3;
 }
 
 [data-theme="dark"] .element-reference {
@@ -9,8 +9,8 @@
 }
 
 [data-theme="high-contrast"] .element-reference {
-  --element-reference-bg-color: #000000;
-  --element-reference-type-bg-color: #000000;
+  --element-reference-bg-color: #000;
+  --element-reference-type-bg-color: #000;
 }
 
 .element-reference {

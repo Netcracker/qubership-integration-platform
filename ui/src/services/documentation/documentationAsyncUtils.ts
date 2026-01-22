@@ -36,4 +36,3 @@ export function createDebouncedCallback<TArgs extends unknown[]>(
     },
   };
 }
-

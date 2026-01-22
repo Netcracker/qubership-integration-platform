@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useRef, useState, useEffect } from "react";
 
 interface AsyncRequestOptions<T> {
   immediate?: boolean;
@@ -14,11 +14,18 @@ interface AsyncRequestResult<T, Args extends unknown[]> {
   reset: () => void;
 }
 
-export function useAsyncRequest<T = unknown, Args extends unknown[] = unknown[]>(
+export function useAsyncRequest<
+  T = unknown,
+  Args extends unknown[] = unknown[],
+>(
   asyncFn: (...args: Args) => Promise<T>,
-  options: AsyncRequestOptions<T> = {}
+  options: AsyncRequestOptions<T> = {},
 ): AsyncRequestResult<T, Args> {
-  const { immediate = false, initialValue = null, throwOnError = false } = options;
+  const {
+    immediate = false,
+    initialValue = null,
+    throwOnError = false,
+  } = options;
   const [value, setValue] = useState<T | null>(initialValue);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,9 +44,15 @@ export function useAsyncRequest<T = unknown, Args extends unknown[] = unknown[]>
         }
         return result;
       } catch (e: unknown) {
-        let message = 'Unknown error';
-        if (typeof e === 'string') message = e;
-        else if (e && typeof e === 'object' && 'message' in e && typeof (e as Record<string, unknown>).message === 'string') message = (e as Record<string, unknown>).message as string;
+        let message = "Unknown error";
+        if (typeof e === "string") message = e;
+        else if (
+          e &&
+          typeof e === "object" &&
+          "message" in e &&
+          typeof (e as Record<string, unknown>).message === "string"
+        )
+          message = (e as Record<string, unknown>).message as string;
         if (isMounted.current) {
           setError(message);
         }
@@ -51,7 +64,7 @@ export function useAsyncRequest<T = unknown, Args extends unknown[] = unknown[]>
         }
       }
     },
-    [asyncFn, throwOnError]
+    [asyncFn, throwOnError],
   );
 
   const reset = useCallback(() => {
@@ -71,8 +84,7 @@ export function useAsyncRequest<T = unknown, Args extends unknown[] = unknown[]>
     if (immediate) {
       void execute(...([] as unknown as Args));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [immediate]);
 
   return { value, loading, error, execute, reset };
-} 
+}

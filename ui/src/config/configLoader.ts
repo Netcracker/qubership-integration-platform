@@ -1,4 +1,9 @@
-import { AppConfig, loadConfigFromJson, configure, loadConfigFromEnv } from "../appConfig";
+import {
+  AppConfig,
+  loadConfigFromJson,
+  configure,
+  loadConfigFromEnv,
+} from "../appConfig";
 
 declare global {
   interface Window {
@@ -28,15 +33,21 @@ export async function loadConfig(): Promise<AppConfig> {
 
   if (window.QIP_UI_CONFIG) {
     config = { ...config, ...window.QIP_UI_CONFIG };
-    console.log("[QIP UI Config] Configuration merged from window.QIP_UI_CONFIG");
+    console.log(
+      "[QIP UI Config] Configuration merged from window.QIP_UI_CONFIG",
+    );
   }
 
   if (hasEnvConfig) {
-    console.log("[QIP UI Config] Configuration loaded from environment variables");
+    console.log(
+      "[QIP UI Config] Configuration loaded from environment variables",
+    );
   }
 
   if (!loadedFromFile && !window.QIP_UI_CONFIG && !hasEnvConfig) {
-    console.log("[QIP UI Config] No external configuration found, using defaults");
+    console.log(
+      "[QIP UI Config] No external configuration found, using defaults",
+    );
   }
 
   return config as AppConfig;
@@ -52,4 +63,3 @@ export async function initializeConfig(): Promise<void> {
     console.warn("Failed to load external config, using defaults:", error);
   }
 }
-

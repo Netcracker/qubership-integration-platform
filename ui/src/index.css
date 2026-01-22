@@ -1,4 +1,3 @@
-
 html {
   background: white;
   height: 100%;
@@ -9,12 +8,14 @@ html {
   line-height: 1.5;
   font-weight: 400;
 
-  /*color-scheme: light dark;*/
-  /*color: rgba(255, 255, 255, 0.87);*/
-  /*background-color: #242424;*/
+  /* color-scheme: light dark; */
+
+  /* color: rgba(255, 255, 255, 0.87); */
+
+  /* background-color: #242424; */
 
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  text-rendering: optimizelegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -83,7 +84,7 @@ button:focus-visible {
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
-    background-color: #ffffff;
+    background-color: #fff;
   }
 
   a:hover {
@@ -95,7 +96,7 @@ button:focus-visible {
   }
 }
 
-/*Ant design table styles*/
+/* Ant design table styles */
 .clickable-row {
   cursor: pointer;
 }
@@ -234,7 +235,7 @@ button:focus-visible {
   .ant-select-selection-item-content {
     font-size: 12px;
     display: flex !important;
-    background-color: #ECEDEF !important;
+    background-color: #ecedef !important;
     min-width: 0;
   }
 }

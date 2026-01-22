@@ -32,14 +32,12 @@ export function parse(text: string): KeyValuePair[] {
 }
 
 export function makeArray(pairs: Readonly<KeyValuePair[]>): string[] {
-  return pairs
-    .map(
-      ({ key, value }) =>
-        [key, value].map((i) => MappingActions.escape(i, "=;\\")).join("=")
-    )
+  return pairs.map(({ key, value }) =>
+    [key, value].map((i) => MappingActions.escape(i, "=;\\")).join("="),
+  );
 }
 
 export function sliceParameter(value: string[] | undefined): string {
-    if (!value || value.length <= 1) return "";
-    return value.slice(1).join(";\n") + ";";
+  if (!value || value.length <= 1) return "";
+  return value.slice(1).join(";\n") + ";";
 }

@@ -2,7 +2,9 @@ const CSS_VARIABLES_STYLE_ID = "qip-ui-injected-css-variables";
 const loadedCssFiles = new Set<string>();
 
 export function injectCssVariables(variables: Record<string, string>): void {
-  let styleElement = document.getElementById(CSS_VARIABLES_STYLE_ID) as HTMLStyleElement;
+  let styleElement = document.getElementById(
+    CSS_VARIABLES_STYLE_ID,
+  ) as HTMLStyleElement;
 
   if (!styleElement) {
     styleElement = document.createElement("style");
@@ -43,7 +45,11 @@ export function loadCssFile(url: string): Promise<void> {
 }
 
 export function loadCssFiles(urls: string[]): Promise<void> {
-  return Promise.all(urls.map(url => loadCssFile(url).catch(error => {
-    console.warn(`Failed to load CSS file ${url}:`, error);
-  }))).then(() => undefined);
+  return Promise.all(
+    urls.map((url) =>
+      loadCssFile(url).catch((error) => {
+        console.warn(`Failed to load CSS file ${url}:`, error);
+      }),
+    ),
+  ).then(() => undefined);
 }

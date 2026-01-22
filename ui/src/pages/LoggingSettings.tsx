@@ -152,7 +152,10 @@ export const LoggingSettings: React.FC = () => {
 
   return (
     <div className={styles.pageContainer as string}>
-      <div className={styles.formContent as string} style={{ position: "relative" }}>
+      <div
+        className={styles.formContent as string}
+        style={{ position: "relative" }}
+      >
         {isLoggingSettingsLoading ? (
           <Spin
             size="large"
@@ -175,7 +178,12 @@ export const LoggingSettings: React.FC = () => {
           }}
           onFinish={(formState) => void setLoggingProperties(formState)}
         >
-          <Form.Item label={null} name="custom" valuePropName="checked" {...formItemStyle}>
+          <Form.Item
+            label={null}
+            name="custom"
+            valuePropName="checked"
+            {...formItemStyle}
+          >
             <Checkbox>Override default properties</Checkbox>
           </Form.Item>
           <Form.Item label="Session level" name="sessionsLoggingLevel">
@@ -198,16 +206,26 @@ export const LoggingSettings: React.FC = () => {
               options={logPayloadOptions}
             ></Select>
           </Form.Item>
-          <Form.Item label={null} name="dptEventsEnabled" valuePropName="checked" {...formItemStyle}>
+          <Form.Item
+            label={null}
+            name="dptEventsEnabled"
+            valuePropName="checked"
+            {...formItemStyle}
+          >
             <Checkbox disabled={!isCustom}>Produce DPT Events</Checkbox>
           </Form.Item>
-          <Form.Item label={null} name="maskingEnabled" valuePropName="checked" {...formItemStyle}>
+          <Form.Item
+            label={null}
+            name="maskingEnabled"
+            valuePropName="checked"
+            {...formItemStyle}
+          >
             <Checkbox disabled={!isCustom}>Enable logging masking</Checkbox>
           </Form.Item>
           <Form.Item label={null} {...formItemStyle}>
-            <Button 
-              type="primary" 
-              htmlType="submit" 
+            <Button
+              type="primary"
+              htmlType="submit"
               loading={isLoggingSettingsLoading}
             >
               Apply

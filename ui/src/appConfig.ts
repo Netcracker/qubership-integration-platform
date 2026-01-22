@@ -71,7 +71,9 @@ export function configure(config: Partial<AppConfig>): void {
   }
   if (config.additionalCss !== undefined) {
     appConfigValue.additionalCss = config.additionalCss;
-    overrides.push(`additionalCss: ${config.additionalCss.length} file(s) added`);
+    overrides.push(
+      `additionalCss: ${config.additionalCss.length} file(s) added`,
+    );
   }
   if (config.themeOverrides !== undefined) {
     appConfigValue.themeOverrides = config.themeOverrides;
@@ -94,7 +96,7 @@ export async function loadConfigFromJson(url: string): Promise<AppConfig> {
     if (!response.ok) {
       throw new Error(`Failed to load config: ${response.statusText}`);
     }
-    const config = await response.json() as AppConfig;
+    const config = (await response.json()) as AppConfig;
     return config;
   } catch (error) {
     console.error("Error loading config from JSON:", error);
@@ -105,12 +107,16 @@ export async function loadConfigFromJson(url: string): Promise<AppConfig> {
 export function loadConfigFromEnv(): Partial<AppConfig> {
   const config: Partial<AppConfig> = {};
 
-  const apiGateway = (import.meta.env.VITE_API_GATEWAY as string | undefined) || (import.meta.env.VITE_GATEWAY as string | undefined);
+  const apiGateway =
+    (import.meta.env.VITE_API_GATEWAY as string | undefined) ||
+    (import.meta.env.VITE_GATEWAY as string | undefined);
   if (apiGateway) {
     config.apiGateway = apiGateway;
   }
 
-  const appName = (import.meta.env.VITE_APP_NAME as string | undefined) || (import.meta.env.VITE_API_APP as string | undefined);
+  const appName =
+    (import.meta.env.VITE_APP_NAME as string | undefined) ||
+    (import.meta.env.VITE_API_APP as string | undefined);
   if (appName) {
     config.appName = appName;
   }
@@ -123,11 +129,16 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
         config.cssVariables = parsed as Record<string, string>;
       }
     } catch (error) {
-      console.warn("[QIP UI Config] Failed to parse VITE_CSS_VARIABLES:", error);
+      console.warn(
+        "[QIP UI Config] Failed to parse VITE_CSS_VARIABLES:",
+        error,
+      );
     }
   }
 
-  const additionalCss = import.meta.env.VITE_ADDITIONAL_CSS as string | undefined;
+  const additionalCss = import.meta.env.VITE_ADDITIONAL_CSS as
+    | string
+    | undefined;
   if (additionalCss) {
     try {
       const parsed = JSON.parse(additionalCss) as unknown;
@@ -135,7 +146,10 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
         config.additionalCss = parsed as string[];
       }
     } catch (error) {
-      console.warn("[QIP UI Config] Failed to parse VITE_ADDITIONAL_CSS:", error);
+      console.warn(
+        "[QIP UI Config] Failed to parse VITE_ADDITIONAL_CSS:",
+        error,
+      );
     }
   }
 
@@ -152,21 +166,23 @@ export type AppExtensionProps = {
   dev?: boolean;
 };
 
-export async function configureAppExtension(message: AppExtensionProps): Promise<void> {
+export async function configureAppExtension(
+  message: AppExtensionProps,
+): Promise<void> {
   configure(message);
-  
+
   if (message.cssVariables) {
     const { injectCssVariables } = await import("./config/cssInjector");
     injectCssVariables(message.cssVariables);
   }
-  
+
   if (message.additionalCss && message.additionalCss.length > 0) {
     const { loadCssFiles } = await import("./config/cssInjector");
-    await loadCssFiles(message.additionalCss).catch(error => {
+    await loadCssFiles(message.additionalCss).catch((error) => {
       console.warn("Some CSS files failed to load:", error);
     });
   }
-  
+
   if (message.apiGateway) {
     const { api } = await import("./api/api");
     const { RestApi } = await import("./api/rest/restApi");
@@ -174,33 +190,38 @@ export async function configureAppExtension(message: AppExtensionProps): Promise
       api.reconfigure(message.apiGateway);
     }
   }
-  
+
   console.info("Initial extension configuration succeeded");
 }
 
-export function mergeConfigWithEnv(overrideConfig: Partial<AppConfig>): Partial<AppConfig> {
+export function mergeConfigWithEnv(
+  overrideConfig: Partial<AppConfig>,
+): Partial<AppConfig> {
   const envConfig = loadConfigFromEnv();
-  
+
   return {
     ...envConfig,
     ...overrideConfig,
-    cssVariables: (envConfig.cssVariables || overrideConfig.cssVariables)
-      ? {
-          ...(envConfig.cssVariables || {}),
-          ...(overrideConfig.cssVariables || {}),
-        }
-      : undefined,
-    additionalCss: (envConfig.additionalCss || overrideConfig.additionalCss)
-      ? [
-          ...(envConfig.additionalCss || []),
-          ...(overrideConfig.additionalCss || []),
-        ]
-      : undefined,
-    themeOverrides: (envConfig.themeOverrides || overrideConfig.themeOverrides)
-      ? {
-          ...(envConfig.themeOverrides || {}),
-          ...(overrideConfig.themeOverrides || {}),
-        }
-      : undefined,
+    cssVariables:
+      envConfig.cssVariables || overrideConfig.cssVariables
+        ? {
+            ...(envConfig.cssVariables || {}),
+            ...(overrideConfig.cssVariables || {}),
+          }
+        : undefined,
+    additionalCss:
+      envConfig.additionalCss || overrideConfig.additionalCss
+        ? [
+            ...(envConfig.additionalCss || []),
+            ...(overrideConfig.additionalCss || []),
+          ]
+        : undefined,
+    themeOverrides:
+      envConfig.themeOverrides || overrideConfig.themeOverrides
+        ? {
+            ...(envConfig.themeOverrides || {}),
+            ...(overrideConfig.themeOverrides || {}),
+          }
+        : undefined,
   };
 }

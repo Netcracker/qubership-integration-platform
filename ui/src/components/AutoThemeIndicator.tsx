@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Badge, Tooltip } from 'antd';
-import { isAutoThemeEnabled, getSystemTheme } from '../theme/themeInit';
+import { useEffect, useState } from "react";
+import { Badge, Tooltip } from "antd";
+import { isAutoThemeEnabled, getSystemTheme } from "../theme/themeInit";
 
 interface AutoThemeIndicatorProps {
   className?: string;
@@ -28,11 +28,11 @@ export const AutoThemeIndicator = ({ className }: AutoThemeIndicatorProps) => {
 
   return (
     <Tooltip title={`Auto theme enabled - following system (${systemTheme})`}>
-      <Badge 
-        status="processing" 
-        text="Auto" 
+      <Badge
+        status="processing"
+        text="Auto"
         className={className}
-        style={{ fontSize: '10px', color: '#1890ff' }}
+        style={{ fontSize: "10px", color: "#1890ff" }}
       />
     </Tooltip>
   );

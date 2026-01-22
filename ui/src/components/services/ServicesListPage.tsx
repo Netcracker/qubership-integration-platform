@@ -1,19 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./Services.module.css";
-import {
-  FloatButton,
-  Typography,
-  message,
-  Flex,
-} from "antd";
+import { FloatButton, Typography, message, Flex } from "antd";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { CreateServiceModal } from "./CreateServiceModal";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/api";
-import {
-  IntegrationSystemType,
-  Specification,
-} from "../../api/apiTypes";
+import { IntegrationSystemType, Specification } from "../../api/apiTypes";
 import { useNotificationService } from "../../hooks/useNotificationService";
 import {
   useServicesTreeTable,
@@ -27,14 +19,18 @@ import {
   isIntegrationSystem,
   isContextSystem,
 } from "./ServicesTreeTable";
-import type { ContextSystem, IntegrationSystem, SpecificationGroup } from "../../api/apiTypes";
-import { downloadFile } from '../../misc/download-utils';
+import type {
+  ContextSystem,
+  IntegrationSystem,
+  SpecificationGroup,
+} from "../../api/apiTypes";
+import { downloadFile } from "../../misc/download-utils";
 import { prepareFile } from "./utils.tsx";
 import ImportServicesModal from "./ImportServicesModal";
 import { useModalsContext } from "../../Modals";
-import { getErrorMessage } from '../../misc/error-utils';
-import { useAsyncRequest } from './useAsyncRequest';
-import type { ExpandableConfig } from 'antd/es/table/interface';
+import { getErrorMessage } from "../../misc/error-utils";
+import { useAsyncRequest } from "./useAsyncRequest";
+import type { ExpandableConfig } from "antd/es/table/interface";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 const STORAGE_KEY = "servicesListTable";
@@ -68,8 +64,12 @@ export const ServicesListPage: React.FC = () => {
     implemented: [],
     context: [],
   });
-  const [specGroupsByService, setSpecGroupsByService] = useState<Record<string, SpecificationGroup[]>>({});
-  const [specsByGroup, setSpecsByGroup] = useState<Record<string, Specification[]>>({});
+  const [specGroupsByService, setSpecGroupsByService] = useState<
+    Record<string, SpecificationGroup[]>
+  >({});
+  const [specsByGroup, setSpecsByGroup] = useState<
+    Record<string, Specification[]>
+  >({});
   const [loadingRows, setLoadingRows] = useState<string[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const notify = useNotificationService();
@@ -80,52 +80,65 @@ export const ServicesListPage: React.FC = () => {
     loading,
     error,
     execute: loadServices,
-  } = useAsyncRequest(async () => {
-    const all = await api.getServices("", false);
-    const servicesArray = Array.isArray(all) ? all : [];
-    let contextServices: ContextSystem[] = [];
-    try {
-      contextServices = await api.getContextServices();
-      if (!Array.isArray(contextServices)) {
+  } = useAsyncRequest(
+    async () => {
+      const all = await api.getServices("", false);
+      const servicesArray = Array.isArray(all) ? all : [];
+      let contextServices: ContextSystem[] = [];
+      try {
+        contextServices = await api.getContextServices();
+        if (!Array.isArray(contextServices)) {
+          contextServices = [];
+        }
+      } catch {
         contextServices = [];
       }
-    } catch {
-      contextServices = [];
-    }
-    setServicesByType({
-      external: servicesArray.filter((s) => s.type === IntegrationSystemType.EXTERNAL),
-      internal: servicesArray.filter((s) => s.type === IntegrationSystemType.INTERNAL),
-      implemented: servicesArray.filter((s) => s.type === IntegrationSystemType.IMPLEMENTED),
-      context: contextServices,
-    });
-  }, { initialValue: undefined });
+      setServicesByType({
+        external: servicesArray.filter(
+          (s) => s.type === IntegrationSystemType.EXTERNAL,
+        ),
+        internal: servicesArray.filter(
+          (s) => s.type === IntegrationSystemType.INTERNAL,
+        ),
+        implemented: servicesArray.filter(
+          (s) => s.type === IntegrationSystemType.IMPLEMENTED,
+        ),
+        context: contextServices,
+      });
+    },
+    { initialValue: undefined },
+  );
 
   useEffect(() => {
     void loadServices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const getServicesByTab = useCallback((): IntegrationSystem[] | ContextSystem[] => {
+  const getServicesByTab = useCallback(():
+    | IntegrationSystem[]
+    | ContextSystem[] => {
     if (tab === "internal") return servicesByType["internal"];
     return servicesByType[tab] ?? [];
-  },[servicesByType, tab]);
+  }, [servicesByType, tab]);
 
   const buildDataSource = useMemo((): ServiceEntity[] => {
-    return getServicesByTab().map((service: IntegrationSystem | ContextSystem) => {
-      const groups = specGroupsByService[service.id];
-      return {
-        ...service,
-        children: (groups && groups.length > 0
-          ? groups.map((group) => {
-            const specs = specsByGroup[group.id];
-            return {
-              ...group,
-              children: specs ?? [],
-            };
-          })
-          : []),
-      };
-    });
+    return getServicesByTab().map(
+      (service: IntegrationSystem | ContextSystem) => {
+        const groups = specGroupsByService[service.id];
+        return {
+          ...service,
+          children:
+            groups && groups.length > 0
+              ? groups.map((group) => {
+                  const specs = specsByGroup[group.id];
+                  return {
+                    ...group,
+                    children: specs ?? [],
+                  };
+                })
+              : [],
+        };
+      },
+    );
   }, [getServicesByTab, specGroupsByService, specsByGroup]);
 
   const handleExpand = async (expanded: boolean, record: ServiceEntity) => {
@@ -136,7 +149,10 @@ export const ServicesListPage: React.FC = () => {
         const groups = await api.getApiSpecifications(record.id);
         setSpecGroupsByService((prev) => ({ ...prev, [record.id]: groups }));
       } catch (e: unknown) {
-        notify.requestFailed(getErrorMessage(e, 'Specifications load error'), e);
+        notify.requestFailed(
+          getErrorMessage(e, "Specifications load error"),
+          e,
+        );
       } finally {
         setLoadingRows((rows) => rows.filter((id) => id !== record.id));
       }
@@ -144,7 +160,10 @@ export const ServicesListPage: React.FC = () => {
     if (isSpecificationGroup(record) && !specsByGroup[record.id]) {
       setLoadingRows((rows) => [...rows, record.id]);
       try {
-        setSpecsByGroup((prev) => ({ ...prev, [record.id]: record.specifications }));
+        setSpecsByGroup((prev) => ({
+          ...prev,
+          [record.id]: record.specifications,
+        }));
       } finally {
         setLoadingRows((rows) => rows.filter((id) => id !== record.id));
       }
@@ -162,29 +181,51 @@ export const ServicesListPage: React.FC = () => {
     },
     rowExpandable: (record: ServiceEntity) => {
       if (isIntegrationSystem(record)) return true;
-      return isSpecificationGroup(record) && Array.isArray(record.specifications) && record.specifications.length > 0;
+      return (
+        isSpecificationGroup(record) &&
+        Array.isArray(record.specifications) &&
+        record.specifications.length > 0
+      );
     },
-    childrenColumnName: 'children',
-    expandIcon: ({ expanded, onExpand, record }: Parameters<NonNullable<ExpandableConfig<ServiceEntity>["expandIcon"]>>[0]) =>
+    childrenColumnName: "children",
+    expandIcon: ({
+      expanded,
+      onExpand,
+      record,
+    }: Parameters<
+      NonNullable<ExpandableConfig<ServiceEntity>["expandIcon"]>
+    >[0]) =>
       expandable.rowExpandable(record) ? (
         <span
-          onClick={e => {
+          onClick={(e) => {
             onExpand(record, e);
             e.stopPropagation();
           }}
-          style={{ cursor: "pointer", fontSize: 11, color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))', display: 'inline-flex', alignItems: 'center', verticalAlign: 'sub', marginRight: 6 }}
+          style={{
+            cursor: "pointer",
+            fontSize: 11,
+            color: "var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))",
+            display: "inline-flex",
+            alignItems: "center",
+            verticalAlign: "sub",
+            marginRight: 6,
+          }}
         >
-          {expanded ? <OverridableIcon name="down" /> : <OverridableIcon name="right" />}
+          {expanded ? (
+            <OverridableIcon name="down" />
+          ) : (
+            <OverridableIcon name="right" />
+          )}
         </span>
       ) : null,
   };
 
   const isRootEntity = (record: ServiceEntity) => {
-    return isIntegrationSystem(record) || isContextSystem(record)
+    return isIntegrationSystem(record) || isContextSystem(record);
   };
 
   const isExpandAvailable = (record: ServiceEntity) => {
-    return !isContextSystem(record)
+    return !isContextSystem(record);
   };
 
   const handleEdit = (record: ServiceEntity) => {
@@ -198,19 +239,27 @@ export const ServicesListPage: React.FC = () => {
   const handleExpandAll = async () => {
     const roots = getServicesByTab();
 
-    const groupsMap: Record<string, SpecificationGroup[]> = { ...specGroupsByService };
+    const groupsMap: Record<string, SpecificationGroup[]> = {
+      ...specGroupsByService,
+    };
     await Promise.all(
       roots.map(async (service) => {
         if (!groupsMap[service.id]) {
           try {
             const groups = await api.getApiSpecifications(service.id);
             groupsMap[service.id] = groups;
-            setSpecGroupsByService((prev) => ({ ...prev, [service.id]: groups }));
+            setSpecGroupsByService((prev) => ({
+              ...prev,
+              [service.id]: groups,
+            }));
           } catch (e: unknown) {
-            notify.requestFailed(getErrorMessage(e, 'Error loading specifications groups'), e);
+            notify.requestFailed(
+              getErrorMessage(e, "Error loading specifications groups"),
+              e,
+            );
           }
         }
-      })
+      }),
     );
 
     const specsMap: Record<string, Specification[]> = { ...specsByGroup };
@@ -220,15 +269,18 @@ export const ServicesListPage: React.FC = () => {
       allGroups.map((group) => {
         if (!specsMap[group.id] && group.specifications) {
           specsMap[group.id] = group.specifications;
-          setSpecsByGroup((prev) => ({ ...prev, [group.id]: group.specifications }));
+          setSpecsByGroup((prev) => ({
+            ...prev,
+            [group.id]: group.specifications,
+          }));
         }
-      })
+      }),
     );
 
     const rootIds = roots.map((r) => r.id);
     const groupIds = allGroups.map((g) => g.id);
     const specIds = allGroups.flatMap((g) =>
-      g.specifications ? g.specifications.map((s) => s.id) : []
+      g.specifications ? g.specifications.map((s) => s.id) : [],
     );
 
     const allIds = [...rootIds, ...groupIds, ...specIds];
@@ -251,21 +303,29 @@ export const ServicesListPage: React.FC = () => {
     getServiceActions({
       onEdit: handleEdit,
       onDelete: handleDeleteWithConfirm,
-      onExpandAll: () => { void handleExpandAll(); },
+      onExpandAll: () => {
+        void handleExpandAll();
+      },
       onCollapseAll: handleCollapseAll,
       isRootEntity,
       isExpandAvailable,
-      onExportSelected:  (selected) => { void handleExportSelected(selected); },
-    })
+      onExportSelected: (selected) => {
+        void handleExportSelected(selected);
+      },
+    }),
   );
 
-  const rowClassName = (record: ServiceEntity) => loadingRows.includes(record.id) ? styles.loadingRow : '';
+  const rowClassName = (record: ServiceEntity) =>
+    loadingRows.includes(record.id) ? styles.loadingRow : "";
 
   const servicesTable = useServicesTreeTable<ServiceEntity>({
     dataSource: buildDataSource,
     rowKey: "id",
-    columns: allServicesTreeTableColumns.map(col => col.key),
-    allColumns: [...allServicesTreeTableColumns.map(col => col.key), actionsColumn.key],
+    columns: allServicesTreeTableColumns.map((col) => col.key),
+    allColumns: [
+      ...allServicesTreeTableColumns.map((col) => col.key),
+      actionsColumn.key,
+    ],
     defaultVisibleKeys: visibleColumns,
     storageKey: STORAGE_KEY,
     loading,
@@ -273,43 +333,61 @@ export const ServicesListPage: React.FC = () => {
     actionsColumn,
     enableSelection: true,
     isRootEntity,
-    onExportSelected:  (selected) => { void handleExportSelected(selected); },
+    onExportSelected: (selected) => {
+      void handleExportSelected(selected);
+    },
     selectedRowKeys,
     onSelectedRowKeysChange: (keys) => {
       setSelectedRowKeys(keys);
     },
     rowClassName,
     onUpdateLabels: async (record, labels) => {
-      const updated: ServiceEntity = { ...record, labels: labels.map(name => ({ name, technical: false })) };
+      const updated: ServiceEntity = {
+        ...record,
+        labels: labels.map((name) => ({ name, technical: false })),
+      };
       if (isIntegrationSystem(record)) {
         await api.updateService(record.id, updated as IntegrationSystem);
         await loadServices();
       } else if (isSpecificationGroup(record)) {
-        const res = await api.updateApiSpecificationGroup(record.id, updated as SpecificationGroup);
-        setSpecGroupsByService(prev => updateLabelsInMap(prev, res));
+        const res = await api.updateApiSpecificationGroup(
+          record.id,
+          updated as SpecificationGroup,
+        );
+        setSpecGroupsByService((prev) => updateLabelsInMap(prev, res));
       } else if (isSpecification(record)) {
-        const res = await api.updateSpecificationModel(record.id, updated as Specification);
-        setSpecsByGroup(prev => updateLabelsInMap(prev, res));
+        const res = await api.updateSpecificationModel(
+          record.id,
+          updated as Specification,
+        );
+        setSpecsByGroup((prev) => updateLabelsInMap(prev, res));
       }
     },
     onRowClick: (record, event) => {
       const target = event.target as HTMLElement;
       if (
-        target.closest('button') ||
-        target.closest('.ant-dropdown') ||
-        target.closest('input') ||
-        target.closest('a') ||
-        target.closest('.inline-edit-labels')
+        target.closest("button") ||
+        target.closest(".ant-dropdown") ||
+        target.closest("input") ||
+        target.closest("a") ||
+        target.closest(".inline-edit-labels")
       ) {
         return;
       }
       if (isIntegrationSystem(record)) {
         void navigate(`/services/systems/${record.id}/specificationGroups`);
       } else if (isSpecificationGroup(record)) {
-        setExpandedRowKeys((keys) => keys.includes(record.id) ? keys.filter((k) => k !== record.id) : [...keys, record.id]);
+        setExpandedRowKeys((keys) =>
+          keys.includes(record.id)
+            ? keys.filter((k) => k !== record.id)
+            : [...keys, record.id],
+        );
         if (!specsByGroup[record.id]) {
           setLoadingRows((rows) => [...rows, record.id]);
-          setSpecsByGroup((prev) => ({ ...prev, [record.id]: record.specifications }));
+          setSpecsByGroup((prev) => ({
+            ...prev,
+            [record.id]: record.specifications,
+          }));
           setLoadingRows((rows) => rows.filter((id) => id !== record.id));
         }
       } else if (isContextSystem(record)) {
@@ -320,29 +398,36 @@ export const ServicesListPage: React.FC = () => {
 
   const handleExportSelected = async (selected: ServiceEntity[]) => {
     if (!selected.length) {
-      message.info('No services selected');
+      message.info("No services selected");
       return;
     }
     try {
-      const systemIds = selected.map(s => s.id)
+      const systemIds = selected.map((s) => s.id);
       const file = isContextSystem(selected[0])
         ? await api.exportContextServices(systemIds)
         : await api.exportServices(systemIds, []);
       downloadFile(prepareFile(file));
     } catch (e: unknown) {
-      notify.requestFailed(getErrorMessage(e, 'Export error'), e);
+      notify.requestFailed(getErrorMessage(e, "Export error"), e);
     }
   };
 
-  const handleCreate = async (name: string, description: string | undefined, type: IntegrationSystemType) => {
+  const handleCreate = async (
+    name: string,
+    description: string | undefined,
+    type: IntegrationSystemType,
+  ) => {
     setCreateLoading(true);
     setCreateError(null);
     try {
       const service: IntegrationSystem | ContextSystem =
         type === IntegrationSystemType.CONTEXT
-          ? await api.createContextService({ name, description})
+          ? await api.createContextService({ name, description })
           : await api.createService({ name, description, type });
-      if (type === IntegrationSystemType.INTERNAL || type === IntegrationSystemType.IMPLEMENTED) {
+      if (
+        type === IntegrationSystemType.INTERNAL ||
+        type === IntegrationSystemType.IMPLEMENTED
+      ) {
         await api.createEnvironment(service.id, { name, address: "/" });
       }
       void loadServices();
@@ -379,13 +464,17 @@ export const ServicesListPage: React.FC = () => {
     }
   };
 
-  function updateLabelsInMap<T extends { id: string; labels?: import("../../api/apiTypes").EntityLabel[] }>(
-    map: Record<string, T[]>,
-    updated: T
-  ): Record<string, T[]> {
+  function updateLabelsInMap<
+    T extends {
+      id: string;
+      labels?: import("../../api/apiTypes").EntityLabel[];
+    },
+  >(map: Record<string, T[]>, updated: T): Record<string, T[]> {
     const newMap = { ...map };
-    Object.keys(newMap).forEach(key => {
-      newMap[key] = newMap[key].map(item => item.id === updated.id ? { ...item, labels: updated.labels } : item);
+    Object.keys(newMap).forEach((key) => {
+      newMap[key] = newMap[key].map((item) =>
+        item.id === updated.id ? { ...item, labels: updated.labels } : item,
+      );
     });
     return newMap;
   }
@@ -398,83 +487,116 @@ export const ServicesListPage: React.FC = () => {
 
   return (
     <Flex vertical className={styles["container"]}>
-        <div className={styles["header"]}>
-          <Typography.Title level={4} className={styles["title"]}>
-            {(() => {
-              switch (tab) {
-                case "external": return <OverridableIcon name="global" className={styles["icon"]} />;
-                case "internal": return <OverridableIcon name="cloud" className={styles["icon"]} />;
-                case "implemented": return <OverridableIcon name="cluster" className={styles["icon"]} />;
-                case "context": return <OverridableIcon name="database" className={styles["icon"]} />;
-                default: return <OverridableIcon name="table" className={styles["icon"]} />;
-              }
-            })()}
-            {(() => {
-              switch (tab) {
-                case "external": return "External Services";
-                case "internal": return "Internal Services";
-                case "implemented": return "Implemented Services";
-                case "context": return "Context Services";
-                default: return "Services";
-              }
-            })()}
-          </Typography.Title>
+      <div className={styles["header"]}>
+        <Typography.Title level={4} className={styles["title"]}>
+          {(() => {
+            switch (tab) {
+              case "external":
+                return (
+                  <OverridableIcon name="global" className={styles["icon"]} />
+                );
+              case "internal":
+                return (
+                  <OverridableIcon name="cloud" className={styles["icon"]} />
+                );
+              case "implemented":
+                return (
+                  <OverridableIcon name="cluster" className={styles["icon"]} />
+                );
+              case "context":
+                return (
+                  <OverridableIcon name="database" className={styles["icon"]} />
+                );
+              default:
+                return (
+                  <OverridableIcon name="table" className={styles["icon"]} />
+                );
+            }
+          })()}
+          {(() => {
+            switch (tab) {
+              case "external":
+                return "External Services";
+              case "internal":
+                return "Internal Services";
+              case "implemented":
+                return "Implemented Services";
+              case "context":
+                return "Context Services";
+              default:
+                return "Services";
+            }
+          })()}
+        </Typography.Title>
 
-          <div className={styles["actions"]}>
-            {servicesTable.FilterButton()}
+        <div className={styles["actions"]}>{servicesTable.FilterButton()}</div>
+      </div>
+
+      <div>
+        {loading && <div>Loading...</div>}
+
+        <servicesTable.Table />
+        {error && (
+          <div style={{ color: "var(--vscode-errorForeground, #d73a49)" }}>
+            Error: {error}
           </div>
-        </div>
+        )}
 
-        <div>
-          {loading && <div>Loading...</div>}
+        <FloatButtonGroup
+          trigger="hover"
+          icon={<OverridableIcon name="more" />}
+        >
+          <FloatButton
+            tooltip={{ title: "Download selected services", placement: "left" }}
+            icon={<OverridableIcon name="cloudDownload" />}
+            onClick={() => {
+              void (async () => {
+                if (selectedRowKeys.length === 0) {
+                  message.info("No services selected");
+                  return;
+                }
+                const selected: ServiceEntity[] = buildDataSource.filter(
+                  (s: ServiceEntity) => selectedRowKeys.includes(s.id),
+                );
+                await handleExportSelected(selected);
+              })();
+            }}
+          />
+          <FloatButton
+            tooltip={{ title: "Upload services", placement: "left" }}
+            icon={<OverridableIcon name="cloudUpload" />}
+            onClick={() => {
+              showModal({
+                component: (
+                  <ImportServicesModal
+                    onSuccess={() => {
+                      void loadServices();
+                    }}
+                    systemType={getDefaultType(tab)}
+                  />
+                ),
+              });
+            }}
+          />
+          <FloatButton
+            tooltip={{ title: "Create service", placement: "left" }}
+            icon={<OverridableIcon name="plus" />}
+            onClick={() => setCreateModalOpen(true)}
+          />
+        </FloatButtonGroup>
+      </div>
 
-          <servicesTable.Table />
-          {error && <div style={{ color: "var(--vscode-errorForeground, #d73a49)" }}>Error: {error}</div>}
-
-          <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
-            <FloatButton
-              tooltip={{ title: "Download selected services", placement: "left" }}
-              icon={<OverridableIcon name="cloudDownload" />}
-              onClick={() => {
-                void (async () => {
-                  if (selectedRowKeys.length === 0) {
-                    message.info('No services selected');
-                    return;
-                  }
-                  const selected: ServiceEntity[] = buildDataSource.filter(
-                    (s: ServiceEntity) => selectedRowKeys.includes(s.id)
-                  );
-                  await handleExportSelected(selected);
-                })();
-              }}
-            />
-            <FloatButton
-              tooltip={{ title: "Upload services", placement: "left" }}
-              icon={<OverridableIcon name="cloudUpload" />}
-              onClick={() => {
-                showModal({
-                  component: <ImportServicesModal onSuccess={() => { void loadServices(); }} systemType={getDefaultType(tab)}/>,
-                });
-              }}
-            />
-            <FloatButton
-              tooltip={{ title: "Create service", placement: "left" }}
-              icon={<OverridableIcon name="plus" />}
-              onClick={() => setCreateModalOpen(true)} />
-          </FloatButtonGroup>
-        </div>
-
-        <CreateServiceModal
-          open={createModalOpen}
-          onCancel={() => {
-            setCreateModalOpen(false);
-            setCreateError(null);
-          }}
-          onCreate={handleCreate}
-          loading={createLoading}
-          error={createError}
-          defaultType={getDefaultType(tab)}
-        />
+      <CreateServiceModal
+        open={createModalOpen}
+        onCancel={() => {
+          setCreateModalOpen(false);
+          setCreateError(null);
+        }}
+        onCreate={handleCreate}
+        loading={createLoading}
+        error={createError}
+        defaultType={getDefaultType(tab)}
+      />
     </Flex>
   );
 };

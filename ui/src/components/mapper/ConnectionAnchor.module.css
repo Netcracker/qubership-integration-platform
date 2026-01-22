@@ -38,7 +38,8 @@
 
 .invalid {
   border: 2px solid #ff5260;
-  background: rgba(255, 82, 96, 0.2);
+  background: rgb(255 82 96 / 20%);
+
   .inner-circle {
     background-color: #ff5260;
   }

@@ -50,17 +50,17 @@
 }
 
 .editing-wrapper {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 8px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .editing-buttons {
-    display: flex;
-    flex-direction: row;
-    gap: 4px;
-    margin-top: 2px;
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  margin-top: 2px;
 }
 
 .key-text {

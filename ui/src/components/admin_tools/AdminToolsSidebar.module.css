@@ -2,11 +2,12 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--vscode-editor-background, #ffffff);
+  background: var(--vscode-editor-background, #fff);
   border-right: 1px solid var(--vscode-border, #d9d9d9);
 }
 
 .sidebarMenu {
   flex-grow: 1;
-  /*overflow-y: auto;*/
+
+  /* overflow-y: auto; */
 }

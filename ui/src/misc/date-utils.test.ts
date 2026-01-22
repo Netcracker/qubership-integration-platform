@@ -1,6 +1,5 @@
 import * as dayjs from "dayjs";
-import {toDayjs, toEpochMillis} from "./date-utils.ts";
-
+import { toDayjs, toEpochMillis } from "./date-utils.ts";
 
 describe("toEpochMillis", () => {
   test("returns 0 when input is null", () => {

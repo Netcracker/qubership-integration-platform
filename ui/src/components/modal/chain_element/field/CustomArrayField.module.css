@@ -1,31 +1,31 @@
 .container {
-    display: flex;
-    gap: 12px;
-    align-items: stretch;
-    width: 100%;
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
 }
 
 .leftColumn {
-    width: 280px;
-    border-right: 1px solid #e8e8e8;
+  width: 280px;
+  border-right: 1px solid #e8e8e8;
 }
 
 .leftToolbar {
-    display: flex;
-    gap: 8px;
-    overflow: auto;
-    padding: 8px 8px 8px 0;
-    align-items: center;
+  display: flex;
+  gap: 8px;
+  overflow: auto;
+  padding: 8px 8px 8px 0;
+  align-items: center;
 }
 
 .rightColumn {
-    flex: 1;
-    padding: 12px;
-    overflow: auto;
-    height: 100%;
+  flex: 1;
+  padding: 12px;
+  overflow: auto;
+  height: 100%;
 }
 
 .sectionTitle {
-    margin-bottom: 8px;
-    font-weight: 500;
+  margin-bottom: 8px;
+  font-weight: 500;
 }

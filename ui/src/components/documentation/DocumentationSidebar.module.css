@@ -30,7 +30,10 @@
 
 /* Hover state */
 .sidebar :global(.ant-tree .ant-tree-node-content-wrapper:hover) {
-  background-color: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.04)) !important;
+  background-color: var(
+    --vscode-list-hoverBackground,
+    rgb(0 0 0 / 4%)
+  ) !important;
 }
 
 /* Selected node - ALWAYS blue in all themes */
@@ -61,13 +64,22 @@
   color: var(--vscode-foreground, #000) !important;
   opacity: 0.6;
   font-size: 12px;
-  transition: transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1), opacity 0.2s ease, color 0.2s ease;
+  transition:
+    transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1),
+    opacity 0.2s ease,
+    color 0.2s ease;
   display: inline-flex;
   transform: rotate(90deg);
 }
 
 /* Rotate arrow down when expanded */
-.sidebar :global(.ant-tree .ant-tree-treenode-switcher-open > .ant-tree-switcher .ant-tree-switcher-icon) {
+.sidebar
+  :global(
+    .ant-tree
+      .ant-tree-treenode-switcher-open
+      > .ant-tree-switcher
+      .ant-tree-switcher-icon
+  ) {
   transform: rotate(90deg) scaleY(-1);
 }
 
@@ -83,23 +95,37 @@
 }
 
 /* Vertical lines for hierarchy - ONLY for nested elements (not root level) */
-.sidebar :global(.ant-tree-show-line .ant-tree-child-tree .ant-tree-indent-unit::before) {
+.sidebar
+  :global(
+    .ant-tree-show-line .ant-tree-child-tree .ant-tree-indent-unit::before
+  ) {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  border-inline-end: 1px solid var(--vscode-editorIndentGuide-background, rgba(0, 0, 0, 0.15)) !important;
+  border-inline-end: 1px solid
+    var(--vscode-editorIndentGuide-background, rgb(0 0 0 / 15%)) !important;
   height: 100%;
-  content: '';
+  content: "";
   z-index: 0;
 }
 
-.sidebar :global(.ant-tree-show-line .ant-tree-child-tree .ant-tree-switcher-leaf-line::before) {
-  border-inline-end: 1px solid var(--vscode-editorIndentGuide-background, rgba(0, 0, 0, 0.15)) !important;
+.sidebar
+  :global(
+    .ant-tree-show-line
+      .ant-tree-child-tree
+      .ant-tree-switcher-leaf-line::before
+  ) {
+  border-inline-end: 1px solid
+    var(--vscode-editorIndentGuide-background, rgb(0 0 0 / 15%)) !important;
 }
 
-.sidebar :global(.ant-tree-show-line .ant-tree-child-tree .ant-tree-switcher-leaf-line::after) {
-  border-bottom: 1px solid var(--vscode-editorIndentGuide-background, rgba(0, 0, 0, 0.15)) !important;
+.sidebar
+  :global(
+    .ant-tree-show-line .ant-tree-child-tree .ant-tree-switcher-leaf-line::after
+  ) {
+  border-bottom: 1px solid
+    var(--vscode-editorIndentGuide-background, rgb(0 0 0 / 15%)) !important;
 }
 
 /* Override any z-index issues */

@@ -1,28 +1,29 @@
 [class~="react-flow__node"] {
-    transition: border-width 120ms ease,
+  transition:
+    border-width 120ms ease,
     box-shadow 120ms ease,
     background-color 120ms ease,
     filter 120ms ease;
 }
 
 [class~="react-flow__node"]:not(.highlight) > div {
-    background: unset;
-    border-width: unset;
-    box-shadow: none;
+  background: unset;
+  border-width: unset;
+  box-shadow: none;
 }
 
 [class~="react-flow__node"].highlight > div {
-    border-width: 3px !important;
-    background: #e0e0e0 !important;
-    box-shadow: none !important;
+  border-width: 3px !important;
+  background: #e0e0e0 !important;
+  box-shadow: none !important;
 }
 
 [class~="react-flow__node"].highlight > div > div:first-child {
-    background: #d6d6d6 !important;
-    border-bottom-color: #c9c9c9 !important;
+  background: #d6d6d6 !important;
+  border-bottom-color: #c9c9c9 !important;
 }
 
 [class~="react-flow__node"].highlight [class~="react-flow__handle"] {
-    box-shadow: none !important;
-    border-width: 2px !important;
+  box-shadow: none !important;
+  border-width: 2px !important;
 }

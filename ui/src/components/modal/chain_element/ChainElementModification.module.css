@@ -1,62 +1,62 @@
 .modal {
-    width: 80vw;
-    height: 80vh;
-    top: 50%;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    background: var(--vscode-modal-background, var(--vscode-panel-background));
-    color: var(--vscode-modal-foreground, var(--vscode-foreground));
-    border: 1px solid var(--vscode-border);
+  width: 80vw;
+  height: 80vh;
+  top: 50%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-modal-background, var(--vscode-panel-background));
+  color: var(--vscode-modal-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-border);
 }
 
 .modal-fullscreen {
-    width: 100vw;
-    height: 100vh;
+  width: 100vw;
+  height: 100vh;
 }
 
 .modal-header {
-    background: var(--vscode-modal-background, var(--vscode-panel-background));
-    color: var(--vscode-modal-foreground, var(--vscode-foreground));
+  background: var(--vscode-modal-background, var(--vscode-panel-background));
+  color: var(--vscode-modal-foreground, var(--vscode-foreground));
 }
 
 .modal-footer {
-    margin-top: auto;
+  margin-top: auto;
 }
 
 .modal-body {
-    overflow-y: auto;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    background: var(--vscode-modal-background, var(--vscode-panel-background));
-    color: var(--vscode-modal-foreground, var(--vscode-foreground));
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-modal-background, var(--vscode-panel-background));
+  color: var(--vscode-modal-foreground, var(--vscode-foreground));
 }
 
 .modal-body-fullscreen {
-    height: calc(100vh - 130px);
+  height: calc(100vh - 130px);
 }
 
 .modal-body :global(.rjsf) {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .modal-body :global(.ant-form-item-additional) {
-    margin-top: auto !important;
+  margin-top: auto !important;
 }
 
 .modal-body :global(#root__description) {
-    font-size: 12px !important;
-    color: var(--vscode-descriptionForeground) !important;
-    padding-top: 16px !important;
+  font-size: 12px !important;
+  color: var(--vscode-descriptionForeground) !important;
+  padding-top: 16px !important;
 }
 
 .custom-textarea textarea {
-    height: 33vh;
+  height: 33vh;
 }
 
 .parameters-form {
@@ -65,12 +65,12 @@
 }
 
 .field-label {
-    display: block;
-    margin-bottom: 6px;
-    font-weight: 500;
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
 }
 
 .field-required {
-    color: #ff4d4f;
-    margin-right: 4px;
+  color: #ff4d4f;
+  margin-right: 4px;
 }

@@ -9,8 +9,8 @@ export default defineConfig({
     host: true,
     port: 4200,
     hmr: {
-      clientPort: 4200
-    }
+      clientPort: 4200,
+    },
   },
   optimizeDeps: {
     include: ['lunr', 'elasticlunr'],
