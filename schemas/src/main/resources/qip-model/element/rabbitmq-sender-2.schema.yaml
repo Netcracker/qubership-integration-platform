@@ -19,8 +19,5 @@ properties:
         type: string
         default: InOnly
         title: Exchange Pattern
-      vhost:
-        type: string
-        title: Vhost
 required:
   - type

@@ -9,7 +9,13 @@ properties:
     title: Propagate context
     description: Propagate context to headers before sending message.
     default: true
-  overrideContextParams:
-    title: Override technical context headers
-    description: Propagate props to headers before sending message.
-    $ref: "http://qubership.org/schemas/product/qip/element/properties/headers.schema.yaml"
+if:
+  properties:
+    propagateContext:
+      const: true
+then:
+  properties:
+    overrideContextParams:
+      title: Override technical context headers
+      description: Propagate props to headers before sending message.
+      $ref: "http://qubership.org/schemas/product/qip/element/properties/headers.schema.yaml"
