@@ -24,9 +24,8 @@ try {
 
   console.log(`Found ${preloadCount} occurrences of __vitePreload, fixing...`);
 
-  // Replace all occurrences with unique names
-  let counter = 0;
-  content = content.replace(/__vitePreload/g, () => `__vitePreload_${counter++}`);
+  // Replace all occurrences with a unique name to avoid conflicts when used as a library
+  content = content.replace(/__vitePreload/g, '__qipVitePreload');
 
   fs.writeFileSync(indexFile, content, 'utf8');
 
