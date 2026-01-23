@@ -6,7 +6,6 @@ charset = utf-8
 indent_style = space
 insert_final_newline = true
 trim_trailing_whitespace = true
-indent_size = 4
 
 [*.sh]
 end_of_line = lf
@@ -35,3 +34,9 @@ profile = black
 
 [*.sh]
 indent_size = 4
+
+[*.yml]
+indent_size = 2
+
+[*.yaml]
+indent_size = 2

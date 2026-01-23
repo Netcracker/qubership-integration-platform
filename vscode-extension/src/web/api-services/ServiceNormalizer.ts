@@ -27,15 +27,15 @@ export class ServiceNormalizer {
             };
         } else {
             const now = Date.now();
-            if (service.content.description === undefined) service.content.description = "";
-            if (service.content.activeEnvironmentId === undefined) service.content.activeEnvironmentId = "";
-            if (service.content.integrationSystemType === undefined) service.content.integrationSystemType = "";
-            if (service.content.protocol === undefined) service.content.protocol = "";
-            if (service.content.extendedProtocol === undefined) service.content.extendedProtocol = "";
-            if (service.content.specification === undefined) service.content.specification = "";
-            if (!service.content.environments) service.content.environments = [];
-            if (!service.content.labels) service.content.labels = [];
-            if (!service.content.migrations) service.content.migrations = [];
+            if (service.content.description === undefined) {service.content.description = "";}
+            if (service.content.activeEnvironmentId === undefined) {service.content.activeEnvironmentId = "";}
+            if (service.content.integrationSystemType === undefined) {service.content.integrationSystemType = "";}
+            if (service.content.protocol === undefined) {service.content.protocol = "";}
+            if (service.content.extendedProtocol === undefined) {service.content.extendedProtocol = "";}
+            if (service.content.specification === undefined) {service.content.specification = "";}
+            if (!service.content.environments) {service.content.environments = [];}
+            if (!service.content.labels) {service.content.labels = [];}
+            if (!service.content.migrations) {service.content.migrations = [];}
 
             // Normalize environments
             if (service.content.environments && Array.isArray(service.content.environments)) {

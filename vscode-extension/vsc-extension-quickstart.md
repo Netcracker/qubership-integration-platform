@@ -1,4 +1,4 @@
-# Welcome to your VS Code Extension
+# Welcome to your Visual Studio Code Extension
 
 ## What's in the folder
 
@@ -21,7 +21,7 @@
 ## Make changes
 
 * You can relaunch the extension from the debug toolbar after changing code in `src/web/extension.ts`.
-* You can also reload (`Ctrl+R` or `Cmd+R` on Mac) the VS Code window with your extension to load your changes.
+* You can also reload (`Ctrl+R` or `Cmd+R` on Mac) the Visual Studio Code window with your extension to load your changes.
 
 ## Explore the API
 
@@ -40,5 +40,5 @@
 
 * [Follow UX guidelines](https://code.visualstudio.com/api/ux-guidelines/overview) to create extensions that seamlessly integrate with VS Code's native interface and patterns.
 * Check out the [Web Extension Guide](https://code.visualstudio.com/api/extension-guides/web-extensions).
-* [Publish your extension](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) on the VS Code extension marketplace.
+* [Publish your extension](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) on the Visual Studio Code extension marketplace.
 * Automate builds by setting up [Continuous Integration](https://code.visualstudio.com/api/working-with-extensions/continuous-integration).

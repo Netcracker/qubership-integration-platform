@@ -1,8 +1,8 @@
-import { SerializedFile, ApiSpecificationType } from "./importApiTypes";
-import { FileConversionService } from "../services/FileConversionService";
-import { ProtoSpecificationParser } from "./parsers/ProtoSpecificationParser";
-import { ProtoOperationResolver } from "./parsers/proto/ProtoOperationResolver";
-import type { ProtoData, ResolvedProtoOperation } from "./parsers/proto/ProtoTypes";
+import {SerializedFile, ApiSpecificationType} from "./importApiTypes";
+import {FileConversionService} from "../services/FileConversionService";
+import {ProtoSpecificationParser} from "./parsers/ProtoSpecificationParser";
+import {ProtoOperationResolver} from "./parsers/proto/ProtoOperationResolver";
+import type {ProtoData, ResolvedProtoOperation} from "./parsers/proto/ProtoTypes";
 
 export interface ParsedSpecification {
     id: string;
@@ -52,7 +52,7 @@ export interface ParsedResponse {
  * Handles OpenAPI, AsyncAPI, GraphQL, gRPC, SOAP specifications
  */
 export class SpecificationParserService {
-    
+
     /**
      * Parse specification from SerializedFile
      */
@@ -86,7 +86,7 @@ export class SpecificationParserService {
      */
     async parseSpecifications(files: SerializedFile[]): Promise<ParsedSpecification[]> {
         const results: ParsedSpecification[] = [];
-        
+
         for (const file of files) {
             try {
                 const parsed = await this.parseSpecification(file);
@@ -105,7 +105,7 @@ export class SpecificationParserService {
      */
     private detectSpecificationType(file: SerializedFile): ApiSpecificationType {
         const extension = FileConversionService.getFileExtension(file.name).toLowerCase();
-        
+
         switch (extension) {
             case '.wsdl':
             case '.xsd':
@@ -147,9 +147,9 @@ export class SpecificationParserService {
                 for (const [path, pathItem] of Object.entries(spec.paths)) {
                     if (typeof pathItem === 'object' && pathItem !== null) {
                         for (const [method, operation] of Object.entries(pathItem)) {
-                            if (typeof operation === 'object' && operation !== null && 
+                            if (typeof operation === 'object' && operation !== null &&
                                 ['get', 'post', 'put', 'delete', 'patch', 'head', 'options'].includes(method.toLowerCase())) {
-                                
+
                                 const op = operation as any;
                                 operations.push({
                                     id: op.operationId || `${method.toUpperCase()}_${path.replace(/[^a-zA-Z0-9]/g, '_')}`,
@@ -199,7 +199,7 @@ export class SpecificationParserService {
                 for (const [channelName, channel] of Object.entries(spec.channels)) {
                     if (typeof channel === 'object' && channel !== null) {
                         const ch = channel as any;
-                        
+
                         // Subscribe operation
                         if (ch.subscribe) {
                             operations.push({
@@ -261,7 +261,7 @@ export class SpecificationParserService {
 
             for (const line of lines) {
                 const trimmed = line.trim();
-                
+
                 // Detect query
                 if (trimmed.startsWith('query ')) {
                     const name = trimmed.split(' ')[1]?.split('(')[0] || 'Query';
@@ -420,13 +420,13 @@ export class SpecificationParserService {
     private async parseSoapSpecification(content: string, file: SerializedFile): Promise<ParsedSpecification> {
         try {
             const operations: ParsedOperation[] = [];
-            
+
             // Simple XML parsing for WSDL
             const portTypeMatch = content.match(/<portType[^>]*name="([^"]*)"[^>]*>(.*?)<\/portType>/s);
             if (portTypeMatch) {
                 const serviceName = portTypeMatch[1];
                 const portTypeContent = portTypeMatch[2];
-                
+
                 const operationMatches = portTypeContent.match(/<operation[^>]*name="([^"]*)"[^>]*>/g);
                 if (operationMatches) {
                     for (const operationMatch of operationMatches) {
@@ -504,8 +504,10 @@ export class SpecificationParserService {
      * Parse AsyncAPI responses
      */
     private parseAsyncApiResponses(message: any): ParsedResponse[] {
-        if (!message) {return [];}
-        
+        if (!message) {
+            return [];
+        }
+
         return [{
             statusCode: '200',
             description: message.description,

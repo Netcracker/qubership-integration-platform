@@ -1,4 +1,4 @@
-import { SerializedFile } from '../api-services/importApiTypes';
+import {SerializedFile} from '../api-services/importApiTypes';
 
 /**
  * Service for converting between File objects and SerializedFile objects
@@ -11,7 +11,7 @@ export class FileConversionService {
     static async fileToSerializedFile(file: File): Promise<SerializedFile> {
         try {
             const arrayBuffer = await file.arrayBuffer();
-            
+
             return {
                 name: file.name,
                 size: file.size,
@@ -33,9 +33,9 @@ export class FileConversionService {
             if (!(serializedFile.content instanceof ArrayBuffer)) {
                 throw new Error('Invalid content type: expected ArrayBuffer');
             }
-            
-            const blob = new Blob([serializedFile.content], { type: serializedFile.type });
-            
+
+            const blob = new Blob([serializedFile.content], {type: serializedFile.type});
+
             return new File([blob], serializedFile.name, {
                 type: serializedFile.type,
                 lastModified: serializedFile.lastModified
@@ -149,12 +149,12 @@ export class FileConversionService {
      * Gets file size in human readable format
      */
     static getFileSizeString(bytes: number): string {
-        if (bytes === 0) return '0 Bytes';
-        
+        if (bytes === 0) {return '0 Bytes';}
+
         const k = 1024;
         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
-        
+
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 }

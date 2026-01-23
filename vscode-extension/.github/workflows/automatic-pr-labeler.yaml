@@ -10,9 +10,9 @@ name: Automatic PR Labeler
 
 on:
   pull_request:
-    branches: [main]
+    branches: [ main ]
     types:
-      [opened, reopened, synchronize]
+      [ opened, reopened, synchronize ]
 
 permissions:
   pull-requests: write
@@ -24,13 +24,13 @@ jobs:
     if: (github.event.pull_request.merged == false) && (github.event.pull_request.user.login != 'dependabot[bot]') && (github.event.pull_request.user.login != 'github-actions[bot]')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
 
       - name: "Execute assign labels"
         id: action-assign-labels
-        uses: mauroalderete/action-assign-labels@v1
+        uses: mauroalderete/action-assign-labels@671a4ca2da0f900464c58b8b5540a1e07133e915 # v1.5.1
         with:
           pull-request-number: ${{ github.event.pull_request.number }}
           github-token: ${{ github.token }}
@@ -39,9 +39,11 @@ jobs:
           apply-changes: ${{ github.event.pull_request.base.repo.id == github.event.pull_request.head.repo.id }}
       - name: "Drop warning if PR from fork"
         if: ${{ github.event.pull_request.base.repo.id != github.event.pull_request.head.repo.id }}
+        env:
+          LABELS_NEXT: ${{ steps.action-assign-labels.outputs.labels-next }}
         run: |
           {
             echo "⚠️ Pull request from fork! ⚠️";
             echo "Labels will not be applied to PR. Assign them manually please.";
-            echo "Labels to assign: ${{ steps.action-assign-labels.outputs.labels-next }}";
+            echo "Labels to assign: $LABELS_NEXT";
           } >> "$GITHUB_STEP_SUMMARY"

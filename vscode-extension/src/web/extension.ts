@@ -8,18 +8,29 @@ import {
     WebviewPanel
 } from "vscode";
 import {getApiResponse} from "./response";
-import { setFileApi } from "./response/file";
-import { VSCodeFileApi } from "./response/file/fileApiImpl";
-import { getExtensionsForUri, setCurrentFileContext, extractFilename, initializeContextFromFile } from "./response/file/fileExtensions";
-import { QipExplorerProvider } from "./qipExplorer";
+import {setFileApi} from "./response/file";
+import {VSCodeFileApi} from "./response/file/fileApiImpl";
+import {
+    getExtensionsForUri,
+    setCurrentFileContext,
+    extractFilename,
+    initializeContextFromFile
+} from "./response/file/fileExtensions";
+import {QipExplorerProvider} from "./qipExplorer";
 import {VSCodeMessage, VSCodeResponse} from "@netcracker/qip-ui";
-import { FileCacheService } from "./services/FileCacheService";
-import { ProjectConfigService, CONFIG_FILENAME, ProjectConfig } from "./services/ProjectConfigService";
-import { ConfigApiProvider } from "./services/ConfigApiProvider";
-import { getAndClearNavigationStateValue, getNavigationStateValue, initNavigationState, updateNavigationStateValue } from "./response/navigationUtils";
+import {FileCacheService} from "./services/FileCacheService";
+import {ProjectConfigService, CONFIG_FILENAME, ProjectConfig} from "./services/ProjectConfigService";
+import {ConfigApiProvider} from "./services/ConfigApiProvider";
+import {
+    getAndClearNavigationStateValue,
+    getNavigationStateValue,
+    initNavigationState,
+    updateNavigationStateValue
+} from "./response/navigationUtils";
 
 export interface QipExtensionAPI {
     loadConfigFromPath(configUri: Uri): Promise<void>;
+
     registerConfig(appName: string, configData: {
         extensions?: {
             chain?: string;
@@ -34,7 +45,9 @@ export interface QipExtensionAPI {
             specificationGroup?: string;
         };
     }): void;
+
     unregisterConfig(appName: string): void;
+
     getConfig(appName: string): ProjectConfig | undefined;
 }
 
@@ -204,7 +217,7 @@ class ChainFileEditorProvider implements CustomTextEditorProvider {
                     const navigateMessage: VSCodeMessage<any> = {
                         requestId: crypto.randomUUID(),
                         type: "navigate",
-                        payload: { path: path },
+                        payload: {path: path},
                     };
 
                     const response: VSCodeResponse<any> = {
@@ -292,9 +305,9 @@ function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: 
                 let editor = undefined;
                 if (documentUri.path.endsWith(fileExtensions.chain)) {
                     editor = 'qip.chainFile.editor';
-                } else if (documentUri.path.endsWith(fileExtensions.service)){
+                } else if (documentUri.path.endsWith(fileExtensions.service)) {
                     editor = 'qip.serviceFile.editor';
-                } else if (documentUri.path.endsWith(fileExtensions.contextService)){
+                } else if (documentUri.path.endsWith(fileExtensions.contextService)) {
                     editor = 'qip.contextServiceFile.editor';
                 }
                 if (!editor) {
@@ -337,7 +350,7 @@ async function deleteServiceWithRelatedFiles(serviceFileUri: Uri, serviceName: s
         }
 
         for (const fileUri of filesToDelete) {
-            await vscode.workspace.fs.delete(fileUri, { recursive: true });
+            await vscode.workspace.fs.delete(fileUri, {recursive: true});
             cacheService.invalidateByUri(fileUri);
         }
 
@@ -346,7 +359,7 @@ async function deleteServiceWithRelatedFiles(serviceFileUri: Uri, serviceName: s
         if (!isRootFolder) {
             const remainingEntries = await vscode.workspace.fs.readDirectory(serviceFolderUri);
             if (remainingEntries.length === 0) {
-                await vscode.workspace.fs.delete(serviceFolderUri, { recursive: true });
+                await vscode.workspace.fs.delete(serviceFolderUri, {recursive: true});
             }
         }
 
@@ -481,20 +494,20 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
     );
 
     context.subscriptions.push(vscode.commands.registerCommand('qip.open', function () {
-		// The code you place here will be executed every time your command is executed
+        // The code you place here will be executed every time your command is executed
 
-		// Display a message box to the user
-		//vscode.window.showInformationMessage('Hello World from qip-visual-studio-extension in a web extension host!');
+        // Display a message box to the user
+        //vscode.window.showInformationMessage('Hello World from qip-visual-studio-extension in a web extension host!');
 
-	   const panel = vscode.window.createWebviewPanel(
-          'qipWebView', // Identifies the type of the webview
-          'QIP Offline Chain Editor', // Title of the panel
-          vscode.ViewColumn.One, // Show in the first column
-          {
-            enableScripts: true, // Allow JavaScript execution
-            retainContextWhenHidden: true, // Keep state when hidden
-            enableCommandUris: true
-          }
+        const panel = vscode.window.createWebviewPanel(
+            'qipWebView', // Identifies the type of the webview
+            'QIP Offline Chain Editor', // Title of the panel
+            vscode.ViewColumn.One, // Show in the first column
+            {
+                enableScripts: true, // Allow JavaScript execution
+                retainContextWhenHidden: true, // Keep state when hidden
+                enableCommandUris: true
+            }
         );
 
         enrichWebview(panel, context, undefined);
@@ -583,7 +596,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
                     const fileName = item.fileUri.fsPath;
                     let editorType = 'qip.chainFile.editor'; // default
 
-                    const fileExtensions = getExtensionsForUri({ path: fileName });
+                    const fileExtensions = getExtensionsForUri({path: fileName});
                     if (fileName.endsWith(fileExtensions.service)) {
                         editorType = 'qip.serviceFile.editor';
                     } else if (fileName.endsWith(fileExtensions.chain)) {
@@ -618,7 +631,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
             if (item && item.fileUri) {
                 const result = await vscode.window.showWarningMessage(
                     `Are you sure you want to delete service "${item.label}"?`,
-                    { modal: true },
+                    {modal: true},
                     'Delete'
                 );
                 if (result === 'Delete') {
@@ -638,7 +651,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
             if (item && item.fileUri) {
                 const result = await vscode.window.showWarningMessage(
                     `Are you sure you want to delete chain "${item.label}"?`,
-                    { modal: true },
+                    {modal: true},
                     'Delete'
                 );
                 if (result === 'Delete') {
@@ -676,12 +689,13 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+}
 
 
 function getWebviewContent(context: ExtensionContext, webview: Webview) {
 
-  // Dynamically load the JS and CSS files
+    // Dynamically load the JS and CSS files
     const jsFileUri = vscode.Uri.joinPath(
         context.extensionUri,
         'node_modules',
@@ -710,7 +724,7 @@ function getWebviewContent(context: ExtensionContext, webview: Webview) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>QIP Offline Chain Editor</title>
         <link href="${cssUri}" rel="stylesheet">
-		<script type="module" crossorigin src="${jsUri}"></script>
+	    <script type="module" crossorigin src="${jsUri}"></script>
         <style>
           html, body {
             margin: 0 !important;

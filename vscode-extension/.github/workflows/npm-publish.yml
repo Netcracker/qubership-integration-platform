@@ -1,135 +1,140 @@
 ---
 
-  # This GitHub Actions workflow can be triggered in three ways:
-  # 1. Automatically on push to any branch (runs in dry-run mode for safety)
-  # 2. Automatically publish npm on push if package.json version contains -dev (publishing for testing purposes)
-  # 3. Manually via workflow_dispatch with configurable parameters
+# This GitHub Actions workflow can be triggered in three ways:
+# 1. Automatically on push to any branch (runs in dry-run mode for safety)
+# 2. Automatically publish npm on push if package.json version contains -dev (publishing for testing purposes)
+# 3. Manually via workflow_dispatch with configurable parameters
 
-  name: Publish NPM package
+name: Publish NPM package
 
-  run-name: NPM Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry-run)) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && !inputs.dry-run && inputs.version) && format(' {0}', inputs.version) || '' }}
+run-name: NPM Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry-run)) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && !inputs.dry-run && inputs.version) && format(' {0}', inputs.version) || '' }}
 
-  on:
-    push:
-      branches:
-        - '**'
-    workflow_dispatch:
-      inputs:
-        version:
-          description: 'Release version for NPM (e.g., 1.0.0)'
-          required: false
-          type: string
-        scope:
-          description: 'NPM scope for the package'
-          required: false
-          type: string
-          default: '@netcracker'
-        node-version:
-          required: false
-          type: string
-          default: "22.x"
-        registry-url:
-          required: false
-          type: string
-          default: "https://npm.pkg.github.com"
-        update-nc-dependency:
-          required: false
-          type: boolean
-          default: false
-        dry-run:
-          description: 'Run in dry-run mode (no actual publishing)'
-          required: false
-          type: boolean
-          default: false
-        npm-dist-tag:
-          description: 'NPM distribution tag'
-          required: false
-          type: string
-          default: 'latest'
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version for NPM (e.g., 1.0.0)'
+        required: false
+        type: string
+      scope:
+        description: 'NPM scope for the package'
+        required: false
+        type: string
+        default: '@netcracker'
+      node-version:
+        required: false
+        type: string
+        default: "22.x"
+      registry-url:
+        required: false
+        type: string
+        default: "https://npm.pkg.github.com"
+      update-nc-dependency:
+        required: false
+        type: boolean
+        default: false
+      dry-run:
+        description: 'Run in dry-run mode (no actual publishing)'
+        required: false
+        type: boolean
+        default: false
+      npm-dist-tag:
+        description: 'NPM distribution tag'
+        required: false
+        type: string
+        default: 'latest'
 
-  permissions:
-    contents: write
-    packages: write
+permissions: {}
 
-  jobs:
-    test-with-sonar:
-        runs-on: ubuntu-latest
+jobs:
+  test-with-sonar:
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ github.event_name == 'workflow_dispatch' && inputs.node-version || '22.x' }}
+          registry-url: ${{ github.event_name == 'workflow_dispatch' && inputs.registry-url || 'https://npm.pkg.github.com' }}
+          scope: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || '@netcracker' }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Test with coverage
+        run: npm run test:unit:coverage
+
+      - name: Sonar scan (SonarQube Cloud)
+        if: ${{ github.ref_name == github.event.repository.default_branch }}
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
         env:
-            NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: >
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=src
+            -Dsonar.tests=src
+            -Dsonar.test.inclusions=**/*.test.ts,**/*.spec.ts,**/*.test.tsx,**/*.spec.tsx
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-              with:
-                ref: ${{ inputs.ref}}
-                fetch-depth: 0
+  prepare-version:
+    runs-on: ubuntu-latest
+    outputs:
+      publish_version: ${{ steps.set_version.outputs.publish_version }}
+      is_dev: ${{ steps.set_version.outputs.is_dev }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                node-version: ${{ github.event_name == 'workflow_dispatch' && inputs.node-version || '22.x' }}
-                registry-url: ${{ github.event_name == 'workflow_dispatch' && inputs.registry-url || 'https://npm.pkg.github.com' }}
-                scope: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || '@netcracker' }}
+      - name: Get package version
+        id: get_version
+        run: echo "package_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-            - name: Install dependencies
-              run: npm ci --legacy-peer-deps
+      - name: Set publish version
+        id: set_version
+        env:
+          PACKAGE_VERSION: ${{ steps.get_version.outputs.package_version }}
+        run: |
+          VERSION="$PACKAGE_VERSION"
+          if [[ "$VERSION" == *"-dev" ]]; then
+            TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+            echo "publish_version=${VERSION}.${TIMESTAMP}" >> $GITHUB_OUTPUT
+            echo "is_dev=true" >> $GITHUB_OUTPUT
+          else
+            echo "publish_version=$VERSION" >> $GITHUB_OUTPUT
+            echo "is_dev=false" >> $GITHUB_OUTPUT
+          fi
 
-            - name: Test with coverage
-              run: npm run test:unit:coverage
-
-            - name: Sonar scan (SonarQube Cloud)
-              if: ${{ github.ref_name == github.event.repository.default_branch }}
-              uses: SonarSource/sonarqube-scan-action@v2
-              env:
-                SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                args: >
-                  -Dsonar.host.url=https://sonarcloud.io
-                  -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-                  -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-                  -Dsonar.sources=src
-                  -Dsonar.tests=src
-                  -Dsonar.test.inclusions=**/*.test.ts,**/*.spec.ts,**/*.test.tsx,**/*.spec.tsx
-                  -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-
-    prepare-version:
-      runs-on: ubuntu-latest
-      outputs:
-        publish_version: ${{ steps.set_version.outputs.publish_version }}
-        is_dev: ${{ steps.set_version.outputs.is_dev }}
-      steps:
-        - uses: actions/checkout@v4
-
-        - name: Get package version
-          id: get_version
-          run: echo "package_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-        - name: Set publish version
-          id: set_version
-          run: |
-            VERSION=${{ steps.get_version.outputs.package_version }}
-            if [[ "$VERSION" == *"-dev" ]]; then
-              TIMESTAMP=$(date +'%Y%m%d%H%M%S')
-              NEW_VERSION="${VERSION}.${TIMESTAMP}"
-              echo "publish_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-              echo "is_dev=true" >> $GITHUB_OUTPUT
-            else
-              echo "publish_version=$VERSION" >> $GITHUB_OUTPUT
-              echo "is_dev=false" >> $GITHUB_OUTPUT
-            fi
-
-    npm-publish:
-      needs: prepare-version
-      uses: ./.github/workflows/re-npm-publish.yml
-      with:
-        version: ${{ github.event_name == 'workflow_dispatch' && inputs.version || needs.prepare-version.outputs.publish_version }}
-        scope: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || '@netcracker' }}
-        node-version: ${{ github.event_name == 'workflow_dispatch' && inputs.node-version || '22.x' }}
-        registry-url: ${{ github.event_name == 'workflow_dispatch' && inputs.registry-url || 'https://npm.pkg.github.com' }}
-        update-nc-dependency: ${{ github.event_name == 'workflow_dispatch' && inputs.update-nc-dependency || false }}
-        dry-run: ${{ (github.event_name == 'push' && needs.prepare-version.outputs.is_dev != 'true') || (github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
-        dist-tag: ${{ github.event_name == 'push' && needs.prepare-version.outputs.is_dev == 'true' && 'dev' || (github.event_name == 'workflow_dispatch' && inputs.npm-dist-tag != '' && inputs.npm-dist-tag) || 'latest' }}
-        ref: ${{ github.ref_name }}
-        is_dev: ${{ needs.prepare-version.outputs.is_dev == 'true' }}
-      secrets: inherit
+  npm-publish:
+    needs: prepare-version
+    uses: Netcracker/qubership-workflow-hub/.github/workflows/re-npm-publish.yml@8af13ac7ea017b87a8501e9b119a5c86c532a5b2
+    permissions:
+      contents: write
+      packages: write
+    with:
+      version: ${{ github.event_name == 'workflow_dispatch' && inputs.version || needs.prepare-version.outputs.publish_version }}
+      scope: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || '@netcracker' }}
+      node-version: ${{ github.event_name == 'workflow_dispatch' && inputs.node-version || '22.x' }}
+      registry-url: ${{ github.event_name == 'workflow_dispatch' && inputs.registry-url || 'https://npm.pkg.github.com' }}
+      update-nc-dependency: ${{ github.event_name == 'workflow_dispatch' && inputs.update-nc-dependency || false }}
+      dry-run: ${{ (github.event_name == 'push' && needs.prepare-version.outputs.is_dev != 'true') || (github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
+      dist-tag: ${{ github.event_name == 'push' && needs.prepare-version.outputs.is_dev == 'true' && 'dev' || (github.event_name == 'workflow_dispatch' && inputs.npm-dist-tag != '' && inputs.npm-dist-tag) || 'latest' }}
+      ref: ${{ github.ref_name }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

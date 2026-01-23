@@ -1,11 +1,13 @@
-# Qubership Integration VSCode Extension
+# Qubership Integration Visual Studio Code Extension
 
-This is vscode extension based on [Qubership Integration Platform - UI](https://github.com/Netcracker/qubership-integration-ui) 
-project to manipulate chain configurations offline. To run configurations you still need the other part of [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform).
+This is Visual Studio Code extension based
+on [Qubership Integration Platform - UI](https://github.com/Netcracker/qubership-integration-ui)
+project to manipulate chain configurations offline. To run configurations you still need the other part
+of [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform).
 
 ## Build
 
-This application should be built by Visual Studio Code itself (usually F5 hotkey at opened project in vscode).
+This application should be built by Visual Studio Code itself (usually F5 hotkey at opened project in Visual Studio Code).
 
 ## Contribution
 

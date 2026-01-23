@@ -1,22 +1,22 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { ApiSpecificationType } from "../api-services/importApiTypes";
-import { 
-    QIP_SCHEMAS, 
-    QipSchemaType, 
-    ValidationResult, 
+import {ApiSpecificationType} from "../api-services/importApiTypes";
+import {
+    QIP_SCHEMAS,
+    QipSchemaType,
+    ValidationResult,
     ValidationError,
     getQipSchemaType,
     isQipSchema
 } from "../services/qipSchemas";
-import { FileParserService } from "../services/FileParserService";
+import {FileParserService} from "../services/FileParserService";
 
 export class SpecificationValidator {
     private static ajv: Ajv;
-    
+
     static {
         // Initialize AJV for JSON Schema validation
-        this.ajv = new Ajv({ allErrors: true });
+        this.ajv = new Ajv({allErrors: true});
         addFormats(this.ajv);
 
         this.ajv.addSchema(QIP_SCHEMAS.SPECIFICATION, 'specification');
@@ -24,13 +24,13 @@ export class SpecificationValidator {
         this.ajv.addSchema(QIP_SCHEMAS.SERVICE, 'service');
         this.ajv.addSchema(QIP_SCHEMAS.CHAIN, 'chain');
     }
-    
+
     /**
      * Validates OpenAPI/Swagger specification from file
      */
     static async validateOpenApiSpecFromFile(file: File): Promise<boolean> {
         try {
-            const { content } = await FileParserService.parseFileContent(file);
+            const {content} = await FileParserService.parseFileContent(file);
             this.validateOpenApiSpec(content);
             return true;
         } catch (error) {
@@ -47,18 +47,18 @@ export class SpecificationValidator {
                 if (!FileParserService.hasTextMethod(file)) {
                     resolve({
                         valid: false,
-                        errors: [{ path: 'file', message: 'File.text() method not available' }]
+                        errors: [{path: 'file', message: 'File.text() method not available'}]
                     });
                     return;
                 }
 
-                const { content } = await FileParserService.parseFileContent(file);
+                const {content} = await FileParserService.parseFileContent(file);
 
                 // Check for $schema presence
                 if (!content || !content.$schema) {
                     resolve({
                         valid: false,
-                        errors: [{ path: '$schema', message: 'Missing $schema field' }]
+                        errors: [{path: '$schema', message: 'Missing $schema field'}]
                     });
                     return;
                 }
@@ -68,14 +68,14 @@ export class SpecificationValidator {
                 if (!schemaType) {
                     resolve({
                         valid: false,
-                        errors: [{ path: '$schema', message: `Unknown QIP schema: ${content.$schema}` }]
+                        errors: [{path: '$schema', message: `Unknown QIP schema: ${content.$schema}`}]
                     });
                     return;
                 }
 
                 // Ensure AJV is initialized
                 if (!this.ajv) {
-                    this.ajv = new Ajv({ allErrors: true });
+                    this.ajv = new Ajv({allErrors: true});
                     addFormats(this.ajv);
                     this.ajv.addSchema(QIP_SCHEMAS.SPECIFICATION, 'specification');
                     this.ajv.addSchema(QIP_SCHEMAS.SPECIFICATION_GROUP, 'specification-group');
@@ -88,7 +88,7 @@ export class SpecificationValidator {
                 if (!validate) {
                     resolve({
                         valid: false,
-                        errors: [{ path: 'schema', message: `Schema validator not found for type: ${schemaType}` }]
+                        errors: [{path: 'schema', message: `Schema validator not found for type: ${schemaType}`}]
                     });
                     return;
                 }
@@ -113,7 +113,10 @@ export class SpecificationValidator {
             } catch (error) {
                 resolve({
                     valid: false,
-                    errors: [{ path: 'file', message: `Parse error: ${error instanceof Error ? error.message : 'Unknown error'}` }]
+                    errors: [{
+                        path: 'file',
+                        message: `Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    }]
                 });
             }
         });
@@ -128,7 +131,7 @@ export class SpecificationValidator {
                 return false;
             }
 
-            const { content } = await FileParserService.parseFileContent(file);
+            const {content} = await FileParserService.parseFileContent(file);
             return !!(content && content.$schema && isQipSchema(content.$schema));
         } catch (error) {
             return false;
@@ -144,7 +147,7 @@ export class SpecificationValidator {
                 return null;
             }
 
-            const { content } = await FileParserService.parseFileContent(file);
+            const {content} = await FileParserService.parseFileContent(file);
             return getQipSchemaType(content.$schema);
         } catch (error) {
             return null;
@@ -278,7 +281,7 @@ export class SpecificationValidator {
             // Check HTTP methods
             const httpMethods = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options'];
             const hasValidMethod = httpMethods.some(method => pathItem[method]);
-            
+
             if (!hasValidMethod) {
                 throw new Error(`Invalid specification: no valid HTTP methods found for path "${path}"`);
             }
