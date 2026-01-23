@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service.variables;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.KubeOperatorAutoConfiguration;
+import org.qubership.integration.platform.runtime.catalog.configuration.tenant.TenantConfiguration;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.SecretService;
 import org.slf4j.MDC;
 import org.springframework.retry.annotation.Backoff;
@@ -33,12 +34,14 @@ import java.util.Map;
 @Component
 public class DefaultVariablesService {
     public static final String NAMESPACE_VARIABLE_NAME = "namespace";
+    public static final String TENANT_VARIABLE_NAME = "tenant_id";
     public static final List<String> DEFAULT_VARIABLES_LIST = new ArrayList<>();
 
     private final SecretService secretService;
     private final CommonVariablesService commonVariablesService;
     private final SecuredVariableService securedVariableService;
     private final KubeOperatorAutoConfiguration kubeOperatorAutoConfiguration;
+    private final TenantConfiguration tenantConfiguration;
     private final DefaultVariablesProvider defaultVariablesProvider;
 
     public DefaultVariablesService(
@@ -46,14 +49,17 @@ public class DefaultVariablesService {
             CommonVariablesService commonVariablesService,
             SecuredVariableService securedVariableService,
             KubeOperatorAutoConfiguration kubeOperatorAutoConfiguration,
+            TenantConfiguration tenantConfiguration,
             DefaultVariablesProvider defaultVariablesProvider
     ) {
         this.secretService = secretService;
         this.commonVariablesService = commonVariablesService;
         this.securedVariableService = securedVariableService;
         this.kubeOperatorAutoConfiguration = kubeOperatorAutoConfiguration;
+        this.tenantConfiguration = tenantConfiguration;
         this.defaultVariablesProvider = defaultVariablesProvider;
         DEFAULT_VARIABLES_LIST.add(NAMESPACE_VARIABLE_NAME);
+        DEFAULT_VARIABLES_LIST.add(TENANT_VARIABLE_NAME);
         DEFAULT_VARIABLES_LIST.addAll(defaultVariablesProvider.getDefaultVariableNames());
     }
 
@@ -83,6 +89,7 @@ public class DefaultVariablesService {
         Map<String, String> defaultCommonVariables = new HashMap<>();
 
         defaultCommonVariables.put(NAMESPACE_VARIABLE_NAME, kubeOperatorAutoConfiguration.getNamespace());
+        defaultCommonVariables.put(TENANT_VARIABLE_NAME, tenantConfiguration.getDefaultTenant());
         defaultCommonVariables.putAll(defaultVariablesProvider.provide());
 
         return defaultCommonVariables;
