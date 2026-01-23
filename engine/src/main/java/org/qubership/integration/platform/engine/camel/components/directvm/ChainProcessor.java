@@ -20,6 +20,7 @@ import org.apache.camel.*;
 import org.apache.camel.support.DefaultExchange;
 import org.apache.camel.support.ExchangeHelper;
 import org.apache.camel.support.processor.DelegateAsyncProcessor;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,10 +33,12 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChainProcessor.class);
     private final ChainEndpoint endpoint;
+    private boolean previousIsChainCallTriggered;
 
     public ChainProcessor(Processor processor, ChainEndpoint endpoint) {
         super(processor);
         this.endpoint = endpoint;
+        this.previousIsChainCallTriggered = false;
     }
 
     @Override
@@ -67,6 +70,7 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
                         // make sure to copy results back
                         ExchangeHelper.copyResults(exchange, copy);
                     } finally {
+                        restoreIsChainCallTriggered(exchange);
                         // must call callback when we are done
                         callback.done(done);
                     }
@@ -100,6 +104,7 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
         if (newExchange.getProperty(ExchangePropertyKey.STREAM_CACHE_UNIT_OF_WORK) == null) {
             newExchange.setProperty(ExchangePropertyKey.STREAM_CACHE_UNIT_OF_WORK, exchange.getUnitOfWork());
         }
+        setNewIsChainCallTriggered(newExchange);
         return newExchange;
     }
 
@@ -142,6 +147,15 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
             return null;
         }
         return new ConcurrentHashMap<>(properties);
+    }
+
+    private void setNewIsChainCallTriggered(Exchange exchange) {
+        previousIsChainCallTriggered = exchange.getProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, false, Boolean.class);
+        exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, true);
+    }
+
+    private void restoreIsChainCallTriggered(Exchange exchange) {
+        exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, previousIsChainCallTriggered);
     }
 
     @Override
