@@ -1,8 +1,6 @@
 # qubership-integration-schemas
 
-This repository is for store integration schemas that used in [Runtime Catalog](https://github.com/Netcracker/qubership-integration-runtime-catalog),[UI](https://github.com/Netcracker/qubership-integration-ui/) and [VSCode extension](https://github.com/Netcracker/qubership-integration-vscode-extension)
-
-Click [here](https://github.com/Netcracker/qubership-repo-template/generate) to create your copy of this repository.
+This repository is for store integration schemas that used in [Runtime Catalog](https://github.com/Netcracker/qubership-integration-runtime-catalog),[UI](https://github.com/Netcracker/qubership-integration-ui/) and [Visual Studio Code extension](https://github.com/Netcracker/qubership-integration-vscode-extension)
 
 ## Contribution
 

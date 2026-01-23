@@ -1,9 +1,9 @@
 import path from "path";
 import fs from "fs";
 import os from "os";
-import { glob } from "glob";
+import {glob} from "glob";
 import yaml from "js-yaml";
-import { compile } from "json-schema-to-typescript";
+import {compile} from "json-schema-to-typescript";
 import $RefParser from "@apidevtools/json-schema-ref-parser";
 
 // ===== Config =====
@@ -13,7 +13,7 @@ const GENERATED_DIR = path.resolve(process.cwd(), "types");
 const REF_PREFIX = "http://qubership.org/schemas/product/qip/";
 
 // Ensure generated directory exists
-fs.mkdirSync(GENERATED_DIR, { recursive: true });
+fs.mkdirSync(GENERATED_DIR, {recursive: true});
 
 // ===== Helpers =====
 function loadSchema(filePath: string) {
@@ -57,14 +57,14 @@ function rewriteRefsAndIds(obj: any, currentFile: string): any {
 
 // ===== Copy all schema files to temp dir =====
 async function copyAllSchemas(): Promise<string[]> {
-    const files = await glob("**/*.{yaml,yml,json}", { cwd: SCHEMA_SRC_DIR, absolute: true, nodir: true });
+    const files = await glob("**/*.{yaml,yml,json}", {cwd: SCHEMA_SRC_DIR, absolute: true, nodir: true});
     for (const src of files) {
         const rel = path.relative(SCHEMA_SRC_DIR, src);
         const dest = path.join(TEMP_DIR, rel);
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.mkdirSync(path.dirname(dest), {recursive: true});
         fs.copyFileSync(src, dest);
     }
-    const tempFiles = await glob("**/*.{yaml,yml,json}", { cwd: TEMP_DIR, absolute: true, nodir: true });
+    const tempFiles = await glob("**/*.{yaml,yml,json}", {cwd: TEMP_DIR, absolute: true, nodir: true});
     return tempFiles;
 }
 
@@ -85,8 +85,8 @@ async function compileSchemas(tempFiles: string[]) {
 
             // Fully dereference schema locally (no HTTP)
             const schema = await $RefParser.dereference(file, {
-                resolve: { file: { order: 1 } },
-                dereference: { circular: "ignore" },
+                resolve: {file: {order: 1}},
+                dereference: {circular: "ignore"},
             });
 
             // Compile to TypeScript
@@ -97,7 +97,7 @@ async function compileSchemas(tempFiles: string[]) {
 
             const relPath = path.relative(TEMP_DIR, file).replace(/\.(yaml|yml|json)$/, ".d.ts");
             const outFile = path.join(GENERATED_DIR, relPath);
-            fs.mkdirSync(path.dirname(outFile), { recursive: true });
+            fs.mkdirSync(path.dirname(outFile), {recursive: true});
             fs.writeFileSync(outFile, ts, "utf8");
 
             console.log(`Generated types for ${relPath}`);
@@ -111,7 +111,7 @@ function generateIndexFile() {
     const exports: string[] = [];
 
     function walk(dir: string, baseDir = GENERATED_DIR) {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        const entries = fs.readdirSync(dir, {withFileTypes: true});
 
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
@@ -152,6 +152,6 @@ export async function generateTypes() {
         generateIndexFile();
     } finally {
         // Clean up temp directory
-        fs.rmSync(TEMP_DIR, { recursive: true, force: true });
+        fs.rmSync(TEMP_DIR, {recursive: true, force: true});
     }
 }

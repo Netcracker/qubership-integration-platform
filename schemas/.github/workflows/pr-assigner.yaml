@@ -1,0 +1,22 @@
+name: Auto-Assign PR
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: PR Auto-Assignment (from CODEOWNERS)
+        uses: netcracker/qubership-workflow-hub/actions/pr-assigner@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
