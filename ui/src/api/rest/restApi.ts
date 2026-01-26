@@ -1251,10 +1251,7 @@ export class RestApi implements Api {
     packagePartOf?: string,
   ): Promise<ImportSystemResult[]> => {
     const formData = new FormData();
-    formData.append(
-      systemType == IntegrationSystemType.CONTEXT ? "file" : "files",
-      file,
-    );
+    formData.append("file", file);
     if (systemIds && systemIds.length > 0) {
       for (const id of systemIds) {
         formData.append("systemIds", id);
@@ -1268,7 +1265,7 @@ export class RestApi implements Api {
     if (packageVersion) headers["X-SR-PACKAGE-VERSION"] = packageVersion;
     if (packagePartOf) headers["X-SR-PACKAGE-PART-OF"] = packagePartOf;
 
-    const url = IntegrationSystemType.CONTEXT
+    const url = systemType === IntegrationSystemType.CONTEXT
       ? `/api/v1/${getAppName()}/catalog/context-system/import`
       : `/api/v1/${getAppName()}/systems-catalog/import/system`;
     const response = await this.instance.post<ImportSystemResult[]>(

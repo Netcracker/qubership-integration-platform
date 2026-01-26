@@ -94,7 +94,7 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
             <Select.Option value={IntegrationSystemType.EXTERNAL}>External</Select.Option>
             <Select.Option value={IntegrationSystemType.INTERNAL}>Internal</Select.Option>
             <Select.Option value={IntegrationSystemType.IMPLEMENTED}>Implemented</Select.Option>
-            <Select.Option value={IntegrationSystemType.CONTEXT}>Content</Select.Option>
+            <Select.Option value={IntegrationSystemType.CONTEXT}>Context</Select.Option>
           </Select>
         </Form.Item>
         {error && <div style={{ color: 'var(--vscode-errorForeground, #d73a49)', marginBottom: 8 }}>{error}</div>}
