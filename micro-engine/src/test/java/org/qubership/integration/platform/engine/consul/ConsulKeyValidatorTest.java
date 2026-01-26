@@ -17,7 +17,7 @@ class ConsulKeyValidatorTest {
     }
 
     @Test
-    public void shouldReplatePeriodsInKeyNameWithHyphens() {
-        assertEquals("foo-bar-baz", validator.makeKeyValid("foo.bar.baz"));
+    public void shouldReplatePeriodsInKeyNameWithUnderscore() {
+        assertEquals("foo_bar_baz", validator.makeKeyValid("foo.bar.baz"));
     }
 }
