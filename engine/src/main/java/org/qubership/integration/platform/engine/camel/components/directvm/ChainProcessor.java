@@ -33,16 +33,19 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChainProcessor.class);
     private final ChainEndpoint endpoint;
-    private boolean previousIsChainCallTriggered;
 
     public ChainProcessor(Processor processor, ChainEndpoint endpoint) {
         super(processor);
         this.endpoint = endpoint;
-        this.previousIsChainCallTriggered = false;
     }
 
     @Override
     public boolean process(final Exchange exchange, final AsyncCallback callback) {
+        //Save previous session execution type (from chain call or not) and update current
+        boolean previousIsChainCallTriggered;
+        previousIsChainCallTriggered = exchange.getProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, false, Boolean.class);
+        exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, true);
+
         // need to use a copy of the incoming exchange, so we route using this camel context
         final Exchange copy = prepareExchange(exchange);
 
@@ -70,7 +73,8 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
                         // make sure to copy results back
                         ExchangeHelper.copyResults(exchange, copy);
                     } finally {
-                        restoreIsChainCallTriggered(exchange);
+                        // restore previous session execution type
+                        exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, previousIsChainCallTriggered);
                         // must call callback when we are done
                         callback.done(done);
                     }
@@ -88,8 +92,8 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
     /**
      * Strategy to prepare exchange for being processed by this consumer
      *
-     * @param  exchange the exchange
-     * @return          the exchange to process by this consumer.
+     * @param exchange the exchange
+     * @return the exchange to process by this consumer.
      */
     private Exchange prepareExchange(Exchange exchange) {
         // send a new copied exchange with new camel context (do not handover completions)
@@ -104,7 +108,6 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
         if (newExchange.getProperty(ExchangePropertyKey.STREAM_CACHE_UNIT_OF_WORK) == null) {
             newExchange.setProperty(ExchangePropertyKey.STREAM_CACHE_UNIT_OF_WORK, exchange.getUnitOfWork());
         }
-        setNewIsChainCallTriggered(newExchange);
         return newExchange;
     }
 
@@ -147,15 +150,6 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
             return null;
         }
         return new ConcurrentHashMap<>(properties);
-    }
-
-    private void setNewIsChainCallTriggered(Exchange exchange) {
-        previousIsChainCallTriggered = exchange.getProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, false, Boolean.class);
-        exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, true);
-    }
-
-    private void restoreIsChainCallTriggered(Exchange exchange) {
-        exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, previousIsChainCallTriggered);
     }
 
     @Override
