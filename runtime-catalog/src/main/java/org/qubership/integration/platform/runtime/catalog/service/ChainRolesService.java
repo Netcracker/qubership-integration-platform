@@ -121,38 +121,37 @@ public class ChainRolesService {
         List<UpdateRolesRequest> updateRolesRequestLst = new ArrayList<>();
         for (UpdateRolesRequest updateReq : request) {
             try {
-                ChainElement element = elementService.findById(updateReq.getElementId());
-                Map<String, Object> properties = element.getProperties();
+                ChainElement chainElement = elementService.findById(updateReq.getElementId());
                 List<String> newRoles = Lists.newArrayList(updateReq.getRoles());
 
-                String accessControlType = (String) properties.get("accessControlType");
-                if (accessControlType.equals(ACCESS_CONTROL_TYPE_ABAC)) {
+                String accessControlType = chainElement.getPropertyAsString(ACCESS_CONTROL_TYPE);
+                if (ACCESS_CONTROL_TYPE_ABAC.equals(accessControlType)) {
                     throw new AbacRoleChangeException();
                 }
 
-                if (accessControlType.equals(ACCESS_CONTROL_TYPE_NONE) && !newRoles.isEmpty()) {
-                    element.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_RBAC);
+                if (ACCESS_CONTROL_TYPE_NONE.equals(accessControlType) && !newRoles.isEmpty()) {
+                    chainElement.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_RBAC);
                 }
 
-                if (accessControlType.equals(ACCESS_CONTROL_TYPE_RBAC) && newRoles.isEmpty()) {
-                    element.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_NONE);
+                if (ACCESS_CONTROL_TYPE_RBAC.equals(accessControlType) && newRoles.isEmpty()) {
+                    chainElement.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_NONE);
                 }
 
-                element.getProperties().put(ROLES, newRoles);
-                element.getChain().setUnsavedChanges(true);
-                UpdateRolesRequest updateRolesRequest = new UpdateRolesRequest(element.getChain().isUnsavedChanges(),
-                        element.getChain().getId());
-                elementService.save(element);
+                chainElement.getProperties().put(ROLES, newRoles);
+                chainElement.getChain().setUnsavedChanges(true);
+                UpdateRolesRequest updateRolesRequest = new UpdateRolesRequest(chainElement.getChain().isUnsavedChanges(),
+                        chainElement.getChain().getId());
+                elementService.save(chainElement);
                 if (updateReq.getIsRedeploy()) {
                     updateRolesRequestLst.add(updateRolesRequest);
                 }
                 actionLogger.logAction(ActionLog.builder()
                         .entityType(EntityType.ELEMENT)
-                        .entityId(element.getId())
-                        .entityName(element.getName())
+                        .entityId(chainElement.getId())
+                        .entityName(chainElement.getName())
                         .parentType(EntityType.CHAIN)
-                        .parentId(element.getChain().getId())
-                        .parentName(element.getChain().getName())
+                        .parentId(chainElement.getChain().getId())
+                        .parentName(chainElement.getChain().getName())
                         .operation(LogOperation.UPDATE)
                         .build());
             } catch (AbacRoleChangeException exception) {
