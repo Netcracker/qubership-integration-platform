@@ -84,6 +84,10 @@ public class GeneralImportService {
         this.generalInstructionsMapper = generalInstructionsMapper;
     }
 
+    public List<ImportSession> getImportSessions() {
+        return importSessionService.getImportSessions();
+    }
+
     @Nullable
     public ImportSession getImportSession(String importId) {
         return importSessionService.getImportSession(importId);

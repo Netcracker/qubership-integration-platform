@@ -21,9 +21,12 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.ImportSessionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Sort;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -44,6 +47,10 @@ public class ImportSessionService {
     ) {
         this.importSessionLifetimeMinutes = importSessionLifetimeMinutes;
         this.importSessionRepository = importSessionRepository;
+    }
+
+    public List<ImportSession> getImportSessions() {
+        return importSessionRepository.findAll(Sort.by(Sort.Direction.DESC, "modifiedWhen"));
     }
 
     @Nullable
