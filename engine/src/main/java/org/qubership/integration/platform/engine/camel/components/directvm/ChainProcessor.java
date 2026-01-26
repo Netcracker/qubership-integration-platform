@@ -20,6 +20,7 @@ import org.apache.camel.*;
 import org.apache.camel.support.DefaultExchange;
 import org.apache.camel.support.ExchangeHelper;
 import org.apache.camel.support.processor.DelegateAsyncProcessor;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,11 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
 
     @Override
     public boolean process(final Exchange exchange, final AsyncCallback callback) {
+        //Save previous session execution type (from chain call or not) and update current
+        boolean previousIsChainCallTriggered;
+        previousIsChainCallTriggered = exchange.getProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, false, Boolean.class);
+        exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, true);
+
         // need to use a copy of the incoming exchange, so we route using this camel context
         final Exchange copy = prepareExchange(exchange);
 
@@ -67,6 +73,8 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
                         // make sure to copy results back
                         ExchangeHelper.copyResults(exchange, copy);
                     } finally {
+                        // restore previous session execution type
+                        exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, previousIsChainCallTriggered);
                         // must call callback when we are done
                         callback.done(done);
                     }
