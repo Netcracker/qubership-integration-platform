@@ -18,6 +18,14 @@ oneOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/container.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/swimlane.schema.yaml"
 
+  # Deprecated Routing
+  - $ref: "http://qubership.org/schemas/product/qip/element/split.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/split-async.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/try-catch-finally.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/choice.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/loop.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/circuit-breaker.schema.yaml"
+
   # Routing
   - $ref: "http://qubership.org/schemas/product/qip/element/chain-call-2.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/circuit-breaker-2.schema.yaml"

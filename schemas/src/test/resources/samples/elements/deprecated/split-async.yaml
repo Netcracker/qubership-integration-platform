@@ -1,0 +1,11 @@
+# $schema: http://qubership.org/schemas/product/qip/element/split-async.schema.yaml
+id: "3369e7c5-0bc0-47f9-86d0-67c8e5f9b85e"
+name: "Split Async (deprecated)"
+type: "split-async"
+children:
+  - id: "10cfc277-0e74-416f-9fa2-21e3de9b503f"
+    name: "Sync Split Element"
+    type: "sync-split-element"
+  - id: "5d94f47a-bb69-4bde-8ba3-eeafd023a40b"
+    name: "Async Split Element"
+    type: "async-split-element"

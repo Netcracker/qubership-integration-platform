@@ -1,0 +1,17 @@
+# $schema: http://qubership.org/schemas/product/qip/element/try-catch-finally.schema.yaml
+id: "7779ff3c-4666-4746-bf16-408010ffc8b3"
+name: "Try-Catch-Finally (deprecated)"
+type: "try-catch-finally"
+children:
+- id: "362f2893-4e32-43c9-9b88-c1c70e78cbb3"
+  name: "Finally"
+  type: "finally"
+- id: "a31e48bc-59b4-4e90-9b19-151021a4fcfc"
+  name: "Try"
+  type: "try"
+- id: "be1263f8-5b85-4e56-81d9-d59d7ff29831"
+  name: "Catch"
+  type: "catch"
+  properties:
+    exception: "java.lang.Exception"
+    priorityNumber: 0

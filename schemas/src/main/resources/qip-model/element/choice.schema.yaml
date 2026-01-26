@@ -1,0 +1,19 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/choice.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Choice (deprecated)
+properties:
+  type:
+    type: string
+    const: choice
+  children:
+    type: array
+    items:
+      anyOf:
+        - $ref: "http://qubership.org/schemas/product/qip/element/when.schema.yaml"
+        - $ref: "http://qubership.org/schemas/product/qip/element/otherwise.schema.yaml"
+required:
+  - type

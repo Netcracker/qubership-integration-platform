@@ -1,0 +1,102 @@
+---
+id: "586b2f98-4806-4f02-9ecf-286ec62b2b96"
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+name: "deprecated-routing"
+content:
+  elements:
+  - id: "16cb1585-f297-4516-9b0f-4fd49bf2e896"
+    name: "Split (deprecated)"
+    type: "split"
+    children:
+    - id: "1019d08e-05c7-4fa1-bf74-e336658a302b"
+      name: "Split Element"
+      type: "split-element"
+      properties:
+        propagateHeaders: false
+        propagateProperties: false
+        splitName: "name"
+    - id: "68ef3fc7-135a-4eb4-84e5-816e0f5f044f"
+      name: "Main Split Element"
+      type: "main-split-element"
+      properties:
+        splitName: "main"
+    - id: "9930fc10-feed-4f84-98d1-980bbcde038b"
+      name: "Split Result"
+      type: "split-result"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: 0
+  - id: "269245dd-a42e-4751-b321-b135b6e192d5"
+    name: "Choice (deprecated)"
+    type: "choice"
+    children:
+    - id: "2f1a379c-64e4-4297-9c63-88e159aca25c"
+      name: "When"
+      type: "when"
+      properties:
+        condition: "true"
+        priorityNumber: 0
+    - id: "ef5efc30-1066-4c94-9714-a8cdf07a0ea1"
+      name: "Otherwise"
+      type: "otherwise"
+  - id: "282b31e4-10a7-4ba1-9733-0e2437771802"
+    name: "Loop (deprecated)"
+    type: "loop"
+    children:
+    - id: "39dd2308-c302-4b41-990f-633767b22356"
+      name: "Loop Expression"
+      type: "loop-expression"
+      properties:
+        expression: "false"
+  - id: "3369e7c5-0bc0-47f9-86d0-67c8e5f9b85e"
+    name: "Split Async (deprecated)"
+    type: "split-async"
+    children:
+    - id: "10cfc277-0e74-416f-9fa2-21e3de9b503f"
+      name: "Sync Split Element"
+      type: "sync-split-element"
+    - id: "5d94f47a-bb69-4bde-8ba3-eeafd023a40b"
+      name: "Async Split Element"
+      type: "async-split-element"
+  - id: "7779ff3c-4666-4746-bf16-408010ffc8b3"
+    name: "Try-Catch-Finally (deprecated)"
+    type: "try-catch-finally"
+    children:
+    - id: "362f2893-4e32-43c9-9b88-c1c70e78cbb3"
+      name: "Finally"
+      type: "finally"
+    - id: "a31e48bc-59b4-4e90-9b19-151021a4fcfc"
+      name: "Try"
+      type: "try"
+    - id: "be1263f8-5b85-4e56-81d9-d59d7ff29831"
+      name: "Catch"
+      type: "catch"
+      properties:
+        exception: "java.lang.Exception"
+        priorityNumber: 0
+  - id: "bc966a29-47cf-4547-af85-76d550f38438"
+    name: "Circuit Breaker (deprecated)"
+    type: "circuit-breaker"
+    children:
+    - id: "48a16a5c-9f63-4fc3-a986-e09f6307fdc4"
+      name: "On fallback"
+      type: "on-fallback"
+    - id: "756f4e33-0054-4670-ae69-caeec30cba8c"
+      name: "Circuit Breaker Configuration"
+      type: "circuit-breaker-configuration"
+      properties:
+        automaticTransitionFromOpenToHalfOpenEnabled: false
+        failureRateThreshold: 50
+        minimumNumberOfCalls: 100
+        permittedNumberOfCallsInHalfOpenState: 10
+        slidingWindowSize: 100
+        slidingWindowType: "COUNT_BASED"
+        slowCallDurationThreshold: 60
+        slowCallRateThreshold: 100
+        waitDurationInOpenState: 60
+  folder:
+    name: "-test-chains-schemas"
+  deployAction: "SNAPSHOT"
+  migrations: "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,\
+    \ 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 100, 101, 102, 103, 104, 105]"

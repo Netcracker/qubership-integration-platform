@@ -1,0 +1,19 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/circuit-breaker.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Circuit Breaker (deprecated)
+properties:
+  type:
+    type: string
+    const: circuit-breaker
+  children:
+    type: array
+    items:
+      anyOf:
+        - $ref: "http://qubership.org/schemas/product/qip/element/circuit-breaker-configuration.schema.yaml"
+        - $ref: "http://qubership.org/schemas/product/qip/element/on-fallback.schema.yaml"
+required:
+  - type

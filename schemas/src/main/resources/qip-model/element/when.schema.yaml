@@ -1,0 +1,29 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/when.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: When (deprecated)
+properties:
+  type:
+    type: string
+    const: when
+  properties:
+    type: object
+    properties:
+      condition:
+        type: string
+        title: Condition
+        description: Predicate written using Simple language
+      priorityNumber:
+        type: integer
+        title: Priority
+        description: Determines the order of the if blocks.
+        minimum: 0
+        default: 0
+    required:
+      - condition
+    additionalProperties: false
+required:
+  - type
