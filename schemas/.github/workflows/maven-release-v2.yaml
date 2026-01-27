@@ -50,11 +50,6 @@ on:
           - 'central'
         required: false
         default: 'central'
-      build-docker:
-        description: 'Build Docker image'
-        required: false
-        default: true
-        type: boolean
       create-github-release:
         description: 'Create release'
         required: false
@@ -81,27 +76,22 @@ on:
         type: string
         required: false
         default: 'central'
-      build-docker:
-        description: 'Build Docker image'
-        required: false
-        default: true
-        type: boolean
       create-github-release:
         description: 'Create release'
         required: false
         default: true
         type: boolean
     secrets:
-      GITHUB_TOKEN:
+      GITHUB_AUTH_TOKEN:
         required: true
       MAVEN_USER:
-        required: false
+        required: true
       MAVEN_PASSWORD:
-        required: false
+        required: true
       MAVEN_GPG_PRIVATE_KEY:
-        required: false
+        required: true
       MAVEN_GPG_PASSPHRASE:
-        required: false
+        required: true
 
 permissions: {}
 
@@ -126,7 +116,7 @@ jobs:
           create-tag: 'false'
           check-tag: 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_AUTH_TOKEN }}
 
   build-and-publish:
     needs: check-tag
@@ -138,42 +128,20 @@ jobs:
       - name: "Build and Publish"
         uses: netcracker/qubership-workflow-hub/actions/maven-release@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
         with:
-          version-type: ${{ github.event.inputs.version-type }}
+          version-type: ${{ inputs.version-type || github.event.inputs.version-type }}
           ref: ${{ github.ref }}
           module: ${{ github.event.repository.name }}
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           server-id: ${{ inputs.profile }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_AUTH_TOKEN }}
           maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
-          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
+          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_AUTH_TOKEN || secrets.MAVEN_PASSWORD }}
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           dry-run: 'false'
-      - name: Upload JAR
-        uses: actions/upload-artifact@v6.0.0
-        with:
-          name: app-jar
-          path: ${{ github.event.repository.name }}/**/target/*-exec.jar
-  publish-image:
-    if: ${{ github.event.inputs.build-docker == 'true' }}
-    needs: build-and-publish
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    steps:
-      - name: "Docker Build"
-        id: docker_build
-        uses: netcracker/qubership-workflow-hub/actions/docker-action@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
-        with:
-          ref: ${{ github.ref }}
-          download-artifact: true
-          download-artifact-name: app-jar
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   create-release:
-    if: ${{ github.event.inputs.create-github-release == 'true' }}
     needs: build-and-publish
     runs-on: ubuntu-latest
     permissions:
@@ -195,4 +163,4 @@ jobs:
           tag: 'v${{ inputs.version }}'
           version: 'v${{ inputs.version }}'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_AUTH_TOKEN }}

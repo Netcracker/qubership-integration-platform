@@ -5,137 +5,138 @@ import $RefParser from "@apidevtools/json-schema-ref-parser";
 import yaml from "js-yaml";
 
 const qubershipResolver = {
-    order: 2,
-    canRead: (file: any) => {
-        return file.url.startsWith("http://qubership.org/schemas/product/qip/")
-    },
-    read(file: any) {
+  order: 2,
+  canRead: (file: any) => {
+    return file.url.startsWith("http://qubership.org/schemas/product/qip/");
+  },
+  read(file: any) {
+    const relPath = file.url.replace(
+      "http://qubership.org/schemas/product/qip/",
+      "",
+    );
 
+    const absPath = path.resolve(
+      process.cwd(),
+      "src/main/resources/qip-model/",
+      relPath,
+    );
 
-        const relPath = file.url.replace(
-            "http://qubership.org/schemas/product/qip/",
-            ""
-        );
+    const content = fs.readFileSync(absPath, "utf-8");
 
-        const absPath = path.resolve(
-            process.cwd(),
-            "src/main/resources/qip-model/",
-            relPath
-        );
-
-
-        const content = fs.readFileSync(absPath, "utf-8");
-
-        if (absPath.endsWith(".yaml")) {
-            return yaml.load(content);
-        }
-    },
+    if (absPath.endsWith(".yaml")) {
+      return yaml.load(content);
+    }
+  },
 };
 
 const ignoreSchemaResolver = {
-    order: 0,
-    canRead: (file: any) =>
-        file.url === "http://json-schema.org/draft-07/schema",
-    read: (file: any) => {
-        return file.url;
-    },
+  order: 0,
+  canRead: (file: any) => file.url === "http://json-schema.org/draft-07/schema",
+  read: (file: any) => {
+    return file.url;
+  },
 };
 
 const ignoreMapperResolver = {
-    order: 1,
-    canRead: (file: any) =>
-        file.url === "http://qubership.org/schemas/product/qip/element/properties/mapper-description.schema.yaml",
-    read: (file: any) => {
-        return {
-            type: "object",
-        };
-    }
+  order: 1,
+  canRead: (file: any) =>
+    file.url ===
+    "http://qubership.org/schemas/product/qip/element/properties/mapper-description.schema.yaml",
+  read: (file: any) => {
+    return {
+      type: "object",
+    };
+  },
 };
 
 export class SchemaResolver {
-    private inputDir = path.resolve(process.cwd(), "src/main/resources/qip-model/element");
-    private outputDir = path.resolve(process.cwd(), "assets");
+  private inputDir = path.resolve(
+    process.cwd(),
+    "src/main/resources/qip-model/element",
+  );
+  private outputDir = path.resolve(process.cwd(), "assets");
 
-    public async resolveAllSchemas(): Promise<void> {
-        const files = this.collectYamlFiles(this.inputDir);
+  public async resolveAllSchemas(): Promise<void> {
+    const files = this.collectYamlFiles(this.inputDir);
 
-        for (const file of files) {
-            await this.resolveSchemaFile(file);
-        }
+    for (const file of files) {
+      await this.resolveSchemaFile(file);
+    }
+  }
+
+  private collectYamlFiles(dir: string): string[] {
+    let results: string[] = [];
+
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+
+      if (
+        entry.isFile() &&
+        entry.name !== "element.schema.yaml" &&
+        (entry.name.endsWith(".yaml") || entry.name.endsWith(".schema.yaml"))
+      ) {
+        results.push(path.relative(this.inputDir, fullPath));
+      }
     }
 
-    private collectYamlFiles(dir: string): string[] {
-        let results: string[] = [];
+    return results;
+  }
 
-        for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
-            const fullPath = path.join(dir, entry.name);
+  private inlineNestedRefs(obj: any): void {
+    if (typeof obj !== "object" || obj === null) return;
 
-            if (entry.isFile() &&
-                entry.name !== "element.schema.yaml" &&
-                (entry.name.endsWith(".yaml") || entry.name.endsWith(".schema.yaml"))) {
-
-                results.push(path.relative(this.inputDir, fullPath));
-            }
-        }
-
-        return results;
+    if ("$ref" in obj) {
+      delete obj.$ref;
+      obj.type = "object";
     }
 
-    private inlineNestedRefs(obj: any): void {
-        if (typeof obj !== 'object' || obj === null) return;
+    for (const key of Object.keys(obj)) {
+      this.inlineNestedRefs(obj[key]);
+    }
+  }
 
-        if ('$ref' in obj) {
-            delete obj.$ref;
-            obj.type = 'object';
-        }
+  private removeNestedIds(obj: any, isRoot: boolean = true): void {
+    if (typeof obj !== "object" || obj === null) return;
 
-        for (const key of Object.keys(obj)) {
-            this.inlineNestedRefs(obj[key]);
-        }
+    if ("$id" in obj && !isRoot) {
+      delete obj.$id;
     }
 
-    private removeNestedIds(obj: any, isRoot: boolean = true): void {
-        if (typeof obj !== 'object' || obj === null) return;
-
-        if ('$id' in obj && !isRoot) {
-            delete obj.$id;
-        }
-
-        for (const key of Object.keys(obj)) {
-            this.removeNestedIds(obj[key], false);
-        }
+    for (const key of Object.keys(obj)) {
+      this.removeNestedIds(obj[key], false);
     }
+  }
 
-    private async resolveSchemaFile(filename: string): Promise<void> {
-        const fullPath = path.join(this.inputDir, filename);
+  private async resolveSchemaFile(filename: string): Promise<void> {
+    const fullPath = path.join(this.inputDir, filename);
 
-        const rawContent = fs.readFileSync(fullPath, "utf-8");
-        const schema = yaml.load(rawContent);
+    const rawContent = fs.readFileSync(fullPath, "utf-8");
+    const schema = yaml.load(rawContent);
 
-        const derefSchema = await $RefParser.dereference(schema, {
-            resolve: {
-                ignoreSchema: ignoreSchemaResolver,
-                qubership: qubershipResolver,
-                ignoreMapperResolver: ignoreMapperResolver,
-                file: true,
-                http: false,
-            },
+    const derefSchema = await $RefParser.dereference(schema, {
+      resolve: {
+        ignoreSchema: ignoreSchemaResolver,
+        qubership: qubershipResolver,
+        ignoreMapperResolver: ignoreMapperResolver,
+        file: true,
+        http: false,
+      },
 
-            dereference: {
-                excludedPathMatcher: (path: string) => {
-                    return path.includes("/properties/children/items");
-                },
-                onCircular: (refPath: string) => {
-                    console.warn("ERROR", refPath);
-                },
-            }
-        });
+      dereference: {
+        excludedPathMatcher: (path: string) => {
+          return path.includes("/properties/children/items");
+        },
+        onCircular: (refPath: string) => {
+          console.warn("ERROR", refPath);
+        },
+      },
+    });
 
-        this.inlineNestedRefs(derefSchema);
-        this.removeNestedIds(derefSchema);
-        const outputPath = path.join(this.outputDir, filename);
+    this.inlineNestedRefs(derefSchema);
+    this.removeNestedIds(derefSchema);
+    const outputPath = path.join(this.outputDir, filename);
 
-        fs.mkdirSync(path.dirname(outputPath), {recursive: true});
-        fs.writeFileSync(outputPath, yaml.dump(derefSchema));
-    }
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, yaml.dump(derefSchema));
+  }
 }
