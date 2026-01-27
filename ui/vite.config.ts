@@ -13,6 +13,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['lunr', 'elasticlunr'],
+    include: ["lunr", "elasticlunr"],
   },
 });

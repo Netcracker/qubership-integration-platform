@@ -14,7 +14,7 @@ describe("DocumentationService - Element Type Mapping", () => {
   beforeEach(() => {
     service = new DocumentationService();
     // Clear cache between tests
-    (service as any).elementTypeMappingCache = null;
+    service.elementTypeMappingCache = null;
   });
 
   describe("buildElementTypeMapping", () => {
@@ -29,7 +29,7 @@ describe("DocumentationService - Element Type Mapping", () => {
       jest.spyOn(service, "loadPaths").mockResolvedValue(mockPaths);
 
       // Access private method for testing
-      const mapping = await (service as any).buildElementTypeMapping();
+      const mapping = await service.buildElementTypeMapping();
 
       expect(mapping["http-trigger"]).toBeDefined();
       expect(mapping["http-sender"]).toBeDefined();
@@ -48,7 +48,7 @@ describe("DocumentationService - Element Type Mapping", () => {
 
       jest.spyOn(service, "loadPaths").mockResolvedValue(mockPaths);
 
-      const mapping = await (service as any).buildElementTypeMapping();
+      const mapping = await service.buildElementTypeMapping();
 
       // Both from file name and folder name
       expect(mapping["condition"]).toBeDefined();
@@ -64,7 +64,7 @@ describe("DocumentationService - Element Type Mapping", () => {
 
       jest.spyOn(service, "loadPaths").mockResolvedValue(mockPaths);
 
-      const mapping = await (service as any).buildElementTypeMapping();
+      const mapping = await service.buildElementTypeMapping();
 
       expect(mapping["overview"]).toBeUndefined();
       expect(mapping["chains"]).toBeUndefined();
@@ -103,7 +103,7 @@ describe("DocumentationService - Element Type Mapping", () => {
 
       jest.spyOn(service, "loadPaths").mockResolvedValue(mockPaths);
 
-      const mapping = await (service as any).buildElementTypeMapping();
+      const mapping = await service.buildElementTypeMapping();
 
       // Verify all standard types are present
       expect(mapping["circuit-breaker"]).toBeDefined();
@@ -133,7 +133,7 @@ describe("DocumentationService - Element Type Mapping", () => {
         condition: "/doc/.../condition",
       };
 
-      const aliases = (service as any).getElementTypeAliases(baseMapping);
+      const aliases = service.getElementTypeAliases(baseMapping);
 
       expect(aliases["else"]).toBe("/doc/.../condition");
       expect(aliases["if"]).toBe("/doc/.../condition");
@@ -144,7 +144,7 @@ describe("DocumentationService - Element Type Mapping", () => {
         "try-catch-finally": "/doc/.../try-catch-finally",
       };
 
-      const aliases = (service as any).getElementTypeAliases(baseMapping);
+      const aliases = service.getElementTypeAliases(baseMapping);
 
       expect(aliases["try"]).toBe("/doc/.../try-catch-finally");
       expect(aliases["catch"]).toBe("/doc/.../try-catch-finally");
@@ -156,7 +156,7 @@ describe("DocumentationService - Element Type Mapping", () => {
         "headers-modification": "/doc/.../headers_modification",
       };
 
-      const aliases = (service as any).getElementTypeAliases(baseMapping);
+      const aliases = service.getElementTypeAliases(baseMapping);
 
       expect(aliases["header-modification"]).toBe(
         "/doc/.../headers_modification",
@@ -168,7 +168,7 @@ describe("DocumentationService - Element Type Mapping", () => {
         "asyncapi-trigger": "/doc/.../asyncapi_trigger",
       };
 
-      const aliases = (service as any).getElementTypeAliases(baseMapping);
+      const aliases = service.getElementTypeAliases(baseMapping);
 
       expect(aliases["async-api-trigger"]).toBe("/doc/.../asyncapi_trigger");
     });
@@ -178,7 +178,7 @@ describe("DocumentationService - Element Type Mapping", () => {
         scheduler: "/doc/.../scheduler",
       };
 
-      const aliases = (service as any).getElementTypeAliases(baseMapping);
+      const aliases = service.getElementTypeAliases(baseMapping);
 
       expect(aliases["quartz"]).toBe("/doc/.../scheduler");
       expect(aliases["quartz-scheduler"]).toBe("/doc/.../scheduler");
@@ -187,7 +187,7 @@ describe("DocumentationService - Element Type Mapping", () => {
     test("returns empty object when base mapping is empty", () => {
       const baseMapping = {};
 
-      const aliases = (service as any).getElementTypeAliases(baseMapping);
+      const aliases = service.getElementTypeAliases(baseMapping);
 
       expect(Object.keys(aliases).length).toBe(0);
     });
@@ -201,7 +201,7 @@ describe("DocumentationService - Element Type Mapping", () => {
           "01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md",
         ]);
 
-      const path = await (service as any).mapPathByElementType("http-trigger");
+      const path = await service.mapPathByElementType("http-trigger");
 
       expect(path).toContain("http_trigger");
       expect(path).not.toContain("not-found");
@@ -214,8 +214,8 @@ describe("DocumentationService - Element Type Mapping", () => {
           "01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/5__Condition/condition.md",
         ]);
 
-      const pathElse = await (service as any).mapPathByElementType("else");
-      const pathIf = await (service as any).mapPathByElementType("if");
+      const pathElse = await service.mapPathByElementType("else");
+      const pathIf = await service.mapPathByElementType("if");
 
       expect(pathElse).toContain("condition");
       expect(pathIf).toContain("condition");
@@ -228,11 +228,9 @@ describe("DocumentationService - Element Type Mapping", () => {
           "01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/9__Try-Catch-Finally/try-catch-finally.md",
         ]);
 
-      const pathTry = await (service as any).mapPathByElementType("try");
-      const pathCatch = await (service as any).mapPathByElementType("catch");
-      const pathFinally = await (service as any).mapPathByElementType(
-        "finally",
-      );
+      const pathTry = await service.mapPathByElementType("try");
+      const pathCatch = await service.mapPathByElementType("catch");
+      const pathFinally = await service.mapPathByElementType("finally");
 
       expect(pathTry).toContain("try-catch-finally");
       expect(pathCatch).toContain("try-catch-finally");
@@ -246,7 +244,7 @@ describe("DocumentationService - Element Type Mapping", () => {
           "01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/5__Scheduler/scheduler.md",
         ]);
 
-      const pathQuartz = await (service as any).mapPathByElementType("quartz");
+      const pathQuartz = await service.mapPathByElementType("quartz");
 
       expect(pathQuartz).toContain("scheduler");
     });
@@ -254,9 +252,7 @@ describe("DocumentationService - Element Type Mapping", () => {
     test("returns not-found for unknown elements", async () => {
       jest.spyOn(service, "loadPaths").mockResolvedValue([]);
 
-      const path = await (service as any).mapPathByElementType(
-        "non-existent-element",
-      );
+      const path = await service.mapPathByElementType("non-existent-element");
 
       expect(path).toContain("not-found");
     });
@@ -268,8 +264,8 @@ describe("DocumentationService - Element Type Mapping", () => {
           "01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md",
         ]);
 
-      await (service as any).mapPathByElementType("http-trigger");
-      await (service as any).mapPathByElementType("http-trigger");
+      await service.mapPathByElementType("http-trigger");
+      await service.mapPathByElementType("http-trigger");
 
       // loadPaths should be called only once due to caching
       expect(loadPathsSpy).toHaveBeenCalledTimes(1);

@@ -33,7 +33,7 @@ export class DocumentationService {
   > | null = null;
   private contextMappingPromise: Promise<DocumentMappingRule[]> | null = null;
   private elementMappingPromise: Promise<DocumentMappingRule[]> | null = null;
-  private elementTypeMappingCache: Record<string, string> | null = null;
+  elementTypeMappingCache: Record<string, string> | null = null;
 
   private getElasticlunr(): ElasticlunrModule {
     return elasticlunr;
@@ -132,7 +132,7 @@ export class DocumentationService {
    * Builds element type to documentation path mapping automatically from paths.json.
    * Extracts element types from file names and folder names in QIP_Elements_Library paths.
    */
-  private async buildElementTypeMapping(): Promise<Record<string, string>> {
+  public async buildElementTypeMapping(): Promise<Record<string, string>> {
     if (this.elementTypeMappingCache) {
       return this.elementTypeMappingCache;
     }
@@ -183,7 +183,7 @@ export class DocumentationService {
    * Returns hardcoded aliases for elements that have multiple type IDs.
    * These are edge cases where element type doesn't match file/folder name.
    */
-  private getElementTypeAliases(
+  public getElementTypeAliases(
     baseMapping: Record<string, string>,
   ): Record<string, string> {
     const aliases: Record<string, string> = {};
@@ -336,7 +336,7 @@ export class DocumentationService {
    * Maps element type directly to documentation path using auto-generated mapping.
    * More efficient than regex-based search.
    */
-  private async mapPathByElementType(elementType: string): Promise<string> {
+  public async mapPathByElementType(elementType: string): Promise<string> {
     const mapping = await this.buildElementTypeMapping();
     const docPath = mapping[elementType];
 

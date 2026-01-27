@@ -58,9 +58,9 @@ export const TransformationValue: React.FC<TransformationValueProps> = ({
       {errors.length > 0 ? (
         <Tooltip
           title={
-            <Flex vertical className={styles["transformation-errors"]} gap={8}>
+            <Flex vertical gap={8}>
               {errors.map((error, index) => (
-                <div className={styles["transformation-error"]} key={index}>
+                <div key={index}>
                   {error.message}
                 </div>
               ))}

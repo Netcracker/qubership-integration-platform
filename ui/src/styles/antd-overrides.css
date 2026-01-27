@@ -23,13 +23,6 @@
   color: var(--vscode-input-placeholderForeground) !important;
 }
 
-/* Icons and buttons inside input */
-.ant-input-affix-wrapper .ant-input-suffix .anticon,
-.ant-input-affix-wrapper .ant-input-prefix .anticon,
-.ant-input-clear-icon {
-  color: var(--vscode-foreground) !important;
-}
-
 /* Search button - same style as settings button (transparent background) */
 .ant-input-search-button {
   color: var(--vscode-foreground) !important;
@@ -43,6 +36,13 @@
 }
 
 .ant-input-search-button .anticon {
+  color: var(--vscode-foreground) !important;
+}
+
+/* Icons and buttons inside input */
+.ant-input-affix-wrapper .ant-input-suffix .anticon,
+.ant-input-affix-wrapper .ant-input-prefix .anticon,
+.ant-input-clear-icon {
   color: var(--vscode-foreground) !important;
 }
 
@@ -93,6 +93,45 @@ pre[class*="language-"] {
 code[class*="language-"] {
   background: transparent !important;
   text-shadow: none !important;
+}
+
+/* Tabs theming */
+.ant-tabs {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-tabs-tab {
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-tabs-tab:hover {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+}
+
+.ant-notification-notice-message > span {
+  color: inherit !important;
+}
+
+.ant-modal .ant-form,
+.ant-modal .ant-form-item,
+.ant-modal .ant-form-item-label,
+.ant-modal label,
+.ant-modal .ant-form-item-label > label,
+.ant-modal .ant-form-item .ant-form-item-control-input-content,
+.ant-modal .ant-form-item .ant-form-item-extra,
+.ant-modal .ant-form-item-explain,
+.ant-modal .ant-form-item-explain-error,
+.ant-modal .ant-tabs,
+.ant-modal .ant-tabs-tab,
+.ant-modal .ant-tabs-tab-btn,
+.ant-modal .ant-checkbox-wrapper,
+.ant-modal .ant-checkbox + span,
+.ant-modal .ant-typography,
+.ant-modal .ant-select-selection-item,
+.ant-modal .ant-select-selection-placeholder,
+.ant-modal .ant-select-selection-search-input {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
 }
 
 /* Only remove text-shadow, keep syntax highlighting colors */
@@ -216,11 +255,9 @@ pre[class*="language-"] .token.punctuation {
 /* Monaco Editor fixes for proper mouse selection */
 .monaco-editor {
   user-select: text !important;
-  user-select: text !important;
 }
 
 .monaco-editor .view-lines {
-  user-select: text !important;
   user-select: text !important;
 }
 
@@ -273,10 +310,6 @@ pre[class*="language-"] .token.punctuation {
 .ant-notification-notice-message,
 .ant-notification-notice-description {
   color: var(--vscode-foreground) !important;
-}
-
-.ant-notification-notice-message > span {
-  color: inherit !important;
 }
 
 .ant-notification-notice-icon {
@@ -372,20 +405,6 @@ pre[class*="language-"] .token.punctuation {
   color: inherit !important;
 }
 
-/* Tabs theming */
-.ant-tabs {
-  color: var(--vscode-foreground) !important;
-}
-
-.ant-tabs-tab {
-  color: var(--vscode-foreground) !important;
-  border-color: transparent !important;
-}
-
-.ant-tabs-tab:hover {
-  color: var(--vscode-textLink-foreground, #1677ff) !important;
-}
-
 .ant-tabs-tab-active {
   color: var(--vscode-textLink-foreground, #1677ff) !important;
 }
@@ -438,27 +457,6 @@ pre[class*="language-"] .token.punctuation {
     --vscode-modal-background,
     var(--vscode-panel-background)
   ) !important;
-  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
-}
-
-.ant-modal .ant-form,
-.ant-modal .ant-form-item,
-.ant-modal .ant-form-item-label,
-.ant-modal .ant-form-item-label > label,
-.ant-modal .ant-form-item .ant-form-item-control-input-content,
-.ant-modal .ant-form-item .ant-form-item-extra,
-.ant-modal .ant-form-item-explain,
-.ant-modal .ant-form-item-explain-error,
-.ant-modal .ant-tabs,
-.ant-modal .ant-tabs-tab,
-.ant-modal .ant-tabs-tab-btn,
-.ant-modal .ant-checkbox-wrapper,
-.ant-modal .ant-checkbox + span,
-.ant-modal .ant-typography,
-.ant-modal label,
-.ant-modal .ant-select-selection-item,
-.ant-modal .ant-select-selection-placeholder,
-.ant-modal .ant-select-selection-search-input {
   color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
 }
 

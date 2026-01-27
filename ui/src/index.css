@@ -121,12 +121,12 @@ button:focus-visible {
   background-color: white;
 }
 
-.trigger-node-input:hover .tooltiptext {
-  visibility: visible;
-}
-
 .trigger-node-input .tooltiptext {
   visibility: hidden;
+}
+
+.trigger-node-input:hover .tooltiptext {
+  visibility: visible;
 }
 
 .ant-table-body {
@@ -135,10 +135,6 @@ button:focus-visible {
 
 .not-displayed {
   display: none;
-}
-
-.ant-table-cell.actions-column:not(.ant-table-cell-row-hover) > * {
-  visibility: collapse;
 }
 
 .flex-tabs {
@@ -283,4 +279,8 @@ button:focus-visible {
 *:hover {
   scrollbar-width: thin;
   scrollbar-color: lightgray transparent;
+}
+
+.ant-table-cell.actions-column:not(.ant-table-cell-row-hover) > * {
+  visibility: collapse;
 }

@@ -15,11 +15,20 @@
   height: 10px;
 }
 
+/* stylelint-disable-next-line block-no-empty */
 .disconnected {
 }
 
 .disconnected:hover {
   border: 4px solid #ffb02e;
+}
+
+.inner-circle {
+  visibility: hidden;
+  background-color: lightgray;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
 }
 
 .connected {
@@ -47,14 +56,6 @@
 
 .invalid:hover {
   border: 4px solid #ff5260;
-}
-
-.inner-circle {
-  visibility: hidden;
-  background-color: lightgray;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
 }
 
 .required {

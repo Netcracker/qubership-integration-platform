@@ -37,6 +37,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             config/linters
+
       - name: "Upload the common linters configuration"
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -64,12 +65,10 @@ jobs:
         with:
           name: linter-config
           path: /tmp/linter-config
-      - name: "Apply the common linters configuration"
-        if: ${{ steps.download.outputs.download-path != '' }}
+      - name: Apply common linters configuration (do not override local)
         run: |
-          mkdir -p ./.github/linters
+          mkdir -p .github/linters
           cp --update=none -vRT /tmp/linter-config/linters ./.github/linters
-
       - name: "Load super-linter environment file"
         shell: bash
         run: |

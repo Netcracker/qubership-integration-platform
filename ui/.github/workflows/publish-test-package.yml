@@ -1,0 +1,82 @@
+name: Publish test package
+
+run-name: NPM Test Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch')) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && inputs.version) && format(' {0}', inputs.version) || '' }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version for NPM (e.g., 1.0.0)'
+        required: false
+        type: string
+      scope:
+        description: 'NPM scope for the package'
+        required: false
+        type: string
+        default: '@netcracker'
+      node-version:
+        required: false
+        type: string
+        default: "22.x"
+      registry-url:
+        required: false
+        type: string
+        default: "https://npm.pkg.github.com"
+
+permissions: {}
+
+env:
+  VERSION: ${{ inputs.version }}
+  DIST_TAG: 'test'
+
+jobs:
+  npm-build-publish:
+    permissions:
+      packages: write
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.scope }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Update npm version for dev version
+        run: |
+          CURRENT_VERSION=$(jq -r '.version' package.json)
+
+          if [ "$CURRENT_VERSION" != "$VERSION" ]; then
+            echo "Updating version from $CURRENT_VERSION to $VERSION"
+            npm version "$VERSION" --no-git-tag-version
+          else
+            echo "Version already $CURRENT_VERSION, skipping"
+          fi
+
+      - name: Build Project
+        run: |
+          if npm run | grep -q "prepublishOnly"; then
+            npm run prepublishOnly
+          elif npm run | grep -q "build"; then
+            npm run build
+          else
+            echo "No 'prepublishOnly' or 'build' script found. Skipping build step."
+          fi
+
+      - name: Publish Package
+        run: |
+          npm config get registry
+          echo "Publishing with npm..."
+          npm publish --tag $DIST_TAG

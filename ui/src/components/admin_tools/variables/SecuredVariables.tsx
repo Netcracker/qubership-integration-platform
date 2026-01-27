@@ -392,7 +392,7 @@ export const SecuredVariables: React.FC = () => {
                     </Tag>
                   )}
                 </div>
-                <div className={styles["secret-actions"]}>
+                <div>
                   <Tooltip
                     placement="topRight"
                     title="Export secret as Helm Chart"

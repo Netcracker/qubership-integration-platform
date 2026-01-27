@@ -60,6 +60,11 @@
   --container-header-background: #fff9e6;
 }
 
+:root[data-theme="dark"] {
+  --doc-bg: #1f1f1f;
+  --doc-fg: rgb(255 255 255 / 85%);
+}
+
 /* UI token mappings removed - use --vscode-* variables directly for better maintainability */
 
 /* Dark Theme Override (Browser fallback only) */
@@ -96,6 +101,11 @@
   /* Container Node Colors */
   --container-border-color: #fff9e6;
   --container-header-background: #fff9e6;
+}
+
+:root[data-theme="high-contrast"] {
+  --doc-bg: #000;
+  --doc-fg: #fff;
 }
 
 /* High Contrast Theme Override (Browser fallback only) */
@@ -137,14 +147,13 @@
   --doc-fg: rgb(0 0 0 / 88%);
 }
 
-:root[data-theme="dark"] {
-  --doc-bg: #1f1f1f;
-  --doc-fg: rgb(255 255 255 / 85%);
-}
-
-:root[data-theme="high-contrast"] {
-  --doc-bg: #000;
-  --doc-fg: #fff;
+/* Container Node Colors - available in webview too */
+.vscode-webview,
+.vscode-webview[data-theme="light"],
+.vscode-webview[data-theme="dark"],
+.vscode-webview[data-theme="high-contrast"] {
+  --container-border-color: var(--vscode-border, #dedacd);
+  --container-header-background: #fff9e6;
 }
 
 /* In VS Code webview prefer live VS Code theme variables. */
@@ -199,15 +208,6 @@ body {
 .vscode-focusable:focus {
   outline: 2px solid var(--vscode-focusBorder);
   outline-offset: 2px;
-}
-
-/* Container Node Colors - available in webview too */
-.vscode-webview,
-.vscode-webview[data-theme="light"],
-.vscode-webview[data-theme="dark"],
-.vscode-webview[data-theme="high-contrast"] {
-  --container-border-color: var(--vscode-border, #dedacd);
-  --container-header-background: #fff9e6;
 }
 
 .vscode-webview[data-theme="dark"] {

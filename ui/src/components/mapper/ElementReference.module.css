@@ -1,18 +1,3 @@
-[data-theme="light"] .element-reference {
-  --element-reference-bg-color: #ecedef;
-  --element-reference-type-bg-color: #d5dce3;
-}
-
-[data-theme="dark"] .element-reference {
-  --element-reference-bg-color: #5b5b5c;
-  --element-reference-type-bg-color: #424445;
-}
-
-[data-theme="high-contrast"] .element-reference {
-  --element-reference-bg-color: #000;
-  --element-reference-type-bg-color: #000;
-}
-
 .element-reference {
   padding-left: 0;
   display: flex;
@@ -38,4 +23,19 @@
   min-width: 0;
   text-overflow: ellipsis;
   overflow: hidden;
+}
+
+[data-theme="light"] .element-reference {
+  --element-reference-bg-color: #ecedef;
+  --element-reference-type-bg-color: #d5dce3;
+}
+
+[data-theme="dark"] .element-reference {
+  --element-reference-bg-color: #5b5b5c;
+  --element-reference-type-bg-color: #424445;
+}
+
+[data-theme="high-contrast"] .element-reference {
+  --element-reference-bg-color: #000;
+  --element-reference-type-bg-color: #000;
 }

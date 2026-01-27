@@ -25,8 +25,7 @@ export const TransformationInfoCard: React.FC<TransformationInfoCardProps> = ({
         {bindParameterValues(transformationInfo.parameters, parameters).flatMap(
           ([info, values], idx) => [
             <div
-              key={`parameter-name-${idx}`}
-              className={styles["parameter-name"]}
+              key={idx}
             >
               {info.name}
             </div>,
@@ -35,7 +34,7 @@ export const TransformationInfoCard: React.FC<TransformationInfoCardProps> = ({
               className={styles["parameter-values"]}
             >
               {values.map((value, index) => (
-                <div className={styles["parameter-value"]} key={index}>
+                <div key={index}>
                   {formatOptional(value)}
                 </div>
               ))}
