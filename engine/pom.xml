@@ -63,7 +63,7 @@
         <lombok.version>1.18.42</lombok.version>
         <json-schema-validator.version>1.0.87</json-schema-validator.version>
         <kubernetes-client-java.version>19.0.3</kubernetes-client-java.version>
-        <protobuf-java.version>3.25.1</protobuf-java.version>
+        <protobuf-java.version>3.25.8</protobuf-java.version>
         <amqp-client.version>5.20.0</amqp-client.version>
         <json-filter.version>4.0.1</json-filter.version>
         <conscrypt-openjdk-uber.version>2.2.1</conscrypt-openjdk-uber.version>
