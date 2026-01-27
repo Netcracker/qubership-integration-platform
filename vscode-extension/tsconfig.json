@@ -11,6 +11,16 @@
     ],
     "sourceMap": true,
     "rootDir": "src",
-    "strict": true
+    "strict": true,
+    "paths": {
+      "@netcracker/qip-schemas": [
+        "./node_modules/@netcracker/qip-schemas",
+        "./node_modules/@netcracker/qip-ui/node_modules/@netcracker/qip-schemas"
+      ],
+      "@netcracker/qip-schemas/*": [
+        "./node_modules/@netcracker/qip-schemas/*",
+        "./node_modules/@netcracker/qip-ui/node_modules/@netcracker/qip-schemas/*"
+      ]
+    }
   }
 }

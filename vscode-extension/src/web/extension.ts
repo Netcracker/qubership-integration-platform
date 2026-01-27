@@ -12,8 +12,10 @@ import { getApiResponse } from "./response";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
-  getExtensionsForUri,
-  initializeContextFromFile,
+    getExtensionsForUri,
+    setCurrentFileContext,
+    extractFilename,
+    initializeContextFromFile
 } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
 import { VSCodeMessage, VSCodeResponse } from "@netcracker/qip-ui";
@@ -225,17 +227,26 @@ export function refreshQipExplorer() {
 class ChainFileEditorProvider implements CustomTextEditorProvider {
   constructor(private readonly context: ExtensionContext) {}
 
-  async resolveCustomTextEditor(
-    document: TextDocument,
-    panel: WebviewPanel,
-    _token: CancellationToken,
-  ): Promise<void> {
-    const webview = panel.webview;
-    webview.options = {
-      localResourceRoots: [this.context.extensionUri],
-      enableScripts: true,
-      enableCommandUris: true,
-    };
+    async resolveCustomTextEditor(
+        document: TextDocument,
+        panel: WebviewPanel,
+        _token: CancellationToken
+    ): Promise<void> {
+        if (!document || !document.uri || !panel || !this.context || !this.context.extensionUri) {
+            throw new Error("Invalid parameters for resolveCustomTextEditor");
+        }
+
+        try {
+            const webview = panel.webview;
+            if (!webview) {
+                throw new Error("Panel.webview is required but was null or undefined");
+            }
+
+            webview.options = {
+                localResourceRoots: [this.context.extensionUri],
+                enableScripts: true,
+                enableCommandUris: true
+            };
 
     panel.onDidChangeViewState(async (e) => {
       if (e.webviewPanel.active) {
@@ -267,8 +278,11 @@ class ChainFileEditorProvider implements CustomTextEditorProvider {
       }
     });
 
-    enrichWebview(panel, this.context, document.uri);
-  }
+            await enrichWebview(panel, this.context, document.uri);
+        } catch (error) {
+            throw error;
+        }
+    }
 }
 
 function openWebviewForElement(
@@ -291,15 +305,15 @@ function openWebviewForElement(
   enrichWebview(panel, context, fileUri);
 }
 
-function enrichWebview(
-  panel: WebviewPanel,
-  context: ExtensionContext,
-  fileUri: Uri | undefined = undefined,
-) {
-  type VSCodeMessageWrapper = {
-    command: string;
-    data: VSCodeMessage<any>;
-  };
+async function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: Uri | undefined = undefined) {
+    if (!panel || !context || !context.extensionUri || !panel.webview) {
+        throw new Error("Invalid parameters for enrichWebview");
+    }
+
+    type VSCodeMessageWrapper = {
+        command: string;
+        data: VSCodeMessage<any>;
+    };
 
   if (fileUri) {
     try {
@@ -309,7 +323,7 @@ function enrichWebview(
     }
   }
 
-  panel.webview.html = getWebviewContent(context, panel.webview);
+  panel.webview.html = await getWebviewContent(context, panel.webview);
 
   const panelId = crypto.randomUUID();
   activeWebviewPanels.set(panelId, panel);
@@ -797,29 +811,78 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 // This method is called when your extension is deactivated
 export function deactivate() {}
 
-function getWebviewContent(context: ExtensionContext, webview: Webview) {
-  // Dynamically load the JS and CSS files
-  const jsFileUri = vscode.Uri.joinPath(
-    context.extensionUri,
-    "node_modules",
-    "@netcracker",
-    "qip-ui",
-    "dist-lib",
-    "index.es.js",
-  );
-  const cssFileUri = vscode.Uri.joinPath(
-    context.extensionUri,
-    "node_modules",
-    "@netcracker",
-    "qip-ui",
-    "dist-lib",
-    "qip-ui.css",
-  );
-  const jsUri = webview.asWebviewUri(jsFileUri);
-  const cssUri = webview.asWebviewUri(cssFileUri);
+async function getWebviewContent(context: ExtensionContext, webview: Webview) {
+    if (!context || !context.extensionUri || !webview) {
+        throw new Error("Invalid parameters for getWebviewContent");
+    }
 
-  // Return the HTML content for the webview
-  return `
+    // Dynamically load the JS and CSS files
+    // Use bundled version for VSCode extension (includes React)
+    let jsUri: vscode.Uri;
+    let cssUri: vscode.Uri;
+    let useBundled = false; // Will be set based on file existence
+
+    try {
+        // Try bundled version first (includes React)
+        let jsFileUri = vscode.Uri.joinPath(
+            context.extensionUri,
+            'node_modules',
+            '@netcracker',
+            'qip-ui',
+            'dist-lib',
+            'index.bundled.es.js'
+        );
+
+        // Check if bundled version exists using VSCode API (works in web extensions)
+        // Try to stat the bundled file - if it fails, use external version
+        let bundledExists = false;
+        try {
+            await vscode.workspace.fs.stat(jsFileUri);
+            bundledExists = true;
+        } catch (error) {
+            jsFileUri = vscode.Uri.joinPath(
+                context.extensionUri,
+                'node_modules',
+                '@netcracker',
+                'qip-ui',
+                'dist-lib',
+                'index.es.js'
+            );
+        }
+
+        useBundled = bundledExists;
+        const cssFileUri = vscode.Uri.joinPath(
+            context.extensionUri,
+            'node_modules',
+            '@netcracker',
+            'qip-ui',
+            'dist-lib',
+            'qip-ui.css'
+        );
+
+        jsUri = webview.asWebviewUri(jsFileUri);
+        cssUri = webview.asWebviewUri(cssFileUri);
+
+        if (!jsUri || !cssUri) {
+            throw new Error("Failed to convert file URIs to webview URIs");
+        }
+    } catch (error) {
+        throw error;
+    }
+
+    const importMapScript = useBundled ? '' : `
+        <script type="importmap">
+        {
+          "imports": {
+            "react": "https://esm.sh/react@18.3.1",
+            "react-dom": "https://esm.sh/react-dom@18.3.1",
+            "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime"
+          }
+        }
+        </script>
+    `;
+
+    const html = `
     <!DOCTYPE html>
     <html lang="en">
       <head>
@@ -827,7 +890,8 @@ function getWebviewContent(context: ExtensionContext, webview: Webview) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>QIP Offline Chain Editor</title>
         <link href="${cssUri}" rel="stylesheet">
-        <script type="module" crossorigin src="${jsUri}"></script>
+        ${importMapScript}
+	    <script type="module" crossorigin src="${jsUri}"></script>
         <style>
           html, body {
             margin: 0 !important;
@@ -856,4 +920,5 @@ function getWebviewContent(context: ExtensionContext, webview: Webview) {
       </body>
     </html>
   `;
+    return html;
 }
