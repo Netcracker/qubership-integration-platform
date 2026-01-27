@@ -30,5 +30,5 @@ export enum ApiSpecificationType {
   MQTT = "MQTT",
   KAFKA = "KAFKA",
   REDIS = "REDIS",
-  NATS = "NATS"
+  NATS = "NATS",
 }

@@ -65,9 +65,8 @@ jobs:
           name: linter-config
           path: /tmp/linter-config
       - name: "Apply the common linters configuration"
-        if: ${{ steps.download.outputs.download-path != '' }}
         run: |
-          mkdir -p ./.github/linters
+          mkdir -p .github/linters
           cp --update=none -vRT /tmp/linter-config/linters ./.github/linters
 
       - name: "Load super-linter environment file"

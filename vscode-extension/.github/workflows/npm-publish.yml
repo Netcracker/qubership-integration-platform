@@ -7,12 +7,9 @@
 
 name: Publish NPM package
 
-run-name: NPM Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry-run)) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && !inputs.dry-run && inputs.version) && format(' {0}', inputs.version) || '' }}
+run-name: NPM Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch')) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && inputs.version) && format(' {0}', inputs.version) || '' }}
 
 on:
-  push:
-    branches:
-      - '**'
   workflow_dispatch:
     inputs:
       version:
@@ -36,22 +33,25 @@ on:
         required: false
         type: boolean
         default: false
-      dry-run:
-        description: 'Run in dry-run mode (no actual publishing)'
-        required: false
-        type: boolean
-        default: false
       npm-dist-tag:
         description: 'NPM distribution tag'
         required: false
         type: string
         default: 'latest'
+      create-github-release:
+        description: 'Create release'
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
 jobs:
   test-with-sonar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     env:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -74,7 +74,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Test with coverage
-        run: npm run test:unit:coverage
+        run: npm test -- --coverage
 
       - name: Sonar scan (SonarQube Cloud)
         if: ${{ github.ref_name == github.event.repository.default_branch }}
@@ -96,7 +96,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       publish_version: ${{ steps.set_version.outputs.publish_version }}
-      is_dev: ${{ steps.set_version.outputs.is_dev }}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
@@ -109,16 +108,14 @@ jobs:
       - name: Set publish version
         id: set_version
         env:
-          PACKAGE_VERSION: ${{ steps.get_version.outputs.package_version }}
+          VERSION: ${{ steps.get_version.outputs.package_version }}
         run: |
-          VERSION="$PACKAGE_VERSION"
           if [[ "$VERSION" == *"-dev" ]]; then
             TIMESTAMP=$(date +'%Y%m%d%H%M%S')
-            echo "publish_version=${VERSION}.${TIMESTAMP}" >> $GITHUB_OUTPUT
-            echo "is_dev=true" >> $GITHUB_OUTPUT
+            NEW_VERSION="${VERSION}.${TIMESTAMP}"
+            echo "publish_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           else
             echo "publish_version=$VERSION" >> $GITHUB_OUTPUT
-            echo "is_dev=false" >> $GITHUB_OUTPUT
           fi
 
   npm-publish:
@@ -133,8 +130,30 @@ jobs:
       node-version: ${{ github.event_name == 'workflow_dispatch' && inputs.node-version || '22.x' }}
       registry-url: ${{ github.event_name == 'workflow_dispatch' && inputs.registry-url || 'https://npm.pkg.github.com' }}
       update-nc-dependency: ${{ github.event_name == 'workflow_dispatch' && inputs.update-nc-dependency || false }}
-      dry-run: ${{ (github.event_name == 'push' && needs.prepare-version.outputs.is_dev != 'true') || (github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
-      dist-tag: ${{ github.event_name == 'push' && needs.prepare-version.outputs.is_dev == 'true' && 'dev' || (github.event_name == 'workflow_dispatch' && inputs.npm-dist-tag != '' && inputs.npm-dist-tag) || 'latest' }}
+      dist-tag: ${{(github.event_name == 'workflow_dispatch' && inputs.npm-dist-tag != '' && inputs.npm-dist-tag) || 'latest' }}
       ref: ${{ github.ref_name }}
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create-release:
+    if: ${{ github.event.inputs.create-github-release == 'true' }}
+    needs: npm-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+      - name: Run Release Drafter
+        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
+        with:
+          config-name: "release-drafter-config.yml"
+          publish: true
+          prerelease: ${{ github.ref_name != 'main' }}
+          name: ${{ inputs.version }}
+          tag: 'v${{ inputs.version }}'
+          version: 'v${{ inputs.version }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
