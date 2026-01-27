@@ -50,7 +50,7 @@ export const ServiceTypeBreadcrumbItem: React.FC<
   const getTabHash = (type?: IntegrationSystemType) => {
     return IntegrationSystemType[
       type ?? IntegrationSystemType.IMPLEMENTED
-    ].toLowerCase();
+    ]?.toLowerCase();
   };
 
   const url = `/services#${getTabHash(props.type)}`;
