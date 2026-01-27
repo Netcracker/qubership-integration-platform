@@ -119,7 +119,7 @@ public class CustomResilienceReifier extends ResilienceReifier {
             if (levelPredicate.test(level)) {
                 consumer.accept(event);
             }
-        }; 
+        };
     }
 
     private static LogLoggingLevel getLoggingLevel(ResilienceProcessor processor) {

@@ -58,7 +58,7 @@ public class KafkaElementDependencyBinder extends ElementProcessingAction {
         this.metricsStore = metricsStore;
         this.metricTagsHelper = metricTagsHelper;
     }
-    
+
     @Override
     public boolean applicableTo(ElementProperties properties) {
         String elementType = properties.getProperties().get(ChainProperties.ELEMENT_TYPE);

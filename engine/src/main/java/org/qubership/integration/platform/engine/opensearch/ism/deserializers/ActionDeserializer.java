@@ -49,7 +49,7 @@ public class ActionDeserializer extends JsonDeserializer<Action> {
             new AbstractMap.SimpleEntry<String, Class<? extends Action>>("allocation", AllocationAction.class),
             new AbstractMap.SimpleEntry<String, Class<? extends Action>>("rollup", RollupAction.class)
     );
-    
+
     @Override
     public Action deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JacksonException {
         TreeNode node = jsonParser.readValueAsTree();

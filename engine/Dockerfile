@@ -1,8 +1,8 @@
 FROM alpine/java:21-jdk
 
 USER root
-RUN ["chmod", "-R", "755", "/opt/java/openjdk"]
-RUN apk add --no-cache curl
+RUN chmod -R 755 /opt/java/openjdk \
+    && apk add --no-cache curl=8.18.0-rc3
 
 USER 10001
 VOLUME /tmp

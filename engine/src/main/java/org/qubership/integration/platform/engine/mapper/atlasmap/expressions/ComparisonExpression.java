@@ -309,7 +309,7 @@ public abstract class ComparisonExpression extends BinaryExpression implements B
 
     /**
      * Only Numeric expressions can be used in &gt;, &gt;=, &lt; or &lt;= expressions.
-     * 
+     *
      * @param expr {@link Expression}
      */
     public static void checkLessThanOperand(Expression expr) {
