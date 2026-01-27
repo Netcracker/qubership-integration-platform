@@ -17,12 +17,16 @@
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.Transient;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldNameConstants;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.AbstractSystemEntity;
+
+import java.util.List;
 
 @Getter
 @Setter
@@ -36,6 +40,9 @@ public class ContextSystem extends AbstractSystemEntity {
     public boolean equals(Object object) {
         return equals(object, true);
     }
+
+    @Transient
+    private List<Chain> chains;
 
 }
 

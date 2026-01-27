@@ -64,11 +64,17 @@ public class ContextSystemController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ContextSystemResponseDTO>> getContextSystems() {
+    public ResponseEntity<List<ContextSystemResponseDTO>> getContextSystems(@RequestParam(name = "includeChainUsage", defaultValue = "false") boolean includeChainUsage) {
+
         if (log.isDebugEnabled()) {
             log.debug("Request to find all context systems");
         }
-        List<ContextSystem> contextSystems = contextSystemService.findAll();
+        List<ContextSystem> contextSystems;
+        if (includeChainUsage) {
+             contextSystems = contextSystemService.getContextSystemService();
+        } else {
+            contextSystems = contextSystemService.findAll();
+        }
         List<ContextSystemResponseDTO> response
                 = contextSystemMapper.toContextSystemResponsesDTOs(contextSystems);
         return ResponseEntity.ok(response);

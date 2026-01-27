@@ -16,8 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.context;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.runtime.catalog.model.dto.BaseResponse;
 import org.qubership.integration.platform.runtime.catalog.model.dto.user.UserDTO;
+
+import java.util.List;
 
 @Data
 public class ContextSystemResponseDTO {
@@ -28,4 +32,6 @@ public class ContextSystemResponseDTO {
     private UserDTO createdBy;
     private Long modifiedWhen;
     private UserDTO modifiedBy;
+    @Schema(description = "List of chains that is using current service")
+    private List<BaseResponse> chains;
 }
