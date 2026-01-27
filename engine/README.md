@@ -9,7 +9,7 @@ This service:
 - Records sessions of integration chains execution. These records can be later accessed via [Sessions Management](https://github.com/Netcracker/qubership-integration-sessions-management) service.
 - Collects various metrics of integration chains execution.
 
-Engine service uses [Apache Camel](https://camel.apache.org/) for defining and execution of integration logic.
+Engine service uses **Apache Camel** for defining and execution of integration logic.
 
 Engine service publishes integration chains deployment state to Consul.
 
