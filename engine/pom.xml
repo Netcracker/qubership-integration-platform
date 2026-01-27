@@ -62,7 +62,7 @@
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <lombok.version>1.18.42</lombok.version>
         <json-schema-validator.version>1.0.87</json-schema-validator.version>
-        <kubernetes-client-java.version>19.0.2</kubernetes-client-java.version>
+        <kubernetes-client-java.version>19.0.3</kubernetes-client-java.version>
         <protobuf-java.version>3.25.1</protobuf-java.version>
         <amqp-client.version>5.20.0</amqp-client.version>
         <json-filter.version>4.0.1</json-filter.version>
