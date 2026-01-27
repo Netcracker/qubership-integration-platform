@@ -22,134 +22,134 @@ inputEnabled: false
 outputEnabled: true
 container: false
 customTabs:
--   name: Endpoint
+  - name: Endpoint
     uiComponent: context-path
     validation:
-        anyOf: [ 'contextPath', 'integrationOperationPath' ]
--   name: Validate Request
+      anyOf: [ 'contextPath', 'integrationOperationPath' ]
+  - name: Validate Request
     uiComponent: http-request-validation
--   name: Handle Validation Failure
+  - name: Handle Validation Failure
     uiComponent: http-request-validation-failure-handler
--   name: Failure Response Mapping
+  - name: Failure Response Mapping
     uiComponent: http-request-chain-failure-handler
--   name: Idempotency
+  - name: Idempotency
     uiComponent: idempotency-parameters
 # <WARNING 1> 'matchOnUriPrefix' param not supported now! See qip-engine -> RestConsumerContextPathCustomMatcher::matchBestPath
 # <WARNING 2> at runtime, the 'servletCustomId' property will be added to the ServletCustomEndpoint (append to URI)
 properties:
-    common:
-    -   name: accessControl
-        title: Access Control
-        type: custom
-        uiComponent: access-control
-    advanced:
-    -   name: chunked
-        title: Chunked
-        description: If this option is false the Servlet will disable the HTTP streaming and set the content-length header on the response
-        type: boolean
-        default: true
-        query: true
-    -   name: externalRoute
-        title: External route
-        description: If checked, HTTP trigger will be registered as "external" on public gateway. Checkbox is inactive when default route registration is disabled in global environment settings.
-        type: boolean
-        default: true
-        disabledOnIngressRegistrationOff: true
-    -   name: privateRoute
-        title: Private route
-        description: If checked, HTTP trigger will be registered as "Private" on private gateway. Checkbox is inactive when default route registration is disabled in global environment settings.
-        type: boolean
-        default: false
-        disabledOnIngressRegistrationOff: true
-    -   name: correlationId
-        title: Use Correlation Id
-        type: custom
-        uiComponent: correlation-id
-    -   name: responseFilter
-        title: Response filter
-        description: Turns on ability to handle additional query parameters "fields" and "excludeFields" to include only specific fields in response or exclude them from there. This is only supported for responses in JSON.
-        type: boolean
-    -   name: connectTimeout
-        title: Connection timeout (ms)
-        description: Specifies connection timeout in millis (default value will be used if nothing is given)
-        type: number
-        mandatory: false
-        default: 120000
-    -   name: killSessionOnTimeout
-        title: Terminate session on connection timeout
-        description: If checked, connection timeout will trigger session termination process. Chain session might not be finished.
-        type: boolean
-        default: false
-    hidden:
-    -   name: accessControlType
-        title: Access Control Type
-        type: string
-        mandatory: true
-        allowedValues:
+  common:
+    - name: accessControl
+      title: Access Control
+      type: custom
+      uiComponent: access-control
+  advanced:
+    - name: chunked
+      title: Chunked
+      description: If this option is false the Servlet will disable the HTTP streaming and set the content-length header on the response
+      type: boolean
+      default: true
+      query: true
+    - name: externalRoute
+      title: External route
+      description: If checked, HTTP trigger will be registered as "external" on public gateway. Checkbox is inactive when default route registration is disabled in global environment settings.
+      type: boolean
+      default: true
+      disabledOnIngressRegistrationOff: true
+    - name: privateRoute
+      title: Private route
+      description: If checked, HTTP trigger will be registered as "Private" on private gateway. Checkbox is inactive when default route registration is disabled in global environment settings.
+      type: boolean
+      default: false
+      disabledOnIngressRegistrationOff: true
+    - name: correlationId
+      title: Use Correlation Id
+      type: custom
+      uiComponent: correlation-id
+    - name: responseFilter
+      title: Response filter
+      description: Turns on ability to handle additional query parameters "fields" and "excludeFields" to include only specific fields in response or exclude them from there. This is only supported for responses in JSON.
+      type: boolean
+    - name: connectTimeout
+      title: Connection timeout (ms)
+      description: Specifies connection timeout in millis (default value will be used if nothing is given)
+      type: number
+      mandatory: false
+      default: 120000
+    - name: killSessionOnTimeout
+      title: Terminate session on connection timeout
+      description: If checked, connection timeout will trigger session termination process. Chain session might not be finished.
+      type: boolean
+      default: false
+  hidden:
+    - name: accessControlType
+      title: Access Control Type
+      type: string
+      mandatory: true
+      allowedValues:
         - RBAC
         - ABAC
         - NONE
-        default: NONE
-    -   name: abacParameters
-        description: ABAC parameters contains resourceType, resource, operation
-        title: Parameters
-        type: string # map<string, object>
-    -   name: roles
-        title: Roles
-        description: Allowed user roles to access HTTP trigger
-        type: string
-        multiple: true
-        allowCustomValue: true
-    -   name: httpMethodRestrict
-        type: string
-        query: true
-    -   name: httpBinding
-        type: string
-        query: true
-        default: 'handlingHttpBinding'
-    -   name: contextPath
-        type: string
-    -   name: correlationIdName
-        title: Correlation id name
-        type: string
-    -   name: correlationIdPosition
-        title: Correlation id position
-        type: string
-        allowedValues:
+      default: NONE
+    - name: abacParameters
+      description: ABAC parameters contains resourceType, resource, operation
+      title: Parameters
+      type: string # map<string, object>
+    - name: roles
+      title: Roles
+      description: Allowed user roles to access HTTP trigger
+      type: string
+      multiple: true
+      allowCustomValue: true
+    - name: httpMethodRestrict
+      type: string
+      query: true
+    - name: httpBinding
+      type: string
+      query: true
+      default: 'handlingHttpBinding'
+    - name: contextPath
+      type: string
+    - name: correlationIdName
+      title: Correlation id name
+      type: string
+    - name: correlationIdPosition
+      title: Correlation id position
+      type: string
+      allowedValues:
         - Header
         - Body
-    -   name: invalidURI
-        title: Is URI invalid
-        type: boolean
-    -   name: validationSchema
-        title: Json Request Schema
-        description: Schema for input message validation
-        type: string
-    -   name: rejectRequestIfNonNullBodyGetDelete
-        title: Reject request if body is not empty for GET, DELETE methods
-        description: Incoming request will be rejected with an error, if body is received for GET and DELETE methods
-        type: boolean
-        default: true
-    -   name: handleValidationAction
-        title: Action
-        type: string
-        allowedValues:
+    - name: invalidURI
+      title: Is URI invalid
+      type: boolean
+    - name: validationSchema
+      title: Json Request Schema
+      description: Schema for input message validation
+      type: string
+    - name: rejectRequestIfNonNullBodyGetDelete
+      title: Reject request if body is not empty for GET, DELETE methods
+      description: Incoming request will be rejected with an error, if body is received for GET and DELETE methods
+      type: boolean
+      default: true
+    - name: handleValidationAction
+      title: Action
+      type: string
+      allowedValues:
         - default
         - script
         - mapper-2
-        default: default
-    -   name: handleChainFailureAction
-        title: Action
-        type: string
-        allowedValues:
-            - default
-            - script
-            - mapper-2
-            - chain-call
-        default: default
-    -   name: allowedContentTypes
-        title: Allowed Content Types
-        description: If no content types defined - validation disabled
-        type: string
-        multiple: true
-        allowCustomValue: true
+      default: default
+    - name: handleChainFailureAction
+      title: Action
+      type: string
+      allowedValues:
+        - default
+        - script
+        - mapper-2
+        - chain-call
+      default: default
+    - name: allowedContentTypes
+      title: Allowed Content Types
+      description: If no content types defined - validation disabled
+      type: string
+      multiple: true
+      allowCustomValue: true

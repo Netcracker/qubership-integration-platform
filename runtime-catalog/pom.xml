@@ -1,11 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-runtime-catalog</artifactId>
-    <version>${revision}</version>
+    <version>0.3.6-SNAPSHOT</version>
     <name>QIP Runtime Catalog</name>
+    <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
+    </description>
+    <url>https://github.com/Netcracker/qubership-integration-runtime-catalog</url>
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Netcracker</name>
+            <email>opensourcegroup@netcracker.com</email>
+            <organization>Netcracker Technology</organization>
+            <organizationUrl>https://www.netcracker.com</organizationUrl>
+        </developer>
+    </developers>
+    <scm>
+        <connection>scm:git:https//github.com/Netcracker/qubership-integration-runtime-catalog.git</connection>
+        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-runtime-catalog.git
+        </developerConnection>
+        <url>scm:git:https://github.com/Netcracker/qubership-integration-runtime-catalog.git</url>
+        <tag>HEAD</tag>
+    </scm>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -19,9 +44,6 @@
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-
-        <revision>0.3.5</revision>
-        <catalog-library.revision>0.2.0</catalog-library.revision>
 
         <!-- BOMs -->
 
@@ -369,12 +391,43 @@
         </dependencies>
     </dependencyManagement>
 
-    <distributionManagement>
+    <repositories>
+        <!-- Maven Central repository for release versions -->
         <repository>
-            <id>central</id>
-            <name>Central Maven Repository</name>
+            <id>oss.sonatype.org</id>
+            <url>https://central.sonatype.com</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
         </repository>
-    </distributionManagement>
+
+        <!-- Maven Central repository for SNAPSHOT versions-->
+        <repository>
+            <id>oss.sonatype.org-snapshot</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+
+        <!-- GitHub packages repository for both release and SNAPSHOT versions -->
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/netcracker/*</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>
@@ -740,7 +793,8 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>org.qubership.integration.platform.runtime.catalog.RuntimeCatalogApplicationRunner</mainClass>
+                    <mainClass>org.qubership.integration.platform.runtime.catalog.RuntimeCatalogApplicationRunner
+                    </mainClass>
                     <skip>false</skip>
                     <profiles>
                         <profile>development</profile>
@@ -822,22 +876,6 @@
                 </configuration>
             </plugin>
 
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-            </plugin>
-
-            <plugin>
-                <groupId>org.sonatype.central</groupId>
-                <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>0.6.0</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <publishingServerId>central</publishingServerId>
-                    <autoPublish>true</autoPublish>
-                    <waitUntil>published</waitUntil>
-                </configuration>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
@@ -938,5 +976,57 @@
             </testResource>
         </testResources>
     </build>
+
+    <profiles>
+        <!-- Maven Central -->
+        <!-- mvn deploy -P central -->
+        <profile>
+            <id>central</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.7.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>published</waitUntil>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+            <distributionManagement>
+                <repository>
+                    <id>central</id>
+                    <name>Central Maven Repository</name>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+            </distributionManagement>
+        </profile>
+        <!-- GitHub packages -->
+        <!-- mvn deploy -P github -->
+        <profile>
+            <id>github</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <distributionManagement>
+                <repository>
+                    <id>github</id>
+                    <name>GitHub Packages</name>
+                    <url>
+                        https://maven.pkg.github.com/Netcracker/qubership-integration-sessions-management
+                    </url>
+                </repository>
+            </distributionManagement>
+        </profile>
+    </profiles>
 
 </project>
