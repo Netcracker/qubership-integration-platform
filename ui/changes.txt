@@ -1,0 +1,31 @@
+diff --git a/package-lock.json b/package-lock.json
+index 7066cae..19abb70 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "@netcracker/qip-ui",
+-  "version": "0.0.0",
++  "version": "0.0.33",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "@netcracker/qip-ui",
+-      "version": "0.0.0",
++      "version": "0.0.33",
+       "license": "Apache-2.0",
+       "dependencies": {
+         "@ant-design/icons": "^6.1.0",
+diff --git a/package.json b/package.json
+index 21923e6..a0fb375 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@netcracker/qip-ui",
+-  "version": "0.0.0",
++  "version": "0.0.33",
+   "license": "Apache-2.0",
+   "description": "Qubership Integration Platform - UI",
+   "module": "./dist-lib/index.es.js",
