@@ -74,7 +74,7 @@
 
         <!-- Plugins -->
 
-        <jacoco.plugin.version>0.8.11</jacoco.plugin.version>
+        <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
