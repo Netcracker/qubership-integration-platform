@@ -16,20 +16,36 @@
 
 package org.qubership.integration.platform.engine.component;
 
+import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
+import org.apache.camel.Exchange;
 import org.apache.camel.ProducerTemplate;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.qubership.integration.platform.engine.component.profile.DeploymentTestProfile;
+import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
+import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
+import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
+import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
+import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingService;
 import org.qubership.integration.platform.engine.testutils.DeploymentUtils;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.RouteTestHelpers;
 
+import java.util.Collections;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Answers.RETURNS_DEEP_STUBS;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @QuarkusTest
 @TestProfile(DeploymentTestProfile.class)
@@ -41,6 +57,29 @@ class DeploymentProcessingServiceComponentIT {
 
     @Inject
     CamelContext camelContext;
+
+    @InjectMock
+    CamelDebuggerPropertiesService propertiesService;
+
+    @BeforeEach
+    void mockDebuggerPropsService() {
+        CamelDebuggerProperties props = Mockito.mock(CamelDebuggerProperties.class, RETURNS_DEEP_STUBS);
+
+        DeploymentRuntimeProperties runtime = Mockito.mock(DeploymentRuntimeProperties.class, RETURNS_DEEP_STUBS);
+        when(runtime.calculateSessionLevel(any(Exchange.class))).thenReturn(SessionsLoggingLevel.OFF);
+        when(runtime.getLogLoggingLevel()).thenReturn(LogLoggingLevel.ERROR);
+        when(runtime.getLogPayload()).thenReturn(Collections.emptySet());
+        when(runtime.isMaskingEnabled()).thenReturn(false);
+        when(runtime.isDptEventsEnabled()).thenReturn(false);
+        when(props.getRuntimeProperties(any(Exchange.class))).thenReturn(runtime);
+
+        when(props.getElementProperty(anyString()))
+                .thenReturn(Map.of("", ""));
+
+        when(propertiesService.getProperties(any(Exchange.class))).thenReturn(props);
+        when(propertiesService.getActualProperties(anyString())).thenReturn(props);
+    }
+
 
     @Test
     void whenConditionTrueThenIf() throws Exception {

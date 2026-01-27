@@ -41,9 +41,6 @@ public class DeploymentTestProfile implements QuarkusTestProfile {
             "org.qubership.integration.platform.engine.service.IntegrationRuntimeService",
             "org.qubership.integration.platform.engine.service.debugger.metrics.SessionsMetricsService",
             "org.qubership.integration.platform.engine.service.debugger.metrics.SessionsMetricsServiceProducer",
-            "org.qubership.integration.platform.engine.configuration.opensearch.**",
-            "org.qubership.integration.platform.engine.service.debugger.sessions.**",
-            "org.qubership.integration.platform.engine.service.debugger.CamelDebugger",
             "org.qubership.integration.platform.engine.configuration.SessionsMetricsServiceProducer"
 
     );
@@ -64,6 +61,6 @@ public class DeploymentTestProfile implements QuarkusTestProfile {
 
     @Override
     public List<TestResourceEntry> testResources() {
-        return List.of(new TestResourceEntry(PostgresTwoDbTestResource.class));
+        return List.of(new TestResourceEntry(PostgresTwoDbTestResource.class), new TestResourceEntry(OpenSearchTestResource.class));
     }
 }
