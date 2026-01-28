@@ -52,6 +52,7 @@ import {
   IntegrationSystemType,
   ContextSystem,
   DiagnosticValidation,
+  BulkDeploymentResult,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
@@ -948,6 +949,9 @@ export class VSCodeExtensionApi implements Api {
   }
   runValidations(): Promise<void> {
     throw new Error("Method runValidations not implemented.");
+  }
+  bulkDeploy(): Promise<BulkDeploymentResult[]> {
+    throw new Error("Method bulkDeploy not implemented.");
   }
 }
 

@@ -70,6 +70,8 @@ import {
   ContextSystem,
   IntegrationSystemType,
   DiagnosticValidation,
+  BulkDeploymentRequest,
+  BulkDeploymentResult,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
@@ -1523,5 +1525,15 @@ export class RestApi implements Api {
         params: { validationIds: ids },
       },
     );
+  };
+
+  bulkDeploy = async (
+    request: BulkDeploymentRequest,
+  ): Promise<BulkDeploymentResult[]> => {
+    const response = await this.instance.post<BulkDeploymentResult[]>(
+      `/api/v1/${getAppName()}/catalog/chains/deployments/bulk`,
+      request,
+    );
+    return response.data;
   };
 }

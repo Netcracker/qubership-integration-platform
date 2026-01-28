@@ -64,6 +64,8 @@ import {
   ContextSystem,
   IntegrationSystemType,
   DiagnosticValidation,
+  BulkDeploymentRequest,
+  BulkDeploymentResult,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -468,6 +470,8 @@ export interface Api {
   getValidation(validationId: string): Promise<DiagnosticValidation>;
 
   runValidations(ids: string[]): Promise<void>;
+
+  bulkDeploy(request: BulkDeploymentRequest): Promise<BulkDeploymentResult[]>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();
