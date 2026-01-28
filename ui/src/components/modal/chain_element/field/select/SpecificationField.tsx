@@ -27,6 +27,7 @@ const SpecificationField: React.FC<
     string | undefined
   >(props.registry.formContext?.integrationSpecificationGroupId);
   const systemId = props.registry.formContext?.integrationSystemId as string;
+  const updateContext = props.registry.formContext.updateContext;
 
   const buildSpecificationOptions = (
     groupName: string,
@@ -56,6 +57,35 @@ const SpecificationField: React.FC<
     }
     return result;
   };
+
+  const handleChange = useCallback(
+    (newValue: string) => {
+      const specGroupId = specIdToGroupIdMap.get(newValue);
+      setSpecificationId(newValue);
+      setSpecificationGroupId(specGroupId);
+      const context: Record<string, unknown> = {
+        integrationSpecificationId: newValue,
+        integrationSpecificationGroupId: specGroupId,
+        integrationOperationId: null,
+        integrationOperationPath: null,
+        integrationOperationMethod: null,
+      };
+
+      updateContext?.(context);
+    },
+    [updateContext, specIdToGroupIdMap],
+  );
+
+  useEffect(() => {
+    const loadLatestSpecification = async () => {
+      if (systemId && !props.formData) {
+        const latestSpec: Specification =
+          await api.getLatestApiSpecification(systemId);
+        handleChange(latestSpec.id);
+      }
+    };
+    void loadLatestSpecification();
+  }, [handleChange, systemId, props.formData]);
 
   useEffect(() => {
     const loadSpecificationGroups = async () => {
@@ -92,24 +122,6 @@ const SpecificationField: React.FC<
   }, [systemId, notificationService]);
 
   const title = props.uiSchema?.["ui:title"] ?? props.schema?.title ?? "";
-
-  const handleChange = useCallback(
-    (newValue: string) => {
-      const specGroupId = specIdToGroupIdMap.get(newValue);
-      setSpecificationId(newValue);
-      setSpecificationGroupId(specGroupId);
-      const context: Record<string, unknown> = {
-        integrationSpecificationId: newValue,
-        integrationSpecificationGroupId: specGroupId,
-        integrationOperationId: null,
-        integrationOperationPath: null,
-        integrationOperationMethod: null,
-      };
-
-      props.registry.formContext.updateContext?.(context);
-    },
-    [props.registry.formContext, specIdToGroupIdMap],
-  );
 
   const onNavigationButtonClick = useCallback(() => {
     const path = `/services/systems/${systemId}/specificationGroups/${specificationGroupId}/specifications/${specificationId}/operations`;

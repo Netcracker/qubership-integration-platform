@@ -526,6 +526,15 @@ export class VSCodeExtensionApi implements Api {
     );
   };
 
+  getLatestApiSpecification = async (
+    systemId: string,
+  ): Promise<Specification> => {
+    return <Specification>(
+      (await this.sendMessageToExtension("getLatestApiSpecification", systemId))
+        .payload
+    );
+  };
+
   updateApiSpecificationGroup = async (
     groupId: string,
     group: Partial<SpecificationGroup>,

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import type { RJSFSchema } from "@rjsf/utils";
-import { Select, Input, Button } from "antd";
+import { Select, Input, Button, SelectProps } from "antd";
 import styles from "./BodyParametersField.module.css";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import { FormContext } from "../ChainElementModification";
@@ -11,8 +11,8 @@ import {
   toBodyFormData,
 } from "../../../../misc/body-form-data-utils.ts";
 
-const MIME_TYPE_OPTIONS = [
-  { label: "Inherit", value: undefined },
+const MIME_TYPE_OPTIONS: SelectProps["options"] = [
+  { label: "Inherit", value: "Inherit" },
   { label: "None", value: "None" },
   { label: "multipart/form-data", value: "multipart/form-data" },
   {
@@ -24,7 +24,7 @@ const MIME_TYPE_OPTIONS = [
 const BodyMimeTypeField: React.FC<
   FieldProps<string | undefined, RJSFSchema, FormContext>
 > = ({ formData, onChange, disabled, readonly, fieldPathId, registry }) => {
-  const bodyMimeType = formData;
+  const bodyMimeType = formData ?? "Inherit";
   const formContext = registry.formContext;
 
   const bodyFormData = useMemo(
@@ -41,10 +41,10 @@ const BodyMimeTypeField: React.FC<
   };
 
   const handleMimeTypeChange = (value: string | undefined) => {
-    onChange(value, fieldPathId.path);
+    onChange(value === "Inherit" ? undefined : value, fieldPathId.path);
 
     // Clear form data if switching to None or Inherit
-    if (!value || value === "None") {
+    if (value === "Inherit" || value === "None") {
       formContext.updateContext?.({ bodyFormData: [] });
     }
   };
@@ -107,7 +107,7 @@ const BodyMimeTypeField: React.FC<
                   <OverridableIcon name="down" />
                 )}
               </span>
-              <span>Form Data</span>
+              <span>Parameters</span>
               <span className={styles.badge}>{bodyFormData.length}</span>
             </div>
             <div>

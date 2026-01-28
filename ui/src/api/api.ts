@@ -379,6 +379,8 @@ export interface Api {
 
   getApiSpecifications(systemId: string): Promise<SpecificationGroup[]>;
 
+  getLatestApiSpecification(systemId: string): Promise<Specification>;
+
   updateApiSpecificationGroup(
     id: string,
     data: Partial<SpecificationGroup>,

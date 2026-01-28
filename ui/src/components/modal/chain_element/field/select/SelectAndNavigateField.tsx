@@ -33,7 +33,7 @@ export const SelectAndNavigateField: React.FC<SelectFieldProps> = (props) => {
           onChange={props.selectOnChange}
           disabled={props.selectDisabled}
         />
-        <Tooltip title="Go to service">
+        <Tooltip title={props.buttonTitle}>
           <Button
             icon={<OverridableIcon name="send" />}
             disabled={props.buttonDisabled}

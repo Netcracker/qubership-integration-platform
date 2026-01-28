@@ -1154,6 +1154,20 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  getLatestApiSpecification = async (
+    systemId: string,
+  ): Promise<Specification> => {
+    const response = await this.instance.get<Specification>(
+      `/api/v1/${getAppName()}/systems-catalog/models/latest`,
+      {
+        params: {
+          systemId: systemId,
+        },
+      },
+    );
+    return response.data;
+  };
+
   updateApiSpecificationGroup = async (
     id: string,
     data: Partial<SpecificationGroup>,
@@ -1265,9 +1279,10 @@ export class RestApi implements Api {
     if (packageVersion) headers["X-SR-PACKAGE-VERSION"] = packageVersion;
     if (packagePartOf) headers["X-SR-PACKAGE-PART-OF"] = packagePartOf;
 
-    const url = systemType === IntegrationSystemType.CONTEXT
-      ? `/api/v1/${getAppName()}/catalog/context-system/import`
-      : `/api/v1/${getAppName()}/systems-catalog/import/system`;
+    const url =
+      systemType === IntegrationSystemType.CONTEXT
+        ? `/api/v1/${getAppName()}/catalog/context-system/import`
+        : `/api/v1/${getAppName()}/systems-catalog/import/system`;
     const response = await this.instance.post<ImportSystemResult[]>(
       url,
       formData,

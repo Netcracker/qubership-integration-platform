@@ -289,7 +289,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:field": "serviceField",
     },
     integrationSpecificationId: {
-      "ui:title": "Specification",
+      "ui:title": "API Specification",
       "ui:field": "specificationField",
     },
     integrationOperationId: {
@@ -427,7 +427,7 @@ export const pathToTabMap: Record<string, string> = {
     "Idempotency",
   "properties.before": "Prepare Request",
   "properties.after": "Handle Response",
-  "properties.afterValidation": "Validation",
+  "properties.afterValidation": "Validations",
   "properties.requestFilterHeaderAllowlist": "Filer Request",
 };
 
@@ -436,7 +436,7 @@ export const desiredTabOrder = [
   "Endpoint",
   "Prepare Request",
   "Authorization",
-  "Validation",
+  "Validations",
   "Validate Request",
   "Handle Validation Failure",
   "Handle Response",
