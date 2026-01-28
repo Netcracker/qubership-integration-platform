@@ -67,5 +67,7 @@ export interface FileApi {
 
   getFileType(fileUri: Uri): Promise<string>;
 
+  getFileCreatedWhen(fileUri: Uri): Promise<number>;
+
   getSpecApiFiles(): Promise<Uri[]>;
 }

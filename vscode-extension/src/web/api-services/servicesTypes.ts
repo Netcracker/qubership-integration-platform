@@ -63,6 +63,7 @@ export type Specification = BaseEntity & {
   protocol?: string;
   metadata?: Record<string, any>;
   labels?: EntityLabel[];
+  createdWhen?: number;
 };
 
 export type SystemRequest = {

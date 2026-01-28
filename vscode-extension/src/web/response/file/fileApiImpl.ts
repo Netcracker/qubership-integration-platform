@@ -791,6 +791,11 @@ export class VSCodeFileApi implements FileApi {
     }
   }
 
+  async getFileCreatedWhen(fileUri: Uri): Promise<number> {
+    const fileStat = await vscode.workspace.fs.stat(fileUri);
+    return fileStat.ctime;
+  }
+
   private hasFileWithExtension(entries: [string, number][], extension: string) {
     return entries.some(([name]: [string, number]) => name.endsWith(extension));
   }

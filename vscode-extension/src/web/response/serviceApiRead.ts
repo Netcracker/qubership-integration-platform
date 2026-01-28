@@ -205,6 +205,27 @@ export async function getApiSpecifications(
   return result;
 }
 
+export async function getLatestApiSpecification(
+  currentFile: Uri,
+  serviceId: string,
+): Promise<Specification | undefined> {
+  const specGroups: SpecificationGroup[] = await getApiSpecifications(
+    currentFile,
+    serviceId,
+  );
+
+  let result;
+  for (const specGroup of specGroups) {
+    for (const spec of specGroup.specifications) {
+      if (!result || (spec.createdWhen ?? 0) > (result.createdWhen ?? 0)) {
+        result = spec;
+      }
+    }
+  }
+
+  return result;
+}
+
 export async function getSpecificationModel(
   serviceFileUri: Uri,
   serviceId: string,
@@ -254,6 +275,7 @@ export async function getSpecificationModel(
           systemId: serviceId,
           operations: operations,
           chains: chains,
+          createdWhen: await fileApi.getFileCreatedWhen(fileUri),
         };
         result.push(spec);
       }
