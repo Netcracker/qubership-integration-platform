@@ -53,6 +53,7 @@ import { FullscreenButton } from "../FullscreenButton.tsx";
 import { useDocumentation } from "../../../hooks/useDocumentation.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
+import ChainTriggerSelectField from "./field/select/ChainTriggerSelectField.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -724,6 +725,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               bodyMimeTypeField: BodyMimeTypeField,
               singleSelectField: SingleSelectField,
               contextServiceField: ContextServiceField,
+              chainTriggerSelectField: ChainTriggerSelectField,
             }}
             widgets={widgets}
             onChange={(e) => {

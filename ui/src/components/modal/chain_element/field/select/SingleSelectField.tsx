@@ -39,21 +39,6 @@ const SingleSelectField: React.FC<
     async function load() {
       let list: ElementWithChainName[] = [];
 
-      if (name === "elementId" && schema.readOnly !== true) {
-        list = await api.getElementsByType("any-chain", "chain-trigger-2");
-        setOptions(
-          list.map((element) => ({
-            value: element.id,
-            label: (
-              <>
-                <SelectTag value={element.chainName} />
-                {element.name}
-              </>
-            ),
-          })),
-        );
-      }
-
       if (name === "reuseElementId") {
         list = await api.getElementsByType(chainId ?? "", "reuse");
         setOptions(

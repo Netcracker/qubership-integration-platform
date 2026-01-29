@@ -4,9 +4,11 @@ import { SelectProps } from "antd";
 import { FormContext } from "../../ChainElementModification.tsx";
 import { api } from "../../../../../api/api.ts";
 import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
-import { Specification, SpecificationGroup } from "../../../../../api/apiTypes.ts";
+import {
+  Specification,
+  SpecificationGroup,
+} from "../../../../../api/apiTypes.ts";
 import { JSONSchema7 } from "json-schema";
-import { VSCodeExtensionApi } from "../../../../../api/rest/vscodeExtensionApi.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { SelectTag } from "./SelectTag.tsx";
 
@@ -26,6 +28,8 @@ const SpecificationField: React.FC<
   const [specificationGroupId, setSpecificationGroupId] = useState<
     string | undefined
   >(props.registry.formContext?.integrationSpecificationGroupId);
+  const [navigationPath, setNavigationPath] = useState<string>("");
+
   const systemId = props.registry.formContext?.integrationSystemId as string;
   const updateContext = props.registry.formContext.updateContext;
 
@@ -38,7 +42,7 @@ const SpecificationField: React.FC<
         label: spec.name,
         selectedLabel: (
           <>
-            <SelectTag value={groupName} width={200} /> {spec.name}
+            <SelectTag value={groupName} /> {spec.name}
           </>
         ),
         value: spec.id,
@@ -98,7 +102,10 @@ const SpecificationField: React.FC<
             groups?.map((group) => ({
               label: <span>{group.name}</span>,
               title: group.name,
-              options: buildSpecificationOptions(group.name, group.specifications),
+              options: buildSpecificationOptions(
+                group.name,
+                group.specifications,
+              ),
             })) ?? [];
           setSpecIdToGroupIdMap(buildSpecToGroupMap(groups));
           setOptions(groupOptions);
@@ -123,13 +130,10 @@ const SpecificationField: React.FC<
 
   const title = props.uiSchema?.["ui:title"] ?? props.schema?.title ?? "";
 
-  const onNavigationButtonClick = useCallback(() => {
-    const path = `/services/systems/${systemId}/specificationGroups/${specificationGroupId}/specifications/${specificationId}/operations`;
-    if (api instanceof VSCodeExtensionApi) {
-      void api.navigateInNewTab(path);
-    } else {
-      window.open(path, "_blank");
-    }
+  useEffect(() => {
+    setNavigationPath(
+      `/services/systems/${systemId}/specificationGroups/${specificationGroupId}/specifications/${specificationId}/operations`,
+    );
   }, [systemId, specificationGroupId, specificationId]);
 
   return (
@@ -144,7 +148,7 @@ const SpecificationField: React.FC<
       selectOptionLabelProp="selectedLabel"
       buttonTitle="Go to specification"
       buttonDisabled={!(specificationGroupId && specificationId)}
-      buttonOnClick={onNavigationButtonClick}
+      buttonOnClick={navigationPath}
     />
   );
 };

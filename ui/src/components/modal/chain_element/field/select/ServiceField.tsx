@@ -9,8 +9,6 @@ import {
 import { FormContext } from "../../ChainElementModification.tsx";
 import { JSONSchema7 } from "json-schema";
 import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
-import { VSCodeExtensionApi } from "../../../../../api/rest/vscodeExtensionApi.ts";
-import { api } from "../../../../../api/api.ts";
 import { SelectTag } from "./SelectTag.tsx";
 import { capitalize } from "../../../../../misc/format-utils.ts";
 import {
@@ -37,6 +35,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
   const [options, setOptions] = useState<SelectProps["options"]>([]);
   const notificationService = useNotificationService();
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [navigationPath, setNavigationPath] = useState<string>("");
 
   const filteredServices = useMemo(() => {
     if (!services) return [];
@@ -124,13 +123,8 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
     [registry, servicesMap],
   );
 
-  const onNavigationButtonClick = useCallback(() => {
-    const path = `/services/systems/${serviceId}/parameters`;
-    if (api instanceof VSCodeExtensionApi) {
-      void api.navigateInNewTab(path);
-    } else {
-      window.open(path, "_blank");
-    }
+  useEffect(() => {
+    setNavigationPath(`/services/systems/${serviceId}/parameters`);
   }, [serviceId]);
 
   return (
@@ -144,7 +138,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
       selectDisabled={isLoading}
       buttonTitle="Go to service"
       buttonDisabled={!serviceId}
-      buttonOnClick={onNavigationButtonClick}
+      buttonOnClick={navigationPath}
     />
   );
 };

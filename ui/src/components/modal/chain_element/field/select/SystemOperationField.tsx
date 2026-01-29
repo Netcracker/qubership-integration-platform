@@ -1,17 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
-import {
-  Flex,
-  SelectProps,
-  Switch,
-  Typography,
-} from "antd";
+import { Flex, SelectProps, Switch, Typography } from "antd";
 import { FormContext } from "../../ChainElementModification.tsx";
 import { api } from "../../../../../api/api.ts";
 import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
 import { SystemOperation } from "../../../../../api/apiTypes.ts";
 import { JSONSchema7 } from "json-schema";
-import { VSCodeExtensionApi } from "../../../../../api/rest/vscodeExtensionApi.ts";
 import { HttpMethod } from "../../../../services/HttpMethod.tsx";
 import { SelectTag } from "./SelectTag.tsx";
 import {
@@ -38,6 +32,7 @@ const SystemOperationField: React.FC<
   const specificationId: string = registry.formContext
     ?.integrationSpecificationId as string;
   const [operationId, setOperationId] = useState<string | undefined>(formData);
+  const [navigationPath, setNavigationPath] = useState<string>("");
   const protocolType = normalizeProtocol(
     registry.formContext?.integrationOperationProtocolType as string,
   );
@@ -72,7 +67,7 @@ const SystemOperationField: React.FC<
       operations?.map((operation) => ({
         label: (
           <>
-            <SelectTag value={operation.name} width={200} />
+            <SelectTag value={operation.name} />
             <HttpMethod value={operation.method} width={110} />
             <OperationPath path={operation.path} />
           </>
@@ -80,11 +75,13 @@ const SystemOperationField: React.FC<
         value: operation.id,
         selectedLabel: formData === operation.id && (
           <>
-            <SelectTag value={operation.name} width={200} />
+            <SelectTag value={operation.name} />
             <HttpMethod value={operation.method} width={110} />
             <OperationPath
               path={operation.path}
-              pathParams={registry.formContext?.integrationOperationPathParameters}
+              pathParams={
+                registry.formContext?.integrationOperationPathParameters
+              }
               queryParams={
                 registry.formContext?.integrationOperationQueryParameters
               }
@@ -171,13 +168,10 @@ const SystemOperationField: React.FC<
     [registry.formContext, operationsMap],
   );
 
-  const onNavigationButtonClick = useCallback(() => {
-    const path = `/services/systems/${systemId}/specificationGroups/${specGroupId}/specifications/${specificationId}/operations/${operationId}`;
-    if (api instanceof VSCodeExtensionApi) {
-      void api.navigateInNewTab(path);
-    } else {
-      window.open(path, "_blank");
-    }
+  useEffect(() => {
+    setNavigationPath(
+      `/services/systems/${systemId}/specificationGroups/${specGroupId}/specifications/${specificationId}/operations/${operationId}`,
+    );
   }, [systemId, specGroupId, specificationId, operationId]);
 
   const handleGrpcSynchronousChange = useCallback(
@@ -201,8 +195,10 @@ const SystemOperationField: React.FC<
         selectDisabled={isLoading}
         selectOptionLabelProp="selectedLabel"
         buttonTitle="Go to operation"
-        buttonDisabled={!(systemId && specGroupId && specificationId && operationId)}
-        buttonOnClick={onNavigationButtonClick}
+        buttonDisabled={
+          !(systemId && specGroupId && specificationId && operationId)
+        }
+        buttonOnClick={navigationPath}
       />
       {isGrpcOperation && (
         <Flex align="center" gap={8} style={{ marginTop: 12, marginBottom: 8 }}>

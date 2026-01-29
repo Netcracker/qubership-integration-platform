@@ -315,7 +315,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:widget": "hidden",
     },
     elementId: {
-      "ui:field": "singleSelectField",
+      "ui:field": "chainTriggerSelectField",
     },
     reuseElementId: {
       "ui:field": "singleSelectField",
