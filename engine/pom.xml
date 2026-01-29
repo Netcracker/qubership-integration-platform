@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-engine</artifactId>
-    <version>0.3.6-SNAPSHOT</version>
+    <version>0.4.0</version>
     <name>QIP Engine</name>
     <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
         collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
@@ -30,7 +29,7 @@
         <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-engine.git
         </developerConnection>
         <url>scm:git:https://github.com/Netcracker/qubership-integration-engine.git</url>
-        <tag>HEAD</tag>
+        <tag>v0.4.0</tag>
     </scm>
 
     <parent>
