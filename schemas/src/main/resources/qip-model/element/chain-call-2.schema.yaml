@@ -14,7 +14,7 @@ properties:
     properties:
       elementId:
         type: string
-        title: Reference to chain trigger
+        title: Chain trigger
       timeout:
         allOf:
           - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
