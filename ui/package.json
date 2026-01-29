@@ -32,7 +32,7 @@
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:lib:external": "vite build --config vite.config.lib.ts",
     "build:lib:bundled": "vite build --config vite.config.lib.bundled.ts",
-    "build:lib:all": "npm run build:lib:external && npm run build:lib:bundled",
+    "build:lib:all": "npm run build:lib:external && npm run build:lib:bundled && node scripts/fix-preload.js",
     "fetch-docs": "ts-node --project scripts/tsconfig.json scripts/fetch-documentation.ts",
     "build:doc-index": "node scripts/build-doc-index.js",
     "check-types": "tsc --noEmit",

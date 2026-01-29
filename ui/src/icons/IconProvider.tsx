@@ -9,7 +9,7 @@ import Icon from "@ant-design/icons";
 import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
 import parse from "html-react-parser";
 import { commonIcons, elementIcons } from "./IconDefenitions";
-import { getConfig } from "../appConfig.ts";
+import { getConfig, onConfigChange } from "../appConfig.ts";
 
 export type IconSource =
   | React.ComponentType<AntdIconProps>
@@ -84,10 +84,17 @@ export const IconProvider: React.FC<{ children: ReactNode }> = ({
   });
 
   useEffect(() => {
-    const config = getConfig();
-    if (config.icons) {
-      setIconsState((prev) => ({ ...allIcons, ...prev, ...config.icons }));
-    }
+    const applyConfig = (cfg: ReturnType<typeof getConfig>) => {
+      if (cfg.icons) {
+        setIconsState(() => ({ ...allIcons, ...cfg.icons }));
+      } else {
+        setIconsState(() => allIcons);
+      }
+    };
+
+    applyConfig(getConfig());
+    const unsubscribe = onConfigChange((cfg) => applyConfig(cfg));
+    return unsubscribe;
   }, []);
 
   const setIcons = (overrides: IconOverrides) => {

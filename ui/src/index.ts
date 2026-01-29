@@ -20,6 +20,7 @@ export {
   loadConfigFromJson,
   configure,
   getConfig,
+  onConfigChange,
   mergeConfigWithEnv,
   isDev,
 } from "./appConfig";

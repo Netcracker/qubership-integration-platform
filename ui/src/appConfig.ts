@@ -46,6 +46,32 @@ export function isDev(): boolean {
   return appConfigValue.dev ?? import.meta.env.DEV;
 }
 
+export type ConfigChangeListener = (config: AppConfig) => void;
+
+const configListeners = new Set<ConfigChangeListener>();
+
+export function onConfigChange(listener: ConfigChangeListener): () => void {
+  configListeners.add(listener);
+  return () => {
+    configListeners.delete(listener);
+  };
+}
+
+function emitConfigChange(): void {
+  if (configListeners.size === 0) {
+    return;
+  }
+
+  const snapshot = getConfig();
+  for (const listener of configListeners) {
+    try {
+      listener(snapshot);
+    } catch (error) {
+      console.warn("[QIP UI Config] Config change listener failed:", error);
+    }
+  }
+}
+
 export function configure(config: Partial<AppConfig>): void {
   const overrides: string[] = [];
 
@@ -60,9 +86,16 @@ export function configure(config: Partial<AppConfig>): void {
     overrides.push(`apiGateway: "${oldValue}" -> "${config.apiGateway}"`);
   }
   if (config.icons !== undefined) {
-    const iconKeys = Object.keys(config.icons);
-    setIcons(config.icons);
-    overrides.push(`icons: ${iconKeys.length} icon(s) overridden`);
+    const previousIcons = appConfigValue.icons || {};
+    const mergedIcons: IconOverrides = {
+      ...previousIcons,
+      ...config.icons,
+    };
+
+    const newKeys = Object.keys(config.icons);
+    appConfigValue.icons = mergedIcons;
+
+    overrides.push(`icons: ${newKeys.length} icon override(s) provided`);
   }
   if (config.cssVariables !== undefined) {
     const cssVarKeys = Object.keys(config.cssVariables);
@@ -87,6 +120,10 @@ export function configure(config: Partial<AppConfig>): void {
 
   if (overrides.length > 0) {
     console.log("[QIP UI Config] Configuration overrides applied:", overrides);
+  }
+
+  if (overrides.length > 0) {
+    emitConfigChange();
   }
 }
 
