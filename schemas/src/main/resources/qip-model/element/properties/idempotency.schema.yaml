@@ -6,28 +6,34 @@ title: Idempotency properties
 properties:
   idempotency:
     type: object
+    properties:
+      enabled:
+        type: boolean
+        title: Enabled
+        default: false
     allOf:
-      - $ref: "#/definitions/CommonIdempotencyProperties"
-    if:
-      properties:
-        enabled:
-          const: true
-        actionOnDuplicate:
-          const: execute-subchain
-      required:
-        - enabled
-        - actionOnDuplicate
-    then:
-      allOf:
-        - $ref: "#/definitions/ExecuteSubchainProperties"
+      - if:
+          properties:
+            enabled:
+              const: true
+        then:
+          allOf:
+            - $ref: "#/definitions/CommonIdempotencyProperties"
+      - if:
+          properties:
+            enabled:
+              const: true
+            actionOnDuplicate:
+              const: execute-subchain
+          required:
+            - actionOnDuplicate
+        then:
+          allOf:
+            - $ref: "#/definitions/ExecuteSubchainProperties"
 definitions:
   CommonIdempotencyProperties:
     type: object
     properties:
-      enabled:
-        type: boolean
-        title: Enable idempotency
-        default: false
       keyExpiry:
         allOf:
           - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
@@ -40,20 +46,27 @@ definitions:
         type: string
         title: Key expression
       actionOnDuplicate:
-        enum:
-          - ignore
-          - throw-exception
-          - execute-subchain
+        type: string
+        oneOf: [
+          {
+            "const": "ignore",
+            "title": "Ignore"
+          },
+          {
+            "const": "throw-exception",
+            "title": "Throw exception"
+          },
+          {
+            "const": "execute-subchain",
+            "title": "Execute subchain"
+          }
+        ]
         title: Action on duplicate message
         default: ignore
-    if:
-      properties:
-        enabled:
-          const: true
-    then:
-      required:
-        - contextExpression
-        - keyExpression
+    required:
+      - contextExpression
+      - keyExpression
+      - actionOnDuplicate
   ExecuteSubchainProperties:
     type: object
     properties:
@@ -73,7 +86,7 @@ definitions:
       chainCallTimeout:
         allOf:
           - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
-        title: Timeout (ms)
+        title: Chain call timeout (ms)
         default: 30000
     required:
       - triggerElementId
