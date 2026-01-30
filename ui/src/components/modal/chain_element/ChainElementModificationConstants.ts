@@ -211,9 +211,19 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:title": "Variables Header",
     },
     idempotency: {
+      "ui:order": ["*", "actionOnDuplicate", "chainTriggerParameters"],
       keyExpiry: {
         "ui:fieldReplacesAnyOrOneOf": true,
         "ui:field": "oneOfAsSingleInputField",
+      },
+      chainTriggerParameters: {
+        triggerElementId: {
+          "ui:field": "chainTriggerSelectField",
+        },
+        chainCallTimeout: {
+          "ui:fieldReplacesAnyOrOneOf": true,
+          "ui:field": "oneOfAsSingleInputField",
+        },
       },
     },
     connectTimeout: {
