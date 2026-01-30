@@ -24,6 +24,7 @@ properties:
         $ref: "#/definitions/AcknowledgeMode"
       exchangeType:
         $ref: "#/definitions/ExchangeType"
+        title: Exchange Type
       deadLetterExchange:
         type: string
         title: Dead Letter Exchange
@@ -36,12 +37,6 @@ properties:
       deadLetterRoutingKey:
         type: string
         title: Dead Letter Routing Key
-      sslProtocol:
-        title: SSL
-        type: string
-      vhost:
-        title: Vhost
-        type: string
     required:
       - queues
 definitions:
