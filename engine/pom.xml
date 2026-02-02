@@ -4,7 +4,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-engine</artifactId>
-    <version>0.4.1-SNAPSHOT</version>
+    <version>0.4.1-1-os-core-SNAPSHOT</version>
     <name>QIP Engine</name>
     <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
         collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
