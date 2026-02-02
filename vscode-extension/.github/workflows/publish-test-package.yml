@@ -1,23 +1,21 @@
 name: Publish test package
 
-run-name: NPM Test Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch')) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && inputs.version) && format(' {0}', inputs.version) || '' }}
+run-name: NPM Test Package publish
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release version for NPM (e.g., 1.0.0)'
-        required: false
-        type: string
       scope:
         description: 'NPM scope for the package'
         required: false
         type: string
         default: '@netcracker'
       node-version:
+        description: 'Node version'
         required: false
         type: string
         default: "22.x"
       registry-url:
+        description: 'Registry URL'
         required: false
         type: string
         default: "https://npm.pkg.github.com"
@@ -25,7 +23,6 @@ on:
 permissions: {}
 
 env:
-  VERSION: ${{ inputs.version }}
   DIST_TAG: 'test'
 
 jobs:
@@ -54,17 +51,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Update npm version for dev version
-        run: |
-          CURRENT_VERSION=$(jq -r '.version' package.json)
-
-          if [ "$CURRENT_VERSION" != "$VERSION" ]; then
-            echo "Updating version from $CURRENT_VERSION to $VERSION"
-            npm version "$VERSION" --no-git-tag-version
-          else
-            echo "Version already $CURRENT_VERSION, skipping"
-          fi
-
       - name: Build Project
         run: |
           if npm run | grep -q "prepublishOnly"; then
@@ -75,8 +61,19 @@ jobs:
             echo "No 'prepublishOnly' or 'build' script found. Skipping build step."
           fi
 
-      - name: Publish Package
+      - name: Run tests
+        run: npm test --if-present
+
+      - name: Set version and publish package
         run: |
-          npm config get registry
-          echo "Publishing with npm..."
-          npm publish --tag $DIST_TAG
+          set -e
+
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+          PUBLISH_VERSION="${BASE_VERSION}-dev.${TIMESTAMP}"
+
+          echo "Base version: $BASE_VERSION"
+          echo "Publishing version: $PUBLISH_VERSION"
+
+          npm version "$PUBLISH_VERSION" --no-git-tag-version
+          npm publish --tag dev
