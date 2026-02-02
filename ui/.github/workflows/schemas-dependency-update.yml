@@ -37,4 +37,5 @@ jobs:
 
           git add package.json
           git commit -m "chore: bump qip-schemas to $SCHEMAS_VERSION"
-          git push origin main
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push
