@@ -1021,7 +1021,7 @@
                     <id>github</id>
                     <name>GitHub Packages</name>
                     <url>
-                        https://maven.pkg.github.com/Netcracker/qubership-integration-sessions-management
+                        https://maven.pkg.github.com/Netcracker/qubership-integration-runtime-catalog
                     </url>
                 </repository>
             </distributionManagement>
