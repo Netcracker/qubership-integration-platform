@@ -4,7 +4,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-runtime-catalog</artifactId>
-    <version>0.4.1-SNAPSHOT</version>
+    <version>0.4.1-1-os-core-SNAPSHOT</version>
     <name>QIP Runtime Catalog</name>
     <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
     </description>
