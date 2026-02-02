@@ -1,20 +1,17 @@
-# qubership-repo-template
+# qubership-integration-help
 
-Click [here](https://github.com/Netcracker/qubership-repo-template/generate) to create your copy of this repository.
+This repository stores helper documents used by the [UI](https://github.com/Netcracker/qubership-integration-ui/) and the [VSCode extension](https://github.com/Netcracker/qubership-integration-vscode-extension)
 
-## Installation
+## Contribution
 
-This section typically describes the process of preparing the project for use, including required dependencies and general setup steps.
+Commits and pool requests should follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) strategy.
 
-## Build
+## Licensing
 
-This section outlines the build process, tools used, and general information about preparing project artifacts.
+This software is licensed under Apache License Version 2.0. License text is located in [LICENSE](LICENSE) file.
 
-## Testing
+## Additional Resources
 
-This section provides a general description of testing strategies, tools, and approaches relevant to the project.
-
-## Debug
-
-This section provides an overview of debugging approaches and tools relevant to the project.
+- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment
+  guide.
 
