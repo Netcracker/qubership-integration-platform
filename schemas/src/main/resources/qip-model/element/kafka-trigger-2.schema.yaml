@@ -41,38 +41,36 @@ properties:
         title: Consumers Count
         description: The number of consumers that connect to kafka server.
       keyDeserializer:
-        anyOf:
-          - type: string
-          - enum:
-              - org.apache.kafka.common.serialization.ByteArrayDeserializer
-              - org.apache.kafka.common.serialization.ByteBufferDeserializer
-              - org.apache.kafka.common.serialization.BytesDeserializer
-              - org.apache.kafka.common.serialization.DoubleDeserializer
-              - org.apache.kafka.common.serialization.FloatDeserializer
-              - org.apache.kafka.common.serialization.IntegerDeserializer
-              - org.apache.kafka.common.serialization.LongDeserializer
-              - org.apache.kafka.common.serialization.ShortDeserializer
-              - org.apache.kafka.common.serialization.StringDeserializer
-              - org.apache.kafka.common.serialization.UUIDDeserializer
-              - org.apache.kafka.common.serialization.VoidDeserializer
+        type: string
+        oneOf:
+          - const: org.apache.kafka.common.serialization.ByteArrayDeserializer
+          - const: org.apache.kafka.common.serialization.ByteBufferDeserializer
+          - const: org.apache.kafka.common.serialization.BytesDeserializer
+          - const: org.apache.kafka.common.serialization.DoubleDeserializer
+          - const: org.apache.kafka.common.serialization.FloatDeserializer
+          - const: org.apache.kafka.common.serialization.IntegerDeserializer
+          - const: org.apache.kafka.common.serialization.LongDeserializer
+          - const: org.apache.kafka.common.serialization.ShortDeserializer
+          - const: org.apache.kafka.common.serialization.StringDeserializer
+          - const: org.apache.kafka.common.serialization.UUIDDeserializer
+          - const: org.apache.kafka.common.serialization.VoidDeserializer
         default: org.apache.kafka.common.serialization.StringDeserializer
         title: Key Deserializer
         description: Key deserializer class
       valueDeserializer:
-        anyOf:
-          - type: string
-          - enum:
-              - org.apache.kafka.common.serialization.ByteArrayDeserializer
-              - org.apache.kafka.common.serialization.ByteBufferDeserializer
-              - org.apache.kafka.common.serialization.BytesDeserializer
-              - org.apache.kafka.common.serialization.DoubleDeserializer
-              - org.apache.kafka.common.serialization.FloatDeserializer
-              - org.apache.kafka.common.serialization.IntegerDeserializer
-              - org.apache.kafka.common.serialization.LongDeserializer
-              - org.apache.kafka.common.serialization.ShortDeserializer
-              - org.apache.kafka.common.serialization.StringDeserializer
-              - org.apache.kafka.common.serialization.UUIDDeserializer
-              - org.apache.kafka.common.serialization.VoidDeserializer
+        type: string
+        oneOf:
+          - const: org.apache.kafka.common.serialization.ByteArrayDeserializer
+          - const: org.apache.kafka.common.serialization.ByteBufferDeserializer
+          - const: org.apache.kafka.common.serialization.BytesDeserializer
+          - const: org.apache.kafka.common.serialization.DoubleDeserializer
+          - const: org.apache.kafka.common.serialization.FloatDeserializer
+          - const: org.apache.kafka.common.serialization.IntegerDeserializer
+          - const: org.apache.kafka.common.serialization.LongDeserializer
+          - const: org.apache.kafka.common.serialization.ShortDeserializer
+          - const: org.apache.kafka.common.serialization.StringDeserializer
+          - const: org.apache.kafka.common.serialization.UUIDDeserializer
+          - const: org.apache.kafka.common.serialization.VoidDeserializer
         default: org.apache.kafka.common.serialization.StringDeserializer
         title: Value Deserializer
         description: Value deserializer class
