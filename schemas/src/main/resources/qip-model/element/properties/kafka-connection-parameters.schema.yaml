@@ -38,7 +38,7 @@ then: # maas
       title: Topic Classifier Name
     maasClassifierNamespace:
       type: string
-      title: Topic Classifier Namespace
+      title: Classifier Namespace
       description: >
         MaaS topic classifier namespace.
         By default used current namespace.
