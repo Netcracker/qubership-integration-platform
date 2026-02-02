@@ -49,7 +49,7 @@ public class ConsulService {
     public static final String SESSION_TTL_STRING = "60s";
     private static final String WAIT_TIMEOUT_STRING = "20s";
     public static final String SESSION_BEHAVIOR = "delete";
-    public static final String LOCALDEV_NODE_ID = "-" + UUID.randomUUID();
+    public static final String LOCALDEV_NODE_ID = UUID.randomUUID().toString();
 
     public static final String DEFAULT_CONSUL_SETTING_KEY = "default-settings";
 
@@ -108,15 +108,23 @@ public class ConsulService {
     private final ApplicationEventPublisher applicationEventPublisher;
 
     @Autowired
-    public ConsulService(ConsulClient client, ServerConfiguration serverConfiguration,
-        @Qualifier("jsonMapper") ObjectMapper objectMapper, ApplicationEventPublisher applicationEventPublisher) {
+    public ConsulService(
+            ConsulClient client,
+            ServerConfiguration serverConfiguration,
+            @Qualifier("jsonMapper") ObjectMapper objectMapper,
+            ApplicationEventPublisher applicationEventPublisher,
+            ConsulKeyValidator consulKeyValidator
+    ) {
         this.client = client;
         this.objectMapper = objectMapper;
         this.applicationEventPublisher = applicationEventPublisher;
 
         EngineInfo engineInfo = serverConfiguration.getEngineInfo();
-        this.keyEngineName = "/" + engineInfo.getEngineDeploymentName() + "-"
-                + engineInfo.getDomain() + "-" + engineInfo.getHost();
+        this.keyEngineName = "/" + consulKeyValidator.makeKeyValid(
+                engineInfo.getEngineDeploymentName()
+                        + "-" + engineInfo.getDomain()
+                        + "-" + engineInfo.getHost()
+                        + (dynamicStateKeys ? "-" + LOCALDEV_NODE_ID : ""));
     }
 
     public synchronized void createOrRenewSession() {
@@ -145,9 +153,8 @@ public class ConsulService {
         log.debug("Update engines state");
         String sessionId = activeSessionId;
         if (sessionId != null) {
-            String name = keyEngineName + (dynamicStateKeys ? LOCALDEV_NODE_ID : "");
             client.createOrUpdateKVWithSession(
-                keyPrefix + keyEngineConfigRoot + keyEnginesState + name, state, sessionId);
+                keyPrefix + keyEngineConfigRoot + keyEnginesState + keyEngineName, state, sessionId);
         } else {
             throw new RuntimeException("Active consul session is not present");
         }

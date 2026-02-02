@@ -55,7 +55,7 @@ public abstract class ElementProcessingAction implements DeploymentProcessingAct
         } finally {
             MDC.remove(ChainProperties.ELEMENT_ID);
         }
-    } 
+    }
 
     public abstract boolean applicableTo(ElementProperties properties);
 

@@ -52,7 +52,7 @@ public class SchedulerRequirementsCheckAction implements DeploymentProcessingAct
             checkSchedulerRequirements();
         }
     }
-    
+
     private void checkSchedulerRequirements() {
         if (!isSchedulerDatabaseReady()) {
             log.warn("Failed to obtain DB connection for scheduler");

@@ -156,12 +156,14 @@ public final class CamelConstants {
         public static final String IS_CHECKPOINT_TRIGGER_STEP =  INTERNAL_PROPERTY_PREFIX + "isCheckpointTriggerStep";
         public static final String CHAIN_TIMED_OUT = INTERNAL_PROPERTY_PREFIX + "chainSessionTimedOut";
         public static final String CHAIN_TIME_OUT_AFTER = INTERNAL_PROPERTY_PREFIX + "chainSessionTimeoutAfter";
+        public static final String IS_CHAIN_CALL_TRIGGERED_SESSION = INTERNAL_PROPERTY_PREFIX + "isChainCallTriggeredSession";
 
         public static final String MASKED_FIELDS_PROPERTY = INTERNAL_PROPERTY_PREFIX + "maskedFields";
         public static final String HTTP_TRIGGER_STEP_ID =  "httpTriggerStepId";
 
         public static final String SERVICE_CALL_RETRY_COUNT = "retryCount";
         public static final String SERVICE_CALL_RETRY_DELAY = "retryDelay";
+        public static final String SKIP_EMPTY_QUERY_PARAMS = "integrationOperationSkipEmptyQueryParameters";
 
         public static final int SERVICE_CALL_DEFAULT_RETRY_DELAY = 5000;
 
@@ -172,6 +174,7 @@ public final class CamelConstants {
     }
 
     public static final class ChainProperties {
+        public static final String SESSION_ID = "sessionId";
         public static final String CHAIN_ID = "chainId";
         public static final String CHAIN_NAME = "chainName";
         public static final String SNAPSHOT_NAME = "snapshotName";

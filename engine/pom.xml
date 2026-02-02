@@ -1,12 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-engine</artifactId>
-    <version>${revision}</version>
+    <version>0.4.1-SNAPSHOT</version>
     <name>QIP Engine</name>
+    <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
+        collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
+    </description>
+    <url>https://github.com/Netcracker/qubership-integration-engine</url>
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Netcracker</name>
+            <email>opensourcegroup@netcracker.com</email>
+            <organization>Netcracker Technology</organization>
+            <organizationUrl>https://www.netcracker.com</organizationUrl>
+        </developer>
+    </developers>
+    <scm>
+        <connection>scm:git:https//github.com/Netcracker/qubership-integration-engine.git</connection>
+        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-engine.git
+        </developerConnection>
+        <url>scm:git:https://github.com/Netcracker/qubership-integration-engine.git</url>
+        <tag>HEAD</tag>
+    </scm>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -19,22 +43,20 @@
         <generated-resources>target/generated-sources/resources</generated-resources>
         <java.version>21</java.version>
 
-        <revision>0.3.1-3-os-core-SNAPSHOT</revision>
-
         <dbaas-client-bom.version>8.2.2</dbaas-client-bom.version>
         <maas-client-bom.version>11.1.3</maas-client-bom.version>
         <maas-kafka-declarative-client.version>6.2.1</maas-kafka-declarative-client.version>
         <consul-config-provider.version>6.2.2</consul-config-provider.version>
         <blue-green.version>1.3.2</blue-green.version>
-        <groovy-apache-bom.version>4.0.21</groovy-apache-bom.version>
+        <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
         <jackson-bom.version>2.17.0</jackson-bom.version>
 
         <!-- 3rd party dependencies -->
 
         <camel.version>4.4.2</camel.version>
-        <spring-cloud.version>2024.0.0</spring-cloud.version>
-        <snappy-java.version>1.1.10.7</snappy-java.version>
-        <postgres-driver.version>42.7.2</postgres-driver.version>
+        <spring-cloud.version>2024.0.3</spring-cloud.version>
+        <snappy-java.version>1.1.10.8</snappy-java.version>
+        <postgres-driver.version>42.7.9</postgres-driver.version>
         <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
         <atlasmap.version>2.5.2</atlasmap.version>
         <logback-gelf.version>5.0.1</logback-gelf.version>
@@ -42,38 +64,25 @@
         <commons-text.version>1.11.0</commons-text.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version>1.18.42</lombok.version>
         <json-schema-validator.version>1.0.87</json-schema-validator.version>
-        <kubernetes-client-java.version>19.0.2</kubernetes-client-java.version>
-        <protobuf-java.version>3.25.1</protobuf-java.version>
+        <kubernetes-client-java.version>19.0.3</kubernetes-client-java.version>
+        <protobuf-java.version>3.25.8</protobuf-java.version>
         <amqp-client.version>5.20.0</amqp-client.version>
         <json-filter.version>4.0.1</json-filter.version>
         <conscrypt-openjdk-uber.version>2.2.1</conscrypt-openjdk-uber.version>
-        <springdoc.version>2.8.8</springdoc.version>
+        <springdoc.version>2.8.15</springdoc.version>
         <opensearch.version>2.14.0</opensearch.version>
         <jakarta.ws.rs-api.version>4.0.0</jakarta.ws.rs-api.version>
         <reflections.version>0.10.2</reflections.version>
 
         <!-- Plugins -->
 
-        <jacoco-plugin.version>0.8.11</jacoco-plugin.version>
+        <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
     </properties>
-
-    <repositories>
-        <repository>
-            <id>github</id>
-            <url>https://maven.pkg.github.com/Netcracker/*</url>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-        </repository>
-    </repositories>
 
     <dependencyManagement>
         <dependencies>
@@ -326,12 +335,43 @@
         </dependencies>
     </dependencyManagement>
 
-    <distributionManagement>
+    <repositories>
+        <!-- Maven Central repository for release versions -->
         <repository>
-            <id>central</id>
-            <name>Central Maven Repository</name>
+            <id>oss.sonatype.org</id>
+            <url>https://central.sonatype.com</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
         </repository>
-    </distributionManagement>
+
+        <!-- Maven Central repository for SNAPSHOT versions-->
+        <repository>
+            <id>oss.sonatype.org-snapshot</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+
+        <!-- GitHub packages repository for both release and SNAPSHOT versions -->
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/netcracker/*</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <dependencies>
 
@@ -761,23 +801,11 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>${jacoco-plugin.version}</version>
-                <configuration>
-                    <outputDirectory>target/jacoco-ut</outputDirectory>
-                </configuration>
+                <version>${jacoco.plugin.version}</version>
                 <executions>
                     <execution>
-                        <id>prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
-                        </goals>
-                        <configuration>
-                            <append>true</append>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <goals>
                             <goal>report</goal>
                         </goals>
                     </execution>
@@ -882,20 +910,9 @@
             </plugin>
 
             <plugin>
-                <groupId>org.sonatype.central</groupId>
-                <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>0.7.0</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <publishingServerId>central</publishingServerId>
-                    <autoPublish>true</autoPublish>
-                    <waitUntil>published</waitUntil>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
-                <version>3.2.7</version>
+                <version>3.2.8</version>
                 <executions>
                     <execution>
                         <id>sign-artifacts</id>
@@ -983,5 +1000,57 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Maven Central -->
+        <!-- mvn deploy -P central -->
+        <profile>
+            <id>central</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.7.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>published</waitUntil>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+            <distributionManagement>
+                <repository>
+                    <id>central</id>
+                    <name>Central Maven Repository</name>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+            </distributionManagement>
+        </profile>
+        <!-- GitHub packages -->
+        <!-- mvn deploy -P github -->
+        <profile>
+            <id>github</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <distributionManagement>
+                <repository>
+                    <id>github</id>
+                    <name>GitHub Packages</name>
+                    <url>
+                        https://maven.pkg.github.com/Netcracker/qubership-integration-sessions-management
+                    </url>
+                </repository>
+            </distributionManagement>
+        </profile>
+    </profiles>
 
 </project>

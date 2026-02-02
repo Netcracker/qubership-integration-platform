@@ -70,7 +70,7 @@ public class TracingService {
 
     public void addChainTracingTags(Exchange exchange, CamelDebuggerProperties dbgProperties) {
         Map<String, String> customTags = new HashMap<>();
-        customTags.put(Properties.SESSION_ID,
+        customTags.put(ChainProperties.SESSION_ID,
             exchange.getProperty(Properties.SESSION_ID).toString());
         customTags.put(ChainProperties.CHAIN_ID, dbgProperties.getDeploymentInfo().getChainId());
         customTags.put(ChainProperties.CHAIN_NAME, dbgProperties.getDeploymentInfo().getChainName());

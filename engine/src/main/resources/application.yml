@@ -179,6 +179,8 @@ consul:
 
 camel:
   component:
+    bean:
+      bean-info-cache-size: 30 # until took the fix from https://issues.apache.org/jira/browse/CAMEL-22775
     kafka: # new parameters will not be automatically set to 'kafka-custom' element, need to change KafkaCustomComponentConfiguration
       ssl-truststore-location: ${qip.local-truststore.store.path}
       ssl-truststore-password: ${qip.local-truststore.store.password}
@@ -251,7 +253,9 @@ qip:
     enabled: ${MONITORING_ENABLED:false}
     http-payload-metrics:
       enabled: true
-      buckets: 1, 10, 100, 1000
+      buckets: 128, 1024, 8192, 32768, 262144
+    session-duration:
+      buckets: 100ms, 1s, 10s, 30s, 60s
     prometheus:
       # Delay in seconds between init and update new metric (Counter)
       init:

@@ -54,7 +54,7 @@ public class SdsSchedulerJobsRegistrar implements DeploymentProcessingAction {
             .filter(SdsSchedulerJobsRegistrar::isSdsTrigger)
             .map(ElementProperties::getProperties)
             .toList();
-        sdsService.registerSchedulerJobs(context, deploymentInfo, sdsElementsProperties);    
+        sdsService.registerSchedulerJobs(context, deploymentInfo, sdsElementsProperties);
     }
 
     private static boolean isSdsTrigger(ElementProperties elementProperties) {

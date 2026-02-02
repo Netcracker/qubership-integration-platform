@@ -52,7 +52,7 @@ public class JmsElementDependencyBinder extends ElementProcessingAction {
     private final ObjectProvider<WeblogicSecurityBean> wlSecurityBeanProvider;
     private final ObjectProvider<WeblogicSecurityInterceptStrategy> wlSecurityInterceptStrategyProvider;
     private final ObjectProvider<WeblogicSecureThreadFactory> wlSecureThreadFactoryProvider;
-    
+
     @Autowired
     public JmsElementDependencyBinder(
         VariablesService variablesService,

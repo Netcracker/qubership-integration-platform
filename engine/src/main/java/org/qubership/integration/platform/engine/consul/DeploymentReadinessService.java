@@ -42,7 +42,7 @@ public class DeploymentReadinessService {
 
     // <event_class, is_consumed>
     private final ConcurrentMap<Class<? extends UpdateEvent>, Boolean> receivedEvents;
-    
+
     @Getter
     private boolean readyForDeploy = false;
 
@@ -55,7 +55,7 @@ public class DeploymentReadinessService {
         @Qualifier(DeploymentReadinessAutoConfiguration.DEPLOYMENT_READINESS_EVENTS_BEAN) Set<Class<? extends UpdateEvent>> events
     ) {
         if (log.isDebugEnabled()) {
-            String eventClassNames = events.stream().map(Class::getSimpleName).collect(Collectors.joining(", ")); 
+            String eventClassNames = events.stream().map(Class::getSimpleName).collect(Collectors.joining(", "));
             log.debug("Required events to start deployments processing: {}", eventClassNames);
         }
         receivedEvents = new ConcurrentHashMap<>(events.stream().collect(Collectors.toMap(event -> event, event -> false)));

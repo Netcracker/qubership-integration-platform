@@ -69,27 +69,33 @@ public class ContextSaverProcessor implements Processor {
         try {
             String body = MessageHelper.extractBody(exchange);
 
-            Checkpoint checkpoint = Checkpoint.builder()
-                    .checkpointElementId(exchange.getProperty(
-                            CamelConstants.Properties.CHECKPOINT_ELEMENT_ID, String.class))
-                    .headers(checkpointMapper.writeValueAsString(
-                            ExchangeUtils.filterExchangeMap(
-                                    exchange.getMessage().getHeaders(),
-                                    entry -> !CamelConstants.isInternalHeader(entry.getKey()))))
-                    .body(body == null ? null : body.getBytes(StandardCharsets.UTF_8))
-                    .properties(getPropertiesForSave(
-                            ExchangeUtils.filterExchangeMap(
-                                    exchange.getProperties(),
-                                    entry -> !CamelConstants.isInternalProperty(entry.getKey())))
-                    )
-                    .build();
+            boolean isChainCallTriggeredSession = exchange.getProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, false, Boolean.class);
+            if (!isChainCallTriggeredSession) {
+                Checkpoint checkpoint = Checkpoint.builder()
+                        .checkpointElementId(exchange.getProperty(
+                                CamelConstants.Properties.CHECKPOINT_ELEMENT_ID, String.class))
+                        .headers(checkpointMapper.writeValueAsString(
+                                ExchangeUtils.filterExchangeMap(
+                                        exchange.getMessage().getHeaders(),
+                                        entry -> !CamelConstants.isInternalHeader(entry.getKey()))))
+                        .body(body == null ? null : body.getBytes(StandardCharsets.UTF_8))
+                        .properties(getPropertiesForSave(
+                                ExchangeUtils.filterExchangeMap(
+                                        exchange.getProperties(),
+                                        entry -> !CamelConstants.isInternalProperty(entry.getKey())))
+                        )
+                        .build();
 
-            // dump propagation and tracing context
-            checkpoint.setContextData(checkpointMapper.writeValueAsString(contextOperations.getSerializableContextData()));
+                // dump propagation and tracing context
+                checkpoint.setContextData(checkpointMapper.writeValueAsString(contextOperations.getSerializableContextData()));
 
-            checkpointSessionService.saveAndAssignCheckpoint(
-                    checkpoint,
-                    exchange.getProperty(CamelConstants.Properties.SESSION_ID, String.class));
+                checkpointSessionService.saveAndAssignCheckpoint(
+                        checkpoint,
+                        exchange.getProperty(CamelConstants.Properties.SESSION_ID, String.class));
+            } else {
+                log.info("Checkpoint {} skipped due to chain triggered via chain call", exchange.getProperty(
+                        CamelConstants.Properties.CHECKPOINT_ELEMENT_ID, String.class));
+            }
         } catch (Exception e) {
             log.error("Failed to create session checkpoint", e);
             throw new RuntimeException("Failed to create session checkpoint", e);

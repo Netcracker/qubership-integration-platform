@@ -39,7 +39,7 @@ import java.util.List;
 @Component
 @Slf4j
 public class HandlingHttpBinding extends DefaultHttpBinding {
-    @Autowired    
+    @Autowired
     public HandlingHttpBinding(ServletCustomFilterStrategy servletCustomFilterStrategy) {
         super();
         setHeaderFilterStrategy(servletCustomFilterStrategy);

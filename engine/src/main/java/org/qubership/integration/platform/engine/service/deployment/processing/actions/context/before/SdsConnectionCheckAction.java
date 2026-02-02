@@ -41,7 +41,7 @@ public class SdsConnectionCheckAction extends ElementProcessingAction {
     public SdsConnectionCheckAction(SdsService sdsService) {
         this.sdsService = sdsService;
     }
-    
+
     @Override
     public boolean applicableTo(ElementProperties properties) {
         ChainElementType chainElementType = ChainElementType.fromString(
