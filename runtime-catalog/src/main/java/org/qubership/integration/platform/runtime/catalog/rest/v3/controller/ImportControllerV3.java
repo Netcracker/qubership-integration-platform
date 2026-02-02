@@ -35,10 +35,7 @@ import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.E
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportCommitResponse;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportPreviewResponse;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportSessionResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.mapper.ImportSessionMapper;
 import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceRequest;
 import org.qubership.integration.platform.runtime.catalog.service.difference.EntityDifferenceResult;
@@ -122,6 +119,14 @@ public class ImportControllerV3 {
 
         log.info("File {} imported successfully", file.getOriginalFilename());
         return ResponseEntity.accepted().body(new ImportCommitResponse(importId));
+    }
+
+    @Operation(description = "Get import sessions")
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<ImportSessionSummaryResponse>> getImportSessions() {
+        List<ImportSession> importSession = importService.getImportSessions();
+        List<ImportSessionSummaryResponse> importSessionResponse = importSessionMapper.toImportSessionSummary(importSession);
+        return ResponseEntity.status(HttpStatus.OK).body(importSessionResponse);
     }
 
     @Operation(extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}),

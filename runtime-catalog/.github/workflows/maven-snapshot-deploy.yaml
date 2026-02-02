@@ -6,19 +6,9 @@
 # Please read the documentation on how to configure pom.xml for the deployment to work properly:
 # https://github.com/netcracker/.github/blob/main/docs/maven-publish-pom-preparation_doc.md
 
-name: Maven Deploy Snapshot
+name: Deploy Maven Snapshot to GitHub
 
 on:
-  push:
-    branches-ignore:
-      - "main"
-      - "**release*"
-      - "prettier/**"
-      - "dependabot/**"
-    paths-ignore:
-      - "docs/**"
-      - "README.md"
-      - ".github/**"
   workflow_dispatch: {}
 permissions:
   packages: write # Required for GitHub packages deployment. For maven central deployment it can be ommited
@@ -28,16 +18,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Deploy Maven Snapshot
-        uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@v1.0.5
+        uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
         with:
-          java-version: '21' # Specify the Java version to use for the build
-          target-store: 'github' # or 'central' for Maven Central repository
-          # maven-command: 'package' # Relevant for action versions > v1.0.3 or main. By default maven-command == deploy
-          additional-mvn-args: '' # Additional arguments to pass to mvn command
-          maven-username: ${{ github.actor }} # For maven central repository it would be ${{ secrets.MAVEN_USER }}
-          maven-token: ${{ github.token }} # For maven central repository it would be ${{ secrets.MAVEN_PASSWORD}}
-          # gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }} # Organization level secret. Already set for Netcracker. Required only if target-store is 'central'
-          # gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }} # Organization level secret. Already set for Netcracker.  Required only if target-store is 'central'
+          target-store: 'github'
+          maven-username: ${{ github.actor }}
+          maven-token: ${{ secrets.GITHUB_TOKEN }}
+          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}

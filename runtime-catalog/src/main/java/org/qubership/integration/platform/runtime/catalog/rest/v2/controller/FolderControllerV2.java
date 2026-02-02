@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 @RestController
 @RequestMapping(value = "/v2/folders", produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
-@Tag(name = "folder-controller", description = "Folder Controller V2")
+@Tag(name = "folder-controller-v-2", description = "Folder Controller V2")
 public class FolderControllerV2 {
     private final FolderService folderService;
     private final ChainService chainService;

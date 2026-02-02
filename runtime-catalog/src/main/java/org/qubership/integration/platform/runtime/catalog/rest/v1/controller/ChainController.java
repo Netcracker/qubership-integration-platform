@@ -30,6 +30,7 @@ import org.qubership.integration.platform.runtime.catalog.model.dto.chain.Entity
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.UsedSystem;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EntityDiffResponseMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ChainLabelsMapper;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ChainMapper;
@@ -73,6 +74,7 @@ public class ChainController {
     private final ChainLabelsMapper chainLabelsMapper;
     private final EntityDiffResponseMapper entityDiffResponseMapper;
     private final ElementHelperService elementHelperService;
+    private final ElementRepository elementRepository;
 
     @Autowired
     public ChainController(
@@ -84,7 +86,8 @@ public class ChainController {
             MigratedChainMapper migratedChainMapper,
             ChainLabelsMapper chainLabelsMapper,
             EntityDiffResponseMapper entityDiffResponseMapper,
-            ElementHelperService elementHelperService
+            ElementHelperService elementHelperService,
+            ElementRepository elementRepository
     ) {
         this.chainService = chainService;
         this.chainFinderService = chainFinderService;
@@ -95,6 +98,7 @@ public class ChainController {
         this.chainLabelsMapper = chainLabelsMapper;
         this.entityDiffResponseMapper = entityDiffResponseMapper;
         this.elementHelperService = elementHelperService;
+        this.elementRepository = elementRepository;
     }
 
     @GetMapping
@@ -106,6 +110,19 @@ public class ChainController {
         List<Chain> chains = chainFinderService.findAll();
         List<ChainResponse> chainsDto = chainMapper.asChainResponseLight(chains);
         return ResponseEntity.ok(chainsDto);
+    }
+
+    @GetMapping("/find-by-element/{elementId}")
+    @Operation(description = "Find chain by element ID")
+    public ResponseEntity<ChainResponse> findByElementId(@PathVariable @Parameter(description = "Chain element ID") String elementId) {
+        log.debug("Request to get chain by element ID {}", elementId);
+        return elementRepository.findById(elementId).map(
+                element -> {
+                    Chain chain = element.getChain();
+                    ChainResponse chainsDto = chainMapper.asChainResponseLight(chain);
+                    return ResponseEntity.ok(chainsDto);
+                }
+        ).orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/{chainId}")

@@ -20,12 +20,18 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportSessionResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportSessionSummaryResponse;
+import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 
-@Mapper(componentModel = "spring")
+import java.util.List;
+
+@Mapper(componentModel = "spring", uses = MapperUtils.class)
 public interface ImportSessionMapper {
 
     @Mapping(target = "done", expression = "java(isDone(importSession))")
     ImportSessionResponse toImportSessionResponse(ImportSession importSession);
+
+    List<ImportSessionSummaryResponse> toImportSessionSummary(List<ImportSession> importSessions);
 
     default boolean isDone(ImportSession importSession) {
         return importSession.isDone();

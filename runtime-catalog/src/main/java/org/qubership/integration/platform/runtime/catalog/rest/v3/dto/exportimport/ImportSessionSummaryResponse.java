@@ -14,24 +14,28 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.context;
+package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.Data;
-import org.qubership.integration.platform.runtime.catalog.model.dto.BaseResponse;
-import org.qubership.integration.platform.runtime.catalog.model.dto.user.UserDTO;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-import java.util.List;
-
-@Data
-public class ContextSystemResponseDTO {
+@Getter
+@Setter
+@NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(description = "Import session summary")
+public class ImportSessionSummaryResponse {
+    @Schema(description = "Import session id")
     private String id;
-    private String name;
-    private String description;
-    private Long createdWhen;
-    private UserDTO createdBy;
+    @Schema(description = "Timestamp of last modification date")
     private Long modifiedWhen;
-    private UserDTO modifiedBy;
-    @Schema(description = "List of chains that is using current service")
-    private List<BaseResponse> chains;
+    @Schema(description = "Completion percent")
+    private int completion;
+    @Schema(description = "Whether import is done")
+    private boolean done;
+    @Schema(description = "Error message (if any)")
+    private String error;
 }
