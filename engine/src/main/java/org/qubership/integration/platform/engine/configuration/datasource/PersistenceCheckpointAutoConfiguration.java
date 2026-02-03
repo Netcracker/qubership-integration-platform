@@ -26,7 +26,6 @@ import com.netcracker.cloud.dbaas.client.management.classifier.DbaasClassifierFa
 import jakarta.persistence.SharedCacheMode;
 import lombok.Getter;
 import org.hibernate.jpa.HibernatePersistenceProvider;
-import org.qubership.integration.platform.engine.configuration.datasource.properties.HikariConfigProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -63,15 +62,10 @@ public class PersistenceCheckpointAutoConfiguration {
     public static final String JPA_ENTITIES_PACKAGE_SCAN =
         "org.qubership.integration.platform.engine.persistence.shared.entity";
     private final JpaProperties jpaProperties;
-    private final HikariConfigProperties properties;
 
     @Autowired
-    public PersistenceCheckpointAutoConfiguration(
-            JpaProperties jpaProperties,
-            HikariConfigProperties properties
-    ) {
+    public PersistenceCheckpointAutoConfiguration(JpaProperties jpaProperties) {
         this.jpaProperties = jpaProperties;
-        this.properties = properties;
     }
 
     /**
@@ -79,9 +73,10 @@ public class PersistenceCheckpointAutoConfiguration {
      */
     @Bean("checkpointDataSource")
     @ConditionalOnProperty(value = "qip.standalone", havingValue = "false")
-    DataSource checkpointDataSource(DatabasePool dbaasConnectionPool,
-                                    DbaasClassifierFactory classifierFactory,
-                                    @Qualifier("postgresDbaasApiProperties") DbaasApiProperties postgresDbaasApiProperties
+    DataSource checkpointDataSource(
+            DatabasePool dbaasConnectionPool,
+            DbaasClassifierFactory classifierFactory,
+            @Qualifier("postgresDbaasApiProperties") DbaasApiProperties postgresDbaasApiProperties
     ) {
         PostgresSettings databaseSettings =
                 new PostgresSettings(postgresDbaasApiProperties.getDatabaseSettings(DbaasApiProperties.DbScope.TENANT));
