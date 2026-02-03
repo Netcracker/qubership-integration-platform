@@ -246,7 +246,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       },
       chainTriggerParameters: {
         triggerElementId: {
-          "ui:field": "chainTriggerSelectField",
+          "ui:field": "chainTriggerElementIdField",
         },
         chainCallTimeout: {
           "ui:fieldReplacesAnyOrOneOf": true,
@@ -349,7 +349,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:widget": "hidden",
     },
     elementId: {
-      "ui:field": "chainTriggerSelectField",
+      "ui:field": "chainTriggerElementIdField",
     },
     reuseElementId: {
       "ui:field": "singleSelectField",

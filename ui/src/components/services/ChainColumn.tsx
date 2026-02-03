@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { Dropdown, Button, Menu } from 'antd';
-import { useNavigate } from 'react-router-dom';
 import { isVsCode, VSCodeExtensionApi } from '../../api/rest/vscodeExtensionApi';
 import { api } from '../../api/api';
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
-interface Chain {
+export interface Chain {
   id: string;
   name: string;
 }
@@ -16,7 +15,6 @@ interface ChainColumnProps {
 
 export const ChainColumn: React.FC<ChainColumnProps> = ({ chains }) => {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
 
   if (!chains || chains.length === 0) {
     return <div style={{ color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))' }}>No chains</div>;
@@ -28,7 +26,7 @@ export const ChainColumn: React.FC<ChainColumnProps> = ({ chains }) => {
         void api.openChainInNewTab(chainId);
       }
     } else {
-      void navigate(`/chains/${chainId}/graph`);
+      window.open(`/chains/${chainId}/graph`, "_blank");
       setOpen(false);
     }
   };

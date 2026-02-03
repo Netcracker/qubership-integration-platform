@@ -24,7 +24,7 @@ const ChainTriggerSelectField: React.FC<
   const title = uiSchema?.["ui:title"] ?? schema?.title ?? "";
 
   useEffect(() => {
-    const loadHttpTriggerElements = async () => {
+    const loadChainTriggerElements = async () => {
       setIsLoading(true);
 
       try {
@@ -55,7 +55,7 @@ const ChainTriggerSelectField: React.FC<
         setIsLoading(false);
       }
     };
-    void loadHttpTriggerElements();
+    void loadChainTriggerElements();
   }, [notificationService]);
 
   const handleChange = useCallback(
