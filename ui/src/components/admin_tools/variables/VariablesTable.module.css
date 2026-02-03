@@ -6,7 +6,7 @@
 }
 
 .secret-row:hover {
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--vscode-input-border, #d9d9d9);
   border-radius: 4px;
 }
 

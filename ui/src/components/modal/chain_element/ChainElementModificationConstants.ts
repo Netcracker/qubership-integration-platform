@@ -31,6 +31,10 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "exchange",
       "queues",
       "routingKey",
+      //SFTP Trigger
+      "connectUrl",
+      "scheduler.cron",
+
       /* kafka trigger - manual*/
       "brokers",
       "securityProtocol",
@@ -173,7 +177,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:widget": "multipleSelectWidget",
     },
     headerModificationToRemove: {
-      "ui:widget": "multipleSelectWidget",
+      "ui:widget": "singleColumnTableWidget",
     },
     synchronousPullRetryableCodes: {
       "ui:widget": "multipleSelectWidget",
@@ -292,15 +296,19 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     },
     keySerializer: {
       "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "anyOfAsSingleSelectField",
     },
     valueSerializer: {
       "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "anyOfAsSingleSelectField",
     },
     keyDeserializer: {
       "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "anyOfAsSingleSelectField",
     },
     valueDeserializer: {
       "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "anyOfAsSingleSelectField",
     },
     retryCount: {
       "ui:fieldReplacesAnyOrOneOf": true,
@@ -382,6 +390,92 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     exchangePattern: {
       "ui:widget": "hidden",
     },
+
+    //Circuit Breaker
+    failureRateThreshold: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+    minimumNumberOfCalls: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+    permittedNumberOfCallsInHalfOpenState: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+    slidingWindowSize: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+    slowCallDurationThreshold: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+    slowCallRateThreshold: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+    waitDurationInOpenState: {
+      "ui:fieldReplacesAnyOrOneOf": true,
+      "ui:field": "oneOfAsSingleInputField",
+    },
+
+    //Split
+    aggregationStrategy: {
+      "ui:widget": "hidden",
+    },
+
+    //SFTP Upload and SFTP Download
+    allowNullBody: {
+      "ui:widget": "hidden",
+    },
+    binary: {
+      "ui:widget": "hidden",
+    },
+    throwExceptionOnConnectFailed: {
+      "ui:widget": "hidden",
+    },
+    useUserKnownHostsFile: {
+      "ui:widget": "hidden",
+    },
+    streamDownload: {
+      "ui:widget": "hidden",
+    },
+    autoCreate: {
+      "ui:widget": "hidden",
+    },
+    sendEmptyMessageWhenIdle: {
+      "ui:widget": "hidden",
+    },
+
+    //Scheduler
+    deleteJob: {
+      "ui:widget": "hidden",
+    },
+
+    //SFTP Trigger
+    ignoreFileNotFoundOrPermissionError: {
+      "ui:widget": "hidden",
+    },
+    jschLoggingLevel: {
+      "ui:widget": "hidden",
+    },
+    readLockLoggingLevel: {
+      "ui:widget": "hidden",
+    },
+    runLoggingLevel: {
+      "ui:widget": "hidden",
+    },
+    scheduler: {
+      "ui:widget": "hidden",
+    },
+    "scheduler.deleteJob": {
+      "ui:widget": "hidden",
+    },
+    "scheduler.triggerGroup": {
+      "ui:widget": "hidden",
+    },
   },
   id: { "ui:widget": "hidden" },
   elementType: { "ui:widget": "hidden" },
@@ -390,6 +484,19 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
   propertiesFilename: { "ui:widget": "hidden" },
   swimlaneId: { "ui:widget": "hidden" },
   children: { "ui:widget": "hidden" },
+};
+
+export const contextPathAndHttpMethodRestrictTabMapping: Record<
+  string,
+  string
+> = {
+  checkpoint: "Parameters",
+  "http-trigger": "Endpoint",
+};
+
+export const keyTabMapping: Record<string, string> = {
+  "kafka-sender-2": "Parameters",
+  "context-storage": "Operation",
 };
 
 export const pathToTabMap: Record<string, string> = {
@@ -404,7 +511,6 @@ export const pathToTabMap: Record<string, string> = {
   "properties.target": "Operation",
   "properties.targetName": "Operation",
   "properties.unwrap": "Operation",
-  "properties.contextPath": "Endpoint",
   "properties.integrationOperationId": "Endpoint",
   "properties.integrationSpecificationGroupId": "Endpoint",
   "properties.integrationSpecificationId": "Endpoint",
@@ -463,6 +569,15 @@ export const pathToTabMap: Record<string, string> = {
   "properties.after": "Handle Response",
   "properties.afterValidation": "Validations",
   "properties.requestFilterHeaderAllowlist": "Filer Request",
+  "properties.logLevel": "Logging",
+  "properties.sender": "Logging",
+  "properties.receiver": "Logging",
+  "properties.businessIdentifiers": "Logging",
+  "properties.message": "Logging",
+  "properties.script": "Script",
+  "properties.mappingDescription": "Mapping",
+  "properties.headerModificationToAdd": "Header Modification",
+  "properties.headerModificationToRemove": "Header Modification",
 };
 
 export const desiredTabOrder = [
@@ -477,6 +592,35 @@ export const desiredTabOrder = [
   "Failure Response Mapping",
   "Access Control",
   "Filer Request",
+  "Logging",
+  "Script",
+  "Mapping",
+  "Header Modification",
   "Parameters",
   "Idempotency",
 ];
+
+export function getTabForPath(
+  path: string,
+  elementType?: string,
+): string | undefined {
+  if (
+    (path === "properties.contextPath" ||
+      path === "properties.httpMethodRestrict") &&
+    elementType
+  ) {
+    const customTab = contextPathAndHttpMethodRestrictTabMapping[elementType];
+    if (customTab) {
+      return customTab;
+    }
+  }
+
+  if (path === "properties.key" && elementType) {
+    const customTab = keyTabMapping[elementType];
+    if (customTab) {
+      return customTab;
+    }
+  }
+
+  return pathToTabMap[path];
+}

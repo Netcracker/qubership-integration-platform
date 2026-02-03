@@ -33,8 +33,8 @@ const AnyOfAsSingleSelectField: React.FC<FieldProps<string>> = ({
     return [...new Set(values)].map((val) => ({ value: val }));
   }
 
-  const handleChange = (selected: string[]) => {
-    onChange(selected[0] ?? "", fieldPathId.path);
+  const handleChange = (selected: string) => {
+    onChange(selected, fieldPathId.path);
   };
 
   return (
@@ -46,12 +46,9 @@ const AnyOfAsSingleSelectField: React.FC<FieldProps<string>> = ({
         </label>
       ) : null}
       <Select
-        mode="tags"
-        allowClear={false}
-        maxCount={1}
         style={{ width: "100%" }}
         placeholder={schema.default as string | undefined}
-        value={formData ? [String(formData)] : []}
+        value={String(formData)}
         onChange={handleChange}
         options={collectOptions(schema)}
       />

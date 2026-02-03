@@ -7,7 +7,7 @@
 
 .leftColumn {
   width: 280px;
-  border-right: 1px solid #e8e8e8;
+  border-right: 1px solid var(--vscode-input-border, #d9d9d9);
 }
 
 .leftToolbar {

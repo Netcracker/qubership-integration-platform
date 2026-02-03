@@ -18,14 +18,15 @@ import type { JSONSchema7 } from "json-schema";
 import validator from "@rjsf/validator-ajv8";
 import StringAsMultipleSelectWidget from "./widget/StringAsMultipleSelectWidget.tsx";
 import MultipleSelectWidget from "./widget/MultipleSelectWidget.tsx";
+import SingleColumnTableWidget from "./widget/SingleColumnTableWidget.tsx";
 import { DebouncedTextareaWidget } from "./widget/DebouncedTextareaWidget.tsx";
 import { DebouncedTextWidget } from "./widget/DebouncedTextWidget.tsx";
 import OneOfAsSingleInputField from "./field/OneOfAsSingleInputField.tsx";
 import PatternPropertiesField from "./field/PatternPropertiesField.tsx";
 import {
   INITIAL_UI_SCHEMA,
-  pathToTabMap,
   desiredTabOrder,
+  getTabForPath,
 } from "./ChainElementModificationConstants.ts";
 import { ChainGraphNode } from "../../graph/nodes/ChainGraphNodeTypes.ts";
 import AnyOfAsSingleSelectField from "./field/select/AnyOfAsSingleSelectField.tsx";
@@ -379,12 +380,13 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       schema: JSONSchema7,
       path: string[] = [],
       acc: TabField[] = [],
+      elementType?: string,
     ): TabField[] => {
       const currentPath = path.join(".");
 
       if (schema.properties && typeof schema.properties === "object") {
         for (const [key, subSchema] of Object.entries(schema.properties)) {
-          collectTabFields(subSchema as JSONSchema7, [...path, key], acc);
+          collectTabFields(subSchema as JSONSchema7, [...path, key], acc, elementType);
         }
       }
 
@@ -393,7 +395,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         if (Array.isArray(schema[keyword])) {
           for (const subSchema of schema[keyword]) {
             if (typeof subSchema === "object" && subSchema !== null) {
-              collectTabFields(subSchema, path, acc);
+              collectTabFields(subSchema, path, acc, elementType);
             }
           }
         }
@@ -406,6 +408,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               schema.items[i] as JSONSchema7,
               [...path, `${i}`],
               acc,
+              elementType,
             );
           }
         } else {
@@ -413,21 +416,22 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             schema.items as JSONSchema7,
             [...path, "items"],
             acc,
+            elementType,
           );
         }
       }
 
       if (schema.if) {
         if (schema.then) {
-          collectTabFields(schema.then as JSONSchema7, path, acc);
+          collectTabFields(schema.then as JSONSchema7, path, acc, elementType);
         }
         if (schema.else) {
-          collectTabFields(schema.else as JSONSchema7, path, acc);
+          collectTabFields(schema.else as JSONSchema7, path, acc, elementType);
         }
       }
 
       if (path.length > 0) {
-        const tab = pathToTabMap[currentPath] || "Parameters";
+        const tab = getTabForPath(currentPath, elementType) || "Parameters";
         acc.push({ tab, path, schema });
       }
 
@@ -438,8 +442,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
   const tabFields = useMemo(() => {
     if (!schema) return [];
-    return collectTabFields(schema);
-  }, [schema, collectTabFields]);
+    return collectTabFields(schema, [], [], node.data.elementType);
+  }, [schema, collectTabFields, node.data.elementType]);
 
   const uniqueTabs = useMemo(() => {
     const rawTabs = new Set(tabFields.map((f) => f.tab));
@@ -578,6 +582,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const widgets: RegistryWidgetsType = {
     stringAsMultipleSelectWidget: StringAsMultipleSelectWidget,
     multipleSelectWidget: MultipleSelectWidget,
+    singleColumnTableWidget: SingleColumnTableWidget,
     debouncedTextareaWidget: DebouncedTextareaWidget,
     TextWidget: DebouncedTextWidget,
     textarea: DebouncedTextareaWidget,

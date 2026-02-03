@@ -109,7 +109,7 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
                       placeholder="Value"
                     />
                   </td>
-                  <td className={styles.td}>
+                  <td className={styles.tdAction}>
                     <Button
                       size="small"
                       type="text"
