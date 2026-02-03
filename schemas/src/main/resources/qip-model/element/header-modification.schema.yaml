@@ -13,13 +13,13 @@ properties:
     type: object
     properties:
       headerModificationToAdd:
-        title: Headers to keep or add
+        title: Add/Keep Headers
         description: >
           List of header names and values which we need to add or keep.
         $ref: "http://qubership.org/schemas/product/qip/element/properties/headers.schema.yaml"
       headerModificationToRemove:
         type: array
-        title: Headers to remove
+        title: Remove Headers
         description: List of header names which we need to remove.
         items:
           type: string

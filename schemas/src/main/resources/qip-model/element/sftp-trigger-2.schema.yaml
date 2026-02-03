@@ -61,7 +61,7 @@ properties:
         default: quartz
       scheduler.cron:
         type: string
-        title: Scheduler cron job
+        title: Polling schedule (cron expression)
       scheduler.deleteJob:
         type: boolean
         title: Scheduler deleteJob parameter

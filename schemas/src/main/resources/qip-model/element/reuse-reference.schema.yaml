@@ -15,7 +15,7 @@ properties:
     properties:
       reuseElementId:
         type: string
-        title: Reuse Element ID
+        title: Reuse Reference
     required:
       - reuseElementId
 required:

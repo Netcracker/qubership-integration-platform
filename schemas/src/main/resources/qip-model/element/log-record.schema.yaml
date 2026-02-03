@@ -16,7 +16,7 @@ properties:
     type: object
     properties:
       logLevel:
-        title: Log Level
+        title: Log as
         description: >
           Specifies the type of the message that
           will be logged to microservice log.

@@ -15,7 +15,7 @@ properties:
     properties:
       expression:
         type: string
-        title: Expression
+        title: Value
       doWhile:
         type: boolean
         title: Expression is used

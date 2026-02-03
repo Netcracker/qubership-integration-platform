@@ -18,7 +18,7 @@ properties:
         description: Connection url
       fileName:
         type: string
-        title: File Name
+        title: File Name (mask supported)
         description: >
           Use Expression such as File Language to dynamically set
           the file name.

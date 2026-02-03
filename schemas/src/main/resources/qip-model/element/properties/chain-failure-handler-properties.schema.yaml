@@ -48,6 +48,7 @@ allOf:
           properties:
             elementId:
               type: string
+              title: "Chain trigger"
           required:
             - elementId
 title: Chain Failure Handler
