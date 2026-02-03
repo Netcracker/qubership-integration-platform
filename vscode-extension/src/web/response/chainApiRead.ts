@@ -173,7 +173,7 @@ export async function getElementsByType(
     );
   }
 
-  if (elementType === "chain-trigger-2") {
+  if (elementType === "chain-trigger-2" || elementType === "chain-call-2") {
     const extensions = getExtensionsForUri(fileUri);
     const chainFiles = await fileApi.findFiles(extensions.chain);
     const result: Element[] = [];
