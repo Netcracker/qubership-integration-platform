@@ -8,7 +8,10 @@ import {
 } from "./SessionElementBodyView.tsx";
 import { DiffEditor, Monaco } from "@monaco-editor/react";
 import { editor as editor_ } from "monaco-editor";
-import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../hooks/useMonacoTheme";
+import {
+  useMonacoTheme,
+  applyVSCodeThemeToMonaco,
+} from "../../hooks/useMonacoTheme";
 
 export type SessionElementBodyChangesViewProps =
   React.HTMLAttributes<HTMLElement> & {

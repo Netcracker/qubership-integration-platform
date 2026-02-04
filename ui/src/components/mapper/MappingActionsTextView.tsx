@@ -7,7 +7,10 @@ import {
 } from "../../mapper/model/model.ts";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Editor, Monaco } from "@monaco-editor/react";
-import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../hooks/useMonacoTheme";
+import {
+  useMonacoTheme,
+  applyVSCodeThemeToMonaco,
+} from "../../hooks/useMonacoTheme";
 import {
   editor,
   languages,

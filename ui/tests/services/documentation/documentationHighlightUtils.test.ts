@@ -3,7 +3,7 @@ import {
   formatFragmentSegments,
   highlightSegments,
   segmentsToSafeHtml,
-} from "../documentationHighlightUtils";
+} from "../../../src/services/documentation/documentationHighlightUtils";
 
 describe("documentationHighlightUtils", () => {
   const stemmer = (w: string) => w.toLowerCase();

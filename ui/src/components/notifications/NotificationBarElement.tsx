@@ -14,16 +14,30 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({
 }) => {
   const getIconByType = (type?: string) => {
     const baseStyle = { fontSize: "18", marginTop: 4 };
-    const errorColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-errorForeground').trim() || '#ff4d4f';
-    const infoColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-textLink-foreground').trim() || '#1890ff';
+    const errorColor =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--vscode-errorForeground")
+        .trim() || "#ff4d4f";
+    const infoColor =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--vscode-textLink-foreground")
+        .trim() || "#1890ff";
 
     switch (type) {
       case "error":
-        return <OverridableIcon name="closeCircle" style={{ ...baseStyle, color: errorColor }} />;
+        return (
+          <OverridableIcon
+            name="closeCircle"
+            style={{ ...baseStyle, color: errorColor }}
+          />
+        );
       case "info":
       default:
         return (
-          <OverridableIcon name="exclamationCircle" style={{ ...baseStyle, color: infoColor }} />
+          <OverridableIcon
+            name="exclamationCircle"
+            style={{ ...baseStyle, color: infoColor }}
+          />
         );
     }
   };
@@ -31,7 +45,8 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({
   return (
     <List.Item
       actions={[
-        <OverridableIcon name="close"
+        <OverridableIcon
+          name="close"
           key="close"
           style={{ cursor: "pointer" }}
           onClick={() => onRemove(value)}

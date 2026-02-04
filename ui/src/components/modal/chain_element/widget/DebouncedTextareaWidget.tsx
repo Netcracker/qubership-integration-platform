@@ -1,20 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Input } from 'antd';
-import type { WidgetProps } from '@rjsf/utils';
+import React, { useEffect, useRef, useState } from "react";
+import { Input } from "antd";
+import type { WidgetProps } from "@rjsf/utils";
 
 const { TextArea } = Input;
 
 const toStringValue = (raw: unknown): string => {
-  if (typeof raw === 'string') {
+  if (typeof raw === "string") {
     return raw;
   }
-  if (typeof raw === 'number' || typeof raw === 'boolean') {
+  if (typeof raw === "number" || typeof raw === "boolean") {
     return String(raw);
   }
   if (raw === null || raw === undefined) {
-    return '';
+    return "";
   }
-  return '';
+  return "";
 };
 
 type TextareaOptions = Record<string, unknown> & {
@@ -37,7 +37,9 @@ interface DebouncedTextareaWidgetProps {
 }
 
 const getEmptyValue = (options?: TextareaOptions): string | undefined => {
-  return typeof options?.emptyValue === 'string' ? options.emptyValue : undefined;
+  return typeof options?.emptyValue === "string"
+    ? options.emptyValue
+    : undefined;
 };
 
 export const DebouncedTextareaWidget: React.FC<WidgetProps> = (props) => {
@@ -56,7 +58,9 @@ export const DebouncedTextareaWidget: React.FC<WidgetProps> = (props) => {
   } = widgetProps;
   const value = widgetProps.value;
 
-  const [localValue, setLocalValue] = useState<string>(() => toStringValue(value));
+  const [localValue, setLocalValue] = useState<string>(() =>
+    toStringValue(value),
+  );
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -81,7 +85,7 @@ export const DebouncedTextareaWidget: React.FC<WidgetProps> = (props) => {
 
     const emptyValue = getEmptyValue(options);
     debounceTimerRef.current = setTimeout(() => {
-      onChange(newValue === '' ? emptyValue : newValue);
+      onChange(newValue === "" ? emptyValue : newValue);
     }, 300);
   };
 
@@ -91,7 +95,7 @@ export const DebouncedTextareaWidget: React.FC<WidgetProps> = (props) => {
       debounceTimerRef.current = null;
     }
     const emptyValue = getEmptyValue(options);
-    onChange(localValue === '' ? emptyValue : localValue);
+    onChange(localValue === "" ? emptyValue : localValue);
     onBlur(id, localValue);
   };
 

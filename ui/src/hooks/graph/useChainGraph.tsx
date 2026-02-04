@@ -17,7 +17,7 @@ import React, {
   useCallback,
   useEffect,
   useRef,
-  useState
+  useState,
 } from "react";
 import { api } from "../../api/api.ts";
 import {
@@ -317,7 +317,14 @@ export const useChainGraph = (
         notificationService.requestFailed("Failed to create connection", error);
       }
     },
-    [chainId, nodes, notificationService, setEdges, structureChanged, onChainUpdate],
+    [
+      chainId,
+      nodes,
+      notificationService,
+      setEdges,
+      structureChanged,
+      onChainUpdate,
+    ],
   );
 
   const onDragOver = useCallback(
@@ -756,7 +763,7 @@ export const useChainGraph = (
 
   const onContextMenuCall = (
     event: MouseEvent,
-    selectedElements: Node<ChainGraphNodeData>[]
+    selectedElements: Node<ChainGraphNodeData>[],
   ) => {
     event.preventDefault();
 
@@ -767,7 +774,7 @@ export const useChainGraph = (
     const items = [];
     // Single element
     if (selectedElements?.length === 1) {
-      if (selectedElements[0].data.elementType === 'container') {
+      if (selectedElements[0].data.elementType === "container") {
         items.push({
           id: uuidv4(),
           text: "Ungroup",
@@ -785,12 +792,12 @@ export const useChainGraph = (
     setMenu({
       x: event.clientX,
       y: event.clientY,
-      items
+      items,
     });
   };
 
   const groupElements = async (
-    selectedElements: Node<ChainGraphNodeData>[]
+    selectedElements: Node<ChainGraphNodeData>[],
   ) => {
     if (chainId == null) {
       return;
@@ -826,13 +833,18 @@ export const useChainGraph = (
               break;
             }
           }
-        })
+        });
 
         const childrenElementIds = container.children.map((node) => node.id);
-        nodesWithoutChangedElements = nodes.filter(node => !childrenElementIds.includes(node.id));
+        nodesWithoutChangedElements = nodes.filter(
+          (node) => !childrenElementIds.includes(node.id),
+        );
       }
 
-      const arrangedNew = await arrangeNodes(childNodes.concat(containerNode), []);
+      const arrangedNew = await arrangeNodes(
+        childNodes.concat(containerNode),
+        [],
+      );
       const allNodes = nodesWithoutChangedElements.concat(arrangedNew);
       const withToggle = attachToggle(allNodes);
       const withCount = setNestedUnitCounts(withToggle);
@@ -840,16 +852,14 @@ export const useChainGraph = (
       const ordered = sortParentsBeforeChildren(withCount);
       setNodes(ordered);
 
-      structureChanged()
+      structureChanged();
     } catch (error) {
       console.error(error);
       notificationService.requestFailed("Failed to group elements", error);
     }
   };
 
-  const ungroupElements = async (
-    selectedGroup: Node<ChainGraphNodeData>
-  ) => {
+  const ungroupElements = async (selectedGroup: Node<ChainGraphNodeData>) => {
     if (chainId == null) {
       return;
     }
@@ -857,7 +867,9 @@ export const useChainGraph = (
     try {
       const elements = await api.ungroupElements(chainId, selectedGroup.id);
 
-      let nodesWithoutContainer = nodes.filter(node => node.id !== selectedGroup.id);
+      let nodesWithoutContainer = nodes.filter(
+        (node) => node.id !== selectedGroup.id,
+      );
 
       if (elements?.length) {
         nodesWithoutContainer = nodesWithoutContainer.map((prevNode) => {

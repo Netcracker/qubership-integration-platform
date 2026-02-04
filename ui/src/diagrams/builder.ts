@@ -284,9 +284,7 @@ function getParticipantsGetter(elementType: string): ParticipantsGetter {
 }
 
 function getChainTriggerParticipants(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _element: Element,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _context: DiagramBuildContext,
 ): Participant[] {
   return [createSimpleParticipant(`Unknown ${getAppName()} chain`)];
@@ -294,7 +292,6 @@ function getChainTriggerParticipants(
 
 function getSftpParticipants(
   element: Element,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _context: DiagramBuildContext,
 ): Participant[] {
   const connectUrl =
@@ -304,7 +301,6 @@ function getSftpParticipants(
 
 function getContextStorageParticipants(
   element: Element,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _context: DiagramBuildContext,
 ): Participant[] {
   const contextServiceId =
@@ -316,7 +312,6 @@ function getContextStorageParticipants(
 
 function getGraphQlSenderParticipants(
   element: Element,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _context: DiagramBuildContext,
 ): Participant[] {
   const uri = (element.properties["uri"] as string) ?? EMPTY_PROPERTY_STUB;
@@ -386,7 +381,6 @@ function getChainCallParticipants(
 
 function getMailParticipants(
   element: Element,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _context: DiagramBuildContext,
 ): Participant[] {
   const url = (element.properties["url"] as string) ?? EMPTY_PROPERTY_STUB;
@@ -418,7 +412,6 @@ function getAsyncApiTriggerParticipants(
 
 function getHttpSenderParticipants(
   element: Element,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _context: DiagramBuildContext,
 ): Participant[] {
   const uri = (element.properties["uri"] as string) ?? EMPTY_PROPERTY_STUB;
@@ -430,9 +423,7 @@ function getHttpSenderParticipants(
 }
 
 function getCheckpointParticipants(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _element: Element,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _context: DiagramBuildContext,
 ): Participant[] {
   return [createSimpleParticipant("Unknown user")];

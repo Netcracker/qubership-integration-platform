@@ -4,7 +4,7 @@ import React from "react";
 
 export type RunningStatusValueProps = {
   status: RunningStatus;
-}
+};
 
 const statusColors: Record<RunningStatus, string> = {
   [RunningStatus.RUNNING]: "green",
@@ -13,6 +13,8 @@ const statusColors: Record<RunningStatus, string> = {
   [RunningStatus.UNKNOWN]: "default",
 };
 
-export const RunningStatusValue: React.FC<RunningStatusValueProps> = ({ status }) => {
-  return <Tag color={statusColors[status]}>{status}</Tag>
-}
+export const RunningStatusValue: React.FC<RunningStatusValueProps> = ({
+  status,
+}) => {
+  return <Tag color={statusColors[status]}>{status}</Tag>;
+};

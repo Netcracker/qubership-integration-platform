@@ -47,7 +47,11 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
       open={true}
       onCancel={closeContainingModal}
       footer={[
-        <Button key="cancel" disabled={confirmLoading} onClick={closeContainingModal}>
+        <Button
+          key="cancel"
+          disabled={confirmLoading}
+          onClick={closeContainingModal}
+        >
           Cancel
         </Button>,
         <Button

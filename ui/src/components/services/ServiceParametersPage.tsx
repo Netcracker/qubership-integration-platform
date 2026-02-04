@@ -1,19 +1,21 @@
 import React, { useEffect, useState, createContext, useContext } from "react";
-import {
-  Tabs,
-  Typography,
-  Breadcrumb,
-  Flex
-} from "antd";
+import { Tabs, Typography, Breadcrumb, Flex } from "antd";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { formatTimestamp } from "../../misc/format-utils.ts";
 import { ServiceParametersTab } from "./ServiceParametersTab";
 import { ServiceApiSpecsTab } from "./ServiceApiSpecsTab";
 import { ServiceEnvironmentsTab } from "./ServiceEnvironmentsTab";
 import { api } from "../../api/api";
-import { IntegrationSystem, IntegrationSystemType, BaseEntity } from "../../api/apiTypes";
+import {
+  IntegrationSystem,
+  IntegrationSystemType,
+  BaseEntity,
+} from "../../api/apiTypes";
 import styles from "./Services.module.css";
-import { ServiceNameBreadcrumbItem, ServiceTypeBreadcrumbItem } from "./ServiceBreadcrumb.tsx";
+import {
+  ServiceNameBreadcrumbItem,
+  ServiceTypeBreadcrumbItem,
+} from "./ServiceBreadcrumb.tsx";
 
 const { Title } = Typography;
 
@@ -74,9 +76,15 @@ export const ServiceParametersPageHeader: React.FC = () => {
 };
 
 export const ServiceParametersPage: React.FC = () => {
-  const { systemId, groupId, specId } = useParams<{ systemId: string; groupId?: string; specId?: string }>();
+  const { systemId, groupId, specId } = useParams<{
+    systemId: string;
+    groupId?: string;
+    specId?: string;
+  }>();
   const location = useLocation();
-  const state = location.state as { type?: IntegrationSystemType; name?: string } | undefined;
+  const state = location.state as
+    | { type?: IntegrationSystemType; name?: string }
+    | undefined;
   const [system, setSystem] = useState<IntegrationSystem | null>(null);
   const [chains, setChains] = useState<BaseEntity[] | null>(null);
   const [groupName, setGroupName] = useState<string | null>(null);
@@ -98,33 +106,38 @@ export const ServiceParametersPage: React.FC = () => {
         labels: [],
       });
     } else if (systemId) {
-      void api.getService(systemId)
+      void api
+        .getService(systemId)
         .then((service) => {
           setSystem(service);
         })
         .catch((error) => {
-          console.error('ServiceParametersPage: Error loading service', error);
+          console.error("ServiceParametersPage: Error loading service", error);
         });
     }
   }, [systemId, state]);
 
   useEffect(() => {
-    console.log('ServiceParametersPage: URL changed, refreshing service data');
+    console.log("ServiceParametersPage: URL changed, refreshing service data");
     if (systemId) {
-      void api.getService(systemId)
+      void api
+        .getService(systemId)
         .then((service) => {
           setSystem(service);
         })
         .catch((error) => {
-          console.error('ServiceParametersPage: Error reloading service', error);
+          console.error(
+            "ServiceParametersPage: Error reloading service",
+            error,
+          );
         });
     }
   }, [location.pathname, systemId]);
 
   useEffect(() => {
     if (groupId && systemId) {
-      void api.getApiSpecifications(systemId).then(groups => {
-        const group = groups.find(g => g.id === groupId);
+      void api.getApiSpecifications(systemId).then((groups) => {
+        const group = groups.find((g) => g.id === groupId);
         setGroupName(group?.name || null);
       });
     } else {
@@ -134,8 +147,8 @@ export const ServiceParametersPage: React.FC = () => {
 
   useEffect(() => {
     if (groupId && specId && systemId) {
-      void api.getSpecificationModel(systemId, groupId).then(models => {
-        const model = models.find(m => m.id === specId);
+      void api.getSpecificationModel(systemId, groupId).then((models) => {
+        const model = models.find((m) => m.id === specId);
         setSpecName(model?.name || null);
       });
     } else {
@@ -150,19 +163,21 @@ export const ServiceParametersPage: React.FC = () => {
   }, [system, system?.id]);
 
   const getActiveTab = (pathname: string): string => {
-    if (pathname.includes('/parameters')) return 'parameters';
-    if (pathname.includes('/environments')) return 'environments';
-    if (pathname.includes('/specificationGroups')) return 'api-specs';
-    return 'api-specs'; // default
+    if (pathname.includes("/parameters")) return "parameters";
+    if (pathname.includes("/environments")) return "environments";
+    if (pathname.includes("/specificationGroups")) return "api-specs";
+    return "api-specs"; // default
   };
 
   const activeTab = getActiveTab(location.pathname);
 
   const handleTabChange = (key: string) => {
-    let path = '';
-    if (key === 'parameters') path = `/services/systems/${systemId}/parameters`;
-    else if (key === 'api-specs') path = `/services/systems/${systemId}/specificationGroups`;
-    else if (key === 'environments') path = `/services/systems/${systemId}/environments`;
+    let path = "";
+    if (key === "parameters") path = `/services/systems/${systemId}/parameters`;
+    else if (key === "api-specs")
+      path = `/services/systems/${systemId}/specificationGroups`;
+    else if (key === "environments")
+      path = `/services/systems/${systemId}/environments`;
     void navigate(path);
   };
 
@@ -185,9 +200,7 @@ export const ServiceParametersPage: React.FC = () => {
     {
       key: "api-specs",
       label: "API Specifications",
-      children: (
-        <ServiceApiSpecsTab />
-      ),
+      children: <ServiceApiSpecsTab />,
     },
     {
       key: "environments",
@@ -197,7 +210,8 @@ export const ServiceParametersPage: React.FC = () => {
           formatTimestamp={formatTimestamp}
           setSystem={(system) => setSystem(system as IntegrationSystem | null)}
         />
-      ) },
+      ),
+    },
   ];
 
   const breadcrumbItems = [
@@ -242,18 +256,18 @@ export const ServiceParametersPage: React.FC = () => {
   ];
 
   return (
-      <ServiceContext.Provider value={system}>
-        <ChainsContext.Provider value={chains}>
-          <ServiceParametersPageLayout>
-              <Breadcrumb items={breadcrumbItems} />
-              <ServiceParametersPageHeader />
-              <Tabs
-                items={tabItems}
-                activeKey={activeTab}
-                onChange={handleTabChange}
-              />
-            </ServiceParametersPageLayout>
-        </ChainsContext.Provider>
-      </ServiceContext.Provider>
+    <ServiceContext.Provider value={system}>
+      <ChainsContext.Provider value={chains}>
+        <ServiceParametersPageLayout>
+          <Breadcrumb items={breadcrumbItems} />
+          <ServiceParametersPageHeader />
+          <Tabs
+            items={tabItems}
+            activeKey={activeTab}
+            onChange={handleTabChange}
+          />
+        </ServiceParametersPageLayout>
+      </ChainsContext.Provider>
+    </ServiceContext.Provider>
   );
 };

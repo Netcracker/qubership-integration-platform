@@ -1,7 +1,6 @@
 import { Handle, Node, Position } from "@xyflow/react";
 import { ChainGraphNodeData } from "../../graph/nodes/ChainGraphNodeTypes.ts";
 
-
 export const DefaultNode = ({ data }: Node<ChainGraphNodeData>) => {
   const isHorizontal = data.direction === "RIGHT";
 

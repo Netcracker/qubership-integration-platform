@@ -778,6 +778,38 @@ export class RestApiError extends Error {
   }
 }
 
+export interface ApiError {
+  responseBody: {
+    serviceName: string;
+    errorMessage: string;
+    errorDate: string;
+    stacktrace?: string;
+  };
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  error?: ApiError;
+  data?: T;
+}
+
+export type Variable = {
+  key: string;
+  value: string;
+};
+
+export type SecretWithVariables = {
+  secretName: string;
+  variables: Variable[];
+  isDefaultSecret: boolean;
+};
+
+export type SecretResponse = {
+  secretName: string;
+  variablesNames: string[];
+  defaultSecret: boolean;
+};
+
 export type CreateFolderRequest = {
   id?: string;
   parentId?: string;

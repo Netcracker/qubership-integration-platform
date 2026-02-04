@@ -6,12 +6,10 @@ export const StringFilterValue = (props: FilterValueProps) => {
   const [value, setValue] = useState<string | undefined>(props.value);
   const disabled = props.condition?.valueRequired === false;
 
-  const onChange = ({
-    target: { value },
-  }: ChangeEvent<HTMLInputElement>) => {
+  const onChange = ({ target: { value } }: ChangeEvent<HTMLInputElement>) => {
     props.handleStringValue(disabled ? undefined : value);
     setValue(value);
-  }
+  };
 
   useEffect(() => {
     if (disabled) {
@@ -19,5 +17,12 @@ export const StringFilterValue = (props: FilterValueProps) => {
     }
   }, [disabled]);
 
-  return <Input placeholder="Value" onChange={onChange} disabled={disabled} value={value} />;
-}
+  return (
+    <Input
+      placeholder="Value"
+      onChange={onChange}
+      disabled={disabled}
+      value={value}
+    />
+  );
+};

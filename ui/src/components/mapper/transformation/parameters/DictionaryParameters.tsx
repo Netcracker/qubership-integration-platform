@@ -10,14 +10,22 @@ import {
 } from "antd";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { InlineEdit } from "../../../InlineEdit";
-import { KeyValuePair, makeArray, parse, sliceParameter } from "./key-value-text-util";
+import {
+  KeyValuePair,
+  makeArray,
+  parse,
+  sliceParameter,
+} from "./key-value-text-util";
 import { TextValueEdit } from "../../../table/TextValueEdit";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { editor, languages, MarkerSeverity } from "monaco-editor";
 import { isParseError } from "../../../../mapper/actions-text/parser.ts";
 import { LocationRange } from "pegjs";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
-import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../../../hooks/useMonacoTheme";
+import {
+  useMonacoTheme,
+  applyVSCodeThemeToMonaco,
+} from "../../../../hooks/useMonacoTheme";
 
 const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
 
@@ -338,10 +346,10 @@ const DictionaryEditor: React.FC<DictionaryAdapterProps> = ({
   const base = safeValue[0] ?? "";
   const parameters = sliceParameter(safeValue);
 
-  const handleChange = (updatedParams: KeyValuePair[])=> {
-      const merged = makeArray(updatedParams);
-      onChange?.(merged.length ? [base, ...merged] : [base]);
-  }
+  const handleChange = (updatedParams: KeyValuePair[]) => {
+    const merged = makeArray(updatedParams);
+    onChange?.(merged.length ? [base, ...merged] : [base]);
+  };
 
   return (
     <Tabs
@@ -354,12 +362,16 @@ const DictionaryEditor: React.FC<DictionaryAdapterProps> = ({
         {
           key: "table",
           label: "Table",
-          children: <DictionaryTableEditor value={parameters} onChange={handleChange} />,
+          children: (
+            <DictionaryTableEditor value={parameters} onChange={handleChange} />
+          ),
         },
         {
           key: "text",
           label: "Text",
-          children: <DictionaryTextEditor value={parameters} onChange={handleChange} />,
+          children: (
+            <DictionaryTextEditor value={parameters} onChange={handleChange} />
+          ),
         },
       ]}
     />
@@ -372,7 +384,10 @@ export const DictionaryParameters: React.FC = () => {
       <Form.Item name={["parameters", 0]} label="Default" initialValue={""}>
         <Input />
       </Form.Item>
-      <Form.Item className={"flex-form-item flex-form-item-h100"} name={["parameters"]}>
+      <Form.Item
+        className={"flex-form-item flex-form-item-h100"}
+        name={["parameters"]}
+      >
         <DictionaryEditor />
       </Form.Item>
     </>

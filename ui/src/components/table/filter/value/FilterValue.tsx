@@ -9,15 +9,15 @@ export type FilterValueProps = {
   type: FilterValueType;
   allowedValues?: ListValue[];
   value: string | undefined;
-}
+};
 
 export const FilterValue = (props: FilterValueProps) => {
   if (props.type === FilterValueType.LIST) {
-    return <ListFilterValue {...props} />
+    return <ListFilterValue {...props} />;
   }
   if (props.type === FilterValueType.DATE) {
-    return <TimestampFilterValue {...props} />
+    return <TimestampFilterValue {...props} />;
   }
 
   return <StringFilterValue {...props} />;
-}
+};

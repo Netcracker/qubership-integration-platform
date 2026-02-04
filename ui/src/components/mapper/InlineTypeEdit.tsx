@@ -25,7 +25,14 @@ export function buildTypeOptions(
     DataTypes.stringType(),
     DataTypes.integerType(),
     DataTypes.booleanType(),
-    ...(enableObjectType ? [DataTypes.objectType({ id: MappingUtil.generateUUID(), attributes: [] })] : []),
+    ...(enableObjectType
+      ? [
+          DataTypes.objectType({
+            id: MappingUtil.generateUUID(),
+            attributes: [],
+          }),
+        ]
+      : []),
   ];
   const arrayTypes = enableArrayTypes
     ? baseTypes.map((type) => DataTypes.arrayType(type))
@@ -68,7 +75,14 @@ export const InlineTypeEdit: React.FC<InlineTypeEditProps> = ({
   }, [type, definitions]);
 
   useEffect(() => {
-    setOptions(buildTypeOptions(type, definitions ?? [], !disableArrayTypes, !disableObjectType));
+    setOptions(
+      buildTypeOptions(
+        type,
+        definitions ?? [],
+        !disableArrayTypes,
+        !disableObjectType,
+      ),
+    );
   }, [type, definitions, disableArrayTypes, disableObjectType]);
 
   return readonly ? (

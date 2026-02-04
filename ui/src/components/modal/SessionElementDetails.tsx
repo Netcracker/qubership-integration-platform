@@ -210,7 +210,8 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
       title={
         <>
           <span style={{ marginRight: 8 }}>{element?.elementName}</span>
-          <OverridableIcon name="link"
+          <OverridableIcon
+            name="link"
             onClick={() =>
               window.open(
                 `/chains/${session.chainId}/graph/${element?.chainElementId}`,

@@ -54,7 +54,9 @@ export function getEnumColumnFilterFn<RecordType = AnyObject>(
   };
 }
 
-export type EnumColumnFilterDropdownProps<OptionType extends DefaultOptionType> = {
+export type EnumColumnFilterDropdownProps<
+  OptionType extends DefaultOptionType,
+> = {
   options: OptionType[];
 };
 
@@ -64,7 +66,8 @@ export const EnumColumnFilterDropdown = <OptionType extends DefaultOptionType>({
   clearFilters,
   selectedKeys,
   setSelectedKeys,
-}: FilterDropdownProps & EnumColumnFilterDropdownProps<OptionType>): ReactNode => {
+}: FilterDropdownProps &
+  EnumColumnFilterDropdownProps<OptionType>): ReactNode => {
   const getFilter = useCallback(() => {
     return selectedKeys[0]
       ? parseJson<EnumFilter>(selectedKeys[0].toString(), isEnumFilter)

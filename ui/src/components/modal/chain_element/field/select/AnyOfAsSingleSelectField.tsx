@@ -41,7 +41,9 @@ const AnyOfAsSingleSelectField: React.FC<FieldProps<string>> = ({
     <div>
       {title ? (
         <label htmlFor={id} className={styles["field-label"]}>
-          {required ? <span className={styles["field-required"]}> *</span> : null}
+          {required ? (
+            <span className={styles["field-required"]}> *</span>
+          ) : null}
           {title}
         </label>
       ) : null}

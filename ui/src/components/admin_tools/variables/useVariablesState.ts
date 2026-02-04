@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { message } from "antd";
 import { useNotificationService } from "../../../hooks/useNotificationService";
-import {
-  ApiResponse,
-  Variable,
-} from "../../../api/admin-tools/variables/types.ts";
+import { ApiResponse, Variable } from "../../../api/apiTypes.ts";
 
 export const NEW_VARIABLE_KEY = "__new__";
 

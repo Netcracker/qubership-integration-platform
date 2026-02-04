@@ -33,9 +33,7 @@ export const TransformationValue: React.FC<TransformationValueProps> = ({
   return (
     <div className={styles["transformation-content"]}>
       {transformation ? (
-        <TransformationInfoTooltip
-          transformation={transformation}
-        >
+        <TransformationInfoTooltip transformation={transformation}>
           <div className={styles["transformation-details"]}>
             <span className={styles["transformation-title"]}>
               {transformationInfo?.title ?? transformation.name}
@@ -60,9 +58,7 @@ export const TransformationValue: React.FC<TransformationValueProps> = ({
           title={
             <Flex vertical gap={8}>
               {errors.map((error, index) => (
-                <div key={index}>
-                  {error.message}
-                </div>
+                <div key={index}>{error.message}</div>
               ))}
             </Flex>
           }

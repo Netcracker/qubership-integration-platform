@@ -1,7 +1,7 @@
 import {
   createDebouncedCallback,
   createLatestOnlyGuard,
-} from "../documentationAsyncUtils";
+} from "../../../src/services/documentation/documentationAsyncUtils";
 
 describe("documentationAsyncUtils", () => {
   test("createLatestOnlyGuard tracks latest token", () => {

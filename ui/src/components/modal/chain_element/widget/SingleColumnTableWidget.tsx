@@ -42,7 +42,8 @@ const SingleColumnTableWidget: React.FC<WidgetProps> = ({
     [items, onChange],
   );
 
-  const title = (uiSchema?.["ui:title"] as string) || label || schema?.title || "Items";
+  const title =
+    (uiSchema?.["ui:title"] as string) || label || schema?.title || "Items";
 
   return (
     <div className={styles.container}>
@@ -59,7 +60,10 @@ const SingleColumnTableWidget: React.FC<WidgetProps> = ({
             )}
           </span>
           <span onClick={() => setCollapsed((s) => !s)}>{title}</span>
-          <span className={styles.badge} onClick={() => setCollapsed((s) => !s)}>
+          <span
+            className={styles.badge}
+            onClick={() => setCollapsed((s) => !s)}
+          >
             {items.length}
           </span>
           <Button

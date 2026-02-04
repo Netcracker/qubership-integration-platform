@@ -1,4 +1,4 @@
-import { ServiceSidebar } from '../components/services/ServiceSidebar';
+import { ServiceSidebar } from "../components/services/ServiceSidebar";
 import { ServicesListPage } from "../components/services/ServicesListPage.tsx";
 import { PageWithSidebar } from "./PageWithSidebar";
 

@@ -217,7 +217,9 @@ export const Snapshots: React.FC = () => {
       key: "createdBy",
       render: (_, snapshot) => <>{snapshot.createdBy?.username ?? "—"}</>,
       sorter: (a, b) =>
-        (a.createdBy?.username ?? "").localeCompare(b.createdBy?.username ?? ""),
+        (a.createdBy?.username ?? "").localeCompare(
+          b.createdBy?.username ?? "",
+        ),
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       onFilter: getTextColumnFilterFn(
         (snapshot) => snapshot.createdBy?.username ?? "",
@@ -227,10 +229,16 @@ export const Snapshots: React.FC = () => {
       title: "Created At",
       dataIndex: "createdWhen",
       key: "createdWhen",
-      render: (_, snapshot) => <>{snapshot.createdWhen ? formatTimestamp(snapshot.createdWhen) : "-"}</>,
+      render: (_, snapshot) => (
+        <>
+          {snapshot.createdWhen ? formatTimestamp(snapshot.createdWhen) : "-"}
+        </>
+      ),
       sorter: (a, b) => (a.createdWhen ?? 0) - (b.createdWhen ?? 0),
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
-      onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.createdWhen ?? 0),
+      onFilter: getTimestampColumnFilterFn(
+        (snapshot) => snapshot.createdWhen ?? 0,
+      ),
     },
     {
       title: "Modified By",
@@ -238,7 +246,9 @@ export const Snapshots: React.FC = () => {
       key: "modifiedBy",
       render: (_, snapshot) => <>{snapshot.modifiedBy?.username ?? "—"}</>,
       sorter: (a, b) =>
-        (a.modifiedBy?.username ?? "").localeCompare(b.modifiedBy?.username ?? ""),
+        (a.modifiedBy?.username ?? "").localeCompare(
+          b.modifiedBy?.username ?? "",
+        ),
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       onFilter: getTextColumnFilterFn(
         (snapshot) => snapshot.modifiedBy?.username ?? "",
@@ -248,10 +258,16 @@ export const Snapshots: React.FC = () => {
       title: "Modified At",
       dataIndex: "modifiedWhen",
       key: "modifiedWhen",
-      render: (_, snapshot) => <>{snapshot.modifiedWhen ? formatTimestamp(snapshot.modifiedWhen) : "-"}</>,
+      render: (_, snapshot) => (
+        <>
+          {snapshot.modifiedWhen ? formatTimestamp(snapshot.modifiedWhen) : "-"}
+        </>
+      ),
       sorter: (a, b) => (a.modifiedWhen ?? 0) - (b.modifiedWhen ?? 0),
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
-      onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.modifiedWhen ?? 0),
+      onFilter: getTimestampColumnFilterFn(
+        (snapshot) => snapshot.modifiedWhen ?? 0,
+      ),
     },
     {
       title: "",
@@ -292,7 +308,11 @@ export const Snapshots: React.FC = () => {
             trigger={["click"]}
             placement="bottomRight"
           >
-            <Button size="small" type="text" icon={<OverridableIcon name="more" />} />
+            <Button
+              size="small"
+              type="text"
+              icon={<OverridableIcon name="more" />}
+            />
           </Dropdown>
         </>
       ),

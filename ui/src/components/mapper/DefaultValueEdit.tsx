@@ -24,7 +24,8 @@ export const DefaultValueEdit: React.FC<DefaultValueEditProps> = ({
       inputProps={{
         allowClear: true,
         addonAfter: (
-          <OverridableIcon name="delete"
+          <OverridableIcon
+            name="delete"
             onClick={() => {
               form.setFieldValue(name, undefined);
               form.submit();
@@ -34,10 +35,7 @@ export const DefaultValueEdit: React.FC<DefaultValueEditProps> = ({
       }}
     />
   ) : type === "number" ? (
-    <NumberValueEdit
-      name={name}
-      rules={[]}
-    />
+    <NumberValueEdit name={name} rules={[]} />
   ) : (
     <SelectEdit<string>
       name={name}

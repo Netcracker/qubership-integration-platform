@@ -10,7 +10,5 @@
     "--vscode-button-background": "#1890ff",
     "--vscode-button-foreground": "#ffffff"
   },
-  "additionalCss": [
-    "./custom-theme.css"
-  ]
+  "additionalCss": ["./custom-theme.css"]
 }

@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { Dropdown, Button, Menu } from 'antd';
-import { isVsCode, VSCodeExtensionApi } from '../../api/rest/vscodeExtensionApi';
-import { api } from '../../api/api';
+import React, { useState } from "react";
+import { Dropdown, Button, Menu } from "antd";
+import {
+  isVsCode,
+  VSCodeExtensionApi,
+} from "../../api/rest/vscodeExtensionApi";
+import { api } from "../../api/api";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 export interface Chain {
@@ -17,7 +20,15 @@ export const ChainColumn: React.FC<ChainColumnProps> = ({ chains }) => {
   const [open, setOpen] = useState(false);
 
   if (!chains || chains.length === 0) {
-    return <div style={{ color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))' }}>No chains</div>;
+    return (
+      <div
+        style={{
+          color: "var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))",
+        }}
+      >
+        No chains
+      </div>
+    );
   }
 
   const handleMenuClick = (chainId: string) => {
@@ -33,7 +44,7 @@ export const ChainColumn: React.FC<ChainColumnProps> = ({ chains }) => {
 
   const menu = (
     <Menu>
-      {chains.map(chain => (
+      {chains.map((chain) => (
         <Menu.Item key={chain.id} onClick={() => handleMenuClick(chain.id)}>
           {chain.name}
         </Menu.Item>
@@ -42,11 +53,21 @@ export const ChainColumn: React.FC<ChainColumnProps> = ({ chains }) => {
   );
 
   return (
-    <Dropdown overlay={menu} trigger={['click']} open={open} onOpenChange={setOpen}>
+    <Dropdown
+      overlay={menu}
+      trigger={["click"]}
+      open={open}
+      onOpenChange={setOpen}
+    >
       <Button type="link">
-        {chains.length > 0
-          ? (<>{chains.length} {chains.length === 1 ? 'chain' : 'chains'} <OverridableIcon name="down" /></>)
-          : 'No chains'}
+        {chains.length > 0 ? (
+          <>
+            {chains.length} {chains.length === 1 ? "chain" : "chains"}{" "}
+            <OverridableIcon name="down" />
+          </>
+        ) : (
+          "No chains"
+        )}
       </Button>
     </Dropdown>
   );

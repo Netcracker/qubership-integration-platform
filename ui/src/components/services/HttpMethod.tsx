@@ -34,7 +34,7 @@ export const HttpMethod: React.FC<HttpMethodProps> = (
         border: "none",
         textAlign: "center",
         fontWeight: 500,
-        ...(props.width && {width: props.width})
+        ...(props.width && { width: props.width }),
       }}
     >
       {displayMethod}

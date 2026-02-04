@@ -17,6 +17,9 @@ export function initializeVSCodeApp() {
 }
 
 // Auto-initialize if running in VS Code
-if (typeof window !== 'undefined' && window.location.protocol === "vscode-webview:") {
+if (
+  typeof window !== "undefined" &&
+  window.location.protocol === "vscode-webview:"
+) {
   initializeVSCodeApp();
 }

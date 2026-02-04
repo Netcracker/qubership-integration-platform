@@ -4,7 +4,7 @@ import {
   isSafeHref,
   joinUrl,
   toDocMarkdownAssetPath,
-} from "../documentationUrlUtils";
+} from "../../../src/services/documentation/documentationUrlUtils";
 
 describe("documentationUrlUtils", () => {
   test("DOCUMENTATION_ROUTE_BASE is /doc", () => {

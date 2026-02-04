@@ -21,21 +21,20 @@ export const useModalContext = (): ModalContextFunctions => {
   return context;
 };
 
-export const ModalContextProvider: ModalContextProviderComponent = memo(({
-  children,
-  modalId,
-}: ModalContextProviderProps) => {
-  const { closeModal } = useModalsContext();
+export const ModalContextProvider: ModalContextProviderComponent = memo(
+  ({ children, modalId }: ModalContextProviderProps) => {
+    const { closeModal } = useModalsContext();
 
-  const closeContainingModal = () => {
-    closeModal(modalId);
-  };
+    const closeContainingModal = () => {
+      closeModal(modalId);
+    };
 
-  return (
-    <ModalContext.Provider value={{ closeContainingModal }}>
-      {children}
-    </ModalContext.Provider>
-  );
-});
+    return (
+      <ModalContext.Provider value={{ closeContainingModal }}>
+        {children}
+      </ModalContext.Provider>
+    );
+  },
+);
 
 ModalContextProvider.displayName = "ModalContextProvider";

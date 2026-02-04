@@ -1,4 +1,4 @@
-import { Button, Form, Modal } from "antd"
+import { Button, Form, Modal } from "antd";
 import { useModalContext } from "../../../ModalContextProvider";
 import { FilterItem, FilterItemState } from "./FilterItem";
 import { useState } from "react";
@@ -9,7 +9,7 @@ export type FilterProps = {
   filterColumns: FilterColumn[];
   filterItemStates: FilterItemState[];
   onApplyFilters: (filterItems: FilterItemState[]) => void;
-}
+};
 
 export const Filter = (props: FilterProps) => {
   const { closeContainingModal } = useModalContext();
@@ -42,40 +42,41 @@ export const Filter = (props: FilterProps) => {
     newState.delete(id);
 
     setItems(newState.size === 0 ? buildMapWithInitialItem() : newState);
-  }
+  };
 
   const duplicateFilterItem = (id: string) => {
-    const newItem = {...items.get(id), id: crypto.randomUUID()};
+    const newItem = { ...items.get(id), id: crypto.randomUUID() };
     addNewItem(newItem);
-  }
+  };
 
-  const filterItems = Array.from(items.values()).map(itemState =>
-    <FilterItem key={itemState.id}
+  const filterItems = Array.from(items.values()).map((itemState) => (
+    <FilterItem
+      key={itemState.id}
       state={itemState}
       filterColumns={props.filterColumns}
       onRemove={() => removeFilterItem(itemState.id)}
       onDuplicate={() => duplicateFilterItem(itemState.id)}
       onValueChange={updateStateFromChildItem}
     ></FilterItem>
-  );
+  ));
 
   const addFilterItem = () => {
     const newItem: FilterItemState = {
-      id: crypto.randomUUID()
+      id: crypto.randomUUID(),
     };
 
     addNewItem(newItem);
-  }
+  };
 
   const apply = () => {
     const values = Array.from(clearEmptyItems().values());
     props.onApplyFilters(values);
     closeContainingModal();
-  }
+  };
 
   const clearAll = () => {
     setItems(buildMapWithInitialItem());
-  }
+  };
 
   function updateStateFromChildItem(item: FilterItemState) {
     items.set(item.id, item);
@@ -91,40 +92,42 @@ export const Filter = (props: FilterProps) => {
   function clearEmptyItems(): Map<string, FilterItemState> {
     const nonEmptyItems = new Map(items);
     for (const [key, value] of nonEmptyItems) {
-      if (!value.columnValue
-        || !value.conditionValue
-        || (FilterCondition.getById(value.conditionValue)!.valueRequired
-          && (!value.value || value.value.trim().length === 0))) {
+      if (
+        !value.columnValue ||
+        !value.conditionValue ||
+        (FilterCondition.getById(value.conditionValue)!.valueRequired &&
+          (!value.value || value.value.trim().length === 0))
+      ) {
         nonEmptyItems.delete(key);
       }
     }
     return nonEmptyItems;
   }
 
-  return <Modal
-    title="Filter"
-    open={true}
-    onCancel={closeContainingModal}
-    width={600}
-    footer={[
-      <Button key="cancel" onClick={closeContainingModal}>
-        Cancel
-      </Button>,
-      <Button
-        key="apply"
-        type="primary"
-        onClick={apply}
-      >
-        Apply
-      </Button>
-    ]}
-  >
-    <Form
-      form={form}
+  return (
+    <Modal
+      title="Filter"
+      open={true}
+      onCancel={closeContainingModal}
+      width={600}
+      footer={[
+        <Button key="cancel" onClick={closeContainingModal}>
+          Cancel
+        </Button>,
+        <Button key="apply" type="primary" onClick={apply}>
+          Apply
+        </Button>,
+      ]}
     >
-      {filterItems}
-      <Button type="link" onClick={addFilterItem} style={{ marginRight: 8 }}><OverridableIcon name="plus" /> Add Filter</Button>
-      <Button type="link" onClick={clearAll}><OverridableIcon name="clear" /> Clear All</Button>
-    </Form>
-  </Modal>
+      <Form form={form}>
+        {filterItems}
+        <Button type="link" onClick={addFilterItem} style={{ marginRight: 8 }}>
+          <OverridableIcon name="plus" /> Add Filter
+        </Button>
+        <Button type="link" onClick={clearAll}>
+          <OverridableIcon name="clear" /> Clear All
+        </Button>
+      </Form>
+    </Modal>
+  );
 };

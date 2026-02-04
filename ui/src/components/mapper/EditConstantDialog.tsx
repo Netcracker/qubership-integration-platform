@@ -10,9 +10,7 @@ import Checkbox from "antd/lib/checkbox";
 import React, { useEffect, useMemo, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { buildTypeOptions } from "./InlineTypeEdit.tsx";
-import {
-  TimestampFormatParameters,
-} from "./transformation/parameters/FormatDateTimeParameters.tsx";
+import { TimestampFormatParameters } from "./transformation/parameters/FormatDateTimeParameters.tsx";
 import { getGeneratorsForType } from "../../mapper/model/generators.ts";
 
 type FormData = Constant;
@@ -37,8 +35,8 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
     SelectProps["options"]
   >([]);
   const [form] = Form.useForm();
-  const nameValue = Form.useWatch('name', form) as string;
-  const valueSupplier = Form.useWatch('valueSupplier', form) as ValueSupplier;
+  const nameValue = Form.useWatch("name", form) as string;
+  const valueSupplier = Form.useWatch("valueSupplier", form) as ValueSupplier;
 
   const typeOptions: ReturnType<typeof buildTypeOptions> = buildTypeOptions(
     DataTypes.stringType(),
@@ -102,14 +100,27 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
 
   // Auto-fill value with name when name changes
   useEffect(() => {
-    console.log('Auto-fill effect triggered:', { nameValue, isGenerated, constantName: constant.name });
+    console.log("Auto-fill effect triggered:", {
+      nameValue,
+      isGenerated,
+      constantName: constant.name,
+    });
     if (nameValue && !isGenerated) {
-      const currentValue = valueSupplier?.kind === "given" ? valueSupplier.value : "";
-      console.log('Current value check:', { currentValue, constantName: constant.name, shouldFill: !currentValue || currentValue === constant.name });
-      if (!currentValue || currentValue === constant.name || currentValue !== nameValue) {
-        console.log('Setting valueSupplier to:', nameValue);
+      const currentValue =
+        valueSupplier?.kind === "given" ? valueSupplier.value : "";
+      console.log("Current value check:", {
+        currentValue,
+        constantName: constant.name,
+        shouldFill: !currentValue || currentValue === constant.name,
+      });
+      if (
+        !currentValue ||
+        currentValue === constant.name ||
+        currentValue !== nameValue
+      ) {
+        console.log("Setting valueSupplier to:", nameValue);
         form.setFieldsValue({
-          valueSupplier: { kind: "given", value: nameValue }
+          valueSupplier: { kind: "given", value: nameValue },
         });
       }
     }

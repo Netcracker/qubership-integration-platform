@@ -73,7 +73,10 @@ export const TimestampColumnFilterDropdown: React.FC<FilterDropdownProps> = ({
 
   const getFilter = useCallback(() => {
     return selectedKeys[0]
-      ? parseJson<TimestampFilter>(selectedKeys[0].toString(), isTimestampFilter)
+      ? parseJson<TimestampFilter>(
+          selectedKeys[0].toString(),
+          isTimestampFilter,
+        )
       : undefined;
   }, [selectedKeys]);
 

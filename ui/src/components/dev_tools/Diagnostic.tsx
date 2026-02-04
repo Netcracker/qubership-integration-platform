@@ -1,4 +1,13 @@
-import { Badge, BadgeProps, Button, Dropdown, Flex, MenuProps, Table, Tooltip } from "antd";
+import {
+  Badge,
+  BadgeProps,
+  Button,
+  Dropdown,
+  Flex,
+  MenuProps,
+  Table,
+  Tooltip,
+} from "antd";
 import Search from "antd/lib/input/Search";
 import { DiagnosticValidation, ValidationState } from "../../api/apiTypes";
 import { TableProps } from "antd/lib/table";
@@ -19,7 +28,9 @@ export const VALIDATION_STATE_TO_LABEL: { [key: string]: string } = {
   [ValidationState.FAILED]: "Failed",
 };
 
-export const VALIDATION_STATE_TO_COLOR: { [key: string]: BadgeProps["status"] } = {
+export const VALIDATION_STATE_TO_COLOR: {
+  [key: string]: BadgeProps["status"];
+} = {
   [ValidationState.OK]: "success",
   [ValidationState.NOT_STARTED]: "default",
   [ValidationState.IN_PROGRESS]: "processing",
@@ -341,7 +352,10 @@ export const Diagnostic: React.FC = () => {
           updateLoadedValidations([validationId]);
         });
     } catch (error) {
-      notificationService.requestFailed("Error while loading diagnostic validation details", error);
+      notificationService.requestFailed(
+        "Error while loading diagnostic validation details",
+        error,
+      );
     } finally {
       setIsLoading(false);
     }

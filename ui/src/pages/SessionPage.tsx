@@ -94,7 +94,8 @@ export const SessionPage: React.FC = () => {
             {element.elementName}
           </a>
           {session?.chainId && element.chainElementId ? (
-            <OverridableIcon name="link"
+            <OverridableIcon
+              name="link"
               onClick={() =>
                 window.open(
                   `/chains/${element.actualElementChainId ?? session?.chainId}/graph/${element.chainElementId}`,

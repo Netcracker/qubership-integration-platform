@@ -21,26 +21,26 @@ const ContextServiceField: React.FC<
 
   useEffect(() => {
     const loadContextServices = async () => {
-        setIsLoading(true);
-        try {
-          const services = await api.getContextServices();
+      setIsLoading(true);
+      try {
+        const services = await api.getContextServices();
 
-          const options: SelectProps["options"] = services.map(
-            (service: ContextSystem) => ({
-              label: service.name,
-              value: service.id,
-            }),
-          );
-          setOptions(options);
-        } catch (error) {
-          setOptions([]);
-          notificationService.requestFailed(
-            "Failed to load context services",
-            error,
-          );
-        } finally {
-          setIsLoading(false);
-        }
+        const options: SelectProps["options"] = services.map(
+          (service: ContextSystem) => ({
+            label: service.name,
+            value: service.id,
+          }),
+        );
+        setOptions(options);
+      } catch (error) {
+        setOptions([]);
+        notificationService.requestFailed(
+          "Failed to load context services",
+          error,
+        );
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     void loadContextServices();

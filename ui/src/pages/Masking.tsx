@@ -128,7 +128,9 @@ export const Masking: React.FC = () => {
       key: "createdBy",
       render: (_, field) => <>{field.createdBy?.username ?? "-"}</>,
       sorter: (a, b) =>
-        (a.createdBy?.username ?? "").localeCompare(b.createdBy?.username ?? ""),
+        (a.createdBy?.username ?? "").localeCompare(
+          b.createdBy?.username ?? "",
+        ),
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       onFilter: getTextColumnFilterFn(
         (snapshot) => snapshot.createdBy?.username ?? "",
@@ -139,10 +141,14 @@ export const Masking: React.FC = () => {
       title: "Created At",
       dataIndex: "createdWhen",
       key: "createdWhen",
-      render: (_, field) => <>{field.createdWhen ? formatTimestamp(field.createdWhen) : "-"}</>,
+      render: (_, field) => (
+        <>{field.createdWhen ? formatTimestamp(field.createdWhen) : "-"}</>
+      ),
       sorter: (a, b) => (a.createdWhen ?? 0) - (b.createdWhen ?? 0),
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
-      onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.createdWhen ?? 0),
+      onFilter: getTimestampColumnFilterFn(
+        (snapshot) => snapshot.createdWhen ?? 0,
+      ),
       hidden: isVsCode,
     },
     {
@@ -151,7 +157,9 @@ export const Masking: React.FC = () => {
       key: "modifiedBy",
       render: (_, field) => <>{field.modifiedBy?.username ?? "-"}</>,
       sorter: (a, b) =>
-        (a.modifiedBy?.username ?? "").localeCompare(b.modifiedBy?.username ?? ""),
+        (a.modifiedBy?.username ?? "").localeCompare(
+          b.modifiedBy?.username ?? "",
+        ),
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       onFilter: getTextColumnFilterFn(
         (snapshot) => snapshot.modifiedBy?.username ?? "",
@@ -162,10 +170,14 @@ export const Masking: React.FC = () => {
       title: "Modified At",
       dataIndex: "modifiedWhen",
       key: "modifiedWhen",
-      render: (_, field) => <>{field.modifiedWhen ? formatTimestamp(field.modifiedWhen) : "-"}</>,
+      render: (_, field) => (
+        <>{field.modifiedWhen ? formatTimestamp(field.modifiedWhen) : "-"}</>
+      ),
       sorter: (a, b) => (a.modifiedWhen ?? 0) - (b.modifiedWhen ?? 0),
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
-      onFilter: getTimestampColumnFilterFn((snapshot) => snapshot.modifiedWhen ?? 0),
+      onFilter: getTimestampColumnFilterFn(
+        (snapshot) => snapshot.modifiedWhen ?? 0,
+      ),
       hidden: isVsCode,
     },
   ];

@@ -7,7 +7,11 @@ import { capitalize } from "../../misc/format-utils";
 interface CreateServiceModalProps {
   open: boolean;
   onCancel: () => void;
-  onCreate: (name: string, description: string | undefined, type: IntegrationSystemType) => Promise<unknown>;
+  onCreate: (
+    name: string,
+    description: string | undefined,
+    type: IntegrationSystemType,
+  ) => Promise<unknown>;
   loading: boolean;
   error?: string | null;
   defaultType?: IntegrationSystemType;
@@ -30,7 +34,7 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
   onCreate,
   loading,
   error,
-  defaultType = IntegrationSystemType.EXTERNAL
+  defaultType = IntegrationSystemType.EXTERNAL,
 }) => {
   const [form] = Form.useForm<CreateServiceFormValues>();
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -40,18 +44,22 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
       const serviceTypeLabel = getServiceTypeLabel(defaultType);
       form.setFieldsValue({
         type: defaultType,
-        name: `New ${serviceTypeLabel} service`
+        name: `New ${serviceTypeLabel} service`,
       });
     }
   }, [open, defaultType, form]);
 
   const handleTypeChange = (newType: IntegrationSystemType) => {
-    const currentName = form.getFieldValue('name') as string;
+    const currentName = form.getFieldValue("name") as string;
     const serviceTypeLabel = getServiceTypeLabel(newType);
     const expectedName = `New ${serviceTypeLabel} service`;
 
-    if (currentName && currentName.startsWith('New ') && currentName.endsWith(' service')) {
-      form.setFieldValue('name', expectedName);
+    if (
+      currentName &&
+      currentName.startsWith("New ") &&
+      currentName.endsWith(" service")
+    ) {
+      form.setFieldValue("name", expectedName);
     }
   };
 
@@ -69,14 +77,19 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
     <Modal
       open={open}
       title="Create service"
-      onCancel={() => { form.resetFields(); onCancel(); }}
+      onCancel={() => {
+        form.resetFields();
+        onCancel();
+      }}
       footer={null}
       destroyOnHidden={true}
     >
       <Form<CreateServiceFormValues>
         form={form}
         layout="vertical"
-        onFinish={(values) => { void handleOk(values); }}
+        onFinish={(values) => {
+          void handleOk(values);
+        }}
         initialValues={{ type: defaultType }}
       >
         <Form.Item
@@ -89,21 +102,62 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
         <Form.Item label="Description" name="description">
           <Input.TextArea disabled={loading} maxLength={512} />
         </Form.Item>
-        <Form.Item label="Service type" name="type" rules={[{ required: true, message: "Select service type" }]}>
+        <Form.Item
+          label="Service type"
+          name="type"
+          rules={[{ required: true, message: "Select service type" }]}
+        >
           <Select disabled={loading} onChange={handleTypeChange}>
-            <Select.Option value={IntegrationSystemType.EXTERNAL}>External</Select.Option>
-            <Select.Option value={IntegrationSystemType.INTERNAL}>Internal</Select.Option>
-            <Select.Option value={IntegrationSystemType.IMPLEMENTED}>Implemented</Select.Option>
-            <Select.Option value={IntegrationSystemType.CONTEXT}>Context</Select.Option>
+            <Select.Option value={IntegrationSystemType.EXTERNAL}>
+              External
+            </Select.Option>
+            <Select.Option value={IntegrationSystemType.INTERNAL}>
+              Internal
+            </Select.Option>
+            <Select.Option value={IntegrationSystemType.IMPLEMENTED}>
+              Implemented
+            </Select.Option>
+            <Select.Option value={IntegrationSystemType.CONTEXT}>
+              Context
+            </Select.Option>
           </Select>
         </Form.Item>
-        {error && <div style={{ color: 'var(--vscode-errorForeground, #d73a49)', marginBottom: 8 }}>{error}</div>}
-        {submitError && <div style={{ color: 'var(--vscode-errorForeground, #d73a49)', marginBottom: 8 }}>{submitError}</div>}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Button onClick={() => { form.resetFields(); onCancel(); }} disabled={loading}>
+        {error && (
+          <div
+            style={{
+              color: "var(--vscode-errorForeground, #d73a49)",
+              marginBottom: 8,
+            }}
+          >
+            {error}
+          </div>
+        )}
+        {submitError && (
+          <div
+            style={{
+              color: "var(--vscode-errorForeground, #d73a49)",
+              marginBottom: 8,
+            }}
+          >
+            {submitError}
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <Button
+            onClick={() => {
+              form.resetFields();
+              onCancel();
+            }}
+            disabled={loading}
+          >
             Cancel
           </Button>
-          <Button type="primary" htmlType="submit" loading={loading} disabled={loading}>
+          <Button
+            type="primary"
+            htmlType="submit"
+            loading={loading}
+            disabled={loading}
+          >
             Create
           </Button>
         </div>

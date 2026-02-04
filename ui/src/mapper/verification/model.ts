@@ -102,7 +102,6 @@ class AlwaysPass<T> extends Verifier<T> {
     super();
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   verify(_entity: T): VerificationError[] {
     return [];
   }
@@ -113,7 +112,6 @@ class AlwaysFail<T> extends Verifier<T> {
     super();
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   verify(_entity: T): VerificationError[] {
     return [{ message: "fail" }];
   }

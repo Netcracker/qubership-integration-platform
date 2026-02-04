@@ -29,7 +29,10 @@ export const TextValueEdit: React.FC<TextValueEditorProps> = ({
         autoFocus
         onPressEnter={() => form.submit()}
         onBlur={(event) => {
-          if (event.relatedTarget && !ref.current?.nativeElement?.contains(event.relatedTarget)) {
+          if (
+            event.relatedTarget &&
+            !ref.current?.nativeElement?.contains(event.relatedTarget)
+          ) {
             inlineEditContext?.toggle();
           }
         }}

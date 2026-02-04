@@ -218,9 +218,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       >;
 
       setFormContext({
-        contextServiceId: getOptionalString(
-          formProperties.contextServiceId,
-        ),
+        contextServiceId: getOptionalString(formProperties.contextServiceId),
         integrationOperationId: getOptionalString(
           formProperties.integrationOperationId,
         ),
@@ -257,7 +255,10 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         bodyFormData: toBodyFormData(formProperties.bodyFormData),
         synchronousGrpcCall: Boolean(formProperties.synchronousGrpcCall),
         chainId: chainId,
-        integrationOperationSkipEmptyQueryParameters: formProperties.integrationOperationSkipEmptyQueryParameters as boolean | undefined,
+        integrationOperationSkipEmptyQueryParameters:
+          formProperties.integrationOperationSkipEmptyQueryParameters as
+            | boolean
+            | undefined,
         updateContext: (updatedProperties: Record<string, unknown>) => {
           if (
             updatedProperties.integrationOperationProtocolType !== undefined
@@ -386,7 +387,12 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
       if (schema.properties && typeof schema.properties === "object") {
         for (const [key, subSchema] of Object.entries(schema.properties)) {
-          collectTabFields(subSchema as JSONSchema7, [...path, key], acc, elementType);
+          collectTabFields(
+            subSchema as JSONSchema7,
+            [...path, key],
+            acc,
+            elementType,
+          );
         }
       }
 
@@ -675,14 +681,21 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       ]}
       classNames={{
         footer: styles["modal-footer"],
-        content: isFullscreen ?  [styles["modal"], styles["modal-fullscreen"]].join(' ') : styles["modal"],
-        body: isFullscreen ? [styles["modal-body"], styles["modal-body-fullscreen"]].join(' ') : styles["modal-body"],
+        content: isFullscreen
+          ? [styles["modal"], styles["modal-fullscreen"]].join(" ")
+          : styles["modal"],
+        body: isFullscreen
+          ? [styles["modal-body"], styles["modal-body-fullscreen"]].join(" ")
+          : styles["modal-body"],
         header: styles["modal-header"],
       }}
     >
       {schema && activeKey && (
         <>
-          <FullscreenButton isFullscreen={isFullscreen} onClick={handleFullscreen} />
+          <FullscreenButton
+            isFullscreen={isFullscreen}
+            onClick={handleFullscreen}
+          />
           <Tabs
             activeKey={activeKey}
             onChange={handleTabChange}

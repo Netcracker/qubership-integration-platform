@@ -17,7 +17,8 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
   onChange,
   labelsByKey,
 }) => {
-  const initialColumns = defaultColumns && defaultColumns.length > 0 ? defaultColumns : allColumns;
+  const initialColumns =
+    defaultColumns && defaultColumns.length > 0 ? defaultColumns : allColumns;
 
   const [columnsOrder, setColumnsOrder] = useState<string[]>(() => {
     const stored = localStorage.getItem(`${storageKey}_columnsOrder`);
@@ -29,8 +30,14 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
     return stored ? (JSON.parse(stored) as string[]) : initialColumns;
   });
   useEffect(() => {
-    localStorage.setItem(`${storageKey}_columnsOrder`, JSON.stringify(columnsOrder));
-    localStorage.setItem(`${storageKey}_columnsVisible`, JSON.stringify(visibleColumns));
+    localStorage.setItem(
+      `${storageKey}_columnsOrder`,
+      JSON.stringify(columnsOrder),
+    );
+    localStorage.setItem(
+      `${storageKey}_columnsVisible`,
+      JSON.stringify(visibleColumns),
+    );
     onChange?.(columnsOrder, visibleColumns);
   }, [columnsOrder, onChange, storageKey, visibleColumns]);
 
@@ -48,7 +55,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
     return withSpaces
       .split(" ")
       .filter(Boolean)
-      .map(part => {
+      .map((part) => {
         const lower = part.toLowerCase();
         if (lower === "id") return "ID";
         if (lower === "url") return "URL";
@@ -67,22 +74,31 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
     <div
       style={{
         padding: 12,
-        background: 'var(--vscode-editor-background, #ffffff)',
-        border: '1px solid var(--vscode-border, #d9d9d9)',
-        boxShadow: 'var(--vscode-widget-shadow, 0 4px 12px rgba(0, 0, 0, 0.1))',
+        background: "var(--vscode-editor-background, #ffffff)",
+        border: "1px solid var(--vscode-border, #d9d9d9)",
+        boxShadow: "var(--vscode-widget-shadow, 0 4px 12px rgba(0, 0, 0, 0.1))",
         borderRadius: 8,
         minWidth: 180,
-      }}>
+      }}
+    >
       <ReactSortable
-        list={columnsOrder.map(id => ({ id }))}
-        setList={newList => setColumnsOrder(newList.map(item => String(item.id)))}
+        list={columnsOrder.map((id) => ({ id }))}
+        setList={(newList) =>
+          setColumnsOrder(newList.map((item) => String(item.id)))
+        }
         animation={150}
         handle=".drag-handle"
       >
         {allColumns.map((key) => (
           <div
             key={key}
-            style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "grab" }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 6,
+              cursor: "grab",
+            }}
           >
             <span
               className="drag-handle"
@@ -105,11 +121,11 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
             </span>
             <Checkbox
               checked={visibleColumns.includes(key)}
-              onChange={e => {
+              onChange={(e) => {
                 if (e.target.checked) {
-                  setVisibleColumns(prev => [...prev, key]);
+                  setVisibleColumns((prev) => [...prev, key]);
                 } else {
-                  setVisibleColumns(prev => prev.filter(k => k !== key));
+                  setVisibleColumns((prev) => prev.filter((k) => k !== key));
                 }
               }}
               style={{ flex: 1 }}
@@ -122,10 +138,10 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
       <Button
         size="small"
         onClick={handleReset}
-        style={{ marginTop: 8, alignSelf: 'flex-end' }}>
+        style={{ marginTop: 8, alignSelf: "flex-end" }}
+      >
         Reset
       </Button>
     </div>
-  )
-
-}
+  );
+};

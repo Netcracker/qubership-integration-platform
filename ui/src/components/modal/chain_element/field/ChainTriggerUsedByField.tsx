@@ -10,7 +10,7 @@ import styles from "../ChainElementModification.module.css";
 
 const ChainTriggerUsedByField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
-> = ({ id, formData}) => {
+> = ({ id, formData }) => {
   const notificationService = useNotificationService();
 
   const [chains, setChains] = useState<Chain[]>([]);

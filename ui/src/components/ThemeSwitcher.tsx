@@ -1,13 +1,24 @@
-import { Button, Space } from 'antd';
-import { applyThemeToDOM, getSavedTheme, saveTheme, ThemeMode, getSystemTheme, resetToSystemTheme, isAutoThemeEnabled } from '../theme/themeInit';
-import { AutoThemeIndicator } from './AutoThemeIndicator';
+import { Button, Space } from "antd";
+import {
+  applyThemeToDOM,
+  getSavedTheme,
+  saveTheme,
+  ThemeMode,
+  getSystemTheme,
+  resetToSystemTheme,
+  isAutoThemeEnabled,
+} from "../theme/themeInit";
+import { AutoThemeIndicator } from "./AutoThemeIndicator";
 
 interface ThemeSwitcherProps {
   currentTheme?: ThemeMode;
   onThemeChange?: (theme: ThemeMode) => void;
 }
 
-export const ThemeSwitcher = ({ currentTheme, onThemeChange }: ThemeSwitcherProps) => {
+export const ThemeSwitcher = ({
+  currentTheme,
+  onThemeChange,
+}: ThemeSwitcherProps) => {
   const savedTheme = getSavedTheme();
   const systemTheme = getSystemTheme();
   const activeTheme = currentTheme || savedTheme || systemTheme;
@@ -25,11 +36,15 @@ export const ThemeSwitcher = ({ currentTheme, onThemeChange }: ThemeSwitcherProp
   };
 
   return (
-    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-      <Space direction="horizontal" size="small" style={{ padding: '8px 16px' }}>
+    <Space direction="vertical" size="small" style={{ width: "100%" }}>
+      <Space
+        direction="horizontal"
+        size="small"
+        style={{ padding: "8px 16px" }}
+      >
         <Button
           size="small"
-          type={isSystemTheme ? 'primary' : 'default'}
+          type={isSystemTheme ? "primary" : "default"}
           onClick={handleSystemTheme}
           title="Follow system theme (auto-switch)"
         >
@@ -37,24 +52,32 @@ export const ThemeSwitcher = ({ currentTheme, onThemeChange }: ThemeSwitcherProp
         </Button>
         <Button
           size="small"
-          type={!isSystemTheme && activeTheme === 'light' ? 'primary' : 'default'}
-          onClick={() => handleThemeChange('light')}
+          type={
+            !isSystemTheme && activeTheme === "light" ? "primary" : "default"
+          }
+          onClick={() => handleThemeChange("light")}
           title="Light theme (fixed)"
         >
           Light
         </Button>
         <Button
           size="small"
-          type={!isSystemTheme && activeTheme === 'dark' ? 'primary' : 'default'}
-          onClick={() => handleThemeChange('dark')}
+          type={
+            !isSystemTheme && activeTheme === "dark" ? "primary" : "default"
+          }
+          onClick={() => handleThemeChange("dark")}
           title="Dark theme (fixed)"
         >
           Dark
         </Button>
         <Button
           size="small"
-          type={!isSystemTheme && activeTheme === 'high-contrast' ? 'primary' : 'default'}
-          onClick={() => handleThemeChange('high-contrast')}
+          type={
+            !isSystemTheme && activeTheme === "high-contrast"
+              ? "primary"
+              : "default"
+          }
+          onClick={() => handleThemeChange("high-contrast")}
           title="High contrast theme (fixed)"
         >
           HC

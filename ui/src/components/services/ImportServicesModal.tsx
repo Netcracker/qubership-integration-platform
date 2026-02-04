@@ -3,8 +3,12 @@ import { Modal, Upload, Table, Button, message, Typography, Tag } from "antd";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../ModalContextProvider";
 import { api } from "../../api/api";
-import { ImportSystemResult, IntegrationSystemType, SystemImportStatus } from "../../api/apiTypes";
-import { getErrorMessage } from '../../misc/error-utils';
+import {
+  ImportSystemResult,
+  IntegrationSystemType,
+  SystemImportStatus,
+} from "../../api/apiTypes";
+import { getErrorMessage } from "../../misc/error-utils";
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { validateFiles } from "./utils";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
@@ -14,7 +18,7 @@ interface Props {
   systemType: IntegrationSystemType;
 }
 
-const SUPPORTED_EXTENSIONS = ['.zip'];
+const SUPPORTED_EXTENSIONS = [".zip"];
 
 const statusColor = {
   CREATED: "green",
@@ -47,7 +51,7 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
       setResult(res);
       onSuccess?.();
     } catch (e: unknown) {
-      notify.requestFailed(getErrorMessage(e, 'Import failed'), e);
+      notify.requestFailed(getErrorMessage(e, "Import failed"), e);
     } finally {
       setLoading(false);
     }
@@ -99,11 +103,15 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
                 handleFilesChange(fileList);
                 return false;
               }}
-              showUploadList={files.length > 0 ? {
-                showRemoveIcon: true,
-                showPreviewIcon: false,
-                showDownloadIcon: false
-              } : false}
+              showUploadList={
+                files.length > 0
+                  ? {
+                      showRemoveIcon: true,
+                      showPreviewIcon: false,
+                      showDownloadIcon: false,
+                    }
+                  : false
+              }
               onRemove={(file) => {
                 setFiles((prev) => prev.filter((f) => f.uid !== file.uid));
                 return true;
@@ -156,7 +164,10 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
                   dataIndex: "status",
                   key: "status",
                   render: (status: SystemImportStatus) => (
-                    <Tag color={statusColor[status] || "default"} style={{ fontSize: 16 }}>
+                    <Tag
+                      color={statusColor[status] || "default"}
+                      style={{ fontSize: 16 }}
+                    >
                       {status.charAt(0) + status.slice(1).toLowerCase()}
                     </Tag>
                   ),

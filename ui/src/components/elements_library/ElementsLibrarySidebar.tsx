@@ -1,4 +1,10 @@
-import React, { ReactElement, useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  ReactElement,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Menu, Spin } from "antd";
 import { LibraryElement, LibraryData } from "../../api/apiTypes.ts";
 import DraggableElement from "./DraggableElement.tsx";
@@ -32,7 +38,6 @@ export const ElementsLibrarySidebar = () => {
   const openKeysBeforeSearch = useRef<string[]>();
   const [isSearch, setIsSearch] = useState(false);
 
-
   useEffect(() => {
     if (libraryData) {
       setElementsList(libraryData);
@@ -48,7 +53,12 @@ export const ElementsLibrarySidebar = () => {
               key: element.folder,
               label: name,
               name: name,
-              icon: <OverridableIcon name="folderOpenFilled" style={{ fontSize: 18, color: getElementColor(element) }} />,
+              icon: (
+                <OverridableIcon
+                  name="folderOpenFilled"
+                  style={{ fontSize: 18, color: getElementColor(element) }}
+                />
+              ),
               children: [],
             });
           }
@@ -56,9 +66,18 @@ export const ElementsLibrarySidebar = () => {
           element.designContainerParameters?.children.map((child) => {
             const childMenuItem = {
               key: child.name,
-              label: <DraggableElement element={libraryData.childElements[child.name]} />,
+              label: (
+                <DraggableElement
+                  element={libraryData.childElements[child.name]}
+                />
+              ),
               name: child.name,
-              icon: <OverridableIcon name={child.name as IconName} style={{ fontSize: 18 }} />,
+              icon: (
+                <OverridableIcon
+                  name={child.name as IconName}
+                  style={{ fontSize: 18 }}
+                />
+              ),
             };
             childrenMenuItems.push(childMenuItem);
           });
@@ -66,19 +85,24 @@ export const ElementsLibrarySidebar = () => {
             key: element.name,
             label: <DraggableElement element={element} />,
             name: element.title,
-            icon: <OverridableIcon name={element.name as IconName} style={{ fontSize: 18 }} />,
+            icon: (
+              <OverridableIcon
+                name={element.name as IconName}
+                style={{ fontSize: 18 }}
+              />
+            ),
           };
           if (childrenMenuItems.length !== 0) {
             elementMenuItem.children = childrenMenuItems.sort((a, b) =>
-              a.key.localeCompare(b.key)
+              a.key.localeCompare(b.key),
             );
           }
           folderMap.get(element.folder)!.children!.push(elementMenuItem);
         });
       });
 
-      const sortedFolders: MenuItem[] = Array.from(folderMap.values()).sort((a, b) =>
-        a.key.localeCompare(b.key)
+      const sortedFolders: MenuItem[] = Array.from(folderMap.values()).sort(
+        (a, b) => a.key.localeCompare(b.key),
       );
 
       sortedFolders.forEach((folder) => {
@@ -101,7 +125,6 @@ export const ElementsLibrarySidebar = () => {
       }
       setOpenKeysState(openKeys);
       setItems(filtered);
-
     },
     [isSearch, openKeysState],
   );
@@ -120,7 +143,7 @@ export const ElementsLibrarySidebar = () => {
       {isLibraryLoading && loading ? (
         <Spin />
       ) : (
-        <Flex vertical >
+        <Flex vertical>
           <SidebarSearch
             items={allItems.current}
             onSearch={handleSearch}

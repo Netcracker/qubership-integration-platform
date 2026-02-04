@@ -5,7 +5,7 @@ import {
   useNotificationLog,
 } from "../components/notifications/contexts/NotificationLogContext.tsx";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { ApiError } from "../api/admin-tools/variables/types.ts";
+import { ApiError } from "../api/apiTypes.ts";
 import { useNotificationApi } from "../components/notifications/contexts/NotificationApiContext.tsx";
 
 type DescriptionWithDetailsProps = {
@@ -119,6 +119,11 @@ export const useNotificationService = (): NotificationService => {
         notificationApi.info(item);
       },
     }),
-    [addToHistory, buildErrorNotification, buildInfoNotification, notificationApi],
+    [
+      addToHistory,
+      buildErrorNotification,
+      buildInfoNotification,
+      notificationApi,
+    ],
   );
 };

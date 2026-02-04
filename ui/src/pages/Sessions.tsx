@@ -33,14 +33,14 @@ import {
   isTimestampFilter,
   TimestampColumnFilterDropdown,
   TimestampFilter,
-  TimestampFilterCondition
+  TimestampFilterCondition,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import type { FilterValue } from "antd/es/table/interface";
 import {
   isTextFilter,
   TextColumnFilterDropdown,
   TextFilter,
-  TextFilterCondition
+  TextFilterCondition,
 } from "../components/table/TextColumnFilterDropdown.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { parseJson } from "../misc/json-helper.ts";
@@ -94,7 +94,10 @@ function convertTimestampFilter(
   feature: SessionFilterFeature,
   filterStr: string,
 ): SessionFilterRequest {
-  const timestampFilter= parseJson<TimestampFilter>(filterStr, isTimestampFilter);
+  const timestampFilter = parseJson<TimestampFilter>(
+    filterStr,
+    isTimestampFilter,
+  );
   const condition = convertTimestampFilterCondition(timestampFilter.condition);
   return {
     feature,
@@ -215,7 +218,7 @@ export const Sessions: React.FC = () => {
     if (tableFilters.engineAddress) {
       const textFilter = parseJson<TextFilter>(
         tableFilters.engineAddress[0].toString(),
-        isTextFilter
+        isTextFilter,
       );
       filterRequestList.push({
         feature: SessionFilterFeature.ENGINE,
@@ -541,7 +544,10 @@ export const Sessions: React.FC = () => {
           onScroll={(event) => void onScroll(event)}
           onChange={(_, tableFilters) => setTableFilters(tableFilters)}
         />
-        <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
+        <FloatButtonGroup
+          trigger="hover"
+          icon={<OverridableIcon name="more" />}
+        >
           <FloatButton
             tooltip={{ title: "Retry selected sessions", placement: "left" }}
             icon={<OverridableIcon name="redo" />}

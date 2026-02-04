@@ -7,7 +7,10 @@ import React, {
 } from "react";
 import { TransformationContext } from "../../TransformationEditDialog.tsx";
 import { Editor, Monaco } from "@monaco-editor/react";
-import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../../../hooks/useMonacoTheme";
+import {
+  useMonacoTheme,
+  applyVSCodeThemeToMonaco,
+} from "../../../../hooks/useMonacoTheme";
 import {
   editor,
   languages,
@@ -17,14 +20,15 @@ import {
   Uri,
   IMarkdownString,
 } from "monaco-editor";
-import {
-  Constant,
-} from "../../../../mapper/model/model.ts";
+import { Constant } from "../../../../mapper/model/model.ts";
 import { validateExpression } from "../../../../mapper/expressions/validation.ts";
 import { MappingUtil } from "../../../../mapper/util/mapping.ts";
 import { AttributeDetail } from "../../../../mapper/util/schema.ts";
 import { MappingActions } from "../../../../mapper/util/actions.ts";
-import { buildAttributeReferenceText, buildConstantReferenceText } from "../../../../mapper/expressions/references.ts";
+import {
+  buildAttributeReferenceText,
+  buildConstantReferenceText,
+} from "../../../../mapper/expressions/references.ts";
 
 const MAPPER_TRANSFORMATION_EXPRESSION_LANGUAGE_ID =
   "qip-mapper-transformation-expression";
@@ -647,13 +651,13 @@ mergeObjects(
           range,
         })),
       ...references.constants
-        .filter(constant => constant.name)
-        .map(constant => ({
+        .filter((constant) => constant.name)
+        .map((constant) => ({
           label: buildConstantReferenceText(constant),
           kind: languages.CompletionItemKind.Constant,
           insertText: buildConstantReferenceText(constant),
-          range
-        }))
+          range,
+        })),
     ];
 
     return { suggestions: suggestions };

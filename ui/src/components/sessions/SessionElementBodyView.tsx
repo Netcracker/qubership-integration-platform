@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { editor as editor_ } from "monaco-editor";
-import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../hooks/useMonacoTheme";
+import {
+  useMonacoTheme,
+  applyVSCodeThemeToMonaco,
+} from "../../hooks/useMonacoTheme";
 
 type SessionElementBodyViewProps = React.HTMLAttributes<HTMLElement> & {
   headers: Record<string, string>;
@@ -39,7 +42,10 @@ export async function formatDocumentInEditor(
     .then(() => editor?.updateOptions({ readOnly: true }));
 }
 
-export function setUpDocumentFormatting(editor: editor_.IStandaloneCodeEditor, monaco?: Monaco) {
+export function setUpDocumentFormatting(
+  editor: editor_.IStandaloneCodeEditor,
+  monaco?: Monaco,
+) {
   const formatDocument = () => formatDocumentInEditor(editor);
 
   // on first initialization

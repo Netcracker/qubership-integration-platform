@@ -5,7 +5,10 @@ import { Snapshot } from "../../api/apiTypes.ts";
 import { api } from "../../api/api.ts";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
-import { useMonacoTheme, applyVSCodeThemeToMonaco } from "../../hooks/useMonacoTheme";
+import {
+  useMonacoTheme,
+  applyVSCodeThemeToMonaco,
+} from "../../hooks/useMonacoTheme";
 
 type SnapshotXmlViewProps = {
   snapshotId: string;

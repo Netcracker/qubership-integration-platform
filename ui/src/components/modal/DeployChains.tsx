@@ -72,10 +72,7 @@ export const DeployChains: React.FC<DeployChainsProps> = ({ onSubmit }) => {
             }))}
           />
         </Form.Item>
-        <Form.Item
-          name="snapshotAction"
-          label={"Snapshot action"}
-        >
+        <Form.Item name="snapshotAction" label={"Snapshot action"}>
           <Select
             options={[
               {

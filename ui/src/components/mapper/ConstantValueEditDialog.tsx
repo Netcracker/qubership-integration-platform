@@ -139,7 +139,9 @@ export const ConstantValueEditDialog: React.FC<
                   style={{ marginLeft: 150 }}
                   name={["generator", "parameters", 0]}
                   getValueProps={(value) => ({ checked: value === "true" })}
-                  normalize={(value: CheckboxChangeEvent) => value.target.checked.toString()}
+                  normalize={(value: CheckboxChangeEvent) =>
+                    value.target.checked.toString()
+                  }
                 >
                   <Checkbox>Unix epoch</Checkbox>
                 </Form.Item>

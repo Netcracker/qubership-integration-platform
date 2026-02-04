@@ -91,18 +91,21 @@ export const TextColumnFilterDropdown: React.FC<
   setSelectedKeys,
   enableExact,
 }): ReactNode => {
-  const options: SelectProps<TextFilterCondition>["options"] = useMemo(() => [
-    ...(enableExact
-      ? [
-          { label: "Is", value: "is" },
-          { label: "Is not", value: "is-not" },
-        ]
-      : []),
-    { label: "Contains", value: "contains" },
-    { label: "Does not contain", value: "not-contains" },
-    { label: "Starts with", value: "starts-with" },
-    { label: "Ends with", value: "ends-with" },
-  ], [enableExact]);
+  const options: SelectProps<TextFilterCondition>["options"] = useMemo(
+    () => [
+      ...(enableExact
+        ? [
+            { label: "Is", value: "is" },
+            { label: "Is not", value: "is-not" },
+          ]
+        : []),
+      { label: "Contains", value: "contains" },
+      { label: "Does not contain", value: "not-contains" },
+      { label: "Starts with", value: "starts-with" },
+      { label: "Ends with", value: "ends-with" },
+    ],
+    [enableExact],
+  );
 
   const getTextFilter = useCallback(() => {
     return selectedKeys[0]

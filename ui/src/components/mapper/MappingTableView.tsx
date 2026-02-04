@@ -1040,7 +1040,9 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                             ]}
                           />
                         }
-                        viewer={item.attribute.required ? "required" : "optional"}
+                        viewer={
+                          item.attribute.required ? "required" : "optional"
+                        }
                         onSubmit={({ optionality }) => {
                           tryUpdateAttribute(item.kind, item.path, {
                             required: optionality === "true",

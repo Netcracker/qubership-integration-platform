@@ -3,10 +3,10 @@ import type { RcFile } from "antd/es/upload";
 import React, { useState } from "react";
 
 import { useModalContext } from "../../../ModalContextProvider.tsx";
-import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { VariableImportPreview } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { api } from "../../../api/api.ts";
 
 interface Props {
   onSuccess?: () => void;
@@ -37,7 +37,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
 
     try {
       setLoadingPreview(true);
-      const response = await variablesApi.importVariablesPreview(formData);
+      const response = await api.importVariablesPreview(formData);
       setPreviewData(response.data ?? []);
     } catch (error) {
       notificationService.requestFailed("Failed to preview", error);
@@ -61,7 +61,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
 
     try {
       setImporting(true);
-      const response = await variablesApi.importVariables(formData);
+      const response = await api.importVariables(formData);
       if (response.success) {
         message.success("Imported successfully");
         closeContainingModal();

@@ -14,7 +14,11 @@ import {
 import { TableProps } from "antd/lib/table";
 import React, { UIEvent, useRef, useState } from "react";
 import { useActionLog } from "../../hooks/useActionLog.tsx";
-import {capitalize, formatSnakeCased, formatTimestamp} from "../../misc/format-utils.ts";
+import {
+  capitalize,
+  formatSnakeCased,
+  formatTimestamp,
+} from "../../misc/format-utils.ts";
 import DateRangePicker from "../modal/DateRangePicker.tsx";
 import { exportActionsLogAsExcel } from "../../misc/log-export-utils.ts";
 import type { FilterDropdownProps } from "antd/lib/table/interface";
@@ -453,7 +457,9 @@ export const ActionsLog: React.FC = () => {
   };
 
   const getIconByEntityType = (type: EntityType): React.ReactNode => {
-    const icon = EntityTypeIconsMap[type] ?? <OverridableIcon name="question" />;
+    const icon = EntityTypeIconsMap[type] ?? (
+      <OverridableIcon name="question" />
+    );
     return React.cloneElement(icon as React.ReactElement, {
       style: { marginRight: 10 },
     });
@@ -577,7 +583,10 @@ export const ActionsLog: React.FC = () => {
                 };
               }}
             />
-            <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
+            <FloatButtonGroup
+              trigger="hover"
+              icon={<OverridableIcon name="more" />}
+            >
               <FloatButton
                 tooltip={{ title: "Refresh", placement: "left" }}
                 icon={<OverridableIcon name="redo" />}

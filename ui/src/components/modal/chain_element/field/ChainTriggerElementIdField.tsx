@@ -1,6 +1,6 @@
 import { FieldProps } from "@rjsf/utils";
 import { JSONSchema7 } from "json-schema";
-import React, {  } from "react";
+import React from "react";
 import { FormContext } from "../ChainElementModification";
 import ChainTriggerSelectField from "./select/ChainTriggerSelectField";
 import ChainTriggerUsedByField from "./ChainTriggerUsedByField";

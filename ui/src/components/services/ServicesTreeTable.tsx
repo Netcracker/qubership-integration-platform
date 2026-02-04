@@ -1,10 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Table, Dropdown, Button, Modal } from 'antd';
-import type { FilterDropdownProps, TableRowSelection } from 'antd/es/table/interface';
-import { formatTimestamp } from '../../misc/format-utils';
-import { UsageStatusTag } from './utils';
-import { SourceFlagTag } from './SourceFlagTag';
-import { EntityLabels } from '../labels/EntityLabels';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Table, Dropdown, Button, Modal } from "antd";
+import type {
+  FilterDropdownProps,
+  TableRowSelection,
+} from "antd/es/table/interface";
+import { formatTimestamp } from "../../misc/format-utils";
+import { UsageStatusTag } from "./utils";
+import { SourceFlagTag } from "./SourceFlagTag";
+import { EntityLabels } from "../labels/EntityLabels";
 import {
   EntityLabel,
   IntegrationSystem,
@@ -12,38 +15,65 @@ import {
   User,
   IntegrationSystemType,
 } from "../../api/apiTypes.ts";
-import { useNavigate, useParams } from 'react-router-dom';
-import { ColumnsFilter } from '../table/ColumnsFilter';
-import { OperationInfoModal } from './OperationInfoModal';
-import { api } from '../../api/api';
-import { TextColumnFilterDropdown, getTextColumnFilterFn } from '../table/TextColumnFilterDropdown.tsx';
-import type { SpecificationGroup, Specification, SystemOperation, ContextSystem } from '../../api/apiTypes';
-import { InlineEdit } from '../InlineEdit';
-import { LabelsEdit } from '../table/LabelsEdit';
-import { ChainColumn } from './ChainColumn';
+import { useNavigate, useParams } from "react-router-dom";
+import { ColumnsFilter } from "../table/ColumnsFilter";
+import { OperationInfoModal } from "./OperationInfoModal";
+import { api } from "../../api/api";
+import {
+  TextColumnFilterDropdown,
+  getTextColumnFilterFn,
+} from "../table/TextColumnFilterDropdown.tsx";
+import type {
+  SpecificationGroup,
+  Specification,
+  SystemOperation,
+  ContextSystem,
+} from "../../api/apiTypes";
+import { InlineEdit } from "../InlineEdit";
+import { LabelsEdit } from "../table/LabelsEdit";
+import { ChainColumn } from "./ChainColumn";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { HttpMethod } from './HttpMethod.tsx';
+import { HttpMethod } from "./HttpMethod.tsx";
 
-export type ServiceEntity = IntegrationSystem | SpecificationGroup | Specification | SystemOperation | ContextSystem;
+export type ServiceEntity =
+  | IntegrationSystem
+  | SpecificationGroup
+  | Specification
+  | SystemOperation
+  | ContextSystem;
 
-export function isIntegrationSystem(record: ServiceEntity): record is IntegrationSystem {
-  return 'type' in record && record['type'] !== IntegrationSystemType.CONTEXT;
+export function isIntegrationSystem(
+  record: ServiceEntity,
+): record is IntegrationSystem {
+  return "type" in record && record["type"] !== IntegrationSystemType.CONTEXT;
 }
 
-export function isSpecificationGroup(record: ServiceEntity): record is SpecificationGroup {
-  return 'systemId' in record && 'synchronization' in record;
+export function isSpecificationGroup(
+  record: ServiceEntity,
+): record is SpecificationGroup {
+  return "systemId" in record && "synchronization" in record;
 }
 
-export function isSpecification(record: ServiceEntity): record is Specification {
-  return 'specificationGroupId' in record && 'version' in record && 'source' in record;
+export function isSpecification(
+  record: ServiceEntity,
+): record is Specification {
+  return (
+    "specificationGroupId" in record &&
+    "version" in record &&
+    "source" in record
+  );
 }
 
-export function isSystemOperation(record: ServiceEntity): record is SystemOperation {
-  return 'method' in record && 'path' in record && 'modelId' in record;
+export function isSystemOperation(
+  record: ServiceEntity,
+): record is SystemOperation {
+  return "method" in record && "path" in record && "modelId" in record;
 }
 
-export function isContextSystem(record: ServiceEntity): record is ContextSystem {
-  return 'type' in record && record['type'] === IntegrationSystemType.CONTEXT;
+export function isContextSystem(
+  record: ServiceEntity,
+): record is ContextSystem {
+  return "type" in record && record["type"] === IntegrationSystemType.CONTEXT;
 }
 
 export interface ServicesTableColumn<T extends ServiceEntity = ServiceEntity> {
@@ -52,12 +82,14 @@ export interface ServicesTableColumn<T extends ServiceEntity = ServiceEntity> {
   dataIndex?: string;
   render?: (value: unknown, record: T, index: number) => React.ReactNode;
   width?: number;
-  align?: 'left' | 'center' | 'right';
+  align?: "left" | "center" | "right";
   filterDropdown?: (props: FilterDropdownProps) => React.ReactNode;
   onFilter?: (value: React.Key | boolean, record: T) => boolean;
 }
 
-export interface ServicesTreeTableProps<T extends ServiceEntity = ServiceEntity> {
+export interface ServicesTreeTableProps<
+  T extends ServiceEntity = ServiceEntity,
+> {
   dataSource: T[];
   columns: string[];
   rowKey: Extract<keyof T, string>;
@@ -68,7 +100,7 @@ export interface ServicesTreeTableProps<T extends ServiceEntity = ServiceEntity>
     rowExpandable?: (record: T) => boolean;
     childrenColumnName?: string;
   };
-  size?: 'small' | 'middle' | 'large';
+  size?: "small" | "middle" | "large";
   pagination?: false | object;
   style?: React.CSSProperties;
   actionsColumn?: ServicesTableColumn;
@@ -87,15 +119,15 @@ export interface ServicesTreeTableProps<T extends ServiceEntity = ServiceEntity>
 
 const clickableStyle: React.CSSProperties = {
   fontWeight: 500,
-  color: 'var(--vscode-textLink-foreground, #1677ff)',
-  cursor: 'pointer',
+  color: "var(--vscode-textLink-foreground, #1677ff)",
+  cursor: "pointer",
 };
 
 const iconStyle: React.CSSProperties = {
   fontSize: 22,
-  color: 'var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))',
+  color: "var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))",
   marginRight: 8,
-  verticalAlign: 'middle',
+  verticalAlign: "middle",
 };
 
 function getIcon(record: ServiceEntity): React.JSX.Element | null {
@@ -114,7 +146,7 @@ function getIcon(record: ServiceEntity): React.JSX.Element | null {
     }
   }
   if (isSpecificationGroup(record)) {
-    return <OverridableIcon name="inbox" style={iconStyle}/>
+    return <OverridableIcon name="inbox" style={iconStyle} />;
   }
   if (isSpecification(record)) {
     return <OverridableIcon name="fileText" style={iconStyle} />;
@@ -141,7 +173,9 @@ function getNavigationUrl(record: ServiceEntity): string | null {
 const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = React.useState(false);
-  const [operationInfo, setOperationInfo] = React.useState<OperationInfo | undefined>(undefined);
+  const [operationInfo, setOperationInfo] = React.useState<
+    OperationInfo | undefined
+  >(undefined);
   const [loading, setLoading] = React.useState(false);
 
   const { operationId } = useParams<{
@@ -179,10 +213,7 @@ const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
 
   return (
     <>
-      <span
-        style={clickableStyle}
-        onClick={() => void handleClick()}
-      >
+      <span style={clickableStyle} onClick={() => void handleClick()}>
         {getIcon(record)}
         {record.name}
       </span>
@@ -202,25 +233,23 @@ export const getNameColumnRender = () => {
   const renderNameColumn = (
     _value: unknown,
     record: ServiceEntity,
-  ) : React.ReactNode => (
-    <NameCell record={record} />
-  );
-  renderNameColumn.displayName = 'RenderNameColumn';
+  ): React.ReactNode => <NameCell record={record} />;
+  renderNameColumn.displayName = "RenderNameColumn";
   return renderNameColumn;
 };
 
 function renderLabelsCell(
   labels: EntityLabel[] = [],
   record: ServiceEntity,
-  onUpdateLabels?: (record: ServiceEntity, labels: string[]) => Promise<void>
+  onUpdateLabels?: (record: ServiceEntity, labels: string[]) => Promise<void>,
 ): React.ReactNode {
-  const filtered = labels.filter(l => !l.technical);
+  const filtered = labels.filter((l) => !l.technical);
 
   if (onUpdateLabels) {
     return (
       <div className="inline-edit-labels">
         <InlineEdit
-          values={{ labels: filtered.map(l => l.name) }}
+          values={{ labels: filtered.map((l) => l.name) }}
           editor={<LabelsEdit name="labels" />}
           viewer={<EntityLabels labels={labels} />}
           onSubmit={async ({ labels: newLabels }) => {
@@ -231,131 +260,162 @@ function renderLabelsCell(
     );
   }
 
-  return labels.length > 0 ? labels.map(l => l.name).join(', ') : '';
+  return labels.length > 0 ? labels.map((l) => l.name).join(", ") : "";
 }
 
-function getLabelsColumn(onUpdateLabels?: (record: ServiceEntity, labels: string[]) => Promise<void>): ServicesTableColumn {
+function getLabelsColumn(
+  onUpdateLabels?: (record: ServiceEntity, labels: string[]) => Promise<void>,
+): ServicesTableColumn {
   return {
-    title: 'Labels',
-    dataIndex: 'labels',
-    key: 'labels',
-    render: (value, record) => {
-      const labels = Array.isArray(value) ? value as EntityLabel[] : [];
-      return renderLabelsCell(labels, record, onUpdateLabels);
-    }
-  };
-}
-
-export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] = [
-  {
-    title: "Name",
-    dataIndex: "name",
-    key: "name",
-    filterDropdown: (props: FilterDropdownProps) => (
-      <TextColumnFilterDropdown {...props} />
-    ),
-    onFilter: getTextColumnFilterFn((record) => record.name),
-    render: getNameColumnRender(),
-  },
-  {
-    title: "Protocol",
-    dataIndex: "protocol",
-    key: "protocol",
-    render: (text) => <SourceFlagTag source={typeof text === "string" ? text : ""} toUpperCase={true} />,
-  },
-  {
-    title: "Extended Protocol",
-    dataIndex: "extendedProtocol",
-    key: "extendedProtocol",
-    render: (value: unknown) => (typeof value === "string" ? value : ""),
-  },
-  {
-    title: "Specification",
-    dataIndex: "specification",
-    key: "specification",
-    render: (value: unknown) => (typeof value === "string" ? value : ""),
-  },
-  {
-    title: "Internal Service Name",
-    dataIndex: "internalServiceName",
-    key: "internalServiceName",
-    render: (value: unknown) => (typeof value === "string" ? value : ""),
-  },
-  {
-    title: "Status",
-    dataIndex: "status",
-    key: "status",
-    render: (_value, record) => <UsageStatusTag element={record} />,
-  },
-  {
-    title: "Source",
-    dataIndex: "source",
-    key: "source",
-    render: (value) =>
-      typeof value === "string" ? <SourceFlagTag source={value} /> : "",
-  },
-  {
     title: "Labels",
     dataIndex: "labels",
     key: "labels",
-    render: undefined,
-  },
-  {
-    title: "Used by",
-    dataIndex: "usedBy",
-    key: "usedBy",
-    render: (_: unknown, record: ServiceEntity) => {
-      if (isIntegrationSystem(record)) return <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%'}}></div>;
-      const chains =
-        "chains" in record && Array.isArray(record.chains) ? record.chains : [];
-      return <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%'}}><ChainColumn chains={chains} /></div>;
+    render: (value, record) => {
+      const labels = Array.isArray(value) ? (value as EntityLabel[]) : [];
+      return renderLabelsCell(labels, record, onUpdateLabels);
     },
-  },
-  {
-    title: "Created When",
-    dataIndex: "createdWhen",
-    key: "createdWhen",
-    render: (createdWhen) => <>{formatTimestamp(createdWhen as number)}</>,
-  },
-  {
-    title: "Created By",
-    dataIndex: "createdBy",
-    key: "createdBy",
-    render: (value: unknown) => {
-      const createdBy = value as User | undefined;
-      return createdBy?.username || "";
+  };
+}
+
+export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
+  [
+    {
+      title: "Name",
+      dataIndex: "name",
+      key: "name",
+      filterDropdown: (props: FilterDropdownProps) => (
+        <TextColumnFilterDropdown {...props} />
+      ),
+      onFilter: getTextColumnFilterFn((record) => record.name),
+      render: getNameColumnRender(),
     },
-  },
-  {
-    title: "Modified When",
-    dataIndex: "modifiedWhen",
-    key: "modifiedWhen",
-    render: (modifiedWhen) => <>{formatTimestamp(modifiedWhen as number)}</>,
-  },
-  {
-    title: "Modified By",
-    dataIndex: "modifiedBy",
-    key: "modifiedBy",
-    render: (value: unknown) => {
-      const modifiedBy = value as User | undefined;
-      return modifiedBy?.username || "";
+    {
+      title: "Protocol",
+      dataIndex: "protocol",
+      key: "protocol",
+      render: (text) => (
+        <SourceFlagTag
+          source={typeof text === "string" ? text : ""}
+          toUpperCase={true}
+        />
+      ),
     },
-  },
-  {
-    title: "Method",
-    dataIndex: "method",
-    key: "method",
-    render: (value: unknown) => <HttpMethod value={value} />,
-  },
-  {
-    title: "URL",
-    dataIndex: "url",
-    key: "url",
-    render: (_value: unknown, record: ServiceEntity) => {
-      return "path" in record ? record.path : "";
+    {
+      title: "Extended Protocol",
+      dataIndex: "extendedProtocol",
+      key: "extendedProtocol",
+      render: (value: unknown) => (typeof value === "string" ? value : ""),
     },
-  },
-];
+    {
+      title: "Specification",
+      dataIndex: "specification",
+      key: "specification",
+      render: (value: unknown) => (typeof value === "string" ? value : ""),
+    },
+    {
+      title: "Internal Service Name",
+      dataIndex: "internalServiceName",
+      key: "internalServiceName",
+      render: (value: unknown) => (typeof value === "string" ? value : ""),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (_value, record) => <UsageStatusTag element={record} />,
+    },
+    {
+      title: "Source",
+      dataIndex: "source",
+      key: "source",
+      render: (value) =>
+        typeof value === "string" ? <SourceFlagTag source={value} /> : "",
+    },
+    {
+      title: "Labels",
+      dataIndex: "labels",
+      key: "labels",
+      render: undefined,
+    },
+    {
+      title: "Used by",
+      dataIndex: "usedBy",
+      key: "usedBy",
+      render: (_: unknown, record: ServiceEntity) => {
+        if (isIntegrationSystem(record))
+          return (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                height: "100%",
+              }}
+            ></div>
+          );
+        const chains =
+          "chains" in record && Array.isArray(record.chains)
+            ? record.chains
+            : [];
+        return (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              height: "100%",
+            }}
+          >
+            <ChainColumn chains={chains} />
+          </div>
+        );
+      },
+    },
+    {
+      title: "Created When",
+      dataIndex: "createdWhen",
+      key: "createdWhen",
+      render: (createdWhen) => <>{formatTimestamp(createdWhen as number)}</>,
+    },
+    {
+      title: "Created By",
+      dataIndex: "createdBy",
+      key: "createdBy",
+      render: (value: unknown) => {
+        const createdBy = value as User | undefined;
+        return createdBy?.username || "";
+      },
+    },
+    {
+      title: "Modified When",
+      dataIndex: "modifiedWhen",
+      key: "modifiedWhen",
+      render: (modifiedWhen) => <>{formatTimestamp(modifiedWhen as number)}</>,
+    },
+    {
+      title: "Modified By",
+      dataIndex: "modifiedBy",
+      key: "modifiedBy",
+      render: (value: unknown) => {
+        const modifiedBy = value as User | undefined;
+        return modifiedBy?.username || "";
+      },
+    },
+    {
+      title: "Method",
+      dataIndex: "method",
+      key: "method",
+      render: (value: unknown) => <HttpMethod value={value} />,
+    },
+    {
+      title: "URL",
+      dataIndex: "url",
+      key: "url",
+      render: (_value: unknown, record: ServiceEntity) => {
+        return "path" in record ? record.path : "";
+      },
+    },
+  ];
 
 export interface ActionConfig<T = never> {
   key: string;
@@ -370,10 +430,16 @@ export interface ActionConfig<T = never> {
   visible?: (record: T) => boolean;
 }
 
-function ActionMenu<T>({ record, actions }: { record: T; actions: ActionConfig<T>[] }) {
+function ActionMenu<T>({
+  record,
+  actions,
+}: {
+  record: T;
+  actions: ActionConfig<T>[];
+}) {
   const items = actions
-    .filter(a => a.visible === undefined || a.visible(record))
-    .map(action => ({
+    .filter((a) => a.visible === undefined || a.visible(record))
+    .map((action) => ({
       key: action.key,
       icon: action.icon,
       label: action.label,
@@ -381,20 +447,20 @@ function ActionMenu<T>({ record, actions }: { record: T; actions: ActionConfig<T
         if (action.confirm) {
           Modal.confirm({
             title: action.confirm.title,
-            okText: action.confirm.okText || 'OK',
-            cancelText: action.confirm.cancelText || 'Cancel',
+            okText: action.confirm.okText || "OK",
+            cancelText: action.confirm.cancelText || "Cancel",
             onOk: () => action.onClick(record),
           });
         } else {
           action.onClick(record);
         }
-      }
+      },
     }));
 
   return (
     <Dropdown
       menu={{
-        items
+        items,
       }}
       trigger={["click"]}
       placement="bottomRight"
@@ -404,7 +470,9 @@ function ActionMenu<T>({ record, actions }: { record: T; actions: ActionConfig<T
   );
 }
 
-export function getActionsColumn<T extends ServiceEntity = ServiceEntity>(getActionsForRecord: (record: T) => ActionConfig<T>[]): ServicesTableColumn<T> {
+export function getActionsColumn<T extends ServiceEntity = ServiceEntity>(
+  getActionsForRecord: (record: T) => ActionConfig<T>[],
+): ServicesTableColumn<T> {
   return {
     key: "actions",
     title: "",
@@ -413,9 +481,7 @@ export function getActionsColumn<T extends ServiceEntity = ServiceEntity>(getAct
     render: (_value: unknown, record: T) => {
       const actions = getActionsForRecord(record);
       if (!actions || actions.length === 0) return null;
-      return (
-        <ActionMenu record={record} actions={actions} />
-      );
+      return <ActionMenu record={record} actions={actions} />;
     },
   };
 }
@@ -441,43 +507,44 @@ export function getServiceActions({
     if (!isRootEntity(record)) return [];
     const actions: ActionConfig<ServiceEntity>[] = [
       {
-        key: 'edit',
-        label: 'Edit',
+        key: "edit",
+        label: "Edit",
         icon: <OverridableIcon name="edit" />,
         onClick: onEdit,
       },
       {
-        key: 'delete',
-        label: 'Delete',
+        key: "delete",
+        label: "Delete",
         icon: <OverridableIcon name="delete" />,
         onClick: onDelete,
         confirm: {
-          title: 'Are you sure you want to delete this service?',
-          okText: 'Delete',
-          cancelText: 'Cancel',
+          title: "Are you sure you want to delete this service?",
+          okText: "Delete",
+          cancelText: "Cancel",
         },
-      }];
-      if (isExpandAvailable(record)) {
-        actions.push(
-          {
-            key: "expandAll",
-            label: "Expand All",
-            icon: <OverridableIcon name="columnHeight" />,
-            onClick: onExpandAll,
-          },
-          {
-            key: "collapseAll",
-            label: "Collapse All",
-            icon: <OverridableIcon name="verticalAlignMiddle" />,
-            onClick: onCollapseAll,
-          },
-        );
-      }
+      },
+    ];
+    if (isExpandAvailable(record)) {
+      actions.push(
+        {
+          key: "expandAll",
+          label: "Expand All",
+          icon: <OverridableIcon name="columnHeight" />,
+          onClick: onExpandAll,
+        },
+        {
+          key: "collapseAll",
+          label: "Collapse All",
+          icon: <OverridableIcon name="verticalAlignMiddle" />,
+          onClick: onCollapseAll,
+        },
+      );
+    }
 
     if (onExportSelected) {
       actions.push({
-        key: 'export',
-        label: 'Export',
+        key: "export",
+        label: "Export",
         icon: <OverridableIcon name="cloudDownload" />,
         onClick: (rec) => onExportSelected([rec]),
       });
@@ -490,7 +557,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
   dataSource,
   rowKey,
   allColumns = [],
-  storageKey = '',
+  storageKey = "",
   defaultVisibleKeys = [],
   loading,
   expandable,
@@ -507,7 +574,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
   const allColumnKeys = useMemo(() => {
     return allColumns && allColumns.length > 0
       ? allColumns
-      : allServicesTreeTableColumns.map(col => col.key);
+      : allServicesTreeTableColumns.map((col) => col.key);
   }, [allColumns]);
 
   const initialKeys = useMemo(() => {
@@ -522,11 +589,16 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
   });
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     const storedVisible = localStorage.getItem(`${storageKey}_columnsVisible`);
-    return storedVisible ? (JSON.parse(storedVisible) as string[]) : initialKeys;
+    return storedVisible
+      ? (JSON.parse(storedVisible) as string[])
+      : initialKeys;
   });
-  const [internalSelectedRowKeys, setInternalSelectedRowKeys] = useState<React.Key[]>([]);
+  const [internalSelectedRowKeys, setInternalSelectedRowKeys] = useState<
+    React.Key[]
+  >([]);
   const selectedRowKeys = externalSelectedRowKeys ?? internalSelectedRowKeys;
-  const setSelectedRowKeys = onSelectedRowKeysChange ?? setInternalSelectedRowKeys;
+  const setSelectedRowKeys =
+    onSelectedRowKeysChange ?? setInternalSelectedRowKeys;
 
   const handleColumnsChange = (order: string[], visible: string[]) => {
     setColumnsOrder(order);
@@ -540,24 +612,30 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
           allColumns={allColumnKeys}
           defaultColumns={initialKeys}
           storageKey={storageKey}
-          labelsByKey={Object.fromEntries(allServicesTreeTableColumns.map(c => [c.key, c.title]))}
+          labelsByKey={Object.fromEntries(
+            allServicesTreeTableColumns.map((c) => [c.key, c.title]),
+          )}
           onChange={handleColumnsChange}
         />
       )}
-      trigger={['click']}
+      trigger={["click"]}
     >
-      <Button icon={<OverridableIcon name="settings" />}/>
+      <Button icon={<OverridableIcon name="settings" />} />
     </Dropdown>
   );
 
   const finalColumns = useMemo(() => {
     const cols = columnsOrder
-      .filter(key => visibleColumns.includes(key))
-      .map(key => {
-        if (key === 'labels') {
-          return getLabelsColumn(onUpdateLabels as ((record: ServiceEntity, labels: string[]) => Promise<void>) | undefined);
+      .filter((key) => visibleColumns.includes(key))
+      .map((key) => {
+        if (key === "labels") {
+          return getLabelsColumn(
+            onUpdateLabels as
+              | ((record: ServiceEntity, labels: string[]) => Promise<void>)
+              | undefined,
+          );
         }
-        return allServicesTreeTableColumns.find(col => col.key === key);
+        return allServicesTreeTableColumns.find((col) => col.key === key);
       })
       .filter(Boolean) as ServicesTableColumn<T>[];
 
@@ -565,15 +643,16 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
   }, [columnsOrder, visibleColumns, actionsColumn, onUpdateLabels]);
 
   const TableComponent = () => {
-    const rowSelection: TableRowSelection<T> | undefined = enableSelection ? {
-        selectedRowKeys,
-        onChange: (keys: React.Key[]) => {
-          setSelectedRowKeys(keys);
-        },
-        getCheckboxProps: (record: T) => ({
-          disabled: !((isRootEntity ?? (() => true))(record)),
-        }),
-      }
+    const rowSelection: TableRowSelection<T> | undefined = enableSelection
+      ? {
+          selectedRowKeys,
+          onChange: (keys: React.Key[]) => {
+            setSelectedRowKeys(keys);
+          },
+          getCheckboxProps: (record: T) => ({
+            disabled: !(isRootEntity ?? (() => true))(record),
+          }),
+        }
       : undefined;
     return (
       <Table
@@ -584,11 +663,20 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         expandable={expandable}
         size={"small"}
         pagination={pagination}
-        style={{ background: "var(--vscode-editor-background)", borderRadius: 12, width: '100%' }}
+        style={{
+          background: "var(--vscode-editor-background)",
+          borderRadius: 12,
+          width: "100%",
+        }}
         rowClassName={rowClassName}
-        onRow={onRowClick ? (record) => ({
-          onClick: (event: React.MouseEvent<HTMLElement>) => onRowClick(record, event),
-        }) : undefined}
+        onRow={
+          onRowClick
+            ? (record) => ({
+                onClick: (event: React.MouseEvent<HTMLElement>) =>
+                  onRowClick(record, event),
+              })
+            : undefined
+        }
         rowSelection={rowSelection}
       />
     );

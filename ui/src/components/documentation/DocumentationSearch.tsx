@@ -1,20 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Input, List, Typography, Spin } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
-import { useDocumentation } from '../../hooks/useDocumentation';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Input, List, Typography, Spin } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
+import { useDocumentation } from "../../hooks/useDocumentation";
 import type {
   HighlightSegment,
   SearchResult,
-} from '../../services/documentation/documentationTypes';
-import { useNavigate } from 'react-router-dom';
+} from "../../services/documentation/documentationTypes";
+import { useNavigate } from "react-router-dom";
 import {
   DOCUMENTATION_ROUTE_BASE,
   toDocRoutePath,
-} from '../../services/documentation/documentationUrlUtils';
+} from "../../services/documentation/documentationUrlUtils";
 import {
   createDebouncedCallback,
   createLatestOnlyGuard,
-} from '../../services/documentation/documentationAsyncUtils';
+} from "../../services/documentation/documentationAsyncUtils";
 
 const { Text } = Typography;
 
@@ -22,8 +22,10 @@ interface DocumentationSearchProps {
   onSelect?: (path: string) => void;
 }
 
-export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({ onSelect }) => {
-  const [query, setQuery] = useState('');
+export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
+  onSelect,
+}) => {
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchDetails, setSearchDetails] = useState<
@@ -71,7 +73,7 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({ onSele
 
         const details: Record<number, HighlightSegment[][]> = {};
         for (const item of settled) {
-          if (item.status === 'fulfilled') {
+          if (item.status === "fulfilled") {
             details[item.value.ref] = item.value.detail;
           }
         }
@@ -80,7 +82,7 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({ onSele
         if (!latestOnly.isLatest(token)) {
           return;
         }
-        console.error('Search failed:', error);
+        console.error("Search failed:", error);
         setResults([]);
         setSearchDetails({});
       } finally {
@@ -133,19 +135,19 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({ onSele
       }
 
       const routeBase = DOCUMENTATION_ROUTE_BASE;
-      const path = toDocRoutePath(routeBase, rawPath.replace(/\.md$/, ''));
+      const path = toDocRoutePath(routeBase, rawPath.replace(/\.md$/, ""));
       if (onSelect) {
         onSelect(path);
       } else {
         void navigate(path);
       }
     } catch (error) {
-      console.error('Failed to get document path:', error);
+      console.error("Failed to get document path:", error);
     }
   };
 
   return (
-    <div style={{ padding: '16px' }}>
+    <div style={{ padding: "16px" }}>
       <Input
         placeholder="Search documentation..."
         prefix={<SearchOutlined />}
@@ -154,20 +156,20 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({ onSele
         allowClear
       />
       {isLoading && (
-        <div style={{ textAlign: 'center', padding: '16px' }}>
+        <div style={{ textAlign: "center", padding: "16px" }}>
           <Spin />
         </div>
       )}
       {!isLoading && results.length > 0 && (
         <List
-          style={{ marginTop: '16px' }}
+          style={{ marginTop: "16px" }}
           dataSource={results}
           renderItem={(item) => {
             const details = searchDetails[item.ref] || [];
             const title = titlesByRef[item.ref] ?? `Document #${item.ref}`;
             return (
               <List.Item
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: "pointer" }}
                 onClick={() => {
                   void handleResultClick(item.ref);
                 }}
@@ -177,7 +179,7 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({ onSele
                   description={
                     <div>
                       {details.map((fragment, idx) => (
-                        <div key={idx} style={{ marginBottom: '8px' }}>
+                        <div key={idx} style={{ marginBottom: "8px" }}>
                           {fragment.map((seg, segIdx) => (
                             <span
                               key={segIdx}
@@ -197,7 +199,7 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({ onSele
         />
       )}
       {!isLoading && query && results.length === 0 && (
-        <div style={{ padding: '16px', textAlign: 'center' }}>
+        <div style={{ padding: "16px", textAlign: "center" }}>
           <Text type="secondary">No results found</Text>
         </div>
       )}

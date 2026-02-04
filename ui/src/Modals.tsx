@@ -25,18 +25,18 @@ type ShowModalProps = {
 const useModals = () => {
   const [modals, setModals] = useState<Modal[]>([]);
 
-  const showModal = useCallback(({
-    component,
-    id = crypto.randomUUID(),
-  }: ShowModalProps) => {
-    setModals((modals) => {
-      const existingIndex = modals.findIndex((m) => m.id === id);
-      if (existingIndex >= 0) {
-        return modals;
-      }
-      return [...modals, { component, id }];
-    });
-  }, []);
+  const showModal = useCallback(
+    ({ component, id = crypto.randomUUID() }: ShowModalProps) => {
+      setModals((modals) => {
+        const existingIndex = modals.findIndex((m) => m.id === id);
+        if (existingIndex >= 0) {
+          return modals;
+        }
+        return [...modals, { component, id }];
+      });
+    },
+    [],
+  );
 
   const closeModal = useCallback((id: string) => {
     setModals((components) =>

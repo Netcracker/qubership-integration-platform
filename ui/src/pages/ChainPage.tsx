@@ -1,5 +1,14 @@
 import "@xyflow/react/dist/style.css";
-import { Breadcrumb, Col, Flex, Radio, RadioChangeEvent, Row, Result, Button } from "antd";
+import {
+  Breadcrumb,
+  Col,
+  Flex,
+  Radio,
+  RadioChangeEvent,
+  Row,
+  Result,
+  Button,
+} from "antd";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
@@ -28,7 +37,8 @@ const ChainPage = () => {
   const navigate = useNavigate();
   const activeKey = getActiveTabKey(pathname);
 
-  const { chain, setChain, updateChain, getChain, isLoading, error } = useChain(chainId);
+  const { chain, setChain, updateChain, getChain, isLoading, error } =
+    useChain(chainId);
 
   const refreshChain = useCallback(async () => {
     if (chainId) {
@@ -68,7 +78,7 @@ const ChainPage = () => {
       <Flex className={styles.stretched} gap={"middle"} vertical>
         <Row className={styles.stretched}>
           <Col span={24}>
-            <div style={{ textAlign: 'center', padding: '50px' }}>
+            <div style={{ textAlign: "center", padding: "50px" }}>
               Loading chain...
             </div>
           </Col>
@@ -85,12 +95,15 @@ const ChainPage = () => {
             <Result
               status="404"
               title="Chain Not Found"
-              subTitle={`Chain with ID "${chainId}" does not exist.`
-              }
+              subTitle={`Chain with ID "${chainId}" does not exist.`}
               extra={[
-                <Button type="primary" key="back" onClick={() => void navigate("/chains")}>
+                <Button
+                  type="primary"
+                  key="back"
+                  onClick={() => void navigate("/chains")}
+                >
                   Back to Chains
-                </Button>
+                </Button>,
               ]}
             />
           </Col>
@@ -102,9 +115,7 @@ const ChainPage = () => {
   return (
     <Flex className={styles.stretched} gap={"middle"} vertical>
       <Row justify="space-between" align="middle">
-        <Col>
-          {!isVsCode && <Breadcrumb items={pathItems} />}
-        </Col>
+        <Col>{!isVsCode && <Breadcrumb items={pathItems} />}</Col>
         <Col>
           <Radio.Group
             value={activeKey}

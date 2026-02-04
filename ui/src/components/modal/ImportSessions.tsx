@@ -76,7 +76,10 @@ export const ImportSessions: React.FC<ImportSessionsProps> = ({
           Click or drag file to this area to upload
         </p>
         <p className="ant-upload-hint">
-          <OverridableIcon name="exclamationCircle" style={{ marginRight: 8 }} />
+          <OverridableIcon
+            name="exclamationCircle"
+            style={{ marginRight: 8 }}
+          />
           You are about to import outbound session details to the table. Please
           note, that imported sessions are supported via read-only mode and
           references to the chain elements, as well as navigation buttons,

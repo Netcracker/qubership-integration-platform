@@ -30,7 +30,10 @@ export function SelectEdit<ValueType = unknown>({
         onChange={() => form.submit()}
         options={options}
         onBlur={(event) => {
-          if (event.relatedTarget && !ref.current?.nativeElement?.contains(event.relatedTarget)) {
+          if (
+            event.relatedTarget &&
+            !ref.current?.nativeElement?.contains(event.relatedTarget)
+          ) {
             inlineEditContext?.toggle();
           }
         }}

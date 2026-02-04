@@ -2,7 +2,10 @@ import React from "react";
 import { Button, Form, Modal, Typography } from "antd";
 import { useModalContext } from "../../ModalContextProvider";
 import { DiagnosticValidation, ValidationSeverity } from "../../api/apiTypes";
-import { KeyValuePropertiesTable, KeyValueRow } from "./KeyValuePropertiesTable";
+import {
+  KeyValuePropertiesTable,
+  KeyValueRow,
+} from "./KeyValuePropertiesTable";
 
 const { Text } = Typography;
 
@@ -69,7 +72,7 @@ export const DiagnosticValidationModal: React.FC<DiagnosticValidation> = (
           <Text>{props.alertsCount}</Text>
         </Form.Item>
       </Form>
-      <KeyValuePropertiesTable rows={buildProperties(props.properties)}/>
+      <KeyValuePropertiesTable rows={buildProperties(props.properties)} />
     </Modal>
   );
 };

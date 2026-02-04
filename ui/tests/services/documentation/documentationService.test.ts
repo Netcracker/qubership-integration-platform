@@ -1,7 +1,7 @@
-import { DocumentationService } from "../documentationService";
+import { DocumentationService } from "../../../src/services/documentation/documentationService";
 
 // Mock appConfig to avoid import.meta.env issues in Jest
-jest.mock("../../../appConfig", () => ({
+jest.mock("../../../src/appConfig", () => ({
   getConfig: jest.fn(() => ({
     documentationRouteBase: "/doc",
     documentationAssetsBaseUrl: "/doc",

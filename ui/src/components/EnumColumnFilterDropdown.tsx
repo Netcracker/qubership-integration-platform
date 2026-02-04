@@ -51,8 +51,10 @@ export function makeEnumColumnFilterDropdown<
     </Flex>
   );
 
-  const onFilter = (value: V | React.Key | number | boolean, record: Record<K, V>) =>
-    record[field] === value;
+  const onFilter = (
+    value: V | React.Key | number | boolean,
+    record: Record<K, V>,
+  ) => record[field] === value;
 
   return { filterDropdown, onFilter };
 }

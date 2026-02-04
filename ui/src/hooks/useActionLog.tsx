@@ -1,5 +1,9 @@
 import { api } from "../api/api.ts";
-import {ActionLog, ActionLogResponse, ActionLogSearchRequest, RestApiError} from "../api/apiTypes.ts";
+import {
+  ActionLog,
+  ActionLogResponse,
+  ActionLogSearchRequest,
+} from "../api/apiTypes.ts";
 import {
   InfiniteData,
   InfiniteQueryObserverResult,
@@ -15,9 +19,10 @@ const RANGE_MIN = 1000 * 60 * 60 * 6; // 6 hours
 const RANGE_MAX = 1000 * 60 * 60 * 48; // 2 days
 const CONTENT_SIZE_THRESHOLD = 200;
 
-type ActionLogSourcePair = {
-    sourceName: string,
-    fn: (searchRequest: ActionLogSearchRequest) => Promise<ActionLogResponse | RestApiError>,
+type RequestState = {
+  offset: number;
+  range: number;
+  stopped: boolean;
 };
 
 export const useActionLog = (): {
@@ -39,94 +44,69 @@ export const useActionLog = (): {
 } => {
   const notificationService = useNotificationService();
 
-  const logSources: ActionLogSourcePair[] = [
-      {
-          sourceName: "Catalog",
-          fn: (searchRequest) => api.loadCatalogActionsLog(searchRequest)
-      },
-      {
-          sourceName: "Variables Management",
-          fn: (searchRequest) => api.loadVariablesManagementActionsLog(searchRequest)
-      },
-  ];
-
-  const sourceRequestStateRef = useRef(
-    logSources.map(() => ({
-      offset: Date.now(),
-      range: RANGE_DEFAULT,
-      stopped: false,
-    })),
-  );
+  const requestStateRef = useRef<RequestState>({
+    offset: Date.now(),
+    range: RANGE_DEFAULT,
+    stopped: false,
+  });
 
   const queryClient = useQueryClient();
-
   const allLogsRef = useRef(new Map<string, ActionLog>());
+
+  const getSortedLogs = () =>
+    Array.from(allLogsRef.current.values()).sort(
+      (a, b) => b.actionTime - a.actionTime,
+    );
 
   const actionLogsQuery = useInfiniteQuery({
     initialPageParam: Date.now(),
     queryKey: ["actionLogs"],
     queryFn: async () => {
-      const requests = logSources.map((pair, i) => {
-        const sourceRequestState = sourceRequestStateRef.current[i];
-        if (sourceRequestState.stopped) return Promise.resolve(undefined);
-        return pair.fn({
-          offsetTime: sourceRequestState.offset,
-          rangeTime: sourceRequestState.range,
-        });
-      });
+      const state = requestStateRef.current;
+      if (state.stopped) {
+        return getSortedLogs();
+      }
 
-      const responsesPromiseSettledResult: Array<PromiseSettledResult<Awaited<Promise<Awaited<undefined>> | Promise<ActionLogResponse | RestApiError>>>> = await Promise.allSettled(requests);
+      const requestedRange = state.range;
+      const searchRequest: ActionLogSearchRequest = {
+        offsetTime: state.offset,
+        rangeTime: requestedRange,
+      };
 
-      responsesPromiseSettledResult.forEach((res, i) => {
-        const currentRequestState = sourceRequestStateRef.current[i];
+      let response: ActionLogResponse;
+      try {
+        response = await api.loadCatalogActionsLog(searchRequest);
+      } catch (err) {
+        notificationService.requestFailed(
+          "Failed to retrieve action logs from Catalog",
+          err,
+        );
+        state.stopped = true;
+        return getSortedLogs();
+      }
 
-        if (res.status === "rejected") {
-          const errorResponse: RestApiError = res.reason as RestApiError;
-          notificationService.requestFailed("Failed to retrieve action logs from " + logSources[i].sourceName, {
-            type: "error",
-            message: errorResponse,
-          });
-          currentRequestState.stopped = true;
-          return;
-        }
+      const { actionLogs, recordsAfterRange } = response;
+      const hasLogs = actionLogs.length > 0;
+      const hasMore = recordsAfterRange > 0;
+      const logCount = actionLogs.length;
 
-        if (res.status === "fulfilled") {
-          if (!res) return;
+      if (!hasLogs && hasMore) {
+        state.range = Math.min(state.range * 2, RANGE_MAX);
+      } else if (hasLogs) {
+        state.range =
+          logCount > CONTENT_SIZE_THRESHOLD ? RANGE_MIN : RANGE_DEFAULT;
+      }
 
-          const fulfilledResponse: ActionLogResponse =
-            res.value as ActionLogResponse;
-          const { actionLogs, recordsAfterRange } = fulfilledResponse;
-          const hasLogs = actionLogs.length > 0;
-          const hasMore = recordsAfterRange > 0;
-          const logCount = actionLogs.length;
+      // Move window back by the range used in the request.
+      state.offset -= requestedRange;
+      if (!hasMore) state.stopped = true;
 
-          if (!hasLogs && hasMore) {
-            currentRequestState.range = Math.min(
-              currentRequestState.range * 2,
-              RANGE_MAX,
-            );
-          } else if (hasLogs) {
-            currentRequestState.range =
-              logCount > CONTENT_SIZE_THRESHOLD ? RANGE_MIN : RANGE_DEFAULT;
-          }
+      actionLogs.forEach((log) => allLogsRef.current.set(log.id, log));
 
-          currentRequestState.offset -= currentRequestState.range;
-
-          if (!hasMore) currentRequestState.stopped = true;
-
-          actionLogs.forEach((log) => allLogsRef.current.set(log.id, log));
-        }
-      });
-
-      return Array.from(allLogsRef.current.values()).sort(
-        (a, b) => b.actionTime - a.actionTime,
-      );
+      return getSortedLogs();
     },
-    getNextPageParam: () => {
-      return sourceRequestStateRef.current.some((s) => !s.stopped)
-        ? Date.now()
-        : undefined;
-    },
+    getNextPageParam: () =>
+      requestStateRef.current.stopped ? undefined : Date.now(),
   });
 
   const logsData =
@@ -134,12 +114,11 @@ export const useActionLog = (): {
 
   const refresh = async () => {
     allLogsRef.current.clear();
-    sourceRequestStateRef.current = logSources.map(() => ({
+    requestStateRef.current = {
       offset: Date.now(),
       range: RANGE_DEFAULT,
       stopped: false,
-    }));
-
+    };
     await queryClient.resetQueries({
       queryKey: ["actionLogs"],
       exact: true,
@@ -151,7 +130,7 @@ export const useActionLog = (): {
     fetchNextPage: () => actionLogsQuery.fetchNextPage(),
     hasNextPage: actionLogsQuery.hasNextPage,
     isFetching: actionLogsQuery.isFetching,
-      isLoading: actionLogsQuery.isLoading,
+    isLoading: actionLogsQuery.isLoading,
     refresh,
   };
 };

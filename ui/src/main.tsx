@@ -17,7 +17,10 @@ async function init() {
       await initializeConfig();
       await initializeConfiguration();
     } catch (error) {
-      console.warn("Configuration initialization failed, using defaults:", error);
+      console.warn(
+        "Configuration initialization failed, using defaults:",
+        error,
+      );
     }
   }
 
@@ -37,4 +40,3 @@ async function init() {
 }
 
 void init();
-

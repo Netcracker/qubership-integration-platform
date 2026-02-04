@@ -60,7 +60,10 @@ const router = createBrowserRouter(
     <>
       <Route path="/devtools" element={<DevTools />}>
         <Route path="" element={<Navigate to="diagnostic/validations" />} />
-        <Route path="diagnostic/validations" element={<DiagnosticValidationPage />} />
+        <Route
+          path="diagnostic/validations"
+          element={<DiagnosticValidationPage />}
+        />
       </Route>
       <Route path="/admintools" element={<AdminTools />}>
         <Route path="" element={<Navigate to="domains" />} />

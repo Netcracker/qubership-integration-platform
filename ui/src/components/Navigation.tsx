@@ -35,11 +35,15 @@ const items: MenuItem[] = [
 
 interface NavigationProps {
   showThemeSwitcher?: boolean;
-  currentTheme?: 'light' | 'dark' | 'high-contrast';
-  onThemeChange?: (theme: 'light' | 'dark' | 'high-contrast') => void;
+  currentTheme?: "light" | "dark" | "high-contrast";
+  onThemeChange?: (theme: "light" | "dark" | "high-contrast") => void;
 }
 
-const Navigation = ({ showThemeSwitcher = false, currentTheme, onThemeChange }: NavigationProps) => {
+const Navigation = ({
+  showThemeSwitcher = false,
+  currentTheme,
+  onThemeChange,
+}: NavigationProps) => {
   const devMode = isDev();
   const shouldShowDevTools = devMode;
   const { openContextDoc } = useDocumentation();
@@ -53,7 +57,7 @@ const Navigation = ({ showThemeSwitcher = false, currentTheme, onThemeChange }: 
         mode="horizontal"
         className={styles.menu}
       ></Menu>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         {!isVsCode && (
           <Button
             icon={<OverridableIcon name="questionCircle" />}
@@ -62,8 +66,11 @@ const Navigation = ({ showThemeSwitcher = false, currentTheme, onThemeChange }: 
             title="Help"
           />
         )}
-        {(showThemeSwitcher && shouldShowDevTools) && (
-          <SettingsPanel currentTheme={currentTheme} onThemeChange={onThemeChange} />
+        {showThemeSwitcher && shouldShowDevTools && (
+          <SettingsPanel
+            currentTheme={currentTheme}
+            onThemeChange={onThemeChange}
+          />
         )}
         <NotificationBar />
       </div>

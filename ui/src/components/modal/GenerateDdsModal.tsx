@@ -12,10 +12,7 @@ type GenerateDdsFormData = {
 };
 
 export type GenerateDdsModalProps = {
-  onSubmit: (
-    templateId: string,
-    fileName: string,
-  ) => void | Promise<void>;
+  onSubmit: (templateId: string, fileName: string) => void | Promise<void>;
 };
 
 export const GenerateDdsModal: React.FC<GenerateDdsModalProps> = ({
@@ -93,10 +90,7 @@ export const GenerateDdsModal: React.FC<GenerateDdsModalProps> = ({
         onFinish={(values) => {
           setConfirmLoading(true);
           try {
-            const result = onSubmit?.(
-              values.templateId,
-              values.fileName,
-            );
+            const result = onSubmit?.(values.templateId, values.fileName);
             if (result instanceof Promise) {
               result
                 .then(() => {

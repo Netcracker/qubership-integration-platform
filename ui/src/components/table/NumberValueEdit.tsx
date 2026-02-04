@@ -17,7 +17,7 @@ export const NumberValueEdit: React.FC<NumberValueEditorProps> = ({
 }) => {
   const inlineEditContext = useContext(InlineEditContext);
   const form = Form.useFormInstance();
-  const ref = useRef<InputNumberRef>(null)
+  const ref = useRef<InputNumberRef>(null);
 
   return (
     <Form.Item
@@ -32,7 +32,10 @@ export const NumberValueEdit: React.FC<NumberValueEditorProps> = ({
         autoFocus
         onPressEnter={() => form.submit()}
         onBlur={(event) => {
-          if (event.relatedTarget && !ref.current?.nativeElement?.contains(event.relatedTarget)) {
+          if (
+            event.relatedTarget &&
+            !ref.current?.nativeElement?.contains(event.relatedTarget)
+          ) {
             inlineEditContext?.toggle();
           }
         }}

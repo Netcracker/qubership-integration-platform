@@ -70,7 +70,9 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
           label={null}
           style={{ marginBottom: 0 }}
         >
-          <Checkbox className={styles.checkbox}>Export related sub-chains</Checkbox>
+          <Checkbox className={styles.checkbox}>
+            Export related sub-chains
+          </Checkbox>
         </Form.Item>
         <Form.Item
           name="exportServices"
@@ -78,7 +80,9 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
           label={null}
           style={{ marginBottom: 0 }}
         >
-          <Checkbox className={styles.checkbox}>Export related services</Checkbox>
+          <Checkbox className={styles.checkbox}>
+            Export related services
+          </Checkbox>
         </Form.Item>
         <Form.Item
           name="exportVariables"
@@ -86,7 +90,9 @@ export const ExportChains: React.FC<ExportChainsProps> = ({
           label={null}
           style={{ marginBottom: 0 }}
         >
-          <Checkbox className={styles.checkbox}>Export all common variables</Checkbox>
+          <Checkbox className={styles.checkbox}>
+            Export all common variables
+          </Checkbox>
         </Form.Item>
       </Form>
     </Modal>

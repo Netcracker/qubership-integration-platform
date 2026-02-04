@@ -3,13 +3,13 @@ import { ExpressionEditor } from "./ExpressionEditor";
 import React from "react";
 
 export type ExpressionParametersProps = {
-    label?: string;
-    offset?: number;
-}
+  label?: string;
+  offset?: number;
+};
 
 export const ExpressionParameters: React.FC<ExpressionParametersProps> = ({
-    label,
-    offset = 0,
+  label,
+  offset = 0,
 }) => {
   return (
     <Form.Item
@@ -24,4 +24,4 @@ export const ExpressionParameters: React.FC<ExpressionParametersProps> = ({
       <ExpressionEditor />
     </Form.Item>
   );
-}
+};

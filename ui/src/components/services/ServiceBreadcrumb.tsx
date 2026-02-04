@@ -24,15 +24,15 @@ export const ServiceNameBreadcrumbItem: React.FC<
       : `/services/systems/${props.id}/specificationGroups`;
 
   return (
-      <a
-        onClick={(e) => {
-          e.preventDefault();
-          void navigate(url);
-        }}
-        href={url}
-      >
-        {props.name || props.id || "..."}
-      </a>
+    <a
+      onClick={(e) => {
+        e.preventDefault();
+        void navigate(url);
+      }}
+      href={url}
+    >
+      {props.name || props.id || "..."}
+    </a>
   );
 };
 

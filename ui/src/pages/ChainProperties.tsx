@@ -13,7 +13,7 @@ import styles from "./Chain.module.css";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
-import { useBlocker } from 'react-router-dom';
+import { useBlocker } from "react-router-dom";
 import { useModalsContext } from "../Modals.tsx";
 import { UnsavedChangesModal } from "../components/modal/UnsavedChangesModal.tsx";
 

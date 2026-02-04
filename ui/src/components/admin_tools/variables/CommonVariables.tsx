@@ -5,18 +5,18 @@ import ImportVariablesModal from "./ImportVariablesModal.tsx";
 import { useModalsContext } from "../../../Modals.tsx";
 import VariablesTable from "./VariablesTable.tsx";
 import { useVariablesState } from "./useVariablesState";
-import { variablesApi } from "../../../api/admin-tools/variables/variablesApi.ts";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { ResizeCallbackData } from "react-resizable";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
-import { ApiResponse, Variable } from "../../../api/admin-tools/variables/types.ts";
+import { ApiResponse, Variable } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { api } from "../../../api/api.ts";
 
 const { Title } = Typography;
 
 async function getVariables(): Promise<ApiResponse<Variable[]>> {
-  return variablesApi.getCommonVariables();
+  return api.getCommonVariables();
 }
 
 export const CommonVariables = () => {
@@ -56,12 +56,12 @@ export const CommonVariables = () => {
     fetchVariables,
   } = useVariablesState({
     getVariables,
-    createVariable: (variable) => variablesApi.createCommonVariable(variable),
-    updateVariable: (variable) => variablesApi.updateCommonVariable(variable),
-    deleteVariables: (keys) => variablesApi.deleteCommonVariables(keys),
+    createVariable: (variable) => api.createCommonVariable(variable),
+    updateVariable: (variable) => api.updateCommonVariable(variable),
+    deleteVariables: (keys) => api.deleteCommonVariables(keys),
     exportVariables: async (keys) => {
       try {
-        downloadFile(await variablesApi.exportVariables(keys, true));
+        downloadFile(await api.exportVariables(keys, true));
         return true;
       } catch (error) {
         notificationService.requestFailed("Failed to export variables", error);
@@ -72,7 +72,7 @@ export const CommonVariables = () => {
 
   const onDeleteSelected = async () => {
     try {
-      const success = await variablesApi.deleteCommonVariables(selectedRowKeys);
+      const success = await api.deleteCommonVariables(selectedRowKeys);
       if (success) {
         message.success("Deleted selected variables");
         setSelectedRowKeys([]);
