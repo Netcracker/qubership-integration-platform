@@ -34,6 +34,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.E
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementTransferException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementValidationException;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
@@ -64,6 +65,7 @@ import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -515,6 +517,194 @@ public class TransferableElementServiceTest {
         assertThrows(expectedException, () -> transferableElementService.transfer(TestElementUtils.CHAIN_ID, request));
     }
 
+    @DisplayName("Transferring element with external dependencies between group containers")
+    @Test
+    public void transferElementWithDependenciesBetweenGroupContainersShouldSkipDependenciesValidation() {
+        ContainerChainElement oldContainer = createGroupContainerElement("old-group-container");
+        ContainerChainElement newContainer = createGroupContainerElement("new-group-container");
+
+        ChainElement elementToTransfer = createChainElement(TestElementUtils.TEST_SENDER_TYPE, TestElementUtils.SENDER_1_ID);
+
+        ChainElement externalElement = createChainElement(TestElementUtils.TEST_TRIGGER_TYPE, "external-element-id");
+        Dependency externalToTransferred = Dependency.of(externalElement, elementToTransfer);
+        externalElement.addOutputDependency(externalToTransferred);
+        elementToTransfer.addInputDependency(externalToTransferred);
+
+        oldContainer.addChildElement(elementToTransfer);
+
+        when(jpaAuditingHandler.markModified(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.save(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+
+        when(elementRepository.findById(eq(newContainer.getId()))).thenReturn(Optional.of(newContainer));
+        when(elementRepository.findAllById(eq(List.of(elementToTransfer.getId())))).thenReturn(List.of(elementToTransfer));
+        when(elementRepository.findAllById(eq(List.of(oldContainer.getId())))).thenReturn(List.of(oldContainer));
+
+        when(elementRepository.saveAll(eq(List.of(elementToTransfer)))).thenAnswer(i -> i.getArguments()[0]);
+
+        TransferElementRequest request = TransferElementRequest.builder()
+                .parentId(newContainer.getId())
+                .elements(List.of(elementToTransfer.getId()))
+                .build();
+
+        ChainDiff diff = assertDoesNotThrow(() -> transferableElementService.transfer(TestElementUtils.CHAIN_ID, request));
+
+        assertThat(elementToTransfer.getParent(), equalTo(newContainer));
+        assertThat(oldContainer.getElements(), empty());
+        assertThat(newContainer.getElements(), hasItem(elementToTransfer));
+
+        assertThat(diff.getUpdatedElements(), hasSize(2));
+        assertThat(diff.getUpdatedElements(), hasItems(oldContainer, newContainer));
+
+        verify(elementRepository, times(1)).saveAll(eq(List.of(elementToTransfer)));
+    }
+
+    @DisplayName("Transferring element with external dependencies from group container to canvas (null parent)")
+    @Test
+    public void transferElementWithDependenciesFromGroupContainerToCanvasShouldSkipDependenciesValidation() {
+        ContainerChainElement oldContainer = createGroupContainerElement("old-group-container");
+        ChainElement elementToTransfer = createChainElement(TestElementUtils.TEST_SENDER_TYPE, TestElementUtils.SENDER_1_ID);
+
+        ChainElement externalElement = createChainElement(TestElementUtils.TEST_TRIGGER_TYPE, "external-element-id");
+        Dependency externalToTransferred = Dependency.of(externalElement, elementToTransfer);
+        externalElement.addOutputDependency(externalToTransferred);
+        elementToTransfer.addInputDependency(externalToTransferred);
+
+        oldContainer.addChildElement(elementToTransfer);
+
+        when(jpaAuditingHandler.markModified(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.save(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+
+        when(elementRepository.findAllById(eq(List.of(elementToTransfer.getId())))).thenReturn(List.of(elementToTransfer));
+        when(elementRepository.findAllById(eq(List.of(oldContainer.getId())))).thenReturn(List.of(oldContainer));
+
+        when(elementRepository.saveAll(eq(List.of(elementToTransfer)))).thenAnswer(i -> i.getArguments()[0]);
+
+        TransferElementRequest request = TransferElementRequest.builder()
+                .elements(List.of(elementToTransfer.getId()))
+                .build();
+
+        ChainDiff diff = assertDoesNotThrow(() -> transferableElementService.transfer(TestElementUtils.CHAIN_ID, request));
+
+        assertThat(elementToTransfer.getParent(), is(nullValue()));
+        assertThat(oldContainer.getElements(), empty());
+
+        assertThat(diff.getUpdatedElements(), hasSize(2));
+        assertThat(diff.getUpdatedElements(), hasItems(oldContainer, elementToTransfer));
+
+        verify(elementRepository, times(1)).saveAll(eq(List.of(elementToTransfer)));
+    }
+
+    @DisplayName("Transferring element with external dependencies from group container to group element with dependencies")
+    @Test
+    public void transferElementWithDependenciesFromUiContainerToGroupShouldFail() {
+        ContainerChainElement oldContainer = createGroupContainerElement("old-group-container");
+
+        ContainerChainElement groupParent = createContainerElement(TestElementUtils.TEST_CASE_TYPE, "case-group-parent-id");
+
+        ChainElement elementToTransfer = createChainElement(TestElementUtils.TEST_SENDER_TYPE, TestElementUtils.SENDER_1_ID);
+
+        ChainElement externalElement = createChainElement(TestElementUtils.TEST_TRIGGER_TYPE, "external-element-id");
+        Dependency externalToTransferred = Dependency.of(externalElement, elementToTransfer);
+        externalElement.addOutputDependency(externalToTransferred);
+        elementToTransfer.addInputDependency(externalToTransferred);
+
+        oldContainer.addChildElement(elementToTransfer);
+
+        when(jpaAuditingHandler.markModified(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.save(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+
+        when(elementRepository.findById(eq(groupParent.getId()))).thenReturn(Optional.of(groupParent));
+        when(elementRepository.findAllById(eq(List.of(elementToTransfer.getId())))).thenReturn(List.of(elementToTransfer));
+        when(elementRepository.findAllById(eq(List.of(oldContainer.getId())))).thenReturn(List.of(oldContainer));
+
+        TransferElementRequest request = TransferElementRequest.builder()
+                .parentId(groupParent.getId())
+                .elements(List.of(elementToTransfer.getId()))
+                .build();
+
+        assertThrows(ElementTransferException.class,
+                () -> transferableElementService.transfer(TestElementUtils.CHAIN_ID, request));
+    }
+
+    @DisplayName("Transferring element without dependencies from element container to group container")
+    @Test
+    public void transferElementWithoutDependenciesFromElementContainerToGroupContainerShouldSucceed() {
+        ContainerChainElement oldElementContainer =
+                createContainerElement(TestElementUtils.TEST_CASE_TYPE, "old-element-container-id");
+
+        ContainerChainElement groupContainer = createGroupContainerElement("new-group-container-id");
+
+        ChainElement elementToTransfer =
+                createChainElement(TestElementUtils.TEST_SENDER_TYPE, TestElementUtils.SENDER_1_ID);
+
+        oldElementContainer.addChildElement(elementToTransfer);
+
+        when(jpaAuditingHandler.markModified(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.save(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.saveAll(anyList())).thenAnswer(i -> i.getArguments()[0]);
+
+        when(elementRepository.findById(eq(groupContainer.getId()))).thenReturn(Optional.of(groupContainer));
+
+        when(elementRepository.findAllById(eq(List.of(elementToTransfer.getId()))))
+                .thenReturn(List.of(elementToTransfer));
+
+        when(elementRepository.findAllById(eq(List.of(oldElementContainer.getId()))))
+                .thenReturn(List.of(oldElementContainer));
+
+        TransferElementRequest request = TransferElementRequest.builder()
+                .parentId(groupContainer.getId())
+                .elements(List.of(elementToTransfer.getId()))
+                .build();
+
+        ChainDiff diff = transferableElementService.transfer(TestElementUtils.CHAIN_ID, request);
+
+        assertThat(elementToTransfer.getParent(), equalTo(groupContainer));
+        assertThat(oldElementContainer.getElements(), empty());
+        assertThat(groupContainer.getElements(), hasItem(elementToTransfer));
+        assertThat(diff.getUpdatedElements(), hasItems(oldElementContainer, groupContainer));
+
+        verify(elementRepository, times(1)).saveAll(eq(List.of(elementToTransfer)));
+    }
+
+    @DisplayName("Transferring element without dependencies from group container to element container")
+    @Test
+    public void transferElementWithoutDependenciesFromElementToGroupContainerShouldSucceed() {
+        ContainerChainElement oldGroupContainer = createGroupContainerElement("old-group-container-id");
+
+        ContainerChainElement elementContainer = createContainerElement(TestElementUtils.TEST_CASE_TYPE, "new-element-container-id");
+
+        ChainElement elementToTransfer =
+                createChainElement(TestElementUtils.TEST_SENDER_TYPE, TestElementUtils.SENDER_1_ID);
+
+        oldGroupContainer.addChildElement(elementToTransfer);
+
+        when(jpaAuditingHandler.markModified(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.save(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.saveAll(anyList())).thenAnswer(i -> i.getArguments()[0]);
+
+        when(elementRepository.findById(eq(elementContainer.getId()))).thenReturn(Optional.of(elementContainer));
+
+        when(elementRepository.findAllById(eq(List.of(elementToTransfer.getId()))))
+                .thenReturn(List.of(elementToTransfer));
+
+        when(elementRepository.findAllById(eq(List.of(oldGroupContainer.getId()))))
+                .thenReturn(List.of(oldGroupContainer));
+
+        TransferElementRequest request = TransferElementRequest.builder()
+                .parentId(elementContainer.getId())
+                .elements(List.of(elementToTransfer.getId()))
+                .build();
+
+        ChainDiff diff = transferableElementService.transfer(TestElementUtils.CHAIN_ID, request);
+
+        assertThat(elementToTransfer.getParent(), equalTo(elementContainer));
+        assertThat(oldGroupContainer.getElements(), empty());
+        assertThat(elementContainer.getElements(), hasItem(elementToTransfer));
+        assertThat(diff.getUpdatedElements(), hasItems(oldGroupContainer, elementContainer));
+
+        verify(elementRepository, times(1)).saveAll(eq(List.of(elementToTransfer)));
+    }
+
     private ContainerChainElement createContainerElement(String type, String id) {
         ElementDescriptor descriptor = libraryService.getElementDescriptor(type);
         return ContainerChainElement.builder()
@@ -534,4 +724,15 @@ public class TransferableElementServiceTest {
                 .chain(testChain)
                 .build();
     }
+
+    private ContainerChainElement createGroupContainerElement(String id) {
+        return ContainerChainElement.builder()
+                .id(id)
+                .type(CamelNames.CONTAINER)
+                .name("UI Container")
+                .chain(testChain)
+                .elements(new ArrayList<>())
+                .build();
+    }
+
 }
