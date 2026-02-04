@@ -480,9 +480,6 @@ const Chains = () => {
       chainsInFolders
         .flatMap((chains) => chains)
         .forEach((chain) => ids.add(chain.id));
-      if (ids.size === 0) {
-        return;
-      }
       const chainsFile =
         ids.size === 0
           ? await api.exportAllChains()
