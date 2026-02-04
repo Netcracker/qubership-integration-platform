@@ -1,6 +1,6 @@
 {
   "name": "@netcracker/qip-ui",
-  "version": "0.0.35",
+  "version": "0.0.36",
   "license": "Apache-2.0",
   "description": "Qubership Integration Platform - UI",
   "module": "./dist-lib/index.es.js",
