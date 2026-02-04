@@ -432,10 +432,6 @@ pre[class*="language-"] .token.punctuation {
 /* Modal theming */
 .ant-modal,
 .ant-modal-content {
-  background-color: var(
-    --vscode-modal-background,
-    var(--vscode-panel-background)
-  ) !important;
   color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
 }
 

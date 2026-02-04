@@ -296,19 +296,15 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     },
     keySerializer: {
       "ui:fieldReplacesAnyOrOneOf": true,
-      "ui:field": "anyOfAsSingleSelectField",
     },
     valueSerializer: {
       "ui:fieldReplacesAnyOrOneOf": true,
-      "ui:field": "anyOfAsSingleSelectField",
     },
     keyDeserializer: {
       "ui:fieldReplacesAnyOrOneOf": true,
-      "ui:field": "anyOfAsSingleSelectField",
     },
     valueDeserializer: {
       "ui:fieldReplacesAnyOrOneOf": true,
-      "ui:field": "anyOfAsSingleSelectField",
     },
     retryCount: {
       "ui:fieldReplacesAnyOrOneOf": true,

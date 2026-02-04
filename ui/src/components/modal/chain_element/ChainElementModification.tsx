@@ -513,11 +513,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     (
       tabFields: TabField[],
       tab: string,
-      schema: JSONSchema7,
       initialUiSchema: UiSchema,
     ): UiSchema => {
-      const hiddenUiSchema: UiSchema = {};
-
+      // Helper to set value at path in UI Schema
       function setPath(obj: UiSchema, path: string[], value: object) {
         let curr = obj;
         for (let i = 0; i < path.length - 1; i++) {
@@ -527,62 +525,27 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         curr[path[path.length - 1]] = value;
       }
 
-      const visiblePaths = tabFields
-        .filter((f) => f.tab === tab)
-        .map((f) => f.path.map((p) => ["properties", p]).flat());
+      const visiblePathsSet = new Set(
+        tabFields.filter((f) => f.tab === tab).map((f) => f.path.join(".")),
+      );
 
-      function buildHiddenUiSchema(schema: JSONSchema7, path: string[] = []) {
-        const combinators = ["allOf", "anyOf", "oneOf"] as const;
-        for (const keyword of combinators) {
-          if (Array.isArray(schema[keyword])) {
-            for (const subSchema of schema[keyword]) {
-              if (typeof subSchema === "object" && subSchema !== null) {
-                buildHiddenUiSchema(subSchema, path);
-              }
-            }
-          }
-        }
+      const allPaths = tabFields.map((f) => f.path);
 
-        if (schema.if) {
-          if (schema.then) {
-            buildHiddenUiSchema(schema.then as JSONSchema7, path);
-          }
-          if (schema.else) {
-            buildHiddenUiSchema(schema.else as JSONSchema7, path);
-          }
-        }
+      const finalUiSchema: UiSchema = structuredClone(initialUiSchema || {});
 
-        if (schema && schema.properties) {
-          for (const key of Object.keys(schema.properties)) {
-            const currentPath = [...path, key];
-            const fullPath = currentPath.map((p) => ["properties", p]).flat();
+      for (const path of allPaths) {
+        const pathKey = path.join(".");
+        // Don't hide the "properties" object itself, only its children
+        if (pathKey === "properties") continue;
 
-            const isVisible = visiblePaths.some(
-              (v) => v.join(".") === fullPath.join("."),
-            );
-
-            const subSchema = schema.properties[key];
-            const isObjectSchema =
-              typeof subSchema === "object" &&
-              "type" in subSchema &&
-              subSchema.type === "object";
-
-            if ((isObjectSchema && isVisible) || key === "properties") {
-              buildHiddenUiSchema(subSchema as JSONSchema7, currentPath);
-            } else if (!isVisible) {
-              setPath(hiddenUiSchema, currentPath, { "ui:widget": "hidden" });
-            }
-          }
+        if (!visiblePathsSet.has(pathKey)) {
+          setPath(finalUiSchema, path, { "ui:widget": "hidden" });
         }
       }
 
-      buildHiddenUiSchema(schema);
-
-      const finalUiSchema: UiSchema = structuredClone(initialUiSchema || {});
-      applyHiddenUiSchema(finalUiSchema, hiddenUiSchema);
       return finalUiSchema;
     },
-    [applyHiddenUiSchema],
+    [],
   );
 
   const widgets: RegistryWidgetsType = {
@@ -636,7 +599,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     if (!schema) return undefined;
 
     const baseUi: UiSchema = uiSchemaForTab(INITIAL_UI_SCHEMA, activeKey);
-    return buildUiSchemaForTab(tabFields, activeKey ?? "", schema, baseUi);
+    return buildUiSchemaForTab(tabFields, activeKey ?? "", baseUi);
   }, [tabFields, activeKey, schema, uiSchemaForTab, buildUiSchemaForTab]);
 
   const handleTabChange = (newTab: string) => {
