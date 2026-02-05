@@ -7,4 +7,59 @@
 
 .menu {
   flex: 1;
+  background: transparent !important;
+}
+
+.menu :global(.ant-menu-item) {
+  position: relative !important;
+  color: white !important;
+  background: transparent !important;
+}
+
+.menu :global(.ant-menu-item a),
+.menu :global(.ant-menu-item .anticon),
+.menu :global(.ant-menu-item .anticon svg) {
+  color: white !important;
+  fill: white !important;
+}
+
+.menu :global(.ant-menu-item:hover),
+.menu :global(.ant-menu-item-selected),
+.menu :global(.ant-menu-item-active) {
+  background: transparent !important;
+}
+
+.menu :global(.ant-menu-item::after) {
+  content: "" !important;
+  position: absolute !important;
+  bottom: 12px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 0 !important;
+  height: 2px !important;
+  background: transparent !important;
+  transition:
+    width 0.2s ease,
+    background 0.2s ease !important;
+  display: block !important;
+  border: none !important;
+}
+
+.menu :global(.ant-menu-item:hover:not(.ant-menu-item-selected)::after) {
+  width: 80% !important;
+  background: #4fc0f8 !important;
+}
+
+.menu :global(.ant-menu-item-selected::after) {
+  width: 80% !important;
+  background: rgb(255 176 46) !important;
+}
+
+.navigation :global(.ant-btn) {
+  color: white !important;
+}
+
+.navigation :global(.ant-btn:hover) {
+  color: white !important;
+  background: rgb(255 255 255 / 10%) !important;
 }
