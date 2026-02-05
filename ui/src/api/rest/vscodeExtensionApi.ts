@@ -56,6 +56,7 @@ import {
   BulkDeploymentResult,
   ImportVariablesResult,
   VariableImportPreview,
+  UsedProperty,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
@@ -695,8 +696,20 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method loadCatalogActionsLog not implemented.");
   }
 
+  loadVariablesManagementActionsLog(): Promise<ActionLogResponse> {
+    throw new Error(
+      "Method loadVariablesManagementActionsLog not implemented.",
+    );
+  }
+
   exportCatalogActionsLog(): Promise<Blob> {
     throw new Error("Method exportCatalogActionsLog not implemented.");
+  }
+
+  exportVariablesManagementActionsLog(): Promise<Blob> {
+    throw new Error(
+      "Method exportVariablesManagementActionsLog not implemented.",
+    );
   }
 
   getChains(): Promise<Chain[]> {
@@ -1018,6 +1031,10 @@ export class VSCodeExtensionApi implements Api {
   }
   downloadHelmChart(_secretName: string): Promise<File> {
     throw new RestApiError("Not implemented", 501);
+  }
+
+  getUsedProperties(chainId: string): Promise<UsedProperty[]> {
+    throw new Error("Method loadHttpTriggerAccessControl not implemented.");
   }
 }
 

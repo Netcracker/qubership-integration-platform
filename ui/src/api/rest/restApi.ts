@@ -74,6 +74,7 @@ import {
   BulkDeploymentResult,
   ImportVariablesResult,
   VariableImportPreview,
+  UsedProperty,
   AccessControlSearchRequest,
   AccessControlResponse,
   AccessControlUpdateRequest,
@@ -773,10 +774,7 @@ export class RestApi implements Api {
   };
 
   deleteSnapshots = async (snapshotIds: string[]): Promise<void> => {
-    await this.instance.post(
-      `${this.v2()}/snapshots/bulk-delete`,
-      snapshotIds,
-    );
+    await this.instance.post(`${this.v2()}/snapshots/bulk-delete`, snapshotIds);
   };
 
   revertToSnapshot = async (
@@ -1079,10 +1077,7 @@ export class RestApi implements Api {
   };
 
   deleteFolders = async (folderIds: string[]): Promise<void> => {
-    await this.instance.post(
-      `${this.v2()}/folders/bulk-delete`,
-      folderIds,
-    );
+    await this.instance.post(`${this.v2()}/folders/bulk-delete`, folderIds);
   };
 
   listFolder = async (
@@ -1882,6 +1877,16 @@ export class RestApi implements Api {
       `${this.v1()}/catalog/chains/deployments/bulk`,
       request,
     );
+    return response.data;
+  };
+
+  getUsedProperties = async (
+      chainId: string,
+  ): Promise<UsedProperty[]> => {
+    const response = await this.instance.get<UsedProperty[]>(
+        `${this.v1()}/catalog/chains/${chainId}/elements/properties/used`
+    );
+
     return response.data;
   };
 

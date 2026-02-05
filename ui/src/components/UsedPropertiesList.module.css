@@ -1,0 +1,140 @@
+.usedPropertiesTree {
+  padding: 8px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.propertyItem {
+  margin-bottom: 2px;
+}
+
+.menuItemContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.menuItemContainer:hover {
+  background-color: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
+}
+
+.propertyRow {
+  font-weight: 500;
+}
+
+.leftContent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rightContent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.propertySource {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  background-color: var(--vscode-badge-background, #e5e5e5);
+  color: var(--vscode-badge-foreground, #4a4a4a);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.propertyName {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.propertyType {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, rgb(0 0 0 / 45%));
+  font-style: italic;
+}
+
+.propertyChildrenCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background-color: var(--vscode-badge-background, #e5e5e5);
+  color: var(--vscode-badge-foreground, #4a4a4a);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.expandIcon {
+  font-size: 10px;
+  color: #4a4a4a !important;
+  width: 16px;
+  text-align: center;
+}
+
+.elementsContainer {
+  margin-left: 28px;
+  border-left: 1px solid var(--vscode-border, rgb(0 0 0 / 15%));
+  padding-left: 8px;
+}
+
+.elementRow {
+  font-size: 13px;
+  padding: 4px 12px;
+}
+
+.elementInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.elementName {
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.elementType {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, rgb(0 0 0 / 45%));
+}
+
+.operationChip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.operationGreen {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.operationBlue {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}

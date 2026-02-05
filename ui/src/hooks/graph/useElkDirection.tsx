@@ -4,10 +4,15 @@ export type ElkDirection = "RIGHT" | "DOWN";
 
 export const useElkDirection = () => {
   const [direction, setDirection] = useState<ElkDirection>("RIGHT");
+  const [rightPanel, setRightPanel] = useState<boolean>(false);
 
   const toggleDirection = useCallback(() => {
     setDirection((d) => (d === "RIGHT" ? "DOWN" : "RIGHT"));
   }, []);
 
-  return { direction, toggleDirection };
+  const toggleRightPanel = useCallback(() => {
+    setRightPanel((prev) => !prev);
+  }, []);
+
+  return { direction, toggleDirection, rightPanel, toggleRightPanel };
 };

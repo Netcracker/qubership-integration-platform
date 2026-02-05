@@ -63,6 +63,7 @@ import type {
   LiveExchange,
   ContextSystem,
   IntegrationSystemType,
+  UsedProperty,
   DiagnosticValidation,
   BulkDeploymentRequest,
   BulkDeploymentResult,
@@ -506,16 +507,17 @@ export interface Api {
   createSecret(secretName: string): Promise<ApiResponse<boolean>>;
   downloadHelmChart(secretName: string): Promise<File>;
 
+  getUsedProperties(chainId: string): Promise<UsedProperty[]>;
   loadHttpTriggerAccessControl(
-    searchRequest: AccessControlSearchRequest,
+      searchRequest: AccessControlSearchRequest,
   ): Promise<AccessControlResponse>;
 
   updateHttpTriggerAccessControl(
-    searchRequest: AccessControlUpdateRequest[],
+      searchRequest: AccessControlUpdateRequest[],
   ): Promise<AccessControlResponse>;
 
   bulkDeployChainsAccessControl(
-    searchRequest: AccessControlBulkDeployRequest[],
+      searchRequest: AccessControlBulkDeployRequest[],
   ): Promise<AccessControlResponse>;
 }
 

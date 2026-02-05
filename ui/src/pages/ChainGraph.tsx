@@ -37,6 +37,8 @@ import {
 
 import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
 import { ElkDirectionContextProvider } from "./ElkDirectionContext.tsx";
+import { useElkDirection } from "../hooks/graph/useElkDirection.tsx";
+import { PageWithRightPanel } from "./PageWithRightPanel.tsx";
 import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
 import { CreateDeploymentRequest, Element } from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
@@ -128,6 +130,8 @@ const ChainGraphInner: React.FC = () => {
     onContextMenuCall,
     isLoading,
   } = useChainGraph(chainId, refreshChain);
+
+  const { rightPanel, toggleRightPanel } = useElkDirection();
 
   const handleElementUpdated = useCallback(
     (element: Element, node: ChainGraphNode) => {
@@ -462,7 +466,12 @@ const ChainGraphInner: React.FC = () => {
       <ElementsLibrarySidebar />
       <div className="react-flow-container" ref={reactFlowWrapper}>
         <ElkDirectionContextProvider
-          elkDirectionControl={{ direction, toggleDirection }}
+          elkDirectionControl={{
+            direction,
+            toggleDirection,
+            rightPanel,
+            toggleRightPanel,
+          }}
         >
           <ReactFlow
             nodes={nodes}
@@ -503,6 +512,7 @@ const ChainGraphInner: React.FC = () => {
           </ReactFlow>
         </ElkDirectionContextProvider>
       </div>
+      {rightPanel && <PageWithRightPanel />}
       <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
         <FloatButton
           icon={<>⭾</>}

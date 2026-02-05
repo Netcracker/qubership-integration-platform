@@ -7,7 +7,7 @@ import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 export const CustomControls = () => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
-  const { toggleDirection } = useElkDirectionContext();
+  const { toggleDirection, toggleRightPanel } = useElkDirectionContext();
 
   return (
     <div className={styles.container}>
@@ -40,6 +40,13 @@ export const CustomControls = () => {
         title="Change Layout Direction"
         onClick={toggleDirection}
         icon={<OverridableIcon name="rotateRight" />}
+      />
+      <Button
+        className={styles.button}
+        type={"text"}
+        title="Right panel"
+        onClick={toggleRightPanel}
+        icon={<OverridableIcon name="rightPanel" />}
       />
     </div>
   );
