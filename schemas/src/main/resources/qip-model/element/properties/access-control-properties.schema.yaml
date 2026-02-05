@@ -41,9 +41,11 @@ allOf:
             resourceType:
               title: Resource Type
               type: string
+              default: CHAIN
             operation:
               title: Operation
               type: string
+              default: ALL
             resourceDataType:
               title: Resource Data Type
               type: string

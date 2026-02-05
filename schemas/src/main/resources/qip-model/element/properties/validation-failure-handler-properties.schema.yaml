@@ -45,4 +45,4 @@ properties:
       - const: mapper-2
         title: Mapper
     default: default
-    title: Action on validation failure
+    title: Action

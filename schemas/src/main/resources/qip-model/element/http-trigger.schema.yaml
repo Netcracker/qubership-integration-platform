@@ -87,19 +87,19 @@ properties:
         description: If no content types defined - validation disabled.
       validationSchema:
         type: string
-        title: Json Request Schema
+        title: Scheme
         description: Schema for input message validation.
       httpBinding:
         type: string
         default: handlingHttpBinding
 definitions:
   CustomEndpoint:
-    title: Custom Endpoint
+    title: Custom
     type: object
     properties:
       contextPath:
         type: string
-        title: Path
+        title: URI
       httpMethodRestrict:
         type: string
         title: HTTP Methods
@@ -107,7 +107,7 @@ definitions:
     required:
       - contextPath
   ImplementedServiceEndpoint:
-    title: Implemented Service Endpoint
+    title: Implemented Service
     type: object
     properties:
       integrationOperationId:
