@@ -579,7 +579,11 @@ export const pathToTabMap: Record<string, string> = {
   "properties.idempotency.chainTriggerParameters.chainCallTimeout":
     "Idempotency",
   "properties.before": "Prepare Request",
+  "properties.before.script": "Prepare Request",
+  "properties.before.mappingDescription": "Prepare Request",
   "properties.after": "Handle Response",
+  "properties.after.items.script": "Handle Response",
+  "properties.after.items.mappingDescription": "Handle Response",
   "properties.afterValidation": "Validations",
   "properties.requestFilterHeaderAllowlist": "Filter Request",
   "properties.logLevel": "Logging",
