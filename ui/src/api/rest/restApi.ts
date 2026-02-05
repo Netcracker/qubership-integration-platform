@@ -144,7 +144,7 @@ export class RestApi implements Api {
   }
 
   private v1 = (): string => `/api/v1/${getAppName()}`;
-  private v2 = (): string => `/api/v2/${getAppName()}`;
+  private v2 = (): string => `/api/${getAppName()}/v2`;
   private v3 = (): string => `/api/${getAppName()}/v3`;
 
   private toApiError = (
@@ -372,7 +372,7 @@ export class RestApi implements Api {
         ),
       };
     }
-    const path = `${this.v2()}/variables-management/common-variables/import`;
+    const path = `${this.v2()}/common-variables/import`;
     return this.wrapApiResponse(serviceName, "Failed to import", async () => {
       const response = await this.instance.post<ImportVariablesResult>(
         path,
@@ -387,14 +387,13 @@ export class RestApi implements Api {
     ApiResponse<SecretWithVariables[]>
   > => {
     const serviceName = "Secured Variables API";
-    const prefix = `${this.v2()}/variables-management`;
 
     return this.wrapApiResponse(
       serviceName,
       "Failed to fetch secured variables",
       async () => {
         const response = await this.instance.get<SecretResponse[]>(
-          `${prefix}/secured-variables`,
+          `${this.v2()}/secured-variables`,
         );
         return response.data.map(
           ({ secretName, variablesNames, defaultSecret }) => ({
@@ -414,14 +413,13 @@ export class RestApi implements Api {
     secretName: string,
   ): Promise<ApiResponse<Variable[]>> => {
     const serviceName = "Secured Variables API";
-    const prefix = `${this.v2()}/variables-management`;
 
     return this.wrapApiResponse(
       serviceName,
       "Failed to fetch variables for secret",
       async () => {
         const response = await this.instance.get<string[]>(
-          `${prefix}/secured-variables/${secretName}`,
+          `${this.v2()}/secured-variables/${secretName}`,
         );
         return response.data.map((key: string) => ({ key, value: "******" }));
       },
@@ -446,12 +444,11 @@ export class RestApi implements Api {
         };
       }
     }
-    const prefix = `${this.v2()}/variables-management`;
     return this.wrapApiResponse(
       serviceName,
       "Failed to create secured variables",
       async () => {
-        await this.instance.post(`${prefix}/secured-variables`, {
+        await this.instance.post(`${this.v2()}/secured-variables`, {
           secretName,
           variables: Object.fromEntries(variables.map((v) => [v.key, v.value])),
         });
@@ -465,12 +462,11 @@ export class RestApi implements Api {
     variables: Variable[],
   ): Promise<ApiResponse<Variable[]>> => {
     const serviceName = "Secured Variables API";
-    const prefix = `${this.v2()}/variables-management`;
     return this.wrapApiResponse(
       serviceName,
       "Failed to update secured variables",
       async () => {
-        await this.instance.patch(`${prefix}/secured-variables`, {
+        await this.instance.patch(`${this.v2()}/secured-variables`, {
           secretName,
           variables: Object.fromEntries(variables.map((v) => [v.key, v.value])),
         });
@@ -484,7 +480,6 @@ export class RestApi implements Api {
     keys: string[],
   ): Promise<ApiResponse<boolean>> => {
     const serviceName = "Secured Variables API";
-    const prefix = `${this.v2()}/variables-management`;
     return this.wrapApiResponse(
       serviceName,
       "Failed to delete secured variables",
@@ -492,7 +487,7 @@ export class RestApi implements Api {
         const params = new URLSearchParams();
         keys.forEach((key) => params.append("variablesNames", key));
         await this.instance.delete(
-          `${prefix}/secured-variables/${secretName}?${params}`,
+          `${this.v2()}/secured-variables/${secretName}?${params}`,
         );
         return true;
       },
@@ -501,21 +496,19 @@ export class RestApi implements Api {
 
   createSecret = async (secretName: string): Promise<ApiResponse<boolean>> => {
     const serviceName = "Secured Variables API";
-    const prefix = `${this.v2()}/variables-management`;
     return this.wrapApiResponse(
       serviceName,
       "Failed to create secret",
       async () => {
-        await this.instance.post(`${prefix}/secret/${secretName}`);
+        await this.instance.post(`${this.v2()}/secret/${secretName}`);
         return true;
       },
     );
   };
 
   downloadHelmChart = async (secretName: string): Promise<File> => {
-    const prefix = `${this.v2()}/variables-management`;
     const response = await this.instance.get<Blob>(
-      `${prefix}/secret/template/${secretName}`,
+      `${this.v2()}/secret/template/${secretName}`,
       { responseType: "blob" },
     );
     return getFileFromResponse(response);
@@ -777,7 +770,7 @@ export class RestApi implements Api {
 
   deleteSnapshots = async (snapshotIds: string[]): Promise<void> => {
     await this.instance.post(
-      `${this.v2()}/catalog/snapshots/bulk-delete`,
+      `${this.v2()}/snapshots/bulk-delete`,
       snapshotIds,
     );
   };
@@ -1023,7 +1016,7 @@ export class RestApi implements Api {
 
   getFolder = async (folderId: string): Promise<FolderItem> => {
     const response = await this.instance.get<FolderItem>(
-      `${this.v2()}/catalog/folders/${folderId}`,
+      `${this.v2()}/folders/${folderId}`,
     );
     return response.data;
   };
@@ -1046,21 +1039,21 @@ export class RestApi implements Api {
 
   getPathToFolder = async (folderId: string): Promise<FolderItem[]> => {
     const response = await this.instance.get<FolderItem[]>(
-      `${this.v2()}/catalog/folders/${folderId}/path`,
+      `${this.v2()}/folders/${folderId}/path`,
     );
     return response.data;
   };
 
   getPathToFolderByName = async (folderName: string): Promise<FolderItem[]> => {
     const response = await this.instance.get<FolderItem[]>(
-      `${this.v2()}/catalog/folders/path?name=${folderName}`,
+      `${this.v2()}/folders/path?name=${folderName}`,
     );
     return response.data;
   };
 
   createFolder = async (request: CreateFolderRequest): Promise<FolderItem> => {
     const response = await this.instance.post<FolderItem>(
-      `${this.v2()}/catalog/folders`,
+      `${this.v2()}/folders`,
       request,
     );
     return response.data;
@@ -1071,19 +1064,19 @@ export class RestApi implements Api {
     changes: UpdateFolderRequest,
   ): Promise<FolderItem> => {
     const response = await this.instance.put<FolderItem>(
-      `${this.v2()}/catalog/folders/${folderId}`,
+      `${this.v2()}/folders/${folderId}`,
       changes,
     );
     return response.data;
   };
 
   deleteFolder = async (folderId: string): Promise<void> => {
-    await this.instance.delete(`${this.v2()}/catalog/folders/${folderId}`);
+    await this.instance.delete(`${this.v2()}/folders/${folderId}`);
   };
 
   deleteFolders = async (folderIds: string[]): Promise<void> => {
     await this.instance.post(
-      `${this.v2()}/catalog/folders/bulk-delete`,
+      `${this.v2()}/folders/bulk-delete`,
       folderIds,
     );
   };
@@ -1092,7 +1085,7 @@ export class RestApi implements Api {
     request: ListFolderRequest,
   ): Promise<(FolderItem | ChainItem)[]> => {
     const response = await this.instance.post<(FolderItem | ChainItem)[]>(
-      `${this.v2()}/catalog/folders/list`,
+      `${this.v2()}/folders/list`,
       request,
     );
     return response.data;
@@ -1107,7 +1100,7 @@ export class RestApi implements Api {
       targetId: targetFolderId,
     };
     const response = await this.instance.post<FolderItem>(
-      `${this.v2()}/catalog/folders/move`,
+      `${this.v2()}/folders/move`,
       request,
     );
     return response.data;
