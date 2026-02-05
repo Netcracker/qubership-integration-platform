@@ -45,8 +45,7 @@ public class CamelQuartzComponentCustomizerProducer {
     public ComponentCustomizer quartzComponentCustomizer() {
         return ComponentCustomizer.builder(QuartzComponent.class)
             .build((component) -> {
-                component.setSchedulerFactory(quartzSchedulerService.getFactory());
-                component.setScheduler(quartzSchedulerService.getFactory().getScheduler());
+                component.setScheduler(quartzSchedulerService.getSchedulerProxy());
                 component.setPrefixInstanceName(false);
                 component.setEnableJmx(false);
                 // TODO [migration to quarkus] check thread pool configuration is set properly

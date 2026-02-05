@@ -18,10 +18,9 @@ package org.qubership.integration.platform.engine.camel.scheduler;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.quartz.JobDetail;
+import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.Trigger;
-import org.quartz.core.QuartzScheduler;
-import org.quartz.impl.StdScheduler;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -30,15 +29,15 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-public class StdSchedulerProxy extends StdScheduler {
+public class SchedulerProxy extends DelegatingScheduler {
     private final Object lock = new Object();
 
     private final ConcurrentMap<Thread, List<Pair<JobDetail, Trigger>>> delayedScheduledJobsMap = new ConcurrentHashMap<>();
 
     private boolean isSuspended = false;
 
-    public StdSchedulerProxy(QuartzScheduler sched) {
-        super(sched);
+    public SchedulerProxy(Scheduler scheduler) {
+        super(scheduler);
     }
 
 
@@ -78,7 +77,7 @@ public class StdSchedulerProxy extends StdScheduler {
         clearDelayedJobs();
     }
 
-    public void suspendScheduler() {
+    public void suspendScheduler() throws SchedulerException {
         synchronized (lock) {
             if (!isSuspended) {
                 isSuspended = true;

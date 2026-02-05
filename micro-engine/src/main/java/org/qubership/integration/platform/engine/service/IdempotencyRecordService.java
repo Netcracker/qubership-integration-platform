@@ -44,7 +44,10 @@ public class IdempotencyRecordService {
         return idempotencyRecordRepository.deleteByKeyAndNotExpired(key) > 0;
     }
 
-    @Scheduled(cron = "${qip.idempotency.expired-records-cleanup-cron:0 */5 * ? * *}")
+    @Scheduled(
+            cron = "${qip.idempotency.expired-records-cleanup-cron:0 */5 * ? * *}",
+            executeWith = Scheduled.SIMPLE
+    )
     @Transactional
     public void deleteExpired() {
         log.debug("Deleting expired idempotency records.");

@@ -40,7 +40,10 @@ public class ConsulSessionService {
         return sessionId;
     }
 
-    @Scheduled(every = SESSION_RENEW_INTERVAL)
+    @Scheduled(
+            every = SESSION_RENEW_INTERVAL,
+            executeWith = Scheduled.SIMPLE
+    )
     public void createOrRenewSession() {
         doCreateOrRenewSession();
     }
@@ -63,7 +66,7 @@ public class ConsulSessionService {
             }
         } catch (Exception e) {
             log.error("Failed to create/renew consul session", e);
-            previousSessionId = sessionId;
+            previousSessionId = sessionNotFoundError(e) ? null : sessionId;
             sessionId = null;
         }
     }
@@ -104,5 +107,9 @@ public class ConsulSessionService {
             log.error("Failed to delete session from consul: {}", failure.getMessage());
             return failure;
         }).await().indefinitely();
+    }
+
+    private boolean sessionNotFoundError(Exception e) {
+        return e.getMessage().matches("Session id .* not found");
     }
 }

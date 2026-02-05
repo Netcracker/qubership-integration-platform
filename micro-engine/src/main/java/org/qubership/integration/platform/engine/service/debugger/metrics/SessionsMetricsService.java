@@ -69,7 +69,11 @@ public class SessionsMetricsService {
     }
 
 
-    @Scheduled(every = SCHEDULER_INTERVAL, concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(
+            every = SCHEDULER_INTERVAL,
+            concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
+            executeWith = Scheduled.SIMPLE
+    )
     public void processSessionsSizeMetrics() {
 
         ScriptedMetricAggregation sizeMetricAgg = AggregationBuilders.scriptedMetric()
@@ -140,7 +144,11 @@ public class SessionsMetricsService {
         }
     }
 
-    @Scheduled(every = SCHEDULER_INTERVAL, concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(
+            every = SCHEDULER_INTERVAL,
+            concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
+            executeWith = Scheduled.SIMPLE
+    )
     public void processCheckpointSizeMetrics() {
         try {
             List<ChainDataAllocationSize> chainCheckpointSizes = checkpointRepository.findAllChainCheckpointSize();
