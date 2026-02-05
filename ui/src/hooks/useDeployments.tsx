@@ -37,7 +37,10 @@ export const StatusNotificationMap: Record<
   },
 };
 
-export const useDeployments = (chainId?: string) => {
+export const useDeployments = (
+  chainId?: string,
+  isNotificationEnabled: boolean = true,
+) => {
   const { subscribe } = useEventContext();
   const notificationService = useNotificationService();
   const [deployments, setDeployments] = useState<Deployment[]>([]);
@@ -64,6 +67,9 @@ export const useDeployments = (chainId?: string) => {
 
   const showEventNotification = useCallback(
     (data: DeploymentUpdate) => {
+      if (!isNotificationEnabled) {
+        return;
+      }
       const chainName = data.chainName;
       const status: DeploymentStatus = data.state.status;
       const notificationData = StatusNotificationMap[status];
@@ -78,7 +84,7 @@ export const useDeployments = (chainId?: string) => {
       }
       notificationService.info(chainName, notificationData.message);
     },
-    [notificationService],
+    [notificationService, isNotificationEnabled],
   );
 
   useEffect(() => {

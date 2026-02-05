@@ -1,6 +1,7 @@
 import {
   ActionDifference,
   ActionLogResponse,
+  AccessControlResponse,
   BaseEntity,
   Chain,
   ChainDeployment,
@@ -948,6 +949,18 @@ export class VSCodeExtensionApi implements Api {
   bulkDeploy(): Promise<BulkDeploymentResult[]> {
     throw new Error("Method bulkDeploy not implemented.");
   }
+
+  loadHttpTriggerAccessControl = async (): Promise<AccessControlResponse> => {
+    throw new Error("Method loadHttpTriggerAccessControl not implemented.");
+  };
+
+  updateHttpTriggerAccessControl = async (): Promise<AccessControlResponse> => {
+    throw new Error("Method updateHttpTriggerAccessControl not implemented.");
+  };
+
+  bulkDeployChainsAccessControl = async (): Promise<AccessControlResponse> => {
+    throw new Error("Method bulkDeployChainsAccessControl not implemented.");
+  };
 
   getCommonVariables(): Promise<ApiResponse<Variable[]>> {
     throw new RestApiError("Not implemented", 501);

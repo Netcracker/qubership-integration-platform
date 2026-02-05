@@ -6,6 +6,7 @@ import { useDeployments } from "../../hooks/useDeployments.tsx";
 
 type DeploymentsCumulativeStateProps = {
   chainId: string;
+  isNotificationEnabled?: boolean;
 };
 
 function getDeploymentsStatus(deployments: Deployment[]): string {
@@ -47,11 +48,11 @@ function getDeploymentBadgeStatus(status: string): BadgeProps["status"] {
 
 export const DeploymentsCumulativeState: React.FC<
   DeploymentsCumulativeStateProps
-> = ({ chainId }) => {
+> = ({ chainId, isNotificationEnabled = true }) => {
   const [status, setStatus] = useState<string>("DRAFT");
   const [badgeStatus, setBadgeStatus] =
     useState<BadgeProps["status"]>("default");
-  const { isLoading, deployments } = useDeployments(chainId);
+  const { isLoading, deployments } = useDeployments(chainId, isNotificationEnabled);
 
   useEffect(() => {
     setStatus(getDeploymentsStatus(deployments));

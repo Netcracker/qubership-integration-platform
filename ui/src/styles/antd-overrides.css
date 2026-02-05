@@ -363,6 +363,14 @@ pre[class*="language-"] .token.punctuation {
   background-color: var(--vscode-list-hoverBackground) !important;
 }
 
+.ant-table-tbody > tr.highlight-row > td {
+  background-color: #fffef0 !important;
+}
+
+.ant-table-tbody > tr.highlight-row:hover > td {
+  background-color: #fffef0 !important;
+}
+
 .ant-table-cell {
   border-color: var(
     --vscode-editorGroup-border,

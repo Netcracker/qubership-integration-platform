@@ -30,6 +30,7 @@ import { CommonVariables } from "./components/admin_tools/variables/CommonVariab
 import { SecuredVariables } from "./components/admin_tools/variables/SecuredVariables.tsx";
 import { Domains } from "./components/admin_tools/domains/Domains.tsx";
 import { ActionsLog } from "./components/admin_tools/ActionsLog.tsx";
+import { AccessControl } from "./components/admin_tools/access-control/AccessControl.tsx"
 import { NotImplemented } from "./pages/NotImplemented.tsx";
 import { SessionsPage } from "./pages/SessionsPage.tsx";
 import Services from "./pages/Services.tsx";
@@ -76,6 +77,7 @@ const router = createBrowserRouter(
         <Route path="variables/secured" element={<SecuredVariables />} />
         <Route path="audit" element={<ActionsLog />} />
         <Route path="sessions" element={<SessionsPage />} />
+        <Route path="access-control" element={<AccessControl />} />
         <Route path="exchanges" element={<LiveExchanges />} />
       </Route>
       <Route index path="/" element={<Navigate to="/chains" />} />

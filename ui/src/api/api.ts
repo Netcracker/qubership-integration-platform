@@ -71,6 +71,10 @@ import type {
   VariableImportPreview,
   SecretWithVariables,
   Variable,
+  AccessControlSearchRequest,
+  AccessControlResponse,
+  AccessControlUpdateRequest,
+  AccessControlBulkDeployRequest,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -501,6 +505,18 @@ export interface Api {
   ): Promise<ApiResponse<boolean>>;
   createSecret(secretName: string): Promise<ApiResponse<boolean>>;
   downloadHelmChart(secretName: string): Promise<File>;
+
+  loadHttpTriggerAccessControl(
+    searchRequest: AccessControlSearchRequest,
+  ): Promise<AccessControlResponse>;
+
+  updateHttpTriggerAccessControl(
+    searchRequest: AccessControlUpdateRequest[],
+  ): Promise<AccessControlResponse>;
+
+  bulkDeployChainsAccessControl(
+    searchRequest: AccessControlBulkDeployRequest[],
+  ): Promise<AccessControlResponse>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

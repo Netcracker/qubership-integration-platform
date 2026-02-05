@@ -41,9 +41,9 @@ const menuItems = [
     label: "Sessions",
   },
   {
-    key: "/admintools/roles",
+    key: "/admintools/access-control",
     icon: <OverridableIcon name="settings" />,
-    label: "Roles",
+    label: "Access Control",
   },
   {
     key: "/admintools/design-templates",
