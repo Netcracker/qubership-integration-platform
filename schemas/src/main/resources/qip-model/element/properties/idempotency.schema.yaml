@@ -25,6 +25,8 @@ properties:
               const: true
             actionOnDuplicate:
               const: execute-subchain
+          required:
+            - actionOnDuplicate
         then:
           allOf:
             - $ref: "#/definitions/ExecuteSubchainProperties"
@@ -64,7 +66,6 @@ definitions:
     required:
       - contextExpression
       - keyExpression
-      - actionOnDuplicate
   ExecuteSubchainProperties:
     type: object
     properties:
