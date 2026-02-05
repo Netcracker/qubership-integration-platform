@@ -50,6 +50,10 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       /* kafka trigger - maas*/
       "maxPollRecords",
       "maxPollIntervalMs",
+      /* http trigger */
+      "accessControlType",
+      "roles",
+      "abacParameters",
       "*",
     ],
     contextPath: {
@@ -79,9 +83,6 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     httpBinding: {
       "ui:widget": "hidden",
     },
-    externalRoute: {
-      "ui:widget": "hidden",
-    },
     checkpointElementId: {
       "ui:widget": "hidden",
     },
@@ -100,6 +101,9 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       },
       mappingDescription: {
         "ui:field": "mappingField",
+      },
+      elementId: {
+        "ui:field": "chainTriggerElementIdField",
       },
     },
     exportFileExtension: {
@@ -359,6 +363,13 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:field": "singleSelectField",
     },
     abacParameters: {
+      "ui:order": [
+        "*",
+        "resourceType",
+        "operation",
+        "resourceDataType",
+        "resourceString",
+      ],
       resourceMap: {
         "ui:fieldReplacesAnyOrOneOf": true,
         "ui:field": "enhancedPatternPropertiesField",
@@ -553,14 +564,6 @@ export const pathToTabMap: Record<string, string> = {
   "properties.chainFailureHandlerContainer.mappingDescription":
     "Failure Response Mapping",
   "properties.validationSchema": "Validate Request",
-  "properties.roles": "Access Control",
-  "properties.accessControlType": "Access Control",
-  "properties.abacParameters": "Access Control",
-  "properties.abacParameters.resourceType": "Access Control",
-  "properties.abacParameters.operation": "Access Control",
-  "properties.abacParameters.resourceDataType": "Access Control",
-  "properties.abacParameters.resourceString": "Access Control",
-  "properties.abacParameters.resourceMap": "Access Control",
   "properties.allowedContentTypes": "Validate Request",
   "properties.rejectRequestIfNonNullBodyGetDelete": "Validate Request",
   "properties.authorizationConfiguration": "Authorization",
@@ -600,7 +603,6 @@ export const desiredTabOrder = [
   "Handle Validation Failure",
   "Handle Response",
   "Failure Response Mapping",
-  "Access Control",
   "Filter Request",
   "Logging",
   "Script",
