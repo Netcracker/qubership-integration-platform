@@ -57,6 +57,7 @@ import {
   ImportVariablesResult,
   VariableImportPreview,
   UsedProperty,
+  PaginationOptions,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
@@ -588,10 +589,16 @@ export class VSCodeExtensionApi implements Api {
     ).payload;
   };
 
-  getOperations = async (modelId: string): Promise<SystemOperation[]> => {
+  getOperations = async (
+    modelId: string,
+    paginationOptions: PaginationOptions = {},
+  ): Promise<SystemOperation[]> => {
     return <SystemOperation[]>(
-      (await this.sendMessageToExtension("getOperations", modelId)).payload
-    );
+      await this.sendMessageToExtension("getOperations", {
+        modelId,
+        paginationOptions,
+      })
+    ).payload;
   };
 
   getOperationInfo = async (operationId: string): Promise<OperationInfo> => {
@@ -953,12 +960,15 @@ export class VSCodeExtensionApi implements Api {
   getValidations(): Promise<DiagnosticValidation[]> {
     throw new Error("Method getValidations not implemented.");
   }
+
   getValidation(): Promise<DiagnosticValidation> {
     throw new Error("Method getValidation not implemented.");
   }
+
   runValidations(): Promise<void> {
     throw new Error("Method runValidations not implemented.");
   }
+
   bulkDeploy(): Promise<BulkDeploymentResult[]> {
     throw new Error("Method bulkDeploy not implemented.");
   }
@@ -978,62 +988,75 @@ export class VSCodeExtensionApi implements Api {
   getCommonVariables(): Promise<ApiResponse<Variable[]>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   createCommonVariable(_variable: Variable): Promise<ApiResponse<string[]>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   updateCommonVariable(_variable: Variable): Promise<ApiResponse<Variable>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   deleteCommonVariables(_keys: string[]): Promise<boolean> {
     throw new RestApiError("Not implemented", 501);
   }
+
   exportVariables(_keys: string[], _asArchive?: boolean): Promise<File> {
     throw new RestApiError("Not implemented", 501);
   }
+
   importVariablesPreview(
     _formData: FormData,
   ): Promise<ApiResponse<VariableImportPreview[]>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   importVariables(
     _formData: FormData,
   ): Promise<ApiResponse<ImportVariablesResult>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   getSecuredVariables(): Promise<ApiResponse<SecretWithVariables[]>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   getSecuredVariablesForSecret(
     _secretName: string,
   ): Promise<ApiResponse<Variable[]>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   createSecuredVariables(
     _secretName: string,
     _variables: Variable[],
   ): Promise<ApiResponse<Variable[]>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   updateSecuredVariables(
     _secretName: string,
     _variables: Variable[],
   ): Promise<ApiResponse<Variable[]>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   deleteSecuredVariables(
     _secretName: string,
     _keys: string[],
   ): Promise<ApiResponse<boolean>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   createSecret(_secretName: string): Promise<ApiResponse<boolean>> {
     throw new RestApiError("Not implemented", 501);
   }
+
   downloadHelmChart(_secretName: string): Promise<File> {
     throw new RestApiError("Not implemented", 501);
   }
 
-  getUsedProperties(chainId: string): Promise<UsedProperty[]> {
+  getUsedProperties(_chainId: string): Promise<UsedProperty[]> {
     throw new Error("Method loadHttpTriggerAccessControl not implemented.");
   }
 }

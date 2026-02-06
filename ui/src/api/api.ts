@@ -400,7 +400,10 @@ export interface Api {
     data: Partial<Specification>,
   ): Promise<Specification>;
 
-  getOperations(modelId: string): Promise<SystemOperation[]>;
+  getOperations(
+    modelId: string,
+    paginationOptions: PaginationOptions,
+  ): Promise<SystemOperation[]>;
 
   getOperationInfo(operationId: string): Promise<OperationInfo>;
 
@@ -477,47 +480,60 @@ export interface Api {
 
   // Admin Tools: Variables Management
   getCommonVariables(): Promise<ApiResponse<Variable[]>>;
+
   createCommonVariable(variable: Variable): Promise<ApiResponse<string[]>>;
+
   updateCommonVariable(variable: Variable): Promise<ApiResponse<Variable>>;
+
   deleteCommonVariables(keys: string[]): Promise<boolean>;
+
   exportVariables(keys: string[], asArchive?: boolean): Promise<File>;
+
   importVariablesPreview(
     formData: FormData,
   ): Promise<ApiResponse<VariableImportPreview[]>>;
+
   importVariables(
     formData: FormData,
   ): Promise<ApiResponse<ImportVariablesResult>>;
 
   getSecuredVariables(): Promise<ApiResponse<SecretWithVariables[]>>;
+
   getSecuredVariablesForSecret(
     secretName: string,
   ): Promise<ApiResponse<Variable[]>>;
+
   createSecuredVariables(
     secretName: string,
     variables: Variable[],
   ): Promise<ApiResponse<Variable[]>>;
+
   updateSecuredVariables(
     secretName: string,
     variables: Variable[],
   ): Promise<ApiResponse<Variable[]>>;
+
   deleteSecuredVariables(
     secretName: string,
     keys: string[],
   ): Promise<ApiResponse<boolean>>;
+
   createSecret(secretName: string): Promise<ApiResponse<boolean>>;
+
   downloadHelmChart(secretName: string): Promise<File>;
 
   getUsedProperties(chainId: string): Promise<UsedProperty[]>;
+
   loadHttpTriggerAccessControl(
-      searchRequest: AccessControlSearchRequest,
+    searchRequest: AccessControlSearchRequest,
   ): Promise<AccessControlResponse>;
 
   updateHttpTriggerAccessControl(
-      searchRequest: AccessControlUpdateRequest[],
+    searchRequest: AccessControlUpdateRequest[],
   ): Promise<AccessControlResponse>;
 
   bulkDeployChainsAccessControl(
-      searchRequest: AccessControlBulkDeployRequest[],
+    searchRequest: AccessControlBulkDeployRequest[],
   ): Promise<AccessControlResponse>;
 }
 

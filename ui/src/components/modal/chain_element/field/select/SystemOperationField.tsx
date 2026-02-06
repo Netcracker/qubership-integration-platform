@@ -1,10 +1,13 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Flex, SelectProps, Switch, Typography } from "antd";
 import { FormContext } from "../../ChainElementModification.tsx";
 import { api } from "../../../../../api/api.ts";
 import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
-import { SystemOperation } from "../../../../../api/apiTypes.ts";
+import {
+  PaginationOptions,
+  SystemOperation,
+} from "../../../../../api/apiTypes.ts";
 import { JSONSchema7 } from "json-schema";
 import { HttpMethod } from "../../../../services/HttpMethod.tsx";
 import { SelectTag } from "./SelectTag.tsx";
@@ -26,6 +29,10 @@ const SystemOperationField: React.FC<
   >(new Map());
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  const inFlightRef = useRef(false);
+  const offsetRef = useRef(0);
+  const allLoadedRef = useRef(false);
+
   const systemId = registry.formContext?.integrationSystemId as string;
   const specGroupId = registry.formContext
     ?.integrationSpecificationGroupId as string;
@@ -40,12 +47,49 @@ const SystemOperationField: React.FC<
   const synchronousGrpcCall = registry.formContext
     ?.synchronousGrpcCall as boolean;
 
+  const fetchOperations = useCallback(
+    async (nextOffset: number) => {
+      if (!specificationId) return;
+      if (inFlightRef.current) return;
+      if (allLoadedRef.current && nextOffset !== 0) return;
+
+      inFlightRef.current = true;
+      setIsLoading(true);
+
+      try {
+        const pagination: PaginationOptions = { offset: nextOffset };
+        const page = await api.getOperations(specificationId, pagination);
+
+        setOperations((prev) => [...(nextOffset ? prev : []), ...page]);
+
+        setOperationsMap((prev) => {
+          const m = new Map(nextOffset ? prev.entries() : []);
+          page.forEach((op) => m.set(op.id, op));
+          return m;
+        });
+
+        offsetRef.current = nextOffset + page.length;
+        allLoadedRef.current = page.length === 0;
+      } catch (error) {
+        setOperations([]);
+        setOperationsMap(new Map());
+        offsetRef.current = 0;
+        allLoadedRef.current = false;
+        notificationService.requestFailed("Failed to load operations", error);
+      } finally {
+        inFlightRef.current = false;
+        setIsLoading(false);
+      }
+    },
+    [specificationId, notificationService],
+  );
+
   useEffect(() => {
     const loadOperations = async () => {
       setIsLoading(true);
       try {
         if (specificationId) {
-          const operations = await api.getOperations(specificationId);
+          const operations = await api.getOperations(specificationId, {});
           setOperations(operations);
           setOperationsMap(
             new Map(operations.map((operation) => [operation.id, operation])),
@@ -61,6 +105,28 @@ const SystemOperationField: React.FC<
     };
     void loadOperations();
   }, [specificationId, notificationService]);
+
+  useEffect(() => {
+    setOperations([]);
+    setOperationsMap(new Map());
+    offsetRef.current = 0;
+    allLoadedRef.current = false;
+    inFlightRef.current = false;
+
+    if (specificationId) {
+      void fetchOperations(0);
+    }
+  }, [specificationId, fetchOperations]);
+
+  useEffect(() => {
+    if (!formData) return;
+    if (!specificationId) return;
+    if (operationsMap.has(formData)) return;
+    if (allLoadedRef.current) return;
+    if (inFlightRef.current) return;
+
+    void fetchOperations(offsetRef.current);
+  }, [formData, specificationId, operationsMap, fetchOperations]);
 
   useEffect(() => {
     const operationOptions: SelectProps["options"] =
@@ -183,6 +249,23 @@ const SystemOperationField: React.FC<
     [registry.formContext],
   );
 
+  const onPopupScroll: SelectProps<string>["onPopupScroll"] = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLDivElement;
+      const isScrolledToTheEnd =
+        target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
+
+      if (!isScrolledToTheEnd) return;
+      if (allLoadedRef.current) return;
+      if (inFlightRef.current) return;
+
+      void fetchOperations(offsetRef.current);
+    },
+    [fetchOperations],
+  );
+
+  const isInitialLoading = isLoading && operations.length === 0;
+
   return (
     <div>
       <SelectAndNavigateField
@@ -192,7 +275,9 @@ const SystemOperationField: React.FC<
         selectValue={formData}
         selectOptions={options}
         selectOnChange={handleChange}
-        selectDisabled={isLoading}
+        selectDisabled={isInitialLoading}
+        selectLoading={isLoading}
+        selectOnPopupScroll={onPopupScroll}
         selectOptionLabelProp="selectedLabel"
         buttonTitle="Go to operation"
         buttonDisabled={
