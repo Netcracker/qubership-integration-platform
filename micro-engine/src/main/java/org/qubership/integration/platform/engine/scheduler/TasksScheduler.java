@@ -120,7 +120,8 @@ public class TasksScheduler {
     @Scheduled(
             every = "${qip.deployments.retry-delay}",
             concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
-            skipExecutionIf = Scheduled.ApplicationNotRunning.class
+            skipExecutionIf = Scheduled.ApplicationNotRunning.class,
+            executeWith = Scheduled.SIMPLE
     )
     public void retryProcessingDeploys() {
         if (deploymentReadinessService.isInitialized()) {
@@ -153,7 +154,8 @@ public class TasksScheduler {
     @Scheduled(
             every = "PT2.5S",
             concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
-            skipExecutionIf = Scheduled.ApplicationNotRunning.class
+            skipExecutionIf = Scheduled.ApplicationNotRunning.class,
+            executeWith = Scheduled.SIMPLE
     )
     public void checkDeploymentUpdates() {
         if (!deploymentReadinessService.isReadyForDeploy()) {
@@ -185,7 +187,8 @@ public class TasksScheduler {
     @Scheduled(
             every = "PT2.5S",
             concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
-            skipExecutionIf = Scheduled.ApplicationNotRunning.class
+            skipExecutionIf = Scheduled.ApplicationNotRunning.class,
+            executeWith = Scheduled.SIMPLE
     )
     public void checkLibrariesUpdates() {
         InjectUtil.injectOptional(externalLibraryService).ifPresent(libraryService -> {
