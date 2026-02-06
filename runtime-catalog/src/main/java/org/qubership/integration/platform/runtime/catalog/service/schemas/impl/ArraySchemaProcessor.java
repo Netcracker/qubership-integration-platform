@@ -95,8 +95,11 @@ public class ArraySchemaProcessor extends DefaultSchemaProcessor implements Sche
 
             ObjectNode itemsNode = objectMapper.createObjectNode();
             itemsNode.set(TYPE_NODE_NAME, coreSchema.get(TYPE_NODE_NAME));
-            itemsNode.set(PROPERTIES_FIELD_NAME, coreSchema.get(PROPERTIES_FIELD_NAME));
-            itemsNode.set(REQUIRED, coreSchema.get(REQUIRED));
+            putIfNotNull(itemsNode, PROPERTIES_FIELD_NAME, coreSchema.get(PROPERTIES_FIELD_NAME));
+            putIfNotNull(itemsNode, REQUIRED, coreSchema.get(REQUIRED));
+            putIfNotNull(itemsNode, ALL_OF, coreSchema.get(ALL_OF));
+            putIfNotNull(itemsNode, ONE_OF, coreSchema.get(ONE_OF));
+            putIfNotNull(itemsNode, ANY_OF, coreSchema.get(ANY_OF));
             ObjectNode resultSchema = objectMapper.createObjectNode();
             resultSchema.set(SCHEMA_ID_NODE_NAME, coreSchema.get(SCHEMA_ID_NODE_NAME));
             resultSchema.set(SCHEMA_HEADER_NODE_NAME, coreSchema.get(SCHEMA_HEADER_NODE_NAME));
@@ -108,5 +111,11 @@ public class ArraySchemaProcessor extends DefaultSchemaProcessor implements Sche
             log.error("Error during converting content string schema to JSON", e);
         }
         return objectMapper.createObjectNode();
+    }
+
+    private void putIfNotNull(ObjectNode node, String key, JsonNode value) {
+        if (value != null) {
+            node.set(key, value);
+        }
     }
 }

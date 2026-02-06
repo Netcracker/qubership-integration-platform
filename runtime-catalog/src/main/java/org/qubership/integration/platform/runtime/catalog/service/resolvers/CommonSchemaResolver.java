@@ -48,8 +48,6 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     private static final String ARRAY_FIELD_TYPE = "array";
     private static final String EMPTY_REF = "#/";
     private static final String ADDITIONAL_PROPERTIES_FIELD_NAME = "additionalProperties";
-    private static final String ALL_OF_FIELD_NAME = "allOf";
-    private static final String ANY_OF_FIELD_NAME = "anyOf";
 
 
     @Override
@@ -108,6 +106,15 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
 
                     JsonNode additionalPropertiesNode = schemaNode.get(ADDITIONAL_PROPERTIES_FIELD_NAME);
                     getSchemaNodeProperties(componentsNode, result, additionalPropertiesNode, modelType, refList);
+
+                    JsonNode allOfProperties = schemaNode.get(ALL_OF);
+                    getSchemaNodeProperties(componentsNode, result, allOfProperties, modelType, refList);
+
+                    JsonNode anyOfProperties = schemaNode.get(ANY_OF);
+                    getSchemaNodeProperties(componentsNode, result, anyOfProperties, modelType, refList);
+
+                    JsonNode oneOfProperties = schemaNode.get(ONE_OF);
+                    getSchemaNodeProperties(componentsNode, result, oneOfProperties, modelType, refList);
 
                     break;
                 }
@@ -204,11 +211,14 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         if (property.has(PROPERTIES_FIELD_NAME)) {
             fieldName = PROPERTIES_FIELD_NAME;
         }
-        if (property.has(ALL_OF_FIELD_NAME)) {
-            fieldName = ALL_OF_FIELD_NAME;
+        if (property.has(ALL_OF)) {
+            fieldName = ALL_OF;
         }
-        if (property.has(ANY_OF_FIELD_NAME)) {
-            fieldName = ANY_OF_FIELD_NAME;
+        if (property.has(ANY_OF)) {
+            fieldName = ANY_OF;
+        }
+        if (property.has(ONE_OF)) {
+            fieldName = ONE_OF;
         }
         if (!fieldName.isEmpty()) {
             JsonNode nestedProperties = property.get(fieldName);
