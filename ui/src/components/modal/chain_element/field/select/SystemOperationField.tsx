@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Flex, SelectProps, Switch, Typography } from "antd";
 import { FormContext } from "../../ChainElementModification.tsx";
@@ -8,7 +8,7 @@ import {
   PaginationOptions,
   SystemOperation,
 } from "../../../../../api/apiTypes.ts";
-import { JSONSchema7 } from "json-schema";
+
 import { HttpMethod } from "../../../../services/HttpMethod.tsx";
 import { SelectTag } from "./SelectTag.tsx";
 import {
@@ -17,11 +17,14 @@ import {
 } from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { OperationPath } from "../../../../services/OperationPath.tsx";
+import { isVsCode } from "../../../../../api/rest/vscodeExtensionApi";
+import { JSONSchema7 } from "json-schema";
 
 const SystemOperationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
 > = ({ id, formData, schema, required, uiSchema, registry }) => {
   const notificationService = useNotificationService();
+
   const [operations, setOperations] = useState<SystemOperation[]>([]);
   const [options, setOptions] = useState<SelectProps["options"]>([]);
   const [operationsMap, setOperationsMap] = useState<
@@ -38,8 +41,10 @@ const SystemOperationField: React.FC<
     ?.integrationSpecificationGroupId as string;
   const specificationId: string = registry.formContext
     ?.integrationSpecificationId as string;
+
   const [operationId, setOperationId] = useState<string | undefined>(formData);
   const [navigationPath, setNavigationPath] = useState<string>("");
+
   const protocolType = normalizeProtocol(
     registry.formContext?.integrationOperationProtocolType as string,
   );
@@ -47,7 +52,30 @@ const SystemOperationField: React.FC<
   const synchronousGrpcCall = registry.formContext
     ?.synchronousGrpcCall as boolean;
 
-  const fetchOperations = useCallback(
+  const usePagination = !isVsCode;
+
+  const fetchOperations = useCallback(async () => {
+    if (!specificationId) return;
+
+    setIsLoading(true);
+    try {
+      const loaded = await api.getOperations(specificationId, {});
+      setOperations(loaded);
+      setOperationsMap(new Map(loaded.map((op) => [op.id, op])));
+      offsetRef.current = loaded.length;
+      allLoadedRef.current = true;
+    } catch (error) {
+      setOperations([]);
+      setOperationsMap(new Map());
+      offsetRef.current = 0;
+      allLoadedRef.current = false;
+      notificationService.requestFailed("Failed to load operations", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [specificationId, notificationService]);
+
+  const fetchOperationsPaginated = useCallback(
     async (nextOffset: number) => {
       if (!specificationId) return;
       if (inFlightRef.current) return;
@@ -85,48 +113,42 @@ const SystemOperationField: React.FC<
   );
 
   useEffect(() => {
-    const loadOperations = async () => {
-      setIsLoading(true);
-      try {
-        if (specificationId) {
-          const operations = await api.getOperations(specificationId, {});
-          setOperations(operations);
-          setOperationsMap(
-            new Map(operations.map((operation) => [operation.id, operation])),
-          );
-        }
-      } catch (error) {
-        setOperations([]);
-        setOperationsMap(new Map());
-        notificationService.requestFailed("Failed to load operations", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    void loadOperations();
-  }, [specificationId, notificationService]);
-
-  useEffect(() => {
     setOperations([]);
     setOperationsMap(new Map());
     offsetRef.current = 0;
     allLoadedRef.current = false;
     inFlightRef.current = false;
 
-    if (specificationId) {
-      void fetchOperations(0);
+    if (!specificationId) return;
+
+    if (usePagination) {
+      void fetchOperationsPaginated(0);
+    } else {
+      void fetchOperations();
     }
-  }, [specificationId, fetchOperations]);
+  }, [
+    specificationId,
+    usePagination,
+    fetchOperations,
+    fetchOperationsPaginated,
+  ]);
 
   useEffect(() => {
+    if (!usePagination) return;
     if (!formData) return;
     if (!specificationId) return;
     if (operationsMap.has(formData)) return;
     if (allLoadedRef.current) return;
     if (inFlightRef.current) return;
 
-    void fetchOperations(offsetRef.current);
-  }, [formData, specificationId, operationsMap, fetchOperations]);
+    void fetchOperationsPaginated(offsetRef.current);
+  }, [
+    usePagination,
+    formData,
+    specificationId,
+    operationsMap,
+    fetchOperationsPaginated,
+  ]);
 
   useEffect(() => {
     const operationOptions: SelectProps["options"] =
@@ -168,13 +190,15 @@ const SystemOperationField: React.FC<
   const handleChange = useCallback(
     (newValue: string) => {
       setOperationId(newValue);
-      const operation: SystemOperation = operationsMap.get(newValue)!;
+
+      const operation = operationsMap.get(newValue);
+      if (!operation) return;
+
       const systemId = registry.formContext?.integrationSystemId as string;
 
       const apply = async (proto: string) => {
         const protocolType = normalizeProtocol(proto) ?? "http";
 
-        // Initialize query parameters from specification (for HTTP/SOAP)
         const queryParams: Record<string, string> = {};
         if (isHttpProtocol(protocolType)) {
           try {
@@ -259,9 +283,9 @@ const SystemOperationField: React.FC<
       if (allLoadedRef.current) return;
       if (inFlightRef.current) return;
 
-      void fetchOperations(offsetRef.current);
+      void fetchOperationsPaginated(offsetRef.current);
     },
-    [fetchOperations],
+    [fetchOperationsPaginated],
   );
 
   const isInitialLoading = isLoading && operations.length === 0;
@@ -277,7 +301,7 @@ const SystemOperationField: React.FC<
         selectOnChange={handleChange}
         selectDisabled={isInitialLoading}
         selectLoading={isLoading}
-        selectOnPopupScroll={onPopupScroll}
+        selectOnPopupScroll={usePagination ? onPopupScroll : undefined}
         selectOptionLabelProp="selectedLabel"
         buttonTitle="Go to operation"
         buttonDisabled={

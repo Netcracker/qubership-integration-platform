@@ -591,14 +591,12 @@ export class VSCodeExtensionApi implements Api {
 
   getOperations = async (
     modelId: string,
-    paginationOptions: PaginationOptions = {},
+    _paginationOptions: PaginationOptions = {},
   ): Promise<SystemOperation[]> => {
+    console.log("ALSU VSCODE API");
     return <SystemOperation[]>(
-      await this.sendMessageToExtension("getOperations", {
-        modelId,
-        paginationOptions,
-      })
-    ).payload;
+      (await this.sendMessageToExtension("getOperations", modelId)).payload
+    );
   };
 
   getOperationInfo = async (operationId: string): Promise<OperationInfo> => {
