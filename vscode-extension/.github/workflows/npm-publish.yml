@@ -10,6 +10,8 @@ name: Publish NPM package
 run-name: NPM Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch')) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && inputs.version) && format(' {0}', inputs.version) || '' }}
 
 on:
+  pull_request:
+    types: [ opened, synchronize, reopened ]
   workflow_dispatch:
     inputs:
       version:
@@ -77,7 +79,6 @@ jobs:
         run: npm test -- --coverage
 
       - name: Sonar scan (SonarQube Cloud)
-        if: ${{ github.ref_name == github.event.repository.default_branch }}
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -129,12 +130,13 @@ jobs:
       scope: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || '@netcracker' }}
       node-version: ${{ github.event_name == 'workflow_dispatch' && inputs.node-version || '22.x' }}
       registry-url: ${{ github.event_name == 'workflow_dispatch' && inputs.registry-url || 'https://npm.pkg.github.com' }}
-      update-nc-dependency: ${{ github.event_name == 'workflow_dispatch' && inputs.update-nc-dependency || false }}
-      dist-tag: ${{(github.event_name == 'workflow_dispatch' && inputs.npm-dist-tag != '' && inputs.npm-dist-tag) || 'latest' }}
-      ref: ${{ github.ref_name }}
+      update-nc-dependency: ${{ github.event_name == 'workflow_dispatch' && inputs.update-nc-dependency }}
+      dist-tag: ${{ inputs.npm-dist-tag || 'latest' }}
+      ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
+      dry-run: ${{ github.event_name == 'pull_request' }}
 
   create-release:
-    if: ${{ github.event.inputs.create-github-release == 'true' }}
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.create-github-release == 'true'
     needs: npm-publish
     runs-on: ubuntu-latest
     permissions:

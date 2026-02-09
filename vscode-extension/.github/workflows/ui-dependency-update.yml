@@ -27,7 +27,7 @@ jobs:
         env:
           UI_VERSION: ${{ github.event.client_payload.version }}
         run: |
-          npm pkg set dependencies.@netcracker/qip-ui="$UI_VERSION"
+          npm install @netcracker/qip-ui="$UI_VERSION"
 
       - name: Commit Changes
         env:
@@ -36,7 +36,7 @@ jobs:
           git config --global user.name "qubership-actions[bot]"
           git config --global user.email "qubership-actions[bot]@users.noreply.github.com"
 
-          git add package.json
+          git add package.json package-lock.json
           git commit -m "chore: bump qip-ui to $UI_VERSION"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git push

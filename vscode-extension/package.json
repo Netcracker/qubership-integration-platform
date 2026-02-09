@@ -164,11 +164,11 @@
     ]
   },
   "scripts": {
-    "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
-    "test-on-ci": "jest -c jest.config.cjs --no-coverage",
-    "test:unit":  "jest -c jest.config.cjs",
+    "test": "npm run test:unit",
+    "test:integration": "npm run compile-web && vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
+    "test:integration:headless": "xvfb-run -a npm run test:integration",
+    "test:unit": "jest -c jest.config.cjs",
     "test:unit:coverage": "jest -c jest.config.cjs --coverage",
-    "pretest": "npm run compile-web",
     "prepublishOnly": "rimraf dist && npm run compile-web",
     "postpublish": "rimraf dist",
     "vscode:prepublish": "npm run package-web",
