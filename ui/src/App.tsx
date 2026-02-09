@@ -3,6 +3,7 @@ import {
   createBrowserRouter,
   createRoutesFromElements,
   Navigate,
+  Outlet,
   Route,
   RouterProvider,
 } from "react-router";
@@ -46,7 +47,7 @@ import {
 } from "./theme/themeInit.ts";
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
 import { IconProvider } from "./icons/IconProvider.tsx";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { getConfig } from "./appConfig.ts";
 import { reapplyCssVariables } from "./config/initConfig.ts";
 import { LiveExchanges } from "./components/admin_tools/exchanges/LiveExchanges.tsx";
@@ -56,76 +57,104 @@ import { DiagnosticValidationPage } from "./components/dev_tools/DiagnosticValid
 
 const { Header } = Layout;
 
+type ThemeContextValue = {
+  theme: ThemeMode;
+  onThemeChange: (theme: ThemeMode) => void;
+  showThemeSwitcher: boolean;
+};
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+const RootLayout = () => {
+  const themeContext = useContext(ThemeContext);
+  return (
+    <Layout className={styles.layout}>
+      <Header className={styles.header}>
+        <Navigation
+          showThemeSwitcher={themeContext?.showThemeSwitcher ?? false}
+          currentTheme={themeContext?.theme}
+          onThemeChange={themeContext?.onThemeChange}
+        />
+      </Header>
+      <Content className={styles.content}>
+        <Outlet />
+      </Content>
+    </Layout>
+  );
+};
+
 const router = createBrowserRouter(
   createRoutesFromElements(
     <>
-      <Route path="/devtools" element={<DevTools />}>
-        <Route path="" element={<Navigate to="diagnostic/validations" />} />
+      <Route element={<RootLayout />}>
+        <Route path="/devtools" element={<DevTools />}>
+          <Route path="" element={<Navigate to="diagnostic/validations" />} />
+          <Route
+            path="diagnostic/validations"
+            element={<DiagnosticValidationPage />}
+          />
+        </Route>
+        <Route path="/admintools" element={<AdminTools />}>
+          <Route path="" element={<Navigate to="domains" />} />
+          <Route path="domains" element={<Domains />} />
+          <Route
+            path="engine-list"
+            element={<Navigate to="../domains" relative={"path"} />}
+          />
+          <Route path="variables/common" element={<CommonVariables />} />
+          <Route path="variables/secured" element={<SecuredVariables />} />
+          <Route path="audit" element={<ActionsLog />} />
+          <Route path="sessions" element={<SessionsPage />} />
+          <Route path="access-control" element={<AccessControl />} />
+          <Route path="exchanges" element={<LiveExchanges />} />
+        </Route>
+        <Route index path="/" element={<Navigate to="/chains" />} />
+        <Route index path="/chains" element={<Chains />} />
+        <Route path="/chains/:chainId" element={<ChainPage />}>
+          <Route index element={<ChainGraph />} />
+          <Route index path="graph" element={<ChainGraph />} />
+          <Route path="graph/:elementId" element={<ChainGraph />} />
+          <Route path="snapshots" element={<Snapshots />} />
+          <Route path="deployments" element={<Deployments />} />
+          <Route path="sessions" element={<Sessions />} />
+          <Route path="sessions/:sessionId" element={<SessionPage />} />
+          <Route path="logging-settings" element={<LoggingSettings />} />
+          <Route path="masking" element={<Masking />} />
+          <Route path="properties" element={<ChainProperties />} />
+        </Route>
+        <Route path="/services" element={<Services />} />
         <Route
-          path="diagnostic/validations"
-          element={<DiagnosticValidationPage />}
+          path="/services/systems/:systemId/parameters"
+          element={<ServiceParametersPage />}
         />
-      </Route>
-      <Route path="/admintools" element={<AdminTools />}>
-        <Route path="" element={<Navigate to="domains" />} />
-        <Route path="domains" element={<Domains />} />
         <Route
-          path="engine-list"
-          element={<Navigate to="../domains" relative={"path"} />}
+          path="/services/systems/:systemId/specificationGroups"
+          element={<ServiceParametersPage />}
         />
-        <Route path="variables/common" element={<CommonVariables />} />
-        <Route path="variables/secured" element={<SecuredVariables />} />
-        <Route path="audit" element={<ActionsLog />} />
-        <Route path="sessions" element={<SessionsPage />} />
-        <Route path="access-control" element={<AccessControl />} />
-        <Route path="exchanges" element={<LiveExchanges />} />
+        <Route
+          path="/services/systems/:systemId/specificationGroups/:groupId/specifications"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations/:operationId"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/systems/:systemId/environments"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/context/:systemId/parameters"
+          element={<ContextServiceParametersPage />}
+        />
+        <Route path="/doc/*" element={<DocumentationPage />} />
+        <Route path="*" element={<NotFound />} />
+        <Route path="/not-implemented" element={<NotImplemented />} />
       </Route>
-      <Route index path="/" element={<Navigate to="/chains" />} />
-      <Route index path="/chains" element={<Chains />} />
-      <Route path="/chains/:chainId" element={<ChainPage />}>
-        <Route index element={<ChainGraph />} />
-        <Route index path="graph" element={<ChainGraph />} />
-        <Route path="graph/:elementId" element={<ChainGraph />} />
-        <Route path="snapshots" element={<Snapshots />} />
-        <Route path="deployments" element={<Deployments />} />
-        <Route path="sessions" element={<Sessions />} />
-        <Route path="sessions/:sessionId" element={<SessionPage />} />
-        <Route path="logging-settings" element={<LoggingSettings />} />
-        <Route path="masking" element={<Masking />} />
-        <Route path="properties" element={<ChainProperties />} />
-      </Route>
-      <Route path="/services" element={<Services />} />
-      <Route
-        path="/services/systems/:systemId/parameters"
-        element={<ServiceParametersPage />}
-      />
-      <Route
-        path="/services/systems/:systemId/specificationGroups"
-        element={<ServiceParametersPage />}
-      />
-      <Route
-        path="/services/systems/:systemId/specificationGroups/:groupId/specifications"
-        element={<ServiceParametersPage />}
-      />
-      <Route
-        path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations"
-        element={<ServiceParametersPage />}
-      />
-      <Route
-        path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations/:operationId"
-        element={<ServiceParametersPage />}
-      />
-      <Route
-        path="/services/systems/:systemId/environments"
-        element={<ServiceParametersPage />}
-      />
-      <Route
-        path="/services/context/:systemId/parameters"
-        element={<ContextServiceParametersPage />}
-      />
-      <Route path="/doc/*" element={<DocumentationPage />} />
-      <Route path="*" element={<NotFound />} />
-      <Route path="/not-implemented" element={<NotImplemented />} />
     </>,
   ),
 );
@@ -181,28 +210,23 @@ const App = () => {
 
   const antdConfig = getAntdThemeConfig(isDark, config.themeOverrides);
 
+  const themeContextValue: ThemeContextValue = {
+    theme,
+    onThemeChange: setTheme,
+    showThemeSwitcher: true,
+  };
+
   return (
     <ConfigProvider theme={antdConfig}>
       <AntdApp>
         <IconProvider>
-          <Layout className={styles.layout}>
+          <ThemeContext.Provider value={themeContextValue}>
             <EventNotification>
               <Modals>
-                <Header className={styles.header}>
-                  <Navigation
-                    showThemeSwitcher
-                    currentTheme={theme}
-                    onThemeChange={(newTheme) => {
-                      setTheme(newTheme);
-                    }}
-                  />
-                </Header>
-                <Content className={styles.content}>
-                  <RouterProvider router={router} />
-                </Content>
+                <RouterProvider router={router} />
               </Modals>
             </EventNotification>
-          </Layout>
+          </ThemeContext.Provider>
         </IconProvider>
       </AntdApp>
     </ConfigProvider>

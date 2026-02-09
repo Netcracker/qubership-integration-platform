@@ -1,4 +1,5 @@
 import { Menu, Button } from "antd";
+import { Link, useLocation } from "react-router-dom";
 import styles from "./Navigation.module.css";
 import type { MenuProps } from "antd";
 import { NotificationBar } from "./notifications/NotificationBar.tsx";
@@ -12,22 +13,22 @@ type MenuItem = Required<MenuProps>["items"][number];
 
 const items: MenuItem[] = [
   {
-    label: <a href="/chains">Chains</a>,
+    label: <Link to="/chains">Chains</Link>,
     key: "chains",
     icon: <OverridableIcon name="unorderedList" />,
   },
   {
-    label: <a href="/services">Services</a>,
+    label: <Link to="/services">Services</Link>,
     key: "services",
     icon: <OverridableIcon name="appstore" />,
   },
   {
-    label: <a href="/admintools">Admin Tools</a>,
+    label: <Link to="/admintools">Admin Tools</Link>,
     key: "admintools",
     icon: <OverridableIcon name="desktop" />,
   },
   {
-    label: <a href="/devtools">Dev Tools</a>,
+    label: <Link to="/devtools">Dev Tools</Link>,
     key: "devtools",
     icon: <OverridableIcon name="tool" />,
   },
@@ -47,7 +48,8 @@ const Navigation = ({
   const devMode = isDev();
   const shouldShowDevTools = devMode;
   const { openContextDoc } = useDocumentation();
-  const selectedKey = window.location.pathname.split("/")[1] || "chains";
+  const { pathname } = useLocation();
+  const selectedKey = pathname.split("/")[1] || "chains";
 
   return (
     <nav className={styles.navigation}>
