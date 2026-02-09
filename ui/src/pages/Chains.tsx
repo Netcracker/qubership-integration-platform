@@ -41,6 +41,7 @@ import {
   ExportChains,
 } from "../components/modal/ExportChains.tsx";
 import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
+import { exportAdditionsForChains } from "../misc/export-additions.ts";
 import { ImportChains } from "../components/modal/ImportChains.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { useChainFilters } from "../hooks/useChainFilter.ts";
@@ -489,24 +490,16 @@ const Chains = () => {
             );
       const data = [chainsFile];
 
-      if (options.exportServices) {
-        const usedServices = await api.getServicesUsedByChains(
-          Array.from(ids.values()),
-        );
-        if (usedServices.length > 0) {
-          const serviceIds = usedServices.map((i) => i.systemId);
-          const modelIds = usedServices.flatMap(
-            (i) => i.usedSystemModelIds ?? [],
-          );
-          const servicesData = await api.exportServices(serviceIds, modelIds);
-          data.push(servicesData);
-        }
-      }
-
-      if (options.exportVariables) {
-        const variablesData = await api.exportVariables([], true);
-        data.push(variablesData);
-      }
+      data.push(
+        ...(await exportAdditionsForChains({
+          api,
+          chainIdsForUsedSystems: Array.from(ids.values()),
+          options: {
+            exportServices: options.exportServices,
+            exportVariables: options.exportVariables,
+          },
+        })),
+      );
 
       const nonEmptyData = data.filter((d) => d.size !== 0);
       const archiveData = await mergeZipArchives(nonEmptyData);

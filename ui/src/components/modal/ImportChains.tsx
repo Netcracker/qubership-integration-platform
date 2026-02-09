@@ -16,7 +16,7 @@ import {
   ImportVariableResult,
   SystemImportStatus,
 } from "../../api/apiTypes.ts";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Dropdown,
@@ -114,6 +114,26 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     setResultImportInstructionTableItems,
   ] = useState<ResultImportInstructionTableItem[]>([]);
 
+  const previewServices = useMemo(
+    () => [
+      ...(importPreview?.systems ?? []),
+      ...(importPreview?.contextService ?? []),
+    ],
+    [importPreview],
+  );
+  const previewServicesCount = previewServices.length;
+  const resultServices = useMemo(
+    () => [
+      ...(importResult?.systems ?? []),
+      ...(importResult?.contextService ?? []),
+    ],
+    [importResult],
+  );
+  const contextServiceIds = useMemo(
+    () => new Set((importResult?.contextService ?? []).map((s) => s.id)),
+    [importResult],
+  );
+
   const getDomains = useCallback(async () => {
     setLoading(true);
     try {
@@ -128,13 +148,13 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
 
   useEffect(() => {
     if (importPreview) {
-      setSelectedServiceRowKeys(importPreview?.systems?.map((i) => i.id) ?? []);
+      setSelectedServiceRowKeys(previewServices.map((i) => i.id));
       setSelectedVariableRowKeys(
         importPreview?.variables?.map((i) => i.name) ?? [],
       );
       void getDomains().then(setDomains);
     }
-  }, [getDomains, importPreview]);
+  }, [getDomains, importPreview, previewServices]);
 
   useEffect(() => {
     if (importPreview) {
@@ -224,13 +244,13 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     })),
     systemsCommitRequest: {
       importMode:
-        selectedServiceRowKeys.length === importPreview?.systems?.length
+        selectedServiceRowKeys.length === previewServicesCount
           ? ImportMode.FULL
           : selectedServiceRowKeys.length === 0
             ? ImportMode.NONE
             : ImportMode.PARTIAL,
       systemIds:
-        selectedServiceRowKeys.length === importPreview?.systems?.length
+        selectedServiceRowKeys.length === previewServicesCount
           ? []
           : selectedServiceRowKeys.map((i) => i.toString()),
     },
@@ -491,10 +511,13 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
         item.status === SystemImportStatus.UPDATED ? (
           <a
             onClick={() => {
-              window.open(`/services/systems/${item.id}`, "_blank");
+              const url = contextServiceIds.has(item.id)
+                ? `/services/context/${item.id}/parameters`
+                : `/services/systems/${item.id}`;
+              window.open(url, "_blank");
             }}
           >
-            item.name
+            {item.name}
           </a>
         ) : (
           item.name
@@ -663,7 +686,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                       size="small"
                       rowKey="id"
                       columns={previewServiceTableColumns}
-                      dataSource={importPreview?.systems}
+                      dataSource={previewServices}
                       rowSelection={{
                         type: "checkbox",
                         selectedRowKeys: selectedServiceRowKeys,
@@ -757,7 +780,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                       size="small"
                       rowKey="id"
                       columns={resultServiceTableColumns}
-                      dataSource={importResult?.systems}
+                      dataSource={resultServices}
                       pagination={false}
                       scroll={{ y: "" }}
                     />

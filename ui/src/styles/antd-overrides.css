@@ -213,6 +213,29 @@ pre[class*="language-"] .token.punctuation {
   border-color: transparent !important;
 }
 
+/* Icon-only text buttons (dropdown triggers, kebab menu, settings, etc.)
+   Remove the extra inner "white rim" (border/outline/after effects) and keep a single VS Code-like focus ring. */
+.ant-btn.ant-btn-text.ant-btn-icon-only,
+.ant-btn.ant-btn-icon-only[class*="ant-btn-variant-text"] {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.ant-btn.ant-btn-text.ant-btn-icon-only::before,
+.ant-btn.ant-btn-text.ant-btn-icon-only::after,
+.ant-btn.ant-btn-icon-only[class*="ant-btn-variant-text"]::before,
+.ant-btn.ant-btn-icon-only[class*="ant-btn-variant-text"]::after {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.ant-btn.ant-btn-text.ant-btn-icon-only:focus-visible,
+.ant-btn.ant-btn-icon-only[class*="ant-btn-variant-text"]:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007acc) !important;
+  outline-offset: 2px;
+}
+
 .ant-btn-primary {
   border-color: var(--vscode-button-background, #0078d4) !important;
 }
@@ -493,9 +516,16 @@ pre[class*="language-"] .token.punctuation {
 
 .ant-modal-content {
   box-shadow: var(--modal-shadow, 0 12px 32px rgb(0 0 0 / 16%)) !important;
+
+  /* Important: set the modal content background too (otherwise default white bleeds as a "frame" in dark theme). */
+  background-color: var(
+    --vscode-modal-background,
+    var(--vscode-panel-background)
+  ) !important;
   background-clip: padding-box;
-  border: 1px solid
-    color-mix(in srgb, var(--vscode-border, #000) 25%, transparent);
+
+  /* Keep border subtle and theme-driven; avoid color-mix to prevent unsupported/ignored rule fallback. */
+  border: 1px solid var(--vscode-border, #303030) !important;
 }
 
 .ant-modal-mask {
@@ -525,15 +555,25 @@ pre[class*="language-"] .token.punctuation {
 
 /* Message theming */
 .ant-message-notice {
-  background-color: var(--vscode-panel-background) !important;
+  /* Keep notice wrapper transparent; style the inner bubble only.
+     Otherwise message becomes a full-width bar (looks like a big frame). */
+  background-color: transparent !important;
   color: var(--vscode-foreground) !important;
 }
 
 .ant-message-notice-content {
-  background-color: var(--vscode-panel-background) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 12px !important;
+  background-color: var(
+    --vscode-modal-background,
+    var(--vscode-panel-background)
+  ) !important;
   color: var(--vscode-foreground) !important;
-  border: none !important;
-  box-shadow: none !important;
+  border: 1px solid var(--vscode-border, #303030) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%) !important;
 }
 
 .ant-message-custom-content {

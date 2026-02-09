@@ -344,7 +344,7 @@ function buildMapperOperationOptions(element: Element): OperationOption[] {
 }
 
 const toRecord = (v: unknown): Record<string, unknown> =>
-    v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 
 async function buildServiceOperationOptions(
   element: Element,
@@ -360,19 +360,19 @@ async function buildServiceOperationOptions(
         label: "Request",
         schema: JSON.stringify(schema, undefined, 2),
       })),
-      ...Object.entries(operationInfo.responseSchemas ?? {})
-          .flatMap(([responseCode, byContentType]) =>
-              Object.entries(toRecord(byContentType))
-                  .filter(([, schema]) => schema !== undefined && schema !== null)
-                  .map(([contentType, schema]) => {
-                      const key = `${responseCode}-${contentType}`;
-                      return {
-                          value: key,
-                          label: key,
-                          schema: JSON.stringify(schema, undefined, 2),
-                      };
-                  }),
-          ),
+    ...Object.entries(operationInfo.responseSchemas ?? {}).flatMap(
+      ([responseCode, byContentType]) =>
+        Object.entries(toRecord(byContentType))
+          .filter(([, schema]) => schema !== undefined && schema !== null)
+          .map(([contentType, schema]) => {
+            const key = `${responseCode}-${contentType}`;
+            return {
+              value: key,
+              label: key,
+              schema: JSON.stringify(schema, undefined, 2),
+            };
+          }),
+    ),
   ];
 }
 

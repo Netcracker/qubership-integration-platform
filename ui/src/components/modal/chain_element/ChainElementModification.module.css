@@ -75,7 +75,6 @@
   margin-right: 4px;
 }
 
-/* Remove min-height from empty content containers */
 .parameters-form
   :global(
     .ant-form-item-control-input:has(

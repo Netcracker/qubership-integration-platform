@@ -47,7 +47,7 @@ const Navigation = ({
   const devMode = isDev();
   const shouldShowDevTools = devMode;
   const { openContextDoc } = useDocumentation();
-  const selectedKey = window.location.pathname.split('/')[1] || 'chains';
+  const selectedKey = window.location.pathname.split("/")[1] || "chains";
 
   return (
     <nav className={styles.navigation}>

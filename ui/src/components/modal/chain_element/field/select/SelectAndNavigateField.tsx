@@ -63,9 +63,9 @@ export const SelectAndNavigateField: React.FC<SelectFieldProps> = (props) => {
             icon={<OverridableIcon name="send" />}
             disabled={props.buttonDisabled}
             onClick={
-                typeof props.buttonOnClick === "string"
-                    ? () => handleClick(props.buttonOnClick as string)
-                    : props.buttonOnClick
+              typeof props.buttonOnClick === "string"
+                ? () => handleClick(props.buttonOnClick as string)
+                : props.buttonOnClick
             }
           />
         </Tooltip>

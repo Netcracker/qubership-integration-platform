@@ -52,7 +52,10 @@ export const DeploymentsCumulativeState: React.FC<
   const [status, setStatus] = useState<string>("DRAFT");
   const [badgeStatus, setBadgeStatus] =
     useState<BadgeProps["status"]>("default");
-  const { isLoading, deployments } = useDeployments(chainId, isNotificationEnabled);
+  const { isLoading, deployments } = useDeployments(
+    chainId,
+    isNotificationEnabled,
+  );
 
   useEffect(() => {
     setStatus(getDeploymentsStatus(deployments));

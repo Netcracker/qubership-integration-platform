@@ -465,6 +465,7 @@ export type ImportPreview = {
   errorMessage: string;
   chains: ChainImportPreview[];
   systems: SystemImportPreview[];
+  contextService?: SystemImportPreview[];
   variables: VariableImportPreview[];
   instructions: GeneralImportInstructions;
 };
@@ -604,6 +605,7 @@ export type ImportStatusResponse = {
 export type ImportResult = {
   chains: ImportChainResult[];
   systems: ImportSystemResult[];
+  contextService?: ImportSystemResult[];
   variables: ImportVariableResult[];
   instructionsResult: ImportInstructionResult[];
 };

@@ -59,6 +59,7 @@ import {
   ExportChains,
 } from "../components/modal/ExportChains.tsx";
 import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
+import { exportAdditionsForChains } from "../misc/export-additions.ts";
 import { generateSequenceDiagrams } from "../diagrams/main.ts";
 
 const readTheme = () => {
@@ -284,22 +285,16 @@ const ChainGraphInner: React.FC = () => {
       );
       const data = [chainsFile];
 
-      if (options.exportServices) {
-        const usedServices = await api.getServicesUsedByChains([chainId]);
-        if (usedServices.length > 0) {
-          const serviceIds = usedServices.map((i) => i.systemId);
-          const modelIds = usedServices.flatMap(
-            (i) => i.usedSystemModelIds ?? [],
-          );
-          const servicesData = await api.exportServices(serviceIds, modelIds);
-          data.push(servicesData);
-        }
-      }
-
-      if (options.exportVariables) {
-        const variablesData = await api.exportVariables([], true);
-        data.push(variablesData);
-      }
+      data.push(
+        ...(await exportAdditionsForChains({
+          api,
+          chainIdsForUsedSystems: [chainId],
+          options: {
+            exportServices: options.exportServices,
+            exportVariables: options.exportVariables,
+          },
+        })),
+      );
 
       const nonEmptyData = data.filter((d) => d.size !== 0);
       const archiveData = await mergeZipArchives(nonEmptyData);
