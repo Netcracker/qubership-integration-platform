@@ -28,6 +28,8 @@ name: Publish NPM package
 run-name: NPM Package${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch')) && ' - Test' || ' - Publish' }}${{ (github.event_name == 'workflow_dispatch' && inputs.version) && format(' {0}', inputs.version) || '' }}
 
 on:
+  pull_request:
+    types: [ opened, synchronize, reopened ]
   workflow_dispatch:
     inputs:
       version:
@@ -107,22 +109,50 @@ permissions:
   contents: read
 
 jobs:
+  prepare-version:
+    runs-on: ubuntu-latest
+    outputs:
+      publish_version: ${{ steps.set_version.outputs.publish_version }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Get package version
+        id: get_version
+        run: echo "package_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Set publish version
+        id: set_version
+        env:
+          VERSION: ${{ steps.get_version.outputs.package_version }}
+        run: |
+          if [[ "$VERSION" == *"-dev" ]]; then
+            TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+            NEW_VERSION="${VERSION}.${TIMESTAMP}"
+            echo "publish_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "publish_version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
   npm-publish:
+    needs: prepare-version
     uses: Netcracker/qubership-workflow-hub/.github/workflows/re-npm-publish.yml@8af13ac7ea017b87a8501e9b119a5c86c532a5b2
     permissions:
       contents: write
       packages: write
     with:
-      version: ${{ inputs.version || '' }}
+      version: ${{ github.event_name == 'workflow_dispatch' && inputs.version || needs.prepare-version.outputs.publish_version }}
       scope: ${{ inputs.scope || '@netcracker' }}
       node-version: ${{ inputs.node-version || '22.x' }}
       registry-url: ${{ inputs.registry-url || 'https://npm.pkg.github.com' }}
-      update-nc-dependency: ${{ inputs.update-nc-dependency || false }}
+      update-nc-dependency: ${{ github.event_name == 'workflow_dispatch' && inputs.update-nc-dependency }}
       dist-tag: ${{ inputs.npm-dist-tag || 'latest' }}
-      ref: ${{ github.ref_name }}
+      ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
+      dry-run: ${{ github.event_name == 'pull_request' }}
 
   update-version-in-ui:
-    if: inputs.update-ui == true
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.update-ui == 'true'
     needs: npm-publish
     runs-on: ubuntu-latest
     steps:
