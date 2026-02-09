@@ -263,11 +263,11 @@ public class ExportImportUtils {
                 + File.separator + getSpecificationFileName(source);
     }
 
-    public static List<File> extractSystemsFromZip(InputStream is, String importFolderName) throws IOException {
+    public static List<File> extractSystemsFromZip(InputStream is, String importFolderName, String yamlPostfix) throws IOException {
         try (ZipInputStream inputStream = new ZipInputStream(is)) {
             extractZip(importFolderName, inputStream, ARCH_PARENT_DIR);
 
-            return extractSystemsFromImportDirectory(importFolderName);
+            return extractSystemsFromImportDirectory(importFolderName, yamlPostfix);
         }
     }
 
@@ -279,14 +279,14 @@ public class ExportImportUtils {
         }
     }
 
-    public static List<File> extractSystemsFromImportDirectory(String importFolderName) throws IOException {
+    public static List<File> extractSystemsFromImportDirectory(String importFolderName, String yamlPostfix) throws IOException {
         Path start = Paths.get(importFolderName + File.separator + ARCH_PARENT_DIR);
         if (Files.exists(start)) {
             try (Stream<Path> sp = Files.walk(start)) {
                 return sp.filter(Files::isRegularFile)
                         .map(Path::toFile)
                         .filter(f -> (f.getName().startsWith(SERVICE_YAML_NAME_PREFIX) && f.getName().endsWith(YAML_EXTENSION))
-                        || f.getName().contains(SERVICE_YAML_NAME_POSTFIX))
+                                || f.getName().contains(yamlPostfix))
                         .collect(Collectors.toList());
             }
         }

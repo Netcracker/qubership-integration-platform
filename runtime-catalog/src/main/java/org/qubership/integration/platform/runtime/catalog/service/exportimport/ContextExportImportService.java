@@ -43,10 +43,10 @@ import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimpo
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.ContextBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ContextServiceDeserializer;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ContextServiceSerializer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -56,11 +56,13 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.*;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.extractSystemIdFromFileName;
@@ -83,6 +85,7 @@ public class ContextExportImportService {
     private final ImportSessionService importProgressService;
     private final ImportInstructionsService importInstructionsService;
 
+    private final URI contextServiceSchemaUri;
 
     @Autowired
     public ContextExportImportService(
@@ -90,10 +93,10 @@ public class ContextExportImportService {
             ContextBaseService contextBaseService,
             YAMLMapper yamlExportImportMapper,
             ActionsLogService actionLogger,
-            ContextServiceSerializer contextServiceSerializer, ServiceDeserializer serviceDeserializer,
+            ContextServiceSerializer contextServiceSerializer,
             ContextServiceDeserializer contextServiceDeserializer, ImportSessionService importProgressService,
-            ImportInstructionsService importInstructionsService
-    ) {
+            ImportInstructionsService importInstructionsService,
+            @Value("${qip.json.schemas.context-service:http://qubership.org/schemas/product/qip/context-service}") URI contextServiceSchemaUri) {
         this.transactionTemplate = transactionTemplate;
         this.contextBaseService = contextBaseService;
         this.yamlMapper = yamlExportImportMapper;
@@ -102,6 +105,7 @@ public class ContextExportImportService {
         this.contextServiceDeserializer = contextServiceDeserializer;
         this.importProgressService = importProgressService;
         this.importInstructionsService = importInstructionsService;
+        this.contextServiceSchemaUri = contextServiceSchemaUri;
     }
 
 
@@ -157,7 +161,7 @@ public class ContextExportImportService {
             List<File> extractedSystemFiles = new ArrayList<>();
 
             try (InputStream fs = file.getInputStream()) {
-                extractedSystemFiles = extractContextServiceFromZip(fs, exportDirectory);
+                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, CONTEXT_SERVICE_YAML_NAME_POSTFIX);
             } catch (ServicesNotFoundException e) {
                 deleteFile(exportDirectory);
             } catch (IOException e) {
@@ -181,20 +185,29 @@ public class ContextExportImportService {
         return response;
     }
 
-    public List<ImportSystemResult> getContextServiceImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
-        List<File> systemsFiles;
-        try {
-            systemsFiles = extractContextServiceFromImportDirectory(importDirectory.getAbsolutePath());
-        } catch (Exception e) {
-            throw new RuntimeException("Error while extracting context service", e);
-        }
+    public List<ImportSystemResult> getContextServiceImportPreview(File importDirectory,
+            ImportInstructionsConfig instructionsConfig) {
+        List<File> contextServiceFiles = extractContextServiceFilesFromDirectory(importDirectory);
 
         List<ImportSystemResult> importSystemResults = new ArrayList<>();
-        for (File systemFile : systemsFiles) {
+        for (File systemFile : contextServiceFiles) {
             importSystemResults.add(getSystemChanges(systemFile, instructionsConfig));
         }
 
         return importSystemResults;
+    }
+
+    private List<File> extractContextServiceFilesFromDirectory(File importDirectory) {
+        List<File> systemsFiles;
+        try {
+            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(),
+                    CONTEXT_SERVICE_YAML_NAME_POSTFIX);
+        } catch (IOException e) {
+            throw new RuntimeException("Error while extracting context service files", e);
+        }
+        return systemsFiles.stream()
+                .filter(this::isContextServiceFile)
+                .collect(Collectors.toList());
     }
 
     protected ImportSystemResult getSystemChanges(File mainSystemFile, ImportInstructionsConfig instructionsConfig) {
@@ -254,7 +267,7 @@ public class ContextExportImportService {
             List<File> extractedSystemFiles;
 
             try (InputStream fs = importFile.getInputStream()) {
-                extractedSystemFiles = extractContextServiceFromZip(fs, exportDirectory);
+                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, CONTEXT_SERVICE_YAML_NAME_POSTFIX);
             } catch (IOException e) {
                 deleteFile(exportDirectory);
                 throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
@@ -264,20 +277,15 @@ public class ContextExportImportService {
             }
 
             Set<String> servicesToImport = importInstructionsService.performServiceIgnoreInstructions(
-                            extractedSystemFiles.stream()
-                                    .map(ExportImportUtils::extractSystemIdFromFileName)
-                                    .collect(Collectors.toSet()),
-                            false)
+                    extractedSystemFiles.stream()
+                            .map(ExportImportUtils::extractSystemIdFromFileName)
+                            .collect(Collectors.toSet()),
+                    false)
                     .idsToImport();
             for (File singleSystemFile : extractedSystemFiles) {
                 String serviceId = extractSystemIdFromFileName(singleSystemFile);
                 if (!servicesToImport.contains(serviceId)) {
-                    response.add(ImportSystemResult.builder()
-                            .id(serviceId)
-                            .name(serviceId)
-                            .status(ImportSystemStatus.IGNORED)
-                            .build());
-                    log.info("Service {} ignored as a part of import exclusion list", serviceId);
+                    addIgnoredServiceResult(response, serviceId);
                     continue;
                 }
 
@@ -299,18 +307,12 @@ public class ContextExportImportService {
     public ImportContextServiceAndInstructionsResult importContextService(
             File importDirectory,
             SystemsCommitRequest systemCommitRequest,
-            String importId
-    ) {
+            String importId) {
         if (systemCommitRequest.getImportMode() == ImportMode.NONE) {
             return new ImportContextServiceAndInstructionsResult();
         }
 
-        List<File> systemsFiles;
-        try {
-            systemsFiles = extractContextServiceFromImportDirectory(importDirectory.getAbsolutePath());
-        } catch (IOException e) {
-            throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
-        }
+        List<File> systemsFiles = extractContextServiceFilesFromDirectory(importDirectory);
 
         List<String> systemIds = systemCommitRequest.getImportMode() == ImportMode.FULL
                 ? Collections.emptyList()
@@ -320,25 +322,20 @@ public class ContextExportImportService {
                 systemsFiles.stream()
                         .map(ExportImportUtils::extractSystemIdFromFileName)
                         .collect(Collectors.toSet()),
-                true
-        );
+                true);
         int total = systemsFiles.size();
         int counter = 0;
         List<ImportSystemResult> response = new ArrayList<>();
         for (File systemFile : systemsFiles) {
             String serviceId = extractSystemIdFromFileName(systemFile);
             if (!ignoreResult.idsToImport().contains(serviceId)) {
-                response.add(ImportSystemResult.builder()
-                        .id(serviceId)
-                        .name(serviceId)
-                        .status(ImportSystemStatus.IGNORED)
-                        .build());
-                log.info("Service {} ignored as a part of import exclusion list", serviceId);
+                addIgnoredServiceResult(response, serviceId);
                 continue;
             }
 
             importProgressService.calculateImportStatus(
-                    importId, total, counter, ImportSessionService.COMMON_VARIABLES_IMPORT_PERCENTAGE_THRESHOLD, ImportSessionService.SERVICE_IMPORT_PERCENTAGE_THRESHOLD);
+                    importId, total, counter, ImportSessionService.COMMON_VARIABLES_IMPORT_PERCENTAGE_THRESHOLD,
+                    ImportSessionService.SERVICE_IMPORT_PERCENTAGE_THRESHOLD);
             counter++;
 
             ImportSystemResult result = importOneSystemInTransaction(systemFile, systemIds);
@@ -351,7 +348,8 @@ public class ContextExportImportService {
         return new ImportContextServiceAndInstructionsResult(response, ignoreResult.importInstructionResults());
     }
 
-    protected synchronized ImportSystemResult importOneSystemInTransaction(File mainServiceFile, List<String> systemIds) {
+    protected synchronized ImportSystemResult importOneSystemInTransaction(File mainServiceFile,
+            List<String> systemIds) {
         ImportSystemResult result;
         Optional<ContextSystem> baseSystemOptional = Optional.empty();
 
@@ -407,7 +405,6 @@ public class ContextExportImportService {
         } else {
             status = ImportSystemStatus.CREATED;
         }
-        StringBuilder compilationErrors = new StringBuilder();
 
         if (oldSystem != null) {
             contextBaseService.update(system);
@@ -418,19 +415,22 @@ public class ContextExportImportService {
         return status;
     }
 
-
-    protected SystemDeserializationResult getBaseSystemDeserializationResult(JsonNode serviceNode) throws JsonProcessingException {
+    protected SystemDeserializationResult getBaseSystemDeserializationResult(JsonNode serviceNode)
+            throws JsonProcessingException {
         SystemDeserializationResult result = new SystemDeserializationResult();
 
-        String systemId = serviceNode.get(AbstractSystemEntity.Fields.id) != null ? serviceNode.get(AbstractSystemEntity.Fields.id).asText(null) : null;
+        JsonNode idNode = serviceNode.get(AbstractSystemEntity.Fields.id);
+        String systemId = (idNode == null || idNode.isNull()) ? null : idNode.asText();
         if (systemId == null) {
             throw new RuntimeException("Missing id field in system file");
         }
 
-        String systemName = serviceNode.get(AbstractSystemEntity.Fields.name) != null ? serviceNode.get(AbstractSystemEntity.Fields.name).asText("") : "";
+        JsonNode nameNode = serviceNode.get(AbstractSystemEntity.Fields.name);
+        String systemName = (nameNode == null || nameNode.isNull()) ? "" : nameNode.asText();
 
         Timestamp modifiedWhen = serviceNode.get(AbstractSystemEntity.Fields.modifiedWhen) != null
-                ? new Timestamp(serviceNode.get(AbstractSystemEntity.Fields.modifiedWhen).asLong()) : null;
+                ? new Timestamp(serviceNode.get(AbstractSystemEntity.Fields.modifiedWhen).asLong())
+                : null;
 
         ContextSystem baseSystem = new ContextSystem();
         baseSystem.setId(systemId);
@@ -444,6 +444,30 @@ public class ContextExportImportService {
 
     protected ObjectNode getFileNode(File file) throws IOException {
         return (ObjectNode) yamlMapper.readTree(file);
+    }
+
+    private boolean isContextServiceFile(File file) {
+        try {
+            ObjectNode node = getFileNode(file);
+            JsonNode schemaNode = node.get("$schema");
+            if (schemaNode != null && schemaNode.isTextual()) {
+                String fileSchema = schemaNode.asText();
+                return contextServiceSchemaUri.toString().equals(fileSchema);
+            }
+            return false;
+        } catch (Exception e) {
+            log.warn("Failed to check schema for file {}: {}", file.getName(), e.getMessage());
+            return false;
+        }
+    }
+
+    private void addIgnoredServiceResult(List<ImportSystemResult> response, String serviceId) {
+        response.add(ImportSystemResult.builder()
+                .id(serviceId)
+                .name(serviceId)
+                .status(ImportSystemStatus.IGNORED)
+                .build());
+        log.info("Service {} ignored as a part of import exclusion list", serviceId);
     }
 
     public void logSystemExportImport(ContextSystem system, String archiveName, LogOperation operation) {

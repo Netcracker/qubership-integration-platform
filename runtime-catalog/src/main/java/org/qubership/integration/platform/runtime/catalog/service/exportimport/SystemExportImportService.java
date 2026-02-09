@@ -71,6 +71,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.*;
 import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
@@ -212,7 +213,7 @@ public class SystemExportImportService {
             List<File> extractedSystemFiles = new ArrayList<>();
 
             try (InputStream fs = file.getInputStream()) {
-                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory);
+                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, SERVICE_YAML_NAME_POSTFIX);
             } catch (ServicesNotFoundException e) {
                 deleteFile(exportDirectory);
             } catch (IOException e) {
@@ -239,7 +240,7 @@ public class SystemExportImportService {
     public List<ImportSystemResult> getSystemsImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
         List<File> systemsFiles;
         try {
-            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath());
+            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), SERVICE_YAML_NAME_POSTFIX);
         } catch (Exception e) {
             throw new RuntimeException("Error while extracting systems", e);
         }
@@ -310,7 +311,7 @@ public class SystemExportImportService {
             List<File> extractedSystemFiles;
 
             try (InputStream fs = importFile.getInputStream()) {
-                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory);
+                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, SERVICE_YAML_NAME_POSTFIX);
             } catch (IOException e) {
                 deleteFile(exportDirectory);
                 throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
@@ -364,7 +365,7 @@ public class SystemExportImportService {
 
         List<File> systemsFiles;
         try {
-            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath());
+            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), SERVICE_YAML_NAME_POSTFIX);
         } catch (IOException e) {
             throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
         }
