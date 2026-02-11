@@ -3,7 +3,7 @@
   "publisher": "qubership",
   "displayName": "QIP VS Code Extension",
   "description": "Qubership Integration Platform - Visual Studio Code Extension",
-  "version": "0.0.1-dev",
+  "version": "0.0.27",
   "main": "dist/node/index.js",
   "types": "dist/web/index.d.ts",
   "files": [
@@ -78,7 +78,6 @@
           "name": "QIP",
           "when": "true",
           "icon": ""
-
         }
       ]
     },
