@@ -66,12 +66,6 @@ properties:
       title: Override Context Component
       type: custom
       uiComponent: context-override
-    - name: integrationOperationSkipEmptyQueryParameters
-      title: Skip empty query parameters
-      description: When enabled, empty and null query parameters will be skipped from the HTTP request URL
-      type: boolean
-      default: false
-      query: false
   hidden:
     - name: overrideContextParams
       title: Override context parameters
@@ -110,6 +104,12 @@ properties:
       description: Specifies which type Protocol use the operation
       type: string
       default: http
+    - name: integrationOperationSkipEmptyQueryParameters
+      title: Skip empty query parameters
+      description: When enabled, empty and null query parameters will be skipped from the HTTP request URL
+      type: boolean
+      default: false
+      query: false
     - name: correlationIdName
       title: Correlation id name
       type: string
