@@ -118,7 +118,7 @@
     "integrationSpecificationId": "6b34f2c2-cda8-4d1c-b298-5e89f8868fe4-Idempotent Consumer Test-exported-api-specification-2025-07-17T13_54_59",
     "integrationOperationId": "6b34f2c2-cda8-4d1c-b298-5e89f8868fe4-Idempotent Consumer Test-exported-api-specification-2025-07-17T13_54_59-get-idempotent-consumet-test-0b646c7b-6dbe-4e04-9801-03cf5605b819",
     "integrationOperationPath": "/idempotent-consumet-test",
-    "httpMethodRestrict": "GET",
+    "integrationOperationMethod": "GET",
     "after": [],
     "integrationSpecificationGroupId": "6b34f2c2-cda8-4d1c-b298-5e89f8868fe4-Idempotent Consumer Test",
     "invalidURI": true,

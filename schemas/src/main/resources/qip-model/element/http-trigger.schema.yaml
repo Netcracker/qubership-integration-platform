@@ -103,7 +103,7 @@ definitions:
       httpMethodRestrict:
         type: string
         title: HTTP Methods
-        pattern: "^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$"
+        pattern: "^$|^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$"
     required:
       - contextPath
   ImplementedServiceEndpoint:
@@ -132,6 +132,12 @@ definitions:
         type: string
         title: Operation name
     required:
+      - integrationOperationId
+      - integrationSpecificationGroupId
+      - integrationSpecificationId
+      - integrationSystemId
+      - systemType
       - integrationOperationPath
+      - integrationOperationMethod
 required:
   - type
