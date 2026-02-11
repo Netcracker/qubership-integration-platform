@@ -26,6 +26,20 @@
   color: var(--vscode-foreground, rgb(0 0 0 / 88%)) !important;
 }
 
+.libraryElements :global(.ant-menu-item) {
+  height: auto !important;
+  min-height: 40px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  white-space: normal !important;
+  line-height: 1.4 !important;
+}
+
+.libraryElements :global(.ant-menu-item .ant-menu-title-content) {
+  overflow: visible !important;
+  white-space: normal !important;
+}
+
 .libraryElements :global(.ant-menu-item:hover),
 .libraryElements :global(.ant-menu-submenu-title:hover) {
   background-color: var(
@@ -72,4 +86,34 @@
 .spacedTabs :global(.ant-tabs-nav::before) {
   width: 100% !important;
   left: 0 !important;
+}
+
+.elementListItemLabel {
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.elementListItemIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-size: 16px;
+}
+
+.elementListItemContent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.elementTypeBadge {
+  display: inline-block;
+  background-color: #e8e8e8;
+  color: #333;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  width: fit-content;
 }

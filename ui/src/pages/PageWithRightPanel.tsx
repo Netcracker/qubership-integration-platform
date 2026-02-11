@@ -143,24 +143,29 @@ export const PageWithRightPanel = () => {
     return elements.map((element: Element) => {
       const libraryElement = getLibraryElement(element, libraryElements);
       const elementName = element.name || libraryElement.title || element.type;
+      const elementTypeLabel = libraryElement.title || element.type;
       return {
         key: element.id,
         label: (
           <div
+            className={styles.elementListItemLabel}
             onDoubleClick={(e) => {
               e.stopPropagation();
               handleElementDoubleClick(element);
             }}
-            style={{ cursor: "pointer" }}
           >
-            <OverridableIcon
-              name={element.type as IconName}
-              style={{ fontSize: 16, marginRight: 8 }}
-            />
-            {elementName}
+            <span className={styles.elementListItemIcon}>
+              <OverridableIcon name={element.type as IconName} />
+            </span>
+            <div className={styles.elementListItemContent}>
+              <span>{elementName}</span>
+              <span className={styles.elementTypeBadge}>
+                {elementTypeLabel}
+              </span>
+            </div>
           </div>
         ),
-        title: `${elementName} (${libraryElement.title || element.type})`,
+        title: `${elementName} (${elementTypeLabel})`,
       };
     });
   }, [elements, libraryElements, handleElementDoubleClick]);
