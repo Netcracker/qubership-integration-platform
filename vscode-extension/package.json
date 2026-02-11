@@ -202,7 +202,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@netcracker/qip-ui": "0.0.34",
+    "@netcracker/qip-ui": "0.0.38",
     "@apidevtools/swagger-parser": "^12.0.0",
     "@asyncapi/parser": "^3.4.0",
     "@types/js-yaml": "^4.0.9",
@@ -212,7 +212,7 @@
     "graphql": "^16.12.0",
     "js-yaml": "^4.1.1",
     "protobufjs": "^7.5.4",
-    "tar": "7.5.2",
+    "tar": "^7.5.7",
     "yaml": "^2.8.1",
     "yauzl": "^3.2.0"
   }
