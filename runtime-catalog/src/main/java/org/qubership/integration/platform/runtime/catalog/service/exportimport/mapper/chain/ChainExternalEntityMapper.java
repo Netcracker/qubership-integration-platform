@@ -127,7 +127,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
     public ChainExternalMapperEntity toExternalEntity(@NonNull Chain chain) {
         ChainElementsExternalMapperEntity elementsExternalMapperEntity = chainElementsMapper.toExternalEntity(chain.getElements());
         List<DeploymentExternalEntity> deployments = extractChainDeployments(chain);
-        
+
         ChainExternalEntity chainExternalEntity = ChainExternalEntity.builder()
                 .schema(chainSchemaUri)
                 .id(chain.getId())
@@ -141,6 +141,14 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                         .folder(createFolderExternalEntity(chain))
                         .modifiedWhen(chain.getModifiedWhen())
                         .maskedFields(createMaskedFieldExternalEntities(chain.getMaskedFields()))
+                        .defaultSwimlaneId(
+                                Optional.ofNullable(chain.getDefaultSwimlane())
+                                        .map(SwimlaneChainElement::getId)
+                                        .orElse(null))
+                        .reuseSwimlaneId(
+                                Optional.ofNullable(chain.getReuseSwimlane())
+                                        .map(SwimlaneChainElement::getId)
+                                        .orElse(null))
                         .elements(elementsExternalMapperEntity.getChainElementExternalEntities())
                         .dependencies(extractExternalDependencies(chain))
                         .migrations(chainImportFileMigrations.stream()
