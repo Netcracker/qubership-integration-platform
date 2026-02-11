@@ -140,6 +140,14 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                         .labels(chain.getLabels().stream().map(ChainLabel::getName).collect(Collectors.toList()))
                         .folder(createFolderExternalEntity(chain))
                         .maskedFields(createMaskedFieldExternalEntities(chain.getMaskedFields()))
+                        .defaultSwimlaneId(
+                                Optional.ofNullable(chain.getDefaultSwimlane())
+                                        .map(SwimlaneChainElement::getId)
+                                        .orElse(null))
+                        .reuseSwimlaneId(
+                                Optional.ofNullable(chain.getReuseSwimlane())
+                                        .map(SwimlaneChainElement::getId)
+                                        .orElse(null))
                         .elements(elementsExternalMapperEntity.getChainElementExternalEntities())
                         .dependencies(extractExternalDependencies(chain))
                         .migrations(chainImportFileMigrations.stream()
