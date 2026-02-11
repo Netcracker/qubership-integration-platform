@@ -7,10 +7,51 @@
   border-color: var(--vscode-editorGroup-border) !important;
 }
 
+.ant-input:focus,
+.ant-input:focus-within,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper:focus-within,
+.ant-input-number:focus,
+.ant-input-number:focus-within,
+.ant-input-number-focused {
+  border-color: var(--vscode-focusBorder, #1677ff) !important;
+  box-shadow: 0 0 0 2px rgb(22 119 255 / 15%) !important;
+}
+
 .ant-select-selector {
   background-color: var(--vscode-input-background) !important;
   color: var(--vscode-input-foreground) !important;
   border-color: var(--vscode-editorGroup-border) !important;
+}
+
+.ant-select-focused .ant-select-selector {
+  border-color: var(--vscode-focusBorder, #1677ff) !important;
+  box-shadow: 0 0 0 2px rgb(22 119 255 / 15%) !important;
+}
+
+/* Validation error state: red border */
+.ant-form-item-has-error .ant-input,
+.ant-form-item-has-error .ant-input-affix-wrapper,
+.ant-form-item-has-error .ant-input-number,
+.ant-form-item-has-error .ant-select-selector {
+  border-color: var(--vscode-errorForeground, #ff4d4f) !important;
+}
+
+/* Validation error + focus: red border with red shadow */
+.ant-form-item-has-error .ant-input:focus,
+.ant-form-item-has-error .ant-input:focus-within,
+.ant-form-item-has-error .ant-input-affix-wrapper:focus,
+.ant-form-item-has-error .ant-input-affix-wrapper:focus-within,
+.ant-form-item-has-error .ant-input-number:focus,
+.ant-form-item-has-error .ant-input-number:focus-within,
+.ant-form-item-has-error .ant-input-number-focused {
+  border-color: var(--vscode-errorForeground, #ff4d4f) !important;
+  box-shadow: 0 0 0 2px rgb(255 77 79 / 15%) !important;
+}
+
+.ant-form-item-has-error .ant-select-focused .ant-select-selector {
+  border-color: var(--vscode-errorForeground, #ff4d4f) !important;
+  box-shadow: 0 0 0 2px rgb(255 77 79 / 15%) !important;
 }
 
 .ant-select-selection-placeholder,
@@ -36,13 +77,6 @@
 }
 
 .ant-input-search-button .anticon {
-  color: var(--vscode-foreground) !important;
-}
-
-/* Icons and buttons inside input */
-.ant-input-affix-wrapper .ant-input-suffix .anticon,
-.ant-input-affix-wrapper .ant-input-prefix .anticon,
-.ant-input-clear-icon {
   color: var(--vscode-foreground) !important;
 }
 
@@ -111,27 +145,6 @@ code[class*="language-"] {
 
 .ant-notification-notice-message > span {
   color: inherit !important;
-}
-
-.ant-modal .ant-form,
-.ant-modal .ant-form-item,
-.ant-modal .ant-form-item-label,
-.ant-modal label,
-.ant-modal .ant-form-item-label > label,
-.ant-modal .ant-form-item .ant-form-item-control-input-content,
-.ant-modal .ant-form-item .ant-form-item-extra,
-.ant-modal .ant-form-item-explain,
-.ant-modal .ant-form-item-explain-error,
-.ant-modal .ant-tabs,
-.ant-modal .ant-tabs-tab,
-.ant-modal .ant-tabs-tab-btn,
-.ant-modal .ant-checkbox-wrapper,
-.ant-modal .ant-checkbox + span,
-.ant-modal .ant-typography,
-.ant-modal .ant-select-selection-item,
-.ant-modal .ant-select-selection-placeholder,
-.ant-modal .ant-select-selection-search-input {
-  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
 }
 
 /* Only remove text-shadow, keep syntax highlighting colors */

@@ -241,8 +241,9 @@ const SystemOperationField: React.FC<
           integrationOperationPath: operation.path,
           integrationOperationMethod: operation.method,
           integrationOperationProtocolType: protocolType,
+          integrationOperationPathParameters: {},
           integrationOperationQueryParameters:
-            Object.keys(queryParams).length > 0 ? queryParams : undefined,
+            Object.keys(queryParams).length > 0 ? queryParams : {},
         });
       };
 

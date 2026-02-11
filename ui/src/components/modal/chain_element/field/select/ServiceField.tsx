@@ -11,11 +11,7 @@ import { JSONSchema7 } from "json-schema";
 import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
 import { SelectTag } from "./SelectTag.tsx";
 import { capitalize } from "../../../../../misc/format-utils.ts";
-import {
-  isAsyncProtocol,
-  isHttpProtocol,
-  normalizeProtocol,
-} from "../../../../../misc/protocol-utils.ts";
+import { normalizeProtocol } from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 
 const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
@@ -97,27 +93,25 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
       setServiceId(newValue);
       const newService: IntegrationSystem = servicesMap.get(newValue)!;
       const protocol = normalizeProtocol(newService?.protocol) ?? "http";
-      const isAsync = isAsyncProtocol(protocol);
-      const isHttp = isHttpProtocol(protocol);
 
       registry.formContext?.updateContext?.({
         integrationSystemId: newValue,
         systemType: newService.type.toString(),
         integrationOperationProtocolType: protocol,
-        integrationSpecificationGroupId: null,
-        integrationSpecificationId: null,
-        integrationOperationId: null,
-        integrationOperationPath: null,
-        integrationOperationMethod: null,
-        integrationOperationPathParameters: isHttp ? {} : undefined,
-        integrationOperationQueryParameters: isHttp ? {} : undefined,
-        integrationAdditionalParameters: isHttp ? {} : undefined,
-        integrationOperationAsyncProperties: isAsync ? {} : undefined,
-        integrationGqlQuery: undefined,
-        integrationGqlOperationName: undefined,
-        integrationGqlVariablesJSON: undefined,
-        integrationGqlQueryHeader: undefined,
-        integrationGqlVariablesHeader: undefined,
+        integrationSpecificationGroupId: "",
+        integrationSpecificationId: "",
+        integrationOperationId: "",
+        integrationOperationPath: "",
+        integrationOperationMethod: "",
+        integrationOperationPathParameters: {},
+        integrationOperationQueryParameters: {},
+        integrationAdditionalParameters: {},
+        integrationOperationAsyncProperties: {},
+        integrationGqlQuery: "",
+        integrationGqlOperationName: "",
+        integrationGqlVariablesJSON: "",
+        integrationGqlQueryHeader: "",
+        integrationGqlVariablesHeader: "",
       });
     },
     [registry, servicesMap],

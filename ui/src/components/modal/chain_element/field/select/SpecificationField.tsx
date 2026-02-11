@@ -70,9 +70,11 @@ const SpecificationField: React.FC<
       const context: Record<string, unknown> = {
         integrationSpecificationId: newValue,
         integrationSpecificationGroupId: specGroupId,
-        integrationOperationId: null,
-        integrationOperationPath: null,
-        integrationOperationMethod: null,
+        integrationOperationId: "",
+        integrationOperationPath: "",
+        integrationOperationMethod: "",
+        integrationOperationPathParameters: {},
+        integrationOperationQueryParameters: {},
       };
 
       updateContext?.(context);

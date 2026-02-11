@@ -15,6 +15,7 @@ export function getDataFromElement(
     label: element.name,
     description: element.description,
     properties: element.properties,
+    mandatoryChecksPassed: element.mandatoryChecksPassed,
   } as ChainGraphNodeData;
 
   if (libraryElement) {

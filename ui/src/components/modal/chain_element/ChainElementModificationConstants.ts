@@ -623,6 +623,22 @@ export const desiredTabOrder = [
   "Idempotency",
 ];
 
+/**
+ * Tabs that should only be visible when a condition on formContext is met.
+ * If a tab is not listed here, it's always visible.
+ */
+type ConditionalTab = {
+  tab: string;
+  isVisible: (formContext: Record<string, unknown>) => boolean;
+};
+
+export const conditionalTabs: ConditionalTab[] = [
+  {
+    tab: "Validations",
+    isVisible: (ctx) => ctx.integrationOperationProtocolType === "http",
+  },
+];
+
 export function getTabForPath(
   path: string,
   elementType?: string,

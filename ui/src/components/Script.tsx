@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { editor, IRange, languages, Position } from "monaco-editor";
 import { Flex } from "antd";
@@ -381,10 +381,35 @@ export const Script: React.FC<ScriptProps> = ({
     }
   }, [monacoTheme]);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [editorHeight, setEditorHeight] = useState(300);
+
+  useEffect(() => {
+    const calcHeight = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      // Find the closest scrollable parent (modal body)
+      const scrollParent = el.closest(".ant-modal-body") ?? el.parentElement;
+      if (!scrollParent) return;
+      const parentRect = scrollParent.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      // Available height = bottom of scroll parent - top of editor - some padding for footer
+      const available = parentRect.bottom - elRect.top - 60;
+      if (available > 300) {
+        setEditorHeight(available);
+      }
+    };
+
+    calcHeight();
+    // Recalculate on window resize
+    window.addEventListener("resize", calcHeight);
+    return () => window.removeEventListener("resize", calcHeight);
+  }, []);
+
   return (
-    <Flex vertical {...props}>
+    <Flex vertical ref={containerRef} {...props}>
       <Editor
-        height="35vh"
+        height={editorHeight}
         className="qip-editor"
         value={value}
         language={mode}

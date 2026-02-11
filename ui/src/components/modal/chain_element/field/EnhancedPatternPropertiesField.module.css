@@ -60,12 +60,7 @@
 }
 
 .requiredRow {
-  background-color: rgb(250 173 20 / 12%);
-  background-color: color-mix(
-    in srgb,
-    var(--vscode-warningForeground, #faad14) 15%,
-    transparent
-  );
+  background-color: var(--vscode-errorForeground);
 }
 
 .nameCell {

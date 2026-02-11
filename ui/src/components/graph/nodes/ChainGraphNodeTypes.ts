@@ -16,6 +16,7 @@ export type ChainGraphNodeData = {
   unitCount?: number;
   onToggleCollapse?: () => void;
   typeTitle?: string;
+  mandatoryChecksPassed?: boolean;
 };
 
 export type ChainGraphNode = Node<ChainGraphNodeData>;

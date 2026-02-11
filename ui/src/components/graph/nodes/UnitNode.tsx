@@ -21,6 +21,9 @@ export function UnitNode({
       style={{
         border: "2px solid transparent",
         borderColor: selected ? "var(--vscode-focusBorder)" : "transparent",
+        boxShadow: data.mandatoryChecksPassed === false
+          ? "0 0 0 2px var(--ant-color-error, #ff4d4f)"
+          : "none",
         borderRadius: 5,
         width: "100%",
         height: "100%",

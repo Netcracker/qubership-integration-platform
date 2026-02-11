@@ -49,10 +49,9 @@
   margin-top: auto !important;
 }
 
+/* Description is now rendered in the footer, hide RJSF's default placement */
 .modal-body :global(#root__description) {
-  font-size: 12px !important;
-  color: var(--vscode-descriptionForeground) !important;
-  padding-top: 16px !important;
+  display: none;
 }
 
 .custom-textarea textarea {
@@ -60,7 +59,7 @@
 }
 
 .parameters-form {
-  min-height: 0;
+  min-height: 500px;
   overflow-y: auto;
 }
 

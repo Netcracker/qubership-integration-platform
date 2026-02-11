@@ -271,16 +271,15 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
 
   const emitChange = useCallback(
     (value: Record<string, string>) => {
+      onChange(value, fieldPathId.path);
       if (paramType === "query") {
         updateContext?.({
           integrationOperationQueryParameters: { ...value },
         });
-      } else if (paramType == "path") {
+      } else if (paramType === "path") {
         updateContext?.({
           integrationOperationPathParameters: { ...value },
         });
-      } else {
-        onChange(value, fieldPathId.path);
       }
     },
     [fieldPathId.path, onChange, updateContext, paramType],
@@ -625,6 +624,15 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     isMaasEnvironment,
     isAsyncApiTrigger,
   ]);
+
+  const reportMissingRequiredParams = formContext.reportMissingRequiredParams;
+
+  useEffect(() => {
+    const missing = mergedParameters
+      .filter((p) => p.required && !p.value?.trim())
+      .map((p) => p.name);
+    reportMissingRequiredParams?.(paramType, missing);
+  }, [mergedParameters, reportMissingRequiredParams, paramType]);
 
   function isOverridden(
     name: string,
