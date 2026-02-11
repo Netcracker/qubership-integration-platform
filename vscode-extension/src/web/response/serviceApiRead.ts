@@ -104,6 +104,30 @@ export async function getContextServices(
   }
 }
 
+export async function getEnvironment(
+  serviceFileUri: Uri,
+  serviceId: string,
+  environmentId: string,
+): Promise<Environment> {
+  let actualServiceFileUri = serviceFileUri;
+  let service: any = await getMainService(serviceFileUri);
+
+  if (service.id !== serviceId) {
+    const ext = getExtensionsForUri(serviceFileUri);
+    actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+    service = await getMainService(actualServiceFileUri);
+
+    if (service.id !== serviceId) {
+      console.error(
+        `ServiceId mismatch: expected "${serviceId}", got "${service.id}"`,
+      );
+      throw Error("ServiceId mismatch");
+    }
+  }
+
+  return findEnvironmentById(service.content?.environments, environmentId);
+}
+
 export async function getEnvironments(
   serviceFileUri: Uri,
   serviceId: string,
@@ -127,19 +151,37 @@ export async function getEnvironments(
   return parseEnvironments(service.content?.environments || []);
 }
 
+function parseEnvironment(env: any): Environment {
+  return {
+    id: env.id,
+    name: env.name,
+    description: env.description || "",
+    address: env.address || "",
+    sourceType: env.sourceType || "MANUAL",
+    properties: env.properties || {},
+    labels: LabelUtils.toEntityLabels(env.labels || []),
+  };
+}
+
+function findEnvironmentById(
+  environments: any[],
+  environmentId: string,
+): Environment {
+  if (environments && environments.length) {
+    for (const env of environments) {
+      if (environmentId === env.id) {
+        return parseEnvironment(env);
+      }
+    }
+  }
+  throw new Error(`Unable to find environment with id = ${environmentId}`);
+}
+
 function parseEnvironments(environments: any[]): Environment[] {
   const result: Environment[] = [];
   if (environments && environments.length) {
     for (const env of environments) {
-      result.push({
-        id: env.id,
-        name: env.name,
-        description: env.description || "",
-        address: env.address || "",
-        sourceType: env.sourceType || "MANUAL",
-        properties: env.properties || {},
-        labels: LabelUtils.toEntityLabels(env.labels || []),
-      });
+      result.push(parseEnvironment(env));
     }
   }
   return result;

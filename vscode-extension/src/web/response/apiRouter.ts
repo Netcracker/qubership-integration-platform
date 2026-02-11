@@ -29,6 +29,7 @@ import {
   getApiSpecifications,
   getContextService,
   getContextServices,
+  getEnvironment,
   getEnvironments,
   getLatestApiSpecification,
   getOperationInfo,
@@ -235,6 +236,12 @@ export async function getApiResponse(
       return await getService(fileUri, message.payload);
     case "getServices":
       return await getServices(fileUri);
+    case "getEnvironment":
+      return await getEnvironment(
+        fileUri,
+        message.payload.serviceId,
+        message.payload.environmentId,
+      );
     case "getEnvironments":
       return await getEnvironments(fileUri, message.payload);
     case "getApiSpecifications":
