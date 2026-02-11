@@ -6,6 +6,7 @@ on:
 permissions:
   contents: write
   actions: read
+  packages: read
 
 jobs:
   update-schemas-version:
@@ -21,11 +22,13 @@ jobs:
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: 22
-          cache: npm
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@netcracker'
 
       - name: Update schemas
         env:
           SCHEMAS_VERSION: ${{ github.event.client_payload.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npm install @netcracker/qip-schemas@"$SCHEMAS_VERSION"
 
