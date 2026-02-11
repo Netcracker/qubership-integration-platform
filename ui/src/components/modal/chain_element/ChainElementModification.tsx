@@ -55,6 +55,9 @@ import { useDocumentation } from "../../../hooks/useDocumentation.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import ChainTriggerElementIdField from "./field/ChainTriggerElementIdField.tsx";
+import BasePathField from "./field/BasePathField.tsx";
+import ExternalRouteCheckbox from "./field/ExternalRouteCheckbox.tsx";
+import ContextPathWithPrefixField from "./field/ContextPathWithPrefixField.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -110,6 +113,7 @@ export type FormContext = {
   bodyFormData?: BodyFormEntry[];
   synchronousGrpcCall?: boolean;
   chainId?: string;
+  externalRoute?: boolean;
   updateContext?: (newContext: Record<string, unknown>) => void;
 };
 
@@ -259,6 +263,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           formProperties.integrationOperationSkipEmptyQueryParameters as
             | boolean
             | undefined,
+        externalRoute: Boolean(formProperties.externalRoute),
         updateContext: (updatedProperties: Record<string, unknown>) => {
           if (
             updatedProperties.integrationOperationProtocolType !== undefined
@@ -571,6 +576,12 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         props["httpMethodRestrict"] = { "ui:widget": "hidden" };
       }
 
+      if (node.data.elementType === "http-trigger") {
+        props["contextPath"] = { "ui:field": "contextPathWithPrefixField" };
+        props["integrationOperationPath"] = { "ui:field": "basePathField" };
+        props["externalRoute"] = { "ui:field": "externalRouteCheckbox" };
+      }
+
       if (activeKey && activeKey !== "Endpoint") {
         props["ui:fieldReplacesAnyOrOneOf"] = true;
         props["ui:field"] = "hidden";
@@ -707,6 +718,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               singleSelectField: SingleSelectField,
               contextServiceField: ContextServiceField,
               chainTriggerElementIdField: ChainTriggerElementIdField,
+              basePathField: BasePathField,
+              externalRouteCheckbox: ExternalRouteCheckbox,
+              contextPathWithPrefixField: ContextPathWithPrefixField,
             }}
             widgets={widgets}
             onChange={(e) => {

@@ -1480,6 +1480,16 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  getEnvironment = async (
+    systemId: string,
+    environmentId: string,
+  ): Promise<Environment> => {
+    const response = await this.instance.get<Environment>(
+      `/api/v1/${getAppName()}/systems-catalog/systems/${systemId}/environments/${environmentId}`,
+    );
+    return response.data;
+  };
+
   getEnvironments = async (systemId: string): Promise<Environment[]> => {
     const response = await this.instance.get<Environment[]>(
       `${this.v1()}/systems-catalog/systems/${systemId}/environments`,

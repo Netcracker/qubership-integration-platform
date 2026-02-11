@@ -521,6 +521,19 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method exportContextServices not implemented.");
   }
 
+  getEnvironment = async (
+    systemId: string,
+    environmentId: string,
+  ): Promise<Environment> => {
+    const result = <Environment>(
+      await this.sendMessageToExtension("getEnvironment", {
+        serviceId: systemId,
+        environmentId,
+      })
+    ).payload;
+    return result;
+  };
+
   getEnvironments = async (systemId: string): Promise<Environment[]> => {
     const result = <Environment[]>(
       (await this.sendMessageToExtension("getEnvironments", systemId)).payload

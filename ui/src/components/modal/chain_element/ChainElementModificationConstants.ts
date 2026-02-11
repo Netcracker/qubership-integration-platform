@@ -83,6 +83,9 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     httpBinding: {
       "ui:widget": "hidden",
     },
+    externalRoute: {
+      "ui:widget": "hidden",
+    },
     checkpointElementId: {
       "ui:widget": "hidden",
     },
@@ -369,6 +372,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
         "operation",
         "resourceDataType",
         "resourceString",
+        "resourceMap",
       ],
       resourceMap: {
         "ui:fieldReplacesAnyOrOneOf": true,
@@ -556,12 +560,15 @@ export const pathToTabMap: Record<string, string> = {
   "properties.handlerContainer": "Handle Validation Failure",
   "properties.handlerContainer.script": "Handle Validation Failure",
   "properties.handlerContainer.mappingDescription": "Handle Validation Failure",
+  "properties.handlerContainer.throwException": "Handle Validation Failure",
   "properties.handleChainFailureAction": "Failure Response Mapping",
   "properties.chainFailureHandlerContainer": "Failure Response Mapping",
   "properties.chainFailureHandlerContainer.elementId":
     "Failure Response Mapping",
   "properties.chainFailureHandlerContainer.script": "Failure Response Mapping",
   "properties.chainFailureHandlerContainer.mappingDescription":
+    "Failure Response Mapping",
+  "properties.chainFailureHandlerContainer.throwException":
     "Failure Response Mapping",
   "properties.validationSchema": "Validate Request",
   "properties.allowedContentTypes": "Validate Request",

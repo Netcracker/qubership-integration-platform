@@ -379,6 +379,8 @@ export interface Api {
 
   exportContextServices(serviceIds: string[]): Promise<File>;
 
+  getEnvironment(systemId: string, environmentId: string): Promise<Environment>;
+
   getEnvironments(systemId: string): Promise<Environment[]>;
 
   getApiSpecifications(systemId: string): Promise<SpecificationGroup[]>;
