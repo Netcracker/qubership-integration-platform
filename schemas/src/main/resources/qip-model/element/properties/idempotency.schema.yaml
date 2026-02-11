@@ -62,6 +62,7 @@ definitions:
           }
         ]
         title: Action on duplicate
+        description: If Ignore selected - the call will be interrupted. In case of Http Trigger, 202 HTTP code will be returned
         default: ignore
     required:
       - contextExpression
