@@ -30,11 +30,11 @@ const menuItems = [
     icon: <OverridableIcon name="audit" />,
     label: "Audit",
   },
-  {
-    key: "/admintools/import-instructions",
-    icon: <OverridableIcon name="cloudUpload" />,
-    label: "Import Instructions",
-  },
+  // {
+  //   key: "/admintools/import-instructions",
+  //   icon: <OverridableIcon name="cloudUpload" />,
+  //   label: "Import Instructions",
+  // },
   {
     key: "/admintools/sessions",
     icon: <OverridableIcon name="user" />,
@@ -45,11 +45,11 @@ const menuItems = [
     icon: <OverridableIcon name="settings" />,
     label: "Access Control",
   },
-  {
-    key: "/admintools/design-templates",
-    icon: <OverridableIcon name="fileText" />,
-    label: "Design Templates",
-  },
+  // {
+  //   key: "/admintools/design-templates",
+  //   icon: <OverridableIcon name="fileText" />,
+  //   label: "Design Templates",
+  // },
   {
     key: "/admintools/exchanges",
     icon: <OverridableIcon name="unorderedList" />,

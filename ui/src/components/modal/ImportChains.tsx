@@ -722,22 +722,22 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                     />
                   ),
                 },
-                {
-                  key: "importInstructions",
-                  label: "Import Instructions",
-                  children: (
-                    <Table
-                      style={{ height: "100%" }}
-                      className="flex-table"
-                      size="small"
-                      rowKey="id"
-                      columns={previewImportInstructionTableColumns}
-                      dataSource={previewImportInstructionTableItems}
-                      pagination={false}
-                      scroll={{ y: "" }}
-                    />
-                  ),
-                },
+                // {
+                //   key: "importInstructions",
+                //   label: "Import Instructions",
+                //   children: (
+                //     <Table
+                //       style={{ height: "100%" }}
+                //       className="flex-table"
+                //       size="small"
+                //       rowKey="id"
+                //       columns={previewImportInstructionTableColumns}
+                //       dataSource={previewImportInstructionTableItems}
+                //       pagination={false}
+                //       scroll={{ y: "" }}
+                //     />
+                //   ),
+                // },
               ]}
             ></Tabs>,
             <Flex
@@ -802,22 +802,22 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                     />
                   ),
                 },
-                {
-                  key: "importInstructions",
-                  label: "Import Instructions",
-                  children: (
-                    <Table
-                      style={{ height: "100%" }}
-                      className="flex-table"
-                      size="small"
-                      rowKey="id"
-                      columns={resultImportInstructionTableColumns}
-                      dataSource={resultImportInstructionTableItems}
-                      pagination={false}
-                      scroll={{ y: "" }}
-                    />
-                  ),
-                },
+                // {
+                //   key: "importInstructions",
+                //   label: "Import Instructions",
+                //   children: (
+                //     <Table
+                //       style={{ height: "100%" }}
+                //       className="flex-table"
+                //       size="small"
+                //       rowKey="id"
+                //       columns={resultImportInstructionTableColumns}
+                //       dataSource={resultImportInstructionTableItems}
+                //       pagination={false}
+                //       scroll={{ y: "" }}
+                //     />
+                //   ),
+                // },
               ]}
             ></Tabs>,
           ][step]
