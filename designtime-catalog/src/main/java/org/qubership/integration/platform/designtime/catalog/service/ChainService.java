@@ -46,6 +46,7 @@ import org.qubership.integration.platform.designtime.catalog.service.filter.Chai
 import org.qubership.integration.platform.designtime.catalog.service.filter.complex.ChainStatusFilters;
 import org.qubership.integration.platform.designtime.catalog.service.filter.complex.ElementFilter;
 import org.qubership.integration.platform.designtime.catalog.service.filter.complex.LoggingFilter;
+import org.qubership.integration.platform.designtime.catalog.service.migration.element.MigrationContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.auditing.AuditingHandler;
