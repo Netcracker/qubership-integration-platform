@@ -46,6 +46,7 @@ import org.qubership.integration.platform.designtime.catalog.service.filter.Chai
 import org.qubership.integration.platform.designtime.catalog.service.filter.complex.ChainStatusFilters;
 import org.qubership.integration.platform.designtime.catalog.service.filter.complex.ElementFilter;
 import org.qubership.integration.platform.designtime.catalog.service.filter.complex.LoggingFilter;
+import org.qubership.integration.platform.designtime.catalog.service.migration.element.MigrationContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.auditing.AuditingHandler;
@@ -435,10 +436,17 @@ public class ChainService extends ChainBaseService {
         Map<String, ChainElement> copiedElementsMap = new HashMap<>();
         Map<String, ChainElement> originalElementsMap = new HashMap<>();
         List<ChainElement> copiedElements = new ArrayList<>();
+        Map<String, String> elementIdMap = new HashMap<>();
 
         for (ChainElement element : originalElements) {
-            element.setId(UUID.randomUUID().toString());
+            String newId = elementIdMap.computeIfAbsent(element.getId(), key -> UUID.randomUUID().toString());
+            element.setId(newId);
             elementUtils.updateResetOnCopyProperties(element, chainId);
+            if (MigrationContext.REUSE_REFERENCE_ELEMENT_TYPE.equals(element.getType())) {
+                String reuseElementId = element.getPropertyAsString(MigrationContext.REUSE_ELEMENT_ID);
+                String newReuseElementId = elementIdMap.computeIfAbsent(reuseElementId, value -> UUID.randomUUID().toString());
+                element.getProperties().put(MigrationContext.REUSE_ELEMENT_ID, newReuseElementId);
+            }
             copiedElementsMap.put(element.getId(), element);
             originalElementsMap.put(element.getId(), element);
             copiedElements.add(element);
