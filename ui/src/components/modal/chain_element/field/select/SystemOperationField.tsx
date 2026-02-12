@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FieldProps } from "@rjsf/utils";
 import { Flex, SelectProps, Switch, Typography } from "antd";
-import { FormContext } from "../../ChainElementModification.tsx";
+import { FormContext } from "../../ChainElementModificationContext.ts";
 import { api } from "../../../../../api/api.ts";
 import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
 import {
@@ -19,6 +19,7 @@ import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { OperationPath } from "../../../../services/OperationPath.tsx";
 import { isVsCode } from "../../../../../api/rest/vscodeExtensionApi";
 import { JSONSchema7 } from "json-schema";
+import {uniqueListById, uniqueMapById} from "../../../../../misc/operations-utils.ts";
 
 const SystemOperationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -60,8 +61,12 @@ const SystemOperationField: React.FC<
     setIsLoading(true);
     try {
       const loaded = await api.getOperations(specificationId, {});
-      setOperations(loaded);
-      setOperationsMap(new Map(loaded.map((op) => [op.id, op])));
+      const uniqueLoaded = uniqueListById(loaded);
+      const uniqueLoadedMap = uniqueMapById(loaded);
+
+      setOperations(uniqueLoaded);
+      setOperationsMap(uniqueLoadedMap);
+
       offsetRef.current = loaded.length;
       allLoadedRef.current = true;
     } catch (error) {
@@ -87,12 +92,24 @@ const SystemOperationField: React.FC<
       try {
         const pagination: PaginationOptions = { offset: nextOffset };
         const page = await api.getOperations(specificationId, pagination);
+        const uniquePage = uniqueListById(page);
 
-        setOperations((prev) => [...(nextOffset ? prev : []), ...page]);
+        setOperations((prev) => {
+          if (!nextOffset) {
+            return uniquePage;
+          }
+          const seen = new Set(prev.map((op) => op.id));
+          const appended = uniquePage.filter((op) => !seen.has(op.id));
+          return [...prev, ...appended];
+        });
 
         setOperationsMap((prev) => {
           const m = new Map(nextOffset ? prev.entries() : []);
-          page.forEach((op) => m.set(op.id, op));
+          uniquePage.forEach((op) => {
+            if (!m.has(op.id)) {
+              m.set(op.id, op);
+            }
+          });
           return m;
         });
 
@@ -276,7 +293,7 @@ const SystemOperationField: React.FC<
 
   const onPopupScroll: SelectProps<string>["onPopupScroll"] = useCallback(
     (event: React.UIEvent<HTMLDivElement>) => {
-      const target = event.target as HTMLDivElement;
+      const target = event.currentTarget as HTMLDivElement;
       const isScrolledToTheEnd =
         target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
 
