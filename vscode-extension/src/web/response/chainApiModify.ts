@@ -453,18 +453,12 @@ async function getDefaultElementByType(
   ) {
     children = [];
     for (const childType in libraryData.allowedChildren) {
-      if (
-        libraryData.allowedChildren[childType] === LibraryElementQuantity.ONE ||
-        libraryData.allowedChildren[childType] ===
-          LibraryElementQuantity.ONE_OR_MANY
-      ) {
-        children.push(
-          await getDefaultElementByType(chainId, {
-            type: childType,
-            parentElementId: elementId,
-          }),
-        );
-      }
+      children.push(
+        await getDefaultElementByType(chainId, {
+          type: childType,
+          parentElementId: elementId,
+        }),
+      );
     }
   }
 
