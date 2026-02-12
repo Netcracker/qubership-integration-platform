@@ -36,3 +36,7 @@ export {
   isDev,
 } from "./appConfig";
 export { isVsCode } from "./api/rest/vscodeExtensionApi";
+export {
+  DocumentationService,
+  documentationService,
+} from "./services/documentation/documentationService";

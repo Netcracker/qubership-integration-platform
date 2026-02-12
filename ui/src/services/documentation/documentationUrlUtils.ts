@@ -1,7 +1,15 @@
+import { getConfig } from "../../appConfig";
+
 type UrlLike = string;
 
 export const DOCUMENTATION_ROUTE_BASE = "/doc";
-export const DOCUMENTATION_ASSETS_BASE_URL = "/doc";
+export const DEFAULT_DOCUMENTATION_ASSETS_BASE_URL = "/doc";
+
+export function getDocumentationAssetsBaseUrl(): string {
+  return (
+    getConfig().documentationBaseUrl || DEFAULT_DOCUMENTATION_ASSETS_BASE_URL
+  );
+}
 
 export function normalizeBasePath(basePath: string): string {
   const trimmed = basePath.trim();
@@ -70,6 +78,5 @@ export function toDocMarkdownAssetPath(docRelativePathNoExt: string): string {
     return "";
   }
   const rel = stripLeadingSlashes(raw);
-  const withDocs = rel.startsWith("docs/") ? rel : `docs/${rel}`;
-  return withDocs.endsWith(".md") ? withDocs : `${withDocs}.md`;
+  return rel.endsWith(".md") ? rel : `${rel}.md`;
 }

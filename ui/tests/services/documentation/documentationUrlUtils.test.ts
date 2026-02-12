@@ -1,5 +1,10 @@
+const mockGetConfig = jest.fn(() => ({}));
+jest.mock("../../../src/appConfig", () => ({
+  getConfig: () => mockGetConfig(),
+}));
+
 import {
-  DOCUMENTATION_ASSETS_BASE_URL,
+  getDocumentationAssetsBaseUrl,
   DOCUMENTATION_ROUTE_BASE,
   isSafeHref,
   joinUrl,
@@ -7,12 +12,25 @@ import {
 } from "../../../src/services/documentation/documentationUrlUtils";
 
 describe("documentationUrlUtils", () => {
+  beforeEach(() => {
+    mockGetConfig.mockReturnValue({});
+  });
+
   test("DOCUMENTATION_ROUTE_BASE is /doc", () => {
     expect(DOCUMENTATION_ROUTE_BASE).toBe("/doc");
   });
 
-  test("DOCUMENTATION_ASSETS_BASE_URL is /doc", () => {
-    expect(DOCUMENTATION_ASSETS_BASE_URL).toBe("/doc");
+  test("getDocumentationAssetsBaseUrl defaults to /doc", () => {
+    expect(getDocumentationAssetsBaseUrl()).toBe("/doc");
+  });
+
+  test("getDocumentationAssetsBaseUrl returns custom value from config", () => {
+    mockGetConfig.mockReturnValue({
+      documentationBaseUrl: "https://example.com/custom-docs",
+    });
+    expect(getDocumentationAssetsBaseUrl()).toBe(
+      "https://example.com/custom-docs",
+    );
   });
 
   test("joinUrl joins base and path safely", () => {
@@ -22,12 +40,12 @@ describe("documentationUrlUtils", () => {
     );
   });
 
-  test("toDocMarkdownAssetPath builds docs path and extension", () => {
+  test("toDocMarkdownAssetPath builds path and extension", () => {
     expect(toDocMarkdownAssetPath("01__Chains/chains")).toBe(
-      "docs/01__Chains/chains.md",
+      "01__Chains/chains.md",
     );
-    expect(toDocMarkdownAssetPath("docs/01__Chains/chains.md")).toBe(
-      "docs/01__Chains/chains.md",
+    expect(toDocMarkdownAssetPath("01__Chains/chains.md")).toBe(
+      "01__Chains/chains.md",
     );
     expect(toDocMarkdownAssetPath("")).toBe("");
   });

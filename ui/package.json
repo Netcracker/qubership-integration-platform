@@ -19,22 +19,25 @@
       "types": "./dist-lib/types/index.d.ts"
     },
     "./qip-ui.css": "./dist-lib/qip-ui.css",
-    "./dist-lib/qip-ui.css": "./dist-lib/qip-ui.css"
+    "./dist-lib/qip-ui.css": "./dist-lib/qip-ui.css",
+    "./scripts/fetch-documentation": "./scripts/fetch-documentation.mjs",
+    "./scripts/build-doc-index": "./scripts/build-doc-index.mjs"
   },
   "files": [
-    "dist-lib"
+    "dist-lib",
+    "scripts/fetch-documentation.mjs",
+    "scripts/build-doc-index.mjs",
+    ".documentation-config.json.example"
   ],
   "scripts": {
     "dev": "vite",
-    "predev": "npm run fetch-docs",
     "build": "vite build",
     "prebuild": "npm run fetch-docs",
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:lib:external": "vite build --config vite.config.lib.ts",
     "build:lib:bundled": "vite build --config vite.config.lib.bundled.ts",
     "build:lib:all": "npm run build:lib:external && npm run build:lib:bundled && node scripts/fix-preload.js",
-    "fetch-docs": "ts-node --project scripts/tsconfig.json scripts/fetch-documentation.ts",
-    "build:doc-index": "node scripts/build-doc-index.js",
+    "fetch-docs": "node scripts/fetch-documentation.mjs",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,scss,json,md}\"",
@@ -101,6 +104,8 @@
   "devDependencies": {
     "@eslint/js": "^9.22.0",
     "@tailwindcss/vite": "^4.0.14",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/he": "^1.2.3",
     "@types/jest": "^29.5.14",
     "@types/json-schema": "^7.0.15",
@@ -128,6 +133,7 @@
     "js-yaml": "^4.1.0",
     "prettier": "3.6.2",
     "ts-jest": "^29.4.6",
+    "ts-jest-mock-import-meta": "^1.3.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.26.1",

@@ -8,6 +8,7 @@ export type AppConfig = {
   cssVariables?: Record<string, string>;
   additionalCss?: string[];
   themeOverrides?: Partial<ThemeConfig>;
+  documentationBaseUrl?: string;
   dev?: boolean;
 };
 
@@ -112,6 +113,13 @@ export function configure(config: Partial<AppConfig>): void {
     appConfigValue.themeOverrides = config.themeOverrides;
     overrides.push(`themeOverrides: theme configuration overridden`);
   }
+  if (config.documentationBaseUrl !== undefined) {
+    const oldValue = appConfigValue.documentationBaseUrl;
+    appConfigValue.documentationBaseUrl = config.documentationBaseUrl;
+    overrides.push(
+      `documentationBaseUrl: "${oldValue}" -> "${config.documentationBaseUrl}"`,
+    );
+  }
   if (config.dev !== undefined) {
     const oldValue = appConfigValue.dev;
     appConfigValue.dev = config.dev;
@@ -200,6 +208,7 @@ export type AppExtensionProps = {
   cssVariables?: Record<string, string>;
   additionalCss?: string[];
   themeOverrides?: Partial<ThemeConfig>;
+  documentationBaseUrl?: string;
   dev?: boolean;
 };
 

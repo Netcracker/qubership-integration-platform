@@ -4,27 +4,68 @@ import "../../lunr-init";
 
 import type {
   DocumentMappingRule,
-  TableOfContentNode,
-  SearchResult,
   HighlightSegment,
+  SearchResult,
+  TableOfContentNode,
 } from "./documentationTypes";
 import {
-  DOCUMENTATION_ASSETS_BASE_URL,
+  getDocumentationAssetsBaseUrl,
   DOCUMENTATION_ROUTE_BASE,
   joinUrl,
 } from "./documentationUrlUtils";
 import {
+  extractWords,
   formatFragmentSegments,
   segmentsToSafeHtml,
-  extractWords,
 } from "./documentationHighlightUtils";
+import { onConfigChange } from "../../appConfig";
 
 import elasticlunr from "elasticlunr";
 
-type ElasticlunrModule = typeof elasticlunr;
+type Fetcher = (url: string) => Promise<Response>;
+type WindowOpener = (url: string, target: string) => Window | null;
+
+/**
+ * Configuration for element type aliases.
+ * Maps base element types to their alternative names.
+ */
+const ELEMENT_ALIASES: Record<string, string[]> = {
+  condition: ["else", "if"],
+  "try-catch-finally": [
+    "try",
+    "catch",
+    "finally",
+    "try-2",
+    "catch-2",
+    "finally-2",
+    "try-catch-finally-2",
+  ],
+  "headers-modification": ["header-modification"],
+  "asyncapi-trigger": ["async-api-trigger"],
+  scheduler: ["quartz", "quartz-scheduler"],
+  "chain-call": ["chain-call-2"],
+  "chain-trigger": ["chain-trigger-2"],
+  "circuit-breaker": [
+    "circuit-breaker-2",
+    "circuit-breaker-configuration-2",
+    "on-fallback-2",
+  ],
+  loop: ["loop-2"],
+  split: ["split-2", "split-element-2", "main-split-element-2"],
+  "split-async": ["split-async-2", "async-split-element-2"],
+  "kafka-sender": ["kafka-sender-2"],
+  "kafka-trigger": ["kafka-trigger-2"],
+  "rabbitmq-sender": ["rabbitmq-sender-2"],
+  "rabbitmq-trigger": ["rabbitmq-trigger-2"],
+  mapper: ["mapper-2"],
+  "sftp-trigger": ["sftp-trigger-2"],
+};
 
 export class DocumentationService {
   private readonly MAX_FOUND_DOCUMENT_FRAGMENTS = 3;
+  private readonly ELEMENTS_LIBRARY_PATH = "QIP_Elements_Library";
+  private readonly INDEX_FILENAME = "index";
+
   private pathsPromise: Promise<string[]> | null = null;
   private namesPromise: Promise<string[][]> | null = null;
   private tocPromise: Promise<TableOfContentNode> | null = null;
@@ -35,26 +76,53 @@ export class DocumentationService {
   private elementMappingPromise: Promise<DocumentMappingRule[]> | null = null;
   elementTypeMappingCache: Record<string, string> | null = null;
 
-  private getElasticlunr(): ElasticlunrModule {
-    return elasticlunr;
+  constructor(
+    private fetcher: Fetcher = (url: string) => fetch(url),
+    private windowOpener: WindowOpener = (url: string, target: string) =>
+      window.open(url, target),
+  ) {}
+
+  public resetCaches(): void {
+    this.pathsPromise = null;
+    this.namesPromise = null;
+    this.tocPromise = null;
+    this.searchIndexPromise = null;
+    this.contextMappingPromise = null;
+    this.elementMappingPromise = null;
+    this.elementTypeMappingCache = null;
   }
 
-  private getDocRoot(): string {
-    return DOCUMENTATION_ASSETS_BASE_URL;
-  }
+  private async loadResource<T>(path: string): Promise<T> {
+    const fullPath = joinUrl(
+      getDocumentationAssetsBaseUrl(),
+      path.startsWith("/") ? path : `/${path}`,
+    );
 
-  private loadResource<T>(path: string): Promise<T> {
-    const docRoot = this.getDocRoot();
-    const fullPath = joinUrl(docRoot, path.startsWith("/") ? path : `/${path}`);
+    const response = await this.fetcher(fullPath);
 
-    return fetch(fullPath)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Failed to load ${fullPath}: ${response.statusText}`);
-        }
-        return response.json();
-      })
-      .then((data) => data as T);
+    if (!response.ok) {
+      throw new Error(`Failed to load ${fullPath}: ${response.statusText}`);
+    }
+
+    // Check if response is actually JSON, not HTML from Vite SPA fallback
+    const contentType = response.headers.get("content-type");
+    if (!contentType?.includes("application/json")) {
+      const text = await response.text();
+      const isHtmlResponse =
+        contentType?.includes("text/html") ||
+        text.trim().startsWith("<!DOCTYPE") ||
+        text.trim().startsWith("<html") ||
+        text.trim().startsWith("<!doctype");
+
+      if (isHtmlResponse) {
+        throw new Error(
+          `Resource not found: ${fullPath} (received HTML instead of JSON)`,
+        );
+      }
+    }
+
+    const data = await response.json();
+    return data as T;
   }
 
   public loadPaths(): Promise<string[]> {
@@ -84,10 +152,7 @@ export class DocumentationService {
     if (!this.searchIndexPromise) {
       this.searchIndexPromise = this.loadResource<unknown>(
         "search-index.json",
-      ).then((indexDump) => {
-        const elasticlunr = this.getElasticlunr();
-        return elasticlunr.Index.load(indexDump);
-      });
+      ).then((indexDump) => elasticlunr.Index.load(indexDump));
     }
     return this.searchIndexPromise;
   }
@@ -142,32 +207,30 @@ export class DocumentationService {
 
     // Auto-generate mapping from file/folder names
     paths.forEach((path) => {
-      if (!path.includes("QIP_Elements_Library")) return;
+      if (!path.includes(this.ELEMENTS_LIBRARY_PATH)) return;
 
       const parts = path.split("/");
       const fileName = parts[parts.length - 1].replace(".md", "");
       const folderName = parts[parts.length - 2];
 
       // Extract element types from both file name and folder name
-      const elementTypes: string[] = [];
+      const elementTypes = new Set<string>();
 
       // From file name: "http_trigger" → "http-trigger"
-      if (fileName && fileName !== "index") {
-        elementTypes.push(fileName.replace(/_/g, "-"));
+      if (fileName && fileName !== this.INDEX_FILENAME) {
+        elementTypes.add(fileName.replace(/_/g, "-"));
       }
 
       // From folder name: "1__HTTP_Trigger" → "http-trigger"
       const folderPart = folderName.split("__")[1];
       if (folderPart) {
-        elementTypes.push(folderPart.replace(/_/g, "-").toLowerCase());
+        elementTypes.add(folderPart.replace(/_/g, "-").toLowerCase());
       }
 
-      // Register all variants
+      // Register all variants (use nullish coalescing for more modern syntax)
       const docPath = `/doc/${path.replace(".md", "")}`;
       elementTypes.forEach((type) => {
-        if (type && !autoMapping[type]) {
-          autoMapping[type] = docPath;
-        }
+        autoMapping[type] ??= docPath;
       });
     });
 
@@ -188,34 +251,14 @@ export class DocumentationService {
   ): Record<string, string> {
     const aliases: Record<string, string> = {};
 
-    // Condition element has multiple IDs
-    if (baseMapping["condition"]) {
-      aliases["else"] = baseMapping["condition"];
-      aliases["if"] = baseMapping["condition"];
-    }
-
-    // Try-Catch-Finally element
-    if (baseMapping["try-catch-finally"]) {
-      aliases["try"] = baseMapping["try-catch-finally"];
-      aliases["catch"] = baseMapping["try-catch-finally"];
-      aliases["finally"] = baseMapping["try-catch-finally"];
-    }
-
-    // Headers modification variations
-    if (baseMapping["headers-modification"]) {
-      aliases["header-modification"] = baseMapping["headers-modification"];
-    }
-
-    // AsyncAPI trigger variations
-    if (baseMapping["asyncapi-trigger"]) {
-      aliases["async-api-trigger"] = baseMapping["asyncapi-trigger"];
-    }
-
-    // Scheduler alias
-    if (baseMapping["scheduler"]) {
-      aliases["quartz"] = baseMapping["scheduler"];
-      aliases["quartz-scheduler"] = baseMapping["scheduler"];
-    }
+    Object.entries(ELEMENT_ALIASES).forEach(([baseType, aliasNames]) => {
+      const docPath = baseMapping[baseType];
+      if (docPath) {
+        aliasNames.forEach((alias) => {
+          aliases[alias] = docPath;
+        });
+      }
+    });
 
     return aliases;
   }
@@ -246,7 +289,6 @@ export class DocumentationService {
     ref: number,
     query: string,
   ): Promise<HighlightSegment[][]> {
-    const elasticlunr = this.getElasticlunr();
     const index = await this.loadSearchIndex();
     const doc = index.documentStore.getDoc(ref.toString());
     if (!doc) {
@@ -254,16 +296,8 @@ export class DocumentationService {
     }
 
     const paragraphs = this.extractParagraphs(doc.body);
-    const paragraphIndex = this.createParagraphSearchIndex(
-      elasticlunr,
-      paragraphs,
-    );
-    return this.searchInParagraphs(
-      elasticlunr,
-      paragraphIndex,
-      paragraphs,
-      query,
-    )
+    const paragraphIndex = this.createParagraphSearchIndex(paragraphs);
+    return this.searchInParagraphs(paragraphIndex, paragraphs, query)
       .slice(0, this.MAX_FOUND_DOCUMENT_FRAGMENTS)
       .sort((r0, r1) => parseInt(r0.ref) - parseInt(r1.ref))
       .map((searchResult) => {
@@ -271,9 +305,7 @@ export class DocumentationService {
         return par?.body ?? "";
       })
       .filter((t) => t.length > 0)
-      .map((text) =>
-        this.formatFoundDocumentFragmentSegments(elasticlunr, text, query),
-      );
+      .map((text) => this.formatFoundDocumentFragmentSegments(text, query));
   }
 
   private extractParagraphs(text: string): string[] {
@@ -281,7 +313,6 @@ export class DocumentationService {
   }
 
   private createParagraphSearchIndex(
-    elasticlunr: ElasticlunrModule,
     paragraphs: string[],
   ): elasticlunr.Index<{ id: number; body: string }> {
     const index = elasticlunr<{ id: number; body: string }>();
@@ -293,7 +324,6 @@ export class DocumentationService {
   }
 
   private searchInParagraphs(
-    elasticlunr: typeof import("elasticlunr"),
     index: elasticlunr.Index<{ id: number; body: string }>,
     paragraphs: string[],
     query: string,
@@ -323,7 +353,6 @@ export class DocumentationService {
   }
 
   private formatFoundDocumentFragmentSegments(
-    elasticlunr: ElasticlunrModule,
     text: string,
     query: string,
   ): HighlightSegment[] {
@@ -346,54 +375,51 @@ export class DocumentationService {
     }
 
     console.log("Documentation mapping not found for:", elementType);
-    const routeBase = DOCUMENTATION_ROUTE_BASE;
-    return `${routeBase}/not-found`;
+    return `${DOCUMENTATION_ROUTE_BASE}/not-found`;
   }
 
   public async openChainElementDocumentation(
     elementType: string,
+    onError?: (error: Error) => void,
   ): Promise<void> {
     console.log("Opening", elementType, "chain element documentation...");
     try {
       const docPath = await this.mapPathByElementType(elementType);
       this.openPage(docPath);
     } catch (error) {
-      console.error("Failed to open element documentation:", error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error("Failed to open element documentation:", err);
+      onError?.(err);
       // Fallback to documentation home
-      const routeBase = DOCUMENTATION_ROUTE_BASE;
-      this.openPage(routeBase);
+      this.openPage(DOCUMENTATION_ROUTE_BASE);
     }
   }
 
-  public openContextDocumentation(): void {
+  public openContextDocumentation(onError?: (error: Error) => void): void {
     console.log("Opening context documentation...");
     const path = window.location.pathname + window.location.hash;
     void this.openMappedDocumentation(this.loadContextMapping(), path).catch(
-      () => {
+      (error) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error("Failed to open context documentation:", err);
+        onError?.(err);
         // Fallback to documentation home if context mapping fails
-        const routeBase = DOCUMENTATION_ROUTE_BASE;
-        this.openPage(routeBase);
+        this.openPage(DOCUMENTATION_ROUTE_BASE);
       },
     );
   }
 
   public openPage(url: string): void {
-    window.open(url, "_blank");
+    this.windowOpener(url, "_blank");
   }
 
   private async openMappedDocumentation(
     mappingRules: Promise<DocumentMappingRule[]>,
     path: string,
   ): Promise<void> {
-    try {
-      const rules = await mappingRules;
-      const mappedPath = this.mapPath(rules, path);
-      this.openPage(mappedPath);
-    } catch (error) {
-      console.error("Failed to open documentation:", error);
-      // Re-throw to allow caller to handle fallback
-      throw error;
-    }
+    const rules = await mappingRules;
+    const mappedPath = this.mapPath(rules, path);
+    this.openPage(mappedPath);
   }
 
   private mapPath(mappingRules: DocumentMappingRule[], path: string): string {
@@ -405,8 +431,8 @@ export class DocumentationService {
     } else {
       console.log("Documentation mapping rule not found");
     }
-    const routeBase = DOCUMENTATION_ROUTE_BASE;
-    const mappedPath = mappingRule?.doc || `${routeBase}/not-found`;
+    const mappedPath =
+      mappingRule?.doc || `${DOCUMENTATION_ROUTE_BASE}/not-found`;
     console.log("Documentation mapping:", path, "->", mappedPath);
     return mappedPath;
   }
@@ -430,3 +456,7 @@ export class DocumentationService {
 }
 
 export const documentationService = new DocumentationService();
+
+onConfigChange(() => {
+  documentationService.resetCaches();
+});

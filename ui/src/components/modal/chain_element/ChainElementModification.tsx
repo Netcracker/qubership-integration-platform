@@ -53,7 +53,6 @@ import ContextServiceField from "./field/select/ContextServiceField.tsx";
 import { FullscreenButton } from "../FullscreenButton.tsx";
 import { useDocumentation } from "../../../hooks/useDocumentation.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import ChainTriggerElementIdField from "./field/ChainTriggerElementIdField.tsx";
 import {
   type FormContext,
@@ -571,7 +570,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       title={
         <Flex align="center" gap={8}>
           <span>{title}</span>
-          {!isVsCode && (
+          {
             <Button
               icon={<OverridableIcon name="questionCircle" />}
               onClick={() => openElementDoc(node.data.elementType)}
@@ -579,7 +578,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               title="Help"
               size="small"
             />
-          )}
+          }
         </Flex>
       }
       onCancel={handleCheckUnsavedAndClose}

@@ -1,7 +1,0 @@
-{
-  "documentation": {
-    "source": "local",
-    "path": "../documentation-repo/docs",
-    "destination": "public/doc"
-  }
-}

@@ -6,7 +6,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { MermaidDiagram } from "@lightenna/react-mermaid-diagram";
 import {
-  DOCUMENTATION_ASSETS_BASE_URL,
+  getDocumentationAssetsBaseUrl,
   DOCUMENTATION_ROUTE_BASE,
   isAbsoluteUrl,
   isSafeHref,
@@ -41,7 +41,7 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
   pathNormalizers = [],
 }) => {
   const { isDark } = useVSCodeTheme();
-  const effectiveAssetsBaseUrl = baseUrl || DOCUMENTATION_ASSETS_BASE_URL;
+  const effectiveAssetsBaseUrl = baseUrl || getDocumentationAssetsBaseUrl();
   const effectiveRouteBase = DOCUMENTATION_ROUTE_BASE;
   const docDir = (() => {
     const raw = (docPath ?? "").replace(/^\/+/, "");
@@ -90,27 +90,24 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
     const normalized = normalizePath(src).replace(/^\.\//, "");
 
     // If src already points to a docs-relative path like "00__Overview/.../img/x.svg"
-    if (/^\d{2}__/.test(normalized) || normalized.startsWith("docs/")) {
-      const withoutDocsPrefix = normalized.startsWith("docs/")
-        ? normalized.slice("docs/".length)
-        : normalized;
-      return encodeURI(`${effectiveAssetsBaseUrl}/docs/${withoutDocsPrefix}`);
+    if (/^\d{2}__/.test(normalized)) {
+      return encodeURI(`${effectiveAssetsBaseUrl}/${normalized}`);
     }
 
     // Typical case: "img/..." relative to current document folder.
     if (normalized.startsWith("img/")) {
       return encodeURI(
         docDir
-          ? `${effectiveAssetsBaseUrl}/docs/${docDir}/${normalized}`
-          : `${effectiveAssetsBaseUrl}/docs/${normalized}`,
+          ? `${effectiveAssetsBaseUrl}/${docDir}/${normalized}`
+          : `${effectiveAssetsBaseUrl}/${normalized}`,
       );
     }
 
     // Fallback: resolve as relative to current document folder.
     return encodeURI(
       docDir
-        ? `${effectiveAssetsBaseUrl}/docs/${docDir}/${normalized}`
-        : `${effectiveAssetsBaseUrl}/docs/${normalized}`,
+        ? `${effectiveAssetsBaseUrl}/${docDir}/${normalized}`
+        : `${effectiveAssetsBaseUrl}/${normalized}`,
     );
   };
 

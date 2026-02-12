@@ -1,20 +1,12 @@
-import * as fs from "fs";
-import * as path from "path";
+import fs from "fs";
+import path from "path";
 import { execSync } from "child_process";
+import { fileURLToPath } from "url";
 
-interface DocumentationConfig {
-  source: "npm" | "git" | "local" | "url";
-  package?: string;
-  version?: string;
-  repository?: string;
-  branch?: string;
-  path?: string;
-  url?: string;
-  extract?: boolean;
-  destination?: string;
-}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-function loadDocumentationConfig(): DocumentationConfig | null {
+function loadDocumentationConfig() {
   const configPath = path.resolve(process.cwd(), ".documentation-config.json");
 
   if (!fs.existsSync(configPath)) {
@@ -36,14 +28,23 @@ function loadDocumentationConfig(): DocumentationConfig | null {
       return null;
     }
 
-    return parsed.documentation as DocumentationConfig;
+    return parsed.documentation;
   } catch (error) {
     console.error("[Documentation] Failed to load config:", error);
     return null;
   }
 }
 
-function fetchFromNpm(config: DocumentationConfig, dest: string): void {
+function copySourceToDest(sourceDir, dest) {
+  if (fs.existsSync(dest)) {
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+  fs.mkdirSync(dest, { recursive: true });
+  fs.cpSync(sourceDir, dest, { recursive: true });
+  console.log(`[Documentation] Copied to ${dest}`);
+}
+
+function fetchFromNpm(config, dest) {
   const { package: pkg, version, path: sourcePath = "docs" } = config;
 
   if (!pkg) {
@@ -72,14 +73,7 @@ function fetchFromNpm(config: DocumentationConfig, dest: string): void {
       throw new Error(`Source path not found in package: ${sourceDir}`);
     }
 
-    const destDocs = path.join(dest, "docs");
-    if (fs.existsSync(destDocs)) {
-      fs.rmSync(destDocs, { recursive: true, force: true });
-    }
-    fs.mkdirSync(path.dirname(destDocs), { recursive: true });
-
-    fs.cpSync(sourceDir, destDocs, { recursive: true });
-    console.log(`[Documentation] Copied to ${destDocs}`);
+    copySourceToDest(sourceDir, dest);
   } finally {
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -87,7 +81,7 @@ function fetchFromNpm(config: DocumentationConfig, dest: string): void {
   }
 }
 
-function fetchFromGit(config: DocumentationConfig, dest: string): void {
+function fetchFromGit(config, dest) {
   const { repository, branch = "master", path: sourcePath = "docs" } = config;
 
   if (!repository) {
@@ -114,14 +108,7 @@ function fetchFromGit(config: DocumentationConfig, dest: string): void {
       throw new Error(`Source path not found in repository: ${sourceDir}`);
     }
 
-    const destDocs = path.join(dest, "docs");
-    if (fs.existsSync(destDocs)) {
-      fs.rmSync(destDocs, { recursive: true, force: true });
-    }
-    fs.mkdirSync(path.dirname(destDocs), { recursive: true });
-
-    fs.cpSync(sourceDir, destDocs, { recursive: true });
-    console.log(`[Documentation] Copied to ${destDocs}`);
+    copySourceToDest(sourceDir, dest);
   } finally {
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -129,7 +116,7 @@ function fetchFromGit(config: DocumentationConfig, dest: string): void {
   }
 }
 
-function fetchFromLocal(config: DocumentationConfig, dest: string): void {
+function fetchFromLocal(config, dest) {
   const { path: sourcePath } = config;
 
   if (!sourcePath) {
@@ -143,28 +130,10 @@ function fetchFromLocal(config: DocumentationConfig, dest: string): void {
   }
 
   console.log(`[Documentation] Copying from local: ${sourceDir}`);
-
-  const destDocs = path.join(dest, "docs");
-  if (fs.existsSync(destDocs)) {
-    fs.rmSync(destDocs, { recursive: true, force: true });
-  }
-  fs.mkdirSync(path.dirname(destDocs), { recursive: true });
-
-  fs.cpSync(sourceDir, destDocs, { recursive: true });
-  console.log(`[Documentation] Copied to ${destDocs}`);
+  copySourceToDest(sourceDir, dest);
 }
 
-function fetchFromUrl(_config: DocumentationConfig, _dest: string): void {
-  console.warn("[Documentation] URL source is not yet implemented");
-  console.warn("[Documentation] Please use npm, git, or local source");
-  throw new Error("URL source is not implemented");
-}
-
-function fetchDocumentation(config: DocumentationConfig, dest: string): void {
-  if (!fs.existsSync(dest)) {
-    fs.mkdirSync(dest, { recursive: true });
-  }
-
+function fetchDocumentation(config, dest) {
   switch (config.source) {
     case "npm":
       fetchFromNpm(config, dest);
@@ -175,35 +144,31 @@ function fetchDocumentation(config: DocumentationConfig, dest: string): void {
     case "local":
       fetchFromLocal(config, dest);
       break;
-    case "url":
-      fetchFromUrl(config, dest);
-      break;
     default:
-      throw new Error(`Unknown source type: ${(config as any).source}`);
+      throw new Error(`Unknown source type: ${config.source}`);
   }
 }
 
-function generateIndexes(dest: string): void {
-  const indexPath = path.join(__dirname, "build-doc-index.js");
-  const docsPath = path.join(dest, "docs");
+function generateIndexes(dest) {
+  const indexPath = path.join(__dirname, "build-doc-index.mjs");
 
   if (!fs.existsSync(indexPath)) {
     console.warn(
-      "[Documentation] build-doc-index.js not found, skipping index generation",
+      "[Documentation] build-doc-index.mjs not found, skipping index generation",
     );
     return;
   }
 
-  if (!fs.existsSync(docsPath)) {
+  if (!fs.existsSync(dest)) {
     console.warn(
-      "[Documentation] Docs directory not found, skipping index generation",
+      "[Documentation] Destination directory not found, skipping index generation",
     );
     return;
   }
 
   console.log("[Documentation] Generating indexes...");
   try {
-    execSync(`node ${indexPath} ${docsPath} ${dest}`, {
+    execSync(`node ${indexPath} ${dest} ${dest}`, {
       stdio: "inherit",
     });
     console.log("[Documentation] Indexes generated successfully");
@@ -213,7 +178,7 @@ function generateIndexes(dest: string): void {
   }
 }
 
-async function main(): Promise<void> {
+function main() {
   console.log("[Documentation] Starting documentation fetch...");
 
   const config = loadDocumentationConfig();
@@ -238,7 +203,4 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error("[Documentation] Fatal error:", error);
-  process.exit(1);
-});
+main();

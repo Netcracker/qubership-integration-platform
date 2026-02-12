@@ -1,0 +1,10 @@
+{
+  "documentation": {
+    "source": "git",
+    "repository": "https://github.com/Netcracker/qubership-integration-help.git",
+    "branch": "main",
+    "path": "docs",
+    "destination": "public/doc"
+  }
+}
+

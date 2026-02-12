@@ -7,7 +7,7 @@ import { DocumentationSearch } from "../components/documentation/DocumentationSe
 import { useDocumentation } from "../hooks/useDocumentation";
 import { useNavigate } from "react-router-dom";
 import {
-  DOCUMENTATION_ASSETS_BASE_URL,
+  getDocumentationAssetsBaseUrl,
   DOCUMENTATION_ROUTE_BASE,
   joinUrl,
   toDocMarkdownAssetPath,
@@ -32,7 +32,7 @@ export const DocumentationPage: React.FC = () => {
 
       try {
         const routeBase = DOCUMENTATION_ROUTE_BASE;
-        const assetsBaseUrl = DOCUMENTATION_ASSETS_BASE_URL;
+        const assetsBaseUrl = getDocumentationAssetsBaseUrl();
 
         // Handle search page
         if (location.pathname === `${routeBase}/search`) {
@@ -83,6 +83,20 @@ export const DocumentationPage: React.FC = () => {
         }
 
         const text = await response.text();
+
+        // Check if response is HTML (Vite SPA fallback) instead of markdown
+        const contentType = response.headers.get("content-type");
+        const isHtmlResponse =
+          contentType?.includes("text/html") ||
+          text.trim().startsWith("<!DOCTYPE") ||
+          text.trim().startsWith("<html");
+
+        if (isHtmlResponse) {
+          setError("Document not found");
+          setIsLoading(false);
+          return;
+        }
+
         setContent(text);
       } catch (err: unknown) {
         console.error("Failed to load documentation:", err);

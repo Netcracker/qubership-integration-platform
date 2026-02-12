@@ -1,7 +1,7 @@
-const fs = require("fs");
-const pth = require("path");
-const marked = require("marked");
-const elasticlunr = require("elasticlunr");
+import fs from "fs";
+import pth from "path";
+import { marked } from "marked";
+import elasticlunr from "elasticlunr";
 
 class TocTreeNode {
   constructor(title, documentId) {
@@ -25,74 +25,66 @@ class TocTreeNode {
   };
 }
 
-class IndexableContentExtractor {
-  constructor() {
-    this.sep = "\n\n";
+// Extract text content from markdown tokens
+function extractTextFromTokens(tokens) {
+  const textParts = [];
+
+  for (const token of tokens) {
+    if (token.type === 'text' || token.type === 'codespan') {
+      textParts.push(token.text || token.raw);
+    } else if (token.type === 'paragraph' || token.type === 'heading') {
+      if (token.tokens) {
+        textParts.push(extractTextFromTokens(token.tokens));
+      } else if (token.text) {
+        textParts.push(token.text);
+      }
+    } else if (token.type === 'list') {
+      if (token.items) {
+        for (const item of token.items) {
+          if (item.tokens) {
+            textParts.push(extractTextFromTokens(item.tokens));
+          }
+        }
+      }
+    } else if (token.type === 'table') {
+      if (token.header) {
+        for (const cell of token.header) {
+          if (cell.tokens) {
+            textParts.push(extractTextFromTokens(cell.tokens));
+          } else if (cell.text) {
+            textParts.push(cell.text);
+          }
+        }
+      }
+      if (token.rows) {
+        for (const row of token.rows) {
+          for (const cell of row) {
+            if (cell.tokens) {
+              textParts.push(extractTextFromTokens(cell.tokens));
+            } else if (cell.text) {
+              textParts.push(cell.text);
+            }
+          }
+        }
+      }
+    } else if (token.type === 'code') {
+      textParts.push(token.text);
+    } else if (token.type === 'blockquote' && token.tokens) {
+      textParts.push(extractTextFromTokens(token.tokens));
+    } else if (token.type === 'strong' || token.type === 'em' || token.type === 'del') {
+      if (token.tokens) {
+        textParts.push(extractTextFromTokens(token.tokens));
+      } else if (token.text) {
+        textParts.push(token.text);
+      }
+    } else if (token.type === 'link' && token.tokens) {
+      textParts.push(extractTextFromTokens(token.tokens));
+    } else if (token.tokens) {
+      textParts.push(extractTextFromTokens(token.tokens));
+    }
   }
 
-  code = function (code) {
-    return code + this.sep;
-  };
-  blockquote = function (quote) {
-    return quote + this.sep;
-  };
-  html = function (html) {
-    return html + this.sep;
-  };
-  heading = function (text) {
-    return text + this.sep;
-  };
-  hr = function () {
-    return "";
-  };
-  list = function (body) {
-    return body;
-  };
-  listitem = function (text) {
-    return text + this.sep;
-  };
-  checkbox = function () {
-    return "";
-  };
-  paragraph = function (text) {
-    return text + this.sep;
-  };
-  table = function (header, body) {
-    return header + this.sep + body + this.sep;
-  };
-  tablerow = function (content) {
-    return content + this.sep;
-  };
-  tablecell = function (content) {
-    return content + this.sep;
-  };
-  strong = function (text) {
-    return text;
-  };
-  em = function (text) {
-    return text;
-  };
-  codespan = function (text) {
-    return text + this.sep;
-  };
-  br = function () {
-    return " ";
-  };
-  del = function (text) {
-    return text;
-  };
-  link = function (href, title, text) {
-    return text;
-  };
-  image = function (href, title, text) {
-    return text;
-  };
-  text = function (text) {
-    return text;
-  };
-  space = function () {
-    return " ";
-  };
+  return textParts.join('\n\n');
 }
 
 async function* walk(dir) {
@@ -183,8 +175,8 @@ async function buildSearchIndex(dir, paths) {
 }
 
 function extractDocumentContent(markdownText) {
-  let renderer = new IndexableContentExtractor();
-  return marked.parse(markdownText, { renderer });
+  const tokens = marked.lexer(markdownText);
+  return extractTextFromTokens(tokens);
 }
 
 function getDocumentTitle(path) {
@@ -192,21 +184,14 @@ function getDocumentTitle(path) {
 }
 
 function parseCommandLine() {
-  return require("yargs")
-    .scriptName("build-doc-index")
-    .usage("$0 <doc_dir> <out_dir>")
-    .positional("doc_dir", {
-      description: "Documentation root directory",
-      normalize: true,
-      type: "string",
-    })
-    .positional("out_dir", {
-      description: "Output directory",
-      normalize: true,
-      type: "string",
-    })
-    .help()
-    .parse();
+  const args = process.argv.slice(2);
+  if (args.length < 2) {
+    console.error("Usage: build-doc-index <doc_dir> <out_dir>");
+    process.exit(1);
+  }
+  return {
+    _: args,
+  };
 }
 
 function main() {
