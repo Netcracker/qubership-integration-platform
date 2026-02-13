@@ -15,6 +15,7 @@ import { capitalize } from "../misc/format-utils.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import styles from "./Chain.module.css";
+import { LoggingSettingsSourceTag } from "../components/logging/LoggingSettingsSourceTag.tsx";
 
 type LogSettingsFormState = ChainLoggingProperties & { custom: boolean };
 
@@ -185,6 +186,12 @@ export const LoggingSettings: React.FC = () => {
             {...formItemStyle}
           >
             <Checkbox>Override default properties</Checkbox>
+          </Form.Item>
+          <Form.Item
+            label="Logging settings source"
+            name="loggingSettingsSource"
+          >
+            <LoggingSettingsSourceTag isCustom={isCustom} isConsulDefault={loggingSettings?.consulDefault !== undefined}/>
           </Form.Item>
           <Form.Item label="Session level" name="sessionsLoggingLevel">
             <Select<SessionsLoggingLevel>
