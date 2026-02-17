@@ -285,7 +285,7 @@ export const Sessions: React.FC = () => {
   const retryFromLastCheckpoint = useCallback(
     async (chainId: string, sessionId: string) => {
       try {
-        await api.retrySessionFromLastCheckpoint(chainId, sessionId);
+        await api.retrySessionFromCheckpoint(chainId, sessionId);
         messageApi.info(
           "Session was retried successfully. Please update table to see session result.",
         );
@@ -487,7 +487,7 @@ export const Sessions: React.FC = () => {
       .filter((session) => !!session)
       .map(async (session) => {
         try {
-          await api.retryFromLastCheckpoint(session.chainId, session.id);
+          await api.retrySessionFromCheckpoint(session.chainId, session.id);
           notificationService.info(
             "Session retried",
             `Session ${session.id} was retried successfully`,

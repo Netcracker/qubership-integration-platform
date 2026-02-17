@@ -220,16 +220,11 @@ export interface Api {
 
   importSessions(files: File[]): Promise<Session[]>;
 
-  retryFromLastCheckpoint(chainId: string, sessionId: string): Promise<void>;
-
   getSession(sessionId: string): Promise<Session>;
 
   getCheckpointSessions(sessionIds: string[]): Promise<CheckpointSession[]>;
 
-  retrySessionFromLastCheckpoint(
-    chainId: string,
-    sessionId: string,
-  ): Promise<void>;
+  retrySessionFromCheckpoint(chainId: string, sessionId: string): Promise<void>;
 
   getFolder(folderId: string): Promise<FolderItem>;
 

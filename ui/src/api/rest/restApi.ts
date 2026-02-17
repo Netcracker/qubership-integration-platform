@@ -974,16 +974,6 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  retryFromLastCheckpoint = async (
-    chainId: string,
-    sessionId: string,
-  ): Promise<void> => {
-    await this.instance.post(
-      `${this.v1()}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
-      null,
-    );
-  };
-
   getSession = async (sessionId: string): Promise<Session> => {
     const response = await this.instance.get<Session>(
       `${this.v1()}/sessions-management/sessions/${sessionId}`,
@@ -1006,13 +996,13 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  retrySessionFromLastCheckpoint = async (
+  retrySessionFromCheckpoint = async (
     chainId: string,
     sessionId: string,
   ): Promise<void> => {
     return this.instance.post(
       `${this.v1()}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
-      null,
+      {},
     );
   };
 
