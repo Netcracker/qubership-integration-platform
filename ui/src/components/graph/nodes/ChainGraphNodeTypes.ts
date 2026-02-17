@@ -21,6 +21,10 @@ export type ChainGraphNodeData = {
 
 export type ChainGraphNode = Node<ChainGraphNodeData>;
 
+export type ChainGraphNodeWithChildren = ChainGraphNode & {
+  children?: ChainGraphNodeWithChildren[];
+};
+
 export const nodeTypes = {
   container: ContainerNode,
   unit: UnitNode,

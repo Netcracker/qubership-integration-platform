@@ -22,7 +22,7 @@ import React, {
 } from "react";
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
-import { Flex, FloatButton } from "antd";
+import { Flex, FloatButton, Modal } from "antd";
 import { useNavigate } from "react-router";
 import { useParams } from "react-router-dom";
 import { CustomControls } from "../components/graph/CustomControls.tsx";
@@ -49,11 +49,12 @@ import {
   ChainGraphNode,
   ChainGraphNodeData,
   nodeTypes,
+  OnDeleteEvent,
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
-import { getElementColor } from "../misc/chain-graph-utils.ts";
+import { getElementColor, nonEmptyContainerExists } from "../misc/chain-graph-utils.ts";
 import {
   ExportChainOptions,
   ExportChains,
@@ -456,6 +457,25 @@ const ChainGraphInner: React.FC = () => {
     [currentTheme, getCssVariableValue],
   );
 
+  const handleDelete = useCallback(
+    async (changes: OnDeleteEvent) => {
+      if (
+        changes.nodes.length > 0 &&
+        (await nonEmptyContainerExists(changes.nodes))
+      ) {
+        Modal.confirm({
+          title: "Delete Container",
+          content:
+            "This container element is not empty. Are you sure you want to delete it? All its content will be also deleted.",
+          onOk: () => void onDelete(changes),
+        });
+      } else {
+        void onDelete(changes);
+      }
+    },
+    [onDelete],
+  );
+
   return (
     <Flex className={styles["graph-wrapper"]}>
       <ElementsLibrarySidebar />
@@ -481,7 +501,9 @@ const ChainGraphInner: React.FC = () => {
             onNodesChange={(changes) => void onNodesChange(changes)}
             onEdgesChange={(changes) => void onEdgesChange(changes)}
             onConnect={(connection) => void onConnect(connection)}
-            onDelete={(changes) => void onDelete(changes)}
+            onDelete={(changes) => {
+              void handleDelete(changes);
+            }}
             onDrop={(event) => void onDrop(event)}
             onDragOver={onDragOver}
             onNodeDoubleClick={onNodeDoubleClick}
