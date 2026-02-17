@@ -134,7 +134,7 @@ data:
         proxy_intercept_errors on;
       }
 
-      location ~ ^/api/.*/(v\d+)/(secured-variables|secret|common-variables/import) {
+      location ~ ^/api/.*/(v\d+)/(folders|snapshots|secured-variables|secret|common-variables/import) {
         rewrite ^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
         proxy_pass  http://qip-runtime-catalog:8080;
         proxy_redirect     off;
