@@ -21,6 +21,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.sys
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface SystemModelRepository extends JpaRepository<SystemModel, String> {
@@ -41,4 +42,6 @@ public interface SystemModelRepository extends JpaRepository<SystemModel, String
             + "inner join model.compiledLibrary lib "
             + "where lib.data is not null")
     List<Object[]> findAllWithCompiledLibraries();
+
+    SystemModel findByIdInAndSpecificationGroupIdNot(Collection<String> ids, String specificationGroupId);
 }
