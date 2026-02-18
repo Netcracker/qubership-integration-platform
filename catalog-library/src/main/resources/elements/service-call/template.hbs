@@ -242,7 +242,6 @@
             </choice>
 
             <setProperty name="internalProperty_serviceCall_{{identifier}}_Retry"><constant>false</constant></setProperty>
-            <setProperty name="internalProperty_serviceCall_{{identifier}}_Success"><constant>true</constant></setProperty>
             <doTry id="Request--{{identifier}}">
 
                 {{#if-property 'integrationOperationProtocolType' equals='http'}}
@@ -335,7 +334,6 @@
                 <doCatch>
                     <exception>java.lang.Exception</exception>
                     <setProperty name="internalProperty_elementFailed"><constant>true</constant></setProperty>
-                    <setProperty name="internalProperty_serviceCall_{{identifier}}_Success"><constant>false</constant></setProperty>
                     <choice>
                         <when>
                             <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
@@ -390,16 +388,6 @@
 
                             <removeProperty name="internalProperty_overrideContextParams"/>
                             <removeProperty name="internalProperty_retryAwait"/>
-                            <choice>
-                                <when>
-                                    <simple>${exchangeProperty[internalProperty_serviceCall_{{identifier}}_Success]} == true</simple>
-                                    <removeProperty name="CamelExceptionCaught"/>
-                                    <removeProperty name="lastException"/>
-                                    <removeProperty name="internalProperty_sessionFailed"/>
-                                </when>
-                            </choice>
-                            <removeProperty name="internalProperty_serviceCall_{{identifier}}_Success"></removeProperty>
-
                             <process ref="contextRestoreProcessor"/>
                             {{#if-property 'authorizationConfiguration' presented=''}}
                                 {{#with-property 'authorizationConfiguration'}}
