@@ -109,7 +109,7 @@ export const Filter = (props: FilterProps) => {
       title="Filter"
       open={true}
       onCancel={closeContainingModal}
-      width={600}
+      width={750}
       footer={[
         <Button key="cancel" onClick={closeContainingModal}>
           Cancel

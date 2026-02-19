@@ -5,7 +5,7 @@ export class FilterCondition {
     "Does not contain",
   );
   public static readonly STARTS_WITH = new FilterCondition(
-    "START_WITH",
+    "STARTS_WITH",
     "Starts with",
   );
   public static readonly ENDS_WITH = new FilterCondition(

@@ -168,7 +168,7 @@ export const FilterItem = (props: FilterItemProps) => {
 
   return (
     <Row gutter={4}>
-      <Col span={6}>
+      <Col span={8}>
         <Form.Item style={itemStyle}>
           <Select
             placeholder="Column"
@@ -189,7 +189,7 @@ export const FilterItem = (props: FilterItemProps) => {
           />
         </Form.Item>
       </Col>
-      <Col span={10}>
+      <Col span={8}>
         <Form.Item style={itemStyle}>
           <FilterValue
             type={
