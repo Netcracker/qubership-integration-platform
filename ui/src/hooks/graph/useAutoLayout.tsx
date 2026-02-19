@@ -3,6 +3,65 @@ import { useCallback, useEffect, useRef } from "react";
 import ELK, { ElkNode, LayoutOptions } from "elkjs/lib/elk.bundled";
 import { ElkDirection, useElkDirection } from "./useElkDirection.tsx";
 
+const baseLayoutOptions: LayoutOptions = {
+  "elk.algorithm": "layered",
+  "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+  "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
+  "elk.layered.nodePlacement.bk.fixedAlignment": "LEFTUP",
+  "elk.layered.compaction.postCompaction.enabled": "true",
+  "elk.layering.strategy": "LONGEST_PATH",
+  "elk.layered.considerModelOrder": "NODES_AND_EDGES",
+  "elk.partitioning.activate": "true",
+  "elk.spacing.nodeNode": "40",
+  "elk.spacing.nodeNodeBetweenLayers": "40",
+  "elk.spacing.componentComponent": "20",
+  "elk.padding": "[top=45,left=20,right=20,bottom=20]",
+};
+
+type NodeBounds = { minX: number; maxX: number; minY: number; maxY: number };
+
+function getBounds<NodeData extends Record<string, unknown>>(
+  node: Node<NodeData>,
+): NodeBounds {
+  const x = node.position?.x ?? 0;
+  const y = node.position?.y ?? 0;
+  const w = node.width ?? 150;
+  const h = node.height ?? 50;
+  return { minX: x, maxX: x + w, minY: y, maxY: y + h };
+}
+
+function getComponentsBounds<NodeData extends Record<string, unknown>>(
+  nodes: Node<NodeData>[],
+): NodeBounds {
+  if (nodes.length === 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const n of nodes) {
+    const b = getBounds(n);
+    minX = Math.min(minX, b.minX);
+    minY = Math.min(minY, b.minY);
+    maxX = Math.max(maxX, b.maxX);
+    maxY = Math.max(maxY, b.maxY);
+  }
+
+  return {
+    minX: Number.isFinite(minX) ? minX : 0,
+    minY: Number.isFinite(minY) ? minY : 0,
+    maxX: Number.isFinite(maxX) ? maxX : 0,
+    maxY: Number.isFinite(maxY) ? maxY : 0,
+  };
+}
+
+function overlaps1D(aMin: number, aMax: number, bMin: number, bMax: number) {
+  return aMin < bMax && bMin < aMax;
+}
+
 function buildElkGraph<
   T extends ElkNode,
   NodeData extends Record<string, unknown> = never,
@@ -12,6 +71,11 @@ function buildElkGraph<
   edges: Edge<EdgeData>[],
   direction: ElkDirection,
 ): T {
+  const layoutOptions = {
+    ...baseLayoutOptions,
+    "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
+  };
+
   const visibleNodes = nodes.filter((node) => !node.hidden);
   const visibleIds = new Set(visibleNodes.map((node) => node.id));
   const visibleEdges = edges.filter(
@@ -22,28 +86,12 @@ function buildElkGraph<
     visibleNodes.filter((n) => n.type === "container").map((n) => n.id),
   );
 
-  const baseLayoutOptions: LayoutOptions = {
-    "elk.algorithm": "layered",
-    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
-    "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
-    "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
-    "elk.layered.nodePlacement.bk.fixedAlignment": "LEFTUP",
-    "elk.layered.compaction.postCompaction.enabled": "true",
-    "elk.layering.strategy": "LONGEST_PATH",
-    "elk.layered.considerModelOrder": "NODES_AND_EDGES",
-    "elk.partitioning.activate": "true",
-    "elk.spacing.nodeNode": "40",
-    "elk.spacing.nodeNodeBetweenLayers": "40",
-    "elk.spacing.componentComponent": "20",
-    "elk.padding": "[top=45,left=20,right=20,bottom=20]",
-  };
-
   const nodeMap = new Map<string, ElkNode>();
   const parentMap = new Map<string, string | undefined>();
 
   for (const node of visibleNodes) {
     parentMap.set(node.id, node.parentId);
-    const hasChildren = visibleNodes.some((node) => node.parentId === node.id);
+    const hasChildren = visibleNodes.some((n) => n.parentId === node.id);
 
     nodeMap.set(node.id, {
       id: node.id,
@@ -64,7 +112,7 @@ function buildElkGraph<
   for (const elkNode of nodeMap.values()) {
     if (elkNode.children?.length || containerNodeIds.has(elkNode.id)) {
       elkNode.layoutOptions = {
-        ...baseLayoutOptions,
+        ...layoutOptions,
         "elk.direction": direction,
         "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
         "elk.layered.nodePlacement.bk.fixedAlignment": "LEFTUP",
@@ -103,7 +151,7 @@ function buildElkGraph<
 
   const root: ElkNode = {
     id: "root",
-    layoutOptions: { ...baseLayoutOptions, "elk.direction": direction },
+    layoutOptions: { ...layoutOptions, "elk.direction": direction },
     children: topLevelNodes,
     edges: [],
   };
@@ -157,16 +205,20 @@ function leftAlignDisconnectedSiblings<
   const isHorizontal = direction === "RIGHT";
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
 
-  const parentMap = new Map<string | undefined, Node<NodeData>[]>();
+  const parentGroups = new Map<string | undefined, Node<NodeData>[]>();
   for (const node of nodes) {
     if (node.hidden) continue;
     const parentId = node.parentId;
     if (onlyInsideContainers && !parentId) continue;
-    if (!parentMap.has(parentId)) parentMap.set(parentId, []);
-    parentMap.get(parentId)!.push(node);
+    if (!parentGroups.has(parentId)) parentGroups.set(parentId, []);
+    parentGroups.get(parentId)!.push(node);
   }
 
-  for (const [parentId, children] of parentMap) {
+  const gap: number = Number(
+    baseLayoutOptions["elk.spacing.componentComponent"] ?? 20,
+  );
+
+  for (const [parentId, children] of parentGroups) {
     if (!children || children.length < 2) continue;
 
     const childIds = new Set(children.map((child) => child.id));
@@ -186,6 +238,7 @@ function leftAlignDisconnectedSiblings<
 
     const comps: string[][] = [];
     const seen = new Set<string>();
+
     for (const id of childIds) {
       if (seen.has(id)) continue;
       const stack = [id];
@@ -206,35 +259,64 @@ function leftAlignDisconnectedSiblings<
 
     if (comps.length <= 1) continue;
 
-    const globalMin = Math.min(
-      ...children.map(
-        (child) => (isHorizontal ? child.position.x : child.position.y) || 0,
-      ),
-    );
+    const compNodesList = comps
+      .map((ids) => ids.map((id) => nodeMap.get(id)!).filter(Boolean))
+      .filter((arr) => arr.length > 0);
 
-    for (const comp of comps) {
-      const compNodes = comp.map((id) => nodeMap.get(id)!).filter(Boolean);
-      const compMin = Math.min(
-        ...compNodes.map(
-          (comp) => (isHorizontal ? comp.position.x : comp.position.y) || 0,
-        ),
-      );
-      const delta = globalMin - compMin;
-      if (delta === 0) continue;
+    const compBounds = compNodesList.map((arr) => getComponentsBounds(arr));
 
-      for (const node of compNodes) {
+    const globalMin = isHorizontal
+      ? Math.min(...compBounds.map((b) => b.minX))
+      : Math.min(...compBounds.map((b) => b.minY));
+
+    const order = compBounds
+      .map((b, idx) => ({ idx, key: isHorizontal ? b.minX : b.minY }))
+      .sort((a, b) => a.key - b.key)
+      .map((x) => x.idx);
+
+    const placedBounds: NodeBounds[] = [];
+    for (const idx of order) {
+      const compNodes = compNodesList[idx];
+      const box = getComponentsBounds(compNodes);
+
+      const compMin = isHorizontal ? box.minX : box.minY;
+      const desiredDelta = globalMin - compMin;
+
+      let limitDelta = desiredDelta;
+
+      for (const prev of placedBounds) {
+        const yOverlap = overlaps1D(box.minY, box.maxY, prev.minY, prev.maxY);
+        const xOverlap = overlaps1D(box.minX, box.maxX, prev.minX, prev.maxX);
+
         if (isHorizontal) {
-          node.position = {
-            ...node.position,
-            x: (node.position.x || 0) + delta,
-          };
+          if (!yOverlap) continue;
+          const minAllowed = prev.maxX + gap - box.minX;
+          limitDelta = Math.max(limitDelta, minAllowed);
         } else {
-          node.position = {
-            ...node.position,
-            y: (node.position.y || 0) + delta,
-          };
+          if (!xOverlap) continue;
+          const minAllowed = prev.maxY + gap - box.minY;
+          limitDelta = Math.max(limitDelta, minAllowed);
         }
       }
+
+      if (limitDelta !== 0) {
+        for (const n of compNodes) {
+          if (isHorizontal) {
+            n.position = { ...n.position, x: (n.position.x || 0) + limitDelta };
+          } else {
+            n.position = { ...n.position, y: (n.position.y || 0) + limitDelta };
+          }
+        }
+      }
+
+      const newBound = {
+        minX: box.minX + (isHorizontal ? limitDelta : 0),
+        maxX: box.maxX + (isHorizontal ? limitDelta : 0),
+        minY: box.minY + (!isHorizontal ? limitDelta : 0),
+        maxY: box.maxY + (!isHorizontal ? limitDelta : 0),
+      };
+
+      placedBounds.push(newBound);
     }
   }
 }
@@ -281,7 +363,12 @@ function autoLayout(
   direction: ElkDirection,
 ): void {
   const nodes = reactFlow.getNodes();
-  const edges = reactFlow.getEdges();
+  const edges = reactFlow
+    .getEdges()
+    .filter(
+      (e) => !(e.data as { decorative?: boolean } | undefined)?.decorative,
+    )
+    .filter((e) => !String(e.id).startsWith("decorative:"));
 
   void arrangeNodes(nodes, edges, direction).then((newNodes) => {
     const nodeMap = new Map(newNodes.map((node) => [node.id, node]));

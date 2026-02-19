@@ -501,3 +501,31 @@ export function depthOf(id: string, byId: Map<string, ChainGraphNode>): number {
   }
   return depth;
 }
+
+export function normalizeHandleId(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  if (!v) return undefined;
+  if (v === "null" || v === "undefined") return undefined;
+  return v;
+}
+
+export function sanitizeEdge(e: Edge): Edge {
+  const anyEdge = e as Edge & {
+    sourceHandle?: unknown;
+    targetHandle?: unknown;
+  };
+  const { sourceHandle, targetHandle, ...rest } = anyEdge as unknown as Record<
+    string,
+    unknown
+  >;
+
+  const out: Record<string, unknown> = { ...rest };
+
+  const sh = normalizeHandleId(sourceHandle);
+  const th = normalizeHandleId(targetHandle);
+
+  if (sh) out.sourceHandle = sh;
+  if (th) out.targetHandle = th;
+
+  return out as unknown as Edge;
+}

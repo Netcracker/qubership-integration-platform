@@ -17,6 +17,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -54,7 +55,7 @@ import {
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
-import { getElementColor, nonEmptyContainerExists } from "../misc/chain-graph-utils.ts";
+import {getElementColor, nonEmptyContainerExists, sanitizeEdge} from "../misc/chain-graph-utils.ts";
 import {
   ExportChainOptions,
   ExportChains,
@@ -115,6 +116,7 @@ const ChainGraphInner: React.FC = () => {
   const {
     nodes,
     edges,
+    decorativeEdges,
     onConnect,
     onDragOver,
     onDrop,
@@ -132,6 +134,11 @@ const ChainGraphInner: React.FC = () => {
     onContextMenuCall,
     isLoading,
   } = useChainGraph(chainId, refreshChain);
+
+  const renderEdges = useMemo(
+    () => [...edges, ...decorativeEdges].map(sanitizeEdge),
+    [edges, decorativeEdges],
+  );
 
   const { rightPanel, toggleRightPanel } = useElkDirection();
 
@@ -461,7 +468,7 @@ const ChainGraphInner: React.FC = () => {
     async (changes: OnDeleteEvent) => {
       if (
         changes.nodes.length > 0 &&
-        (await nonEmptyContainerExists(changes.nodes))
+        (await nonEmptyContainerExists(changes.nodes as ChainGraphNode[]))
       ) {
         Modal.confirm({
           title: "Delete Container",
@@ -492,7 +499,7 @@ const ChainGraphInner: React.FC = () => {
             nodes={nodes}
             nodeTypes={nodeTypes}
             defaultEdgeOptions={{ zIndex: 1001 }}
-            edges={edges}
+            edges={renderEdges}
             onNodeDragStart={onNodeDragStart}
             onNodeDrag={onNodeDrag}
             onNodeDragStop={(event, draggedNode) =>

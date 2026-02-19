@@ -33,21 +33,21 @@ import { useLibraryContext } from "../../components/LibraryContext.tsx";
 import {
   applyHighlight,
   collectChildren,
-  getContainerIdsForEdges,
   collectSubgraphByParents,
+  depthOf,
   edgesForSubgraph,
+  expandWithParent,
   findUpdatedElement,
+  getContainerIdsForEdges,
   getDataFromElement,
   getFakeNode,
   getIntersectionParent,
+  getLeastCommonParent,
   getLibraryElement,
   getNodeFromElement,
   getPossibleGraphIntersection,
-  sortParentsBeforeChildren,
-  getLeastCommonParent,
-  expandWithParent,
-  depthOf,
   mergeWithPinnedPositions,
+  sortParentsBeforeChildren,
 } from "../../misc/chain-graph-utils.ts";
 import {
   ChainGraphNode,
@@ -57,23 +57,93 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { ContextMenuData } from "../../components/graph/ContextMenu.tsx";
 
+const DECORATIVE_PREFIX = "decorative:";
+
+function isDecorativeEdgeId(id: string) {
+  return typeof id === "string" && id.startsWith(DECORATIVE_PREFIX);
+}
+
+function originalEdgeIdFromDecorative(id: string) {
+  return isDecorativeEdgeId(id) ? id.slice(DECORATIVE_PREFIX.length) : id;
+}
+
+type DecorativeEdgeData = {
+  decorative: true;
+  originalEdgeId: string;
+  originalSource: string;
+  originalTarget: string;
+};
+
+function buildDecorativeEdges(nodes: ChainGraphNode[], edges: Edge[]): Edge[] {
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+
+  const representative = (nodeId: string): string | undefined => {
+    const n = nodeMap.get(nodeId);
+    if (!n) return undefined;
+    if (!n.hidden) return n.id;
+
+    let cur = n.parentId;
+    const seen = new Set<string>();
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      const parent = nodeMap.get(cur);
+      if (!parent) return undefined;
+      if (!parent.hidden) return parent.id;
+      cur = parent.parentId;
+    }
+    return undefined;
+  };
+
+  const out: Edge[] = [];
+
+  for (const e of edges) {
+    const s = nodeMap.get(e.source);
+    const t = nodeMap.get(e.target);
+    if (!s || !t) continue;
+
+    if (!s.hidden && !t.hidden) continue;
+
+    const repS = representative(e.source);
+    const repT = representative(e.target);
+    if (!repS || !repT) continue;
+    if (repS === repT) continue;
+
+    const data: DecorativeEdgeData = {
+      decorative: true,
+      originalEdgeId: e.id,
+      originalSource: e.source,
+      originalTarget: e.target,
+    };
+
+    out.push({
+      id: `${DECORATIVE_PREFIX}${e.id}`,
+      source: repS,
+      target: repT,
+      data,
+    });
+  }
+
+  return out;
+}
+
 export const useChainGraph = (
   chainId?: string,
   onChainUpdate?: () => void | Promise<void>,
 ) => {
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, getIntersectingNodes } = useReactFlow();
   const { libraryElements, isLibraryLoading } = useLibraryContext();
 
   const [nodes, setNodes] = useNodesState<Node<ChainGraphNodeData>>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
+  const [decorativeEdges, setDecorativeEdges] = useEdgesState<Edge>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const isInitialized = useRef<boolean>(false);
   const nodesRef = useRef(nodes);
+  const decorativeEdgesRef = useRef<Edge[]>(decorativeEdges);
 
   const notificationService = useNotificationService();
   const { arrangeNodes, direction, toggleDirection } = useAutoLayout();
-  const { getIntersectingNodes } = useReactFlow();
 
   const structureChangedRef = useRef<boolean>(false);
   const structureChangedParentIdsRef = useRef<string[] | null>(null);
@@ -86,6 +156,10 @@ export const useChainGraph = (
     nodesRef.current = nodes;
   }, [nodes]);
 
+  useEffect(() => {
+    decorativeEdgesRef.current = decorativeEdges;
+  }, [decorativeEdges]);
+
   const clearHoverTimer = useCallback(() => {
     if (hoverExpandTimerRef.current !== null) {
       window.clearTimeout(hoverExpandTimerRef.current);
@@ -95,7 +169,7 @@ export const useChainGraph = (
   }, []);
 
   const clearHighlight = useCallback(() => {
-    setNodes((curr) => applyHighlight(curr)); // drop .highlight
+    setNodes((curr) => applyHighlight(curr));
   }, [setNodes]);
 
   const clearDragVisuals = useCallback(() => {
@@ -149,7 +223,7 @@ export const useChainGraph = (
         const expanded = expandWithParent(parentIds, nodesRef.current);
         structureChangedParentIdsRef.current = Array.from(new Set(expanded));
       } else {
-        structureChangedParentIdsRef.current = null; // full rebuild
+        structureChangedParentIdsRef.current = null;
       }
       clearHighlight();
     },
@@ -161,7 +235,28 @@ export const useChainGraph = (
     setNestedUnitCounts,
     reapplyNodesVisibility,
     reapplyEdgesVisibility,
-  } = useExpandCollapse(nodes, setNodes, edges, setEdges, structureChanged);
+  } = useExpandCollapse(
+    nodes as ChainGraphNode[],
+    setNodes,
+    edges,
+    setEdges,
+    structureChanged,
+  );
+
+  useEffect(() => {
+    const prevSelected = new Map(
+      decorativeEdgesRef.current.map((e) => [e.id, !!e.selected]),
+    );
+
+    const next = buildDecorativeEdges(nodes as ChainGraphNode[], edges).map(
+      (e) => ({
+        ...e,
+        selected: prevSelected.get(e.id) ?? false,
+      }),
+    );
+
+    setDecorativeEdges(next);
+  }, [nodes, edges, setDecorativeEdges]);
 
   useEffect(() => {
     const autoArrange = async () => {
@@ -169,15 +264,17 @@ export const useChainGraph = (
       structureChangedRef.current = false;
 
       const parentIds = structureChangedParentIdsRef.current;
-      let arrangedNodes: ChainGraphNode[] = nodes;
+      let arrangedNodes: ChainGraphNode[] = nodes as ChainGraphNode[];
 
       if (parentIds && parentIds.length) {
-        const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+        const nodeMap = new Map(
+          (nodes as ChainGraphNode[]).map((node) => [node.id, node]),
+        );
         const sorted = [...new Set(parentIds)].sort(
           (left, right) => depthOf(right, nodeMap) - depthOf(left, nodeMap),
         );
 
-        let current = nodes;
+        let current = nodes as ChainGraphNode[];
         for (const parents of sorted) {
           const subNodes = collectSubgraphByParents([parents], current);
           const subEdges = edgesForSubgraph(edges, subNodes);
@@ -188,7 +285,7 @@ export const useChainGraph = (
         }
         arrangedNodes = current;
       } else {
-        arrangedNodes = await arrangeNodes(nodes, edges);
+        arrangedNodes = await arrangeNodes(nodes as ChainGraphNode[], edges);
       }
 
       const withToggle = attachToggle(arrangedNodes);
@@ -300,10 +397,10 @@ export const useChainGraph = (
         };
         setEdges((eds) => addEdge(edge, eds));
 
-        const sourceParent = nodes.find(
+        const sourceParent = (nodes as ChainGraphNode[]).find(
           (node) => node.id === connection.source,
         )?.parentId;
-        const targetParent = nodes.find(
+        const targetParent = (nodes as ChainGraphNode[]).find(
           (node) => node.id === connection.target,
         )?.parentId;
         const parents = Array.from(
@@ -407,7 +504,7 @@ export const useChainGraph = (
           : [];
 
         const arrangedNew = await arrangeNodes(childNodes.concat(newNode), []);
-        const allNodes = nodes.concat(arrangedNew);
+        const allNodes = (nodes as ChainGraphNode[]).concat(arrangedNew);
         const withToggle = attachToggle(allNodes);
         const withCount = setNestedUnitCounts(withToggle);
 
@@ -446,16 +543,27 @@ export const useChainGraph = (
   );
 
   const onEdgesChange = useCallback(
-    async (changes: EdgeChange[]) => {
-      await Promise.all(
-        changes.map((change) => {
-          if (!chainId) return;
-          if (change.type === "remove") return;
-          setEdges((eds) => applyEdgeChanges(changes, eds));
-        }),
+    (changes: EdgeChange[]) => {
+      if (!chainId) return;
+
+      const baseChanges = changes.filter(
+        (c) => !isDecorativeEdgeId((c as { id: string }).id),
       );
+      const decoChanges = changes.filter((c) =>
+        isDecorativeEdgeId((c as { id: string }).id),
+      );
+
+      const baseNonRemove = baseChanges.filter((c) => c.type !== "remove");
+      const decoNonRemove = decoChanges.filter((c) => c.type !== "remove");
+
+      if (baseNonRemove.length) {
+        setEdges((eds) => applyEdgeChanges(baseNonRemove, eds));
+      }
+      if (decoNonRemove.length) {
+        setDecorativeEdges((eds) => applyEdgeChanges(decoNonRemove, eds));
+      }
     },
-    [chainId, setEdges],
+    [chainId, setEdges, setDecorativeEdges],
   );
 
   const onNodesChange = useCallback(
@@ -478,40 +586,57 @@ export const useChainGraph = (
     async (changes: OnDeleteEvent) => {
       if (!chainId) return;
 
-      const nodesToDelete: ChainGraphNode[] = changes.nodes;
+      const nodesToDelete: ChainGraphNode[] = changes.nodes as ChainGraphNode[];
       const edgesToDelete: Edge[] = changes.edges;
 
-      const affectedParents = new Set<string>();
+      const normalizedEdges = edgesToDelete
+        .map((e) => {
+          if (isDecorativeEdgeId(e.id)) {
+            const d = (e.data ?? {}) as Partial<DecorativeEdgeData>;
+            const id = d.originalEdgeId ?? originalEdgeIdFromDecorative(e.id);
+            const source = d.originalSource ?? "";
+            const target = d.originalTarget ?? "";
+            if (!id || !source || !target) return null;
+            return { id, source, target };
+          }
+          return { id: e.id, source: e.source, target: e.target };
+        })
+        .filter(
+          (x): x is { id: string; source: string; target: string } => !!x,
+        );
 
+      const affectedParents = new Set<string>();
       for (const parentContainer of getContainerIdsForEdges(
-        edgesToDelete,
-        nodes,
+        normalizedEdges as unknown as Edge[],
+        nodes as ChainGraphNode[],
       )) {
         affectedParents.add(parentContainer);
       }
 
       const removingNodeIds = new Set(nodesToDelete.map((node) => node.id));
       const parentMap = new Map<string, string | undefined>();
-      nodes.forEach((node) => {
+      (nodes as ChainGraphNode[]).forEach((node) => {
         if (removingNodeIds.has(node.id)) parentMap.set(node.id, node.parentId);
       });
 
       const rootIdsToDelete = Array.from(removingNodeIds).filter(
         (id) => !removingNodeIds.has(parentMap.get(id)!),
       );
+
       for (const id of rootIdsToDelete) {
-        const node = nodes.find((x) => x.id === id);
+        const node = (nodes as ChainGraphNode[]).find((x) => x.id === id);
         if (node?.parentId) affectedParents.add(node.parentId);
       }
 
       const deletedEdgeIds: string[] = [];
 
-      const separateEdgesToDelete: Edge[] = edgesToDelete.filter(
+      const separateEdgesToDelete = normalizedEdges.filter(
         (edge) =>
           !nodesToDelete.find(
             (node) => node.id === edge.source || node.id === edge.target,
           ),
       );
+
       if (separateEdgesToDelete.length > 0) {
         try {
           const response = await api.deleteConnections(
@@ -543,7 +668,7 @@ export const useChainGraph = (
           deletedEdgeIds.push(connection.id),
         );
 
-        const allNodes = nodes.filter(
+        const allNodes = (nodes as ChainGraphNode[]).filter(
           (node) => !deletedNodeIds.includes(node.id),
         );
         const allEdges = edges.filter(
@@ -553,6 +678,7 @@ export const useChainGraph = (
         const ordered = sortParentsBeforeChildren(allNodes);
         setNodes(ordered);
         setEdges(allEdges);
+
         if (onChainUpdate) {
           void onChainUpdate();
         }
@@ -660,7 +786,7 @@ export const useChainGraph = (
         let y = node.position?.y ?? 0;
         let parentId = node.parentId;
         while (parentId) {
-          const parent = allNodes.find((node) => node.id === parentId);
+          const parent = allNodes.find((n) => n.id === parentId);
           if (!parent) break;
           x += parent.position?.x ?? 0;
           y += parent.position?.y ?? 0;
@@ -674,7 +800,7 @@ export const useChainGraph = (
         all: ChainGraphNode[],
       ) => {
         if (!parentId) return { x: 0, y: 0 };
-        const parent = all.find((node) => node.id === parentId);
+        const parent = all.find((n) => n.id === parentId);
         if (!parent) return { x: 0, y: 0 };
         return getAbs(parent, all);
       };
@@ -740,7 +866,7 @@ export const useChainGraph = (
   const updateNodeData = useCallback(
     (element: Element, node: ChainGraphNode) => {
       setNodes((prevNodes) =>
-        prevNodes.map((prevNode) => {
+        (prevNodes as ChainGraphNode[]).map((prevNode) => {
           if (prevNode.id === node.id) {
             const updatedNode: ChainGraphNode = {
               ...prevNode,
@@ -772,7 +898,6 @@ export const useChainGraph = (
     }
 
     const items = [];
-    // Single element
     if (selectedElements?.length === 1) {
       if (selectedElements[0].data.elementType === "container") {
         items.push({
@@ -818,12 +943,11 @@ export const useChainGraph = (
       if (!containerNode) return;
 
       const childNodes: ChainGraphNode[] = [];
-      let nodesWithoutChangedElements = nodes;
+      let nodesWithoutChangedElements = nodes as ChainGraphNode[];
 
       if (container?.children?.length) {
-        nodes.forEach((prevNode) => {
-          // @ts-expect-error no it's not
-          for (const childrenElement of container.children) {
+        (nodes as ChainGraphNode[]).forEach((prevNode) => {
+          for (const childrenElement of container.children as Element[]) {
             if (prevNode.id === childrenElement.id) {
               const updatedNode: ChainGraphNode = {
                 ...prevNode,
@@ -835,8 +959,10 @@ export const useChainGraph = (
           }
         });
 
-        const childrenElementIds = container.children.map((node) => node.id);
-        nodesWithoutChangedElements = nodes.filter(
+        const childrenElementIds = (container.children as Element[]).map(
+          (node) => node.id,
+        );
+        nodesWithoutChangedElements = (nodes as ChainGraphNode[]).filter(
           (node) => !childrenElementIds.includes(node.id),
         );
       }
@@ -854,7 +980,6 @@ export const useChainGraph = (
 
       structureChanged();
     } catch (error) {
-      console.error(error);
       notificationService.requestFailed("Failed to group elements", error);
     }
   };
@@ -867,7 +992,7 @@ export const useChainGraph = (
     try {
       const elements = await api.ungroupElements(chainId, selectedGroup.id);
 
-      let nodesWithoutContainer = nodes.filter(
+      let nodesWithoutContainer = (nodes as ChainGraphNode[]).filter(
         (node) => node.id !== selectedGroup.id,
       );
 
@@ -890,7 +1015,6 @@ export const useChainGraph = (
 
       structureChanged();
     } catch (error) {
-      console.error(error);
       notificationService.requestFailed("Failed to ungroup elements", error);
     }
   };
@@ -898,6 +1022,7 @@ export const useChainGraph = (
   return {
     nodes,
     edges,
+    decorativeEdges,
     onConnect,
     onDragOver,
     onDrop,
