@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationDeleteException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
@@ -71,6 +72,21 @@ public class SpecificationGroupService extends AbstractSpecificationGroupService
         this.systemService = systemService;
         this.protocolExtractionService = protocolExtractionService;
         this.elementHelperService = elementHelperService;
+    }
+
+    public void checkSpecificationGroupUniqueness(IntegrationSystem system) {
+        if (CollectionUtils.isEmpty(system.getSpecificationGroups())) {
+            return;
+        }
+        List<String> ids = system.getSpecificationGroups().stream().map(SpecificationGroup::getId)
+                .collect(Collectors.toList());
+        SpecificationGroup duplicate = specificationGroupRepository.findByIdInAndSystemIdNot(ids, system.getId());
+
+        if (duplicate != null) {
+            throw new DuplicateKeyException(
+                    String.format("Specification group with id=%s already exists on another service %s",
+                            duplicate.getId(), duplicate.getSystem().getId()));
+        }
     }
 
     public SpecificationGroup createAndSaveSpecificationGroupWithProtocol(IntegrationSystem system,

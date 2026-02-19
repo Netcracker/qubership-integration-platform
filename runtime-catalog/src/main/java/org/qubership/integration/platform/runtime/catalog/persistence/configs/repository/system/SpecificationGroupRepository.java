@@ -29,4 +29,6 @@ public interface SpecificationGroupRepository extends JpaRepository<Specificatio
     SpecificationGroup findByNameAndSystem(String name, IntegrationSystem system);
 
     SpecificationGroup findBySystemIdAndUrl(String systemId, String url);
+
+    SpecificationGroup findByIdInAndSystemIdNot(List<String> ids, String systemId);
 }

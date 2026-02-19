@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationDeleteException;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
@@ -31,6 +32,7 @@ import org.qubership.integration.platform.runtime.catalog.service.codegen.System
 import org.qubership.integration.platform.runtime.catalog.service.compiler.CompilerService;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +60,22 @@ public class SystemModelService extends SystemModelBaseService {
     ) {
         super(systemModelRepository, codeGenerators, compilerService, systemModelLabelsRepository, actionLogger);
         this.elementHelperService = elementHelperService;
+    }
+
+    public void checkSystemModelUniqueness(IntegrationSystem system) {
+        for (SpecificationGroup specGroup : CollectionUtils.emptyIfNull(system.getSpecificationGroups())) {
+            Set<String> modelIds = CollectionUtils.emptyIfNull(specGroup.getSystemModels()).stream()
+                    .map(SystemModel::getId)
+                    .collect(Collectors.toSet());
+            SystemModel modelDuplicate = systemModelRepository.findByIdInAndSpecificationGroupIdNot(modelIds,
+                    specGroup.getId());
+
+            if (modelDuplicate != null) {
+                throw new DuplicateKeyException(
+                        String.format("Specification with id=%s already exists on another specification group %s",
+                                modelDuplicate.getId(), modelDuplicate.getSpecificationGroup().getId()));
+            }
+        }
     }
 
     public SystemModel getSystemModelOrElseNull(String modelId) {
