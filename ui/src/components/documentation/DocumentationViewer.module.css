@@ -1,0 +1,41 @@
+.doc-viewer {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 24px 0;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+  background: transparent;
+}
+
+.doc-viewer table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+}
+
+.doc-viewer th,
+.doc-viewer td {
+  border: 1px solid var(--vscode-editorWidget-border, #d9d9d9);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.doc-viewer th {
+  font-weight: 600;
+}
+
+.doc-viewer tr:hover {
+  background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
+}
+
+.doc-viewer blockquote p {
+  margin: 4px 0;
+}
+
+/* Invert monochrome SVG icons in dark theme for better visibility */
+.doc-viewer--dark img[src*="/img/"][src$=".svg"] {
+  filter: invert(1) hue-rotate(180deg);
+}

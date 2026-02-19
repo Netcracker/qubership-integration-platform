@@ -5,7 +5,10 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-jest.mock("../../../src/components/documentation/DocumentationViewer.css", () => ({}));
+jest.mock("../../../src/components/documentation/DocumentationViewer.module.css", () => ({
+  __esModule: true,
+  default: { viewer: "viewer", dark: "dark" },
+}));
 
 jest.mock("../../../src/appConfig", () => ({
   getConfig: () => ({ documentationBaseUrl: "/test-docs" }),
