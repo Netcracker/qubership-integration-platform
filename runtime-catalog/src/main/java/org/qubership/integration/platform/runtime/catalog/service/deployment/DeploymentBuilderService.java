@@ -17,7 +17,6 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.runtime.catalog.builder.BuilderConstants;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
@@ -33,8 +32,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.MaskedField;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentRouteMapper;
 import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilderFactory;
@@ -70,8 +67,6 @@ public class DeploymentBuilderService {
     private final ElementPropertiesBuilderFactory elementPropertiesBuilderFactory;
     private final LibraryElementsService libraryService;
     private final DeploymentRouteMapper deploymentRouteMapper;
-    private final SystemService systemService;
-    private final EnvironmentService environmentService;
 
     @Autowired
     public DeploymentBuilderService(
@@ -80,17 +75,13 @@ public class DeploymentBuilderService {
             ElementUtils elementUtils,
             ElementPropertiesBuilderFactory elementPropertiesBuilderFactory,
             LibraryElementsService libraryService,
-            DeploymentRouteMapper deploymentRouteMapper,
-            SystemService systemService,
-            EnvironmentService environmentService) {
+            DeploymentRouteMapper deploymentRouteMapper) {
         this.chainFinderService = chainFinderService;
         this.snapshotService = snapshotService;
         this.elementUtils = elementUtils;
         this.elementPropertiesBuilderFactory = elementPropertiesBuilderFactory;
         this.libraryService = libraryService;
         this.deploymentRouteMapper = deploymentRouteMapper;
-        this.systemService = systemService;
-        this.environmentService = environmentService;
     }
 
     public List<DeploymentUpdate> buildDeploymentsUpdate(List<Deployment> deployments) {
@@ -172,16 +163,8 @@ public class DeploymentBuilderService {
                     }
                     if (SERVICE_CALL_ELEMENT.equals(element.getType())) {
                         if (IntegrationSystemType.EXTERNAL.name().equals(element.getProperty(CamelOptions.SYSTEM_TYPE))) {
-                            String systemId = (String) element.getProperty(CamelOptions.SYSTEM_ID);
-                            if (StringUtils.isNotEmpty(systemId)) {
-                                IntegrationSystem system = systemService.findById(systemId);
-                                properties.put(EXTERNAL_SERVICE_NAME, system.getName());
-                                String activeEnvironmentId = system.getActiveEnvironmentId();
-                                if (StringUtils.isNotEmpty(activeEnvironmentId)) {
-                                    Environment env = environmentService.getByIdForSystem(systemId, activeEnvironmentId);
-                                    properties.put(EXTERNAL_SERVICE_ENV_NAME, env.getName());
-                                }
-                            }
+                            properties.put(EXTERNAL_SERVICE_ENV_NAME, element.getEnvironment().getName());
+                            properties.put(EXTERNAL_SERVICE_ADDRESS, element.getEnvironment().getAddress());
                         }
                     }
                     return ElementProperties.builder().elementId(element.getId()).properties(properties).build();
