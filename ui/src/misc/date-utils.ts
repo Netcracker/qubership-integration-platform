@@ -1,4 +1,4 @@
-import * as dayjs from "dayjs";
+import dayjs from "dayjs";
 import { Dayjs } from "dayjs";
 
 export function toEpochMillis(v: Dayjs | null): number {

@@ -21,10 +21,10 @@ export function isTextFilter(obj: unknown): obj is TextFilter {
   return (
     typeof obj === "object" &&
     obj !== null &&
-    "value" in obj &&
     "condition" in obj &&
-    typeof obj.value === "string" &&
-    typeof obj.condition === "string"
+    typeof obj.condition === "string" &&
+    (obj.condition as TextFilterCondition) !== undefined &&
+    (!("value" in obj) || typeof obj.value === "string")
   );
 }
 
