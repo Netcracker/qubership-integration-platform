@@ -49,6 +49,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimpo
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system.SystemsCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
+import org.qubership.integration.platform.runtime.catalog.service.SpecificationGroupService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
@@ -104,6 +105,7 @@ public class SystemExportImportService {
     private final ImportSessionService importProgressService;
     private final ImportInstructionsService importInstructionsService;
     private final ChainService chainService;
+    private final SpecificationGroupService specificationGroupService;
 
     @Value("${qip.export.remove-unused-specifications}")
     private boolean removeUnusedSpecs;
@@ -121,7 +123,8 @@ public class SystemExportImportService {
             ServiceDeserializer serviceDeserializer,
             ImportSessionService importProgressService,
             ImportInstructionsService importInstructionsService,
-            ChainService chainService
+            ChainService chainService,
+            SpecificationGroupService specificationGroupService
     ) {
         this.transactionTemplate = transactionTemplate;
         this.yamlMapper = yamlExportImportMapper;
@@ -135,6 +138,7 @@ public class SystemExportImportService {
         this.importProgressService = importProgressService;
         this.importInstructionsService = importInstructionsService;
         this.chainService = chainService;
+        this.specificationGroupService = specificationGroupService;
     }
 
     private void removeUnusedSpecifications(IntegrationSystem integrationSystem, List<String> usedSystemModelIds) {
@@ -828,6 +832,9 @@ public class SystemExportImportService {
                 throw new DuplicateKeyException("Specification with not unique version found in specification group " + specificationGroup.getName());
             }
         }
+
+        specificationGroupService.checkSpecificationGroupUniqueness(system);
+        systemModelService.checkSystemModelUniqueness(system);
     }
 
     private boolean isNotUniqueByName(List<? extends AbstractSystemEntity> entities) {

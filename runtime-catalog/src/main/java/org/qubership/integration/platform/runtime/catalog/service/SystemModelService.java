@@ -17,8 +17,11 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.CompiledLibrary;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.IntegrationSystem;
+import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.SystemModelLabelsRepository;
 import org.qubership.integration.platform.catalog.persistence.configs.repository.system.SystemModelRepository;
@@ -27,12 +30,15 @@ import org.qubership.integration.platform.catalog.service.SystemModelBaseService
 import org.qubership.integration.platform.catalog.service.codegen.SystemModelCodeGenerator;
 import org.qubership.integration.platform.catalog.service.compiler.CompilerService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
 
@@ -53,6 +59,22 @@ public class SystemModelService extends SystemModelBaseService {
     ) {
         super(systemModelRepository, codeGenerators, compilerService, systemModelLabelsRepository, actionLogger);
         this.chainService = chainService;
+    }
+
+    public void checkSystemModelUniqueness(IntegrationSystem system) {
+        for (SpecificationGroup specGroup : CollectionUtils.emptyIfNull(system.getSpecificationGroups())) {
+            Set<String> modelIds = CollectionUtils.emptyIfNull(specGroup.getSystemModels()).stream()
+                    .map(SystemModel::getId)
+                    .collect(Collectors.toSet());
+            SystemModel modelDuplicate = systemModelRepository.findByIdInAndSpecificationGroupIdNot(modelIds,
+                    specGroup.getId());
+
+            if (modelDuplicate != null) {
+                throw new DuplicateKeyException(
+                        String.format("Specification with id=%s already exists on another specification group %s",
+                                modelDuplicate.getId(), modelDuplicate.getSpecificationGroup().getId()));
+            }
+        }
     }
 
     public SystemModel getSystemModelOrElseNull(String modelId) {
