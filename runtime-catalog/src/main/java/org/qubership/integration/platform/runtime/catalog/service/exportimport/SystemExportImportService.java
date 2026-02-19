@@ -101,6 +101,7 @@ public class SystemExportImportService {
     private final ImportInstructionsService importInstructionsService;
     private final ElementHelperService elementHelperService;
     private final ChainService chainService;
+    private final SpecificationGroupService specificationGroupService;
 
     @Value("${qip.export.remove-unused-specifications}")
     private boolean removeUnusedSpecs;
@@ -119,7 +120,8 @@ public class SystemExportImportService {
             ImportSessionService importProgressService,
             ImportInstructionsService importInstructionsService,
             ElementHelperService elementHelperService,
-            ChainService chainService
+            ChainService chainService,
+            SpecificationGroupService specificationGroupService
     ) {
         this.transactionTemplate = transactionTemplate;
         this.yamlMapper = yamlExportImportMapper;
@@ -134,6 +136,7 @@ public class SystemExportImportService {
         this.importInstructionsService = importInstructionsService;
         this.elementHelperService = elementHelperService;
         this.chainService = chainService;
+        this.specificationGroupService = specificationGroupService;
     }
 
     private void removeUnusedSpecifications(IntegrationSystem integrationSystem, List<String> usedSystemModelIds) {
@@ -824,6 +827,9 @@ public class SystemExportImportService {
                 throw new DuplicateKeyException("Specification with not unique version found in specification group " + specificationGroup.getName());
             }
         }
+
+        specificationGroupService.checkSpecificationGroupUniqueness(system);
+        systemModelService.checkSystemModelUniqueness(system);
     }
 
     private boolean isNotUniqueByName(List<? extends AbstractSystemEntity> entities) {

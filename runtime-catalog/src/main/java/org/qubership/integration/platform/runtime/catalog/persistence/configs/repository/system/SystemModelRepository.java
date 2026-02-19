@@ -21,6 +21,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface SystemModelRepository extends JpaRepository<SystemModel, String> {
@@ -44,4 +45,6 @@ public interface SystemModelRepository extends JpaRepository<SystemModel, String
 
     @Query(nativeQuery = true, value = "SELECT model.version from catalog.models model where model.id=:id")
     String findVersionById(String id);
+
+    SystemModel findByIdInAndSpecificationGroupIdNot(Collection<String> ids, String specificationGroupId);
 }
