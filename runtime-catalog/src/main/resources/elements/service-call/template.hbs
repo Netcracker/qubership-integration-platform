@@ -241,6 +241,10 @@
     <loop doWhile="true">
         <simple>${exchangeProperty[internalProperty_serviceCall_{{identifier}}_Retry]}</simple>
 
+        <removeProperty name="internalProperty_elementFailed" />
+        <removeProperty name="CamelExceptionCaught"/>
+        <removeProperty name="lastException"/>
+        <removeProperty name="internalProperty_sessionFailed"/>
         <step id="Request attempt--{{identifier}}">
             <choice>
                 <when>
