@@ -16,6 +16,25 @@
   height: 100vh;
 }
 
+.modal-title {
+  display: inline-flex;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.modal-title-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.modal-title-type {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .modal-header {
   background: var(--vscode-modal-background, var(--vscode-panel-background));
   color: var(--vscode-modal-foreground, var(--vscode-foreground));
@@ -26,7 +45,7 @@
 }
 
 .modal-body {
-  overflow-y: auto;
+  overflow: hidden auto;
   flex: 1;
   min-height: 0;
   display: flex;

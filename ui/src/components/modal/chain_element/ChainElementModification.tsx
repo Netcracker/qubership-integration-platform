@@ -7,6 +7,7 @@ import React, {
   useRef,
 } from "react";
 import { Button, Modal, Tabs, Flex } from "antd";
+import { CloseOutlined } from "@ant-design/icons";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import styles from "./ChainElementModification.module.css";
 import { Element, PatchElementRequest } from "../../../api/apiTypes.ts";
@@ -82,8 +83,13 @@ type TabField = {
   schema: JSONSchema7;
 };
 
-function constructTitle(name: string, type?: string): string {
-  return type ? `${name} (${type})` : `${name}`;
+function constructTitle(name: string, type?: string): React.ReactNode {
+  return (
+    <>
+      <span className={styles["modal-title-name"]} title={name}>{name}</span>
+      {type && <span className={styles["modal-title-type"]}>&nbsp;({type})</span>}
+    </>
+  );
 }
 
 // WA to hide array properties
@@ -105,7 +111,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const { updateElement } = useElement();
   const notificationService = useNotificationService();
   const { openElementDoc } = useDocumentation();
-  const [title, setTitle] = useState(constructTitle(`${node.data.label}`));
+  const [title, setTitle] = useState<React.ReactNode>(constructTitle(`${node.data.label}`));
   const [schema, setSchema] = useState<JSONSchema7>({});
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [formContext, setFormContext] = useState<FormContext>({});
@@ -568,9 +574,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     <Modal
       open
       title={
-        <Flex align="center" gap={8}>
-          <span>{title}</span>
-          {
+        <Flex align="center" gap={4} wrap={false} justify="space-between">
+          <span className={styles["modal-title"]}>{title}</span>
+          <Flex align="center" gap={4} wrap={false} style={{ flexShrink: 0 }}>
             <Button
               icon={<OverridableIcon name="questionCircle" />}
               onClick={() => openElementDoc(node.data.elementType)}
@@ -578,10 +584,22 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               title="Help"
               size="small"
             />
-          }
+            <FullscreenButton
+              isFullscreen={isFullscreen}
+              onClick={handleFullscreen}
+            />
+            <Button
+              icon={<CloseOutlined />}
+              onClick={handleCheckUnsavedAndClose}
+              type="text"
+              title="Close"
+              size="small"
+            />
+          </Flex>
         </Flex>
       }
       onCancel={handleCheckUnsavedAndClose}
+      closable={false}
       maskClosable={false}
       loading={libraryElementIsLoading}
       style={isFullscreen ? { top: 0, margin: 0, padding: 0 } : {}}
@@ -619,10 +637,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     >
       {schema && activeKey && (
         <>
-          <FullscreenButton
-            isFullscreen={isFullscreen}
-            onClick={handleFullscreen}
-          />
           <Tabs
             activeKey={activeKey}
             onChange={handleTabChange}

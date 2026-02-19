@@ -385,25 +385,30 @@ export const Script: React.FC<ScriptProps> = ({
   const [editorHeight, setEditorHeight] = useState(300);
 
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
     const calcHeight = () => {
-      const el = containerRef.current;
-      if (!el) return;
-      // Find the closest scrollable parent (modal body)
       const scrollParent = el.closest(".ant-modal-body") ?? el.parentElement;
       if (!scrollParent) return;
       const parentRect = scrollParent.getBoundingClientRect();
       const elRect = el.getBoundingClientRect();
-      // Available height = bottom of scroll parent - top of editor - some padding for footer
       const available = parentRect.bottom - elRect.top - 60;
       if (available > 300) {
         setEditorHeight(available);
       }
     };
 
-    calcHeight();
-    // Recalculate on window resize
+    const modalWrap = el.closest(".ant-modal-wrap");
+    if (modalWrap) {
+      modalWrap.addEventListener("transitionend", calcHeight);
+    }
     window.addEventListener("resize", calcHeight);
-    return () => window.removeEventListener("resize", calcHeight);
+
+    return () => {
+      modalWrap?.removeEventListener("transitionend", calcHeight);
+      window.removeEventListener("resize", calcHeight);
+    };
   }, []);
 
   return (

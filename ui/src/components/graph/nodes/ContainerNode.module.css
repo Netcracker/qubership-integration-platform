@@ -13,7 +13,8 @@
 }
 
 .containerSelected {
-  border: 2px solid var(--vscode-focusBorder, #007acc);
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: -2px;
 }
 
 .header {

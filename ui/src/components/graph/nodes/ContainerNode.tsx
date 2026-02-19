@@ -1,25 +1,10 @@
 import { Handle, NodeProps, Position } from "@xyflow/react";
 import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
 import { Badge, Button, Tooltip } from "antd";
-import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo } from "react";
 import { EllipsisLabel } from "./EllipsisLabel";
 import styles from "./ContainerNode.module.css";
 import { IconName, OverridableIcon } from "../../../icons/IconProvider.tsx";
-
-function useElementWidth(ref: React.RefObject<HTMLElement>) {
-  const [width, setWidth] = useState(0);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const resizeObserver = new ResizeObserver((entries) => {
-      const contentRect = entries[0]?.contentRect;
-      if (contentRect) setWidth(contentRect.width);
-    });
-    resizeObserver.observe(element);
-    return () => resizeObserver.disconnect();
-  }, [ref]);
-  return width;
-}
 
 export function ContainerNode({
   data,
@@ -34,9 +19,6 @@ export function ContainerNode({
     [data.label],
   );
 
-  const actionsRef = useRef<HTMLDivElement>(null);
-  const actionsWidth = useElementWidth(actionsRef);
-
   return (
     <div
       className={`${styles.container} ${selected ? styles.containerSelected : ""}`}
@@ -44,9 +26,9 @@ export function ContainerNode({
     >
       <div
         className={styles.header}
-        style={{ paddingRight: actionsWidth ? actionsWidth + 8 : 32 }}
+        style={{ paddingRight: 30, paddingLeft: 3 }}
       >
-        <div ref={actionsRef} className={styles.actions}>
+        <div className={styles.actions}>
           <Tooltip title={isCollapsed ? "Expand" : "Collapse"}>
             <Button
               size="small"

@@ -1,3 +1,7 @@
+.react-flow__node-unit {
+  height: auto !important;
+}
+
 [class~="react-flow__node"] {
   transition:
     border-width 120ms ease,

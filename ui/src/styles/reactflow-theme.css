@@ -198,12 +198,12 @@
 /* Node highlighting for selection and hover - flat design */
 [class~="react-flow__node"]:not(.highlight) > div {
   background: unset;
-  border: unset;
+  border: 1.5px solid transparent;
   box-shadow: none;
 }
 
 [class~="react-flow__node"].highlight > div {
-  border: 1.5px solid var(--vscode-focusBorder) !important;
+  border-color: var(--vscode-focusBorder) !important;
   background: unset !important;
   box-shadow: none !important;
 }

@@ -19,11 +19,8 @@ export const FullscreenButton: React.FC<FullscreenButtonProps> = ({
           name={isFullscreen ? "fullscreenExit" : "fullscreen"}
         />
       }
-      style={{
-        position: "absolute",
-        top: "11px",
-        insetInlineEnd: "40px",
-      }}
+      size="small"
+      style={{ flexShrink: 0 }}
       onClick={(e) => {
         onClick();
         e.currentTarget.blur();
