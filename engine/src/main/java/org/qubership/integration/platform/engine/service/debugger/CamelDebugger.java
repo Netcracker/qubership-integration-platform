@@ -591,7 +591,7 @@ public class CamelDebugger extends DefaultDebugger {
 
                         chainLogger.logRequest(exchange, bodyForLogging, headersForLogging, exchangePropertiesForLogging,
                                 dbgProperties.getElementProperty(elementId).get(
-                                        ChainProperties.EXTERNAL_SERVICE_NAME),
+                                        ChainProperties.EXTERNAL_SERVICE_ADDRESS),
                                 dbgProperties.getElementProperty(elementId).get(
                                         ChainProperties.EXTERNAL_SERVICE_ENV_NAME));
                     }
@@ -607,8 +607,8 @@ public class CamelDebugger extends DefaultDebugger {
         switch (elementType) {
             case SERVICE_CALL:
                 Map<String, String> elementProperties = dbgProperties.getElementProperty(elementId);
-                exchange.setProperty(ChainProperties.EXTERNAL_SERVICE_NAME_PROP, elementProperties.get(
-                        ChainProperties.EXTERNAL_SERVICE_NAME));
+                exchange.setProperty(ChainProperties.EXTERNAL_SERVICE_ADDRESS_PROP, elementProperties.get(
+                        ChainProperties.EXTERNAL_SERVICE_ADDRESS));
                 exchange.setProperty(ChainProperties.EXTERNAL_SERVICE_ENV_NAME_PROP, elementProperties.get(
                         ChainProperties.EXTERNAL_SERVICE_ENV_NAME));
                 break;

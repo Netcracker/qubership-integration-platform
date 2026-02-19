@@ -224,8 +224,8 @@ public final class CamelConstants {
         public static final String EXCEPTION_EXTRA_FAILED_ELEMENT = "failedElementId";
         public static final String EXCEPTION_EXTRA_VALIDATION_RESULT = "validationResult";
 
-        public static final String EXTERNAL_SERVICE_NAME = "externalServiceName";
-        public static final String EXTERNAL_SERVICE_NAME_PROP = "external-service-name";
+        public static final String EXTERNAL_SERVICE_ADDRESS = "externalServiceAddress";
+        public static final String EXTERNAL_SERVICE_ADDRESS_PROP = "external-service-address";
         public static final String EXTERNAL_SERVICE_ENV_NAME = "externalServiceEnvName";
         public static final String EXTERNAL_SERVICE_ENV_NAME_PROP = "external-service-environment-name";
 
