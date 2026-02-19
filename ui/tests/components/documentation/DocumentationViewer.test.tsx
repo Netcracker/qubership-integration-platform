@@ -5,6 +5,8 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
+jest.mock("../../../src/components/documentation/DocumentationViewer.css", () => ({}));
+
 jest.mock("../../../src/appConfig", () => ({
   getConfig: () => ({ documentationBaseUrl: "/test-docs" }),
 }));

@@ -12,6 +12,7 @@ import {
   isSafeHref,
 } from "../../services/documentation/documentationUrlUtils";
 import { useVSCodeTheme } from "../../hooks/useVSCodeTheme";
+import "./DocumentationViewer.css";
 
 /**
  * Props for the DocumentationViewer component.
@@ -138,34 +139,7 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
   } as const;
 
   return (
-    <div
-      className="documentation-viewer"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        padding: "12px 24px 0 24px",
-        width: "100%",
-        maxWidth: "1200px",
-        margin: "0 auto",
-        boxSizing: "border-box",
-        color: "var(--vscode-foreground, rgba(0, 0, 0, 0.88))",
-        background: "transparent",
-      }}
-    >
-      <style>
-        {`
-          /* Invert monochrome SVG icons in dark theme for better visibility */
-          ${
-            isDark
-              ? `
-            .documentation-viewer img[src*="/img/"][src$=".svg"] {
-              filter: invert(1) hue-rotate(180deg);
-            }
-          `
-              : ""
-          }
-        `}
-      </style>
+    <div className={`doc-viewer${isDark ? " doc-viewer--dark" : ""}`}>
       <Markdown
         rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
         remarkPlugins={[remarkGfm]}
@@ -195,7 +169,10 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
               !hrefValue.startsWith("/") &&
               !isAbsoluteUrl(hrefValue);
             if (isRelativeDocLink) {
-              const href = `${effectiveRouteBase}/${hrefValue}`;
+              const cleaned = normalizePath(hrefValue)
+                .replace(/^docs\//, "")
+                .replace(/\.md$/, "");
+              const href = `${effectiveRouteBase}/${cleaned}`;
               return (
                 <a
                   {...props}

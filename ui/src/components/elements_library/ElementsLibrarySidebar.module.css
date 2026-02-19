@@ -21,6 +21,11 @@
   color: var(--vscode-foreground, rgb(0 0 0 / 88%)) !important;
 }
 
+.libraryElements :global(.ant-menu-item .anticon),
+.libraryElements :global(.ant-menu-submenu-title .anticon) {
+  font-size: 18px !important;
+}
+
 .libraryElements :global(.ant-menu-item),
 .libraryElements :global(.ant-menu-submenu-title) {
   color: var(--vscode-foreground, rgb(0 0 0 / 88%)) !important;
