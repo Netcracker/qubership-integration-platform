@@ -73,7 +73,7 @@ spec:
                 configMapKeyRef:
                   key: TRACING_ENABLED
                   name: {{ .Release.Name }}-env
-          image: qubership-integration-platform-qip-runtime-catalog:latest
+          image: ghcr.io/netcracker/qubership-integration-runtime-catalog:latest
           imagePullPolicy: Never
           livenessProbe:
             httpGet:
