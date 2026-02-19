@@ -101,7 +101,7 @@ spec:
                   name: {{ .Release.Name }}-env
             - name: MICROSERVICE_NAME
               value: {{ .Release.Name }}-engine
-          image: qubership-integration-platform-qip-engine:latest
+          image: ghcr.io/netcracker/qubership-integration-engine:latest
           imagePullPolicy: Never
           livenessProbe:
             httpGet:
