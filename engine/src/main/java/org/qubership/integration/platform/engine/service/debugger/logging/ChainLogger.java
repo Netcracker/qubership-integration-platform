@@ -382,11 +382,11 @@ public class ChainLogger {
         String bodyForLogging,
         Map<String, String> headersForLogging,
         Map<String, SessionElementProperty> exchangePropertiesForLogging,
-        String externalServiceName,
+        String externalServiceAddress,
         String externalServiceEnvName
     ) {
         String httpUriHeader = exchange.getMessage().getHeader(Headers.HTTP_URI, String.class);
-        if (StringUtils.isBlank(externalServiceName)) {
+        if (StringUtils.isBlank(externalServiceAddress)) {
             if (httpUriHeader != null) {
                 chainLogger.info("{} Send HTTP request. Headers: {}, body: {}, exchange properties: {}",
                         constructExtendedHTTPLogMessage(httpUriHeader, null, null, CamelNames.REQUEST),
@@ -402,21 +402,21 @@ public class ChainLogger {
         } else {
             if (httpUriHeader != null) {
                 chainLogger.info("{} Send HTTP request. Headers: {}, body: {}, exchange properties: {}"
-                        + ", external service name: {}, external service environment name: {}",
+                        + ", external service environment name: {}, external service address: {}",
                         constructExtendedHTTPLogMessage(httpUriHeader, null, null, CamelNames.REQUEST),
                         headersForLogging,
                         bodyForLogging,
                         exchangePropertiesForLogging,
-                        externalServiceName,
-                        externalServiceEnvName);
+                        externalServiceEnvName,
+                        externalServiceAddress);
             } else {
                 chainLogger.info("Send request. Headers: {}, body: {}, exchange properties: {},"
-                        + " external service name: {}, external service environment name: {}",
+                        + ", external service environment name: {}, external service address: {}",
                         headersForLogging,
                         bodyForLogging,
                         exchangePropertiesForLogging,
-                        externalServiceName,
-                        externalServiceEnvName);
+                        externalServiceEnvName,
+                        externalServiceAddress);
             }
         }
     }
