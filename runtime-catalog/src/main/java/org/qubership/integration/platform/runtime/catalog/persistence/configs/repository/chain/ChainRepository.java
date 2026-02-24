@@ -99,7 +99,14 @@ public interface ChainRepository extends CommonRepository<Chain>, JpaRepository<
                              select properties -> 'chainFailureHandlerContainer' ->> 'elementId'
                              from catalog.elements
                              where chain_id in :chainsIds
-                                and type IN ('http-trigger'))"""
+                                and type IN ('http-trigger')
+                             UNION
+                             select properties -> 'idempotency' -> 'chainTriggerParameters' ->> 'triggerElementId'
+                             from catalog.elements
+                             where chain_id in :chainsIds
+                                and type IN ('http-trigger', 'async-api-trigger', 'kafka-trigger-2', 'rabbitmq-trigger-2', 'pubsub-trigger', 'jms-trigger')
+                                and (properties -> 'idempotency' ->> 'enabled')::boolean is true
+                            )"""
     )
     List<String> findSubChains(List<String> chainsIds);
 
