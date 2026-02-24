@@ -339,7 +339,9 @@ const CustomArrayField: React.FC<
                   value={formData[selectedIndex].script ?? ""}
                   onChange={(value) => {
                     const newArray = formData.map((item, i) =>
-                      i === selectedIndex ? { ...item, script: value as string } : item
+                      i === selectedIndex
+                        ? { ...item, script: value as string }
+                        : item,
                     );
                     onChange(newArray, fieldPathId.path);
                   }}
@@ -372,7 +374,12 @@ const CustomArrayField: React.FC<
                   }
                   onChange={(value) => {
                     const newArray = formData.map((item, i) =>
-                      i === selectedIndex ? { ...item, mappingDescription: value as MappingDescription } : item
+                      i === selectedIndex
+                        ? {
+                            ...item,
+                            mappingDescription: value as MappingDescription,
+                          }
+                        : item,
                     );
                     onChange(newArray, fieldPathId.path);
                   }}

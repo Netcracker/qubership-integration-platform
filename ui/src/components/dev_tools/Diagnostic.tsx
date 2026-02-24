@@ -11,7 +11,11 @@ import {
   Tooltip,
 } from "antd";
 import Search from "antd/lib/input/Search";
-import { DiagnosticValidation, ValidationSeverity, ValidationState } from "../../api/apiTypes";
+import {
+  DiagnosticValidation,
+  ValidationSeverity,
+  ValidationState,
+} from "../../api/apiTypes";
 import { TableProps } from "antd/lib/table";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TableRowSelection } from "antd/lib/table/interface";

@@ -64,13 +64,7 @@ jest.mock("../../icons/IconProvider", () => ({
     name: string;
     onClick?: React.MouseEventHandler;
     style?: React.CSSProperties;
-  }) => (
-    <span
-      data-testid={`icon-${name}`}
-      onClick={onClick}
-      style={style}
-    />
-  ),
+  }) => <span data-testid={`icon-${name}`} onClick={onClick} style={style} />,
 }));
 
 jest.mock("../../components/dev_tools/useDiagnosticValidationFilters", () => ({
@@ -115,9 +109,7 @@ function makeValidation(
   };
 }
 
-async function renderAndWaitForLoad(
-  validations: DiagnosticValidation[] = [],
-) {
+async function renderAndWaitForLoad(validations: DiagnosticValidation[] = []) {
   mockGetValidations.mockResolvedValue(validations);
   const result = render(<Diagnostic />);
   await waitFor(() => {
@@ -188,9 +180,7 @@ describe("Diagnostic", () => {
 
     await waitFor(() => {
       const tags = container.querySelectorAll(".ant-tag");
-      const alertTag = Array.from(tags).find(
-        (tag) => tag.textContent === "5",
-      );
+      const alertTag = Array.from(tags).find((tag) => tag.textContent === "5");
       expect(alertTag).toBeTruthy();
     });
   });
@@ -206,9 +196,7 @@ describe("Diagnostic", () => {
 
     await waitFor(() => {
       const tags = container.querySelectorAll(".ant-tag");
-      const alertTag = Array.from(tags).find(
-        (tag) => tag.textContent === "2",
-      );
+      const alertTag = Array.from(tags).find((tag) => tag.textContent === "2");
       expect(alertTag).toBeTruthy();
     });
   });
@@ -220,9 +208,7 @@ describe("Diagnostic", () => {
 
     await waitFor(() => {
       const tags = container.querySelectorAll(".ant-tag");
-      const zeroTag = Array.from(tags).find(
-        (tag) => tag.textContent === "0",
-      );
+      const zeroTag = Array.from(tags).find((tag) => tag.textContent === "0");
       expect(zeroTag).toBeTruthy();
     });
   });
@@ -260,9 +246,7 @@ describe("Diagnostic", () => {
   });
 
   it("Run Diagnostic button is enabled after data loads", async () => {
-    await renderAndWaitForLoad([
-      makeValidation({ id: "v1", title: "To Run" }),
-    ]);
+    await renderAndWaitForLoad([makeValidation({ id: "v1", title: "To Run" })]);
 
     const button = screen.getByTitle("Run Diagnostic");
     expect(button).not.toBeDisabled();
@@ -300,9 +284,7 @@ describe("Diagnostic", () => {
     });
 
     // Expand icon should be present for validation with children
-    const expandIcon = container.querySelector(
-      "[data-testid='icon-right']",
-    );
+    const expandIcon = container.querySelector("[data-testid='icon-right']");
     expect(expandIcon).toBeTruthy();
   });
 
@@ -382,9 +364,7 @@ describe("Diagnostic", () => {
     ]);
 
     await waitFor(() => {
-      expect(
-        container.querySelector("[data-testid='icon-bulb']"),
-      ).toBeTruthy();
+      expect(container.querySelector("[data-testid='icon-bulb']")).toBeTruthy();
     });
   });
 
@@ -546,9 +526,7 @@ describe("Diagnostic", () => {
     });
 
     // Should render a spacer span (width: 20) instead of expand icon
-    const spacers = container.querySelectorAll(
-      "span[style*='width: 20px']",
-    );
+    const spacers = container.querySelectorAll("span[style*='width: 20px']");
     expect(spacers.length).toBeGreaterThan(0);
   });
 
@@ -586,7 +564,6 @@ describe("Diagnostic", () => {
       expect(chainLink).toBeTruthy();
       expect(chainLink!.textContent).toBe("My Chain");
     });
-
   });
 
   it("renders child element rows when expanding validation with chain entities", async () => {
@@ -624,9 +601,7 @@ describe("Diagnostic", () => {
   it("calls runValidations when Run Diagnostic is clicked", async () => {
     mockRunValidations.mockResolvedValue(undefined);
 
-    await renderAndWaitForLoad([
-      makeValidation({ id: "v1", title: "Val 1" }),
-    ]);
+    await renderAndWaitForLoad([makeValidation({ id: "v1", title: "Val 1" })]);
 
     const button = screen.getByTitle("Run Diagnostic");
     fireEvent.click(button);
@@ -639,9 +614,7 @@ describe("Diagnostic", () => {
   it("shows error notification when runValidations fails", async () => {
     mockRunValidations.mockRejectedValue(new Error("Run failed"));
 
-    await renderAndWaitForLoad([
-      makeValidation({ id: "v1", title: "Val 1" }),
-    ]);
+    await renderAndWaitForLoad([makeValidation({ id: "v1", title: "Val 1" })]);
 
     const button = screen.getByTitle("Run Diagnostic");
     fireEvent.click(button);
@@ -726,9 +699,7 @@ describe("Diagnostic", () => {
   it("shows diagnostic started notification when run is clicked", async () => {
     mockRunValidations.mockResolvedValue(undefined);
 
-    await renderAndWaitForLoad([
-      makeValidation({ id: "v1", title: "Val 1" }),
-    ]);
+    await renderAndWaitForLoad([makeValidation({ id: "v1", title: "Val 1" })]);
 
     fireEvent.click(screen.getByTitle("Run Diagnostic"));
 

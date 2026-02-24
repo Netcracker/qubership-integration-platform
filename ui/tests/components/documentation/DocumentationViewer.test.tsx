@@ -5,10 +5,13 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-jest.mock("../../../src/components/documentation/DocumentationViewer.module.css", () => ({
-  __esModule: true,
-  default: { viewer: "viewer", dark: "dark" },
-}));
+jest.mock(
+  "../../../src/components/documentation/DocumentationViewer.module.css",
+  () => ({
+    __esModule: true,
+    default: { viewer: "viewer", dark: "dark" },
+  }),
+);
 
 jest.mock("../../../src/appConfig", () => ({
   getConfig: () => ({ documentationBaseUrl: "/test-docs" }),
@@ -18,11 +21,15 @@ jest.mock("../../../src/hooks/useVSCodeTheme", () => ({
   useVSCodeTheme: () => ({ isDark: false }),
 }));
 
-jest.mock("@lightenna/react-mermaid-diagram", () => ({
-  MermaidDiagram: ({ children }: { children: string }) => (
-    <pre data-testid="mermaid">{children}</pre>
-  ),
-}), { virtual: true });
+jest.mock(
+  "@lightenna/react-mermaid-diagram",
+  () => ({
+    MermaidDiagram: ({ children }: { children: string }) => (
+      <pre data-testid="mermaid">{children}</pre>
+    ),
+  }),
+  { virtual: true },
+);
 
 jest.mock("react-markdown", () => {
   const React = require("react");
@@ -47,15 +54,20 @@ jest.mock("react-markdown", () => {
       let match;
       while ((match = imgRegex.exec(content)) !== null) {
         const imgProps = components?.img?.({ src: match[2], alt: match[1] })
-          ? undefined : { src: match[2], alt: match[1] };
+          ? undefined
+          : { src: match[2], alt: match[1] };
         if (components?.img) {
           elements.push(
-            React.createElement("span", { key: key++ },
-              components.img({ src: match[2], alt: match[1], node: {} })
-            )
+            React.createElement(
+              "span",
+              { key: key++ },
+              components.img({ src: match[2], alt: match[1], node: {} }),
+            ),
           );
         } else {
-          elements.push(React.createElement("img", { key: key++, ...imgProps }));
+          elements.push(
+            React.createElement("img", { key: key++, ...imgProps }),
+          );
         }
         remaining = remaining.replace(match[0], "");
       }
@@ -65,13 +77,15 @@ jest.mock("react-markdown", () => {
       while ((match = linkRegex.exec(cleanContent)) !== null) {
         if (components?.a) {
           elements.push(
-            React.createElement("span", { key: key++ },
-              components.a({ href: match[2], children: match[1], node: {} })
-            )
+            React.createElement(
+              "span",
+              { key: key++ },
+              components.a({ href: match[2], children: match[1], node: {} }),
+            ),
           );
         } else {
           elements.push(
-            React.createElement("a", { key: key++, href: match[2] }, match[1])
+            React.createElement("a", { key: key++, href: match[2] }, match[1]),
           );
         }
         remaining = remaining.replace(match[0], "");
@@ -81,7 +95,7 @@ jest.mock("react-markdown", () => {
       const headingMatch = headingRegex.exec(remaining);
       if (headingMatch) {
         elements.push(
-          React.createElement("h1", { key: key++ }, headingMatch[1])
+          React.createElement("h1", { key: key++ }, headingMatch[1]),
         );
         remaining = remaining.replace(headingMatch[0], "");
       }
@@ -92,7 +106,11 @@ jest.mock("react-markdown", () => {
         elements.push(React.createElement("span", { key: key++ }, remaining));
       }
 
-      return React.createElement("div", { "data-testid": "markdown" }, ...elements);
+      return React.createElement(
+        "div",
+        { "data-testid": "markdown" },
+        ...elements,
+      );
     },
   };
 });
@@ -116,7 +134,7 @@ describe("DocumentationViewer", () => {
   test("resolves image src relative to doc path", () => {
     render(
       <DocumentationViewer
-        content='![alt](img/diagram.png)'
+        content="![alt](img/diagram.png)"
         docPath="01__Chains/1__Graph/page"
       />,
     );
@@ -130,22 +148,17 @@ describe("DocumentationViewer", () => {
   test("resolves image src with absolute docs-relative path", () => {
     render(
       <DocumentationViewer
-        content='![alt](00__Overview/img/arch.svg)'
+        content="![alt](00__Overview/img/arch.svg)"
         docPath="01__Chains/chains"
       />,
     );
     const img = screen.getByAltText("alt");
-    expect(img).toHaveAttribute(
-      "src",
-      "/test-docs/00__Overview/img/arch.svg",
-    );
+    expect(img).toHaveAttribute("src", "/test-docs/00__Overview/img/arch.svg");
   });
 
   test("keeps absolute URLs unchanged", () => {
     render(
-      <DocumentationViewer
-        content='![ext](https://example.com/image.png)'
-      />,
+      <DocumentationViewer content="![ext](https://example.com/image.png)" />,
     );
     const img = screen.getByAltText("ext");
     expect(img).toHaveAttribute("src", "https://example.com/image.png");
@@ -154,32 +167,23 @@ describe("DocumentationViewer", () => {
   test("uses baseUrl prop over config value", () => {
     render(
       <DocumentationViewer
-        content='![alt](img/test.png)'
+        content="![alt](img/test.png)"
         baseUrl="/custom-base"
         docPath="01__Chains/page"
       />,
     );
     const img = screen.getByAltText("alt");
-    expect(img).toHaveAttribute(
-      "src",
-      "/custom-base/01__Chains/img/test.png",
-    );
+    expect(img).toHaveAttribute("src", "/custom-base/01__Chains/img/test.png");
   });
 
   test("resolves fallback path without docDir", () => {
-    render(
-      <DocumentationViewer content='![alt](some-file.png)' />,
-    );
+    render(<DocumentationViewer content="![alt](some-file.png)" />);
     const img = screen.getByAltText("alt");
     expect(img).toHaveAttribute("src", "/test-docs/some-file.png");
   });
 
   test("resolves relative link as doc route", () => {
-    render(
-      <DocumentationViewer
-        content='[link](01__Chains/chains)'
-      />,
-    );
+    render(<DocumentationViewer content="[link](01__Chains/chains)" />);
     const link = screen.getByText("link");
     expect(link).toHaveAttribute("href", "/doc/01__Chains/chains");
     expect(link).toHaveAttribute("target", "_blank");

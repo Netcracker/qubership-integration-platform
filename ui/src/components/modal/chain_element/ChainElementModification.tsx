@@ -86,8 +86,12 @@ type TabField = {
 function constructTitle(name: string, type?: string): React.ReactNode {
   return (
     <>
-      <span className={styles["modal-title-name"]} title={name}>{name}</span>
-      {type && <span className={styles["modal-title-type"]}>&nbsp;({type})</span>}
+      <span className={styles["modal-title-name"]} title={name}>
+        {name}
+      </span>
+      {type && (
+        <span className={styles["modal-title-type"]}>&nbsp;({type})</span>
+      )}
     </>
   );
 }
@@ -111,7 +115,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const { updateElement } = useElement();
   const notificationService = useNotificationService();
   const { openElementDoc } = useDocumentation();
-  const [title, setTitle] = useState<React.ReactNode>(constructTitle(`${node.data.label}`));
+  const [title, setTitle] = useState<React.ReactNode>(
+    constructTitle(`${node.data.label}`),
+  );
   const [schema, setSchema] = useState<JSONSchema7>({});
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [formContext, setFormContext] = useState<FormContext>({});
@@ -655,8 +661,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             experimental_defaultFormStateBehavior={{
               allOf: "populateDefaults",
               arrayMinItems: {
-                populate: 'never'
-              }
+                populate: "never",
+              },
             }}
             formContext={formContext}
             templates={{

@@ -30,15 +30,15 @@ function extractTextFromTokens(tokens) {
   const textParts = [];
 
   for (const token of tokens) {
-    if (token.type === 'text' || token.type === 'codespan') {
+    if (token.type === "text" || token.type === "codespan") {
       textParts.push(token.text || token.raw);
-    } else if (token.type === 'paragraph' || token.type === 'heading') {
+    } else if (token.type === "paragraph" || token.type === "heading") {
       if (token.tokens) {
         textParts.push(extractTextFromTokens(token.tokens));
       } else if (token.text) {
         textParts.push(token.text);
       }
-    } else if (token.type === 'list') {
+    } else if (token.type === "list") {
       if (token.items) {
         for (const item of token.items) {
           if (item.tokens) {
@@ -46,7 +46,7 @@ function extractTextFromTokens(tokens) {
           }
         }
       }
-    } else if (token.type === 'table') {
+    } else if (token.type === "table") {
       if (token.header) {
         for (const cell of token.header) {
           if (cell.tokens) {
@@ -67,24 +67,28 @@ function extractTextFromTokens(tokens) {
           }
         }
       }
-    } else if (token.type === 'code') {
+    } else if (token.type === "code") {
       textParts.push(token.text);
-    } else if (token.type === 'blockquote' && token.tokens) {
+    } else if (token.type === "blockquote" && token.tokens) {
       textParts.push(extractTextFromTokens(token.tokens));
-    } else if (token.type === 'strong' || token.type === 'em' || token.type === 'del') {
+    } else if (
+      token.type === "strong" ||
+      token.type === "em" ||
+      token.type === "del"
+    ) {
       if (token.tokens) {
         textParts.push(extractTextFromTokens(token.tokens));
       } else if (token.text) {
         textParts.push(token.text);
       }
-    } else if (token.type === 'link' && token.tokens) {
+    } else if (token.type === "link" && token.tokens) {
       textParts.push(extractTextFromTokens(token.tokens));
     } else if (token.tokens) {
       textParts.push(extractTextFromTokens(token.tokens));
     }
   }
 
-  return textParts.join('\n\n');
+  return textParts.join("\n\n");
 }
 
 async function* walk(dir) {

@@ -191,7 +191,10 @@ export const LoggingSettings: React.FC = () => {
             label="Logging settings source"
             name="loggingSettingsSource"
           >
-            <LoggingSettingsSourceTag isCustom={isCustom} isConsulDefault={loggingSettings?.consulDefault !== undefined}/>
+            <LoggingSettingsSourceTag
+              isCustom={isCustom}
+              isConsulDefault={loggingSettings?.consulDefault !== undefined}
+            />
           </Form.Item>
           <Form.Item label="Session level" name="sessionsLoggingLevel">
             <Select<SessionsLoggingLevel>

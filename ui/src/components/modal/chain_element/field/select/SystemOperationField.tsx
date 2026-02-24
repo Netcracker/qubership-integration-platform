@@ -19,7 +19,10 @@ import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { OperationPath } from "../../../../services/OperationPath.tsx";
 import { isVsCode } from "../../../../../api/rest/vscodeExtensionApi";
 import { JSONSchema7 } from "json-schema";
-import {uniqueListById, uniqueMapById} from "../../../../../misc/operations-utils.ts";
+import {
+  uniqueListById,
+  uniqueMapById,
+} from "../../../../../misc/operations-utils.ts";
 
 const SystemOperationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>

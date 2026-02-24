@@ -9,13 +9,9 @@ import type { NodeProps } from "@xyflow/react";
 import type { ChainGraphNode } from "../../components/graph/nodes/ChainGraphNodeTypes";
 
 jest.mock("@xyflow/react", () => ({
-  Handle: ({
-    type,
-    position,
-  }: {
-    type: string;
-    position: string;
-  }) => <div data-testid={`handle-${type}`} data-position={position} />,
+  Handle: ({ type, position }: { type: string; position: string }) => (
+    <div data-testid={`handle-${type}`} data-position={position} />
+  ),
   Position: { Left: "left", Right: "right", Top: "top", Bottom: "bottom" },
 }));
 
@@ -74,7 +70,9 @@ describe("UnitNode", () => {
 
   it("falls back to 'Node' when label is undefined", () => {
     const { container } = render(
-      <UnitNode {...makeProps({ data: { label: undefined as unknown as string } })} />,
+      <UnitNode
+        {...makeProps({ data: { label: undefined as unknown as string } })}
+      />,
     );
     expect(container.textContent).toContain("Node");
   });
@@ -106,9 +104,7 @@ describe("UnitNode", () => {
 
   it("applies error box-shadow when mandatoryChecksPassed is false", () => {
     const { container } = render(
-      <UnitNode
-        {...makeProps({ data: { mandatoryChecksPassed: false } })}
-      />,
+      <UnitNode {...makeProps({ data: { mandatoryChecksPassed: false } })} />,
     );
     const outerDiv = container.firstChild as HTMLElement;
     expect(outerDiv.style.boxShadow).toContain("var(--ant-color-error");

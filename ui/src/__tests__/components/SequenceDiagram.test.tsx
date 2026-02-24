@@ -1,8 +1,21 @@
 /**
  * @jest-environment jsdom
  */
-import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import {
+  describe,
+  it,
+  expect,
+  jest,
+  beforeEach,
+  afterEach,
+} from "@jest/globals";
+import {
+  render,
+  screen,
+  cleanup,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import React from "react";
 import {
   DiagramLangType,

@@ -32,7 +32,9 @@ jest.mock("../../src/services/documentation/documentationUrlUtils", () => ({
 
 jest.mock("../../src/components/documentation/DocumentationViewer", () => ({
   DocumentationViewer: ({ content, docPath }: any) => (
-    <div data-testid="doc-viewer" data-doc-path={docPath}>{content}</div>
+    <div data-testid="doc-viewer" data-doc-path={docPath}>
+      {content}
+    </div>
   ),
 }));
 
@@ -45,7 +47,9 @@ jest.mock("../../src/components/documentation/DocumentationSearch", () => ({
 }));
 
 jest.mock("../../src/pages/PageWithSidebar", () => ({
-  PageWithSidebar: ({ children }: any) => <div data-testid="page-with-sidebar">{children}</div>,
+  PageWithSidebar: ({ children }: any) => (
+    <div data-testid="page-with-sidebar">{children}</div>
+  ),
 }));
 
 jest.mock("../../src/pages/DocumentationPage.module.css", () => ({
@@ -106,7 +110,8 @@ describe("DocumentationPage", () => {
   test("detects HTML response as not-found (Vite SPA fallback)", async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
-      text: () => Promise.resolve("<!DOCTYPE html><html><body>SPA</body></html>"),
+      text: () =>
+        Promise.resolve("<!DOCTYPE html><html><body>SPA</body></html>"),
       headers: new Map([["content-type", "text/html"]]),
     });
 

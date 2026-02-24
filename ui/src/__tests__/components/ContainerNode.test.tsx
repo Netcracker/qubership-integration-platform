@@ -80,9 +80,7 @@ describe("ContainerNode", () => {
 
   it("trims multiline label to first line", () => {
     const { container } = render(
-      <ContainerNode
-        {...makeProps({ data: { label: "First\nSecond" } })}
-      />,
+      <ContainerNode {...makeProps({ data: { label: "First\nSecond" } })} />,
     );
     expect(container.textContent).toContain("First");
     expect(container.textContent).not.toContain("Second");

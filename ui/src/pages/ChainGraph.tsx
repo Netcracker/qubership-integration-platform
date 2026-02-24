@@ -55,7 +55,11 @@ import {
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
-import {getElementColor, nonEmptyContainerExists, sanitizeEdge} from "../misc/chain-graph-utils.ts";
+import {
+  getElementColor,
+  nonEmptyContainerExists,
+  sanitizeEdge,
+} from "../misc/chain-graph-utils.ts";
 import {
   ExportChainOptions,
   ExportChains,

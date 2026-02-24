@@ -24,7 +24,13 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       input: path.resolve(__dirname, "src/index.ts"),
-      external: ["react", "react-dom", "react/jsx-runtime"],
+      external: [
+        "react",
+        "react-dom",
+        "react/jsx-runtime",
+        "monaco-editor",
+        "@monaco-editor/loader",
+      ],
       preserveEntrySignatures: "exports-only",
       output: {
         format: "es",
