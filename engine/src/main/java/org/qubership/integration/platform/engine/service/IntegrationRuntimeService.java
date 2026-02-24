@@ -102,6 +102,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger log = ExtendedErrorLoggerFactory.getLogger(IntegrationRuntimeService.class);
 
+    public static final Integer TRUNCATED_MESSAGE_SIZE = 500 * 1024;
+
     private final ServerConfiguration serverConfiguration;
     private final QuartzSchedulerService quartzSchedulerService;
     private final TracingConfiguration tracingConfiguration;
@@ -357,7 +359,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                         if (isNull(exception)) {
                             removeOldDeployments(deployment, deploymentStatus -> true);
                         } else {
-                            stateBuilder.errorMessage(exception.getMessage());
+                            String truncatedMessage = exception.getMessage();
+                            if (truncatedMessage != null && truncatedMessage.length() > TRUNCATED_MESSAGE_SIZE) {
+                                truncatedMessage = truncatedMessage.substring(0, TRUNCATED_MESSAGE_SIZE) + "... [truncated]";
+                            }
+                            stateBuilder.errorMessage(truncatedMessage);
 
                             log.error(chainErrorCode, "Failed to deploy chain {} with id {}. Deployment: {}",
                                     deployment.getDeploymentInfo().getChainName(), chainId, deploymentId, exception);
