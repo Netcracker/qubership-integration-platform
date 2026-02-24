@@ -140,23 +140,35 @@ export async function buildSequenceDiagram(
   const context = createBuildContext(chain, mode);
   context.dependencies = await loadChainDependencies(context);
 
-  const participants = [createChainParticipant(context)];
+  const chainParticipant = createChainParticipant(context);
   const actions: Action[] = [];
 
-  context.chain.elements
-    .flatMap((element: Element) => {
+  const triggers = getTriggers(context);
+
+  const triggerParticipants = triggers.flatMap((trigger) => {
+    const participantsGetter = getParticipantsGetter(trigger.type);
+    return participantsGetter(trigger, context);
+  });
+
+  const otherParticipants = Array.from(context.elementMap.values()).flatMap(
+    (element: Element) => {
       const participantsGetter = getParticipantsGetter(element.type);
       return participantsGetter(element, context);
-    })
-    .filter((participant) => {
-      const participantAlreadyExists = participants.some(
-        (p) => p.id === participant.id,
-      );
-      return !participantAlreadyExists;
-    })
-    .forEach((participant) => participants.push(participant));
+    },
+  );
 
-  const triggers = getTriggers(context);
+  const seen = new Set<string>();
+  const participants: Participant[] = [];
+  for (const p of [
+    ...triggerParticipants,
+    chainParticipant,
+    ...otherParticipants,
+  ]) {
+    if (!seen.has(p.id)) {
+      seen.add(p.id);
+      participants.push(p);
+    }
+  }
 
   triggers
     .flatMap((trigger) => {
@@ -165,11 +177,56 @@ export async function buildSequenceDiagram(
     })
     .forEach((action) => actions.push(action));
 
+  const filteredActions =
+    mode === DiagramMode.SIMPLE
+      ? filterInternalActions(actions, context.chain.id)
+      : actions;
+
   return {
     autonumber: true,
+    chainParticipantId: chainParticipant.id,
     participants,
-    actions,
+    actions: filteredActions,
   };
+}
+
+function filterInternalActions(actions: Action[], chainId: string): Action[] {
+  return actions.reduce<Action[]>((result, action) => {
+    switch (action.type) {
+      case "message": {
+        if (action.fromId === chainId && action.toId === chainId) {
+          return result;
+        }
+        result.push(action);
+        return result;
+      }
+      case "group":
+      case "loop":
+      case "optional": {
+        const filtered = filterInternalActions(action.actions, chainId);
+        if (filtered.length > 0) {
+          result.push({ ...action, actions: filtered });
+        }
+        return result;
+      }
+      case "alternatives":
+      case "parallel": {
+        const filteredBranches = action.branches
+          .map((branch) => ({
+            ...branch,
+            actions: filterInternalActions(branch.actions, chainId),
+          }))
+          .filter((branch) => branch.actions.length > 0);
+        if (filteredBranches.length > 0) {
+          result.push({ ...action, branches: filteredBranches });
+        }
+        return result;
+      }
+      default:
+        result.push(action);
+        return result;
+    }
+  }, []);
 }
 
 function getAppName(): string {
@@ -238,7 +295,7 @@ async function loadChainDependencies(
     ),
   );
 
-  const serviceIds = context.chain.elements
+  const serviceIds = Array.from(context.elementMap.values())
     .map((element) => element.properties["integrationSystemId"] as string)
     .filter((id) => !!id);
   const services = await Promise.all(
@@ -655,15 +712,13 @@ function getRabbitMqSenderActions(
   const participant = getRabbitMqParticipants(element, context)[0];
   const exchange =
     (element.properties["exchange"] as string) ?? EMPTY_PROPERTY_STUB;
-  const queues =
-    (element.properties["queues"] as string) ?? EMPTY_PROPERTY_STUB;
   return [
     {
       type: "message",
       fromId: context.chain.id,
       toId: participant.id,
       arrowType: "arrow-solid",
-      message: `Put message to exchange: ${exchange}, queue: ${queues}`,
+      message: `Put message to exchange: ${exchange}`,
     },
   ];
 }
@@ -696,15 +751,20 @@ function getGraphQlSenderActions(
   context: DiagramBuildContext,
 ): Action[] {
   const participant = getGraphQlSenderParticipants(element, context)[0];
-  const operationName =
-    (element.properties["operationName"] as string) ?? EMPTY_PROPERTY_STUB;
+  const operationName = element.properties["operationName"] as
+    | string
+    | undefined;
+  const uri = (element.properties["uri"] as string) ?? EMPTY_PROPERTY_STUB;
+  const message = operationName
+    ? `GraphQL request (query/mutation), operation: ${operationName}`
+    : `GraphQL request (query/mutation) to ${uri}`;
   return [
     {
       type: "message",
       fromId: context.chain.id,
       toId: participant.id,
       arrowType: "arrow-solid",
-      message: `GraphQL request (query/mutation), operation: ${operationName}`,
+      message,
     },
     { type: "activate", participantId: participant.id },
     {
@@ -722,8 +782,8 @@ function getLoopActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const label =
-    (element.properties["expression"] as string) ?? EMPTY_PROPERTY_STUB;
+  const expression = element.properties["expression"] as string | undefined;
+  const label = expression || element.name;
   const actions: Action[] = getActionsForChildren(element, context);
   return [{ type: "loop", label, actions }];
 }
@@ -817,7 +877,7 @@ function getPubSubSenderActions(
       fromId: context.chain.id,
       toId: participant.id,
       arrowType: "arrow-solid",
-      message: `Put message to ${destinationName}: ${destinationName}`,
+      message: `Put message to topic: ${destinationName}`,
     },
   ];
 }
@@ -950,11 +1010,11 @@ function getHttpSenderActions(
   const methods =
     (element.properties["httpMethod"] as string) ?? EMPTY_PROPERTY_STUB;
   const uri = element.properties["uri"] as string;
-  const host = uri
-    ? /^https?:\/\/[^:/]+(:\\d{1,5})?/.exec(uri)?.[0]
-    : undefined;
-  const path = host ? uri.substring(host.length) : EMPTY_PROPERTY_STUB;
-  const message = `${methods}, ${path}`;
+  const host = uri ? /^https?:\/\/[^:/]+(:\d{1,5})?/.exec(uri)?.[0] : undefined;
+  const path = host ? uri.substring(host.length) : "";
+  const message = path
+    ? `${methods} ${path}`
+    : `${methods} ${uri ?? EMPTY_PROPERTY_STUB}`;
   return [
     {
       type: "message",
@@ -987,9 +1047,7 @@ function getReuseReferenceActions(
 ): Action[] {
   const elementId = element.properties["reuseElementId"] as string;
   const reuse = context.elementMap.get(elementId);
-  const label = `Reuse reference: ${reuse?.name ?? elementId ?? EMPTY_PROPERTY_STUB}`;
-  const actions = reuse ? getActionsForChildren(reuse, context) : [];
-  return [{ type: "group", label, actions }];
+  return reuse ? getActionsForChildren(reuse, context) : [];
 }
 
 function getCheckpointActions(
@@ -1104,7 +1162,7 @@ function getPubSubTriggerActions(
     fromId: participant.id,
     toId: context.chain.id,
     arrowType: "arrow-solid",
-    message: `Read message from ${destinationName}: ${destinationName}`,
+    message: `Read message from topic: ${destinationName}`,
   };
   return getActionsForIdempotentTrigger(
     element,
@@ -1290,7 +1348,7 @@ function getHttpTriggerActions(
   const uri = isManualSource
     ? (element.properties["contextPath"] as string)
     : (element.properties["integrationOperationPath"] as string);
-  const message = `HTTP request to ${uri ?? EMPTY_PROPERTY_STUB}, allowed methods=[${methods}]`;
+  const message = `HTTP request to ${uri ?? EMPTY_PROPERTY_STUB}\nallowed methods=[${methods}]`;
   const request: Message = {
     type: "message",
     fromId: participant.id,
@@ -1453,7 +1511,7 @@ function getServiceCallActions(
   const actions: Action[] = [];
   const beforeType = before?.["type"];
 
-  if (beforeType) {
+  if (beforeType && beforeType !== "none") {
     actions.push({
       type: "message",
       fromId: context.chain.id,
@@ -1549,7 +1607,8 @@ function getServiceCallRequestMessage(
       const source =
         sourceType === EnvironmentSourceType.MANUAL
           ? (((environment.properties?.["topic"] ??
-              asyncProperties["integrationOperationPath"]) as string) ??
+              asyncProperties["topic"] ??
+              element.properties["integrationOperationPath"]) as string) ??
             EMPTY_PROPERTY_STUB)
           : `by classifier ${((environment.properties?.["maas.classifier.name"] ?? asyncProperties["maas.classifier.name"]) as string) ?? EMPTY_PROPERTY_STUB}`;
       return `Put message to topic ${source}`;

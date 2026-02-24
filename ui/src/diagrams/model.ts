@@ -73,6 +73,7 @@ export type Action = SimpleAction | CompositeAction;
 
 export type SequenceDiagram = {
   autonumber: boolean;
+  chainParticipantId: string;
   title?: string;
   header?: string;
   footer?: string;

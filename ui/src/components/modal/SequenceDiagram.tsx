@@ -9,8 +9,13 @@ import {
   TabsProps,
 } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { MermaidDiagram } from "@lightenna/react-mermaid-diagram";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import {
   DiagramLangType,
@@ -52,16 +57,17 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
   const { closeContainingModal } = useModalContext();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<DiagramMode>(DiagramMode.FULL);
-  const [activeDiagram, setActiveDiagram] = useState<string>("");
   const notificationService = useNotificationService();
   const [diagrams, setDiagrams] = useState<
     ElementsSequenceDiagrams | undefined
   >(undefined);
+  const svgCacheRef = useRef<Record<string, string>>({});
 
   const loadDiagram = useCallback(async (): Promise<void> => {
     setIsLoading(true);
     try {
       const diagrams = await diagramProvider();
+      svgCacheRef.current = {};
       setDiagrams(diagrams);
     } catch (error) {
       notificationService.requestFailed(
@@ -77,28 +83,64 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
     void loadDiagram();
   }, [loadDiagram]);
 
-  useEffect(
+  const activeDiagram = useMemo(
     () =>
-      setActiveDiagram(
-        diagrams?.[activeTab].diagramSources?.[DiagramLangType.MERMAID] ?? "",
-      ),
+      diagrams?.[activeTab]?.diagramSources?.[DiagramLangType.MERMAID] ?? "",
     [activeTab, diagrams],
   );
+
+  const [renderedSvg, setRenderedSvg] = useState<string>("");
+
+  useEffect(() => {
+    if (!activeDiagram) {
+      setRenderedSvg("");
+      return;
+    }
+    const cached = svgCacheRef.current[activeTab];
+    if (cached) {
+      setRenderedSvg(cached);
+      return;
+    }
+    let cancelled = false;
+    mermaid
+      .render(`seq-diagram-${activeTab}`, activeDiagram)
+      .then(({ svg }) => {
+        if (!cancelled) {
+          svgCacheRef.current[activeTab] = svg;
+          setRenderedSvg(svg);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, activeDiagram]);
 
   const tabItems: TabsProps["items"] = useMemo(
     () => [
       {
         key: DiagramMode.FULL,
         label: "Full",
-        children: <MermaidDiagram>{activeDiagram}</MermaidDiagram>,
+        children: (
+          <div
+            dangerouslySetInnerHTML={{
+              __html: activeTab === DiagramMode.FULL ? renderedSvg : "",
+            }}
+          />
+        ),
       },
       {
         key: DiagramMode.SIMPLE,
         label: "Simple",
-        children: <MermaidDiagram>{activeDiagram}</MermaidDiagram>,
+        children: (
+          <div
+            dangerouslySetInnerHTML={{
+              __html: activeTab === DiagramMode.SIMPLE ? renderedSvg : "",
+            }}
+          />
+        ),
       },
     ],
-    [activeDiagram],
+    [activeTab, renderedSvg],
   );
 
   const items: MenuProps["items"] = [

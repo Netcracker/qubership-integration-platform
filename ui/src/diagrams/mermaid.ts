@@ -19,9 +19,7 @@ export function exportAsMermaid(diagram: SequenceDiagram): string {
     .forEach((line) => lines.push(line));
 
   diagram.actions
-    .map((action) =>
-      exportAction(action, () => diagram.participants[0]?.id ?? ""),
-    )
+    .map((action) => exportAction(action, () => diagram.chainParticipantId))
     .forEach((actionLines) => lines.push(...actionLines));
 
   return lines.join("\n");
@@ -157,7 +155,12 @@ function mustBeEscaped(c: string): boolean {
 
 function _escape(text: string): string {
   return text
-    .split("")
-    .map((c) => (mustBeEscaped(c) ? `#${c.charCodeAt(0)};` : c))
-    .join("");
+    .split("\n")
+    .map((part) =>
+      part
+        .split("")
+        .map((c) => (mustBeEscaped(c) ? `#${c.charCodeAt(0)};` : c))
+        .join(""),
+    )
+    .join("<br/>");
 }
