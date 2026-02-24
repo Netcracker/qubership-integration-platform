@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Button,
   Dropdown,
+  Empty,
   Flex,
   FloatButton,
   InputNumber,
@@ -439,6 +440,14 @@ export const LiveExchanges: React.FC = () => {
             header: {
               cell: ResizableTitle,
             },
+          }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="No running chains available at the moment"
+              />
+            ),
           }}
         />
         <FloatButton
