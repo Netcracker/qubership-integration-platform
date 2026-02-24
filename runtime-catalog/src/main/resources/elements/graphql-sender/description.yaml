@@ -23,7 +23,7 @@ container: false
 designParameters:
   externalParticipantId: 'GraphQL server: ##{uri}'
   externalParticipantName: 'GraphQL server: ##{uri}'
-  requestLineTitle: 'GraphQL request (query/mutation), operation: ##{operationName}'
+  requestLineTitle: 'GraphQL request (query/mutation) to ##{uri}'
   directionToChain: false
   hasResponse: true
 properties:

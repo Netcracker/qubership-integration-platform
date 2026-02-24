@@ -23,7 +23,7 @@ container: false
 designParameters:
   externalParticipantId: 'Google Cloud PubSub Project Id ##{projectId}'
   externalParticipantName: 'Google Cloud PubSub Project Id ##{projectId}'
-  requestLineTitle: 'Put message to ##{destinationName}: ##{destinationName}'
+  requestLineTitle: 'Put message to ##{destinationName}'
   directionToChain: false
   hasResponse: false
 properties:

@@ -168,13 +168,13 @@ public class DesignGeneratorService {
                                  DiagramMode mode) {
         Map<String, String> participants = new LinkedHashMap<>();
 
-        participants.put(DiagramBuilderEscapeUtil.removeOrReplaceUnsupportedCharacters(chainId),
-                "QIP chain: " + chainFinderService.findById(chainId).getName());
-
         for (ChainElement trigger : triggers) {
             addedElementsIds.add(trigger.getId());
             addParticipant(chainId, participants, trigger);
         }
+
+        participants.put(DiagramBuilderEscapeUtil.removeOrReplaceUnsupportedCharacters(chainId),
+                "QIP chain: " + chainFinderService.findById(chainId).getName());
 
         for (ChainElement trigger : triggers) {
             for (ChainElement nextElement : getNextElements(trigger, fromElementMap)) {

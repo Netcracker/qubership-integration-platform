@@ -103,7 +103,7 @@ public class HttpTriggerDesignProcessor implements DesignProcessor {
         String uri = (String) (isManualSource(element) ? properties.get(CONTEXT_PATH) : properties.get(OPERATION_PATH));
         String title =
                 "HTTP request to " + (uri == null ? EMPTY_PROPERTY_STUB : uri)
-                        + ", allowed methods=[" + (StringUtils.isBlank(methods) ? "ALL" : methods) + "]";
+                        + "\nallowed methods=[" + (StringUtils.isBlank(methods) ? "ALL" : methods) + "]";
 
         builder.append(LINE_WITH_ARROW_SOLID_RIGHT, getExternalParticipantId(element), refChainId, title);
 
