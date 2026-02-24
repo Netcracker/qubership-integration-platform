@@ -5,35 +5,69 @@ import {
   AccessControlUpdateRequest,
   AccessControlBulkDeployRequest,
 } from "../api/apiTypes.ts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
+
+const PAGE_SIZE = 30;
 
 export const useAccessControl = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [accessControlData, setAccessControlData] =
     useState<AccessControlResponse>();
+  const [allDataLoaded, setAllDataLoaded] = useState(false);
+  const offsetRef = useRef(0);
   const notificationService = useNotificationService();
 
+  const fetchAccessControl = useCallback(
+    async (currentOffset: number, append: boolean) => {
+      try {
+        setIsLoading(true);
+        const searchRequest: AccessControlSearchRequest = {
+          offset: currentOffset,
+          limit: PAGE_SIZE,
+          filters: [],
+        };
+        const responseData =
+          await api.loadHttpTriggerAccessControl(searchRequest);
+
+        setAccessControlData((prev) => {
+          if (append && prev?.roles) {
+            return {
+              ...responseData,
+              roles: [...prev.roles, ...responseData.roles],
+            };
+          }
+          return responseData;
+        });
+
+        offsetRef.current = currentOffset + responseData.roles.length;
+
+        if (responseData.roles.length < PAGE_SIZE) {
+          setAllDataLoaded(true);
+        }
+      } catch (error) {
+        notificationService.requestFailed(
+          "Failed to load Http Trigger's Access Control",
+          error,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [notificationService],
+  );
+
   const getAccessControl = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const searchRequest: AccessControlSearchRequest = {
-        offset: 0,
-        limit: 30,
-        filters: [],
-      };
-      const responseData =
-        await api.loadHttpTriggerAccessControl(searchRequest);
-      setAccessControlData(responseData);
-    } catch (error) {
-      notificationService.requestFailed(
-        "Failed to load Http Trigger's Access Control",
-        error,
-      );
-    } finally {
-      setIsLoading(false);
+    offsetRef.current = 0;
+    setAllDataLoaded(false);
+    await fetchAccessControl(0, false);
+  }, [fetchAccessControl]);
+
+  const loadMore = useCallback(async () => {
+    if (!allDataLoaded && !isLoading) {
+      await fetchAccessControl(offsetRef.current, true);
     }
-  }, [notificationService]);
+  }, [allDataLoaded, isLoading, fetchAccessControl]);
 
   const updateAccessControl = useCallback(
     async (searchRequest: AccessControlUpdateRequest[]) => {
@@ -73,7 +107,7 @@ export const useAccessControl = () => {
 
   useEffect(() => {
     void getAccessControl();
-  }, [getAccessControl]);
+  }, []);
 
   return {
     isLoading,
@@ -82,5 +116,7 @@ export const useAccessControl = () => {
     getAccessControl,
     updateAccessControl,
     bulkDeployAccessControl,
+    loadMore,
+    allDataLoaded,
   };
 };

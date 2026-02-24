@@ -77,6 +77,8 @@ export const AccessControl: React.FC = () => {
     setAccessControlData,
     getAccessControl,
     bulkDeployAccessControl,
+    loadMore,
+    allDataLoaded,
   } = useAccessControl();
   const { showModal } = useModalsContext();
   const navigate = useNavigate();
@@ -137,7 +139,14 @@ export const AccessControl: React.FC = () => {
     true,
   );
 
-  const onScroll = async (_event: UIEvent<HTMLDivElement>) => {};
+  const onScroll = async (event: UIEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLDivElement;
+    const isScrolledToTheEnd =
+      target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
+    if (!allDataLoaded && isScrolledToTheEnd && !isLoading) {
+      await loadMore();
+    }
+  };
 
   const showDrawer = (record: AccessControlData) => {
     setCurrentRecord(record);
