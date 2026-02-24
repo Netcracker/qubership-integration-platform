@@ -28,8 +28,12 @@ import org.qubership.integration.platform.engine.mapper.atlasmap.expressions.Cus
 
 import java.io.InputStream;
 import java.net.URI;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
@@ -248,5 +252,14 @@ public class CustomAtlasContext extends DefaultAtlasContext {
             session.head().setSourceField(processed);
             sourceFields.set(i, processed);
         }
+    }
+
+    @Override
+    protected void setDefaultSessionProperties(AtlasSession session) {
+        super.setDefaultSessionProperties(session);
+        Date date = new Date();
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        df.setTimeZone(TimeZone.getDefault());
+        session.getSourceProperties().put("Atlas.CreatedUTCDateTimeWithMillisTZ", df.format(date));
     }
 }
