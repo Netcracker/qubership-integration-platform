@@ -38,6 +38,7 @@ const ChainTriggerSelectField: React.FC<
         setOptions(
           elements.map((element) => ({
             value: element.id,
+            labelString: element.name,
             label: (
               <>
                 <SelectTag value={element.chainName} />
@@ -86,6 +87,7 @@ const ChainTriggerSelectField: React.FC<
       buttonTitle="Go to chain"
       buttonDisabled={!elementId}
       buttonOnClick={navigationPath}
+      selectOptionFilterProp="labelString"
     />
   );
 };

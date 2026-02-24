@@ -18,6 +18,7 @@ type SelectFieldProps = {
   selectOnPopupScroll?: SelectProps<string>["onPopupScroll"];
   selectOptionLabelProp?: string;
   selectNotFoundMessage?: string;
+  selectOptionFilterProp?: string;
   buttonTitle: string;
   buttonDisabled: boolean;
   buttonOnClick: string | MouseEventHandler<HTMLElement>;
@@ -56,6 +57,10 @@ export const SelectAndNavigateField: React.FC<SelectFieldProps> = (props) => {
                 description={props.selectNotFoundMessage}
               />
             ),
+          })}
+          {...(props.selectOptionFilterProp && {
+            showSearch: true,
+            optionFilterProp: props.selectOptionFilterProp,
           })}
         />
         <Tooltip title={props.buttonTitle}>

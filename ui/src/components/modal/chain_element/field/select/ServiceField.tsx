@@ -68,6 +68,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
 
       const serviceOptions: SelectProps["options"] =
         filteredServices?.map((service: IntegrationSystem) => ({
+          labelString: service.name,
           label: (
             <>
               <SelectTag value={capitalize(service.type)} />
@@ -133,6 +134,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
       buttonTitle="Go to service"
       buttonDisabled={!serviceId}
       buttonOnClick={navigationPath}
+      selectOptionFilterProp="labelString"
     />
   );
 };
