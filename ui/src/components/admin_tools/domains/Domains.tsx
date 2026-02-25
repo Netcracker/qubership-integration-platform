@@ -13,7 +13,7 @@ export const Domains: React.FC = () => {
   return (
     <Flex vertical className={commonStyles["container"]}>
       <Title level={4} className={commonStyles["title"]}>
-        <OverridableIcon name="appstore" className={commonStyles["icon"]} />
+        <OverridableIcon name="domains" className={commonStyles["icon"]} />
         Domains
       </Title>
       {isLoading ? (

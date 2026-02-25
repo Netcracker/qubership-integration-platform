@@ -427,7 +427,7 @@ export const AccessControl: React.FC = () => {
     <Flex vertical className={commonStyles["container"]}>
       <Flex className={commonStyles["header"]}>
         <Title level={4} className={commonStyles["title"]}>
-          <OverridableIcon name="settings" className={commonStyles["icon"]} />
+          <OverridableIcon name="accessControl" className={commonStyles["icon"]} />
           Access Control
         </Title>
         <Flex vertical={false} gap={8} className={commonStyles["actions"]}>
@@ -773,7 +773,7 @@ export const AccessControl: React.FC = () => {
         />
         <FloatButton
           tooltip={{ title: "Refresh", placement: "left" }}
-          icon={<OverridableIcon name="redo" />}
+          icon={<OverridableIcon name="refresh" />}
           onClick={() => void getAccessControl()}
         />
       </FloatButtonGroup>

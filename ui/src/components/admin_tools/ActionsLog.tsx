@@ -589,7 +589,7 @@ export const ActionsLog: React.FC = () => {
             >
               <FloatButton
                 tooltip={{ title: "Refresh", placement: "left" }}
-                icon={<OverridableIcon name="redo" />}
+                icon={<OverridableIcon name="refresh" />}
                 onClick={() => void refresh()}
               />
               {isLoading || isFetching ? (

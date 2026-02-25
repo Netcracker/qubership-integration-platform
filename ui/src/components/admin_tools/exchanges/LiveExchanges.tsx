@@ -392,7 +392,7 @@ export const LiveExchanges: React.FC = () => {
       <Flex className={commonStyles["header"]}>
         <Title level={4} className={commonStyles["title"]}>
           <OverridableIcon
-            name="unorderedList"
+            name="liveExchanges"
             className={commonStyles["icon"]}
           />
           Live Exchanges
@@ -465,7 +465,7 @@ export const LiveExchanges: React.FC = () => {
         />
         <FloatButton
           tooltip={{ title: "Refresh", placement: "left" }}
-          icon={<OverridableIcon name="redo" />}
+          icon={<OverridableIcon name="refresh" />}
           onClick={() => void refresh()}
         />
       </Flex>

@@ -5,7 +5,7 @@ import { OverridableIcon } from "../../icons/IconProvider.tsx";
 const menuItems = [
   {
     key: "/admintools/domains",
-    icon: <OverridableIcon name="appstore" />,
+    icon: <OverridableIcon name="domains" />,
     label: "Domains",
   },
   {
@@ -37,12 +37,12 @@ const menuItems = [
   // },
   {
     key: "/admintools/sessions",
-    icon: <OverridableIcon name="user" />,
+    icon: <OverridableIcon name="sessions" />,
     label: "Sessions",
   },
   {
     key: "/admintools/access-control",
-    icon: <OverridableIcon name="settings" />,
+    icon: <OverridableIcon name="accessControl" />,
     label: "Access Control",
   },
   // {
@@ -52,7 +52,7 @@ const menuItems = [
   // },
   {
     key: "/admintools/exchanges",
-    icon: <OverridableIcon name="unorderedList" />,
+    icon: <OverridableIcon name="liveExchanges" />,
     label: "Live Exchanges",
   },
 ];
