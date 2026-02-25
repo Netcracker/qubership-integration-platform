@@ -229,11 +229,9 @@ export const AccessControl: React.FC = () => {
         if (record.chainId) {
           return (
             <a
-              onClick={() =>
-                void navigate(
-                  `/chains/${record.chainId}/graph/${record.elementId}`,
-                )
-              }
+              href={`/chains/${record.chainId}/graph/${record.elementId}`}
+              target="_blank"
+              rel="noopener noreferrer"
             >
               {(record.properties as unknown as AccessControlProperty)
                 ?.contextPath || "—"}
@@ -469,11 +467,9 @@ export const AccessControl: React.FC = () => {
               <Descriptions.Item label="Endpoint">
                 {currentRecord.chainId ? (
                   <a
-                    onClick={() =>
-                      void navigate(
-                        `/chains/${currentRecord?.chainId}/graph/${currentRecord?.elementId}`,
-                      )
-                    }
+                    href={`/chains/${currentRecord?.chainId}/graph/${currentRecord?.elementId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
                     {(
                       currentRecord.properties as unknown as AccessControlProperty
@@ -600,7 +596,6 @@ export const AccessControl: React.FC = () => {
         >
           <div
             ref={
-              // ResizeObserver ref from useResizeHeight is compatible with div
               containerRef as unknown as React.Ref<HTMLDivElement>
             }
             style={{
@@ -612,7 +607,6 @@ export const AccessControl: React.FC = () => {
             <Table<AccessControlData>
               className="flex-table"
               size="small"
-              /* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- columns type from ColumnsType */
               columns={columns}
               dataSource={accessControlData?.roles}
               scroll={{
