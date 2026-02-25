@@ -17,46 +17,45 @@
 ---
 ### "Parameters" Tab (Split)
 #### Common Parameters
-| Parameter                                        | <div style="width:75px">Mandatory</div> | <div style="width:75px">Data Type</div> | Description                                                                                                                                                                                                                                                                                                                                                                                         | Sample                               |
-| ------------------------------------------------ | :-------------------------------------- | :-------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| <div style="width:150px">Timeout</div>           | O                                       | Number                                  | <div style="width:400px">Determines the timeout in milliseconds until all parallel split branches are completed. When left empty, default value will be applied.<br/><b>Default value:</b> 0</div>                                                                                                                                                                                                  | <div style="width:350px">10000</div> |
-| <div style="width:150px">Stop On Exception</div> | O                                       | Boolean                                 | <div style="width:400px">Checkbox. Defines the strategy in case one or more subchains end with an error or do not have time to work: <ul><li><b>checked</b> - when one of <b>Split branches</b> fails, it also leads to whole "<b>Split</b>" element failure and process stop.</li><li><b>unchecked</b> - failures of split branches do not lead to the failure of whole "Split" element.</li></ul> | <div style="width:350px">N/A</div>   |
+| Parameter         | Mandatory | Data Type | Description                                                                                                                                                                                                                                                                                                                                                    | Sample |
+| ----------------- | :-------- | :-------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Timeout           | O         | Number    | Determines the timeout in milliseconds until all parallel split branches are completed. When left empty, default value will be applied.<br>**Default value:** 0                                                                                                                                                                                                | 10000  |
+| Stop On Exception | O         | Boolean   | Checkbox. Defines the strategy in case one or more subchains end with an error or do not have time to work: <ul><li>**checked** - when one of **Split branches** fails, it also leads to whole "**Split**" element failure and process stop.</li><li>**unchecked** - failures of split branches do not lead to the failure of whole "Split" element.</li></ul> | N/A    |
 
 #### Metadata
-| Parameter                                  | <div style="width:75px">Mandatory</div> | <div style="width:75px">Data Type</div> | Description                                                              | Sample                                                                           |
-| ------------------------------------------ | :-------------------------------------- | :-------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| <div style="width:150px">Name</div>        | M                                       | String                                  | <div style="width:400px">Name of the Split container element.	</div>     | <div style="width:350px">Split customer onboarding and quotation processes</div> |
-| <div style="width:150px">Description</div> | O                                       | String                                  | <div style="width:400px">Free text field for element description.	</div> | <div style="width:350px">Description text</div>                                  |
+| Parameter   | Mandatory | Data Type | Description                              | Sample                                            |
+| ----------- | :-------- | :-------- | ---------------------------------------- | ------------------------------------------------- |
+| Name        | M         | String    | Name of the Split container element.     | Split customer onboarding and quotation processes |
+| Description | O         | String    | Free text field for element description. | Description text                                  |
 
 ### "Parameters" Tab (Main Split Element)
 
 Main Split Element is using as the main branch, which will always propagate all data without any constraints.
 
 #### Common Parameters
-| Parameter                                 | <div style="width:75px">Mandatory</div>   | <div style="width:75px">Data Type</div>  | Description                                                                                             | Sample                                     |
-|-------------------------------------------|:------------------------------------------|:-----------------------------------------|---------------------------------------------------------------------------------------------------------|--------------------------------------------|
-| <div style="width:150px">Split Name</div> | M                                         | String                                   | <div style="width:400px">Defines the name of the branch. Must be <b>unique</b> within the chain.	</div> | <div style="width:350px">Subchain1</div>   |
+| Parameter  | Mandatory | Data Type | Description                                                             | Sample    |
+| ---------- | :-------- | :-------- | ----------------------------------------------------------------------- | --------- |
+| Split Name | M         | String    | Defines the name of the branch. Must be <b>unique</b> within the chain. | Subchain1 |
 
 #### Metadata
-| Parameter                                  | <div style="width:75px">Mandatory</div> | <div style="width:75px">Data Type</div> | Description                                                              | Sample                                                       |
-| ------------------------------------------ | :-------------------------------------- | :-------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| <div style="width:150px">Name</div>        | M                                       | String                                  | <div style="width:400px">Name of the Main Split branch element.	</div>   | <div style="width:350px">Branch for creating a user</div>    |
-| <div style="width:150px">Description</div> | O                                       | String                                  | <div style="width:400px">Free text field for element description.	</div> | <div style="width:350px">Create user for the new sales</div> |
-
+| Parameter   | Mandatory | Data Type | Description                              | Sample                        |
+| ----------- | :-------- | :-------- | ---------------------------------------- | ----------------------------- |
+| Name        | M         | String    | Name of the Main Split branch element.   | Branch for creating a user    |
+| Description | O         | String    | Free text field for element description. | Create user for the new sales |
 
 ### "Parameters" Tab (Split Element)
 #### Common Parameters
-| Parameter                                           | <div style="width:75px">Mandatory</div>  | <div style="width:75px">Data Type</div>    | Description                                                                                                                      | Sample                                    |
-|-----------------------------------------------------|:-----------------------------------------|:-------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|
-| <div style="width:150px">Split Name</div>           | M                                        | String                                     | <div style="width:400px">Defines the name of the branch. Must be <b>unique</b> within the chain.</div>                           | <div style="width:350px">Subchain1</div>  |
-| <div style="width:150px">Propagate headers</div>    | M                                        | Boolean                                    | <div style="width:400px">Checkbox, that enables propagation of headers from this branch to the aggregated exchange object.</div> | <div style="width:350px">N/A</div>        |
-| <div style="width:150px">Propagate properties</div> | M                                        | Boolean                                    | <div style="width:400px">Checkbox, that enables propagation of properties from this branch to the aggregated exchange object.</div>                | <div style="width:350px">N/A</div>        |
+| Parameter            | Mandatory | Data Type | Description                                                                                          | Sample    |
+| -------------------- | :-------- | :-------- | ---------------------------------------------------------------------------------------------------- | --------- |
+| Split Name           | M         | String    | Defines the name of the branch. Must be **unique** within the chain.                                 | Subchain1 |
+| Propagate headers    | M         | Boolean   | Checkbox, that enables propagation of headers from this branch to the aggregated exchange object.    | N/A       |
+| Propagate properties | M         | Boolean   | Checkbox, that enables propagation of properties from this branch to the aggregated exchange object. | N/A       |
 
 #### Metadata
-| Parameter                                    | <div style="width:75px">Mandatory</div>  | <div style="width:75px">Data Type</div> | Description                                                              | Sample                                                       |
-|----------------------------------------------|:-----------------------------------------|:----------------------------------------|--------------------------------------------------------------------------|--------------------------------------------------------------|
-| <div style="width:150px">Name</div>          | M                                        | String                                  | <div style="width:400px">Name of the Split branch element.</div>         | <div style="width:350px">Branch for creating a user</div>    |
-| <div style="width:150px">Description</div>   | O                                        | String                                  | <div style="width:400px">Free text field for element description.</div>  | <div style="width:350px">Create user for the new sales</div> |
+| Parameter   | Mandatory | Data Type | Description                              | Sample                        |
+| ----------- | :-------- | :-------- | ---------------------------------------- | ----------------------------- |
+| Name        | M         | String    | Name of the Split branch element.        | Branch for creating a user    |
+| Description | O         | String    | Free text field for element description. | Create user for the new sales |
 
 ## Constraints
 

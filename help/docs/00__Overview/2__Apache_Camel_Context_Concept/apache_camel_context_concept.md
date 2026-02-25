@@ -14,20 +14,20 @@ The main purpose of utilizing Apache Camel in Qubership Integration Platform is 
 
 **Apache Camel Exchange Object** will "accumulate" the data from Triggers, depending on their type and operable data type. Table below shows to which part **Camel Exchange Object** data from every trigger goes.
 
-| Trigger Type                                     | Exchange Object Properties                               | Exchange Object Headers                                                                             | Exchange Object Body                                                                                  |
-|--------------------------------------------------|----------------------------------------------------------|-----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| <div style="width:195px">AsyncAPI Trigger</div>	 | <div style="width:250px">-</div>                         | <div style="width:250px"><ul><li>Kafka Headers</li><li>RabbitMQ Headers</li></ul></div>             | <div style="width:250px"><ul><li>Kafka Message's Body</li><li>RabbitMQ Message's Body</li></ul></div> |
-| <div style="width:195px">Chain Trigger</div>     | <div style="width:250px">Source Chain's Properties</div> | <div style="width:250px">Source Chain's Headers</div>                                               | <div style="width:250px">Source Chain's Body</div>                                                    |
-| <div style="width:195px">HTTP Trigger </div>     | <div style="width:250px">Path Parameters</div>           | <div style="width:250px"><ul><li>Headers</li><li>Query Parameters</li></ul></div>                   | <div style="width:250px">HTTP Message's Body</div>                                                    |
-| <div style="width:195px">JMS Trigger </div>      | <div style="width:250px">-</div>                         | <div style="width:250px"><ul><li>Headers</li><li>JMS Properties</li></ul></div>                     | <div style="width:250px">JMS Message's Body</div>                                                     |
-| <div style="width:195px">Kafka Trigger </div>    | <div style="width:250px">-</div>                         | <div style="width:250px">Kafka Headers</div>                                                        | <div style="width:250px">Kafka Message's Body</div>                                                   |
-| <div style="width:195px">PubSub Trigger </div>   | <div style="width:250px">-</div>                         | <div style="width:250px">PubSub Headers</div>                                                       | <div style="width:250px">PubSub Message's Body</div>                                                  |
-| <div style="width:195px">RabbitMQ Trigger</div>  | <div style="width:250px">-</div>                         | <div style="width:250px">RabbitMQ Headers</div>                                                     | <div style="width:250px">RabbitMQ Message's Body</div>                                                |
-| <div style="width:195px">Scheduler     </div>    | <div style="width:250px">-</div>                         | <div style="width:250px"><ul><li>Scheduler's Headers</li><li>Scheduler's Properties</li></ul></div> | <div style="width:250px">-</div>                                                                      |
-| <div style="width:195px">SDS Trigger   </div>    | <div style="width:250px">-</div>                         | <div style="width:250px"><ul><li>Headers</li><li>Path Parameters</li></ul></div>                    | <div style="width:250px">-</div>                                                                      |
-| <div style="width:195px">SFTP Trigger   </div>   | <div style="width:250px">-</div>                         | <div style="width:250px">-</div>                                                                    | <div style="width:250px">Inbound File</div>                                                           |
+| Trigger Type     | Exchange Object Properties | Exchange Object Headers                           | Exchange Object Body                                |
+| ---------------- | -------------------------- | ------------------------------------------------- | --------------------------------------------------- |
+| AsyncAPI Trigger | -                          | Kafka Headers<br>RabbitMQ Headers                 | - Kafka Message's Body<br>- RabbitMQ Message's Body |
+| Chain Trigger    | Source Chain's Properties  | Source Chain's Headers                            | Source Chain's Body                                 |
+| HTTP Trigger     | Path Parameters            | - Headers<br>- Query Parameters                   | HTTP Message's Body                                 |
+| JMS Trigger      | -                          | - Headers<br>- JMS Properties                     | JMS Message's Body                                  |
+| Kafka Trigger    | -                          | Kafka Headers                                     | Kafka Message's Body                                |
+| PubSub Trigger   | -                          | PubSub Headers                                    | PubSub Message's Body                               |
+| RabbitMQ Trigger | -                          | RabbitMQ Headers                                  | RabbitMQ Message's Body                             |
+| Scheduler        | -                          | - Scheduler's Headers<br>- Scheduler's Properties | -                                                   |
+| SDS Trigger      | -                          | - Headers<br>- Path Parameters                    | -                                                   |
+| SFTP Trigger     | -                          | -                                                 | Inbound File                                        |
 
 ## User Interface
 
 ---
-Concept is being supported by [set of elements](docs/01__Chains/1__Graph/graph.md) and functionality that do have a user interface. User interface capabilities and specifics are covered by respective articles, introduced for each particular element.
+Concept is being supported by [set of elements](../../01__Chains/1__Graph/graph.md) and functionality that do have a user interface. User interface capabilities and specifics are covered by respective articles, introduced for each particular element.

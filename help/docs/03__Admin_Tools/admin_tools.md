@@ -23,4 +23,4 @@ Click "Admin Tools" main tab on top of the screen to get access to additional se
 - [Import Instructions](docs/03__Admin_Tools/4__Import_Instructions/import_instructions.md) - allows to manage import instructions.
 - [Design Templates](docs/03__Admin_Tools/7__Design_Templates/design_templates.md) - allows to manage templates, utilized for chain document generation.
 - [Sessions](docs/03__Admin_Tools/5__Sessions/session_log.md) - contains details about all registered sessions in the system. 
-- [Roles](docs/03__Admin_Tools/6__Roles/roles.md) - allows to globally manage roles for HTTP Triggers.
+- [Access Control](docs/03__Admin_Tools/6__Access_Control/access_control.md) - allows to globally manage roles for HTTP Triggers.

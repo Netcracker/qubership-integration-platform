@@ -19,10 +19,10 @@ For the quick navigation in the code block, use search bar, accessed by clicking
 
 ### "Parameters" Tab
 #### Metadata
-| Parameter                                   | <div style="width:75px">Mandatory</div>  | <div style="width:75px">Data Type</div>  | Description                                                                                                                                                         | Sample                                                 |
-|---------------------------------------------|:-----------------------------------------|:-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| <div style="width:150px">Name</div>         | M                                        | String                                   | <div style="width:400px">Name of the element.</div>                                                                                                                 | <div style="width:350px">Set body</div>                |
-| <div style="width:150px">Description</div>  | O                                        | String                                   | <div style="width:400px">Free text field for module description. Use for adding additional text, for example for description why and when we use the element	</div> | <div style="width:350px">Script sets a new body.</div> |
+| Parameter   | Mandatory | Data Type | Description                                                                                                                         | Sample                  |
+| ----------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| Name        | M         | String    | Name of the element.                                                                                                                | Set body                |
+| Description | O         | String    | Free text field for module description. Use for adding additional text, for example for description why and when we use the element | Script sets a new body. |
 
 ## Constraints
 

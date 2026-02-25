@@ -12,24 +12,24 @@
 
 #### Common Parameters
 
-| Parameter                                          | <div style="width:75px">Mandatory</div> | <div style="width:75px">Data Type</div> | Description                                                                                                                      | Sample                                                |
-| -------------------------------------------------- | :-------------------------------------- | :-------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| <div style="width:150px">Host:Port/Directory</div> | M                                       | String                                  | <div style="width:400px">Specifies **Hostname** of the (S)FTP server, **port** of the (S)FTP server, and the **directory**</div> | <div style="width:350px">10.109.27.10:22/source</div> |
+| Parameter           | Mandatory | Data Type | Description                                                                                       | Sample                 |
+| ------------------- | :-------- | :-------- | ------------------------------------------------------------------------------------------------- | ---------------------- |
+| Host:Port/Directory | M         | String    | Specifies **Hostname** of the (S)FTP server, **port** of the (S)FTP server, and the **directory** | 10.109.27.10:22/source |
 
 #### Advanced Parameters
-| Parameter                                                 | <div style="width:75px">Mandatory</div> | <div style="width:75px">Data Type</div> | Description                                                                                                | Sample                                     |
-| --------------------------------------------------------- | :-------------------------------------- | :-------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| <div style="width:150px">File Name (mask supported)</div> | O                                       | String                                  | <div style="width:400px">Name of the file which is going to be uploaded.</div>                             | <div style="width:350px">fileName</div>    |
-| <div style="width:150px">Create directory to file</div>   | O                                       | Boolean                                 | <div style="width:400px">Checkbox, that enables ability to create missing directories automatically.</div> | <div style="width:350px">N/A</div>         |
-| <div style="width:150px">Username</div>                   | O                                       | String                                  | <div style="width:400px">Username value, required for authenticated access.</div>                          | <div style="width:350px">#{username}</div> |
-| <div style="width:150px">Password</div>                   | O                                       | String                                  | <div style="width:400px">Password value, required for authenticated access. </div>                         | <div style="width:350px">#{password}</div> |
+| Parameter                  | Mandatory | Data Type | Description                                                                 | Sample      |
+| -------------------------- | :-------- | :-------- | --------------------------------------------------------------------------- | ----------- |
+| File Name (mask supported) | O         | String    | Name of the file which is going to be uploaded.                             | fileName    |
+| Create directory to file   | O         | Boolean   | Checkbox, that enables ability to create missing directories automatically. | N/A         |
+| Username                   | O         | String    | Username value, required for authenticated access.                          | #{username} |
+| Password                   | O         | String    | Password value, required for authenticated access.                          | #{password} |
 
 
 #### Metadata
-| Parameter                                  | <div style="width:75px">Mandatory</div>   | <div style="width:75px">Data Type</div>  | Description                                                                               | Sample                                                                        |
-|--------------------------------------------|:------------------------------------------|:-----------------------------------------|-------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
-| <div style="width:150px">Name</div>        | M                                         | String                                   | <div style="width:400px">Name of the element.</div>                                       | <div style="width:350px">SFTP upload</div>                                    |
-| <div style="width:150px">Description</div> | O                                         | String                                   | <div style="width:400px">Free text field, that contains description of the element.</div> | <div style="width:350px">Upload documents to specific remote ftp server</div> |
+| Parameter   | Mandatory | Data Type | Description                                                | Sample                                         |
+| ----------- | :-------- | :-------- | ---------------------------------------------------------- | ---------------------------------------------- |
+| Name        | M         | String    | Name of the element.                                       | SFTP upload                                    |
+| Description | O         | String    | Free text field, that contains description of the element. | Upload documents to specific remote ftp server |
 
 ## Constraints
 

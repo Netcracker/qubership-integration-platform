@@ -1,4 +1,4 @@
-# Snapshots (Web UI only)
+# Snapshots [Web UI only]
 
 <div style="border-left: 6px dashed #cc0000; padding: 10px">
 This functionality is not available via the VS Code Extension.
@@ -27,39 +27,34 @@ Once created, a new row appears in the snapshot list displaying the following pa
 
 Available actions include:
 
-- **Delete Snapshot** <img src="docs/01__Chains/2__Snapshots/img/delete.svg" width="20" height="20">: Removes the selected snapshot from the system.
-- **Revert to <img src="docs/01__Chains/2__Snapshots/img/rollback.svg" width="20" height="20">: Rolls back the chain to the selected snapshot, restoring its configuration to that point in time.
-- **Show XML** <img src="docs/01__Chains/2__Snapshots/img/file-text.svg" width="20" height="20">: Displays the internal XML structure of the snapshot, useful for advanced troubleshooting or validation.
+- **Delete Snapshot** ![Delete](img/delete.svg): Removes the selected snapshot from the system.
+- **Revert to** [Rollback](img/rollback.svg): Rolls back the chain to the selected snapshot, restoring its configuration to that point in time.
+- **Show XML** ![File text](img/file-text.svg): Displays the internal XML structure of the snapshot, useful for advanced troubleshooting or validation.
 - **Show Diagram** ⭾ : Visualizes the chain workflow as it was at the time of the snapshot, helping users understand its structure without opening the full editor.
 
 For most of the table columns there is special context menu. To open it, click on the column name. The following functions are available:
-* <img src="docs/01__Chains/2__Snapshots/img/caret-up.svg" width="20" height="20"> - click to sort ascending.
-* <img src="docs/01__Chains/2__Snapshots/img/caret-down.svg" width="20" height="20"> - click to sort descending.
-* <img src="docs/01__Chains/2__Snapshots/img/filter.svg" width="20" height="20"> - filtering.
+* ![Caret up](img/caret-up.svg) - click to sort ascending.
+* ![Caret down](img/caret-down.svg) - click to sort descending.
+* ![Filter](img/filter.svg) - filtering.
 
 ### Create Snapshot
 
 To create a snapshot:
 
 1. Navigate to the **Snapshot** section using the top menu bar.
-2. Click on the **Create** button <img src="docs/01__Chains/2__Snapshots/img/plus.svg" width="20" height="20"> in the right-side action menu <img src="docs/01__Chains/2__Snapshots/img/more.svg" width="20" height="20">.
+2. Click on the **Create** button ![Plus](img/plus.svg) in the right-side action menu ![More](img/more.svg).
 
 ### Delete Snapshot
 
-To delete snapshot(s), mark all suitable rows with ticks in the snapshot table view and click <img src="docs/01__Chains/2__Snapshots/img/delete.svg" width="20" height="20"> on control panel or select "**Delete**" option in actions menu for each row. 
+To delete snapshot(s), mark all suitable rows with ticks in the snapshot table view and click ![Delete](img/delete.svg) on control panel or select "**Delete**" option in actions menu for each row. 
 
-<div style="background-color: #e7f3fe; border-left: 6px solid #2196F3; padding: 10px">
-    <b>Note:</b><br>
-    Besides the UI option for manual deletion, a scheduled task automatically deletes snapshots older that the configured interval <i>(default is set to 14 days)</i>. Once deleted, these snapshots cannot be restored.
-</div>
+>**ℹ️Note**: Besides the UI option for manual deletion, a scheduled task automatically deletes snapshots older that the configured interval *(default is set to 14 days)*. Once deleted, these snapshots cannot be restored.
 ### Revert Chain to the Particular Snapshot
 
 To revert chain to the particular version, select **"Revert to"** option in actions menu. After this a popup with the confirmation will be opened. Then the graph will be shown with all the information and the elements that were saved in the chosen snapshot.
 
-<div style="background-color: #e7f3fe; border-left: 6px solid #2196F3; padding: 10px">
-<b>Note:</b><br>
-In case there are unsaved changes in the chain and revert has been requested - the snapshot with all unsaved changes will be automatically created (saved) before reverting to the previous version .
-</div>
+>**ℹ️Note**: In case there are unsaved changes in the chain and revert has been requested - the snapshot with all unsaved changes will be automatically created (saved) before reverting to the previous version.
+
 
 ### Open Snapshot Sequence Diagram
 

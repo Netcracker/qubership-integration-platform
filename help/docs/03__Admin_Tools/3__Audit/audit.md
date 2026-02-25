@@ -3,21 +3,12 @@
 <div style="border-left: 6px dashed #cc0000; padding: 10px">
 This functionality is not available via the VS Code Extension.
 </div>
+
 ## Description
 
 ---
 Audit allows tracking most of the actions in UI. Click on the expandable section below to check the list of audit log types grouped by the entity:
 
-<style>
-summary {
-  display: list-item;
-  list-style: disclosure-closed inside;
-  cursor: pointer;
-}
-details[open] > summary {
-  list-style: disclosure-open inside;
-}
-</style>
 <details><summary>Audit log types</summary>
 <table>
     <thead>
@@ -151,7 +142,9 @@ details[open] > summary {
             <td>Delete masking field. </td>
         </tr>
         <tr>
-            <td rowspan="5">External/<br/>Inner Cloud/<br/>Implemented</td>
+            <td rowspan="5">External/  
+Inner Cloud/  
+Implemented</td>
                     <td>Create</td>
                     <td>
                         <ul>
@@ -259,7 +252,8 @@ details[open] > summary {
                     <td>When service discovery was completed. </td>
                 </tr>
                 <tr>
-                    <td rowspan="5">Common/<br/>Secured Variable</td>
+                    <td rowspan="5">Common/  
+Secured Variable</td>
                         <td>Create</td>
                         <td>Create secured variable.</td>
                     <tr>
@@ -312,7 +306,7 @@ details[open] > summary {
                     <tr>
                         <td>Exchange</td>
                         <td>Delete</td>
-                        <td>Terminate the exchange manually on <a href="docs/03__Admin_Tools/8__Live_Exchanges/live_exchanges.md">"Live Exchanges"</a> tab.</td>
+                        <td>Terminate the exchange manually on ["Live Exchanges"](../8__Live_Exchanges/live_exchanges.md) tab.</td>
                     </tr>
     </tbody>
 </table>
@@ -320,15 +314,7 @@ details[open] > summary {
 
 There is a specific **"Audit"** tab available in QIP UI, that could be utilized by user to view the logs.
 
-<div style="background-color: #e7f3fe; border-left: 6px solid #2196F3; padding: 10px">
-<b>Notes:</b><br>
-<li>There are retention policy settings, that could be configured as part of system installation. Following the settings, action logs might be removed after some period of time.</li>
-<li>In case of bulk operations, audit page will register separate action per each entity (e.g. bulk chain import/export, bulk snapshot deletion, etc.)</li>
-<li>For manual import of complex entities, such as chains, services, etc. system may register both IMPORT and CREATE/UPDATE operations, depending on how imported entities are handled.</li>
-<li>In some scenarios, when the platform does not identify the exact operation type, it sets "Create and Update" as a value for the record.</li>
-</br>
-</div>
-
+>ℹ️**Notes**:<li>There are retention policy settings, that could be configured as part of system installation. Following the settings, action logs might be removed after some period of time.</li><li>In case of bulk operations, audit page will register separate action per each entity (e.g. bulk chain import/export, bulk snapshot deletion, etc.)</li><li>For manual import of complex entities, such as chains, services, etc. system may register both IMPORT and CREATE/UPDATE operations, depending on how imported entities are handled.</li><li>In some scenarios, when the platform does not identify the exact operation type, it sets "Create and Update" as a value for the record.</li>
 ## User Interface
 
 ---
@@ -346,21 +332,18 @@ Accessed via **Admin Tools → Audit**, the interface features a customizable ta
 - **Parent Id** - unique identifier of parent entity. Column is hidden by default.
 - **Parent Name** - reference to parent entity.
 
-The following actions are available via Action Menu <img src="docs/03__Admin_Tools/3__Audit/img/more.svg" width="20" height="20">:
-* <img src="docs/03__Admin_Tools/3__Audit/img/cloud-download.svg" width="20" height="20"> - Export Actions Logs.
-* <img src="docs/03__Admin_Tools/3__Audit/img/redo.svg" width="20" height="20"> - Refresh.
+The following actions are available via Action Menu ![More](img/more.svg):
+* ![Download](img/cloud-download.svg) - Export Actions Logs.
+* ![Redo](img/redo.svg) - Refresh.
 
 Similar information is presented on "**Action details**" right panel, available by clicking respective table's record.
 
 ### Export to Excel
 
-To export audit table to Excel file, find and click export <img src="docs/03__Admin_Tools/3__Audit/img/cloud-download.svg" width="20" height="20"> button from tha Action Menu, select the required date range and confirm operation.
-<div style="background-color: #e7f3fe; border-left: 6px solid #2196F3; padding: 10px">
-<b>Note:</b><br>
-Resulted file will always have "Action date" values converted to <b>GMT</b> time zone.
-</div>
-<br>
+To export audit table to Excel file, find and click export ![Download](img/cloud-download.svg) button from the Action Menu, select the required date range and confirm operation.
+
+>**ℹ️Note**: Resulted file will always have "Action date" values converted to **GMT** time zone.
 
 ### Refresh Logs
 
-To refresh Audit table, simply click button <img src="docs/03__Admin_Tools/3__Audit/img/redo.svg" width="20" height="20">, presented in the menu or refresh the page itself.
+To refresh Audit table, simply click button ![Redo](img/redo.svg), presented in the menu or refresh the page itself.

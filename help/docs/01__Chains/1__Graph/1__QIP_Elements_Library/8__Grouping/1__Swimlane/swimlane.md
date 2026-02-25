@@ -13,10 +13,10 @@
 There is a few color options available via clicking the respective palette element.
 
 #### Metadata
-| Parameter                                   | <div style="width:75px">Mandatory</div>    | <div style="width:75px">Data Type</div>   | Description                                                                               | Sample                                                |
-|---------------------------------------------|:-------------------------------------------|:------------------------------------------|-------------------------------------------------------------------------------------------|-------------------------------------------------------|
-| <div style="width:150px">Name</div>         | M                                          | String                                    | <div style="width:400px">Name of the element.</div>                                       | <div style="width:350px">Group_1</div>                |
-| <div style="width:150px">Description</div>  | O                                          | String                                    | <div style="width:400px">Free text field, that contains description of the element.</div> | <div style="width:350px">External service calls</div> |
+| Parameter   | Mandatory | Data Type | Description                                                | Sample                 |
+| ----------- | :-------- | :-------- | ---------------------------------------------------------- | ---------------------- |
+| Name        | M         | String    | Name of the element.                                       | Group_1                |
+| Description | O         | String    | Free text field, that contains description of the element. | External service calls |
 
 ## Constraints
 

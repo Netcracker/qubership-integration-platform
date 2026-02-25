@@ -1,4 +1,4 @@
-# Chains (Web UI only)
+# Chains [Web UI only]
 
 <div style="border-left: 6px dashed #cc0000; padding: 10px">
 This functionality is not available via the VS Code Extension.
@@ -8,25 +8,25 @@ This functionality is not available via the VS Code Extension.
 
 
 ---
-Chain is an integration configuration which consist of Apache Camel (or customized) modules. Each chain is indented to perform particular integration task. Chain can be triggered by any external consumer, so chain configuration starts from some trigger (HTTP Trigger, Kafka Trigger, etc.). When the chain configuration was completed, it should be deployed at least on one [[docs/03__Admin_Tools/1__Domains/domains|Engine Domain]] (otherwise, the chain cannot be triggered).
+Chain is an integration configuration which consist of Apache Camel (or customized) modules. Each chain is indented to perform particular integration task. Chain can be triggered by any external consumer, so chain configuration starts from some trigger (HTTP Trigger, Kafka Trigger, etc.). When the chain configuration was completed, it should be deployed at least on one [Engine Domain](../../03__Admin_Tools/1__Domains/domains.md) (otherwise, the chain cannot be triggered).
 ## User Interface
 
 ---
 ### Chains and Folders Table View
 
-Initially at the top of the screen Full text search is available to find necessary chain or folder. The only way to use this search is to enter in the special field some parameters and click on the <img src="docs/01__Chains/img/search.svg" width="20" height="20"> icon.
+Initially at the top of the screen Full text search is available to find necessary chain or folder. The only way to use this search is to enter in the special field some parameters and click on the ![](img/search.svg) icon.
 
-On the right side near Full test search it is possible to add/remove fields in the table clicking on this icon <img src="docs/01__Chains/img/setting.svg" width="20" height="20"> or to use filter <img src="docs/01__Chains/img/filter.svg" width="20" height="20"> with the following parameters:
+On the right side near Full test search it is possible to add/remove fields in the table clicking on this icon ![](img/setting.svg) or to use filter ![](img/filter.svg) with the following parameters:
 
 * Column - field from the table on which the filter will be applied, all fields from the table are available to choose;
 * Condition - consist of 4 conditions: Contains, Does not contain, Starts with, Ends with.
 * Value - value of filtering.
 
- Each filter can be removed (marked with icon <img src="docs/01__Chains/img/delete.svg" width="20" height="20">) or duplicated (marked with icon <img src="docs/01__Chains/img/copy.svg" width="20" height="20">) under this <img src="docs/01__Chains/img/ellipsis.svg" width="20" height="20"> icon.
+ Each filter can be removed (marked with icon ![](img/delete.svg)) or duplicated (marked with icon ![](img/copy.svg)) under this ![](img/ellipsis.svg) icon.
 
-Additionally it is possible to add one more filter using this <img src="docs/01__Chains/img/plus.svg" width="20" height="20"> or to clear all filters using this <img src="docs/01__Chains/img/clear.svg" width="20" height="20">.
+Additionally it is possible to add one more filter using this ![](img/plus.svg) or to clear all filters using this ![](img/clear.svg).
 
-On the screen under Full text search there is a table view showing two groups of elements: chains (marked with icon <img src="docs/01__Chains/img/file.svg" width="20" height="20">) and chain folder (marked with icon <img src="docs/01__Chains/img/folder.svg" width="20" height="20">). To see all chains and folders under one particular folder it is necessary to click on <img src="docs/01__Chains/img/plus.svg" width="20" height="20"> icon near folder name. 
+On the screen under Full text search there is a table view showing two groups of elements: chains (marked with icon ![](img/file.svg)) and chain folder (marked with icon ![](img/folder.svg)). To see all chains and folders under one particular folder it is necessary to click on ![](img/plus.svg) icon near folder name. 
 
 By default, each chain or folder displays the following parameters:
 
@@ -43,11 +43,11 @@ By default, each chain or folder displays the following parameters:
 - **Modified At**: Date and time of modifying.
 
 For most of the table columns there is special context menu. To open it, click on the column name. The following functions are available:
-* <img src="docs/01__Chains/img/caret-up.svg" width="20" height="20"> - click to sort ascending.
-* <img src="docs/01__Chains/img/caret-down.svg" width="20" height="20"> - click to sort descending.
-* <img src="docs/01__Chains/img/filter.svg" width="20" height="20"> - filtering.
+* ![](img/caret-up.svg) - click to sort ascending.
+* ![](img/caret-down.svg) - click to sort descending.
+* ![](img/filter.svg) - filtering.
 
-A set of operations can be performed on chains of folders and marked with <img src="docs/01__Chains/img/more.svg" width="20" height="20"> icon. 
+A set of operations can be performed on chains of folders and marked with ![](img/more.svg) icon. 
 #### Available Actions
 
 - **For Folders** :
@@ -71,15 +71,15 @@ A set of operations can be performed on chains of folders and marked with <img s
     - Duplicate - duplicate selected chain with number postfix.
     - Delete - delete selected chain.
 
-At the right down there is a floating button marked with !!!. These actions are available:
-* <img src="docs/01__Chains/img/file-add.svg" width="20" height="20"> - create chain.
-* <img src="docs/01__Chains/img/folder-add.svg" width="20" height="20"> - create folder.
-* <img src="docs/01__Chains/img/delete.svg" width="20" height="20"> - delete selected chains and folders.
-* <img src="docs/01__Chains/img/cloud-download.svg" width="20" height="20"> - export selected chains.
-* <img src="docs/01__Chains/img/cloud-upload.svg" width="20" height="20"> - import chains.
+At the right down there is a floating button marked with ![](img/more.svg). These actions are available:
+* ![](img/file-add.svg) - create chain.
+* ![](img/folder-add.svg) - create folder.
+* ![](img/delete.svg) - delete selected chains and folders.
+* ![](img/cloud-download.svg) - export selected chains.
+* ![](img/cloud-upload.svg) - import chains.
 * ⇄ - compare selected chains.
-* <img src="docs/01__Chains/img/carry-out.svg" width="20" height="20">  - paste chain or folder.
-* <img src="docs/01__Chains/img/send.svg" width="20" height="20"> - deploy selected chains.
+* ![](img/carry-out.svg)  - paste chain or folder.
+* ![](img/send.svg) - deploy selected chains.
 
 ### Create New Chain or Folder
 
@@ -105,7 +105,7 @@ The same option of immediate opening is available for folders.
 
 ### Import Chain(s)
 
-To upload the chain(s), click the icon <img src="docs/01__Chains/img/cloud-upload.svg" width="20" height="20">, drag and drop **.zip** or **.yaml** file into import area or click on this area, select the file and click "Next" at the bottom right. The second step allows to specify actions. There are four tabs under one.
+To upload the chain(s), click the icon ![](img/cloud-upload.svg), drag and drop **.zip** or **.yaml** file into import area or click on this area, select the file and click "Next" at the bottom right. The second step allows to specify actions. There are four tabs under one.
 
 #### Chains Tab
 
@@ -179,11 +179,19 @@ The last step is the result of import. In each tab the specified field "Status" 
 
 ### Export Chain(s)
 
-To export the chain(s), simply select respective rows in the table with checkboxes (use checkbox in table heading if you need to select all/filtered chains) and <img src="docs/01__Chains/img/cloud-download.svg" width="20" height="20">. When no entities are selected and button clicked, system will attempt to export every chain after receiving a user's confirmation. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
+To export the chain(s), simply select respective rows in the table with checkboxes (use checkbox in table heading if you need to select all/filtered chains) and ![](img/cloud-download.svg). When no entities are selected and button clicked, system will attempt to export every chain after receiving a user's confirmation. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
 
-- **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](docs/01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](docs/01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements, sub-chains, selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](docs/01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) and sub-chains, selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
+- **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements, sub-chains, selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) and sub-chains, selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
 - **Export related services** - if selected, system will also export services and specifications, utilized within chains.
 - **Export all common variables** - if selected, system will also export all common variables, utilized within chains.
 
+### Deploy Chain(s)
 
+To deploy desired chains, mark them via checkboxes (use checkbox in table heading if you need to select all/filtered chains) and click ![](img/send.svg). System will attempt to deploy every available chain when button is clicked but none of the chains selected. In both cases, system shows pop-up and requests additional data:
 
+- **Engine Domain** - the engine, selected chains will be deployed on.
+- **Snapshot Action** - defines if new snapshot must be deployed. There are two actions available:
+	- **Create new** - system will attempt to redeploy the chain with new snapshot.
+	- **Reuse latest, otherwise create new** - system will attempt to reuse latest snapshot. If it does not exist - redeploy will be attempted with newly created snapshot.
+
+Confirm selected options and click "**Deploy**" button. System will attempt to deploy selected chains and show notifications.
