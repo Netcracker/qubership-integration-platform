@@ -25,6 +25,7 @@ import { useContext } from "react";
 import { ChainElementModification } from "../components/modal/chain_element/ChainElementModification.tsx";
 import { ChainGraphNode } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
 import { useElkDirectionContext } from "./ElkDirectionContext.tsx";
+import { useFocusToElementId } from "../components/graph/ElementFocus.tsx";
 import { UsedPropertiesList } from "../components/UsedPropertiesList.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { EntityFilterModel } from "../components/table/filter/filter.ts";
@@ -107,7 +108,6 @@ export const PageWithRightPanel = () => {
               chainId={chainId}
               elementId={element.id}
               onSubmit={() => {
-                // Element was updated - refresh the list
                 void api.getElements(chainId).then(setElements);
               }}
               onClose={() => {
@@ -133,7 +133,13 @@ export const PageWithRightPanel = () => {
     [elements, handleElementDoubleClick],
   );
 
-  const handleElementSingleClick = useCallback((elementId: string) => {}, []);
+  const focusToElementId = useFocusToElementId();
+  const handleElementSingleClick = useCallback(
+    (elementId: string) => {
+      focusToElementId(elementId);
+    },
+    [focusToElementId],
+  );
 
   const elementMenuItems: MenuProps["items"] = useMemo(() => {
     if (!elements?.length || !libraryElements) {
@@ -253,6 +259,7 @@ export const PageWithRightPanel = () => {
             items={elementMenuItems}
             selectable={false}
             selectedKeys={[]}
+            onClick={({ key }) => handleElementSingleClick(String(key))}
             style={{ borderRight: "none", width: "100%" }}
           />
         )}
