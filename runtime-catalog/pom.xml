@@ -73,8 +73,8 @@
         <flexmark.version>0.64.8</flexmark.version>
         <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
         <graphql-java.version>21.5</graphql-java.version>
-        <swagger-parser.version>2.1.21</swagger-parser.version>
-        <swagger-core.version>2.2.21</swagger-core.version>
+        <swagger-parser.version>2.1.38</swagger-parser.version>
+        <swagger-core.version>2.2.43</swagger-core.version>
         <woden-core.version>1.0M10</woden-core.version>
         <soa-model-core.version>1.6.4</soa-model-core.version>
         <commons-validator.version>1.7</commons-validator.version>
