@@ -1,17 +1,17 @@
 import React, { useEffect, useState, createContext, useContext } from "react";
 import { Tabs, Typography, Breadcrumb, Flex } from "antd";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { formatTimestamp } from "../../misc/format-utils.ts";
+import { formatTimestamp } from "../../../misc/format-utils.ts";
 import { ServiceParametersTab } from "./ServiceParametersTab";
 import { ServiceApiSpecsTab } from "./ServiceApiSpecsTab";
 import { ServiceEnvironmentsTab } from "./ServiceEnvironmentsTab";
-import { api } from "../../api/api";
+import { api } from "../../../api/api";
 import {
   IntegrationSystem,
   IntegrationSystemType,
   BaseEntity,
-} from "../../api/apiTypes";
-import styles from "./Services.module.css";
+} from "../../../api/apiTypes";
+import styles from "../Services.module.css";
 import {
   ServiceNameBreadcrumbItem,
   ServiceTypeBreadcrumbItem,

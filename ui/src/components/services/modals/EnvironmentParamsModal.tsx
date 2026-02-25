@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Modal, Form, Input, Badge, Button, Switch, Select } from "antd";
-import { EntityLabels } from "../labels/EntityLabels";
-import { Environment, EnvironmentRequest } from "../../api/apiTypes";
-import { useServiceContext } from "./ServiceParametersPage";
+import { EntityLabels } from "../../labels/EntityLabels";
+import { Environment, EnvironmentRequest } from "../../../api/apiTypes";
+import { useServiceContext } from "../detail/ServiceParametersPage";
 import { Segmented } from "antd";
-import { EnvironmentSourceType } from "../../api/apiTypes";
-import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { environmentLabelOptions } from "./utils.tsx";
-import { isAmqpProtocol, isKafkaProtocol } from "../../misc/protocol-utils";
-import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
+import { EnvironmentSourceType } from "../../../api/apiTypes";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { environmentLabelOptions } from "../utils.tsx";
+import { isAmqpProtocol, isKafkaProtocol } from "../../../misc/protocol-utils";
+import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 
 interface EnvironmentParamsModalProps {
   open: boolean;
@@ -114,7 +114,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   const handleAddRow = (record: { key: string; value: string; id: string }) => {
     if (!record.key || !record.value) return;
     setPropertiesObj((prev) => ({ ...prev, [record.key]: record.value }));
-    const newId = Math.random().toString(36).slice(2);
+    const newId = crypto.randomUUID();
     setAddingRows((rows) =>
       rows
         .filter((r) => r.id !== record.id)
@@ -320,6 +320,8 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
             }}
           >
             <span
+              role="button"
+              tabIndex={0}
               style={{
                 marginRight: 8,
                 fontSize: 16,
@@ -327,6 +329,12 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                 cursor: "pointer",
               }}
               onClick={() => setShowProperties((prev) => !prev)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setShowProperties((prev) => !prev);
+                }
+              }}
             >
               {showProperties ? "▲" : "▼"}
             </span>
@@ -345,7 +353,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                   size="small"
                   style={{ marginLeft: 16 }}
                   onClick={() => {
-                    const newId = Math.random().toString(36).slice(2);
+                    const newId = crypto.randomUUID();
                     setAddingRows((rows) => [
                       ...rows,
                       { key: "", value: "", id: newId },
@@ -385,7 +393,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                   const obj: Record<string, string> = {};
                   lines.forEach((line) => {
                     const match = line.match(
-                      /^\s*([^=;\s]+)\s*=\s*([^;]*);?\s*$/,
+                      /^([^=;]+)=([^;]*);?$/,
                     );
                     if (match) obj[match[1]] = match[2];
                   });
@@ -449,6 +457,8 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                             />
                           ) : (
                             <div
+                              role="button"
+                              tabIndex={0}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -459,6 +469,12 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                               onMouseEnter={() => setHoverValueKey(key)}
                               onMouseLeave={() => setHoverValueKey(null)}
                               onClick={() => setEditingValueKey(key)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setEditingValueKey(key);
+                                }
+                              }}
                             >
                               <span style={{ flex: 1 }}>{value}</span>
                               {hoverValueKey === key && (

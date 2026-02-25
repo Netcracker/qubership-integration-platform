@@ -10,6 +10,7 @@ export const useFilter = (
 ): {
   filters: EntityFilterModel[];
   filterButton: JSX.Element;
+  resetFilters: () => void;
 } => {
   const { showModal } = useModalsContext();
   const [filters, setFilters] = useState<EntityFilterModel[]>([]);
@@ -45,5 +46,10 @@ export const useFilter = (
     <FilterButton count={filterItemStates.length} onClick={addFilter} />
   );
 
-  return { filters, filterButton };
+  const resetFilters = () => {
+    setFilters([]);
+    setFilterItemStates([]);
+  };
+
+  return { filters, filterButton, resetFilters };
 };

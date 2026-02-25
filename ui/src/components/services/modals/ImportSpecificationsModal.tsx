@@ -14,20 +14,20 @@ import {
   Upload,
 } from "antd";
 import type { RcFile } from "antd/es/upload";
-import { useModalContext } from "../../ModalContextProvider";
-import { api } from "../../api/api";
-import { getErrorMessage } from "../../misc/error-utils";
-import { useNotificationService } from "../../hooks/useNotificationService";
-import type { ElementWithChainName, SpecApiFile } from "../../api/apiTypes";
+import { useModalContext } from "../../../ModalContextProvider";
+import { api } from "../../../api/api";
+import { getErrorMessage } from "../../../misc/error-utils";
+import { useNotificationService } from "../../../hooks/useNotificationService";
+import type { ElementWithChainName, SpecApiFile } from "../../../api/apiTypes";
 import {
   ApiSpecificationType,
   ApiSpecificationFormat,
-} from "../../api/apiTypes";
-import styles from "./Services.module.css";
-import { validateFiles } from "./utils";
-import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { VSCodeExtensionApi } from "../../api/rest/vscodeExtensionApi.ts";
-import { SourceFlagTag } from "./SourceFlagTag";
+} from "../../../api/apiTypes";
+import styles from "../Services.module.css";
+import { validateFiles } from "../utils";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { VSCodeExtensionApi } from "../../../api/rest/vscodeExtensionApi.ts";
+import { SourceFlagTag } from "../ui/SourceFlagTag";
 
 const POLLING_INTERVAL = 1200;
 const DEFAULT_EXTERNAL_ROUTES_ONLY = true;

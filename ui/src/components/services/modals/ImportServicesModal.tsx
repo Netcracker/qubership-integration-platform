@@ -1,17 +1,17 @@
 import React, { useState } from "react";
 import { Modal, Upload, Table, Button, message, Typography, Tag } from "antd";
 import type { RcFile } from "antd/es/upload";
-import { useModalContext } from "../../ModalContextProvider";
-import { api } from "../../api/api";
+import { useModalContext } from "../../../ModalContextProvider";
+import { api } from "../../../api/api";
 import {
   ImportSystemResult,
   IntegrationSystemType,
   SystemImportStatus,
-} from "../../api/apiTypes";
-import { getErrorMessage } from "../../misc/error-utils";
-import { useNotificationService } from "../../hooks/useNotificationService";
-import { validateFiles } from "./utils";
-import { OverridableIcon } from "../../icons/IconProvider.tsx";
+} from "../../../api/apiTypes";
+import { getErrorMessage } from "../../../misc/error-utils";
+import { useNotificationService } from "../../../hooks/useNotificationService";
+import { validateFiles } from "../utils";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 interface Props {
   onSuccess?: () => void;

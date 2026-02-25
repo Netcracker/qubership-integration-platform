@@ -1,12 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import styles from "./Services.module.css";
-import { FloatButton, Typography, message, Flex } from "antd";
+import { FloatButton, Input, Typography, message, Flex } from "antd";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
-import { CreateServiceModal } from "./CreateServiceModal";
+import { CreateServiceModal } from "./modals/CreateServiceModal";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/api";
 import { IntegrationSystemType, Specification } from "../../api/apiTypes";
 import { useNotificationService } from "../../hooks/useNotificationService";
+import { useServiceFilters } from "../../hooks/useServiceFilter";
 import {
   useServicesTreeTable,
   allServicesTreeTableColumns,
@@ -26,7 +33,7 @@ import type {
 } from "../../api/apiTypes";
 import { downloadFile } from "../../misc/download-utils";
 import { prepareFile } from "./utils.tsx";
-import ImportServicesModal from "./ImportServicesModal";
+import ImportServicesModal from "./modals/ImportServicesModal";
 import { useModalsContext } from "../../Modals";
 import { getErrorMessage } from "../../misc/error-utils";
 import { useAsyncRequest } from "./useAsyncRequest";
@@ -72,9 +79,13 @@ export const ServicesListPage: React.FC = () => {
   >({});
   const [loadingRows, setLoadingRows] = useState<string[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [searchString, setSearchString] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
   const notify = useNotificationService();
   const navigate = useNavigate();
   const { showModal } = useModalsContext();
+  const { filters, filterButton, resetFilters } = useServiceFilters();
 
   const {
     loading,
@@ -82,16 +93,36 @@ export const ServicesListPage: React.FC = () => {
     execute: loadServices,
   } = useAsyncRequest(
     async () => {
-      const all = await api.getServices("", false);
-      const servicesArray = Array.isArray(all) ? all : [];
+      const hasSearch = debouncedSearch.trim().length > 0;
+      const hasFilters = filters.length > 0;
+
+      let servicesArray: IntegrationSystem[];
+      if (hasSearch && hasFilters) {
+        const [searched, filtered] = await Promise.all([
+          api.searchServices(debouncedSearch.trim()),
+          api.filterServices(filters),
+        ]);
+        const filteredIds = new Set(filtered.map((s) => s.id));
+        servicesArray = searched.filter((s) => filteredIds.has(s.id));
+      } else if (hasFilters) {
+        servicesArray = await api.filterServices(filters);
+      } else if (hasSearch) {
+        servicesArray = await api.searchServices(debouncedSearch.trim());
+      } else {
+        const all = await api.getServices("", false);
+        servicesArray = Array.isArray(all) ? all : [];
+      }
+
       let contextServices: ContextSystem[] = [];
-      try {
-        contextServices = await api.getContextServices();
-        if (!Array.isArray(contextServices)) {
+      if (tab === "context") {
+        try {
+          contextServices = await api.getContextServices();
+          if (!Array.isArray(contextServices)) {
+            contextServices = [];
+          }
+        } catch {
           contextServices = [];
         }
-      } catch {
-        contextServices = [];
       }
       setServicesByType({
         external: servicesArray.filter(
@@ -111,7 +142,26 @@ export const ServicesListPage: React.FC = () => {
 
   useEffect(() => {
     void loadServices();
-  }, []);
+  }, [filters, debouncedSearch, tab]);
+
+  useEffect(() => {
+    setSearchString("");
+    setDebouncedSearch("");
+    clearTimeout(searchDebounceRef.current);
+    resetFilters();
+  }, [tab]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchString(value);
+    clearTimeout(searchDebounceRef.current);
+    if (value.trim() === "") {
+      setDebouncedSearch("");
+    } else {
+      searchDebounceRef.current = setTimeout(() => {
+        setDebouncedSearch(value);
+      }, 500);
+    }
+  };
 
   const getServicesByTab = useCallback(():
     | IntegrationSystem[]
@@ -529,12 +579,24 @@ export const ServicesListPage: React.FC = () => {
           })()}
         </Typography.Title>
 
-        <div className={styles["actions"]}>{servicesTable.FilterButton()}</div>
+        <div className={styles["actions"]}>
+          <Input.Search
+            placeholder="Search services..."
+            allowClear
+            value={searchString}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onSearch={(value) => {
+              clearTimeout(searchDebounceRef.current);
+              setDebouncedSearch(value);
+            }}
+            style={{ width: 500 }}
+          />
+          {filterButton}
+          {servicesTable.FilterButton()}
+        </div>
       </div>
 
       <div>
-        {loading && <div>Loading...</div>}
-
         <servicesTable.Table />
         {error && (
           <div style={{ color: "var(--vscode-errorForeground, #d73a49)" }}>

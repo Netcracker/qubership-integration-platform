@@ -304,6 +304,10 @@ export interface Api {
     withSpec: boolean,
   ): Promise<IntegrationSystem[]>;
 
+  filterServices(filters: EntityFilterModel[]): Promise<IntegrationSystem[]>;
+
+  searchServices(searchCondition: string): Promise<IntegrationSystem[]>;
+
   createService(system: SystemRequest): Promise<IntegrationSystem>;
 
   createEnvironment(

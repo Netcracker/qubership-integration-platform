@@ -6,7 +6,7 @@ import type {
 } from "antd/es/table/interface";
 import { formatTimestamp } from "../../misc/format-utils";
 import { UsageStatusTag } from "./utils";
-import { SourceFlagTag } from "./SourceFlagTag";
+import { SourceFlagTag } from "./ui/SourceFlagTag";
 import { EntityLabels } from "../labels/EntityLabels";
 import {
   EntityLabel,
@@ -17,7 +17,7 @@ import {
 } from "../../api/apiTypes.ts";
 import { useNavigate, useParams } from "react-router-dom";
 import { ColumnsFilter } from "../table/ColumnsFilter";
-import { OperationInfoModal } from "./OperationInfoModal";
+import { OperationInfoModal } from "./modals/OperationInfoModal";
 import { api } from "../../api/api";
 import {
   TextColumnFilterDropdown,
@@ -31,9 +31,9 @@ import type {
 } from "../../api/apiTypes";
 import { InlineEdit } from "../InlineEdit";
 import { LabelsEdit } from "../table/LabelsEdit";
-import { ChainColumn } from "./ChainColumn";
+import { ChainColumn } from "./ui/ChainColumn";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { HttpMethod } from "./HttpMethod.tsx";
+import { HttpMethod } from "./ui/HttpMethod.tsx";
 
 export type ServiceEntity =
   | IntegrationSystem
@@ -247,7 +247,7 @@ function renderLabelsCell(
 
   if (onUpdateLabels) {
     return (
-      <div className="inline-edit-labels">
+      <div className="inline-edit-labels" style={{ overflow: "hidden", maxWidth: "100%" }}>
         <InlineEdit
           values={{ labels: filtered.map((l) => l.name) }}
           editor={<LabelsEdit name="labels" />}
@@ -266,7 +266,9 @@ function renderLabelsCell(
 function getLabelsColumn(
   onUpdateLabels?: (record: ServiceEntity, labels: string[]) => Promise<void>,
 ): ServicesTableColumn {
+  const base = allServicesTreeTableColumns.find((c) => c.key === "labels");
   return {
+    ...base,
     title: "Labels",
     dataIndex: "labels",
     key: "labels",
@@ -293,6 +295,7 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       title: "Protocol",
       dataIndex: "protocol",
       key: "protocol",
+      width: 120,
       render: (text) => (
         <SourceFlagTag
           source={typeof text === "string" ? text : ""}
@@ -304,30 +307,35 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       title: "Extended Protocol",
       dataIndex: "extendedProtocol",
       key: "extendedProtocol",
+      width: 150,
       render: (value: unknown) => (typeof value === "string" ? value : ""),
     },
     {
       title: "Specification",
       dataIndex: "specification",
       key: "specification",
+      width: 150,
       render: (value: unknown) => (typeof value === "string" ? value : ""),
     },
     {
       title: "Internal Service Name",
       dataIndex: "internalServiceName",
       key: "internalServiceName",
+      width: 180,
       render: (value: unknown) => (typeof value === "string" ? value : ""),
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
+      width: 100,
       render: (_value, record) => <UsageStatusTag element={record} />,
     },
     {
       title: "Source",
       dataIndex: "source",
       key: "source",
+      width: 100,
       render: (value) =>
         typeof value === "string" ? <SourceFlagTag source={value} /> : "",
     },
@@ -335,12 +343,14 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       title: "Labels",
       dataIndex: "labels",
       key: "labels",
+      width: 200,
       render: undefined,
     },
     {
       title: "Used by",
       dataIndex: "usedBy",
       key: "usedBy",
+      width: 120,
       render: (_: unknown, record: ServiceEntity) => {
         if (isIntegrationSystem(record))
           return (
@@ -375,12 +385,14 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       title: "Created When",
       dataIndex: "createdWhen",
       key: "createdWhen",
+      width: 160,
       render: (createdWhen) => <>{formatTimestamp(createdWhen as number)}</>,
     },
     {
       title: "Created By",
       dataIndex: "createdBy",
       key: "createdBy",
+      width: 130,
       render: (value: unknown) => {
         const createdBy = value as User | undefined;
         return createdBy?.username || "";
@@ -390,12 +402,14 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       title: "Modified When",
       dataIndex: "modifiedWhen",
       key: "modifiedWhen",
+      width: 160,
       render: (modifiedWhen) => <>{formatTimestamp(modifiedWhen as number)}</>,
     },
     {
       title: "Modified By",
       dataIndex: "modifiedBy",
       key: "modifiedBy",
+      width: 130,
       render: (value: unknown) => {
         const modifiedBy = value as User | undefined;
         return modifiedBy?.username || "";
@@ -405,12 +419,14 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       title: "Method",
       dataIndex: "method",
       key: "method",
+      width: 100,
       render: (value: unknown) => <HttpMethod value={value} />,
     },
     {
       title: "URL",
       dataIndex: "url",
       key: "url",
+      width: 200,
       render: (_value: unknown, record: ServiceEntity) => {
         return "path" in record ? record.path : "";
       },
@@ -660,9 +676,10 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         columns={finalColumns}
         rowKey={rowKey}
         loading={loading}
-        expandable={expandable}
+        expandable={{ ...expandable, indentSize: 24 }}
         size={"small"}
         pagination={pagination}
+        tableLayout="fixed"
         style={{
           background: "var(--vscode-editor-background)",
           borderRadius: 12,

@@ -3,9 +3,9 @@ import { Dropdown, Button, Menu } from "antd";
 import {
   isVsCode,
   VSCodeExtensionApi,
-} from "../../api/rest/vscodeExtensionApi";
-import { api } from "../../api/api";
-import { OverridableIcon } from "../../icons/IconProvider.tsx";
+} from "../../../api/rest/vscodeExtensionApi";
+import { api } from "../../../api/api";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 export interface Chain {
   id: string;

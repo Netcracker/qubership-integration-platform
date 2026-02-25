@@ -1241,6 +1241,31 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  filterServices = async (
+    filters: EntityFilterModel[],
+  ): Promise<IntegrationSystem[]> => {
+    const body = filters.map((f) => ({
+      column: f.column,
+      condition: f.condition,
+      value: f.value,
+    }));
+    const response = await this.instance.post<IntegrationSystem[]>(
+      `${this.v1()}/systems-catalog/systems/filter`,
+      body,
+    );
+    return response.data;
+  };
+
+  searchServices = async (
+    searchCondition: string,
+  ): Promise<IntegrationSystem[]> => {
+    const response = await this.instance.post<IntegrationSystem[]>(
+      `${this.v1()}/systems-catalog/systems/search`,
+      { searchCondition },
+    );
+    return response.data;
+  };
+
   createService = async (system: SystemRequest): Promise<IntegrationSystem> => {
     const response = await this.instance.post<IntegrationSystem>(
       `${this.v1()}/systems-catalog/systems`,

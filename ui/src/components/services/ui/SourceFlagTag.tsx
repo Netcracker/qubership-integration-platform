@@ -1,6 +1,6 @@
 import React from "react";
 import { Tag } from "antd";
-import { getSemanticColor } from "../../theme/semanticColors";
+import { getSemanticColor } from "../../../theme/semanticColors";
 
 const displayNameOverrides: Record<string, string> = {
   grpc: "gRPC",

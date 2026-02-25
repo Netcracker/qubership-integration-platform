@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Modal, Input, Button, Form, Select } from "antd";
-import { IntegrationSystemType } from "../../api/apiTypes";
-import { getErrorMessage } from "../../misc/error-utils";
-import { capitalize } from "../../misc/format-utils";
+import { IntegrationSystemType } from "../../../api/apiTypes";
+import { getErrorMessage } from "../../../misc/error-utils";
+import { capitalize } from "../../../misc/format-utils";
 
 interface CreateServiceModalProps {
   open: boolean;

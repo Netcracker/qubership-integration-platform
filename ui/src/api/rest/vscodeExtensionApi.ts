@@ -1,8 +1,14 @@
+import type {
+  ApiResponse,
+  SecretWithVariables,
+  Variable,
+} from "../apiTypes.ts";
 import {
+  AccessControlResponse,
   ActionDifference,
   ActionLogResponse,
-  AccessControlResponse,
   BaseEntity,
+  BulkDeploymentResult,
   Chain,
   ChainDeployment,
   ChainDetailedDesign,
@@ -11,10 +17,13 @@ import {
   CheckpointSession,
   Connection,
   ConnectionRequest,
+  ContextSystem,
+  CreateElementRequest,
   Deployment,
   DetailedDesignTemplate,
+  DiagnosticValidation,
+  Element,
   ElementFilter,
-  CreateElementRequest,
   ElementsSequenceDiagrams,
   ElementWithChainName,
   Engine,
@@ -25,47 +34,38 @@ import {
   FolderItem,
   ImportCommitResponse,
   ImportPreview,
-  ImportSpecificationResult,
   ImportSpecificationGroupRequest,
-  SerializedFile,
+  ImportSpecificationResult,
   ImportStatusResponse,
   ImportSystemResult,
+  ImportVariablesResult,
   IntegrationSystem,
+  IntegrationSystemType,
   LibraryData,
   LibraryElement,
+  LiveExchange,
   MaskedField,
+  MaskedFields,
   OperationInfo,
+  PaginationOptions,
   PatchElementRequest,
   RestApiError,
+  SerializedFile,
   Session,
   SessionSearchResponse,
   Snapshot,
+  SpecApiFile,
   Specification,
   SpecificationGroup,
-  SystemRequest,
-  UsedService,
-  Element,
-  MaskedFields,
-  TransferElementRequest,
   SystemOperation,
-  SpecApiFile,
-  LiveExchange,
-  IntegrationSystemType,
-  ContextSystem,
-  DiagnosticValidation,
-  BulkDeploymentResult,
-  ImportVariablesResult,
-  VariableImportPreview,
+  SystemRequest,
+  TransferElementRequest,
   UsedProperty,
-  PaginationOptions,
+  UsedService,
+  VariableImportPreview,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
-import type {
-  ApiResponse,
-  SecretWithVariables,
-  Variable,
-} from "../apiTypes.ts";
 
 export const NAVIGATE_EVENT = "navigate";
 export const STARTUP_EVENT = "startup";
@@ -323,6 +323,14 @@ export class VSCodeExtensionApi implements Api {
     );
   };
 
+  filterServices(): Promise<IntegrationSystem[]> {
+    throw new Error("Method filterServices not implemented.");
+  }
+
+  searchServices(): Promise<IntegrationSystem[]> {
+    throw new Error("Method searchServices not implemented.");
+  }
+
   createService = async (
     request: SystemRequest,
   ): Promise<IntegrationSystem> => {
@@ -434,14 +442,13 @@ export class VSCodeExtensionApi implements Api {
   ): Promise<ImportSpecificationResult> => {
     const serializedFiles: SerializedFile[] = await Promise.all(
       files.map(async (file) => {
-        const serializedFile = {
+        return {
           name: file.name,
           size: file.size,
           type: file.type,
           lastModified: file.lastModified,
           content: await file.arrayBuffer(),
         };
-        return serializedFile;
       }),
     );
 
@@ -525,20 +532,18 @@ export class VSCodeExtensionApi implements Api {
     systemId: string,
     environmentId: string,
   ): Promise<Environment> => {
-    const result = <Environment>(
+    return <Environment>(
       await this.sendMessageToExtension("getEnvironment", {
         serviceId: systemId,
         environmentId,
       })
     ).payload;
-    return result;
   };
 
   getEnvironments = async (systemId: string): Promise<Environment[]> => {
-    const result = <Environment[]>(
+    return <Environment[]>(
       (await this.sendMessageToExtension("getEnvironments", systemId)).payload
     );
-    return result;
   };
 
   getApiSpecifications = async (
@@ -846,7 +851,7 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method getCheckpointSessions not implemented.");
   }
 
-  retrySessionFromLastCheckpoint(): Promise<void> {
+  retrySessionFromCheckpoint(): Promise<void> {
     throw new Error("Method retrySessionFromLastCheckpoint not implemented.");
   }
 

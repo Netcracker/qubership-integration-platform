@@ -2,28 +2,28 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Flex, Spin, Button, FloatButton, Tooltip } from "antd";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../../api/api";
-import { SpecificationGroup, Specification } from "../../api/apiTypes";
+import { api } from "../../../api/api";
+import { SpecificationGroup, Specification } from "../../../api/apiTypes";
 import {
   useServicesTreeTable,
   ServiceEntity,
   isSystemOperation,
   isSpecification,
   isSpecificationGroup,
-} from "./ServicesTreeTable";
-import { getActionsColumn } from "./ServicesTreeTable";
+} from "../ServicesTreeTable";
+import { getActionsColumn } from "../ServicesTreeTable";
 import { message } from "antd";
-import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
-import { downloadFile } from "../../misc/download-utils";
-import { invalidateServiceCache, prepareFile } from "./utils.tsx";
-import { ImportSpecificationsModal } from "./ImportSpecificationsModal";
-import { useModalsContext } from "../../Modals";
-import { useAsyncRequest } from "./useAsyncRequest";
-import styles from "./Services.module.css";
-import { useNotificationService } from "../../hooks/useNotificationService";
+import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
+import { downloadFile } from "../../../misc/download-utils";
+import { invalidateServiceCache, prepareFile } from "../utils.tsx";
+import { ImportSpecificationsModal } from "../modals/ImportSpecificationsModal";
+import { useModalsContext } from "../../../Modals";
+import { useAsyncRequest } from "../useAsyncRequest";
+import styles from "../Services.module.css";
+import { useNotificationService } from "../../../hooks/useNotificationService";
 import { useServiceContext } from "./ServiceParametersPage";
-import { IntegrationSystemType } from "../../api/apiTypes";
-import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { IntegrationSystemType } from "../../../api/apiTypes";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 const STORAGE_KEY = "systemParameters";
 

@@ -35,15 +35,15 @@ import { AccessControl } from "./components/admin_tools/access-control/AccessCon
 import { NotImplemented } from "./pages/NotImplemented.tsx";
 import { SessionsPage } from "./pages/SessionsPage.tsx";
 import Services from "./pages/Services.tsx";
-import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
+import { ServiceParametersPage } from "./components/services/detail/ServiceParametersPage.tsx";
 import AdminTools from "./pages/AdminTools.tsx";
 import { Masking } from "./pages/Masking.tsx";
 import { DocumentationPage } from "./pages/DocumentationPage.tsx";
 import {
+  applyThemeToDOM,
   initializeBrowserTheme,
   setupThemeListener,
   ThemeMode,
-  applyThemeToDOM,
 } from "./theme/themeInit.ts";
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
 import { IconProvider } from "./icons/IconProvider.tsx";
@@ -161,8 +161,7 @@ const router = createBrowserRouter(
 
 const App = () => {
   const [theme, setTheme] = useState<ThemeMode>(() => {
-    const initialTheme = initializeBrowserTheme();
-    return initialTheme;
+    return initializeBrowserTheme();
   });
   const [, setThemeUpdateKey] = useState(0);
 

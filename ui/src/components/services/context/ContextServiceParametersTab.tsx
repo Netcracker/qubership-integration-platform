@@ -5,7 +5,7 @@ import { api } from "../../../api/api";
 import { useAsyncRequest } from "../useAsyncRequest";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { contextServiceCache } from "../utils.tsx";
-import { ServiceParametersTabProps } from "../ServiceParametersTab.tsx";
+import { ServiceParametersTabProps } from "../detail/ServiceParametersTab.tsx";
 
 interface FormValues {
   name: string;

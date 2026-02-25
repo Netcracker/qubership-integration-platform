@@ -9,19 +9,19 @@ import {
   Spin,
   FloatButton,
 } from "antd";
-import { IntegrationSystem, IntegrationSystemType } from "../../api/apiTypes";
-import { api } from "../../api/api";
-import { useAsyncRequest } from "./useAsyncRequest";
-import { SourceFlagTag } from "./SourceFlagTag";
-import { prepareFile, serviceCache } from "./utils.tsx";
-import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
+import { IntegrationSystem, IntegrationSystemType } from "../../../api/apiTypes";
+import { api } from "../../../api/api";
+import { useAsyncRequest } from "../useAsyncRequest";
+import { SourceFlagTag } from "../ui/SourceFlagTag";
+import { prepareFile, serviceCache } from "../utils.tsx";
+import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { useBlocker } from "react-router-dom";
-import { useModalsContext } from "../../Modals.tsx";
-import { UnsavedChangesModal } from "../modal/UnsavedChangesModal.tsx";
+import { useModalsContext } from "../../../Modals.tsx";
+import { UnsavedChangesModal } from "../../modal/UnsavedChangesModal.tsx";
 import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
-import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { downloadFile } from "../../misc/download-utils.ts";
-import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { downloadFile } from "../../../misc/download-utils.ts";
+import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 
 export interface ServiceParametersTabProps {
   systemId: string;

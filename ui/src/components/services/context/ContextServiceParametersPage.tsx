@@ -6,11 +6,11 @@ import {
   ServiceParametersPageHeader,
   ServiceParametersPageLayout,
   sidePadding,
-} from "../ServiceParametersPage";
+} from "../detail/ServiceParametersPage";
 import {
   ServiceNameBreadcrumbItem,
   ServiceTypeBreadcrumbItem,
-} from "../ServiceBreadcrumb";
+} from "../detail/ServiceBreadcrumb";
 import { ContextSystem, IntegrationSystemType } from "../../../api/apiTypes";
 import { ContextServiceParametersTab } from "./ContextServiceParametersTab";
 import { useEffect, useState } from "react";

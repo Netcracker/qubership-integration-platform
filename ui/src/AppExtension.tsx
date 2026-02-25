@@ -22,7 +22,7 @@ import {
 } from "./api/rest/vscodeExtensionApi.ts";
 import { api } from "./api/api.ts";
 
-import { ServiceParametersPage } from "./components/services/ServiceParametersPage.tsx";
+import { ServiceParametersPage } from "./components/services/detail/ServiceParametersPage.tsx";
 import { useVSCodeTheme } from "./hooks/useVSCodeTheme.ts";
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
 import { IconProvider } from "./icons/IconProvider.tsx";

@@ -1,7 +1,7 @@
-import { isVsCode } from "../../api/rest/vscodeExtensionApi.ts";
-import { IntegrationSystemType } from "../../api/apiTypes.ts";
+import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
+import { IntegrationSystemType } from "../../../api/apiTypes.ts";
 import { useNavigate } from "react-router-dom";
-import { capitalize } from "../../misc/format-utils.ts";
+import { capitalize } from "../../../misc/format-utils.ts";
 
 type ServiceNameBreadcrumbItemProps = {
   type?: IntegrationSystemType;
