@@ -21,8 +21,10 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.LiveExchangeDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.LiveExchangeExtDTO;
+import org.qubership.integration.platform.runtime.catalog.service.filter.liveexchange.LiveExchangesFilterService;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -42,18 +44,21 @@ public class LiveExchangesService {
     private final ActionsLogService actionLogger;
     private final DeploymentService deploymentService;
     private final ChainFinderService chainFinderService;
+    private final LiveExchangesFilterService liveExchangesFilterService;
 
     @Autowired
     public LiveExchangesService(RuntimeDeploymentService runtimeDeploymentService,
                                 RestTemplate restTemplateMs,
                                 ActionsLogService actionLogger,
                                 DeploymentService deploymentService,
-                                ChainFinderService chainFinderService) {
+                                ChainFinderService chainFinderService,
+                                LiveExchangesFilterService liveExchangesFilterService) {
         this.runtimeDeploymentService = runtimeDeploymentService;
         this.restTemplateMs = restTemplateMs;
         this.actionLogger = actionLogger;
         this.deploymentService = deploymentService;
         this.chainFinderService = chainFinderService;
+        this.liveExchangesFilterService = liveExchangesFilterService;
     }
 
     public List<LiveExchangeExtDTO> getTopLongLiveExchanges(int limit) {
@@ -73,6 +78,10 @@ public class LiveExchangesService {
 
 
         return result;
+    }
+
+    public List<LiveExchangeExtDTO> getAndFilterLongLiveExchanges(int limit, List<FilterRequestDTO> filters) {
+        return liveExchangesFilterService.applyFilters(getTopLongLiveExchanges(limit), filters);
     }
 
     private void enrichResultWithChainName(List<LiveExchangeExtDTO> result) {
