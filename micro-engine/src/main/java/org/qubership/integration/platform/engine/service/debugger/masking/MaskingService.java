@@ -203,24 +203,24 @@ public class MaskingService {
     }
 
     private void modifyXmlTree(Node root, Set<String> maskedFields) {
-        if (root.getNodeType() == Node.ELEMENT_NODE) {
-            NodeList fields = root.getChildNodes();
-            int childrenCount = fields.getLength();
-            if (childrenCount == 0 && root.hasAttributes()) {
-                maskAttributes(root, maskedFields);
-            }
-            for (int i = 0; i < childrenCount; i++) {
-                Node child = fields.item(i);
-                if (child.getNodeType() == Node.TEXT_NODE && childrenCount == 1) {
-                    if (maskedFields.contains(root.getNodeName())) {
-                        child.setTextContent(CamelConstants.MASKING_TEMPLATE);
-                    }
-                    if (root.hasAttributes()) {
-                        maskAttributes(root, maskedFields);
-                    }
-                } else {
-                    modifyXmlTree(child, maskedFields);
+        if (root.getNodeType() != Node.ELEMENT_NODE) {
+            return;
+        }
+
+        if (root.hasAttributes()) {
+            maskAttributes(root, maskedFields);
+        }
+
+        NodeList children = root.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+
+            if (child.getNodeType() == Node.TEXT_NODE && children.getLength() == 1) {
+                if (maskedFields.contains(root.getNodeName())) {
+                    child.setTextContent(CamelConstants.MASKING_TEMPLATE);
                 }
+            } else {
+                modifyXmlTree(child, maskedFields);
             }
         }
     }
