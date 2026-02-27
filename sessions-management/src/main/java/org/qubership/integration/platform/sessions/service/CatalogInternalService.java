@@ -42,7 +42,7 @@ public class CatalogInternalService {
         InternalServicesProperties internalServicesProperties
     ) {
         this.restTemplateMS = restTemplateMS;
-        this.catalogUrl = CATALOG_REST_PROTOCOL + "://" + internalServicesProperties.designtimeCatalog() + ":" + CATALOG_PORT;
+        this.catalogUrl = CATALOG_REST_PROTOCOL + "://" + internalServicesProperties.runtimeCatalog() + ":" + CATALOG_PORT;
     }
 
 
