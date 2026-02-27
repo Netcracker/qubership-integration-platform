@@ -1859,6 +1859,22 @@ export class RestApi implements Api {
     return response.status === 204 ? [] : response.data;
   };
 
+  getAndFilterExchanges = async (
+    limit: number,
+    filters: EntityFilterModel[],
+  ): Promise<LiveExchange[]> => {
+    const response = await this.instance.post<LiveExchange[]>(
+      `${this.v1()}/catalog/live-exchanges`,
+      {
+        params: {
+          limit: limit,
+        },
+        filters,
+      },
+    );
+    return response.status === 204 ? [] : response.data;
+  };
+
   terminateExchange = async (
     podIp: string,
     deploymentId: string,

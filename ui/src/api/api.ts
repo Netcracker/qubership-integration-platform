@@ -462,6 +462,11 @@ export interface Api {
 
   getExchanges(limit: number): Promise<LiveExchange[]>;
 
+  getAndFilterExchanges(
+    limit: number,
+    filters: EntityFilterModel[],
+  ): Promise<LiveExchange[]>;
+
   terminateExchange(
     podIp: string,
     deploymentId: string,

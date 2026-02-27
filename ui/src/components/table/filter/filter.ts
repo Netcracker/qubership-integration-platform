@@ -31,6 +31,14 @@ export class FilterCondition {
     "IS_WITHIN",
     "Is within",
   );
+  public static readonly LESS_THAN = new FilterCondition(
+    "LESS_THAN",
+    "Less than",
+  );
+  public static readonly GREATER_THAN = new FilterCondition(
+    "GREATER_THAN",
+    "Greater than",
+  );
 
   private static VALUES: FilterCondition[] = [
     this.CONTAINS,
@@ -46,6 +54,8 @@ export class FilterCondition {
     this.IS_BEFORE,
     this.IS_AFTER,
     this.IS_WITHIN,
+    this.LESS_THAN,
+    this.GREATER_THAN,
   ];
 
   public readonly id: string;
@@ -74,6 +84,8 @@ export enum FilterValueType {
   LIST = "LIST",
   STRING = "STRING",
   DATE = "DATE",
+  NUMBER = "NUMBER",
+  BOOLEAN = "BOOLEAN",
 }
 
 export interface FilterConditions {
@@ -92,6 +104,18 @@ export type FilterColumn = {
 export type ListValue = {
   value: string;
   label: string;
+};
+
+export const BooleanFilterConditions: FilterConditions = {
+  defaultCondition: FilterCondition.IS,
+  allowedConditions: [FilterCondition.IS],
+  valueType: FilterValueType.BOOLEAN,
+};
+
+export const NumberFilterConditions: FilterConditions = {
+  defaultCondition: FilterCondition.GREATER_THAN,
+  allowedConditions: [FilterCondition.LESS_THAN, FilterCondition.GREATER_THAN],
+  valueType: FilterValueType.NUMBER,
 };
 
 export const StringFilterConditions: FilterConditions = {

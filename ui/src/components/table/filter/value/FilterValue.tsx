@@ -2,6 +2,8 @@ import { ListFilterValue } from "./ListFilterValue";
 import { StringFilterValue } from "./StringFilterValue";
 import { FilterCondition, FilterValueType, ListValue } from "../filter";
 import { TimestampFilterValue } from "./TimestampFilterValue";
+import { NumberFilterValue } from "./NumberFilterValue";
+import { BooleanFilterValue } from "./BooleanFilterValue";
 
 export type FilterValueProps = {
   condition?: FilterCondition;
@@ -11,13 +13,20 @@ export type FilterValueProps = {
   value: string | undefined;
 };
 
-export const FilterValue = (props: FilterValueProps) => {
-  if (props.type === FilterValueType.LIST) {
-    return <ListFilterValue {...props} />;
-  }
-  if (props.type === FilterValueType.DATE) {
-    return <TimestampFilterValue {...props} />;
-  }
+type FilterValueMap = {
+  [key in FilterValueType]: React.ElementType;
+};
 
-  return <StringFilterValue {...props} />;
+const map: FilterValueMap = {
+  [FilterValueType.LIST]: ListFilterValue,
+  [FilterValueType.DATE]: TimestampFilterValue,
+  [FilterValueType.NUMBER]: NumberFilterValue,
+  [FilterValueType.STRING]: StringFilterValue,
+  [FilterValueType.BOOLEAN]: BooleanFilterValue,
+};
+
+export const FilterValue = (props: FilterValueProps) => {
+  const Component = map[props.type];
+
+  return <Component {...props} />;
 };

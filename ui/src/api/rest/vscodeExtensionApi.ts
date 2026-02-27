@@ -969,6 +969,10 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method getExchanges not implemented.");
   }
 
+  getAndFilterExchanges(): Promise<LiveExchange[]> {
+    throw new Error("Method getAndFilterExchanges not implemented.");
+  }
+
   terminateExchange(): Promise<void> {
     throw new Error("Method terminateExchange not implemented.");
   }
