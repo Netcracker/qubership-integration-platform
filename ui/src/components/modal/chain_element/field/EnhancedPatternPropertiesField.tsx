@@ -3,6 +3,7 @@ import { FieldProps, RJSFSchema } from "@rjsf/utils";
 import { Input, Button, Tag, Tooltip } from "antd";
 import styles from "./EnhancedPatternPropertiesField.module.css";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
+import { DescriptionTooltipIcon } from "../DescriptionTooltipFieldTemplate";
 import { FormContext } from "../ChainElementModification";
 import { api } from "../../../../api/api";
 import { QueryParametersCheckbox } from "./QueryParametersCheckbox";
@@ -716,6 +717,11 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
             )}
           </span>
           <span>{title}</span>
+          {schema?.description && (
+            <DescriptionTooltipIcon
+              description={schema.description}
+            />
+          )}
           <span className={styles.badge}>{mergedParameters.length}</span>
         </div>
 

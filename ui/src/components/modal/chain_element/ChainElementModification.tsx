@@ -68,6 +68,7 @@ import {
 import BasePathField from "./field/BasePathField.tsx";
 import ExternalRouteCheckbox from "./field/ExternalRouteCheckbox.tsx";
 import ContextPathWithPrefixField from "./field/ContextPathWithPrefixField.tsx";
+import DescriptionTooltipFieldTemplate from "./DescriptionTooltipFieldTemplate.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -667,6 +668,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             formContext={formContext}
             templates={{
               ObjectFieldTemplate: CustomObjectFieldTemplate,
+              FieldTemplate: DescriptionTooltipFieldTemplate,
             }}
             fields={{
               OneOfField: CustomOneOfField, //Rewrite default oneOfField

@@ -73,19 +73,48 @@
   display: none;
 }
 
-.custom-textarea textarea {
-  height: 33vh;
-}
-
 .parameters-form {
   min-height: 500px;
   overflow-y: auto;
 }
 
 .field-label {
-  display: block;
+  display: inline-block;
   margin-bottom: 6px;
   font-weight: 500;
+}
+
+/* Make intermediate wrapper divs transparent for layout so the description
+   tooltip icon renders inline right after the field label text. */
+.description-tooltip-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+/* Remove bottom margin inside flex block — row-gap handles the spacing instead,
+   so the icon and label share the same vertical centre line. */
+.description-tooltip-block .field-label {
+  margin-bottom: 0;
+}
+
+.description-tooltip-block > div,
+.description-tooltip-block > div > div {
+  display: contents;
+}
+
+/* Reorder: label(0) → icon(1) → input(2, on next line) */
+.description-tooltip-block > :global(.anticon),
+.description-tooltip-block > span:last-child {
+  order: 1;
+}
+
+.description-tooltip-block :global(.ant-input-affix-wrapper),
+.description-tooltip-block :global(.ant-input),
+.description-tooltip-block :global(.ant-select) {
+  order: 2;
+  flex-basis: 100%;
 }
 
 .field-required {
@@ -104,4 +133,11 @@
 
 .parameters-form :global(.ant-form-item) {
   margin-bottom: 12px;
+}
+
+/* Custom tooltip styling for field description popups.
+   Doubled class selector to beat Ant Design CSS-in-JS specificity. */
+.description-tooltip:global(.ant-tooltip) :global(.ant-tooltip-inner) {
+  border-radius: 8px;
+  padding: 8px 12px;
 }

@@ -3,6 +3,7 @@ import { FieldProps } from "@rjsf/utils";
 import { Input, Button } from "antd";
 import styles from "./PatternPropertiesField.module.css";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
+import { DescriptionTooltipIcon } from "../DescriptionTooltipFieldTemplate";
 
 const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
   formData = {},
@@ -62,6 +63,11 @@ const PatternPropertiesField: React.FC<FieldProps<Record<string, string>>> = ({
             )}
           </span>
           <span>{schema?.title || uiSchema?.["ui:title"] || "Items"}</span>
+          {schema?.description && (
+            <DescriptionTooltipIcon
+              description={schema.description}
+            />
+          )}
           <span className={styles.badge}>{rowCount}</span>
         </div>
 
