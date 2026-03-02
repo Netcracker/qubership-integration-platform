@@ -920,15 +920,18 @@ const Chains = () => {
     <>
       {contextHolder}
       <Flex vertical gap={16} className={styles.container}>
-        {pathItems && pathItems.length > 0 ? (
-          <Breadcrumb items={pathItems} />
-        ) : null}
-        <Flex vertical={false} gap={8}>
+        <Flex vertical={false} gap={12} align="center">
+          {pathItems && pathItems.length > 0 ? (
+            <Breadcrumb items={pathItems} style={{ marginLeft: 9 }} />
+          ) : null}
+          <div style={{ flex: 1 }} />
           <Search
             placeholder="Full text search"
             allowClear
             onSearch={(value) => setSearchString(value)}
+            style={{ width: 500, flex: "none" }}
           />
+          {filterButton}
           <Dropdown
             menu={{
               items: columnVisibilityMenuItems,
@@ -941,7 +944,6 @@ const Chains = () => {
           >
             <Button icon={<OverridableIcon name="settings" />} />
           </Dropdown>
-          {filterButton}
         </Flex>
         <Table<ChainTableItem>
           className="flex-table"

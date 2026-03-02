@@ -25,7 +25,7 @@ export function UnitNode({
             ? "0 0 0 2px var(--ant-color-error, #ff4d4f)"
             : "none",
         borderRadius: 5,
-        width: 150,
+        width: 148,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",

@@ -20,7 +20,7 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
   sidebar,
   children,
   initialCollapsed = false,
-  sidebarWidth = 240,
+  sidebarWidth = 180,
   sidebarCollapsedWidth = 80,
   showDivider = true,
   contentClassName,
