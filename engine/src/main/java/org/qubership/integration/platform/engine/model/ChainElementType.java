@@ -103,6 +103,9 @@ public enum ChainElementType {
             )
     );
 
+    private static final Set<ChainElementType> PUB_SUB_ELEMENTS = Collections.unmodifiableSet(
+            EnumSet.of(PUBSUB_TRIGGER, PUBSUB_SENDER));
+
     private final String text;
 
     static {
@@ -151,5 +154,9 @@ public enum ChainElementType {
 
     public static boolean isWrappedInStepElement(ChainElementType chainElementType) {
         return WRAPPED_IN_STEP_ELEMENTS.contains(chainElementType);
+    }
+
+    public static boolean isPubSubElement(ChainElementType chainElementType) {
+        return PUB_SUB_ELEMENTS.contains(chainElementType);
     }
 }
