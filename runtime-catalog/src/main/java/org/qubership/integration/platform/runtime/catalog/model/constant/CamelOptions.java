@@ -119,6 +119,11 @@ public final class CamelOptions {
     public static final String IDEMPOTENCY_PROP = "idempotency";
     public static final String EXPIRY_PROP = "keyExpiry";
 
+    // Pub/Sub
+    public static final String PROJECT_ID = "projectId";
+    public static final String DESTINATION_NAME = "destinationName";
+    public static final String SERVICE_ACCOUNT_KEY = "serviceAccountKey";
+
     @Deprecated(since = "23.1", forRemoval = true)
     public static final String MAAS_ENV_PROP_PREFIX = "maas.";
 
