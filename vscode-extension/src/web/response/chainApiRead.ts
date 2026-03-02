@@ -361,12 +361,22 @@ async function parseElementsForType(
   const result: Element[] = [];
 
   if (elements && elements.length) {
-    for (const element of elements.filter(
-      (elem) => String(elem.type) === type,
-    )) {
-      const parsedElement = await parseElement(fileUri, element, chainId);
-      result.push({ ...parsedElement, chainName });
-      result.push(...getParsedElementChildren(parsedElement.children));
+    for (const element of elements) {
+      if (String(element.type) === type) {
+        const parsedElement = await parseElement(fileUri, element, chainId);
+        result.push({ ...parsedElement, chainName });
+      }
+
+      if (element?.children) {
+        const nested = await parseElementsForType(
+          fileUri,
+          element.children as ElementSchema[],
+          chainId,
+          type,
+          chainName,
+        );
+        result.push(...nested);
+      }
     }
   }
   return result;
