@@ -41,8 +41,8 @@ public class SwaggerAutoConfiguration {
 
     private Info getInfo() {
         return new Info()
-            .title("QIP Engine")
-            .description("REST API of QIP Engine Microservice")
+            .title("Qubership Integration Platform Engine")
+            .description("REST API of Qubership Integration Platform Engine Microservice")
             .extensions(Map.of("x-api-kind", "no-bwc"))
             .version("v1");
     }
