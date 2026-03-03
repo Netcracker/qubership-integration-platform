@@ -19,7 +19,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <revision>0.1.12</revision>
-        <catalog-library.revision>0.1.11</catalog-library.revision>
+        <catalog-library.revision>0.1.14</catalog-library.revision>
 
         <!-- 3rd party dependencies -->
 
