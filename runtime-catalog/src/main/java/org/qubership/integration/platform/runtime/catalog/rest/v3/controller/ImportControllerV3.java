@@ -165,13 +165,14 @@ public class ImportControllerV3 {
                             @SchemaProperty(name = "file", schema = @Schema(
                                     description = "Archive file",
                                     requiredMode = Schema.RequiredMode.REQUIRED,
-                                    example = "(binary)"
+                                    examples = {"(binary)"}
                             )),
                             @SchemaProperty(name = "diffRequest", schema = @Schema(
+                                    type = "object",
                                     description = "Chain difference request object",
                                     requiredMode = Schema.RequiredMode.REQUIRED,
                                     requiredProperties = {"leftChainId", "rightChainId"},
-                                    example = "{\"leftChainId\":\"string\",\"leftSnapshotId\":\"string\",\"rightChainId\":\"string\"}"
+                                    examples = { "{\"leftChainId\":\"string\",\"leftSnapshotId\":\"string\",\"rightChainId\":\"string\"}"}
                             ))
                     }
             )))

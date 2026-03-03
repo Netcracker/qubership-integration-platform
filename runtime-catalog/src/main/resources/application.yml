@@ -209,3 +209,8 @@ listeners: # settings for spring @EventListener's
     call-retry:
       max-attempts: 10
       delay: 5000
+
+springdoc:
+  swagger-ui:
+    tagsSorter: alpha
+    operationsSorter: alpha
