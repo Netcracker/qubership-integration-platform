@@ -39,6 +39,7 @@ import { getErrorMessage } from "../../misc/error-utils";
 import { useAsyncRequest } from "./useAsyncRequest";
 import type { ExpandableConfig } from "antd/es/table/interface";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { ServiceDiscoveryButton } from "./ui/ServiceDiscoveryButton.tsx";
 
 const STORAGE_KEY = "servicesListTable";
 
@@ -591,6 +592,15 @@ export const ServicesListPage: React.FC = () => {
             }}
             style={{ width: 500 }}
           />
+          {tab === "internal" && (
+            <ServiceDiscoveryButton
+              onSystemsDiscovered={(systemIds: string[]) => {
+                if (systemIds.length > 0) {
+                  void loadServices();
+                }
+              }}
+            />
+          )}
           {filterButton}
           {servicesTable.FilterButton()}
         </div>

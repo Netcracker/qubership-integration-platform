@@ -76,6 +76,7 @@ import type {
   AccessControlResponse,
   AccessControlUpdateRequest,
   AccessControlBulkDeployRequest,
+  DiscoveryResponse,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -541,6 +542,12 @@ export interface Api {
   bulkDeployChainsAccessControl(
     searchRequest: AccessControlBulkDeployRequest[],
   ): Promise<AccessControlResponse>;
+
+  runServiceDiscovery(): Promise<unknown>;
+
+  isAutodiscoveryInProgress(): Promise<number>;
+
+  getAutodiscoveryResult(): Promise<DiscoveryResponse>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

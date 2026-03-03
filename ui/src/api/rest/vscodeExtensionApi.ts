@@ -1,5 +1,6 @@
 import type {
   ApiResponse,
+  DiscoveryResponse,
   SecretWithVariables,
   Variable,
 } from "../apiTypes.ts";
@@ -1078,6 +1079,16 @@ export class VSCodeExtensionApi implements Api {
 
   getUsedProperties(_chainId: string): Promise<UsedProperty[]> {
     throw new Error("Method loadHttpTriggerAccessControl not implemented.");
+  }
+
+  runServiceDiscovery(): Promise<unknown> {
+    throw new Error("Method runServiceDiscovery not implemented.");
+  }
+  isAutodiscoveryInProgress(): Promise<number> {
+    throw new Error("Method isAutodiscoveryInProgress not implemented.");
+  }
+  getAutodiscoveryResult(): Promise<DiscoveryResponse> {
+    throw new Error("Method getAutodiscoveryResult not implemented.");
   }
 }
 

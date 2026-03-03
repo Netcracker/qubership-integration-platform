@@ -89,6 +89,7 @@ import { registerRestAxiosInstance } from "./requestHeadersInterceptor.ts";
 import type {
   ApiError,
   ApiResponse,
+  DiscoveryResponse,
   SecretResponse,
   SecretWithVariables,
   Variable,
@@ -1966,6 +1967,26 @@ export class RestApi implements Api {
       searchRequest,
     );
 
+    return response.data;
+  };
+
+  runServiceDiscovery = async (): Promise<unknown> => {
+    return await this.instance.post<unknown>(
+      `${this.v1()}/systems-catalog/systems/discovery`,
+    );
+  };
+
+  isAutodiscoveryInProgress = async (): Promise<number> => {
+    const response = await this.instance.get<number>(
+      `${this.v1()}/systems-catalog/systems/discovery/progress`,
+    );
+    return response.data;
+  };
+
+  getAutodiscoveryResult = async (): Promise<DiscoveryResponse> => {
+    const response = await this.instance.get<DiscoveryResponse>(
+      `${this.v1()}/systems-catalog/systems/discovery/result`,
+    );
     return response.data;
   };
 }

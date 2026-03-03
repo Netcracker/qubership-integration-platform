@@ -108,7 +108,8 @@ import {
   RightSquareOutlined,
   MenuUnfoldOutlined,
   InfoCircleOutlined,
-  HddOutlined
+  HddOutlined,
+  CloudSyncOutlined
 } from "@ant-design/icons";
 
 export const commonIcons = {
@@ -197,6 +198,7 @@ export const commonIcons = {
   domains: HddOutlined,
   accessControl: LockOutlined,
   refresh: RedoOutlined,
+  cloudSync: CloudSyncOutlined,
 };
 
 export const elementIcons = {

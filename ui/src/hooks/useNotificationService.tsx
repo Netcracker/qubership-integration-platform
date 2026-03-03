@@ -35,7 +35,8 @@ interface NotificationService {
     exception: unknown,
   ): void;
 
-  info(message: string, description: string): void;
+  info(message: string, description?: string): void;
+  warning(message: string, description?: string): void;
 }
 
 export const useNotificationService = (): NotificationService => {
@@ -67,8 +68,17 @@ export const useNotificationService = (): NotificationService => {
   );
 
   const buildInfoNotification = useCallback(
-    (message: string, description: string): NotificationItem => ({
+    (message: string, description?: string): NotificationItem => ({
       type: "info",
+      message: message,
+      description: description,
+    }),
+    [],
+  );
+
+  const buildWarningNotification = useCallback(
+    (message: string, description?: string): NotificationItem => ({
+      type: "warning",
       message: message,
       description: description,
     }),
@@ -113,16 +123,22 @@ export const useNotificationService = (): NotificationService => {
         addToHistory(item);
         notificationApi.error(item);
       },
-      info: (message: string, description: string) => {
+      info: (message: string, description?: string) => {
         const item = buildInfoNotification(message, description);
         addToHistory(item);
         notificationApi.info(item);
+      },
+      warning: (message: string, description?: string) => {
+        const item = buildWarningNotification(message, description);
+        addToHistory(item);
+        notificationApi.warning(item);
       },
     }),
     [
       addToHistory,
       buildErrorNotification,
       buildInfoNotification,
+      buildWarningNotification,
       notificationApi,
     ],
   );
