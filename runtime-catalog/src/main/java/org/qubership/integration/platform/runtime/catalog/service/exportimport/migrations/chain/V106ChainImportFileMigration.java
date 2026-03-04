@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -40,7 +41,8 @@ public class V106ChainImportFileMigration extends ChainElementsPropertiesMigrati
     private static void changePropertyTypeFromStringToInteger(ObjectNode properties, String propertyName) {
         if (properties.path(propertyName) instanceof TextNode textNode) {
             try {
-                Integer value = Integer.valueOf(textNode.asText());
+                String textValue = textNode.asText();
+                Integer value = Integer.valueOf(StringUtils.isEmpty(textValue) ? "0" : textValue);
                 properties.set(propertyName, JsonNodeFactory.instance.numberNode(value));
             } catch (NumberFormatException e) {
                 log.warn("Failed to convert {} value from string to integer", propertyName, e);
