@@ -3,11 +3,11 @@ import {
   Button,
   Dropdown,
   Flex,
-  FloatButton,
   MenuProps,
   message,
   Modal,
   Table,
+  Tooltip,
 } from "antd";
 import { useNavigate, useSearchParams } from "react-router";
 import { useModalsContext } from "../Modals.tsx";
@@ -27,7 +27,6 @@ import { formatTimestamp } from "../misc/format-utils.ts";
 import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import Search from "antd/lib/input/Search";
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
@@ -51,6 +50,7 @@ import {
   DeployChains,
   DeployOptions,
 } from "../components/modal/DeployChains.tsx";
+import { toStringIds } from "../misc/selection-utils.ts";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -581,7 +581,7 @@ const Chains = () => {
   };
 
   const onExportBtnClick = () => {
-    return exportChainsWithOptions(selectedRowKeys.map((k) => k.toString()));
+    return exportChainsWithOptions(toStringIds(selectedRowKeys));
   };
 
   const onDeleteBtnClick = () => {
@@ -596,7 +596,13 @@ const Chains = () => {
 
   const onImportBtnClick = () => {
     showModal({
-      component: <ImportChains onSuccess={() => void updateFolderItems()} />,
+      component: (
+        <ImportChains
+          onSuccess={() => {
+            updateFolderItems().catch(() => undefined);
+          }}
+        />
+      ),
     });
   };
 
@@ -605,9 +611,9 @@ const Chains = () => {
       showModal({
         component: (
           <DeployChains
-            onSubmit={(options: DeployOptions) =>
-              void deploySelectedChains(options)
-            }
+            onSubmit={(options: DeployOptions) => {
+              deploySelectedChains(options).catch(() => undefined);
+            }}
           />
         ),
       });
@@ -624,14 +630,14 @@ const Chains = () => {
         <ExportChains
           multiple={multiple}
           onSubmit={(options) => {
-            const items = folderItems.filter((i) => ids.includes(i.id));
+            const items = folderItems.filter((item) => ids.includes(item.id));
             const folderIds = items
-              .filter((i) => i.itemType === CatalogItemType.FOLDER)
-              .map((i) => i.id);
+              .filter((item) => item.itemType === CatalogItemType.FOLDER)
+              .map((item) => item.id);
             const chainIds = items
-              .filter((i) => i.itemType === CatalogItemType.CHAIN)
-              .map((i) => i.id);
-            void exportChains(folderIds, chainIds, options);
+              .filter((item) => item.itemType === CatalogItemType.CHAIN)
+              .map((item) => item.id);
+            exportChains(folderIds, chainIds, options).catch(() => undefined);
           }}
         />
       ),
@@ -686,15 +692,15 @@ const Chains = () => {
       case "copyFolderLink":
         return copyToClipboard(
           `${window.location.origin}/chains?folder=${item.id}`,
-        ).then(() => {
-          messageApi.info("Link to a folder was copied to the clipboard");
-        });
+        ).then(() =>
+          messageApi.info("Link to a folder was copied to the clipboard"),
+        );
       case "copyChainLink":
         return copyToClipboard(
           `${window.location.origin}/chains/${item.id}`,
-        ).then(() => {
-          messageApi.info("Link to a chain was copied to the clipboard");
-        });
+        ).then(() =>
+          messageApi.info("Link to a chain was copied to the clipboard"),
+        );
       case "deleteFolder":
         return Modal.confirm({
           title: "Delete Folder",
@@ -920,7 +926,7 @@ const Chains = () => {
     <>
       {contextHolder}
       <Flex vertical gap={16} className={styles.container}>
-        <Flex vertical={false} gap={12} align="center">
+        <Flex vertical={false} gap={4} align="center">
           {pathItems && pathItems.length > 0 ? (
             <Breadcrumb items={pathItems} style={{ marginLeft: 9 }} />
           ) : null}
@@ -938,11 +944,74 @@ const Chains = () => {
               selectable: true,
               multiple: true,
               selectedKeys,
-              onSelect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
-              onDeselect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
+              onSelect: ({ selectedKeys: newSelectedKeys }) =>
+                setSelectedKeys(newSelectedKeys),
+              onDeselect: ({ selectedKeys: newSelectedKeys }) =>
+                setSelectedKeys(newSelectedKeys),
             }}
           >
             <Button icon={<OverridableIcon name="settings" />} />
+          </Dropdown>
+          <Tooltip title="Compare selected chains" placement="bottom">
+            <Button icon={<>⇄</>} disabled />
+          </Tooltip>
+          <Tooltip title="Paste" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="carryOut" />}
+              onClick={() => {
+                Promise.resolve(pasteItem(getFolderId())).catch(
+                  () => undefined,
+                );
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Deploy selected chains" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="send" />}
+              onClick={onDeployBtnClick}
+            />
+          </Tooltip>
+          <Tooltip title="Export selected chains" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="cloudDownload" />}
+              onClick={onExportBtnClick}
+            />
+          </Tooltip>
+          <Tooltip title="Import chains" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="cloudUpload" />}
+              onClick={onImportBtnClick}
+            />
+          </Tooltip>
+          <Tooltip
+            title="Delete selected chains and folders"
+            placement="bottom"
+          >
+            <Button
+              icon={<OverridableIcon name="delete" />}
+              onClick={onDeleteBtnClick}
+            />
+          </Tooltip>
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: "folder",
+                  label: "New Folder",
+                  onClick: () => onCreateFolderBtnClick(getFolderId()),
+                },
+                {
+                  key: "chain",
+                  label: "New Chain",
+                  onClick: () => onCreateChainBtnClick(getFolderId()),
+                },
+              ],
+            }}
+            trigger={["click"]}
+          >
+            <Button type="primary">
+              Create <OverridableIcon name="down" />
+            </Button>
           </Dropdown>
         </Flex>
         <Table<ChainTableItem>
@@ -968,54 +1037,6 @@ const Chains = () => {
             },
           }}
         />
-        <FloatButtonGroup
-          trigger="hover"
-          icon={<OverridableIcon name="more" />}
-        >
-          <FloatButton
-            tooltip={{ title: "Deploy selected chains", placement: "left" }}
-            icon={<OverridableIcon name="send" />}
-            onClick={onDeployBtnClick}
-          />
-          <FloatButton
-            tooltip={{ title: "Paste", placement: "left" }}
-            icon={<OverridableIcon name="carryOut" />}
-            onClick={() => void pasteItem(getFolderId())}
-          />
-          <FloatButton
-            tooltip={{ title: "Compare selected chains", placement: "left" }}
-            icon={<>⇄</>}
-            // onClick={onCompareBtnClick}
-          />
-          <FloatButton
-            tooltip={{ title: "Import chains", placement: "left" }}
-            icon={<OverridableIcon name="cloudUpload" />}
-            onClick={onImportBtnClick}
-          />
-          <FloatButton
-            tooltip={{ title: "Export selected chains", placement: "left" }}
-            icon={<OverridableIcon name="cloudDownload" />}
-            onClick={onExportBtnClick}
-          />
-          <FloatButton
-            tooltip={{
-              title: "Delete selected chains and folders",
-              placement: "left",
-            }}
-            icon={<OverridableIcon name="delete" />}
-            onClick={onDeleteBtnClick}
-          />
-          <FloatButton
-            tooltip={{ title: "Create folder", placement: "left" }}
-            icon={<OverridableIcon name="folderAdd" />}
-            onClick={() => onCreateFolderBtnClick(getFolderId())}
-          />
-          <FloatButton
-            tooltip={{ title: "Create chain", placement: "left" }}
-            icon={<OverridableIcon name="fileAdd" />}
-            onClick={() => onCreateChainBtnClick(getFolderId())}
-          />
-        </FloatButtonGroup>
       </Flex>
     </>
   );

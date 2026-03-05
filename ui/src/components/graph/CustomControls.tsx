@@ -1,3 +1,4 @@
+import type React from "react";
 import { useReactFlow } from "@xyflow/react";
 
 import styles from "./CustomControls.module.css";
@@ -5,7 +6,11 @@ import { useElkDirectionContext } from "../../pages/ElkDirectionContext.tsx";
 import { Button } from "antd";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
-export const CustomControls = () => {
+export const CustomControls = ({
+  extraButtons,
+}: {
+  extraButtons?: React.ReactNode;
+}) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const { toggleDirection, toggleRightPanel } = useElkDirectionContext();
 
@@ -48,6 +53,12 @@ export const CustomControls = () => {
         onClick={toggleRightPanel}
         icon={<OverridableIcon name="rightPanel" />}
       />
+      {extraButtons ? (
+        <>
+          <span className={styles.extraDivider} />
+          {extraButtons}
+        </>
+      ) : null}
     </div>
   );
 };

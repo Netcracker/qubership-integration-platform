@@ -7,9 +7,12 @@ import {
   Tag,
   Descriptions,
   Spin,
-  FloatButton,
+  Tooltip,
 } from "antd";
-import { IntegrationSystem, IntegrationSystemType } from "../../../api/apiTypes";
+import {
+  IntegrationSystem,
+  IntegrationSystemType,
+} from "../../../api/apiTypes";
 import { api } from "../../../api/api";
 import { useAsyncRequest } from "../useAsyncRequest";
 import { SourceFlagTag } from "../ui/SourceFlagTag";
@@ -18,10 +21,10 @@ import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { useBlocker } from "react-router-dom";
 import { useModalsContext } from "../../../Modals.tsx";
 import { UnsavedChangesModal } from "../../modal/UnsavedChangesModal.tsx";
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
+import { useServiceParametersToolbar } from "./ServiceParametersPage";
 
 export interface ServiceParametersTabProps {
   systemId: string;
@@ -45,12 +48,13 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   sidePadding,
   styles,
 }) => {
+  const { setToolbar } = useServiceParametersToolbar() ?? {};
   const [form] = Form.useForm();
   const [system, setSystem] = useState<IntegrationSystem | null>(null);
   const [technicalLabels, setTechnicalLabels] = useState<string[]>([]);
   const [userLabels, setUserLabels] = useState<string[]>([]);
   const [hasChanges, setHasChanges] = useState<boolean>(false);
-  const blocker = useBlocker(hasChanges);
+  const blocker = useBlocker(activeTab === "parameters" && hasChanges);
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
 
@@ -151,6 +155,31 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
     setHasChanges(false);
   };
 
+  useEffect(() => {
+    if (!setToolbar || activeTab !== "parameters") return;
+    const toolbar =
+      !isVsCode && system && systemId ? (
+        <Tooltip title="Export service" placement="bottom">
+          <Button
+            icon={<OverridableIcon name="cloudDownload" />}
+            onClick={() => {
+              void (async () => {
+                if (!systemId) return;
+                try {
+                  const file = await api.exportServices([systemId], []);
+                  downloadFile(prepareFile(file));
+                } catch (e) {
+                  notificationService.requestFailed("Export error", e);
+                }
+              })();
+            }}
+          />
+        </Tooltip>
+      ) : null;
+    setToolbar(toolbar);
+    return () => setToolbar(null);
+  }, [setToolbar, activeTab, system, systemId, notificationService]);
+
   if (loadingSystem) return <Spin style={{ margin: 32 }} />;
   if (loadError)
     return <div style={{ color: "red", margin: 32 }}>{loadError}</div>;
@@ -158,32 +187,6 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
 
   return (
     <div style={{ paddingLeft: sidePadding, maxWidth: 900 }}>
-      <>
-        {!isVsCode && (
-          <FloatButtonGroup
-            trigger="hover"
-            icon={<OverridableIcon name="more" />}
-          >
-            <FloatButton
-              tooltip={{ title: "Export service", placement: "left" }}
-              icon={<OverridableIcon name="cloudDownload" />}
-              onClick={() => {
-                void (async () => {
-                  if (!systemId) {
-                    return;
-                  }
-                  try {
-                    const file = await api.exportServices([systemId], []);
-                    downloadFile(prepareFile(file));
-                  } catch (e) {
-                    notificationService.requestFailed("Export error", e);
-                  }
-                })();
-              }}
-            />
-          </FloatButtonGroup>
-        )}
-      </>
       <Form form={form} layout="vertical" onChange={() => setHasChanges(true)}>
         <Form.Item
           label="Name"

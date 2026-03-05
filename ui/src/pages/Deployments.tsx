@@ -1,5 +1,5 @@
-import React from "react";
-import { FloatButton, Table, Tooltip } from "antd";
+import React, { useCallback, useMemo } from "react";
+import { Table, Tooltip } from "antd";
 import { useDeployments } from "../hooks/useDeployments.tsx";
 import { useParams } from "react-router";
 import { TableProps } from "antd/lib/table";
@@ -13,6 +13,9 @@ import { api } from "../api/api.ts";
 import { LongActionButton } from "../components/LongActionButton.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
+import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderToolbar } from "../components/ChainHeaderToolbar.tsx";
+import { TablePageLayout } from "../components/TablePageLayout.tsx";
 
 export const Deployments: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -51,13 +54,13 @@ export const Deployments: React.FC = () => {
       title: "Created By",
       dataIndex: "createdBy",
       key: "createdBy",
-      render: (_, deployment) => <>{deployment.createdBy.username}</>,
+      render: (_, deployment) => deployment.createdBy.username,
     },
     {
       title: "Created At",
       dataIndex: "createdWhen",
       key: "createdWhen",
-      render: (_, deployment) => <>{formatTimestamp(deployment.createdWhen)}</>,
+      render: (_, deployment) => formatTimestamp(deployment.createdWhen),
     },
     {
       title: "",
@@ -77,10 +80,6 @@ export const Deployments: React.FC = () => {
     },
   ];
 
-  const onDeploymentCreated = (deployment: Deployment) => {
-    setDeployments([...(deployments ?? []), deployment]);
-  };
-
   const deleteDeployment = async (deployment: Deployment) => {
     try {
       await api.deleteDeployment(deployment.id);
@@ -90,21 +89,51 @@ export const Deployments: React.FC = () => {
     }
   };
 
-  const createDeployment = async (request: CreateDeploymentRequest) => {
-    if (!chainId) return;
-    try {
-      const deployment = await api.createDeployment(chainId, request);
-      onDeploymentCreated(deployment);
-    } catch (error) {
-      notificationService.requestFailed("Failed to create deployment", error);
-    }
-  };
+  const createDeployment = useCallback(
+    async (request: CreateDeploymentRequest) => {
+      if (!chainId) return;
+      try {
+        const deployment = await api.createDeployment(chainId, request);
+        setDeployments((prevDeployments) => [
+          ...(prevDeployments ?? []),
+          deployment,
+        ]);
+      } catch (error) {
+        notificationService.requestFailed("Failed to create deployment", error);
+      }
+    },
+    [chainId, notificationService, setDeployments],
+  );
+
+  const headerActions = useMemo(
+    () => (
+      <ChainHeaderToolbar
+        buttons={[
+          {
+            title: "Create deployment",
+            type: "primary",
+            iconName: "plus",
+            onClick: () =>
+              showModal({
+                component: (
+                  <DeploymentCreate
+                    chainId={chainId}
+                    onSubmit={createDeployment}
+                  />
+                ),
+              }),
+          },
+        ]}
+      />
+    ),
+    [showModal, chainId, createDeployment],
+  );
+  useRegisterChainHeaderActions(headerActions, [chainId]);
 
   return (
-    <>
+    <TablePageLayout>
       <Table
         className="flex-table"
-        style={{ height: "100%" }}
         size="small"
         columns={columns}
         dataSource={deployments}
@@ -112,18 +141,8 @@ export const Deployments: React.FC = () => {
         loading={isLoading}
         rowKey="id"
         scroll={{ y: "" }}
+        style={{ flex: 1, minHeight: 0 }}
       />
-      <FloatButton
-        icon={<OverridableIcon name="plus" />}
-        tooltip={{ title: "Create deployment", placement: "left" }}
-        onClick={() =>
-          showModal({
-            component: (
-              <DeploymentCreate chainId={chainId} onSubmit={createDeployment} />
-            ),
-          })
-        }
-      />
-    </>
+    </TablePageLayout>
   );
 };

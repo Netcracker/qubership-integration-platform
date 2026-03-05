@@ -5,24 +5,18 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import {
-  Table,
-  Spin,
-  Flex,
-  Button,
-  Tooltip,
-  message,
-  Tag,
-  Modal,
-  FloatButton,
-} from "antd";
+import { Table, Spin, Flex, Button, Tooltip, message, Tag, Modal } from "antd";
 import { Radio } from "antd";
 import {
   Environment,
   EnvironmentSourceType,
   IntegrationSystemType,
 } from "../../../api/apiTypes";
-import { useServiceContext, useChainsContext } from "./ServiceParametersPage";
+import {
+  useServiceContext,
+  useChainsContext,
+  useServiceParametersToolbar,
+} from "./ServiceParametersPage";
 import { api } from "../../../api/api";
 import { EnvironmentParamsModal } from "../modals/EnvironmentParamsModal.tsx";
 import { EnvironmentRequest } from "../../../api/apiTypes";
@@ -39,7 +33,6 @@ import {
   isKafkaProtocol,
   normalizeProtocol,
 } from "../../../misc/protocol-utils";
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { downloadFile } from "../../../misc/download-utils.ts";
 
 interface ServiceEnvironmentsTabProps {
@@ -69,6 +62,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   const [switchingEnvId, setSwitchingEnvId] = useState<string | null>(null);
   const notificationService = useNotificationService();
   const location = useLocation();
+  const { setToolbar } = useServiceParametersToolbar() ?? {};
 
   const getDefaultProperties = useCallback(
     (protocol: string, sourceType: EnvironmentSourceType) => {
@@ -388,6 +382,47 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
     ],
   );
 
+  const isEnvironmentsActive = location.pathname.includes("/environments");
+
+  useEffect(() => {
+    if (!setToolbar || !isEnvironmentsActive) return;
+    const toolbar = (
+      <Flex gap={4} align="center">
+        {system?.type === IntegrationSystemType.EXTERNAL && (
+          <Button type="primary" onClick={() => setAddModalOpen(true)}>
+            Add Environment
+          </Button>
+        )}
+        {!isVsCode && (
+          <Tooltip title="Export service" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="cloudDownload" />}
+              onClick={() => {
+                void (async () => {
+                  if (!systemId) return;
+                  try {
+                    const file = await api.exportServices([systemId], []);
+                    downloadFile(prepareFile(file));
+                  } catch (e) {
+                    notificationService.requestFailed("Export error", e);
+                  }
+                })();
+              }}
+            />
+          </Tooltip>
+        )}
+      </Flex>
+    );
+    setToolbar(toolbar);
+    return () => setToolbar(null);
+  }, [
+    setToolbar,
+    isEnvironmentsActive,
+    system?.type,
+    systemId,
+    notificationService,
+  ]);
+
   if (loading) return <Spin style={{ margin: 32 }} />;
   if (error)
     return (
@@ -401,41 +436,6 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
 
   return (
     <Flex vertical>
-      {system?.type === IntegrationSystemType.EXTERNAL && (
-        <Button
-          type="primary"
-          style={{ marginBottom: 16, alignSelf: "flex-start" }}
-          onClick={() => setAddModalOpen(true)}
-        >
-          Add Environment
-        </Button>
-      )}
-      <>
-        {!isVsCode && (
-          <FloatButtonGroup
-            trigger="hover"
-            icon={<OverridableIcon name="more" />}
-          >
-            <FloatButton
-              tooltip={{ title: "Export service", placement: "left" }}
-              icon={<OverridableIcon name="cloudDownload" />}
-              onClick={() => {
-                void (async () => {
-                  if (!systemId) {
-                    return;
-                  }
-                  try {
-                    const file = await api.exportServices([systemId], []);
-                    downloadFile(prepareFile(file));
-                  } catch (e) {
-                    notificationService.requestFailed("Export error", e);
-                  }
-                })();
-              }}
-            />
-          </FloatButtonGroup>
-        )}
-      </>
       <Table
         dataSource={environments}
         rowKey="id"

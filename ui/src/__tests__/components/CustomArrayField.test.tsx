@@ -60,9 +60,7 @@ jest.mock("@monaco-editor/react", () => ({
       data-testid="monaco-editor"
       data-language={props.language}
       value={props.value as string}
-      readOnly={
-        (props.options as Record<string, unknown>)?.readOnly as boolean
-      }
+      readOnly={(props.options as Record<string, unknown>)?.readOnly as boolean}
       onChange={(e) => {
         const onChangeProp = props.onChange as
           | ((v: string) => void)
@@ -285,7 +283,10 @@ describe("CustomArrayField", () => {
     });
 
     it("shows Script editor when action type is 'script'", () => {
-      const handler = makeResponseHandler({ type: "script", script: "println 'hi'" });
+      const handler = makeResponseHandler({
+        type: "script",
+        script: "println 'hi'",
+      });
       const props = makeProps({ formData: [handler] });
 
       const { container } = render(<CustomArrayField {...props} />);
@@ -525,9 +526,7 @@ describe("CustomArrayField", () => {
 
       const { container } = render(<CustomArrayField {...props} />);
 
-      const deleteButton = screen
-        .getByTestId("icon-delete")
-        .closest("button")!;
+      const deleteButton = screen.getByTestId("icon-delete").closest("button")!;
       fireEvent.click(deleteButton);
 
       expect(onChange).toHaveBeenCalled();
@@ -620,9 +619,7 @@ describe("CustomArrayField", () => {
 
       render(<CustomArrayField {...props} />);
 
-      const deleteButton = screen
-        .getByTestId("icon-delete")
-        .closest("button")!;
+      const deleteButton = screen.getByTestId("icon-delete").closest("button")!;
       expect(deleteButton).toBeDisabled();
     });
 

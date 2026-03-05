@@ -1,4 +1,10 @@
-import React, { useEffect, useState, createContext, useContext } from "react";
+import React, {
+  useEffect,
+  useState,
+  createContext,
+  useContext,
+  useCallback,
+} from "react";
 import { Tabs, Typography, Breadcrumb, Flex } from "antd";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { formatTimestamp } from "../../../misc/format-utils.ts";
@@ -18,6 +24,12 @@ import {
 } from "./ServiceBreadcrumb.tsx";
 
 const { Title } = Typography;
+
+const ServiceParametersToolbarContext = createContext<{
+  setToolbar: (node: React.ReactNode) => void;
+} | null>(null);
+export const useServiceParametersToolbar = () =>
+  useContext(ServiceParametersToolbarContext);
 
 export const sidePadding = 32;
 export const ServiceContext = createContext<IntegrationSystem | null>(null);
@@ -76,6 +88,11 @@ export const ServiceParametersPageHeader: React.FC = () => {
 };
 
 export const ServiceParametersPage: React.FC = () => {
+  const [tabToolbar, setTabToolbar] = useState<React.ReactNode>(null);
+  const setToolbar = useCallback((node: React.ReactNode) => {
+    setTabToolbar(node);
+  }, []);
+
   const { systemId, groupId, specId } = useParams<{
     systemId: string;
     groupId?: string;
@@ -258,15 +275,24 @@ export const ServiceParametersPage: React.FC = () => {
   return (
     <ServiceContext.Provider value={system}>
       <ChainsContext.Provider value={chains}>
-        <ServiceParametersPageLayout>
-          <Breadcrumb items={breadcrumbItems} />
-          <ServiceParametersPageHeader />
-          <Tabs
-            items={tabItems}
-            activeKey={activeTab}
-            onChange={handleTabChange}
-          />
-        </ServiceParametersPageLayout>
+        <ServiceParametersToolbarContext.Provider value={{ setToolbar }}>
+          <ServiceParametersPageLayout>
+            <Breadcrumb items={breadcrumbItems} />
+            <ServiceParametersPageHeader />
+            <Tabs
+              items={tabItems}
+              activeKey={activeTab}
+              onChange={handleTabChange}
+              tabBarExtraContent={
+                tabToolbar ? (
+                  <Flex gap={4} align="center">
+                    {tabToolbar}
+                  </Flex>
+                ) : null
+              }
+            />
+          </ServiceParametersPageLayout>
+        </ServiceParametersToolbarContext.Provider>
       </ChainsContext.Provider>
     </ServiceContext.Provider>
   );

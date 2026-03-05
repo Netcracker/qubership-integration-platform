@@ -3,12 +3,17 @@ import { useReactFlow } from "@xyflow/react";
 
 export type FitViewToElementIdFn = (id: string) => void;
 
-export const ElementFocusContext = React.createContext<React.MutableRefObject<FitViewToElementIdFn | null> | null>(null);
+export const ElementFocusContext =
+  React.createContext<React.MutableRefObject<FitViewToElementIdFn | null> | null>(
+    null,
+  );
 
 export const useElementFocusRef = () => {
   const ref = useContext(ElementFocusContext);
   if (!ref) {
-    throw new Error("useElementFocusRef must be used within ElementFocusContext.Provider");
+    throw new Error(
+      "useElementFocusRef must be used within ElementFocusContext.Provider",
+    );
   }
   return ref;
 };

@@ -27,3 +27,30 @@
   margin: 0 auto;
   padding-bottom: 40px;
 }
+
+.chainTabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chainTabs :global(.ant-tabs-content) {
+  flex: 1;
+  min-height: 0;
+}
+
+.chainTabs :global(.ant-tabs-content-holder) {
+  flex: 1;
+  min-height: 0;
+}
+
+.chainTabs :global(.ant-tabs-tabpane) {
+  height: 100%;
+}
+
+.chainTabs :global(.ant-tabs-tabpane-active) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}

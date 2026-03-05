@@ -4,7 +4,6 @@ import {
   Dropdown,
   Empty,
   Flex,
-  FloatButton,
   InputNumber,
   MenuProps,
   Modal,
@@ -340,7 +339,7 @@ export const LiveExchanges: React.FC = () => {
         </Title>
         <Flex
           vertical={false}
-          gap={8}
+          gap={4}
           className={commonStyles["actions"]}
           align={"center"}
         >
@@ -367,6 +366,12 @@ export const LiveExchanges: React.FC = () => {
           >
             <Button icon={<OverridableIcon name="settings" />} />
           </Dropdown>
+          <Tooltip title="Refresh" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="refresh" />}
+              onClick={() => void refresh()}
+            />
+          </Tooltip>
         </Flex>
       </Flex>
       <Flex
@@ -404,11 +409,6 @@ export const LiveExchanges: React.FC = () => {
               />
             ),
           }}
-        />
-        <FloatButton
-          tooltip={{ title: "Refresh", placement: "left" }}
-          icon={<OverridableIcon name="refresh" />}
-          onClick={() => void refresh()}
         />
       </Flex>
     </Flex>

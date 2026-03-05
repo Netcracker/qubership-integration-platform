@@ -39,7 +39,7 @@
 
 .actions {
   display: flex;
-  gap: 12px;
+  gap: 4px;
 }
 
 .actions .ant-btn {

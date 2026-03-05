@@ -3,7 +3,8 @@
   left: 10px;
   bottom: 10px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   background: var(--vscode-panel-background, #fafafa);
   border: 1px solid var(--vscode-border, #d9d9d9);
   border-radius: 4px;
@@ -31,5 +32,12 @@
 }
 
 .button + .button {
-  border-top: 1px solid var(--vscode-border, #d9d9d9);
+  border-left: 1px solid var(--vscode-border, #d9d9d9);
+}
+
+.extraDivider {
+  width: 1px;
+  height: 20px;
+  background: var(--vscode-border, #d9d9d9);
+  margin: 0 2px;
 }

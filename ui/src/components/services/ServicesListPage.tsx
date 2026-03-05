@@ -6,8 +6,7 @@ import React, {
   useState,
 } from "react";
 import styles from "./Services.module.css";
-import { FloatButton, Input, Typography, message, Flex } from "antd";
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
+import { Button, Input, Typography, message, Flex, Tooltip } from "antd";
 import { CreateServiceModal } from "./modals/CreateServiceModal";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/api";
@@ -373,6 +372,9 @@ export const ServicesListPage: React.FC = () => {
     dataSource: buildDataSource,
     rowKey: "id",
     columns: allServicesTreeTableColumns.map((col) => col.key),
+    scroll: { y: "" },
+    className: "flex-table",
+    style: { flex: 1, minHeight: 0 },
     allColumns: [
       ...allServicesTreeTableColumns.map((col) => col.key),
       actionsColumn.key,
@@ -603,59 +605,64 @@ export const ServicesListPage: React.FC = () => {
           )}
           {filterButton}
           {servicesTable.FilterButton()}
+          <Tooltip title="Download selected services" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="cloudDownload" />}
+              onClick={() => {
+                void (async () => {
+                  if (selectedRowKeys.length === 0) {
+                    message.info("No services selected");
+                    return;
+                  }
+                  const selected: ServiceEntity[] = buildDataSource.filter(
+                    (s: ServiceEntity) => selectedRowKeys.includes(s.id),
+                  );
+                  await handleExportSelected(selected);
+                })();
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Upload services" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="cloudUpload" />}
+              onClick={() => {
+                showModal({
+                  component: (
+                    <ImportServicesModal
+                      onSuccess={() => {
+                        void loadServices();
+                      }}
+                      systemType={getDefaultType(tab)}
+                    />
+                  ),
+                });
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Create service" placement="bottom">
+            <Button
+              type="primary"
+              icon={<OverridableIcon name="plus" />}
+              onClick={() => setCreateModalOpen(true)}
+            />
+          </Tooltip>
         </div>
       </div>
 
-      <div>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <servicesTable.Table />
         {error && (
           <div style={{ color: "var(--vscode-errorForeground, #d73a49)" }}>
             Error: {error}
           </div>
         )}
-
-        <FloatButtonGroup
-          trigger="hover"
-          icon={<OverridableIcon name="more" />}
-        >
-          <FloatButton
-            tooltip={{ title: "Download selected services", placement: "left" }}
-            icon={<OverridableIcon name="cloudDownload" />}
-            onClick={() => {
-              void (async () => {
-                if (selectedRowKeys.length === 0) {
-                  message.info("No services selected");
-                  return;
-                }
-                const selected: ServiceEntity[] = buildDataSource.filter(
-                  (s: ServiceEntity) => selectedRowKeys.includes(s.id),
-                );
-                await handleExportSelected(selected);
-              })();
-            }}
-          />
-          <FloatButton
-            tooltip={{ title: "Upload services", placement: "left" }}
-            icon={<OverridableIcon name="cloudUpload" />}
-            onClick={() => {
-              showModal({
-                component: (
-                  <ImportServicesModal
-                    onSuccess={() => {
-                      void loadServices();
-                    }}
-                    systemType={getDefaultType(tab)}
-                  />
-                ),
-              });
-            }}
-          />
-          <FloatButton
-            tooltip={{ title: "Create service", placement: "left" }}
-            icon={<OverridableIcon name="plus" />}
-            onClick={() => setCreateModalOpen(true)}
-          />
-        </FloatButtonGroup>
       </div>
 
       <CreateServiceModal

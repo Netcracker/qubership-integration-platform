@@ -1,4 +1,4 @@
-import { Button, Form, Input, Select } from "antd";
+import { Form, Input, Select } from "antd";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import TextArea from "antd/lib/input/TextArea";
 import { Chain } from "../api/apiTypes.ts";
@@ -16,6 +16,8 @@ import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { useBlocker } from "react-router-dom";
 import { useModalsContext } from "../Modals.tsx";
 import { UnsavedChangesModal } from "../components/modal/UnsavedChangesModal.tsx";
+import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ApplyFormButton } from "../components/ApplyFormButton.tsx";
 
 export type FormData = {
   name: string;
@@ -36,7 +38,6 @@ export const ChainProperties: React.FC = () => {
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
   const [form] = useForm();
-
   const chainContext = useContext(ChainContext);
 
   const getPathToFolder = useCallback(
@@ -166,10 +167,20 @@ export const ChainProperties: React.FC = () => {
     }
   };
 
+  useRegisterChainHeaderActions(
+    <ApplyFormButton
+      formId="chain-properties-form"
+      loading={isUpdating}
+      disabled={!hasChanges}
+    />,
+    [isUpdating, hasChanges],
+  );
+
   return (
     <div className={styles.pageContainer as string}>
       <div className={styles.formContent as string}>
         <Form<FormData>
+          id="chain-properties-form"
           form={form}
           disabled={isUpdating}
           labelCol={{ flex: "150px" }}
@@ -208,16 +219,6 @@ export const ChainProperties: React.FC = () => {
             <TextArea style={{ height: 120, resize: "none" }} />
           </Form.Item>
           <ChainExtensionProperties onChange={() => setHasChanges(true)} />
-          <Form.Item wrapperCol={{ offset: 0 }} style={{ textAlign: "right" }}>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={isUpdating}
-              disabled={!hasChanges}
-            >
-              Apply
-            </Button>
-          </Form.Item>
         </Form>
       </div>
     </div>

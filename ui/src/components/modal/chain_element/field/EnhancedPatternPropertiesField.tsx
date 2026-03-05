@@ -718,9 +718,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
           </span>
           <span>{title}</span>
           {schema?.description && (
-            <DescriptionTooltipIcon
-              description={schema.description}
-            />
+            <DescriptionTooltipIcon description={schema.description} />
           )}
           <span className={styles.badge}>{mergedParameters.length}</span>
         </div>

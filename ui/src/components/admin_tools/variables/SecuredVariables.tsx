@@ -9,7 +9,6 @@ import {
   Table,
   Tag,
   Flex,
-  FloatButton,
   Tooltip,
 } from "antd";
 import commonStyles from "../CommonStyle.module.css";
@@ -19,7 +18,6 @@ import { SecretWithVariables, Variable } from "../../../api/apiTypes.ts";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { ResizeCallbackData } from "react-resizable";
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { LongActionButton } from "../../LongActionButton.tsx";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { api } from "../../../api/api.ts";
@@ -331,11 +329,38 @@ export const SecuredVariables: React.FC = () => {
 
   return (
     <Flex vertical className={commonStyles["container"]}>
-      <Flex vertical={false}>
+      <Flex
+        vertical={false}
+        justify="space-between"
+        align="center"
+        style={{ marginBottom: 16 }}
+      >
         <Title level={4} className={commonStyles["title"]}>
           <OverridableIcon name="lock" className={commonStyles["icon"]} />
           Secured Variables
         </Title>
+        <Flex vertical={false} gap={4}>
+          <Tooltip title="Delete selected variables" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="delete" />}
+              onClick={() => {
+                if (!hasSelected) return;
+                Modal.confirm({
+                  title: `Delete selected variable(s)?`,
+                  content: `Are you sure you want to delete variables(s)?`,
+                  onOk: handleDeleteSelected,
+                });
+              }}
+              disabled={!hasSelected}
+            />
+          </Tooltip>
+          <Tooltip title="Add secret" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="plus" />}
+              onClick={() => setCreateModalVisible(true)}
+            />
+          </Tooltip>
+        </Flex>
       </Flex>
 
       <Modal
@@ -429,28 +454,6 @@ export const SecuredVariables: React.FC = () => {
         sticky
         scroll={{ y: "" }}
       />
-      <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
-        <FloatButton
-          tooltip={{
-            title: "Delete selected variables",
-            placement: "left",
-          }}
-          icon={<OverridableIcon name="delete" />}
-          onClick={() => {
-            if (!hasSelected) return;
-            Modal.confirm({
-              title: `Delete selected variable(s)?`,
-              content: `Are you sure you want to delete variables(s)?`,
-              onOk: handleDeleteSelected,
-            });
-          }}
-        />
-        <FloatButton
-          tooltip={{ title: "Add secret", placement: "left" }}
-          icon={<OverridableIcon name="plus" />}
-          onClick={() => setCreateModalVisible(true)}
-        />
-      </FloatButtonGroup>
     </Flex>
   );
 };

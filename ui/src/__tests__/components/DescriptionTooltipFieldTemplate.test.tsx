@@ -23,16 +23,20 @@ import DescriptionTooltipFieldTemplate, {
 } from "../../components/modal/chain_element/DescriptionTooltipFieldTemplate";
 import type { FieldTemplateProps } from "@rjsf/utils";
 
-jest.mock("../../components/modal/chain_element/ChainElementModification.module.css", () => ({
-  "description-tooltip-block": "description-tooltip-block",
-}));
+jest.mock(
+  "../../components/modal/chain_element/ChainElementModification.module.css",
+  () => ({
+    "description-tooltip-block": "description-tooltip-block",
+  }),
+);
 
 const WrapIfAdditionalMock = ({ children }: { children: React.ReactNode }) => (
   <div data-testid="wrap-if-additional">{children}</div>
 );
 
 jest.mock("@rjsf/utils", () => ({
-  getUiOptions: (uiSchema: unknown) => (uiSchema as Record<string, unknown>)?.["ui:options"] ?? {},
+  getUiOptions: (uiSchema: unknown) =>
+    (uiSchema as Record<string, unknown>)?.["ui:options"] ?? {},
   getTemplate: () => WrapIfAdditionalMock,
 }));
 
@@ -55,7 +59,8 @@ function makeProps(
     label: "Test Field",
     onChange: jest.fn(),
     onKeyRename: jest.fn(),
-    onKeyRenameBlur: jest.fn() as unknown as FieldTemplateProps["onKeyRenameBlur"],
+    onKeyRenameBlur:
+      jest.fn() as unknown as FieldTemplateProps["onKeyRenameBlur"],
     onRemoveProperty: jest.fn(),
     rawDescription: "",
     rawErrors: [],
@@ -98,7 +103,9 @@ describe("DescriptionTooltipFieldTemplate", () => {
     );
     const hiddenDiv = container.querySelector(".rjsf-field-hidden");
     expect(hiddenDiv).toBeTruthy();
-    expect(hiddenDiv!.querySelector("[data-testid='field-input']")).toBeTruthy();
+    expect(
+      hiddenDiv!.querySelector("[data-testid='field-input']"),
+    ).toBeTruthy();
   });
 
   it("does not render tooltip icon when rawDescription is empty", () => {
@@ -107,7 +114,9 @@ describe("DescriptionTooltipFieldTemplate", () => {
         {...makeProps({ rawDescription: "" })}
       />,
     );
-    expect(container.querySelector("[aria-label='question-circle']")).toBeNull();
+    expect(
+      container.querySelector("[aria-label='question-circle']"),
+    ).toBeNull();
   });
 
   it("renders tooltip icon in label when displayLabel is true", () => {
@@ -120,7 +129,9 @@ describe("DescriptionTooltipFieldTemplate", () => {
         })}
       />,
     );
-    const icon = container.querySelector("[aria-label='question-circle']") as HTMLElement;
+    const icon = container.querySelector(
+      "[aria-label='question-circle']",
+    ) as HTMLElement;
     expect(icon).toBeTruthy();
     expect(icon.style.marginLeft).toBe("6px");
     expect(container.textContent).toContain("My Field");
@@ -219,7 +230,9 @@ describe("DescriptionTooltipFieldTemplate", () => {
         })}
       />,
     );
-    expect(container.querySelector("[aria-label='question-circle']")).toBeNull();
+    expect(
+      container.querySelector("[aria-label='question-circle']"),
+    ).toBeNull();
     expect(container.querySelector(".description-tooltip-block")).toBeNull();
   });
 
@@ -233,7 +246,9 @@ describe("DescriptionTooltipFieldTemplate", () => {
       />,
     );
     expect(container.querySelector("[data-testid='field-input']")).toBeTruthy();
-    expect(container.querySelector("[aria-label='question-circle']")).toBeNull();
+    expect(
+      container.querySelector("[aria-label='question-circle']"),
+    ).toBeNull();
     expect(container.querySelector(".description-tooltip-block")).toBeNull();
   });
 
@@ -271,6 +286,8 @@ describe("DescriptionTooltipFieldTemplate", () => {
         })}
       />,
     );
-    expect(container.querySelector("[data-testid='wrap-if-additional']")).toBeTruthy();
+    expect(
+      container.querySelector("[data-testid='wrap-if-additional']"),
+    ).toBeTruthy();
   });
 });

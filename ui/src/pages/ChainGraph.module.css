@@ -3,3 +3,13 @@
   flex: 1;
   min-height: 0;
 }
+
+.sequenceDiagramIcon {
+  font-family:
+    "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols", Symbola, sans-serif;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}

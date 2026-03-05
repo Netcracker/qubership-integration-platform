@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Flex, FloatButton, message, Modal, Typography } from "antd";
+import { Button, Flex, message, Modal, Tooltip, Typography } from "antd";
 import styles from "../CommonStyle.module.css";
 import ImportVariablesModal from "./ImportVariablesModal.tsx";
 import { useModalsContext } from "../../../Modals.tsx";
@@ -8,7 +8,6 @@ import { useVariablesState } from "./useVariablesState";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { ResizeCallbackData } from "react-resizable";
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { ApiResponse, Variable } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { api } from "../../../api/api.ts";
@@ -88,11 +87,63 @@ export const CommonVariables = () => {
 
   return (
     <Flex vertical className={styles["container"]}>
-      <Flex vertical={false}>
+      <Flex
+        vertical={false}
+        justify="space-between"
+        align="center"
+        style={{ marginBottom: 16 }}
+      >
         <Title level={4} className={styles["title"]}>
           <OverridableIcon name="table" className={styles["icon"]} />
           Common Variables
         </Title>
+        <Flex vertical={false} gap={4}>
+          <Tooltip title="Delete selected variables" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="delete" />}
+              onClick={() => {
+                if (!selectedRowKeys.length) return;
+                Modal.confirm({
+                  title: `Delete ${selectedRowKeys.length} selected variable(s)?`,
+                  content: `Are you sure you want to delete ${selectedRowKeys.length} variables(s)?`,
+                  onOk: onDeleteSelected,
+                });
+              }}
+              disabled={!selectedRowKeys.length}
+            />
+          </Tooltip>
+          <Tooltip title="Export selected variables" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="cloudDownload" />}
+              onClick={() => {
+                if (!selectedRowKeys.length) return;
+                void onExport(selectedRowKeys);
+              }}
+              disabled={!selectedRowKeys.length}
+            />
+          </Tooltip>
+          <Tooltip title="Import variables" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="cloudUpload" />}
+              onClick={() =>
+                showModal({
+                  component: (
+                    <ImportVariablesModal
+                      onSuccess={() => void fetchVariables()}
+                    />
+                  ),
+                })
+              }
+            />
+          </Tooltip>
+          <Tooltip title="Add variable" placement="bottom">
+            <Button
+              type="primary"
+              icon={<OverridableIcon name="plus" />}
+              onClick={() => setIsAddingNew(true)}
+            />
+          </Tooltip>
+        </Flex>
       </Flex>
       <VariablesTable
         flex
@@ -116,47 +167,6 @@ export const CommonVariables = () => {
         columnsWidth={columnsWidth}
         onResize={handleResize}
       />
-      <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
-        <FloatButton
-          tooltip={{ title: "Import variables", placement: "left" }}
-          icon={<OverridableIcon name="cloudUpload" />}
-          onClick={() =>
-            showModal({
-              component: (
-                <ImportVariablesModal onSuccess={() => void fetchVariables()} />
-              ),
-            })
-          }
-        />
-        <FloatButton
-          tooltip={{ title: "Export selected variables", placement: "left" }}
-          icon={<OverridableIcon name="cloudDownload" />}
-          onClick={() => {
-            if (!selectedRowKeys.length) return;
-            void onExport(selectedRowKeys);
-          }}
-        />
-        <FloatButton
-          tooltip={{
-            title: "Delete selected variables",
-            placement: "left",
-          }}
-          icon={<OverridableIcon name="delete" />}
-          onClick={() => {
-            if (!selectedRowKeys.length) return;
-            Modal.confirm({
-              title: `Delete ${selectedRowKeys.length} selected variable(s)?`,
-              content: `Are you sure you want to delete ${selectedRowKeys.length} variables(s)?`,
-              onOk: onDeleteSelected,
-            });
-          }}
-        />
-        <FloatButton
-          tooltip={{ title: "Add variable", placement: "left" }}
-          icon={<OverridableIcon name="plus" />}
-          onClick={() => setIsAddingNew(true)}
-        />
-      </FloatButtonGroup>
     </Flex>
   );
 };

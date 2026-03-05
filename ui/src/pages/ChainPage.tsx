@@ -1,18 +1,16 @@
 import "@xyflow/react/dist/style.css";
-import {
-  Breadcrumb,
-  Col,
-  Flex,
-  Radio,
-  RadioChangeEvent,
-  Row,
-  Result,
-  Button,
-} from "antd";
+import { Breadcrumb, Col, Flex, Row, Result, Button, Tabs } from "antd";
+import { ChainHeaderActionsContextProvider } from "./ChainHeaderActionsContext.tsx";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
-import { createContext, useCallback, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  createContext,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { Chain } from "../api/apiTypes.ts";
 import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
@@ -31,6 +29,7 @@ export const ChainContext = createContext<ChainContextData | undefined>(
 const ChainPage = () => {
   const { chainId, sessionId } = useParams();
   const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
+  const [headerActions, setHeaderActions] = useState<ReactNode>(null);
 
   const location = useLocation();
   const { pathname } = location;
@@ -69,9 +68,26 @@ const ChainPage = () => {
     ]);
   }, [chain, chainId, sessionId]);
 
-  const handlePageChange = (event: RadioChangeEvent) => {
-    void navigate(`${event.target.value}`); // Update the URL with the selected tab key
+  const handleTabChange = (key: string) => {
+    void navigate(`/chains/${chainId}/${key}`);
   };
+
+  const tabItems = [
+    { key: "graph", label: "Graph" },
+    ...(isVsCode
+      ? []
+      : [
+          { key: "snapshots", label: "Snapshots" },
+          { key: "deployments", label: "Deployments" },
+          { key: "sessions", label: "Sessions" },
+          {
+            key: "logging-settings",
+            label: "Logging",
+          },
+        ]),
+    { key: "masking", label: "Masking" },
+    { key: "properties", label: "Properties" },
+  ];
 
   if (isLoading && !chain) {
     return (
@@ -113,45 +129,64 @@ const ChainPage = () => {
   }
 
   return (
-    <Flex className={styles.stretched} gap={"middle"} vertical>
-      <Row justify="space-between" align="middle">
-        <Col>{!isVsCode && <Breadcrumb items={pathItems} />}</Col>
-        <Col>
-          <Radio.Group
-            value={activeKey}
-            onChange={handlePageChange}
-            defaultValue="graph"
-            optionType="button"
-            buttonStyle="solid"
-          >
-            <Radio.Button value="graph">Graph</Radio.Button>
-            {!isVsCode && (
-              <>
-                <Radio.Button value="snapshots">Snapshots</Radio.Button>
-                <Radio.Button value="deployments">Deployments</Radio.Button>
-                <Radio.Button value="sessions">Sessions</Radio.Button>
-                <Radio.Button value="logging-settings">Logging</Radio.Button>
-              </>
-            )}
-            <Radio.Button value="masking">Masking</Radio.Button>
-            <Radio.Button value="properties">Properties</Radio.Button>
-          </Radio.Group>
-        </Col>
-      </Row>
-      <Row className={styles.stretched}>
-        <Col span={24} className={styles.stretched}>
-          <ChainContext.Provider
-            value={{
-              chain,
-              update: async (changes) => updateChain(changes).then(setChain),
-              refresh: refreshChain,
-            }}
-          >
+    <ChainHeaderActionsContextProvider value={{ setActions: setHeaderActions }}>
+      <ChainContext.Provider
+        value={{
+          chain,
+          update: async (changes) => updateChain(changes).then(setChain),
+          refresh: refreshChain,
+        }}
+      >
+        <Flex className={styles.stretched} gap={4} vertical>
+          {isVsCode ? (
+            <Tabs
+              activeKey={activeKey}
+              onChange={handleTabChange}
+              items={tabItems}
+              style={{ marginBottom: 0 }}
+              tabBarExtraContent={
+                <Flex
+                  gap={8}
+                  align="center"
+                  style={{ flexWrap: "wrap", minHeight: 32 }}
+                >
+                  {headerActions}
+                </Flex>
+              }
+            />
+          ) : (
+            <>
+              <Row
+                justify="space-between"
+                align="middle"
+                style={{ minHeight: 32 }}
+              >
+                <Col>
+                  <Breadcrumb items={pathItems} />
+                </Col>
+                <Col>
+                  <Flex
+                    gap={8}
+                    align="center"
+                    style={{ flexWrap: "wrap", minHeight: 32 }}
+                  >
+                    {headerActions}
+                  </Flex>
+                </Col>
+              </Row>
+              <Tabs
+                activeKey={activeKey}
+                onChange={handleTabChange}
+                items={tabItems}
+              />
+            </>
+          )}
+          <Flex className={styles.stretched}>
             <Outlet />
-          </ChainContext.Provider>
-        </Col>
-      </Row>
-    </Flex>
+          </Flex>
+        </Flex>
+      </ChainContext.Provider>
+    </ChainHeaderActionsContextProvider>
   );
 };
 

@@ -24,7 +24,7 @@
 
 .actions {
   display: flex;
-  gap: 12px;
+  gap: 4px;
 }
 
 .icon {
@@ -89,7 +89,7 @@
 .serviceApiSpecsTabHeaderRight {
   margin-left: auto;
   display: flex;
-  gap: 8px;
+  gap: 4px;
 }
 
 .serviceApiSpecsTabFilterGroup {

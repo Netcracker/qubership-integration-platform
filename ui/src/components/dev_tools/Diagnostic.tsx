@@ -420,7 +420,7 @@ export const Diagnostic: React.FC = () => {
         showIcon
         message="This menu is only available for testing environment and won't be accessible on production. Data, created via this tab won't be exported with the chains."
       />
-      <Flex vertical={false} gap={8}>
+      <Flex vertical={false} gap={4}>
         <Search
           placeholder="Full text search"
           allowClear

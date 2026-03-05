@@ -189,7 +189,11 @@ button:focus-visible {
             min-height: 0;
             flex-grow: 1;
             flex-shrink: 1;
-            max-height: max-content !important;
+          }
+
+          > .ant-table-body .ant-table-body-inner,
+          > .ant-table-body table {
+            height: auto !important;
           }
         }
       }

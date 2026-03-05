@@ -82,6 +82,7 @@ export interface ServicesTableColumn<T extends ServiceEntity = ServiceEntity> {
   dataIndex?: string;
   render?: (value: unknown, record: T, index: number) => React.ReactNode;
   width?: number;
+  minWidth?: number;
   align?: "left" | "center" | "right";
   filterDropdown?: (props: FilterDropdownProps) => React.ReactNode;
   onFilter?: (value: React.Key | boolean, record: T) => boolean;
@@ -103,6 +104,8 @@ export interface ServicesTreeTableProps<
   size?: "small" | "middle" | "large";
   pagination?: false | object;
   style?: React.CSSProperties;
+  scroll?: { y?: string | number };
+  className?: string;
   actionsColumn?: ServicesTableColumn;
   enableSelection?: boolean;
   isRootEntity?: (record: T) => boolean;
@@ -247,7 +250,10 @@ function renderLabelsCell(
 
   if (onUpdateLabels) {
     return (
-      <div className="inline-edit-labels" style={{ overflow: "hidden", maxWidth: "100%" }}>
+      <div
+        className="inline-edit-labels"
+        style={{ overflow: "hidden", maxWidth: "100%" }}
+      >
         <InlineEdit
           values={{ labels: filtered.map((l) => l.name) }}
           editor={<LabelsEdit name="labels" />}
@@ -285,6 +291,8 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       title: "Name",
       dataIndex: "name",
       key: "name",
+      width: 200,
+      minWidth: 120,
       filterDropdown: (props: FilterDropdownProps) => (
         <TextColumnFilterDropdown {...props} />
       ),
@@ -586,6 +594,9 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
   rowClassName,
   onUpdateLabels,
   onRowClick,
+  scroll,
+  className,
+  style,
 }: ServicesTreeTableProps<T>) {
   const allColumnKeys = useMemo(() => {
     return allColumns && allColumns.length > 0
@@ -680,10 +691,13 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         size={"small"}
         pagination={pagination}
         tableLayout="fixed"
+        scroll={scroll}
+        className={className}
         style={{
           background: "var(--vscode-editor-background)",
           borderRadius: 12,
           width: "100%",
+          ...(style ?? {}),
         }}
         rowClassName={rowClassName}
         onRow={

@@ -139,6 +139,18 @@ code[class*="language-"] {
   border-color: transparent !important;
 }
 
+.ant-tabs .ant-tabs-tab + .ant-tabs-tab {
+  margin: 0 0 0 16px !important;
+}
+
+.ant-tabs .ant-tabs-tab {
+  padding: 6px 0 !important;
+}
+
+.ant-tabs .ant-tabs-tab-btn {
+  padding: 0 4px !important;
+}
+
 .ant-tabs-tab:hover {
   color: var(--vscode-textLink-foreground, #1677ff) !important;
 }
@@ -199,6 +211,34 @@ pre[class*="language-"] .token.punctuation {
   color: var(--vscode-foreground) !important;
 }
 
+/* Icon-only buttons: standard toolbar icon size */
+.ant-btn.ant-btn-icon-only .anticon {
+  font-size: 16px;
+}
+
+.ant-btn.ant-btn-icon-only .anticon svg {
+  width: 1em;
+  height: 1em;
+}
+
+/* Sequence diagram Unicode icon: match visual size of SVG icons (symbol fonts often render smaller) */
+.ant-btn.ant-btn-icon-only [data-icon="sequence-diagram"] {
+  font-size: 1.8em;
+}
+
+/* Icon-only default buttons: borderless, transparent like toolbar actions */
+.ant-btn-default.ant-btn-icon-only,
+.ant-btn.ant-btn-icon-only:not(.ant-btn-primary) {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.ant-btn-default.ant-btn-icon-only:hover,
+.ant-btn.ant-btn-icon-only:not(.ant-btn-primary):hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  border-color: transparent !important;
+}
+
 .ant-btn-outlined,
 .ant-btn[class*="ant-btn-variant-outlined"] {
   border-color: var(
@@ -250,11 +290,60 @@ pre[class*="language-"] .token.punctuation {
 }
 
 .ant-btn-primary {
+  background-color: var(--vscode-button-background, #0078d4) !important;
   border-color: var(--vscode-button-background, #0078d4) !important;
+  color: var(--vscode-button-foreground, #fff) !important;
 }
 
 .ant-btn-primary:hover {
+  background-color: var(--vscode-button-hoverBackground, #106ebe) !important;
   border-color: var(--vscode-button-hoverBackground, #106ebe) !important;
+  color: var(--vscode-button-foreground, #fff) !important;
+}
+
+/* Primary button focus/active: prevent white border in dark theme */
+.ant-btn-primary:focus,
+.ant-btn-primary:active,
+.ant-btn-primary:focus-visible {
+  background-color: var(--vscode-button-hoverBackground, #106ebe) !important;
+  border-color: var(--vscode-button-hoverBackground, #106ebe) !important;
+  color: var(--vscode-button-foreground, #fff) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.ant-btn-primary:focus::before,
+.ant-btn-primary:active::before,
+.ant-btn-primary:focus::after,
+.ant-btn-primary:active::after {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Primary icon-only toolbar buttons: ensure icons inherit foreground color */
+.ant-btn-primary .anticon {
+  color: inherit;
+}
+
+/* Disabled buttons: gray, non-interactive appearance */
+.ant-btn:disabled,
+.ant-btn.ant-btn-disabled {
+  color: var(--vscode-descriptionForeground, #9ca3af) !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.ant-btn:disabled .anticon,
+.ant-btn.ant-btn-disabled .anticon {
+  color: inherit !important;
+}
+
+.ant-btn-primary:disabled,
+.ant-btn-primary.ant-btn-disabled {
+  color: var(--vscode-button-foreground, #fff) !important;
+  background-color: var(--vscode-descriptionForeground, #9ca3af) !important;
+  border-color: var(--vscode-descriptionForeground, #9ca3af) !important;
+  opacity: 0.8;
 }
 
 /* Fix radio button group borders */
@@ -458,19 +547,16 @@ pre[class*="language-"] .token.punctuation {
 }
 
 .ant-tabs-ink-bar {
-  background: var(--vscode-editorGroup-border, var(--vscode-border)) !important;
+  background: var(--vscode-textLink-foreground, #1677ff) !important;
   height: 2px !important;
 }
 
 .ant-tabs-nav {
-  border-bottom-color: var(--vscode-border) !important;
+  border-bottom: none !important;
 }
 
 .ant-tabs-nav::before {
-  border-bottom-color: var(
-    --vscode-editorGroup-border,
-    var(--vscode-border)
-  ) !important;
+  border-bottom: none !important;
 }
 
 /* Modal theming */

@@ -109,7 +109,7 @@ import {
   MenuUnfoldOutlined,
   InfoCircleOutlined,
   HddOutlined,
-  CloudSyncOutlined
+  CloudSyncOutlined,
 } from "@ant-design/icons";
 
 export const commonIcons = {

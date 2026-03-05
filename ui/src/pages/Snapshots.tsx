@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Dropdown, FloatButton, Modal, Table } from "antd";
+import { Button, Dropdown, Table } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import { useNavigate } from "react-router";
@@ -7,7 +7,6 @@ import { TableProps } from "antd/lib/table";
 import { DiagramMode, EntityLabel, Snapshot } from "../api/apiTypes.ts";
 import { formatTimestamp } from "../misc/format-utils.ts";
 import { EntityLabels } from "../components/labels/EntityLabels.tsx";
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { api } from "../api/api.ts";
 import { SnapshotXmlView } from "../components/modal/SnapshotXml.tsx";
@@ -28,6 +27,11 @@ import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
+import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderToolbar } from "../components/ChainHeaderToolbar.tsx";
+import { TablePageLayout } from "../components/TablePageLayout.tsx";
+import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
+import { confirmAndRun } from "../misc/confirm-utils.ts";
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -44,18 +48,18 @@ export const Snapshots: React.FC = () => {
 
   const onDeleteBtnClick = () => {
     if (selectedRowKeys.length === 0) return;
-    Modal.confirm({
+    confirmAndRun({
       title: "Delete Snapshots",
       content: `Are you sure you want to delete ${selectedRowKeys.length} snapshot(s) and related deployments?`,
-      onOk: async () => deleteSelectedSnapshots(),
+      onOk: deleteSelectedSnapshots,
     });
   };
 
   const deleteSnapshotWithConfirmation = (snapshot: Snapshot) => {
-    Modal.confirm({
+    confirmAndRun({
       title: "Delete Snapshot",
       content: `Are you sure you want to delete snapshot and related deployments?`,
-      onOk: async () => deleteSnapshot(snapshot),
+      onOk: () => deleteSnapshot(snapshot),
     });
   };
 
@@ -70,13 +74,9 @@ export const Snapshots: React.FC = () => {
 
   const deleteSelectedSnapshots = async () => {
     try {
-      const ids = selectedRowKeys.map((key) => key.toString());
+      const ids = toStringIds(selectedRowKeys);
       await api.deleteSnapshots(ids);
-      setSnapshots(
-        snapshots?.filter(
-          (snapshot) => !ids.some((id) => snapshot.id === id),
-        ) ?? [],
-      );
+      setSnapshots(filterOutByIds(snapshots, ids));
     } catch (error) {
       notificationService.requestFailed("Failed to delete snapshots", error);
     }
@@ -106,14 +106,14 @@ export const Snapshots: React.FC = () => {
 
   const onCompareBtnClick = () => {
     if (selectedRowKeys.length !== 2) return;
-    const [oneId, otherId] = selectedRowKeys.map((key) => key.toString());
+    const [oneId, otherId] = toStringIds(selectedRowKeys);
     showModal({
       component: <SnapshotsCompare oneId={oneId} otherId={otherId} />,
     });
   };
 
   const revertToSnapshotWithConfirmation = (snapshot: Snapshot) => {
-    Modal.confirm({
+    confirmAndRun({
       title: "Revert to Snapshot",
       content: (
         <>
@@ -122,7 +122,7 @@ export const Snapshots: React.FC = () => {
           All unsaved changes in the chain will be permanently lost!
         </>
       ),
-      onOk: async () => revertToSnapshot(snapshot.id),
+      onOk: () => revertToSnapshot(snapshot.id),
     });
   };
 
@@ -215,7 +215,7 @@ export const Snapshots: React.FC = () => {
       title: "Created By",
       dataIndex: "createdBy",
       key: "createdBy",
-      render: (_, snapshot) => <>{snapshot.createdBy?.username ?? "—"}</>,
+      render: (_, snapshot) => snapshot.createdBy?.username ?? "—",
       sorter: (a, b) =>
         (a.createdBy?.username ?? "").localeCompare(
           b.createdBy?.username ?? "",
@@ -229,11 +229,8 @@ export const Snapshots: React.FC = () => {
       title: "Created At",
       dataIndex: "createdWhen",
       key: "createdWhen",
-      render: (_, snapshot) => (
-        <>
-          {snapshot.createdWhen ? formatTimestamp(snapshot.createdWhen) : "-"}
-        </>
-      ),
+      render: (_, snapshot) =>
+        snapshot.createdWhen ? formatTimestamp(snapshot.createdWhen) : "-",
       sorter: (a, b) => (a.createdWhen ?? 0) - (b.createdWhen ?? 0),
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn(
@@ -244,7 +241,7 @@ export const Snapshots: React.FC = () => {
       title: "Modified By",
       dataIndex: "modifiedBy",
       key: "modifiedBy",
-      render: (_, snapshot) => <>{snapshot.modifiedBy?.username ?? "—"}</>,
+      render: (_, snapshot) => snapshot.modifiedBy?.username ?? "—",
       sorter: (a, b) =>
         (a.modifiedBy?.username ?? "").localeCompare(
           b.modifiedBy?.username ?? "",
@@ -258,11 +255,8 @@ export const Snapshots: React.FC = () => {
       title: "Modified At",
       dataIndex: "modifiedWhen",
       key: "modifiedWhen",
-      render: (_, snapshot) => (
-        <>
-          {snapshot.modifiedWhen ? formatTimestamp(snapshot.modifiedWhen) : "-"}
-        </>
-      ),
+      render: (_, snapshot) =>
+        snapshot.modifiedWhen ? formatTimestamp(snapshot.modifiedWhen) : "-",
       sorter: (a, b) => (a.modifiedWhen ?? 0) - (b.modifiedWhen ?? 0),
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn(
@@ -329,8 +323,34 @@ export const Snapshots: React.FC = () => {
     onChange: onSelectChange,
   };
 
+  useRegisterChainHeaderActions(
+    <ChainHeaderToolbar
+      buttons={[
+        {
+          title: "Create snapshot",
+          type: "primary",
+          iconName: "plus",
+          onClick: onCreateBtnClick,
+        },
+        {
+          title: "Delete selected snapshots",
+          iconName: "delete",
+          onClick: onDeleteBtnClick,
+          disabled: selectedRowKeys.length === 0,
+        },
+        {
+          title: "Compare selected snapshots",
+          iconNode: <>⇄</>,
+          onClick: onCompareBtnClick,
+          disabled: selectedRowKeys.length !== 2,
+        },
+      ]}
+    />,
+    [selectedRowKeys.length],
+  );
+
   return (
-    <>
+    <TablePageLayout>
       <Table
         size="small"
         columns={columns}
@@ -340,26 +360,9 @@ export const Snapshots: React.FC = () => {
         loading={isLoading}
         rowKey="id"
         className="flex-table"
-        style={{ height: "100%" }}
+        style={{ flex: 1, minHeight: 0 }}
         scroll={{ y: "" }}
       />
-      <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
-        <FloatButton
-          tooltip={{ title: "Compare selected snapshots", placement: "left" }}
-          icon={<>⇄</>}
-          onClick={onCompareBtnClick}
-        />
-        <FloatButton
-          tooltip={{ title: "Delete selected snapshots", placement: "left" }}
-          icon={<OverridableIcon name="delete" />}
-          onClick={onDeleteBtnClick}
-        />
-        <FloatButton
-          tooltip={{ title: "Create snapshot", placement: "left" }}
-          icon={<OverridableIcon name="plus" />}
-          onClick={onCreateBtnClick}
-        />
-      </FloatButtonGroup>
-    </>
+    </TablePageLayout>
   );
 };

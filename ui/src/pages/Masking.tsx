@@ -1,6 +1,4 @@
-import { FloatButton, Table } from "antd";
-
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
+import { Table } from "antd";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import React, { useCallback, useEffect, useState } from "react";
 import { MaskedField } from "../api/apiTypes";
@@ -20,7 +18,10 @@ import {
   TimestampColumnFilterDropdown,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
-import { OverridableIcon } from "../icons/IconProvider.tsx";
+import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderToolbar } from "../components/ChainHeaderToolbar.tsx";
+import { TablePageLayout } from "../components/TablePageLayout.tsx";
+import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 
 export const Masking: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -87,12 +88,9 @@ export const Masking: React.FC = () => {
     }
     setIsMaskedFieldsLoading(true);
     try {
-      const ids = selectedRowKeys.map((key) => key.toString());
+      const ids = toStringIds(selectedRowKeys);
       await api.deleteMaskedFields(chainId, ids);
-      setMaskedFields(
-        maskedFields?.filter((field) => !ids.some((id) => field.id === id)) ??
-          [],
-      );
+      setMaskedFields(filterOutByIds(maskedFields, ids));
     } catch (error) {
       notificationService.requestFailed(
         "Failed to delete masked fields",
@@ -201,8 +199,28 @@ export const Masking: React.FC = () => {
     onChange: onSelectChange,
   };
 
+  useRegisterChainHeaderActions(
+    <ChainHeaderToolbar
+      buttons={[
+        {
+          title: "Delete selected masked fields",
+          iconName: "delete",
+          onClick: () => void onDeleteBtnClick(),
+          disabled: selectedRowKeys.length === 0,
+        },
+        {
+          title: "Add new masked field",
+          type: "primary",
+          iconName: "plus",
+          onClick: () => void onCreateBtnClick(),
+        },
+      ]}
+    />,
+    [selectedRowKeys.length],
+  );
+
   return (
-    <>
+    <TablePageLayout>
       <Table
         size="small"
         columns={columns}
@@ -212,24 +230,9 @@ export const Masking: React.FC = () => {
         loading={isMaskedFieldsLoading}
         rowKey="id"
         className="flex-table"
-        style={{ height: "100%" }}
+        style={{ flex: 1, minHeight: 0 }}
         scroll={{ y: "" }}
       />
-      <FloatButtonGroup trigger="hover" icon={<OverridableIcon name="more" />}>
-        <FloatButton
-          tooltip={{
-            title: "Delete selected masked fields",
-            placement: "left",
-          }}
-          icon={<OverridableIcon name="delete" />}
-          onClick={() => void onDeleteBtnClick()}
-        />
-        <FloatButton
-          tooltip={{ title: "Add new masked field", placement: "left" }}
-          icon={<OverridableIcon name="plus" />}
-          onClick={() => void onCreateBtnClick()}
-        />
-      </FloatButtonGroup>
-    </>
+    </TablePageLayout>
   );
 };

@@ -52,13 +52,26 @@ const actionOptions = [
   { value: "mapper-2", label: "Mapper" },
 ];
 
-const changeActionType = (handler: ResponseHandler, type: string): ResponseHandler => {
-  const base = { code: handler.code, id: handler.id, label: handler.label, wildcard: handler.wildcard, type };
+const changeActionType = (
+  handler: ResponseHandler,
+  type: string,
+): ResponseHandler => {
+  const base = {
+    code: handler.code,
+    id: handler.id,
+    label: handler.label,
+    wildcard: handler.wildcard,
+    type,
+  };
   switch (type) {
     case "script":
       return { ...base, script: handler.script };
     case "mapper-2":
-      return { ...base, mappingDescription: handler.mappingDescription, throwException: handler.throwException };
+      return {
+        ...base,
+        mappingDescription: handler.mappingDescription,
+        throwException: handler.throwException,
+      };
     default:
       return base;
   }
@@ -301,9 +314,7 @@ const CustomArrayField: FC<
                   marginBottom: 6,
                   display: "flex",
                   justifyContent: "space-between",
-                  background: active
-                    ? themeColors.activeBackground
-                    : undefined,
+                  background: active ? themeColors.activeBackground : undefined,
                 }}
               >
                 <span>{item.label}</span>

@@ -1,5 +1,11 @@
-import React, { UIEvent, useCallback, useEffect, useState } from "react";
-import { Button, Flex, FloatButton, message, Modal, Table } from "antd";
+import React, {
+  UIEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { Button, Flex, message, Table } from "antd";
 import { useNavigate, useParams } from "react-router";
 import { TableProps } from "antd/lib/table";
 import {
@@ -18,7 +24,6 @@ import {
   formatSnakeCased,
   formatUTCSessionDate,
 } from "../misc/format-utils.ts";
-import FloatButtonGroup from "antd/lib/float-button/FloatButtonGroup";
 import {
   FilterDropdownProps,
   TableRowSelection,
@@ -45,6 +50,13 @@ import {
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { parseJson } from "../misc/json-helper.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
+import {
+  useChainHeaderActions,
+  useRegisterChainHeaderActions,
+} from "./ChainHeaderActionsContext.tsx";
+import { HeaderIconActionButton } from "../components/HeaderIconActionButton.tsx";
+import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
+import { confirmAndRun } from "../misc/confirm-utils.ts";
 
 type SessionTableItem = Session & {
   children?: SessionTableItem[];
@@ -110,6 +122,28 @@ function compareTimestamps(s1: string, s2: string): number {
   return Date.parse(s2) - Date.parse(s1);
 }
 
+async function retrySessions(
+  selectedSessions: Session[],
+  notificationService: ReturnType<typeof useNotificationService>,
+) {
+  const promises = selectedSessions.map(async (session) => {
+    try {
+      await api.retrySessionFromCheckpoint(session.chainId, session.id);
+      notificationService.info(
+        "Session retried",
+        `Session ${session.id} was retried successfully`,
+      );
+    } catch (error) {
+      notificationService.requestFailed(
+        `Failed to retry session ${session.id}`,
+        error,
+      );
+    }
+  });
+
+  await Promise.all(promises);
+}
+
 export const Sessions: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
   const { showModal } = useModalsContext();
@@ -132,6 +166,11 @@ export const Sessions: React.FC = () => {
   );
   const [messageApi, contextHolder] = message.useMessage();
   const notificationService = useNotificationService();
+  const sessionsRef = useRef<Session[]>([]);
+
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
   const updateTableData = useCallback(() => {
     setIsLoading(true);
@@ -249,7 +288,7 @@ export const Sessions: React.FC = () => {
         value: tableFilters.executionStatus.join(","),
       });
     }
-    setFilters({ ...filters, filterRequestList });
+    setFilters((prevFilters) => ({ ...prevFilters, filterRequestList }));
   };
 
   const fetchSessions = useCallback(
@@ -306,7 +345,7 @@ export const Sessions: React.FC = () => {
           isCorrelationItem(item) ? (
             <span style={{ fontWeight: 600 }}>{item.id}</span>
           ) : (
-            <Flex gap={8}>
+            <Flex gap={4}>
               <a
                 onClick={() =>
                   void navigate(`/chains/${item.chainId}/sessions/${item.id}`)
@@ -428,25 +467,22 @@ export const Sessions: React.FC = () => {
 
   const onDeleteBtnClick = () => {
     if (selectedRowKeys.length === 0) return;
-    Modal.confirm({
+    confirmAndRun({
       title: "Delete Sessions",
       content: `Are you sure you want to delete ${selectedRowKeys.length} session(s)?`,
-      onOk: async () => deleteSelectedSessions(),
+      onOk: deleteSelectedSessions,
     });
   };
 
   const deleteSelectedSessions = async () => {
     try {
-      const ids = selectedRowKeys.map((key) => key.toString());
+      const ids = toStringIds(selectedRowKeys);
       if (isAllSessionsSelected()) {
         await api.deleteSessionsByChainId(chainId);
         setSessions([]);
       } else {
         await api.deleteSessions(ids);
-        setSessions(
-          sessions?.filter((session) => !ids.some((id) => session.id === id)) ??
-            [],
-        );
+        setSessions((prevSessions) => filterOutByIds(prevSessions, ids));
       }
     } catch (error) {
       notificationService.requestFailed("Failed to delete sessions", error);
@@ -454,13 +490,13 @@ export const Sessions: React.FC = () => {
   };
 
   const isAllSessionsSelected = (): boolean => {
-    return selectedRowKeys.length === sessions.length;
+    return selectedRowKeys.length === sessionsRef.current.length;
   };
 
   const onExportBtnClick = async () => {
     if (selectedRowKeys.length === 0) return;
     try {
-      const ids = selectedRowKeys.map((key) => key.toString());
+      const ids = toStringIds(selectedRowKeys);
       const file = await api.exportSessions(ids);
       downloadFile(file);
     } catch (error) {
@@ -473,7 +509,10 @@ export const Sessions: React.FC = () => {
       component: (
         <ImportSessions
           onSuccess={(importedSessions) =>
-            setSessions([...importedSessions, ...sessions])
+            setSessions((prevSessions) => [
+              ...importedSessions,
+              ...prevSessions,
+            ])
           }
         />
       ),
@@ -481,26 +520,54 @@ export const Sessions: React.FC = () => {
   };
 
   const onRetryBtnClick = async () => {
-    const promises = selectedRowKeys
-      .map((key) => key.toString())
-      .map((id) => sessions.find((session) => session.id === id))
-      .filter((session) => !!session)
-      .map(async (session) => {
-        try {
-          await api.retrySessionFromCheckpoint(session.chainId, session.id);
-          notificationService.info(
-            "Session retried",
-            `Session ${session.id} was retried successfully`,
-          );
-        } catch (error) {
-          notificationService.requestFailed(
-            `Failed to retry session ${session.id}`,
-            error,
-          );
-        }
-      });
-    await Promise.all(promises);
+    const selectedIds = toStringIds(selectedRowKeys);
+    const selectedSessions = sessionsRef.current.filter((session) =>
+      selectedIds.includes(session.id),
+    );
+    await retrySessions(selectedSessions, notificationService);
   };
+
+  const { setActions } = useChainHeaderActions() ?? {};
+
+  const toolbar = (
+    <Flex vertical={false} gap={4} align="center">
+      <Search
+        placeholder="Full text search"
+        allowClear
+        onSearch={(value) =>
+          setFilters((prevFilters) => ({ ...prevFilters, searchString: value }))
+        }
+        style={setActions ? { minWidth: 200 } : { flex: 1 }}
+      />
+      <HeaderIconActionButton
+        title="Delete selected sessions"
+        iconName="delete"
+        onClick={onDeleteBtnClick}
+      />
+      <HeaderIconActionButton
+        title="Export selected sessions"
+        iconName="cloudDownload"
+        onClick={() => void onExportBtnClick()}
+      />
+      {chainId ? null : (
+        <HeaderIconActionButton
+          title="Import sessions"
+          iconName="cloudUpload"
+          onClick={onImportBtnClick}
+        />
+      )}
+      <HeaderIconActionButton
+        title="Retry selected sessions"
+        iconName="redo"
+        onClick={() => void onRetryBtnClick()}
+      />
+    </Flex>
+  );
+
+  useRegisterChainHeaderActions(setActions ? toolbar : null, [
+    selectedRowKeys.length,
+    chainId,
+  ]);
 
   const rowSelection: TableRowSelection<SessionTableItem> = {
     type: "checkbox",
@@ -525,11 +592,7 @@ export const Sessions: React.FC = () => {
     <>
       {contextHolder}
       <Flex vertical gap={16} style={{ height: "100%" }}>
-        <Search
-          placeholder="Full text search"
-          allowClear
-          onSearch={(value) => setFilters({ ...filters, searchString: value })}
-        />
+        {setActions ? null : toolbar}
         <Table<SessionTableItem>
           size="small"
           className="flex-table"
@@ -544,33 +607,6 @@ export const Sessions: React.FC = () => {
           onScroll={(event) => void onScroll(event)}
           onChange={(_, tableFilters) => setTableFilters(tableFilters)}
         />
-        <FloatButtonGroup
-          trigger="hover"
-          icon={<OverridableIcon name="more" />}
-        >
-          <FloatButton
-            tooltip={{ title: "Retry selected sessions", placement: "left" }}
-            icon={<OverridableIcon name="redo" />}
-            onClick={() => void onRetryBtnClick()}
-          />
-          {chainId ? null : (
-            <FloatButton
-              tooltip={{ title: "Import sessions", placement: "left" }}
-              icon={<OverridableIcon name="cloudUpload" />}
-              onClick={onImportBtnClick}
-            />
-          )}
-          <FloatButton
-            tooltip={{ title: "Export selected sessions", placement: "left" }}
-            icon={<OverridableIcon name="cloudDownload" />}
-            onClick={() => void onExportBtnClick()}
-          />
-          <FloatButton
-            tooltip={{ title: "Delete selected sessions", placement: "left" }}
-            icon={<OverridableIcon name="delete" />}
-            onClick={onDeleteBtnClick}
-          />
-        </FloatButtonGroup>
       </Flex>
     </>
   );

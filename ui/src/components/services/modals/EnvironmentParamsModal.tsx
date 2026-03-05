@@ -392,9 +392,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                   const lines = e.target.value.split("\n");
                   const obj: Record<string, string> = {};
                   lines.forEach((line) => {
-                    const match = line.match(
-                      /^([^=;]+)=([^;]*);?$/,
-                    );
+                    const match = line.match(/^([^=;]+)=([^;]*);?$/);
                     if (match) obj[match[1]] = match[2];
                   });
                   setPropertiesObj(obj);
