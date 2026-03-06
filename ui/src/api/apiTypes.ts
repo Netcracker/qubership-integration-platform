@@ -969,6 +969,7 @@ export type ChainDeployment = {
 };
 
 export type DetailedDesignTemplate = BaseEntity & {
+  builtIn: boolean;
   content?: string;
 };
 

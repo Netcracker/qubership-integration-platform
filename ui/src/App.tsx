@@ -54,6 +54,7 @@ import { LiveExchanges } from "./components/admin_tools/exchanges/LiveExchanges.
 import { ContextServiceParametersPage } from "./components/services/context/ContextServiceParametersPage.tsx";
 import DevTools from "./pages/DevTools.tsx";
 import { DiagnosticValidationPage } from "./components/dev_tools/DiagnosticValidationPage.tsx";
+import { DesignTemplates } from "./components/admin_tools/design-templates/DesignTemplates.tsx";
 
 const { Header } = Layout;
 
@@ -107,6 +108,7 @@ const router = createBrowserRouter(
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="access-control" element={<AccessControl />} />
           <Route path="exchanges" element={<LiveExchanges />} />
+          <Route path="detailed-design/templates" element={<DesignTemplates />} />
         </Route>
         <Route index path="/" element={<Navigate to="/chains" />} />
         <Route index path="/chains" element={<Chains />} />

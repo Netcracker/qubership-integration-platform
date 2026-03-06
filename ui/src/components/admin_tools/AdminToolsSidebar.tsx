@@ -45,11 +45,11 @@ const menuItems = [
     icon: <OverridableIcon name="accessControl" />,
     label: "Access Control",
   },
-  // {
-  //   key: "/admintools/design-templates",
-  //   icon: <OverridableIcon name="fileText" />,
-  //   label: "Design Templates",
-  // },
+  {
+    key: "/admintools/detailed-design/templates",
+    icon: <OverridableIcon name="fileText" />,
+    label: "Design Templates",
+  },
   {
     key: "/admintools/exchanges",
     icon: <OverridableIcon name="liveExchanges" />,
