@@ -21,6 +21,8 @@ import org.apache.camel.Exchange;
 import org.apache.camel.ExchangePropertyKey;
 import org.apache.camel.Message;
 import org.apache.camel.TypeConverter;
+import org.apache.camel.impl.DefaultCamelContext;
+import org.apache.camel.support.DefaultExchange;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -29,19 +31,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-
 public final class MockExchanges {
 
     private MockExchanges() {
     }
 
     public static Exchange basic() {
-        Exchange ex = mock(Exchange.class);
+        Exchange ex = mock(Exchange.class, withSettings().lenient());
 
-        ConcurrentMap<Object, Object> props = new ConcurrentHashMap<>();
+        ConcurrentMap<String, Object> props = new ConcurrentHashMap<>();
         AtomicReference<Throwable> exceptionRef = new AtomicReference<>();
 
-        doAnswer(inv -> {
+        lenient().doAnswer(inv -> {
             String key = inv.getArgument(0);
             Object val = inv.getArgument(1);
             if (val == null) {
@@ -52,7 +53,7 @@ public final class MockExchanges {
             return null;
         }).when(ex).setProperty(anyString(), any());
 
-        doAnswer(inv -> {
+        lenient().doAnswer(inv -> {
             ExchangePropertyKey key = inv.getArgument(0);
             Object val = inv.getArgument(1);
             String k = key.getName();
@@ -64,16 +65,18 @@ public final class MockExchanges {
             return null;
         }).when(ex).setProperty(any(ExchangePropertyKey.class), any());
 
-        when(ex.getProperty(anyString())).thenAnswer(inv -> props.get(inv.getArgument(0)));
+        lenient().when(ex.getProperties()).thenReturn(props);
 
-        when(ex.getProperty(anyString(), any(Class.class))).thenAnswer(inv -> {
+        lenient().when(ex.getProperty(anyString())).thenAnswer(inv -> props.get(inv.getArgument(0)));
+
+        lenient().when(ex.getProperty(anyString(), any(Class.class))).thenAnswer(inv -> {
             String key = inv.getArgument(0);
             Class<?> type = inv.getArgument(1);
             Object val = props.get(key);
             return val == null ? null : type.cast(val);
         });
 
-        when(ex.getProperty(anyString(), any(), any(Class.class))).thenAnswer(inv -> {
+        lenient().when(ex.getProperty(anyString(), any(), any(Class.class))).thenAnswer(inv -> {
             String key = inv.getArgument(0);
             Object def = inv.getArgument(1);
             Class<?> type = inv.getArgument(2);
@@ -81,14 +84,14 @@ public final class MockExchanges {
             return val == null ? def : type.cast(val);
         });
 
-        when(ex.getProperty(any(ExchangePropertyKey.class), any(Class.class))).thenAnswer(inv -> {
+        lenient().when(ex.getProperty(any(ExchangePropertyKey.class), any(Class.class))).thenAnswer(inv -> {
             ExchangePropertyKey key = inv.getArgument(0);
             Class<?> type = inv.getArgument(1);
             Object val = props.get(key.getName());
             return val == null ? null : type.cast(val);
         });
 
-        when(ex.getProperty(any(ExchangePropertyKey.class), any(), any(Class.class))).thenAnswer(inv -> {
+        lenient().when(ex.getProperty(any(ExchangePropertyKey.class), any(), any(Class.class))).thenAnswer(inv -> {
             ExchangePropertyKey key = inv.getArgument(0);
             Object def = inv.getArgument(1);
             Class<?> type = inv.getArgument(2);
@@ -96,32 +99,43 @@ public final class MockExchanges {
             return val == null ? def : type.cast(val);
         });
 
-        doAnswer(inv -> {
+        lenient().doAnswer(inv -> {
             exceptionRef.set(inv.getArgument(0));
             return null;
-        })
-                .when(ex).setException(any());
-        when(ex.getException()).thenAnswer(inv -> exceptionRef.get());
+        }).when(ex).setException(any());
+
+        lenient().when(ex.getException()).thenAnswer(inv -> exceptionRef.get());
 
         return ex;
     }
 
     public static Exchange withMessage() {
         Exchange ex = basic();
-        Message msg = mock(Message.class);
-        when(ex.getMessage()).thenReturn(msg);
-        when(ex.getIn()).thenReturn(msg);
-        when(msg.getExchange()).thenReturn(ex);
+        Message msg = mock(Message.class, withSettings().lenient());
+        lenient().when(ex.getMessage()).thenReturn(msg);
+        lenient().when(ex.getIn()).thenReturn(msg);
+        lenient().when(msg.getExchange()).thenReturn(ex);
         return ex;
     }
 
     public static Exchange withMessageAndConverter() {
         Exchange ex = withMessage();
-        CamelContext ctx = mock(CamelContext.class);
-        TypeConverter tc = mock(TypeConverter.class);
-        when(ex.getContext()).thenReturn(ctx);
-        when(ctx.getTypeConverter()).thenReturn(tc);
+        CamelContext ctx = mock(CamelContext.class, withSettings().lenient());
+        TypeConverter tc = mock(TypeConverter.class, withSettings().lenient());
+        lenient().when(ex.getContext()).thenReturn(ctx);
+        lenient().when(ctx.getTypeConverter()).thenReturn(tc);
         return ex;
+    }
+
+    public static Exchange withDefaultCamelContext() {
+        Exchange ex = basic();
+        CamelContext ctx = new DefaultCamelContext();
+        lenient().when(ex.getContext()).thenReturn(ctx);
+        return ex;
+    }
+
+    public static Exchange defaultExchange() {
+        return new DefaultExchange(new DefaultCamelContext());
     }
 
     public static TypeConverter getTypeConverter(Exchange ex) {
