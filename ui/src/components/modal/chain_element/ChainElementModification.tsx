@@ -216,6 +216,15 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
                 updatedProperties.integrationOperationProtocolType as string,
               );
           }
+          // For http-trigger, method is stored as httpMethodRestrict, not integrationOperationMethod
+          if (
+            node.data.elementType === "http-trigger" &&
+            "integrationOperationMethod" in updatedProperties
+          ) {
+            updatedProperties.httpMethodRestrict =
+              updatedProperties.integrationOperationMethod;
+            delete updatedProperties.integrationOperationMethod;
+          }
           setFormContext((prevContext) =>
             enrichPropertiesUtil(prevContext, updatedProperties),
           );
