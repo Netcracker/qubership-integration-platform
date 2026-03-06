@@ -125,7 +125,7 @@ definitions:
       systemType:
         title: Service type
         $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
-      integrationOperationMethod:
+      httpMethodRestrict:
         type: string
         title: Operation method
       integrationOperationPath:
@@ -138,6 +138,6 @@ definitions:
       - integrationSystemId
       - systemType
       - integrationOperationPath
-      - integrationOperationMethod
+      - httpMethodRestrict
 required:
   - type
