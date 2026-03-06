@@ -1,5 +1,6 @@
 /* eslint-disable react/prop-types */
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -10,6 +11,7 @@ import {
   DOCUMENTATION_ROUTE_BASE,
   isAbsoluteUrl,
   isSafeHref,
+  resolveDocLink,
 } from "../../services/documentation/documentationUrlUtils";
 import { useVSCodeTheme } from "../../hooks/useVSCodeTheme";
 import styles from "./DocumentationViewer.module.css";
@@ -42,6 +44,7 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
   pathNormalizers = [],
 }) => {
   const { isDark } = useVSCodeTheme();
+  const navigate = useNavigate();
   const effectiveAssetsBaseUrl = baseUrl || getDocumentationAssetsBaseUrl();
   const effectiveRouteBase = DOCUMENTATION_ROUTE_BASE;
   const docDir = (() => {
@@ -169,16 +172,20 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
               !hrefValue.startsWith("/") &&
               !isAbsoluteUrl(hrefValue);
             if (isRelativeDocLink) {
-              const cleaned = normalizePath(hrefValue)
-                .replace(/^docs\//, "")
-                .replace(/\.md$/, "");
-              const href = `${effectiveRouteBase}/${cleaned}`;
+              const normalizedHref = normalizePath(hrefValue).replace(
+                /^docs\//,
+                "",
+              );
+              const resolved = resolveDocLink(normalizedHref, docPath ?? "");
+              const href = `${effectiveRouteBase}/${resolved}`;
               return (
                 <a
                   {...props}
                   href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void navigate(href);
+                  }}
                 >
                   {props.children}
                 </a>

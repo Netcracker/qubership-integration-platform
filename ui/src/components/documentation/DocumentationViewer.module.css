@@ -1,3 +1,5 @@
+/* viewer and doc-viewer are both used depending on CSS module export */
+.viewer,
 .doc-viewer {
   display: flex;
   flex-direction: column;
@@ -10,32 +12,74 @@
   background: transparent;
 }
 
+.viewer table,
 .doc-viewer table {
   border-collapse: collapse;
   width: 100%;
   margin: 16px 0;
+  border: 1px solid
+    var(
+      --vscode-editorGroup-border,
+      var(--vscode-border, rgb(128 128 128 / 35%))
+    );
 }
 
+.viewer th,
+.viewer td,
 .doc-viewer th,
 .doc-viewer td {
-  border: 1px solid var(--vscode-editorWidget-border, #d9d9d9);
+  border: 1px solid
+    var(
+      --vscode-editorGroup-border,
+      var(--vscode-border, rgb(128 128 128 / 35%))
+    );
   padding: 8px 12px;
   text-align: left;
 }
 
+.viewer th,
 .doc-viewer th {
   font-weight: 600;
 }
 
+.viewer tr:hover,
 .doc-viewer tr:hover {
   background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
 }
 
+/* Highlight blockquotes (Notes) in documentation */
+.viewer blockquote,
+.doc-viewer blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-left: 4px solid
+    var(--vscode-textLink-foreground, var(--vscode-focusBorder, #1677ff));
+  background: rgb(22 119 255 / 8%);
+  background: color-mix(
+    in srgb,
+    var(--vscode-textLink-foreground, #1677ff) 8%,
+    transparent
+  );
+  border-radius: 0 4px 4px 0;
+}
+
+.viewer blockquote p,
 .doc-viewer blockquote p {
   margin: 4px 0;
 }
 
+.viewer blockquote p:first-child,
+.doc-viewer blockquote p:first-child {
+  margin-top: 0;
+}
+
+.viewer blockquote p:last-child,
+.doc-viewer blockquote p:last-child {
+  margin-bottom: 0;
+}
+
 /* Invert monochrome SVG icons in dark theme for better visibility */
+.viewer.dark img[src*="/img/"][src$=".svg"],
 .doc-viewer--dark img[src*="/img/"][src$=".svg"] {
   filter: invert(1) hue-rotate(180deg);
 }

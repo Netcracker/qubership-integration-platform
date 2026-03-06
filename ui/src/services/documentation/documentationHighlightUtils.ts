@@ -43,10 +43,9 @@ export function highlightSegments(
     return [{ text, isHit: false }];
   }
 
-  const regex = new RegExp(
-    `(${wordsToHighlight.map(escapeRegExp).join("|")})`,
-    "gi",
-  );
+  const MAX_HIGHLIGHT_WORDS = 50;
+  const limited = wordsToHighlight.slice(0, MAX_HIGHLIGHT_WORDS);
+  const regex = new RegExp(`(${limited.map(escapeRegExp).join("|")})`, "gi");
 
   const segments: HighlightSegment[] = [];
   let lastIndex = 0;

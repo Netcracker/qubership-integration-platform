@@ -31,7 +31,13 @@ jest.mock("../../src/services/documentation/documentationUrlUtils", () => ({
 }));
 
 jest.mock("../../src/components/documentation/DocumentationViewer", () => ({
-  DocumentationViewer: ({ content, docPath }: any) => (
+  DocumentationViewer: ({
+    content,
+    docPath,
+  }: {
+    content: string;
+    docPath?: string;
+  }) => (
     <div data-testid="doc-viewer" data-doc-path={docPath}>
       {content}
     </div>
@@ -47,7 +53,7 @@ jest.mock("../../src/components/documentation/DocumentationSearch", () => ({
 }));
 
 jest.mock("../../src/pages/PageWithSidebar", () => ({
-  PageWithSidebar: ({ children }: any) => (
+  PageWithSidebar: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="page-with-sidebar">{children}</div>
   ),
 }));
@@ -58,16 +64,28 @@ jest.mock("../../src/pages/DocumentationPage.module.css", () => ({
 }));
 
 jest.mock("antd", () => ({
-  Spin: ({ size }: any) => <div data-testid="spin" data-size={size} />,
-  Result: ({ title, subTitle }: any) => (
+  Spin: ({ size }: { size?: string }) => (
+    <div data-testid="spin" data-size={size} />
+  ),
+  Result: ({
+    title,
+    subTitle,
+  }: {
+    title?: React.ReactNode;
+    subTitle?: React.ReactNode;
+  }) => (
     <div data-testid="result">
       <span>{title}</span>
       <span>{subTitle}</span>
     </div>
   ),
-  Button: ({ children, onClick }: any) => (
-    <button onClick={onClick}>{children}</button>
-  ),
+  Button: ({
+    children,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+  }) => <button onClick={onClick}>{children}</button>,
 }));
 
 import { DocumentationPage } from "../../src/pages/DocumentationPage";
@@ -75,7 +93,7 @@ import { DocumentationPage } from "../../src/pages/DocumentationPage";
 describe("DocumentationPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (global as any).fetch = jest.fn();
+    global.fetch = jest.fn() as typeof fetch;
   });
 
   test("renders document content after successful fetch", async () => {

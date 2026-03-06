@@ -187,7 +187,7 @@ describe("ServicesListPage", () => {
 
     const searchInput = screen.getByPlaceholderText(
       "Search services...",
-    ) as HTMLInputElement;
+    );
     fireEvent.change(searchInput, { target: { value: "test query" } });
 
     expect(searchInput.value).toBe("test query");

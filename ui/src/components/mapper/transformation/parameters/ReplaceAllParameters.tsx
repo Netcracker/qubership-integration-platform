@@ -3,7 +3,7 @@ import { Form, Input } from "antd";
 
 function isRegex(value: string): boolean {
   try {
-    new RegExp(value);
+    new RegExp(value); // NOSONAR - syntax validation only; regex execution runs in backend
     return true;
   } catch {
     return false;

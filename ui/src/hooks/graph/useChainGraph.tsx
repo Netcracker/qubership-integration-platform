@@ -959,7 +959,7 @@ export const useChainGraph = (
           }
         });
 
-        const childrenElementIds = (container.children as Element[]).map(
+        const childrenElementIds = (container.children).map(
           (node) => node.id,
         );
         nodesWithoutChangedElements = (nodes as ChainGraphNode[]).filter(

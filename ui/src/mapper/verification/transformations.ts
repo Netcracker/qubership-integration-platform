@@ -49,7 +49,7 @@ export class RegexVerifier extends Verifier<string> {
 
   verify(entity: string): VerificationError[] {
     try {
-      new RegExp(entity);
+      new RegExp(entity); // NOSONAR - syntax validation only; regex execution in transformation engine
       return [];
     } catch (e) {
       return [{ message: e.message as string }];

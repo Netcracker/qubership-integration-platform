@@ -5,35 +5,59 @@
 // Mock lunr-init (must be before service import)
 jest.mock("../../../src/lunr-init", () => ({ lunr: {} }));
 
-// Create a minimal elasticlunr mock with real Index-like behavior
-const createMockIndex = () => {
-  const docs: Record<string, any> = {};
+interface MockDoc {
+  id?: number;
+  ref?: string;
+  title?: string;
+  body?: string;
+}
+
+interface MockIndex {
+  setRef: jest.Mock;
+  addField: (f: string) => void;
+  saveDocument: jest.Mock;
+  addDoc: (doc: MockDoc) => void;
+  search: jest.Mock;
+  documentStore: {
+    getDoc: (ref: string) => MockDoc | null;
+    docs: Record<string, MockDoc>;
+  };
+  toJSON: () => Record<string, unknown>;
+}
+
+const createMockIndex = (): MockIndex => {
+  const docs: Record<string, MockDoc> = {};
   const fields: string[] = [];
-  return {
+  const idx: MockIndex = {
     setRef: jest.fn(),
     addField: (f: string) => fields.push(f),
     saveDocument: jest.fn(),
-    addDoc: (doc: any) => {
+    addDoc: (doc: MockDoc) => {
       docs[String(doc.id ?? doc.ref)] = doc;
     },
     search: jest.fn(() => []),
     documentStore: {
-      getDoc: (ref: string) => docs[ref] || null,
+      getDoc: (ref: string) => docs[ref] ?? null,
       docs,
     },
     toJSON: () => ({}),
   };
+  return idx;
 };
 
-const mockElasticlunr: any = Object.assign(
-  (setup?: (this: any) => void) => {
+interface IndexDump {
+  _docs?: Record<string, MockDoc>;
+}
+
+const mockElasticlunr = Object.assign(
+  (setup?: (this: MockIndex) => void) => {
     const idx = createMockIndex();
     if (setup) setup.call(idx);
     return idx;
   },
   {
     Index: {
-      load: (dump: any) => {
+      load: (dump: IndexDump) => {
         const idx = createMockIndex();
         if (dump?._docs) {
           Object.entries(dump._docs).forEach(([k, v]) => {

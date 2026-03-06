@@ -121,8 +121,8 @@ export class DocumentationService {
       }
     }
 
-    const data = await response.json();
-    return data as T;
+    const data = (await response.json()) as T;
+    return data;
   }
 
   public loadPaths(): Promise<string[]> {
@@ -424,6 +424,7 @@ export class DocumentationService {
 
   private mapPath(mappingRules: DocumentMappingRule[], path: string): string {
     const mappingRule = mappingRules.find((rule) =>
+      // NOSONAR - patterns from trusted config (element mapping, context-doc-mapping.json)
       new RegExp(rule.pattern).test(path),
     );
     if (mappingRule) {
@@ -439,13 +440,19 @@ export class DocumentationService {
 
   public async mapElementToDoc(elementType: string): Promise<string | null> {
     const rules = await this.loadElementMapping();
-    const rule = rules.find((r) => new RegExp(r.pattern).test(elementType));
+    const rule = rules.find((r) =>
+      // NOSONAR - patterns from buildElementMappingRules (escapeRegExp)
+      new RegExp(r.pattern).test(elementType),
+    );
     return rule?.doc || null;
   }
 
   public async mapContextToDoc(path: string): Promise<string | null> {
     const rules = await this.loadContextMapping();
-    const rule = rules.find((r) => new RegExp(r.pattern).test(path));
+    const rule = rules.find((r) =>
+      // NOSONAR - patterns from trusted config (context-doc-mapping.json)
+      new RegExp(r.pattern).test(path),
+    );
     return rule?.doc || null;
   }
 
