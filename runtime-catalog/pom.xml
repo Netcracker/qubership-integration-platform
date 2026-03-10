@@ -34,7 +34,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.7</version>
+        <version>3.4.10</version>
     </parent>
 
     <properties>
@@ -78,12 +78,15 @@
         <woden-core.version>1.0M10</woden-core.version>
         <soa-model-core.version>1.6.4</soa-model-core.version>
         <commons-validator.version>1.7</commons-validator.version>
+        <plexus-utils.version>3.0.24</plexus-utils.version>
+        <commons-beanutils.version>1.11.0</commons-beanutils.version>
+        <jose4j.version>0.9.6</jose4j.version>
 
         <jakarta.validation-api.version>3.1.0-M1</jakarta.validation-api.version>
         <jakarta.annotation-api.version>3.0.0-M1</jakarta.annotation-api.version>
         <jakarta.mail-api.version>2.1.2</jakarta.mail-api.version>
 
-        <grpc.version>1.53.0</grpc.version>
+        <grpc.version>1.54.2</grpc.version>
         <protobuf-java.version>3.25.5</protobuf-java.version>
 
         <!-- Newest versions requires commons-io 2.15! -->
@@ -295,6 +298,21 @@
                 <groupId>commons-validator</groupId>
                 <artifactId>commons-validator</artifactId>
                 <version>${commons-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.plexus</groupId>
+                <artifactId>plexus-utils</artifactId>
+                <version>${plexus-utils.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-beanutils</groupId>
+                <artifactId>commons-beanutils</artifactId>
+                <version>${commons-beanutils.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bitbucket.b_c</groupId>
+                <artifactId>jose4j</artifactId>
+                <version>${jose4j.version}</version>
             </dependency>
 
             <!-- Apache POI dependencies -->
