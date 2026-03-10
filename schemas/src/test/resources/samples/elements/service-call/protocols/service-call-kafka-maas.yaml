@@ -1,0 +1,25 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+id: "c2c8ffe1-22f4-44cd-9105-8a4542299896"
+name: "Service Call kafka-maas"
+type: "service-call"
+properties:
+  after: []
+  afterValidation: []
+  errorThrowing: true
+  handleValidationAction: "default"
+  integrationGqlQueryHeader: "CamelGraphQLQuery"
+  integrationGqlVariablesHeader: "CamelGraphQLVariables"
+  integrationOperationAsyncProperties:
+    maas.classifier.name: "cls"
+  integrationOperationId: "17deaac7-0ba7-4d6a-9be9-a31a8f70807b-async-kafka-1.0.0-publishUserSignedUp"
+  integrationOperationMethod: "publish"
+  integrationOperationPath: "user.signedup"
+  integrationOperationProtocolType: "kafka"
+  integrationOperationSkipEmptyQueryParameters: false
+  integrationSpecificationGroupId: "17deaac7-0ba7-4d6a-9be9-a31a8f70807b-async-kafka"
+  integrationSpecificationId: "17deaac7-0ba7-4d6a-9be9-a31a8f70807b-async-kafka-1.0.0"
+  integrationSystemId: "17deaac7-0ba7-4d6a-9be9-a31a8f70807b"
+  propagateContext: true
+  retryCount: 0
+  retryDelay: 5000
+  systemType: "INTERNAL"

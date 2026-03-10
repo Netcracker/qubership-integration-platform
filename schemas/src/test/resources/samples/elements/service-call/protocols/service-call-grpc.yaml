@@ -1,0 +1,26 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+id: "ccd77ae1-9650-4e2b-8278-bd63706bad01"
+name: "Service Call GRPC"
+type: "service-call"
+properties:
+  after: []
+  afterValidation: []
+  errorThrowing: true
+  grpcProperties: {}
+  handleValidationAction: "default"
+  integrationGqlQueryHeader: "CamelGraphQLQuery"
+  integrationGqlVariablesHeader: "CamelGraphQLVariables"
+  integrationOperationAsyncProperties: {}
+  integrationOperationId: "c1b29676-6552-4c89-b002-8185cefcfc4b-my_service-1.0.0-MyService.SayHello"
+  integrationOperationMethod: "SayHello"
+  integrationOperationPath: "MyService.MyService"
+  integrationOperationProtocolType: "grpc"
+  integrationOperationSkipEmptyQueryParameters: false
+  integrationSpecificationGroupId: "c1b29676-6552-4c89-b002-8185cefcfc4b-my_service"
+  integrationSpecificationId: "c1b29676-6552-4c89-b002-8185cefcfc4b-my_service-1.0.0"
+  integrationSystemId: "c1b29676-6552-4c89-b002-8185cefcfc4b"
+  propagateContext: true
+  retryCount: 0
+  retryDelay: 5000
+  synchronousGrpcCall: false
+  systemType: "INTERNAL"

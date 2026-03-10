@@ -1,0 +1,25 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+id: "a6b13613-9378-4458-821c-403faaf5e9c6"
+name: "Service Call Graphql"
+type: "service-call"
+properties:
+  after: []
+  afterValidation: []
+  errorThrowing: true
+  handleValidationAction: "default"
+  integrationGqlQuery: "query bookDetails {\r\n  bookById(id: \"book-1\") {\r\n\
+      \    id\r\n    name\r\n    pageCount\r\n    author {\r\n      firstName\r\n\
+      \      lastName\r\n    }\r\n  }\r\n}"
+  integrationGqlQueryHeader: "CamelGraphQLQuery"
+  integrationGqlVariablesHeader: "CamelGraphQLVariables"
+  integrationOperationAsyncProperties: {}
+  integrationOperationPathParameters: {}
+  integrationOperationProtocolType: "graphql"
+  integrationOperationSkipEmptyQueryParameters: false
+  integrationSpecificationGroupId: "3b0c160c-8fa8-4023-b243-4b49a03c4b17-sample-schema"
+  integrationSpecificationId: "3b0c160c-8fa8-4023-b243-4b49a03c4b17-sample-schema-1.0.0"
+  integrationSystemId: "3b0c160c-8fa8-4023-b243-4b49a03c4b17"
+  propagateContext: true
+  retryCount: 0
+  retryDelay: 5000
+  systemType: "INTERNAL"

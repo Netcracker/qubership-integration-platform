@@ -1,0 +1,26 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+id: "60e9ce86-0526-47ed-87ec-89feab485029"
+name: "Service Call amqp-manual"
+type: "service-call"
+properties:
+  after: []
+  afterValidation: []
+  errorThrowing: true
+  handleValidationAction: "default"
+  integrationGqlQueryHeader: "CamelGraphQLQuery"
+  integrationGqlVariablesHeader: "CamelGraphQLVariables"
+  integrationOperationAsyncProperties:
+    queues: "sendStatusUpdate"
+    maas.classifier.name: "public"
+  integrationOperationId: "a7ca67da-32f6-4d56-a41a-7db89e6c43b9-asyncapi-2.0.0-rabbit-1.0.0-stateChangePFS"
+  integrationOperationMethod: "publish"
+  integrationOperationPath: "status-exchange"
+  integrationOperationProtocolType: "amqp"
+  integrationOperationSkipEmptyQueryParameters: false
+  integrationSpecificationGroupId: "a7ca67da-32f6-4d56-a41a-7db89e6c43b9-asyncapi-2.0.0-rabbit"
+  integrationSpecificationId: "a7ca67da-32f6-4d56-a41a-7db89e6c43b9-asyncapi-2.0.0-rabbit-1.0.0"
+  integrationSystemId: "a7ca67da-32f6-4d56-a41a-7db89e6c43b9"
+  propagateContext: true
+  retryCount: 0
+  retryDelay: 5000
+  systemType: "INTERNAL"

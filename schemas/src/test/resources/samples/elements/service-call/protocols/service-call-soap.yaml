@@ -1,0 +1,25 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+id: "731147f0-ec65-4d57-9ae1-f3614e6b679e"
+name: "Service Call SOAP"
+type: "service-call"
+properties:
+  after: []
+  afterValidation: []
+  bodyFormData: []
+  errorThrowing: true
+  handleValidationAction: "default"
+  integrationGqlQueryHeader: "CamelGraphQLQuery"
+  integrationGqlVariablesHeader: "CamelGraphQLVariables"
+  integrationOperationAsyncProperties: {}
+  integrationOperationId: "c242cd6a-7513-4060-90c3-a882848621ec-SampleSoap-1.1-1.0.0-ListOfContinentsByName"
+  integrationOperationMethod: "POST"
+  integrationOperationPath: ""
+  integrationOperationProtocolType: "http"
+  integrationOperationSkipEmptyQueryParameters: false
+  integrationSpecificationGroupId: "c242cd6a-7513-4060-90c3-a882848621ec-SampleSoap-1.1"
+  integrationSpecificationId: "c242cd6a-7513-4060-90c3-a882848621ec-SampleSoap-1.1-1.0.0"
+  integrationSystemId: "c242cd6a-7513-4060-90c3-a882848621ec"
+  propagateContext: true
+  retryCount: 0
+  retryDelay: 5000
+  systemType: "INTERNAL"

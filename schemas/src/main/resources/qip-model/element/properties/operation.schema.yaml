@@ -7,45 +7,42 @@ oneOf:
   - type: object
     properties:
       integrationOperationProtocolType:
-        const: kafka
+        enum:
+          - kafka
+          - amqp
+      integrationOperationId:
+        type: string
+        title: Operation ID
       integrationOperationMethod:
-        title: Operation method
+        title: AsyncAPI Operation
         $ref: "#/definitions/AsyncMethod"
+      integrationOperationPath:
+        type: string
+        title: AsyncAPI Channel
       integrationOperationAsyncProperties:
         type: object
         title: Operation parameters
         additionalProperties: true
     required:
       - integrationOperationProtocolType
+      - integrationOperationId
       - integrationOperationMethod
+#      - integrationOperationPath
   - type: object
     properties:
       integrationOperationProtocolType:
-        const: amqp
+        enum:
+          - http
+          - soap
+      integrationOperationId:
+        type: string
+        title: Operation ID
       integrationOperationMethod:
-        title: Operation method
-        $ref: "#/definitions/AsyncMethod"
-      integrationOperationAsyncProperties:
-        type: object
-        title: Operation parameters
-        additionalProperties: true
-    required:
-      - integrationOperationProtocolType
-      - integrationOperationMethod
-  - type: object
-    oneOf:
-      - type: object
-        properties:
-          integrationOperationProtocolType:
-            const: http
-      - type: object
-        properties:
-          integrationOperationProtocolType:
-            const: soap
-    properties:
-      integrationOperationMethod:
-        title: Operation method
+        title: HTTP Method
         $ref: "#/definitions/HttpMethod"
+      integrationOperationPath:
+        type: string
+        title: Path
       integrationOperationPathParameters:
         type: object
         patternProperties:
@@ -84,7 +81,27 @@ oneOf:
             - value
     required:
       - integrationOperationProtocolType
+      - integrationOperationId
       - integrationOperationMethod
+      - integrationOperationPath
+  - type: object
+    properties:
+      integrationOperationProtocolType:
+        const: grpc
+      integrationOperationId:
+        type: string
+        title: Operation ID
+      integrationOperationMethod:
+        title: gRPC method
+        type: string
+      synchronousGrpcCall:
+        type: boolean
+        default: false
+    required:
+      - integrationOperationProtocolType
+      - integrationOperationId
+      - integrationOperationMethod
+      - synchronousGrpcCall
   - type: object
     properties:
       integrationOperationProtocolType:
@@ -115,48 +132,36 @@ oneOf:
       - integrationOperationProtocolType
       - integrationGqlQuery
 properties:
-  integrationOperationId:
+  integrationSystemId:
     type: string
-    title: Operation ID
+    title: Service ID
   integrationSpecificationGroupId:
     type: string
     title: Specification group ID
   integrationSpecificationId:
     type: string
     title: Specification ID
-  integrationSystemId:
-    type: string
-    title: Service ID
   systemType:
     title: Service type
     $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
   integrationOperationProtocolType:
     title: Operation protocol type
     $ref: "#/definitions/Protocol"
-  integrationOperationMethod:
-    title: Operation method
-    type: string
-  integrationOperationPath:
-    type: string
-    title: Operation name
 required:
-  - integrationOperationId
-  - integrationSpecificationGroupId
-  - integrationSpecificationId
-  - integrationSystemId
   - systemType
   - integrationOperationProtocolType
-  - integrationOperationPath
-  - integrationOperationMethod
+  - integrationSystemId
+  - integrationSpecificationGroupId
+  - integrationSpecificationId
 definitions:
   Protocol:
     enum:
-      - http
       - kafka
       - amqp
-      - graphql
-      - grpc
+      - http
       - soap
+      - grpc
+      - graphql
   HttpMethod:
     enum:
       - POST
