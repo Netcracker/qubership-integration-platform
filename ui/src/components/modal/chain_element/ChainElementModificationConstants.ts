@@ -656,3 +656,57 @@ export function getTabForPath(
 
   return pathToTabMap[path];
 }
+
+/**
+ * Properties specific to each protocol. Used to clean up stale properties
+ * when switching between protocols in the service-call element.
+ */
+export const PROTOCOL_SPECIFIC_PROPERTIES: Record<string, string[]> = {
+  http: [
+    "integrationOperationPathParameters",
+    "integrationOperationQueryParameters",
+    "integrationAdditionalParameters",
+    "bodyMimeType",
+    "bodyFormData",
+    "integrationOperationSkipEmptyQueryParameters",
+    "afterValidation",
+  ],
+  soap: [
+    "integrationOperationPathParameters",
+    "integrationOperationQueryParameters",
+    "integrationAdditionalParameters",
+    "bodyMimeType",
+    "bodyFormData",
+    "integrationOperationSkipEmptyQueryParameters",
+  ],
+  kafka: ["integrationOperationAsyncProperties"],
+  amqp: ["integrationOperationAsyncProperties"],
+  grpc: ["synchronousGrpcCall"],
+  graphql: [
+    "integrationGqlQuery",
+    "integrationGqlOperationName",
+    "integrationGqlVariablesJSON",
+    "integrationGqlQueryHeader",
+    "integrationGqlVariablesHeader",
+  ],
+};
+
+/**
+ * Returns property names that should be set to undefined when switching
+ * to the given protocol, excluding properties already present in `updates`.
+ */
+export function getStaleProtocolProperties(
+  newProtocol: string,
+  updates: Record<string, unknown>,
+): string[] {
+  const allowed = new Set(PROTOCOL_SPECIFIC_PROPERTIES[newProtocol] ?? []);
+  const stale: string[] = [];
+  for (const props of Object.values(PROTOCOL_SPECIFIC_PROPERTIES)) {
+    for (const prop of props) {
+      if (!allowed.has(prop) && !(prop in updates)) {
+        stale.push(prop);
+      }
+    }
+  }
+  return [...new Set(stale)];
+}

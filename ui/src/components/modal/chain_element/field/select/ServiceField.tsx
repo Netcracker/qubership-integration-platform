@@ -113,6 +113,9 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
         integrationGqlVariablesJSON: undefined,
         integrationGqlQueryHeader: undefined,
         integrationGqlVariablesHeader: undefined,
+        bodyMimeType: undefined,
+        bodyFormData: undefined,
+        synchronousGrpcCall: undefined,
       });
     },
     [registry, servicesMap],

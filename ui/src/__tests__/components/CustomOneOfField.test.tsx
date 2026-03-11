@@ -429,53 +429,134 @@ describe("CustomOneOfField — protocol-based matching", () => {
     ).toBe("kafka");
   });
 
-  it("resolves nested oneOf for HTTP protocols", () => {
-    const nestedSchema: RJSFSchema = {
+  it("matches option by enum (kafka/amqp variant)", () => {
+    const enumSchema: RJSFSchema = {
       type: "object",
       oneOf: [
         {
           type: "object",
           properties: {
-            sharedField: { type: "string" },
+            integrationOperationProtocolType: { enum: ["kafka", "amqp"] },
+            asyncProp: { type: "string" },
           },
-          oneOf: [
-            {
-              type: "object",
-              properties: {
-                integrationOperationProtocolType: { const: "http" },
-                httpOnly: { type: "string" },
-              },
-            },
-            {
-              type: "object",
-              properties: {
-                integrationOperationProtocolType: { const: "soap" },
-                soapOnly: { type: "string" },
-              },
-            },
-          ],
         },
         {
           type: "object",
           properties: {
-            integrationOperationProtocolType: { const: "amqp" },
+            integrationOperationProtocolType: { enum: ["http", "soap"] },
+            httpProp: { type: "string" },
+          },
+        },
+        {
+          type: "object",
+          properties: {
+            integrationOperationProtocolType: { const: "graphql" },
+            gqlProp: { type: "string" },
           },
         },
       ],
     };
 
     const props = makeProps({
-      schema: nestedSchema,
-      formContext: { integrationOperationProtocolType: "http" },
+      schema: enumSchema,
+      formContext: { integrationOperationProtocolType: "kafka" },
     });
     render(<CustomOneOfField {...props} />);
 
     const schemaFieldCall = MockSchemaField.mock.calls[0][0];
-    // Should merge parent and nested properties
-    expect(schemaFieldCall.schema.properties).toHaveProperty("sharedField");
-    expect(schemaFieldCall.schema.properties).toHaveProperty("httpOnly");
-    // Nested oneOf should be removed
-    expect(schemaFieldCall.schema.oneOf).toBeUndefined();
+    expect(schemaFieldCall.schema.properties).toHaveProperty("asyncProp");
+    expect(schemaFieldCall.schema.properties.integrationOperationProtocolType.enum).toEqual(["kafka", "amqp"]);
+  });
+
+  it("matches option by enum (http/soap variant)", () => {
+    const enumSchema: RJSFSchema = {
+      type: "object",
+      oneOf: [
+        {
+          type: "object",
+          properties: {
+            integrationOperationProtocolType: { enum: ["kafka", "amqp"] },
+            asyncProp: { type: "string" },
+          },
+        },
+        {
+          type: "object",
+          properties: {
+            integrationOperationProtocolType: { enum: ["http", "soap"] },
+            httpProp: { type: "string" },
+          },
+        },
+      ],
+    };
+
+    const props = makeProps({
+      schema: enumSchema,
+      formContext: { integrationOperationProtocolType: "soap" },
+    });
+    render(<CustomOneOfField {...props} />);
+
+    const schemaFieldCall = MockSchemaField.mock.calls[0][0];
+    expect(schemaFieldCall.schema.properties).toHaveProperty("httpProp");
+  });
+
+  it("matches const option when enum options also exist", () => {
+    const mixedSchema: RJSFSchema = {
+      type: "object",
+      oneOf: [
+        {
+          type: "object",
+          properties: {
+            integrationOperationProtocolType: { enum: ["kafka", "amqp"] },
+            asyncProp: { type: "string" },
+          },
+        },
+        {
+          type: "object",
+          properties: {
+            integrationOperationProtocolType: { const: "graphql" },
+            gqlProp: { type: "string" },
+          },
+        },
+      ],
+    };
+
+    const props = makeProps({
+      schema: mixedSchema,
+      formContext: { integrationOperationProtocolType: "graphql" },
+    });
+    render(<CustomOneOfField {...props} />);
+
+    const schemaFieldCall = MockSchemaField.mock.calls[0][0];
+    expect(schemaFieldCall.schema.properties).toHaveProperty("gqlProp");
+  });
+
+  it("falls back to option without const or enum when no protocol set", () => {
+    const schemaWithFallback: RJSFSchema = {
+      type: "object",
+      oneOf: [
+        {
+          type: "object",
+          properties: {
+            integrationOperationProtocolType: { enum: ["kafka", "amqp"] },
+          },
+        },
+        {
+          type: "object",
+          properties: {
+            fallbackField: { type: "string" },
+          },
+        },
+      ],
+    };
+
+    const props = makeProps({
+      schema: schemaWithFallback,
+      formContext: { integrationOperationProtocolType: undefined },
+    });
+    render(<CustomOneOfField {...props} />);
+
+    const schemaFieldCall = MockSchemaField.mock.calls[0][0];
+    expect(schemaFieldCall.schema.properties).toHaveProperty("fallbackField");
   });
 
   it("does not render original OneOfField when protocol matches", () => {

@@ -34,6 +34,7 @@ import {
   conditionalTabs,
   desiredTabOrder,
   getTabForPath,
+  getStaleProtocolProperties,
 } from "./ChainElementModificationConstants.ts";
 import { ChainGraphNode } from "../../graph/nodes/ChainGraphNodeTypes.ts";
 import MappingField from "./field/MappingField.tsx";
@@ -83,6 +84,7 @@ type TabField = {
   path: string[];
   schema: JSONSchema7;
 };
+
 
 function constructTitle(name: string, type?: string): React.ReactNode {
   return (
@@ -215,6 +217,16 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               normalizeProtocol(
                 updatedProperties.integrationOperationProtocolType as string,
               );
+
+            // Clean up properties that belong to other protocols
+            const newProtocol =
+              updatedProperties.integrationOperationProtocolType as string;
+            for (const prop of getStaleProtocolProperties(
+              newProtocol,
+              updatedProperties,
+            )) {
+              updatedProperties[prop] = undefined;
+            }
           }
           // For http-trigger, method is stored as httpMethodRestrict, not integrationOperationMethod
           if (
@@ -228,6 +240,24 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           setFormContext((prevContext) =>
             enrichPropertiesUtil(prevContext, updatedProperties),
           );
+
+          // Directly clean formData.properties for keys not tracked in FormContext
+          setFormData((prevFormData) => {
+            const props = {
+              ...(prevFormData.properties as Record<string, unknown>),
+            };
+            let changed = false;
+            for (const [key, value] of Object.entries(updatedProperties)) {
+              if (value === undefined && key in props) {
+                delete props[key];
+                changed = true;
+              }
+            }
+            return changed
+              ? { ...prevFormData, properties: props }
+              : prevFormData;
+          });
+
           setHasChanges(true);
         },
       );

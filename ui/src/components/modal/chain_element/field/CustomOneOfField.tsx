@@ -2,10 +2,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { FieldProps, RJSFSchema } from "@rjsf/utils";
 import { Select } from "antd";
 import { FormContext } from "../ChainElementModificationContext";
-import {
-  isHttpProtocol,
-  normalizeProtocol,
-} from "../../../../misc/protocol-utils";
+import { normalizeProtocol } from "../../../../misc/protocol-utils";
 import { getDefaultRegistry } from "@rjsf/core";
 
 const defaultRegistry = getDefaultRegistry();
@@ -16,13 +13,26 @@ interface OneOfOption {
   properties?: {
     integrationOperationProtocolType?: {
       const?: string;
+      enum?: string[];
     };
     [key: string]: unknown;
   };
   required?: string[];
-  oneOf?: OneOfOption[];
 
   [key: string]: unknown;
+}
+
+function protocolMatchesOption(
+  option: OneOfOption,
+  protocol: string,
+): boolean {
+  const protoDef = option?.properties?.integrationOperationProtocolType;
+  if (!protoDef) return false;
+  if (protoDef.const)
+    return normalizeProtocol(protoDef.const) === protocol;
+  if (Array.isArray(protoDef.enum))
+    return protoDef.enum.some((e) => normalizeProtocol(e) === protocol);
+  return false;
 }
 
 /**
@@ -161,53 +171,22 @@ const CustomOneOfField: React.FC<
     }
 
     const matchingIndex = oneOfOptions.findIndex((option: OneOfOption) => {
-      const protocolConst = normalizeProtocol(
-        option?.properties?.integrationOperationProtocolType?.const as string,
-      );
-
       if (protocolType) {
-        if (isHttpProtocol(protocolType)) {
-          return Array.isArray(option?.oneOf) || protocolConst === protocolType;
-        }
-        return protocolConst === protocolType;
+        return protocolMatchesOption(option, protocolType);
       }
-
-      return !protocolConst;
+      // No protocol known — match option without protocol constraint
+      const protoDef = option?.properties?.integrationOperationProtocolType;
+      return !protoDef?.const && !protoDef?.enum;
     });
 
     if (matchingIndex >= 0) {
       const matchedOption = oneOfOptions[matchingIndex];
-      let matchedSchema: Record<string, unknown> = { ...matchedOption };
       const SchemaField = fields.SchemaField;
-
-      if (Array.isArray(matchedOption.oneOf) && isHttpProtocol(protocolType)) {
-        const nestedOptions = matchedOption.oneOf;
-        const nestedIndex = nestedOptions.findIndex(
-          (opt: OneOfOption) =>
-            normalizeProtocol(
-              opt?.properties?.integrationOperationProtocolType
-                ?.const as string,
-            ) === protocolType,
-        );
-
-        if (nestedIndex >= 0) {
-          const nestedOption = nestedOptions[nestedIndex];
-          matchedSchema = {
-            ...matchedOption,
-            ...nestedOption,
-            properties: {
-              ...(matchedOption.properties || {}),
-              ...(nestedOption.properties || {}),
-            },
-          };
-          delete matchedSchema.oneOf;
-        }
-      }
 
       return (
         <SchemaField
           {...props}
-          schema={matchedSchema as RJSFSchema}
+          schema={matchedOption as RJSFSchema}
           uiSchema={uiSchema}
         />
       );
