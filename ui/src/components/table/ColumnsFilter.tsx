@@ -1,14 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { Button, Checkbox } from "antd";
 import { ReactSortable } from "react-sortablejs";
+import { parseJsonOrDefault } from "../../misc/json-helper";
 
-interface ColumnFilterProps {
+export interface ColumnFilterProps {
   allColumns: string[];
   defaultColumns?: string[];
   storageKey: string;
   onChange: (columnsOrder: string[], visibleColumns: string[]) => void;
   labelsByKey?: Record<string, string>;
 }
+
+export const getColumnsOrderKey = (storageKey: string): string => {
+  return `${storageKey}_columnsOrder`;
+};
+
+export const getColumnsVisibleKey = (storageKey: string): string => {
+  return `${storageKey}_columnsVisible`;
+};
 
 export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
   allColumns,
@@ -21,29 +30,29 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
     defaultColumns && defaultColumns.length > 0 ? defaultColumns : allColumns;
 
   const [columnsOrder, setColumnsOrder] = useState<string[]>(() => {
-    const stored = localStorage.getItem(`${storageKey}_columnsOrder`);
-    return stored ? (JSON.parse(stored) as string[]) : allColumns;
+    const stored = localStorage.getItem(getColumnsOrderKey(storageKey));
+    return stored ? (parseJsonOrDefault<string[]>(stored, [])) : allColumns;
   });
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
-    const stored = localStorage.getItem(`${storageKey}_columnsVisible`);
-    return stored ? (JSON.parse(stored) as string[]) : initialColumns;
+    const stored = localStorage.getItem(getColumnsVisibleKey(storageKey));
+    return stored ? (parseJsonOrDefault<string[]>(stored, [])) : initialColumns;
   });
   useEffect(() => {
     localStorage.setItem(
-      `${storageKey}_columnsOrder`,
+      getColumnsOrderKey(storageKey),
       JSON.stringify(columnsOrder),
     );
     localStorage.setItem(
-      `${storageKey}_columnsVisible`,
+      getColumnsVisibleKey(storageKey),
       JSON.stringify(visibleColumns),
     );
     onChange?.(columnsOrder, visibleColumns);
   }, [columnsOrder, onChange, storageKey, visibleColumns]);
 
   const handleReset = () => {
-    localStorage.removeItem(`${storageKey}_columnsOrder`);
-    localStorage.removeItem(`${storageKey}_columnsVisible`);
+    localStorage.removeItem(getColumnsOrderKey(storageKey));
+    localStorage.removeItem(getColumnsVisibleKey(storageKey));
     setColumnsOrder(allColumns);
     setVisibleColumns(initialColumns);
   };
@@ -89,7 +98,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
         animation={150}
         handle=".drag-handle"
       >
-        {allColumns.map((key) => (
+        {columnsOrder.map((key) => (
           <div
             key={key}
             style={{
@@ -120,6 +129,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
               ≡
             </span>
             <Checkbox
+              disabled={key === "name"}
               checked={visibleColumns.includes(key)}
               onChange={(e) => {
                 if (e.target.checked) {

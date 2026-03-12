@@ -51,6 +51,7 @@ import {
   DeployOptions,
 } from "../components/modal/DeployChains.tsx";
 import { toStringIds } from "../misc/selection-utils.ts";
+import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -134,14 +135,6 @@ const Chains = () => {
   const [loadedFolders, setLoadedFolders] = useState<Set<string>>(new Set());
   const [searchParams] = useSearchParams();
   const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([
-    "status",
-    "labels",
-    "createdBy",
-    "createdWhen",
-    "modifiedBy",
-    "modifiedWhen",
-  ]);
   const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
   const [searchString, setSearchString] = useState<string>("");
@@ -762,17 +755,6 @@ const Chains = () => {
     { label: "Delete", key: "deleteChain" },
   ];
 
-  const columnVisibilityMenuItems: MenuProps["items"] = [
-    { label: "ID", key: "id" },
-    { label: "Description", key: "description" },
-    { label: "Status", key: "status" },
-    { label: "Labels", key: "labels" },
-    { label: "Created At", key: "createdWhen" },
-    { label: "Created By", key: "createdBy" },
-    { label: "Modified At", key: "modifiedWhen" },
-    { label: "Modified By", key: "modifiedBy" },
-  ];
-
   const columns: TableProps<ChainTableItem>["columns"] = [
     {
       title: "Name",
@@ -805,19 +787,17 @@ const Chains = () => {
       title: "ID",
       key: "id",
       dataIndex: "id",
-      hidden: !selectedKeys.includes("id"),
+      hidden: true,
     },
     {
       title: "Description",
       key: "description",
       dataIndex: "description",
-      hidden: !selectedKeys.includes("description"),
       sorter: (a, b) => a.description.localeCompare(b.description),
     },
     {
       title: "Status",
       key: "status",
-      hidden: !selectedKeys.includes("status"),
       render: (_, item) => (
         <>
           {item.itemType === CatalogItemType.FOLDER ? null : (
@@ -830,7 +810,6 @@ const Chains = () => {
       title: "Labels",
       key: "labels",
       dataIndex: "labels",
-      hidden: !selectedKeys.includes("labels"),
       render: (_, item) =>
         item.itemType === CatalogItemType.CHAIN ? (
           <EntityLabels labels={(item as ChainItem).labels} />
@@ -840,7 +819,7 @@ const Chains = () => {
       title: "Created By",
       dataIndex: "createdBy",
       key: "createdBy",
-      hidden: !selectedKeys.includes("createdBy"),
+      hidden: true,
       render: (_, item) => <>{item.createdBy?.username}</>,
       sorter: (a, b) =>
         (a.createdBy?.username ?? "").localeCompare(
@@ -851,7 +830,7 @@ const Chains = () => {
       title: "Created At",
       dataIndex: "createdWhen",
       key: "createdWhen",
-      hidden: !selectedKeys.includes("createdWhen"),
+      hidden: true,
       render: (_, item) => (
         <>{item.createdWhen ? formatTimestamp(item.createdWhen) : "-"}</>
       ),
@@ -861,7 +840,7 @@ const Chains = () => {
       title: "Modified By",
       dataIndex: "modifiedBy",
       key: "modifiedBy",
-      hidden: !selectedKeys.includes("modifiedBy"),
+      hidden: true,
       render: (_, item) => <>{item.modifiedBy?.username ?? "-"}</>,
       sorter: (a, b) =>
         (a.modifiedBy?.username ?? "").localeCompare(
@@ -872,7 +851,7 @@ const Chains = () => {
       title: "Modified At",
       dataIndex: "modifiedWhen",
       key: "modifiedWhen",
-      hidden: !selectedKeys.includes("modifiedWhen"),
+      hidden: true,
       render: (_, item) => (
         <>{item.modifiedWhen ? formatTimestamp(item.modifiedWhen) : "-"}</>
       ),
@@ -907,6 +886,9 @@ const Chains = () => {
     },
   ];
 
+  const { orderedColumns, columnSettingsButton } =
+    useColumnSettingsBasedOnColumnsType<ChainTableItem>("chainsTable", columns);
+
   const rowSelection: TableRowSelection<ChainTableItem> = {
     type: "checkbox",
     selectedRowKeys,
@@ -938,20 +920,7 @@ const Chains = () => {
             style={{ width: 500, flex: "none" }}
           />
           {filterButton}
-          <Dropdown
-            menu={{
-              items: columnVisibilityMenuItems,
-              selectable: true,
-              multiple: true,
-              selectedKeys,
-              onSelect: ({ selectedKeys: newSelectedKeys }) =>
-                setSelectedKeys(newSelectedKeys),
-              onDeselect: ({ selectedKeys: newSelectedKeys }) =>
-                setSelectedKeys(newSelectedKeys),
-            }}
-          >
-            <Button icon={<OverridableIcon name="settings" />} />
-          </Dropdown>
+          {columnSettingsButton}
           <Tooltip title="Compare selected chains" placement="bottom">
             <Button icon={<>⇄</>} disabled />
           </Tooltip>
@@ -1018,7 +987,7 @@ const Chains = () => {
           className="flex-table"
           size="small"
           dataSource={tableItems}
-          columns={columns}
+          columns={orderedColumns}
           rowSelection={rowSelection}
           pagination={false}
           scroll={{ y: "" }}

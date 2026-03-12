@@ -1,11 +1,8 @@
 import {
   Button,
-  Dropdown,
   Flex,
-  MenuProps,
   Modal,
   Table,
-  TableProps,
   Tag,
   Tooltip,
   Typography,
@@ -20,6 +17,8 @@ import { formatTimestamp } from "../../../misc/format-utils";
 import { useModalsContext } from "../../../Modals";
 import { CreateDesignTemplateModal } from "./CreateDesignTemplateModal";
 import { TableRowSelection } from "antd/es/table/interface";
+import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton";
+import { ColumnsType } from "antd/lib/table";
 
 const { Title } = Typography;
 
@@ -30,24 +29,7 @@ export const DesignTemplates: React.FC = () => {
   const [tableData, setTableData] = useState<DetailedDesignTemplate[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([
-    "type",
-    "createdWhen",
-  ]);
-
-  const columnVisibilityMenuItems: MenuProps["items"] = [
-    { label: "Name", key: "name", disabled: true },
-    { label: "Type", key: "type" },
-    { label: "Created When", key: "createdWhen" },
-  ];
-
-  const columns: TableProps<DetailedDesignTemplate>["columns"] = [
-    {
-      title: "Id",
-      dataIndex: "id",
-      key: "id",
-      hidden: true,
-    },
+  const columns: ColumnsType<DetailedDesignTemplate> = [
     {
       title: "Name",
       dataIndex: "name",
@@ -59,7 +41,6 @@ export const DesignTemplates: React.FC = () => {
       title: "Type",
       dataIndex: "type",
       key: "type",
-      hidden: !selectedKeys.includes("type"),
       render: (_, template: DetailedDesignTemplate) => {
         const templateType = template.builtIn ? "Built-in" : "Custom";
         return (
@@ -83,11 +64,16 @@ export const DesignTemplates: React.FC = () => {
       dataIndex: "createdWhen",
       key: "createdWhen",
       width: 180,
-      hidden: !selectedKeys.includes("createdWhen"),
+      hidden: true,
       render: (_, template) => formatTimestamp(template.createdWhen ?? 0),
       sorter: (a, b) => (a.createdWhen ?? 0) - (b.createdWhen ?? 0),
     },
   ];
+  const { orderedColumns, columnSettingsButton } =
+    useColumnSettingsBasedOnColumnsType<DetailedDesignTemplate>(
+      "designTemplatesTable",
+      columns,
+    );
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -222,18 +208,7 @@ export const DesignTemplates: React.FC = () => {
               }}
             />
           </Tooltip>
-          <Dropdown
-            menu={{
-              items: columnVisibilityMenuItems,
-              selectable: true,
-              multiple: true,
-              selectedKeys,
-              onSelect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
-              onDeselect: ({ selectedKeys }) => setSelectedKeys(selectedKeys),
-            }}
-          >
-            <Button icon={<OverridableIcon name="settings" />} />
-          </Dropdown>
+          {columnSettingsButton}
           <Tooltip title="Export selected template" placement="bottom">
             <Button
               disabled={selectedRowKeys.length !== 1}
@@ -263,7 +238,7 @@ export const DesignTemplates: React.FC = () => {
         <Table<DetailedDesignTemplate>
           className="flex-table"
           size="small"
-          columns={columns}
+          columns={orderedColumns}
           rowSelection={rowSelection}
           dataSource={tableData}
           pagination={false}

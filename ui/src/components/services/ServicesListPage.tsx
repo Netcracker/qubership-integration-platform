@@ -49,8 +49,6 @@ const visibleColumns: string[] = [
   "source",
   "labels",
   "usedBy",
-  "createdWhen",
-  "createdBy",
 ];
 
 export const ServicesListPage: React.FC = () => {

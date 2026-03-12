@@ -9,3 +9,12 @@ export function parseJson<T>(text: string, guard?: (v: unknown) => v is T): T {
   }
   return result as T;
 }
+
+export function parseJsonOrDefault<T>(text: string, defaultValue: T): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch (error) {
+    console.error(`Unable to parse JSON: ${text}`, error);
+    return defaultValue;
+  }
+}
