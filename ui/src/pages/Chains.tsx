@@ -26,7 +26,7 @@ import { TableProps } from "antd/lib/table";
 import { formatTimestamp } from "../misc/format-utils.ts";
 import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
-import Search from "antd/lib/input/Search";
+import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
@@ -913,10 +913,11 @@ const Chains = () => {
             <Breadcrumb items={pathItems} style={{ marginLeft: 9 }} />
           ) : null}
           <div style={{ flex: 1 }} />
-          <Search
+          <CompactSearch
+            value={searchString}
+            onChange={setSearchString}
             placeholder="Full text search"
             allowClear
-            onSearch={(value) => setSearchString(value)}
             style={{ width: 500, flex: "none" }}
           />
           {filterButton}

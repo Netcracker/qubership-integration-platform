@@ -77,6 +77,11 @@ import type {
   AccessControlUpdateRequest,
   AccessControlBulkDeployRequest,
   DiscoveryResponse,
+  GeneralImportInstructions,
+  ImportInstruction,
+  ImportInstructionRequest,
+  ImportInstructionResult,
+  DeleteImportInstructionsRequest,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -548,6 +553,25 @@ export interface Api {
   isAutodiscoveryInProgress(): Promise<number>;
 
   getAutodiscoveryResult(): Promise<DiscoveryResponse>;
+
+  // Admin Tools: Import Instructions
+  getImportInstructions(): Promise<GeneralImportInstructions>;
+
+  addImportInstruction(
+    request: ImportInstructionRequest,
+  ): Promise<void | ImportInstruction>;
+
+  updateImportInstruction(
+    request: ImportInstructionRequest,
+  ): Promise<void | ImportInstruction>;
+
+  deleteImportInstructions(
+    payload: DeleteImportInstructionsRequest,
+  ): Promise<void>;
+
+  uploadImportInstructions(file: File): Promise<ImportInstructionResult[]>;
+
+  exportImportInstructions(): Promise<File>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

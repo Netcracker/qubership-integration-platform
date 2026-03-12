@@ -1,5 +1,5 @@
-import Search from "antd/lib/input/Search";
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
+import { CompactSearch } from "../table/CompactSearch.tsx";
 import { MenuItem } from "./ElementsLibrarySidebar";
 
 type SidebarSearchProps = {
@@ -13,6 +13,7 @@ export const SidebarSearch: React.FC<SidebarSearchProps> = ({
   onSearch,
   onClear,
 }) => {
+  const [value, setValue] = useState<string>("");
   const filterChildren = useCallback(
     (
       folderNameIncludes: boolean,
@@ -58,18 +59,15 @@ export const SidebarSearch: React.FC<SidebarSearchProps> = ({
     return !search || name.toLowerCase().includes(search.toLowerCase());
   };
   return (
-    <Search
-      allowClear
-      onSearch={handleSearch}
-      onChange={(event) => {
-        const value = event.target.value;
-        if (!value || value.length === 0) {
-          onClear();
-        } else {
-          handleSearch(event.target.value);
-        }
+    <CompactSearch
+      value={value}
+      onChange={(v) => {
+        setValue(v);
+        if (v) handleSearch(v);
+        else onClear();
       }}
       onClear={onClear}
+      allowClear
     />
   );
 };

@@ -36,7 +36,11 @@ jest.mock(
 );
 
 type MarkdownComponents = {
-  img?: (props: { src: string; alt: string; node?: unknown }) => React.ReactNode;
+  img?: (props: {
+    src: string;
+    alt: string;
+    node?: unknown;
+  }) => React.ReactNode;
   a?: (props: {
     href: string;
     children: string;

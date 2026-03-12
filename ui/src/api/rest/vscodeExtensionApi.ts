@@ -1,6 +1,11 @@
 import type {
   ApiResponse,
+  DeleteImportInstructionsRequest,
   DiscoveryResponse,
+  GeneralImportInstructions,
+  ImportInstruction,
+  ImportInstructionRequest,
+  ImportInstructionResult,
   SecretWithVariables,
   Variable,
 } from "../apiTypes.ts";
@@ -1089,6 +1094,31 @@ export class VSCodeExtensionApi implements Api {
   }
   getAutodiscoveryResult(): Promise<DiscoveryResponse> {
     throw new Error("Method getAutodiscoveryResult not implemented.");
+  }
+
+  getImportInstructions(): Promise<GeneralImportInstructions> {
+    throw new Error("Method getImportInstructions not implemented.");
+  }
+  addImportInstruction(
+    _request: ImportInstructionRequest,
+  ): Promise<void | ImportInstruction> {
+    throw new Error("Method addImportInstruction not implemented.");
+  }
+  updateImportInstruction(
+    _request: ImportInstructionRequest,
+  ): Promise<void | ImportInstruction> {
+    throw new Error("Method updateImportInstruction not implemented.");
+  }
+  deleteImportInstructions(
+    _payload: DeleteImportInstructionsRequest,
+  ): Promise<void> {
+    throw new Error("Method deleteImportInstructions not implemented.");
+  }
+  uploadImportInstructions(_file: File): Promise<ImportInstructionResult[]> {
+    throw new Error("Method uploadImportInstructions not implemented.");
+  }
+  exportImportInstructions(): Promise<File> {
+    throw new Error("Method exportImportInstructions not implemented.");
   }
 }
 

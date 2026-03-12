@@ -10,27 +10,13 @@
   border-radius: 4px;
 }
 
-.editable-cell-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  cursor: pointer;
+.value-cell-trigger {
   max-height: 5em;
   overflow: hidden;
 }
 
-.inline-icon {
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
 .multiline-icon {
   color: #1890ff;
-}
-
-.editable-cell-wrapper:hover .inline-icon {
-  opacity: 1;
 }
 
 .delete-button {
@@ -47,20 +33,6 @@
   white-space: pre;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.editing-wrapper {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.editing-buttons {
-  display: flex;
-  flex-direction: row;
-  gap: 4px;
-  margin-top: 2px;
 }
 
 .key-text {

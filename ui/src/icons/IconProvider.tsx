@@ -1,8 +1,10 @@
 import React, {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import Icon from "@ant-design/icons";
@@ -41,7 +43,7 @@ export const IconContext = createContext<IconContextType>({
 export const IconProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [icons, setIconsState] = useState<IconOverrides>(() => {
+  const [icons, setIcons] = useState<IconOverrides>(() => {
     const config = getConfig();
     return config.icons ? { ...allIcons, ...config.icons } : allIcons;
   });
@@ -49,9 +51,9 @@ export const IconProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     const applyConfig = (cfg: ReturnType<typeof getConfig>) => {
       if (cfg.icons) {
-        setIconsState(() => ({ ...allIcons, ...cfg.icons }));
+        setIcons(() => ({ ...allIcons, ...cfg.icons }));
       } else {
-        setIconsState(() => allIcons);
+        setIcons(() => allIcons);
       }
     };
 
@@ -59,17 +61,20 @@ export const IconProvider: React.FC<{ children: ReactNode }> = ({
     return onConfigChange((cfg) => applyConfig(cfg));
   }, []);
 
-  const setIcons = (overrides: IconOverrides) => {
-    setIconsState((prev) => ({
+  const mergeIcons = useCallback((overrides: IconOverrides) => {
+    setIcons((prev) => ({
       ...prev,
       ...overrides,
     }));
-  };
+  }, []);
+
+  const contextValue = useMemo(
+    () => ({ icons, setIcons: mergeIcons }),
+    [icons, mergeIcons],
+  );
 
   return (
-    <IconContext.Provider value={{ icons, setIcons }}>
-      {children}
-    </IconContext.Provider>
+    <IconContext.Provider value={contextValue}>{children}</IconContext.Provider>
   );
 };
 

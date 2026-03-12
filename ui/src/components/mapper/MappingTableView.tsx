@@ -22,7 +22,7 @@ import {
   Table,
   TableProps,
 } from "antd";
-import Search from "antd/lib/input/Search";
+import { CompactSearch } from "../table/CompactSearch.tsx";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   exportAsMarkdown,
@@ -1736,16 +1736,14 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
               setSelectedSchema(event.target.value as SchemaKind)
             }
           />
-          <Search
+          <CompactSearch
+            value={searchString}
+            onChange={(v) => {
+              setSearchString(v);
+              updateControlsState({ searchString: v });
+            }}
             placeholder="Full text search"
             allowClear
-            value={searchString}
-            onChange={(event) => {
-              setSearchString(event.target.value);
-            }}
-            onSearch={(value) => {
-              updateControlsState({ searchString: value });
-            }}
           />
           <Dropdown
             menu={{

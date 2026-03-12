@@ -517,12 +517,25 @@ export type ImportInstructions = {
 
 export type ImportInstruction = {
   id: string;
-  name: string;
-  overriddenById: string;
-  overriddenByName: string;
-  labels: string[];
-  modifiedWhen: number;
-  preview: boolean;
+  name?: string;
+  overriddenById?: string;
+  overriddenByName?: string;
+  labels?: string[];
+  modifiedWhen?: number;
+  preview?: boolean;
+};
+
+export type ImportInstructionRequest = {
+  id: string;
+  entityType: ImportEntityType;
+  action: ImportInstructionAction;
+  overriddenBy?: string | null;
+};
+
+export type DeleteImportInstructionsRequest = {
+  chains?: string[];
+  services?: string[];
+  commonVariables?: string[];
 };
 
 export enum SystemImportStatus {

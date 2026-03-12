@@ -110,6 +110,7 @@ import {
   InfoCircleOutlined,
   HddOutlined,
   CloudSyncOutlined,
+  ImportOutlined,
 } from "@ant-design/icons";
 
 export const commonIcons = {
@@ -199,6 +200,7 @@ export const commonIcons = {
   accessControl: LockOutlined,
   refresh: RedoOutlined,
   cloudSync: CloudSyncOutlined,
+  importInstructions: ImportOutlined,
 };
 
 export const elementIcons = {

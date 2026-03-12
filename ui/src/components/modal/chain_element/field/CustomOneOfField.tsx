@@ -22,14 +22,10 @@ interface OneOfOption {
   [key: string]: unknown;
 }
 
-function protocolMatchesOption(
-  option: OneOfOption,
-  protocol: string,
-): boolean {
+function protocolMatchesOption(option: OneOfOption, protocol: string): boolean {
   const protoDef = option?.properties?.integrationOperationProtocolType;
   if (!protoDef) return false;
-  if (protoDef.const)
-    return normalizeProtocol(protoDef.const) === protocol;
+  if (protoDef.const) return normalizeProtocol(protoDef.const) === protocol;
   if (Array.isArray(protoDef.enum))
     return protoDef.enum.some((e) => normalizeProtocol(e) === protocol);
   return false;
@@ -68,9 +64,7 @@ const HttpTriggerOneOfField: React.FC<
 
       const cleaned = { ...(formData as Record<string, unknown>) };
       const fieldsToRemove =
-        newIndex === 0
-          ? implementedServiceFields
-          : customFields;
+        newIndex === 0 ? implementedServiceFields : customFields;
 
       for (const key of fieldsToRemove) {
         delete cleaned[key];

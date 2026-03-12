@@ -1,5 +1,5 @@
 import { TextValueEdit } from "../table/TextValueEdit.tsx";
-import { Form } from "antd";
+import { Button, Form } from "antd";
 import { SelectEdit } from "../table/SelectEdit.tsx";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
 import { NumberValueEdit } from "../table/NumberValueEdit.tsx";
@@ -21,18 +21,18 @@ export const DefaultValueEdit: React.FC<DefaultValueEditProps> = ({
     <TextValueEdit
       name={name}
       rules={[]}
-      inputProps={{
-        allowClear: true,
-        addonAfter: (
-          <OverridableIcon
-            name="delete"
-            onClick={() => {
-              form.setFieldValue(name, undefined);
-              form.submit();
-            }}
-          />
-        ),
-      }}
+      inputProps={{ allowClear: true }}
+      suffixAction={
+        <Button
+          type="text"
+          icon={<OverridableIcon name="delete" />}
+          onClick={() => {
+            form.setFieldValue(name, undefined);
+            form.submit();
+          }}
+          aria-label="Clear"
+        />
+      }
     />
   ) : type === "number" ? (
     <NumberValueEdit name={name} rules={[]} />

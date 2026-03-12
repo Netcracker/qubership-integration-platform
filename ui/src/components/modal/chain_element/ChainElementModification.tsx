@@ -85,7 +85,6 @@ type TabField = {
   schema: JSONSchema7;
 };
 
-
 function constructTitle(name: string, type?: string): React.ReactNode {
   return (
     <>

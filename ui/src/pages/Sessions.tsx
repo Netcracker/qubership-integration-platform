@@ -33,7 +33,7 @@ import { SessionStatus } from "../components/sessions/SessionStatus.tsx";
 import { useModalsContext } from "../Modals.tsx";
 import { downloadFile } from "../misc/download-utils.ts";
 import { ImportSessions } from "../components/modal/ImportSessions.tsx";
-import Search from "antd/lib/input/Search";
+import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import {
   isTimestampFilter,
   TimestampColumnFilterDropdown,
@@ -531,12 +531,13 @@ export const Sessions: React.FC = () => {
 
   const toolbar = (
     <Flex vertical={false} gap={4} align="center">
-      <Search
+      <CompactSearch
+        value={filters.searchString}
+        onChange={(value) =>
+          setFilters((prev) => ({ ...prev, searchString: value }))
+        }
         placeholder="Full text search"
         allowClear
-        onSearch={(value) =>
-          setFilters((prevFilters) => ({ ...prevFilters, searchString: value }))
-        }
         style={setActions ? { minWidth: 200 } : { flex: 1 }}
       />
       <HeaderIconActionButton
