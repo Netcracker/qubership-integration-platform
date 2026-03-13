@@ -34,6 +34,8 @@ import { LabelsEdit } from "../table/LabelsEdit";
 import { ChainColumn } from "./ui/ChainColumn";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { HttpMethod } from "./ui/HttpMethod.tsx";
+import { ProtectedDropdown } from "../../permissions/ProtectedDropdown.tsx";
+import { RequiredPermissions } from "../../permissions/types.ts";
 import { ColumnSettingsButton } from "../table/ColumnSettingsButton.tsx";
 
 export type ServiceEntity =
@@ -453,6 +455,7 @@ export interface ActionConfig<T = never> {
     cancelText?: string;
   };
   visible?: (record: T) => boolean;
+  require?: RequiredPermissions,
 }
 
 function ActionMenu<T>({
@@ -468,6 +471,7 @@ function ActionMenu<T>({
       key: action.key,
       icon: action.icon,
       label: action.label,
+      require: action.require,
       onClick: () => {
         if (action.confirm) {
           Modal.confirm({
@@ -483,7 +487,7 @@ function ActionMenu<T>({
     }));
 
   return (
-    <Dropdown
+    <ProtectedDropdown
       menu={{
         items,
       }}
@@ -491,7 +495,7 @@ function ActionMenu<T>({
       placement="bottomRight"
     >
       <Button type="text" icon={<OverridableIcon name="more" />} />
-    </Dropdown>
+    </ProtectedDropdown>
   );
 }
 
@@ -536,6 +540,7 @@ export function getServiceActions({
         label: "Edit",
         icon: <OverridableIcon name="edit" />,
         onClick: onEdit,
+        require: { service: ["update"] }
       },
       {
         key: "delete",
@@ -547,6 +552,7 @@ export function getServiceActions({
           okText: "Delete",
           cancelText: "Cancel",
         },
+        require: { service: ["delete"] }
       },
     ];
     if (isExpandAvailable(record)) {
@@ -572,6 +578,7 @@ export function getServiceActions({
         label: "Export",
         icon: <OverridableIcon name="cloudDownload" />,
         onClick: (rec) => onExportSelected([rec]),
+        require: { service: ["export"] }
       });
     }
     return actions;

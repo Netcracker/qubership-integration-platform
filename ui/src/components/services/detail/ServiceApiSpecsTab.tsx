@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import { Flex, Spin, Button, Tooltip } from "antd";
+import { Flex, Spin, Button } from "antd";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../../api/api";
 import { SpecificationGroup, Specification } from "../../../api/apiTypes";
@@ -9,6 +9,7 @@ import {
   isSystemOperation,
   isSpecification,
   isSpecificationGroup,
+  ActionConfig,
 } from "../ServicesTreeTable";
 import { getActionsColumn } from "../ServicesTreeTable";
 import { message } from "antd";
@@ -26,6 +27,7 @@ import {
 } from "./ServiceParametersPage";
 import { IntegrationSystemType } from "../../../api/apiTypes";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 
 const STORAGE_KEY = "systemParameters";
 
@@ -61,7 +63,7 @@ const getGroupActions =
     loadModels: (systemId: string, groupId: string) => Promise<void>,
     loadGroups: (systemId: string) => Promise<void>,
   ) =>
-  (record: ServiceEntity) => {
+  (record: ServiceEntity): ActionConfig<ServiceEntity>[] => {
     if (isSpecification(record)) return [];
     const group = record as SpecificationGroup;
     return [
@@ -85,6 +87,7 @@ const getGroupActions =
         key: "add",
         label: "Add Specification",
         icon: <OverridableIcon name="plus" />,
+        require: { specificationGroup: ["create"] },
         onClick: () => {
           showModal({
             component: (
@@ -106,15 +109,17 @@ const getGroupActions =
         key: "delete",
         label: "Delete",
         icon: <OverridableIcon name="delete" />,
-        onClick: async () => {
-          try {
-            await api.deleteSpecificationGroup(group.id);
-            message.success("Specification group deleted");
-            await refreshGroups();
-          } catch (e) {
-            notify.requestFailed("Delete failed", e);
-          }
-        },
+        require: { specificationGroup: ["delete"] },
+        onClick: () =>
+          void (async () => {
+            try {
+              await api.deleteSpecificationGroup(group.id);
+              message.success("Specification group deleted");
+              await refreshGroups();
+            } catch (e) {
+              notify.requestFailed("Delete failed", e);
+            }
+          })(),
         confirm: {
           title:
             "Are you sure you want to permanently delete this specification group?",
@@ -132,7 +137,7 @@ const getSpecActions =
     refreshModels: () => Promise<void>,
     notify: ReturnType<typeof useNotificationService>,
   ) =>
-  (record: ServiceEntity) => {
+  (record: ServiceEntity): ActionConfig<ServiceEntity>[] => {
     if (isSystemOperation(record)) {
       return [];
     }
@@ -160,6 +165,7 @@ const getSpecActions =
               key: "delete",
               label: "Delete",
               icon: <OverridableIcon name="delete" />,
+              require: { specification: ["delete" as const] },
               onClick: async () => {
                 try {
                   await api.deleteSpecificationModel(spec.id);
@@ -183,6 +189,7 @@ const getSpecActions =
               key: "deprecate",
               label: "Deprecate",
               icon: <OverridableIcon name="stop" />,
+              require: { specification: ["execute" as const] },
               onClick: async () => {
                 try {
                   await api.deprecateModel(spec.id);
@@ -204,7 +211,8 @@ const getSpecActions =
         key: "export",
         label: "Export",
         icon: <OverridableIcon name="export" />,
-        onClick: () => handleExportSpecifications([spec], notify),
+        require: { specification: ["export" as const] },
+        onClick: () => void handleExportSpecifications([spec], notify),
       },
     ];
   };
@@ -520,17 +528,24 @@ export const ServiceApiSpecsTab: React.FC = () => {
             }
           >
             <Flex vertical={false} gap={4}>
-              <Tooltip title="Import Specifications">
-                <Button
-                  icon={<OverridableIcon name="cloudUpload" />}
-                  onClick={onImportSpecGroupClick}
-                />
-              </Tooltip>
+              <ProtectedButton
+                require={{ specificationGroup: ["import"] }}
+                tooltipProps={{ title: "Import Specifications" }}
+                buttonProps={{
+                  iconName: "cloudUpload",
+                  onClick: onImportSpecGroupClick,
+                }}
+              />
               {!isVsCode && (
-                <Tooltip title="Export service" placement="bottom">
-                  <Button
-                    icon={<OverridableIcon name="cloudDownload" />}
-                    onClick={() => {
+                <ProtectedButton
+                  require={{ service: ["export"] }}
+                  tooltipProps={{
+                    title: "Export service",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    iconName: "cloudDownload",
+                    onClick: () => {
                       void (async () => {
                         if (!systemId) return;
                         try {
@@ -540,9 +555,9 @@ export const ServiceApiSpecsTab: React.FC = () => {
                           notify.requestFailed("Export error", e);
                         }
                       })();
-                    }}
-                  />
-                </Tooltip>
+                    },
+                  }}
+                />
               )}
               {serviceGroupsTable.FilterButton()}
             </Flex>
@@ -555,20 +570,24 @@ export const ServiceApiSpecsTab: React.FC = () => {
             }
           >
             <Flex vertical={false} gap={4}>
-              <Tooltip title="Import Specification">
-                <Button
-                  icon={<OverridableIcon name="cloudUpload" />}
-                  onClick={onImportSpecClick}
-                />
-              </Tooltip>
+              <ProtectedButton
+                require={{ specification: ["import"] }}
+                tooltipProps={{ title: "Import Specification" }}
+                buttonProps={{
+                  iconName: "cloudUpload",
+                  onClick: onImportSpecClick,
+                }}
+              />
               {!isVsCode && (
-                <Tooltip
-                  title="Export selected specifications"
-                  placement="bottom"
-                >
-                  <Button
-                    icon={<OverridableIcon name="cloudDownload" />}
-                    onClick={() => {
+                <ProtectedButton
+                  require={{ specification: ["export"] }}
+                  tooltipProps={{
+                    title: "Export selected specifications",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    iconName: "cloudDownload",
+                    onClick: () => {
                       void (async () => {
                         if (selectedSpecRowKeys.length === 0) {
                           message.info(
@@ -581,9 +600,9 @@ export const ServiceApiSpecsTab: React.FC = () => {
                         );
                         await handleExportSpecifications(selected, notify);
                       })();
-                    }}
-                  />
-                </Tooltip>
+                    },
+                  }}
+                />
               )}
               {modelsTable.FilterButton()}
             </Flex>
@@ -597,10 +616,15 @@ export const ServiceApiSpecsTab: React.FC = () => {
           >
             <Flex vertical={false} gap={4}>
               {!isVsCode && (
-                <Tooltip title="Export specification" placement="bottom">
-                  <Button
-                    icon={<OverridableIcon name="cloudDownload" />}
-                    onClick={() => {
+                <ProtectedButton
+                  require={{ specification: ["export"] }}
+                  tooltipProps={{
+                    title: "Export specification",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    iconName: "cloudDownload",
+                    onClick: () => {
                       void (async () => {
                         try {
                           if (!specId) {
@@ -623,9 +647,9 @@ export const ServiceApiSpecsTab: React.FC = () => {
                           notify.requestFailed("Export error", e);
                         }
                       })();
-                    }}
-                  />
-                </Tooltip>
+                    },
+                  }}
+                />
               )}
               {operationsTable.FilterButton()}
             </Flex>

@@ -21,6 +21,10 @@ import { ResizeCallbackData } from "react-resizable";
 import { LongActionButton } from "../../LongActionButton.tsx";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { api } from "../../../api/api.ts";
+import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
+import { Require } from "../../../permissions/Require.tsx";
+import { usePermissions } from "../../../permissions/usePermissions.tsx";
+import { hasPermissions } from "../../../permissions/funcs.ts";
 
 const { Title } = Typography;
 
@@ -45,6 +49,7 @@ export const SecuredVariables: React.FC = () => {
     key: 300,
   });
   const notificationService = useNotificationService();
+  const permissions = usePermissions();
 
   const handleResize = useCallback(
     (dataIndex: string) =>
@@ -298,6 +303,12 @@ export const SecuredVariables: React.FC = () => {
         columnsWidth={columnsWidth}
         onResize={handleResize}
         calculateScrollHeight={calculateSecuredScrollHeight}
+        enableEdit={hasPermissions(permissions, {
+          securedVariable: ["update"],
+        })}
+        enableDelete={hasPermissions(permissions, {
+          securedVariable: ["delete"],
+        })}
       />
     ),
     [
@@ -309,10 +320,10 @@ export const SecuredVariables: React.FC = () => {
       columnsWidth,
       handleResize,
       calculateSecuredScrollHeight,
+      permissions,
       handleUpdateVariable,
       handleDeleteVariable,
       handleAddVariable,
-      setSelectedKeys,
     ],
   );
 
@@ -340,26 +351,33 @@ export const SecuredVariables: React.FC = () => {
           Secured Variables
         </Title>
         <Flex vertical={false} gap={4}>
-          <Tooltip title="Delete selected variables" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="delete" />}
-              onClick={() => {
+          <ProtectedButton
+            require={{ securedVariable: ["delete"] }}
+            tooltipProps={{
+              title: "Delete selected variables",
+              placement: "bottom",
+            }}
+            buttonProps={{
+              iconName: "delete",
+              onClick: () => {
                 if (!hasSelected) return;
                 Modal.confirm({
                   title: `Delete selected variable(s)?`,
                   content: `Are you sure you want to delete variables(s)?`,
                   onOk: handleDeleteSelected,
                 });
-              }}
-              disabled={!hasSelected}
-            />
-          </Tooltip>
-          <Tooltip title="Add secret" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="plus" />}
-              onClick={() => setCreateModalVisible(true)}
-            />
-          </Tooltip>
+              },
+              disabled: !hasSelected,
+            }}
+          />
+          <ProtectedButton
+            require={{ secret: ["create"] }}
+            tooltipProps={{ title: "Add secret", placement: "bottom" }}
+            buttonProps={{
+              iconName: "plus",
+              onClick: () => setCreateModalVisible(true),
+            }}
+          />
         </Flex>
       </Flex>
 
@@ -415,30 +433,36 @@ export const SecuredVariables: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <Tooltip
-                    placement="topRight"
-                    title="Export secret as Helm Chart"
-                  >
-                    <LongActionButton
-                      size="small"
-                      type="text"
-                      icon={<OverridableIcon name="cloudDownload" />}
-                      onSubmit={async () => exportHelmChart(secret)}
-                    />
-                  </Tooltip>
-                  <Tooltip placement="topRight" title="Add variable">
-                    <Button
-                      icon={<OverridableIcon name="plus" />}
-                      size="small"
-                      type="text"
-                      onClick={() =>
+                  <Require permissions={{ secret: ["export"] }}>
+                    <Tooltip
+                      placement="topRight"
+                      title="Export secret as Helm Chart"
+                    >
+                      <LongActionButton
+                        size="small"
+                        type="text"
+                        icon={<OverridableIcon name="cloudDownload" />}
+                        onSubmit={async () => exportHelmChart(secret)}
+                      />
+                    </Tooltip>
+                  </Require>
+                  <ProtectedButton
+                    require={{ securedVariable: ["create"] }}
+                    tooltipProps={{
+                      placement: "topRight",
+                      title: "Add variable",
+                    }}
+                    buttonProps={{
+                      iconName: "plus",
+                      size: "small",
+                      type: "text",
+                      onClick: () =>
                         setNewVariableKeys((prev) => ({
                           ...prev,
                           [secret]: true,
-                        }))
-                      }
-                    />
-                  </Tooltip>
+                        })),
+                    }}
+                  />
                 </div>
               </div>
             ),

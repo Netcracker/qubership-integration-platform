@@ -16,6 +16,7 @@ import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ChainHeaderToolbar } from "../components/ChainHeaderToolbar.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
+import { Require } from "../permissions/Require.tsx";
 
 export const Deployments: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -68,14 +69,16 @@ export const Deployments: React.FC = () => {
       width: 40,
       className: "actions-column",
       render: (_, deployment) => (
-        <Tooltip title="Delete deployment" placement="topRight">
-          <LongActionButton
-            size="small"
-            icon={<OverridableIcon name="delete" />}
-            type="text"
-            onSubmit={async () => deleteDeployment(deployment)}
-          />
-        </Tooltip>
+        <Require permissions={{ deployment: ["delete"] }}>
+          <Tooltip title="Delete deployment" placement="topRight">
+            <LongActionButton
+              size="small"
+              icon={<OverridableIcon name="delete" />}
+              type="text"
+              onSubmit={async () => deleteDeployment(deployment)}
+            />
+          </Tooltip>
+        </Require>
       ),
     },
   ];
@@ -110,18 +113,21 @@ export const Deployments: React.FC = () => {
       <ChainHeaderToolbar
         buttons={[
           {
-            title: "Create deployment",
-            type: "primary",
-            iconName: "plus",
-            onClick: () =>
-              showModal({
-                component: (
-                  <DeploymentCreate
-                    chainId={chainId}
-                    onSubmit={createDeployment}
-                  />
-                ),
-              }),
+            require: { deployment: ["create"] },
+            tooltipProps: { title: "Create deployment" },
+            buttonProps: {
+              type: "primary",
+              iconName: "plus",
+              onClick: () =>
+                showModal({
+                  component: (
+                    <DeploymentCreate
+                      chainId={chainId}
+                      onSubmit={createDeployment}
+                    />
+                  ),
+                }),
+            },
           },
         ]}
       />

@@ -23,7 +23,7 @@ import React, {
 } from "react";
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
-import { Button, Flex, Modal } from "antd";
+import { Flex, Modal } from "antd";
 import { useNavigate } from "react-router";
 import { useParams } from "react-router-dom";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
@@ -57,7 +57,6 @@ import {
   nodeTypes,
   OnDeleteEvent,
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
-import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
 import {
@@ -72,7 +71,10 @@ import {
 import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
 import { exportAdditionsForChains } from "../misc/export-additions.ts";
 import { generateSequenceDiagrams } from "../diagrams/main.ts";
-import { HeaderIconActionButton } from "../components/HeaderIconActionButton.tsx";
+import { Require } from "../permissions/Require.tsx";
+import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
+import { usePermissions } from "../permissions/usePermissions.tsx";
+import { hasPermissions } from "../permissions/funcs.ts";
 
 const readTheme = () => {
   if (typeof document === "undefined") return "light";
@@ -113,6 +115,12 @@ const ChainGraphInner: React.FC = () => {
   const [selectedNodes, setSelectedNodes] = useState<
     Node<ChainGraphNodeData>[]
   >([]);
+  const permissions = usePermissions();
+  const [readOnly, setReadOnly] = useState<boolean>(false);
+
+  useEffect(() => {
+    setReadOnly(!hasPermissions(permissions, { chain: ["update"] }));
+  }, [permissions]);
 
   const refreshChain = useCallback(async () => {
     if (!chainContext?.refresh) return;
@@ -363,35 +371,43 @@ const ChainGraphInner: React.FC = () => {
 
   const headerActions = useMemo(
     () => (
-      <Flex align="center">
-        <HeaderIconActionButton
-          title="Show sequence diagram"
-          iconNode={
-            <span
-              className={String(styles.sequenceDiagramIcon ?? "")}
-              data-icon="sequence-diagram"
-              role="img"
-            >
-              ⇄
-            </span>
-          }
-          onClick={openSequenceDiagram}
+      <Flex align="center" gap={4}>
+        <ProtectedButton
+          require={{ chain: ["read"] }}
+          tooltipProps={{ title: "Show sequence diagram" }}
+          buttonProps={{
+            icon: (
+              <span
+                className={String(styles.sequenceDiagramIcon ?? "")}
+                data-icon="sequence-diagram"
+                role="img"
+              >
+                ⇄
+              </span>
+            ),
+            onClick: openSequenceDiagram,
+          }}
         />
         {!isVsCode && (
           <>
-            <HeaderIconActionButton
-              title="Export chain"
-              iconName="cloudDownload"
-              onClick={openExportDialog}
+            <ProtectedButton
+              require={{ chain: ["export"] }}
+              tooltipProps={{ title: "Export chain" }}
+              buttonProps={{
+                iconName: "cloudDownload",
+                onClick: openExportDialog,
+              }}
             />
-            <Button
-              type="primary"
-              style={{ marginLeft: 4 }}
-              icon={<OverridableIcon name="send" />}
-              onClick={openSaveAndDeployDialog}
-            >
-              Save and Deploy
-            </Button>
+            <ProtectedButton
+              require={{ snapshot: ["create"], deployment: ["create"] }}
+              tooltipProps={{}}
+              buttonProps={{
+                type: "primary",
+                iconName: "send",
+                onClick: openSaveAndDeployDialog,
+                children: "Save and Deploy",
+              }}
+            />
           </>
         )}
       </Flex>
@@ -538,7 +554,9 @@ const ChainGraphInner: React.FC = () => {
 
   return (
     <Flex className={styles["graph-wrapper"]}>
-      <ElementsLibrarySidebar />
+      <Require permissions={{ chain: ["update"] }}>
+        <ElementsLibrarySidebar />
+      </Require>
       <div className="react-flow-container" ref={reactFlowWrapper}>
         <ElkDirectionContextProvider
           elkDirectionControl={{
@@ -550,29 +568,52 @@ const ChainGraphInner: React.FC = () => {
         >
           <ElementFocusContext.Provider value={fitViewToElementIdRef}>
             <ReactFlow
-              nodes={nodes}
+              nodes={
+                readOnly
+                  ? nodes.map((node) => ({
+                      ...node,
+                      draggable: false,
+                      connectable: false,
+                    }))
+                  : nodes
+              }
               nodeTypes={nodeTypes}
               defaultEdgeOptions={{ zIndex: 1001 }}
               edges={renderEdges}
-              onNodeDragStart={onNodeDragStart}
-              onNodeDrag={onNodeDrag}
-              onNodeDragStop={(event, draggedNode) =>
-                void onNodeDragStop(event, draggedNode)
+              onNodeDragStart={readOnly ? undefined : onNodeDragStart}
+              onNodeDrag={readOnly ? undefined : onNodeDrag}
+              onNodeDragStop={
+                readOnly
+                  ? undefined
+                  : (event, draggedNode) =>
+                      void onNodeDragStop(event, draggedNode)
               }
-              onNodesChange={(changes) => void onNodesChange(changes)}
-              onEdgesChange={(changes) => void onEdgesChange(changes)}
-              onConnect={(connection) => void onConnect(connection)}
-              onDelete={(changes) => {
-                void handleDelete(changes);
-              }}
-              onDrop={(event) => void onDrop(event)}
-              onDragOver={onDragOver}
-              onNodeDoubleClick={onNodeDoubleClick}
+              onNodesChange={
+                readOnly ? undefined : (changes) => void onNodesChange(changes)
+              }
+              onEdgesChange={
+                readOnly ? undefined : (changes) => void onEdgesChange(changes)
+              }
+              onConnect={
+                readOnly
+                  ? undefined
+                  : (connection) => void onConnect(connection)
+              }
+              onDelete={
+                readOnly
+                  ? undefined
+                  : (changes) => {
+                      void handleDelete(changes);
+                    }
+              }
+              onDrop={readOnly ? undefined : (event) => void onDrop(event)}
+              onDragOver={readOnly ? undefined : onDragOver}
+              onNodeDoubleClick={readOnly ? undefined : onNodeDoubleClick}
               zoomOnDoubleClick={false}
-              deleteKeyCode={["Backspace", "Delete"]}
+              deleteKeyCode={readOnly ? undefined : ["Backspace", "Delete"]}
               proOptions={{ hideAttribution: true }}
-              onContextMenu={onContextMenu}
-              onNodeContextMenu={onNodeContextMenu}
+              onContextMenu={readOnly ? undefined : onContextMenu}
+              onNodeContextMenu={readOnly ? undefined : onNodeContextMenu}
               onPaneClick={closeMenu}
               fitView
             >

@@ -1,14 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import {
-  Form,
-  Input,
-  Button,
-  Select,
-  Tag,
-  Descriptions,
-  Spin,
-  Tooltip,
-} from "antd";
+import { Form, Input, Button, Select, Tag, Descriptions, Spin } from "antd";
 import {
   IntegrationSystem,
   IntegrationSystemType,
@@ -21,10 +12,13 @@ import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { useBlocker } from "react-router-dom";
 import { useModalsContext } from "../../../Modals.tsx";
 import { UnsavedChangesModal } from "../../modal/UnsavedChangesModal.tsx";
-import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { useServiceParametersToolbar } from "./ServiceParametersPage";
+import { usePermissions } from "../../../permissions/usePermissions.tsx";
+import { hasPermissions } from "../../../permissions/funcs.ts";
+import { Require } from "../../../permissions/Require.tsx";
+import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 
 export interface ServiceParametersTabProps {
   systemId: string;
@@ -57,6 +51,12 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   const blocker = useBlocker(activeTab === "parameters" && hasChanges);
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
+  const permissions = usePermissions();
+  const [disabled, setDisabled] = useState<boolean>(false);
+
+  useEffect(() => {
+    setDisabled(!hasPermissions(permissions, { service: ["update"] }));
+  }, [permissions]);
 
   const setLabelsAndForm = useCallback(
     (data: IntegrationSystem) => {
@@ -159,10 +159,12 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
     if (!setToolbar || activeTab !== "parameters") return;
     const toolbar =
       !isVsCode && system && systemId ? (
-        <Tooltip title="Export service" placement="bottom">
-          <Button
-            icon={<OverridableIcon name="cloudDownload" />}
-            onClick={() => {
+        <ProtectedButton
+          require={{ service: ["export"] }}
+          tooltipProps={{ title: "Export service", placement: "bottom" }}
+          buttonProps={{
+            iconName: "cloudDownload",
+            onClick: () => {
               void (async () => {
                 if (!systemId) return;
                 try {
@@ -172,9 +174,9 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
                   notificationService.requestFailed("Export error", e);
                 }
               })();
-            }}
-          />
-        </Tooltip>
+            },
+          }}
+        />
       ) : null;
     setToolbar(toolbar);
     return () => setToolbar(null);
@@ -187,7 +189,12 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
 
   return (
     <div style={{ paddingLeft: sidePadding, maxWidth: 900 }}>
-      <Form form={form} layout="vertical" onChange={() => setHasChanges(true)}>
+      <Form
+        form={form}
+        layout="vertical"
+        onChange={() => setHasChanges(true)}
+        disabled={disabled}
+      >
         <Form.Item
           label="Name"
           name="name"
@@ -267,17 +274,19 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
             </Descriptions.Item>
           </Descriptions>
         )}
-        <Button
-          type="primary"
-          className={styles["variables-actions"]}
-          onClick={() => {
-            void handleSave();
-          }}
-          loading={savingSystem}
-          disabled={savingSystem || !hasChanges}
-        >
-          Save
-        </Button>
+        <Require permissions={{ service: ["update"] }}>
+          <Button
+            type="primary"
+            className={styles["variables-actions"]}
+            onClick={() => {
+              void handleSave();
+            }}
+            loading={savingSystem}
+            disabled={savingSystem || !hasChanges}
+          >
+            Save
+          </Button>
+        </Require>
         {saveError && (
           <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
         )}

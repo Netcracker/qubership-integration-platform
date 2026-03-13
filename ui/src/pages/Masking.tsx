@@ -22,6 +22,7 @@ import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ChainHeaderToolbar } from "../components/ChainHeaderToolbar.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
+import { Require } from "../permissions/Require.tsx";
 
 export const Masking: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -110,14 +111,19 @@ export const Masking: React.FC = () => {
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       onFilter: getTextColumnFilterFn((snapshot) => snapshot.name),
       render: (_, field) => (
-        <InlineEdit<{ name: string }>
-          values={{ name: field.name }}
-          editor={<TextValueEdit name={"name"} />}
-          viewer={field.name}
-          onSubmit={async ({ name }) => {
-            await updateMaskedField(field.id, { name });
-          }}
-        />
+        <Require
+          permissions={{ maskedField: ["update"] }}
+          fallback={field.name}
+        >
+          <InlineEdit<{ name: string }>
+            values={{ name: field.name }}
+            editor={<TextValueEdit name={"name"} />}
+            viewer={field.name}
+            onSubmit={async ({ name }) => {
+              await updateMaskedField(field.id, { name });
+            }}
+          />
+        </Require>
       ),
     },
     {
@@ -203,16 +209,26 @@ export const Masking: React.FC = () => {
     <ChainHeaderToolbar
       buttons={[
         {
-          title: "Delete selected masked fields",
-          iconName: "delete",
-          onClick: () => void onDeleteBtnClick(),
-          disabled: selectedRowKeys.length === 0,
+          require: { maskedField: ["delete"] },
+          tooltipProps: {
+            title: "Delete selected masked fields",
+          },
+          buttonProps: {
+            iconName: "delete",
+            onClick: () => void onDeleteBtnClick(),
+            disabled: selectedRowKeys.length === 0,
+          },
         },
         {
-          title: "Add new masked field",
-          type: "primary",
-          iconName: "plus",
-          onClick: () => void onCreateBtnClick(),
+          require: { maskedField: ["create"] },
+          tooltipProps: {
+            title: "Add new masked field",
+          },
+          buttonProps: {
+            type: "primary",
+            iconName: "plus",
+            onClick: () => void onCreateBtnClick(),
+          },
         },
       ]}
     />,

@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Button, Flex, message, Table } from "antd";
+import { Flex, message, Table } from "antd";
 import { useNavigate, useParams } from "react-router";
 import { TableProps } from "antd/lib/table";
 import {
@@ -49,14 +49,13 @@ import {
 } from "../components/table/TextColumnFilterDropdown.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { parseJson } from "../misc/json-helper.ts";
-import { OverridableIcon } from "../icons/IconProvider.tsx";
 import {
   useChainHeaderActions,
   useRegisterChainHeaderActions,
 } from "./ChainHeaderActionsContext.tsx";
-import { HeaderIconActionButton } from "../components/HeaderIconActionButton.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
+import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 
 type SessionTableItem = Session & {
   children?: SessionTableItem[];
@@ -354,13 +353,16 @@ export const Sessions: React.FC = () => {
                 {item.id}
               </a>
               {item.checkpoints && item.checkpoints?.length > 0 ? (
-                <Button
-                  size="small"
-                  type="text"
-                  icon={<OverridableIcon name="redo" />}
-                  onClick={() =>
-                    void retryFromLastCheckpoint(item.chainId, item.id)
-                  }
+                <ProtectedButton
+                  require={{ session: ["execute"] }}
+                  tooltipProps={{}}
+                  buttonProps={{
+                    size: "small",
+                    type: "text",
+                    iconName: "redo",
+                    onClick: () =>
+                      void retryFromLastCheckpoint(item.chainId, item.id),
+                  }}
                 />
               ) : null}
             </Flex>
@@ -540,27 +542,36 @@ export const Sessions: React.FC = () => {
         allowClear
         style={setActions ? { minWidth: 200 } : { flex: 1 }}
       />
-      <HeaderIconActionButton
-        title="Delete selected sessions"
-        iconName="delete"
-        onClick={onDeleteBtnClick}
+      <ProtectedButton
+        require={{ session: ["delete"] }}
+        tooltipProps={{ title: "Delete selected sessions" }}
+        buttonProps={{
+          iconName: "delete",
+          onClick: onDeleteBtnClick,
+        }}
       />
-      <HeaderIconActionButton
-        title="Export selected sessions"
-        iconName="cloudDownload"
-        onClick={() => void onExportBtnClick()}
+      <ProtectedButton
+        require={{ session: ["export"] }}
+        tooltipProps={{ title: "Export selected sessions" }}
+        buttonProps={{
+          iconName: "cloudDownload",
+          onClick: () => void onExportBtnClick(),
+        }}
       />
       {chainId ? null : (
-        <HeaderIconActionButton
-          title="Import sessions"
-          iconName="cloudUpload"
-          onClick={onImportBtnClick}
+        <ProtectedButton
+          require={{ session: ["import"] }}
+          tooltipProps={{ title: "Import sessions" }}
+          buttonProps={{ iconName: "cloudUpload", onClick: onImportBtnClick }}
         />
       )}
-      <HeaderIconActionButton
-        title="Retry selected sessions"
-        iconName="redo"
-        onClick={() => void onRetryBtnClick()}
+      <ProtectedButton
+        require={{ session: ["execute"] }}
+        tooltipProps={{ title: "Retry selected sessions" }}
+        buttonProps={{
+          iconName: "redo",
+          onClick: () => void onRetryBtnClick(),
+        }}
       />
     </Flex>
   );

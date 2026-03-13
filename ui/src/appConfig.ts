@@ -1,5 +1,6 @@
 import { IconOverrides } from "./icons/IconProvider";
 import type { ThemeConfig } from "antd";
+import { UserPermissions } from "./permissions/types.ts";
 
 export type AppConfig = {
   apiGateway?: string;
@@ -10,6 +11,7 @@ export type AppConfig = {
   themeOverrides?: Partial<ThemeConfig>;
   documentationBaseUrl?: string;
   dev?: boolean;
+  permissions?: UserPermissions;
 };
 
 const appConfigValue: AppConfig = {
@@ -124,6 +126,12 @@ export function configure(config: Partial<AppConfig>): void {
     const oldValue = appConfigValue.dev;
     appConfigValue.dev = config.dev;
     overrides.push(`dev: ${oldValue} -> ${config.dev}`);
+  }
+
+  if (config.permissions !== undefined) {
+    const oldValue = appConfigValue.permissions;
+    appConfigValue.permissions = config.permissions;
+    overrides.push(`permissions: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.permissions)}`);
   }
 
   if (overrides.length > 0) {

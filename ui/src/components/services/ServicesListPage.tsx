@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import styles from "./Services.module.css";
-import { Button, Typography, message, Flex, Tooltip } from "antd";
+import { Input, Typography, message, Flex } from "antd";
 import { CompactSearch } from "../table/CompactSearch.tsx";
 import { CreateServiceModal } from "./modals/CreateServiceModal";
 import { useNavigate } from "react-router-dom";
@@ -40,6 +40,8 @@ import { useAsyncRequest } from "./useAsyncRequest";
 import type { ExpandableConfig } from "antd/es/table/interface";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { ServiceDiscoveryButton } from "./ui/ServiceDiscoveryButton.tsx";
+import { Require } from "../../permissions/Require.tsx";
+import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 
 const STORAGE_KEY = "servicesListTable";
 
@@ -594,20 +596,27 @@ export const ServicesListPage: React.FC = () => {
             }}
           />
           {tab === "internal" && (
-            <ServiceDiscoveryButton
-              onSystemsDiscovered={(systemIds: string[]) => {
-                if (systemIds.length > 0) {
-                  void loadServices();
-                }
-              }}
-            />
+            <Require permissions={{ service: ["execute"] }}>
+              <ServiceDiscoveryButton
+                onSystemsDiscovered={(systemIds: string[]) => {
+                  if (systemIds.length > 0) {
+                    void loadServices();
+                  }
+                }}
+              />
+            </Require>
           )}
           {filterButton}
           {servicesTable.FilterButton()}
-          <Tooltip title="Download selected services" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="cloudDownload" />}
-              onClick={() => {
+          <ProtectedButton
+            require={{ service: ["export"] }}
+            tooltipProps={{
+              title: "Download selected services",
+              placement: "bottom",
+            }}
+            buttonProps={{
+              iconName: "cloudDownload",
+              onClick: () => {
                 void (async () => {
                   if (selectedRowKeys.length === 0) {
                     message.info("No services selected");
@@ -618,13 +627,15 @@ export const ServicesListPage: React.FC = () => {
                   );
                   await handleExportSelected(selected);
                 })();
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Upload services" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="cloudUpload" />}
-              onClick={() => {
+              },
+            }}
+          />
+          <ProtectedButton
+            require={{ service: ["import"] }}
+            tooltipProps={{ title: "Upload services", placement: "bottom" }}
+            buttonProps={{
+              iconName: "cloudUpload",
+              onClick: () => {
                 showModal({
                   component: (
                     <ImportServicesModal
@@ -635,16 +646,18 @@ export const ServicesListPage: React.FC = () => {
                     />
                   ),
                 });
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Create service" placement="bottom">
-            <Button
-              type="primary"
-              icon={<OverridableIcon name="plus" />}
-              onClick={() => setCreateModalOpen(true)}
-            />
-          </Tooltip>
+              },
+            }}
+          />
+          <ProtectedButton
+            require={{ service: ["create"] }}
+            tooltipProps={{ title: "Create service", placement: "bottom" }}
+            buttonProps={{
+              type: "primary",
+              iconName: "plus",
+              onClick: () => setCreateModalOpen(true),
+            }}
+          />
         </div>
       </div>
 

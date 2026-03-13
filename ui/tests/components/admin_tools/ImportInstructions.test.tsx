@@ -1,11 +1,13 @@
 /**
  * @jest-environment jsdom
  */
-import React from "react";
+import React, { PropsWithChildren } from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { Modal } from "antd";
-import type { GeneralImportInstructions } from "../../../src/api/apiTypes";
+import type { GeneralImportInstructions } from "../../../src";
+import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
+import { getAllPermissions } from "../../../src/permissions/funcs.ts";
 
 Object.defineProperty(globalThis, "matchMedia", {
   writable: true,
@@ -128,6 +130,14 @@ const sampleInstructions: GeneralImportInstructions = {
   },
 };
 
+const ContextProviders: React.FC<PropsWithChildren> = ({ children }) => {
+  return (
+    <UserPermissionsContext.Provider value={getAllPermissions()}>
+      {children}
+    </UserPermissionsContext.Provider>
+  );
+};
+
 describe("ImportInstructions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -148,7 +158,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     expect(screen.getByText(/import/i)).toBeInTheDocument();
     expect(screen.getByText(/instructions/i)).toBeInTheDocument();
@@ -169,7 +179,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -184,7 +194,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(screen.getByText("Chains")).toBeInTheDocument();
@@ -199,7 +209,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -218,7 +228,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -235,7 +245,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -254,7 +264,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -272,7 +282,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalled();
@@ -287,7 +297,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -306,7 +316,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -321,7 +331,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(screen.getByText("Chain One")).toBeInTheDocument();
@@ -341,7 +351,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(screen.getByText("Chains")).toBeInTheDocument();
@@ -360,7 +370,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -377,7 +387,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -407,7 +417,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -437,7 +447,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -464,7 +474,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -505,7 +515,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(screen.getByText("Tagged Chain")).toBeInTheDocument();
@@ -522,7 +532,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(screen.getByText("Chain One")).toBeInTheDocument();
@@ -571,7 +581,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(screen.getByText("Chain Two")).toBeInTheDocument();
@@ -620,7 +630,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(screen.getByText("Chain One")).toBeInTheDocument();
@@ -661,7 +671,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();
@@ -703,7 +713,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalledTimes(1);
@@ -732,7 +742,7 @@ describe("ImportInstructions", () => {
       "../../../src/components/admin_tools/ImportInstructions"
     );
 
-    render(<ImportInstructions />);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
       expect(mockApi.getImportInstructions).toHaveBeenCalled();

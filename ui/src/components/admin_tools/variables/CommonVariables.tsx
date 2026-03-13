@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Button, Flex, message, Modal, Tooltip, Typography } from "antd";
+import { Flex, message, Modal, Typography } from "antd";
 import styles from "../CommonStyle.module.css";
 import ImportVariablesModal from "./ImportVariablesModal.tsx";
 import { useModalsContext } from "../../../Modals.tsx";
@@ -11,6 +11,9 @@ import { ResizeCallbackData } from "react-resizable";
 import { ApiResponse, Variable } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { api } from "../../../api/api.ts";
+import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
+import { hasPermissions } from "../../../permissions/funcs.ts";
+import { usePermissions } from "../../../permissions/usePermissions.tsx";
 
 const { Title } = Typography;
 
@@ -25,6 +28,7 @@ export const CommonVariables = () => {
     key: 300,
   });
   const notificationService = useNotificationService();
+  const permissions = usePermissions();
 
   const handleResize = useCallback(
     (dataIndex: string) =>
@@ -98,51 +102,64 @@ export const CommonVariables = () => {
           Common Variables
         </Title>
         <Flex vertical={false} gap={4}>
-          <Tooltip title="Delete selected variables" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="delete" />}
-              onClick={() => {
+          <ProtectedButton
+            require={{ commonVariable: ["delete"] }}
+            tooltipProps={{
+              title: "Delete selected variables",
+              placement: "bottom",
+            }}
+            buttonProps={{
+              iconName: "delete",
+              onClick: () => {
                 if (!selectedRowKeys.length) return;
                 Modal.confirm({
                   title: `Delete ${selectedRowKeys.length} selected variable(s)?`,
                   content: `Are you sure you want to delete ${selectedRowKeys.length} variables(s)?`,
                   onOk: onDeleteSelected,
                 });
-              }}
-              disabled={!selectedRowKeys.length}
-            />
-          </Tooltip>
-          <Tooltip title="Export selected variables" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="cloudDownload" />}
-              onClick={() => {
+              },
+              disabled: !selectedRowKeys.length,
+            }}
+          />
+          <ProtectedButton
+            require={{ commonVariable: ["export"] }}
+            tooltipProps={{
+              title: "Export selected variables",
+              placement: "bottom",
+            }}
+            buttonProps={{
+              iconName: "cloudDownload",
+              onClick: () => {
                 if (!selectedRowKeys.length) return;
                 void onExport(selectedRowKeys);
-              }}
-              disabled={!selectedRowKeys.length}
-            />
-          </Tooltip>
-          <Tooltip title="Import variables" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="cloudUpload" />}
-              onClick={() =>
+              },
+              disabled: !selectedRowKeys.length,
+            }}
+          />
+          <ProtectedButton
+            require={{ commonVariable: ["import"] }}
+            tooltipProps={{ title: "Import variables", placement: "bottom" }}
+            buttonProps={{
+              iconName: "cloudUpload",
+              onClick: () =>
                 showModal({
                   component: (
                     <ImportVariablesModal
                       onSuccess={() => void fetchVariables()}
                     />
                   ),
-                })
-              }
-            />
-          </Tooltip>
-          <Tooltip title="Add variable" placement="bottom">
-            <Button
-              type="primary"
-              icon={<OverridableIcon name="plus" />}
-              onClick={() => setIsAddingNew(true)}
-            />
-          </Tooltip>
+                }),
+            }}
+          />
+          <ProtectedButton
+            require={{ commonVariable: ["create"] }}
+            tooltipProps={{ title: "Add variable", placement: "bottom" }}
+            buttonProps={{
+              type: "primary",
+              iconName: "plus",
+              onClick: () => setIsAddingNew(true),
+            }}
+          />
         </Flex>
       </Flex>
       <VariablesTable
@@ -166,6 +183,8 @@ export const CommonVariables = () => {
         isValueHidden={false}
         columnsWidth={columnsWidth}
         onResize={handleResize}
+        enableEdit={hasPermissions(permissions, { commonVariable: ["update"]})}
+        enableDelete={hasPermissions(permissions, { commonVariable: ["delete"]})}
       />
     </Flex>
   );

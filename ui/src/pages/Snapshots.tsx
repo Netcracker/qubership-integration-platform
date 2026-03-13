@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Dropdown, Table } from "antd";
+import { Button, Table } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import { useNavigate } from "react-router";
@@ -32,6 +32,8 @@ import { ChainHeaderToolbar } from "../components/ChainHeaderToolbar.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
+import { ProtectedDropdown } from "../permissions/ProtectedDropdown.tsx";
+import { Require } from "../permissions/Require.tsx";
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -172,14 +174,19 @@ export const Snapshots: React.FC = () => {
       filterDropdown: (props) => <TextColumnFilterDropdown {...props} />,
       onFilter: getTextColumnFilterFn((snapshot) => snapshot.name),
       render: (_, snapshot) => (
-        <InlineEdit<{ name: string }>
-          values={{ name: snapshot.name }}
-          editor={<TextValueEdit name={"name"} />}
-          viewer={snapshot.name}
-          onSubmit={async ({ name }) => {
-            await updateSnapshot(snapshot.id, name, snapshot.labels);
-          }}
-        />
+        <Require
+          permissions={{ snapshot: ["update"] }}
+          fallback={snapshot.name}
+        >
+          <InlineEdit<{ name: string }>
+            values={{ name: snapshot.name }}
+            editor={<TextValueEdit name={"name"} />}
+            viewer={snapshot.name}
+            onSubmit={async ({ name }) => {
+              await updateSnapshot(snapshot.id, name, snapshot.labels);
+            }}
+          />
+        </Require>
       ),
     },
     {
@@ -193,22 +200,27 @@ export const Snapshots: React.FC = () => {
         snapshot.labels.map((l) => l.name),
       ),
       render: (_, snapshot) => (
-        <InlineEdit<{ labels: string[] }>
-          values={{
-            labels: snapshot.labels
-              ?.filter((l) => !l.technical)
-              .map((l) => l.name),
-          }}
-          editor={<LabelsEdit name={"labels"} />}
-          viewer={<EntityLabels labels={snapshot.labels} />}
-          onSubmit={async ({ labels }) => {
-            await updateSnapshot(
-              snapshot.id,
-              snapshot.name,
-              labels.map((name) => ({ name, technical: false })),
-            );
-          }}
-        />
+        <Require
+          permissions={{ snapshot: ["update"] }}
+          fallback={<EntityLabels labels={snapshot.labels} />}
+        >
+          <InlineEdit<{ labels: string[] }>
+            values={{
+              labels: snapshot.labels
+                ?.filter((l) => !l.technical)
+                .map((l) => l.name),
+            }}
+            editor={<LabelsEdit name={"labels"} />}
+            viewer={<EntityLabels labels={snapshot.labels} />}
+            onSubmit={async ({ labels }) => {
+              await updateSnapshot(
+                snapshot.id,
+                snapshot.name,
+                labels.map((name) => ({ name, technical: false })),
+              );
+            }}
+          />
+        </Require>
       ),
     },
     {
@@ -270,7 +282,7 @@ export const Snapshots: React.FC = () => {
       className: "actions-column",
       render: (_, snapshot) => (
         <>
-          <Dropdown
+          <ProtectedDropdown
             menu={{
               items: [
                 {
@@ -278,24 +290,28 @@ export const Snapshots: React.FC = () => {
                   icon: <OverridableIcon name="delete" />,
                   label: "Delete",
                   onClick: () => deleteSnapshotWithConfirmation(snapshot),
+                  require: { snapshot: ["delete"] },
                 },
                 {
                   key: "revert",
                   icon: <OverridableIcon name="rollback" />,
                   label: "Revert to",
                   onClick: () => revertToSnapshotWithConfirmation(snapshot),
+                  require: { snapshot: ["read"], chain: ["update"] },
                 },
                 {
                   key: "showXml",
                   icon: <OverridableIcon name="fileText" />,
                   label: "Show XML",
                   onClick: () => showSnapshotXml(snapshot),
+                  require: { snapshot: ["read"] },
                 },
                 {
                   key: "showDiagram",
                   icon: <span className="anticon">⭾</span>,
                   label: "Show diagram",
                   onClick: () => showSnapshotDiagram(snapshot),
+                  require: { snapshot: ["read"] },
                 },
               ],
             }}
@@ -307,7 +323,7 @@ export const Snapshots: React.FC = () => {
               type="text"
               icon={<OverridableIcon name="more" />}
             />
-          </Dropdown>
+          </ProtectedDropdown>
         </>
       ),
     },
@@ -327,22 +343,31 @@ export const Snapshots: React.FC = () => {
     <ChainHeaderToolbar
       buttons={[
         {
-          title: "Create snapshot",
-          type: "primary",
-          iconName: "plus",
-          onClick: onCreateBtnClick,
+          require: { snapshot: ["create"] },
+          tooltipProps: { title: "Create snapshot" },
+          buttonProps: {
+            type: "primary",
+            iconName: "plus",
+            onClick: onCreateBtnClick,
+          },
         },
         {
-          title: "Delete selected snapshots",
-          iconName: "delete",
-          onClick: onDeleteBtnClick,
-          disabled: selectedRowKeys.length === 0,
+          require: { snapshot: ["delete"] },
+          tooltipProps: { title: "Delete selected snapshots" },
+          buttonProps: {
+            iconName: "delete",
+            onClick: onDeleteBtnClick,
+            disabled: selectedRowKeys.length === 0,
+          },
         },
         {
-          title: "Compare selected snapshots",
-          iconNode: <>⇄</>,
-          onClick: onCompareBtnClick,
-          disabled: selectedRowKeys.length !== 2,
+          require: { snapshot: ["read"] },
+          tooltipProps: { title: "Compare selected snapshots" },
+          buttonProps: {
+            icon: <>⇄</>,
+            onClick: onCompareBtnClick,
+            disabled: selectedRowKeys.length !== 2,
+          },
         },
       ]}
     />,

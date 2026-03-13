@@ -47,6 +47,9 @@ import {
 } from "../table/TimestampColumnFilterDropdown.tsx";
 import type { FilterDropdownProps } from "antd/lib/table/interface";
 import dayjs from "dayjs";
+import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
+import { usePermissions } from "../../permissions/usePermissions.tsx";
+import { hasPermissions } from "../../permissions/funcs.ts";
 
 const { Title } = Typography;
 
@@ -319,6 +322,14 @@ export const ImportInstructions: React.FC = () => {
     "labels",
     "modifiedWhen",
   ]);
+  const permissions = usePermissions();
+  const [enableEdit, setEnableEdit] = useState<boolean>(false);
+
+  useEffect(() => {
+    setEnableEdit(
+      hasPermissions(permissions, { importInstructions: ["update"] }),
+    );
+  }, [permissions]);
 
   const fetchInstructions = useCallback(async () => {
     setLoading(true);
@@ -496,7 +507,7 @@ export const ImportInstructions: React.FC = () => {
             ? ACTION_OPTIONS_CHAIN
             : ACTION_OPTIONS_SERVICE_OR_VAR;
         const isEditing =
-          editingRowKey === row.key && editingField === "action";
+          enableEdit && editingRowKey === row.key && editingField === "action";
 
         if (isEditing) {
           const showOverriddenByInput =
@@ -588,10 +599,11 @@ export const ImportInstructions: React.FC = () => {
             row.entityType === "Chain");
         if (!isOverrideRow) return "";
         const isEditing =
-          (editingRowKey === row.key && editingField === "overriddenBy") ||
-          (editingRowKey === row.key &&
-            editingField === "action" &&
-            editingAction === ImportInstructionAction.OVERRIDE);
+          enableEdit &&
+          ((editingRowKey === row.key && editingField === "overriddenBy") ||
+            (editingRowKey === row.key &&
+              editingField === "action" &&
+              editingAction === ImportInstructionAction.OVERRIDE));
 
         if (isEditing) {
           const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -759,12 +771,14 @@ export const ImportInstructions: React.FC = () => {
               />
             </Tooltip>
           </Dropdown>
-          <Tooltip title="Delete selected">
-            <Button
-              data-testid="import-instructions-delete"
-              icon={<OverridableIcon name="delete" />}
-              disabled={selectedRowKeys.length === 0}
-              onClick={() => {
+          <ProtectedButton
+            require={{ importInstructions: ["delete"] }}
+            tooltipProps={{ title: "Delete selected" }}
+            buttonProps={{
+              "data-testid": "import-instructions-delete",
+              iconName: "delete",
+              disabled: selectedRowKeys.length === 0,
+              onClick: () => {
                 if (selectedRowKeys.length > 0) {
                   Modal.confirm({
                     title: "Delete instructions",
@@ -773,31 +787,38 @@ export const ImportInstructions: React.FC = () => {
                     okText: "Delete",
                   });
                 }
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Export import instructions">
-            <Button
-              data-testid="import-instructions-export"
-              icon={<OverridableIcon name="cloudDownload" />}
-              loading={exportLoading}
-              onClick={() => void handleExport()}
-            />
-          </Tooltip>
-          <Tooltip title="Upload import instructions file">
-            <Button
-              data-testid="import-instructions-upload"
-              icon={<OverridableIcon name="cloudUpload" />}
-              onClick={() => setUploadModalVisible(true)}
-            />
-          </Tooltip>
-          <Button
-            type="primary"
-            icon={<OverridableIcon name="plus" />}
-            onClick={() => setAddModalVisible(true)}
-          >
-            Add
-          </Button>
+              },
+            }}
+          />
+          <ProtectedButton
+            require={{ importInstructions: ["export"] }}
+            tooltipProps={{ title: "Export import instructions" }}
+            buttonProps={{
+              "data-testid": "import-instructions-export",
+              iconName: "cloudDownload",
+              loading: exportLoading,
+              onClick: () => void handleExport(),
+            }}
+          />
+          <ProtectedButton
+            require={{ importInstructions: ["import"] }}
+            tooltipProps={{ title: "Upload import instructions file" }}
+            buttonProps={{
+              "data-testid": "import-instructions-upload",
+              iconName: "cloudUpload",
+              onClick: () => setUploadModalVisible(true),
+            }}
+          />
+          <ProtectedButton
+            require={{ importInstructions: ["create"] }}
+            tooltipProps={{}}
+            buttonProps={{
+              type: "primary",
+              iconName: "plus",
+              onClick: () => setAddModalVisible(true),
+              children: "Add",
+            }}
+          />
         </Flex>
       </Flex>
 

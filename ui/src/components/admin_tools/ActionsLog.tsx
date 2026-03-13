@@ -33,6 +33,7 @@ import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 import { ResizableTitle } from "../ResizableTitle.tsx";
 import commonStyles from "./CommonStyle.module.css";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { Require } from "../../permissions/Require.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton.tsx";
 
 export enum OperationType {
@@ -469,18 +470,20 @@ export const ActionsLog: React.FC = () => {
             />
           </Tooltip>
           {!(isLoading || isFetching) && (
-            <Tooltip title="Export action logs" placement="bottom">
-              <span>
-                <DateRangePicker
-                  trigger={
-                    <Button icon={<OverridableIcon name="cloudDownload" />} />
-                  }
-                  onRangeApply={(from, to) => {
-                    void exportActionLogs(from, to);
-                  }}
-                />
-              </span>
-            </Tooltip>
+            <Require permissions={{ actionLog: ["export"] }}>
+              <Tooltip title="Export action logs" placement="bottom">
+                <span>
+                  <DateRangePicker
+                    trigger={
+                      <Button icon={<OverridableIcon name="cloudDownload" />} />
+                    }
+                    onRangeApply={(from, to) => {
+                      void exportActionLogs(from, to);
+                    }}
+                  />
+                </span>
+              </Tooltip>
+            </Require>
           )}
         </Flex>
       </Flex>

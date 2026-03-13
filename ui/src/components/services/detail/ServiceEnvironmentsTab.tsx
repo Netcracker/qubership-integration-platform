@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { Table, Spin, Flex, Button, Tooltip, message, Tag, Modal } from "antd";
+import { Table, Spin, Flex, message, Tag, Modal } from "antd";
 import { Radio } from "antd";
 import {
   Environment,
@@ -25,7 +25,6 @@ import { ChainColumn } from "../ui/ChainColumn";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import { getErrorMessage } from "../../../misc/error-utils";
 import { useLocation } from "react-router-dom";
-import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { environmentLabels, prepareFile } from "../utils.tsx";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import {
@@ -34,6 +33,9 @@ import {
   normalizeProtocol,
 } from "../../../misc/protocol-utils";
 import { downloadFile } from "../../../misc/download-utils.ts";
+import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
+import { usePermissions } from "../../../permissions/usePermissions.tsx";
+import { hasPermissions } from "../../../permissions/funcs.ts";
 
 interface ServiceEnvironmentsTabProps {
   formatTimestamp: (val: number) => string;
@@ -63,6 +65,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   const notificationService = useNotificationService();
   const location = useLocation();
   const { setToolbar } = useServiceParametersToolbar() ?? {};
+  const permissions = usePermissions();
 
   const getDefaultProperties = useCallback(
     (protocol: string, sourceType: EnvironmentSourceType) => {
@@ -239,7 +242,10 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         render: (_: unknown, record: Environment) => (
           <Radio
             checked={record.id === activeEnvironmentId}
-            onChange={() => handleSwitchEnvironment(record)}
+            onChange={() =>
+              hasPermissions(permissions, { service: ["update"] }) &&
+              handleSwitchEnvironment(record)
+            }
             disabled={
               record.id === activeEnvironmentId || switchingEnvId === record.id
             }
@@ -247,7 +253,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         ),
       },
       {
-        title: <b>Name</b>,
+        title: "Name",
         dataIndex: "name",
         key: "name",
         render: (text: string, record: Environment) => (
@@ -259,7 +265,10 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
               color: "var(--vscode-textLink-foreground, #1677ff)",
               cursor: "pointer",
             }}
-            onClick={() => handleEditClick(record)}
+            onClick={() =>
+              hasPermissions(permissions, { environment: ["update"] }) &&
+              handleEditClick(record)
+            }
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
@@ -359,26 +368,29 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         width: 48,
         align: "center",
         render: (_: unknown, record: Environment) => (
-          <Tooltip title="Delete">
-            <Button
-              type="text"
-              icon={<OverridableIcon name="delete" />}
-              danger
-              onClick={() => handleDelete(record.id)}
-            />
-          </Tooltip>
+          <ProtectedButton
+            require={{ environment: ["delete"] }}
+            tooltipProps={{ title: "Delete" }}
+            buttonProps={{
+              type: "text",
+              iconName: "delete",
+              danger: true,
+              onClick: () => handleDelete(record.id),
+            }}
+          />
         ),
       },
     ],
     [
       activeEnvironmentId,
-      memoChains,
-      formatTimestamp,
-      handleDelete,
-      handleEditClick,
-      handleSwitchEnvironment,
       switchingEnvId,
+      permissions,
+      handleSwitchEnvironment,
+      handleEditClick,
+      formatTimestamp,
       system,
+      memoChains,
+      handleDelete,
     ],
   );
 
@@ -389,15 +401,23 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
     const toolbar = (
       <Flex gap={4} align="center">
         {system?.type === IntegrationSystemType.EXTERNAL && (
-          <Button type="primary" onClick={() => setAddModalOpen(true)}>
-            Add Environment
-          </Button>
+          <ProtectedButton
+            require={{ environment: ["create"] }}
+            tooltipProps={{}}
+            buttonProps={{
+              type: "primary",
+              onClick: () => setAddModalOpen(true),
+              children: "Add Environment",
+            }}
+          />
         )}
         {!isVsCode && (
-          <Tooltip title="Export service" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="cloudDownload" />}
-              onClick={() => {
+          <ProtectedButton
+            require={{ service: ["export"] }}
+            tooltipProps={{ title: "Export service", placement: "bottom" }}
+            buttonProps={{
+              iconName: "cloudDownload",
+              onClick: () => {
                 void (async () => {
                   if (!systemId) return;
                   try {
@@ -407,9 +427,9 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
                     notificationService.requestFailed("Export error", e);
                   }
                 })();
-              }}
-            />
-          </Tooltip>
+              },
+            }}
+          />
         )}
       </Flex>
     );
