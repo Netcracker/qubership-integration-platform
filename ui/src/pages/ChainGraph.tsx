@@ -151,6 +151,8 @@ const ChainGraphInner: React.FC = () => {
     closeMenu,
     onContextMenuCall,
     isLoading,
+    expandAllContainers,
+    collapseAllContainers,
   } = useChainGraph(chainId, refreshChain);
 
   const renderEdges = useMemo(
@@ -627,7 +629,10 @@ const ChainGraphInner: React.FC = () => {
                 nodeStrokeColor={getMinimapNodeStrokeColor}
                 nodeStrokeWidth={2}
               />
-              <CustomControls />
+              <CustomControls
+                onExpandAllContainers={expandAllContainers}
+                onCollapseAllContainers={collapseAllContainers}
+              />
               {menu && <ContextMenu menu={menu} closeMenu={closeMenu} />}
             </ReactFlow>
             {rightPanel && <PageWithRightPanel />}
