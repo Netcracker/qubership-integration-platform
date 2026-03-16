@@ -10,14 +10,12 @@ import "@testing-library/jest-dom";
 describe("ProtectedButton", () => {
   it("should render a button when requirements are met", () => {
     render(
-      <UserPermissionsContext.Provider
-        value={{ chain: ["update"] }}
-      >
+      <UserPermissionsContext.Provider value={{ chain: ["update"] }}>
         <ProtectedButton
-          require={{ chain: ["update"]}}
+          require={{ chain: ["update"] }}
           tooltipProps={{}}
           buttonProps={{
-            children: "Hello!"
+            children: "Hello!",
           }}
         />
       </UserPermissionsContext.Provider>,
@@ -41,19 +39,17 @@ describe("ProtectedButton", () => {
     expect(screen.queryByRole("button")).toBeFalsy();
   });
 
-  it(
-    "should render a disabled button when requirements aren't met and onDenied=disable", () => {
-      render(
-        <UserPermissionsContext.Provider value={{}}>
-          <ProtectedButton
-            onDenied="disable"
-            require={{ chain: ["update"] }}
-            tooltipProps={{}}
-            buttonProps={{}}
-          />
-        </UserPermissionsContext.Provider>,
-      );
-      expect(screen.getByRole("button")).toBeDisabled();
-    }
-  );
+  it("should render a disabled button when requirements aren't met and onDenied=disable", () => {
+    render(
+      <UserPermissionsContext.Provider value={{}}>
+        <ProtectedButton
+          onDenied="disable"
+          require={{ chain: ["update"] }}
+          tooltipProps={{}}
+          buttonProps={{}}
+        />
+      </UserPermissionsContext.Provider>,
+    );
+    expect(screen.getByRole("button")).toBeDisabled();
+  });
 });

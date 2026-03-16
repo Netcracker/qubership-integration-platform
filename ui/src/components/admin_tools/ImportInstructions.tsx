@@ -7,10 +7,7 @@ import {
   Input,
   Modal,
   Select,
-  Space,
-  Spin,
   Table,
-  Tag,
   Tooltip,
   Typography,
   UploadFile,
@@ -28,13 +25,17 @@ import {
 } from "../../api/apiTypes.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { ImportStatus } from "../labels/ImportStatus.tsx";
-import {
-  EditableCellTrigger,
-  InlineEditWithButtons,
-  editableCellStyles,
-} from "../table/EditableCell.tsx";
+import { InlineEdit } from "../InlineEdit.tsx";
+import { InlineEditWithButtons } from "../InlineEditWithButtons.tsx";
+import { SelectEdit } from "../table/SelectEdit.tsx";
+import { TextValueEdit } from "../table/TextValueEdit.tsx";
+import inlineEditStyles from "../InlineEdit.module.css";
 import { CompactSearch } from "../table/CompactSearch.tsx";
-import { capitalize } from "../../misc/format-utils.ts";
+import {
+  formatSnakeCased,
+  formatTimestampShort,
+  PLACEHOLDER,
+} from "../../misc/format-utils.ts";
 import {
   TextColumnFilterDropdown,
   getTextColumnFilterFn,
@@ -45,29 +46,23 @@ import {
   TimestampColumnFilterDropdown,
   getTimestampColumnFilterFn,
 } from "../table/TimestampColumnFilterDropdown.tsx";
+import { downloadFile } from "../../misc/download-utils.ts";
 import type { FilterDropdownProps } from "antd/lib/table/interface";
-import dayjs from "dayjs";
+import { EntityLabels } from "../labels/EntityLabels.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../permissions/funcs.ts";
 
 const { Title } = Typography;
 
-const IdColumnFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
+// Ant Design requires a stable component reference for filterDropdown.
+// Passing an inline function causes the filter popover to reset on every re-render.
+const TextFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
   <TextColumnFilterDropdown {...props} />
 );
-
-const OverriddenByColumnFilterDropdown: React.FC<FilterDropdownProps> = (
-  props,
-) => <TextColumnFilterDropdown {...props} />;
-
-const LabelsColumnFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
-  <TextColumnFilterDropdown {...props} />
+const TimestampFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
+  <TimestampColumnFilterDropdown {...props} />
 );
-
-const ModifiedWhenColumnFilterDropdown: React.FC<FilterDropdownProps> = (
-  props,
-) => <TimestampColumnFilterDropdown {...props} />;
 
 type InstructionEntityType = "Chain" | "Service" | "Common Variable";
 
@@ -76,7 +71,6 @@ type InstructionRow = {
   id: string;
   name?: string;
   entityType: InstructionEntityType;
-  entityTypeForApi: ImportEntityType;
   action: ImportInstructionAction;
   overriddenById?: string;
   overriddenByName?: string;
@@ -133,117 +127,97 @@ const COLUMN_VISIBILITY_MENU_ITEMS: MenuProps["items"] = [
   { label: "Modified When", key: "modifiedWhen" },
 ];
 
+const { filterDropdown: ACTION_FILTER_DROPDOWN } = makeEnumColumnFilterDropdown<
+  "action",
+  ImportInstructionAction
+>(ACTION_FILTER_OPTIONS, "action", true);
+
+type ApiItem = {
+  id: string;
+  name?: string;
+  overriddenById?: string;
+  overriddenByName?: string;
+  labels?: string[];
+  modifiedWhen?: number;
+};
+
+function toInstructionRow(
+  i: ApiItem,
+  entityType: InstructionEntityType,
+  action: ImportInstructionAction,
+): InstructionRow {
+  return {
+    key: `${entityType}-${action}-${i.id}`,
+    id: i.id,
+    name: i.name ?? i.id,
+    entityType,
+    action,
+    overriddenById: i.overriddenById,
+    overriddenByName: i.overriddenByName,
+    labels: i.labels,
+    modifiedWhen: i.modifiedWhen,
+    isGroup: false,
+  };
+}
+
 export function buildTableData(
   instructions: GeneralImportInstructions | undefined,
 ): InstructionRow[] {
   if (!instructions) return [];
 
-  const chainIgnores = instructions.chains?.ignore ?? [];
-  const chainOverrides = instructions.chains?.override ?? [];
-  const chainDeletes = instructions.chains?.delete ?? [];
-  const serviceIgnores = instructions.services?.ignore ?? [];
-  const serviceDeletes = instructions.services?.delete ?? [];
-  const varIgnores = instructions.commonVariables?.ignore ?? [];
-  const varDeletes = instructions.commonVariables?.delete ?? [];
+  const sortById = (a: InstructionRow, b: InstructionRow) =>
+    (a.name ?? a.id).localeCompare(b.name ?? b.id);
 
   const chainChildren: InstructionRow[] = [
-    ...chainIgnores.map((i) => ({
-      key: `Chain-IGNORE-${i.id}`,
-      id: i.id,
-      name: i.name ?? i.id,
-      entityType: "Chain" as InstructionEntityType,
-      entityTypeForApi: ImportEntityType.CHAIN,
-      action: ImportInstructionAction.IGNORE,
-      overriddenById: i.overriddenById,
-      overriddenByName: i.overriddenByName,
-      labels: i.labels,
-      modifiedWhen: i.modifiedWhen,
-      isGroup: false,
-    })),
-    ...(chainOverrides ?? []).map((i) => ({
-      key: `Chain-OVERRIDE-${i.id}`,
-      id: i.id,
-      name: i.name ?? i.id,
-      entityType: "Chain" as InstructionEntityType,
-      entityTypeForApi: ImportEntityType.CHAIN,
-      action: ImportInstructionAction.OVERRIDE,
-      overriddenById: i.overriddenById,
-      overriddenByName: i.overriddenByName,
-      labels: i.labels,
-      modifiedWhen: i.modifiedWhen,
-      isGroup: false,
-    })),
-    ...(chainDeletes ?? []).map((i) => ({
-      key: `Chain-DELETE-${i.id}`,
-      id: i.id,
-      name: i.name ?? i.id,
-      entityType: "Chain" as InstructionEntityType,
-      entityTypeForApi: ImportEntityType.CHAIN,
-      action: ImportInstructionAction.DELETE,
-      overriddenById: i.overriddenById,
-      overriddenByName: i.overriddenByName,
-      labels: i.labels,
-      modifiedWhen: i.modifiedWhen,
-      isGroup: false,
-    })),
+    ...(instructions.chains?.ignore ?? [])
+      .map((item) =>
+        toInstructionRow(item, "Chain", ImportInstructionAction.IGNORE),
+      )
+      .sort(sortById),
+    ...(instructions.chains?.override ?? [])
+      .map((item) =>
+        toInstructionRow(item, "Chain", ImportInstructionAction.OVERRIDE),
+      )
+      .sort(sortById),
+    ...(instructions.chains?.delete ?? [])
+      .map((item) =>
+        toInstructionRow(item, "Chain", ImportInstructionAction.DELETE),
+      )
+      .sort(sortById),
   ];
 
   const serviceChildren: InstructionRow[] = [
-    ...(serviceIgnores ?? []).map((i) => ({
-      key: `Service-IGNORE-${i.id}`,
-      id: i.id,
-      name: i.name ?? i.id,
-      entityType: "Service" as InstructionEntityType,
-      entityTypeForApi: ImportEntityType.SERVICE,
-      action: ImportInstructionAction.IGNORE,
-      overriddenById: i.overriddenById,
-      overriddenByName: i.overriddenByName,
-      labels: i.labels,
-      modifiedWhen: i.modifiedWhen,
-      isGroup: false,
-    })),
-    ...(serviceDeletes ?? []).map((i) => ({
-      key: `Service-DELETE-${i.id}`,
-      id: i.id,
-      name: i.name ?? i.id,
-      entityType: "Service" as InstructionEntityType,
-      entityTypeForApi: ImportEntityType.SERVICE,
-      action: ImportInstructionAction.DELETE,
-      overriddenById: i.overriddenById,
-      overriddenByName: i.overriddenByName,
-      labels: i.labels,
-      modifiedWhen: i.modifiedWhen,
-      isGroup: false,
-    })),
+    ...(instructions.services?.ignore ?? [])
+      .map((item) =>
+        toInstructionRow(item, "Service", ImportInstructionAction.IGNORE),
+      )
+      .sort(sortById),
+    ...(instructions.services?.delete ?? [])
+      .map((item) =>
+        toInstructionRow(item, "Service", ImportInstructionAction.DELETE),
+      )
+      .sort(sortById),
   ];
 
   const varChildren: InstructionRow[] = [
-    ...(varIgnores ?? []).map((i) => ({
-      key: `Common Variable-IGNORE-${i.id}`,
-      id: i.id,
-      name: i.name ?? i.id,
-      entityType: "Common Variable" as InstructionEntityType,
-      entityTypeForApi: ImportEntityType.COMMON_VARIABLE,
-      action: ImportInstructionAction.IGNORE,
-      overriddenById: i.overriddenById,
-      overriddenByName: i.overriddenByName,
-      labels: i.labels,
-      modifiedWhen: i.modifiedWhen,
-      isGroup: false,
-    })),
-    ...(varDeletes ?? []).map((i) => ({
-      key: `Common Variable-DELETE-${i.id}`,
-      id: i.id,
-      name: i.name ?? i.id,
-      entityType: "Common Variable" as InstructionEntityType,
-      entityTypeForApi: ImportEntityType.COMMON_VARIABLE,
-      action: ImportInstructionAction.DELETE,
-      overriddenById: i.overriddenById,
-      overriddenByName: i.overriddenByName,
-      labels: i.labels,
-      modifiedWhen: i.modifiedWhen,
-      isGroup: false,
-    })),
+    ...(instructions.commonVariables?.ignore ?? [])
+      .map((item) =>
+        toInstructionRow(
+          item,
+          "Common Variable",
+          ImportInstructionAction.IGNORE,
+        ),
+      )
+      .sort(sortById),
+    ...(instructions.commonVariables?.delete ?? [])
+      .map((item) =>
+        toInstructionRow(
+          item,
+          "Common Variable",
+          ImportInstructionAction.DELETE,
+        ),
+      )
+      .sort(sortById),
   ];
 
   return [
@@ -251,7 +225,6 @@ export function buildTableData(
       key: "Chain",
       id: "Chain",
       entityType: "Chain",
-      entityTypeForApi: ImportEntityType.CHAIN,
       action: ImportInstructionAction.IGNORE,
       isGroup: true,
       children: chainChildren.length > 0 ? chainChildren : undefined,
@@ -260,7 +233,6 @@ export function buildTableData(
       key: "Service",
       id: "Service",
       entityType: "Service",
-      entityTypeForApi: ImportEntityType.SERVICE,
       action: ImportInstructionAction.IGNORE,
       isGroup: true,
       children: serviceChildren.length > 0 ? serviceChildren : undefined,
@@ -269,12 +241,36 @@ export function buildTableData(
       key: "Common Variable",
       id: "Common Variable",
       entityType: "Common Variable",
-      entityTypeForApi: ImportEntityType.COMMON_VARIABLE,
       action: ImportInstructionAction.IGNORE,
       isGroup: true,
       children: varChildren.length > 0 ? varChildren : undefined,
     },
   ];
+}
+
+type CollectedIds = {
+  chains: string[];
+  services: string[];
+  commonVariables: string[];
+};
+
+function collectSelectedIds(
+  tableData: InstructionRow[],
+  selectedRowKeys: React.Key[],
+): CollectedIds {
+  const chains: string[] = [];
+  const services: string[] = [];
+  const commonVariables: string[] = [];
+  // Table data is intentionally two levels deep: top-level groups contain leaf rows.
+  for (const group of tableData) {
+    for (const child of group.children ?? []) {
+      if (!selectedRowKeys.includes(child.key)) continue;
+      if (child.entityType === "Chain") chains.push(child.id);
+      else if (child.entityType === "Service") services.push(child.id);
+      else commonVariables.push(child.id);
+    }
+  }
+  return { chains, services, commonVariables };
 }
 
 function filterRowsBySearchTerm(
@@ -307,14 +303,9 @@ export const ImportInstructions: React.FC = () => {
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
-  const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
-  const [editingField, setEditingField] = useState<
-    "action" | "overriddenBy" | null
+  const [pendingOverrideRowKey, setPendingOverrideRowKey] = useState<
+    string | null
   >(null);
-  const [editingAction, setEditingAction] = useState<ImportInstructionAction>(
-    ImportInstructionAction.IGNORE,
-  );
-  const [editingOverriddenBy, setEditingOverriddenBy] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
     "id",
     "action",
@@ -336,10 +327,10 @@ export const ImportInstructions: React.FC = () => {
     try {
       const data = await api.getImportInstructions();
       setInstructions(data);
-    } catch (error) {
+    } catch (err: unknown) {
       notificationService.requestFailed(
         "Failed to load import instructions",
-        error,
+        err,
       );
     } finally {
       setLoading(false);
@@ -364,15 +355,15 @@ export const ImportInstructions: React.FC = () => {
       try {
         await api.updateImportInstruction({
           id: row.id,
-          entityType: row.entityTypeForApi,
+          entityType: ENTITY_TO_API[row.entityType],
           action: newAction,
           overriddenBy: overriddenBy ?? undefined,
         });
         await fetchInstructions();
-      } catch (error) {
+      } catch (err: unknown) {
         notificationService.requestFailed(
           "Failed to update import instruction",
-          error,
+          err,
         );
       }
     },
@@ -383,15 +374,11 @@ export const ImportInstructions: React.FC = () => {
     setExportLoading(true);
     try {
       const file = await api.exportImportInstructions();
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(file);
-      link.download = file.name || "import-instructions.yaml";
-      link.click();
-      link.remove();
-    } catch (error) {
+      downloadFile(file, "import-instructions.yaml");
+    } catch (err: unknown) {
       notificationService.requestFailed(
         "Failed to export import instructions",
-        error,
+        err,
       );
     } finally {
       setExportLoading(false);
@@ -399,358 +386,291 @@ export const ImportInstructions: React.FC = () => {
   }, [notificationService]);
 
   const handleDelete = useCallback(async () => {
-    const chains: string[] = [];
-    const services: string[] = [];
-    const commonVariables: string[] = [];
-
-    const collectFromRows = (rows: InstructionRow[]) => {
-      rows.forEach((r) => {
-        if (r.isGroup && r.children) collectFromRows(r.children);
-        else if (!r.isGroup && selectedRowKeys.includes(r.key)) {
-          if (r.entityType === "Chain") chains.push(r.id);
-          else if (r.entityType === "Service") services.push(r.id);
-          else if (r.entityType === "Common Variable")
-            commonVariables.push(r.id);
-        }
-      });
-    };
-    tableData.forEach((r) => {
-      if (r.children) collectFromRows(r.children);
-    });
-
-    if (
-      chains.length === 0 &&
-      services.length === 0 &&
-      commonVariables.length === 0
-    )
-      return;
-
+    const { chains, services, commonVariables } = collectSelectedIds(
+      tableData,
+      selectedRowKeys,
+    );
+    if (!chains.length && !services.length && !commonVariables.length) return;
     try {
       await api.deleteImportInstructions({
-        chains: chains.length > 0 ? chains : undefined,
-        services: services.length > 0 ? services : undefined,
-        commonVariables:
-          commonVariables.length > 0 ? commonVariables : undefined,
+        chains: chains.length ? chains : undefined,
+        services: services.length ? services : undefined,
+        commonVariables: commonVariables.length ? commonVariables : undefined,
       });
       setSelectedRowKeys([]);
       await fetchInstructions();
-    } catch (error) {
+    } catch (err: unknown) {
       notificationService.requestFailed(
         "Failed to delete import instructions",
-        error,
+        err,
       );
     }
   }, [selectedRowKeys, tableData, fetchInstructions, notificationService]);
 
-  const { filterDropdown: actionFilterDropdown } = useMemo(
-    () =>
-      makeEnumColumnFilterDropdown<"action", ImportInstructionAction>(
-        ACTION_FILTER_OPTIONS,
-        "action",
-        true,
-      ),
-    [],
-  );
-
-  const columns: TableProps<InstructionRow>["columns"] = [
-    {
-      title: "Id",
-      dataIndex: "id",
-      key: "id",
-      hidden: !visibleColumns.includes("id"),
-      width: 280,
-      filterDropdown: IdColumnFilterDropdown,
-      onFilter: (value, record) => {
-        if (record.isGroup) return true;
-        return getTextColumnFilterFn<InstructionRow>((r) =>
-          `${r.id} ${r.name ?? ""}`.trim(),
-        )(value, record);
+  const columns: TableProps<InstructionRow>["columns"] = useMemo(() => {
+    return [
+      {
+        title: "Id",
+        dataIndex: "id",
+        key: "id",
+        width: 280,
+        sorter: (a, b) =>
+          (a.name ?? a.id).localeCompare(b.name ?? b.id, undefined, {
+            sensitivity: "base",
+          }),
+        filterDropdown: TextFilterDropdown,
+        onFilter: (value: React.Key | boolean, record: InstructionRow) => {
+          if (record.isGroup) return true;
+          return getTextColumnFilterFn<InstructionRow>((r) =>
+            `${r.id} ${r.name ?? ""}`.trim(),
+          )(value, record);
+        },
+        render: (_, row) => {
+          if (row.isGroup)
+            return (
+              <strong>
+                <OverridableIcon
+                  name={ENTITY_ICON[row.entityType]}
+                  className={commonStyles.iconInline as string}
+                />
+                {ENTITY_DISPLAY[row.entityType]}
+              </strong>
+            );
+          const href = getEntityHref(row);
+          return href ? (
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              {row.name ?? row.id}
+            </a>
+          ) : (
+            (row.name ?? row.id)
+          );
+        },
       },
-      render: (_, row) => {
-        if (row.isGroup)
+      {
+        title: "Action",
+        dataIndex: "action",
+        key: "action",
+        width: 140,
+        sorter: (a, b) =>
+          String(a.action).localeCompare(String(b.action), undefined, {
+            sensitivity: "base",
+          }),
+        filterDropdown: ACTION_FILTER_DROPDOWN,
+        onFilter: (value, record) => {
+          if (record.isGroup) return true;
+          const vals = Array.isArray(value) ? value : [value];
+          if (vals.length === 0) return true;
+          return vals.includes(record.action);
+        },
+        render: (_, row) => {
+          if (row.isGroup) return "";
+          const options =
+            row.entityType === "Chain"
+              ? ACTION_OPTIONS_CHAIN
+              : ACTION_OPTIONS_SERVICE_OR_VAR;
+          const displayAction =
+            pendingOverrideRowKey === row.key
+              ? ImportInstructionAction.OVERRIDE
+              : row.action;
+          if (!enableEdit) {
+            return <span>{formatSnakeCased(displayAction)}</span>;
+          }
           return (
-            <strong>
-              <OverridableIcon
-                name={ENTITY_ICON[row.entityType]}
-                style={{ marginRight: 8 }}
-              />
-              {ENTITY_DISPLAY[row.entityType]}
-            </strong>
-          );
-        const href = getEntityHref(row);
-        return href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer">
-            {row.name ?? row.id}
-          </a>
-        ) : (
-          (row.name ?? row.id)
-        );
-      },
-    },
-    {
-      title: "Action",
-      dataIndex: "action",
-      key: "action",
-      hidden: !visibleColumns.includes("action"),
-      width: 140,
-      filterDropdown: actionFilterDropdown,
-      onFilter: (value, record) => {
-        if (record.isGroup) return true;
-        const vals = Array.isArray(value) ? value : [value];
-        if (vals.length === 0) return true;
-        return vals.includes(record.action);
-      },
-      render: (_, row) => {
-        if (row.isGroup) return "";
-        const options =
-          row.entityType === "Chain"
-            ? ACTION_OPTIONS_CHAIN
-            : ACTION_OPTIONS_SERVICE_OR_VAR;
-        const isEditing =
-          enableEdit && editingRowKey === row.key && editingField === "action";
-
-        if (isEditing) {
-          const showOverriddenByInput =
-            row.entityType === "Chain" &&
-            editingAction === ImportInstructionAction.OVERRIDE;
-
-          const onKeyDown = (e: React.KeyboardEvent) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              setEditingRowKey(null);
-              setEditingField(null);
-            } else if (e.key === "Enter" && !showOverriddenByInput) {
-              e.preventDefault();
-              void handleUpdateAction(row, editingAction);
-              setEditingRowKey(null);
-              setEditingField(null);
-            }
-          };
-
-          return (
-            <InlineEditWithButtons
-              showButtons={!showOverriddenByInput}
-              onKeyDown={onKeyDown}
-              onApply={() => {
-                void handleUpdateAction(row, editingAction);
-                setEditingRowKey(null);
-                setEditingField(null);
+            <InlineEdit<{ action: ImportInstructionAction }>
+              values={{ action: displayAction }}
+              editor={
+                <SelectEdit
+                  name="action"
+                  options={options}
+                  onChangeSideEffect={(value) => {
+                    if (
+                      value === ImportInstructionAction.OVERRIDE &&
+                      row.entityType === "Chain"
+                    ) {
+                      setPendingOverrideRowKey(row.key);
+                    }
+                  }}
+                  shouldSubmitOnChange={(value) =>
+                    !(
+                      value === ImportInstructionAction.OVERRIDE &&
+                      row.entityType === "Chain"
+                    )
+                  }
+                />
+              }
+              viewer={
+                <span>
+                  {formatSnakeCased(
+                    pendingOverrideRowKey === row.key
+                      ? ImportInstructionAction.OVERRIDE
+                      : row.action,
+                  )}
+                  <OverridableIcon
+                    name="edit"
+                    className={inlineEditStyles.inlineIcon as string}
+                  />
+                </span>
+              }
+              onSubmit={async ({ action }) => {
+                await handleUpdateAction(row, action);
               }}
-              onCancel={() => {
-                setEditingRowKey(null);
-                setEditingField(null);
-              }}
-            >
-              <Select<ImportInstructionAction>
-                size="small"
-                autoFocus
-                style={{ width: "100%", minWidth: 100 }}
-                options={options}
-                value={editingAction}
-                onChange={setEditingAction}
-                onKeyDown={(e) => e.stopPropagation()}
-              />
-            </InlineEditWithButtons>
-          );
-        }
-
-        const startEditAction = () => {
-          setEditingRowKey(row.key);
-          setEditingField("action");
-          setEditingAction(row.action);
-          setEditingOverriddenBy(
-            row.overriddenById ?? row.overriddenByName ?? "",
-          );
-        };
-        return (
-          <EditableCellTrigger
-            onClick={startEditAction}
-            style={{ paddingInlineEnd: 24 }}
-          >
-            {capitalize(row.action.replace("_", " "))}
-            <OverridableIcon
-              name="edit"
-              className={editableCellStyles.inlineIcon}
             />
-          </EditableCellTrigger>
-        );
+          );
+        },
       },
-    },
-    {
-      title: "Overridden By",
-      dataIndex: "overriddenByName",
-      key: "overriddenBy",
-      hidden: !visibleColumns.includes("overriddenBy"),
-      width: 200,
-      filterDropdown: OverriddenByColumnFilterDropdown,
-      onFilter: (value, record) => {
-        if (record.isGroup) return true;
-        return getTextColumnFilterFn<InstructionRow>(
-          (r) => r.overriddenById ?? r.overriddenByName ?? "",
-        )(value, record);
-      },
-      render: (_, row) => {
-        if (row.isGroup) return "";
-        const isOverrideRow =
-          row.action === ImportInstructionAction.OVERRIDE ||
-          (editingRowKey === row.key &&
-            editingField === "action" &&
-            editingAction === ImportInstructionAction.OVERRIDE &&
-            row.entityType === "Chain");
-        if (!isOverrideRow) return "";
-        const isEditing =
-          enableEdit &&
-          ((editingRowKey === row.key && editingField === "overriddenBy") ||
-            (editingRowKey === row.key &&
-              editingField === "action" &&
-              editingAction === ImportInstructionAction.OVERRIDE));
-
-        if (isEditing) {
-          const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              setEditingRowKey(null);
-              setEditingField(null);
-            } else if (e.key === "Enter") {
-              e.preventDefault();
-              void handleUpdateAction(
-                row,
-                ImportInstructionAction.OVERRIDE,
-                editingOverriddenBy || null,
-              );
-              setEditingRowKey(null);
-              setEditingField(null);
-            }
-          };
+      {
+        title: "Overridden By",
+        dataIndex: "overriddenByName",
+        key: "overriddenBy",
+        width: 200,
+        sorter: (a, b) =>
+          (a.overriddenByName ?? a.overriddenById ?? "").localeCompare(
+            b.overriddenByName ?? b.overriddenById ?? "",
+            undefined,
+            { sensitivity: "base" },
+          ),
+        filterDropdown: TextFilterDropdown,
+        onFilter: (value: React.Key | boolean, record: InstructionRow) => {
+          if (record.isGroup) return true;
+          return getTextColumnFilterFn<InstructionRow>(
+            (r) => r.overriddenById ?? r.overriddenByName ?? "",
+          )(value, record);
+        },
+        render: (_, row) => {
+          if (row.isGroup) return "";
+          const showOverriddenBy =
+            row.action === ImportInstructionAction.OVERRIDE ||
+            pendingOverrideRowKey === row.key;
+          if (!showOverriddenBy) return "";
+          if (!enableEdit) {
+            return (
+              <span>
+                {row.overriddenByName ?? row.overriddenById ?? PLACEHOLDER}
+              </span>
+            );
+          }
 
           return (
-            <InlineEditWithButtons
-              onApply={() => {
-                void handleUpdateAction(
+            <InlineEditWithButtons<{ overriddenBy: string }>
+              values={{
+                overriddenBy: row.overriddenById ?? row.overriddenByName ?? "",
+              }}
+              initialActive={pendingOverrideRowKey === row.key}
+              editor={<TextValueEdit name="overriddenBy" rules={[]} />}
+              viewer={
+                <span>
+                  {row.overriddenByName ?? row.overriddenById ?? PLACEHOLDER}
+                  <OverridableIcon
+                    name="edit"
+                    className={inlineEditStyles.inlineIcon as string}
+                  />
+                </span>
+              }
+              onSubmit={async ({ overriddenBy }) => {
+                setPendingOverrideRowKey(null);
+                await handleUpdateAction(
                   row,
                   ImportInstructionAction.OVERRIDE,
-                  editingOverriddenBy || null,
+                  overriddenBy || null,
                 );
-                setEditingRowKey(null);
-                setEditingField(null);
               }}
               onCancel={() => {
-                setEditingRowKey(null);
-                setEditingField(null);
+                setPendingOverrideRowKey(null);
               }}
-            >
-              <Input
-                size="small"
-                autoFocus
-                value={editingOverriddenBy}
-                onChange={(e) => setEditingOverriddenBy(e.target.value)}
-                onKeyDown={onKeyDown}
-                style={{ flex: 1, minWidth: 100 }}
-              />
-            </InlineEditWithButtons>
-          );
-        }
-
-        const startEditOverriddenBy = () => {
-          setEditingRowKey(row.key);
-          setEditingField("overriddenBy");
-          setEditingOverriddenBy(
-            row.overriddenById ?? row.overriddenByName ?? "",
-          );
-        };
-        return (
-          <EditableCellTrigger
-            onClick={startEditOverriddenBy}
-            style={{ paddingInlineEnd: 24 }}
-          >
-            {row.overriddenByName ?? row.overriddenById ?? "—"}
-            <OverridableIcon
-              name="edit"
-              className={editableCellStyles.inlineIcon}
             />
-          </EditableCellTrigger>
-        );
+          );
+        },
       },
-    },
-    {
-      title: "Labels",
-      dataIndex: "labels",
-      key: "labels",
-      hidden: !visibleColumns.includes("labels"),
-      width: 180,
-      filterDropdown: LabelsColumnFilterDropdown,
-      onFilter: (value, record) => {
-        if (record.isGroup) return true;
-        return getTextListColumnFilterFn<InstructionRow>((r) => r.labels ?? [])(
-          value,
-          record,
-        );
+      {
+        title: "Labels",
+        dataIndex: "labels",
+        key: "labels",
+        width: 180,
+        sorter: (a, b) =>
+          (a.labels ?? [])
+            .join(",")
+            .localeCompare((b.labels ?? []).join(","), undefined, {
+              sensitivity: "base",
+            }),
+        filterDropdown: TextFilterDropdown,
+        onFilter: (value: React.Key | boolean, record: InstructionRow) => {
+          if (record.isGroup) return true;
+          return getTextListColumnFilterFn<InstructionRow>(
+            (r) => r.labels ?? [],
+          )(value, record);
+        },
+        render: (_, row) => {
+          if (row.isGroup) return "";
+          return (
+            <EntityLabels
+              labels={(row.labels ?? []).map((name) => ({
+                name,
+                technical: false,
+              }))}
+            />
+          );
+        },
       },
-      render: (_, row) => {
-        if (row.isGroup) return "";
-        return (
-          <Space size={[0, 4]} wrap>
-            {(row.labels ?? []).slice(0, 3).map((l) => (
-              <Tag key={l}>{l}</Tag>
-            ))}
-            {(row.labels?.length ?? 0) > 3 && (
-              <Tag>+{(row.labels?.length ?? 0) - 3}</Tag>
-            )}
-          </Space>
-        );
+      {
+        title: "Modified When",
+        key: "modifiedWhen",
+        width: 160,
+        filterDropdown: TimestampFilterDropdown,
+        onFilter: (value: React.Key | boolean, record: InstructionRow) => {
+          if (record.isGroup) return true;
+          return getTimestampColumnFilterFn<InstructionRow>(
+            (r) => r.modifiedWhen ?? 0,
+          )(value, record);
+        },
+        render: (_: unknown, row: InstructionRow) => {
+          if (row.isGroup) return "";
+          const ts = row.modifiedWhen;
+          if (ts == null) return PLACEHOLDER;
+          return formatTimestampShort(ts);
+        },
       },
-    },
-    {
-      title: "Modified When",
-      dataIndex: "modifiedWhen",
-      key: "modifiedWhen",
-      hidden: !visibleColumns.includes("modifiedWhen"),
-      width: 160,
-      filterDropdown: ModifiedWhenColumnFilterDropdown,
-      onFilter: (value, record) => {
-        if (record.isGroup) return true;
-        return getTimestampColumnFilterFn<InstructionRow>(
-          (r) => r.modifiedWhen ?? 0,
-        )(value, record);
-      },
-      render: (_, row) => {
-        if (row.isGroup) return "";
-        return row.modifiedWhen
-          ? dayjs(row.modifiedWhen).format("YYYY-MM-DD HH:mm")
-          : "—";
-      },
-    },
-  ];
+    ];
+  }, [handleUpdateAction, pendingOverrideRowKey, enableEdit]);
 
-  const rowSelection: TableProps<InstructionRow>["rowSelection"] = {
-    selectedRowKeys: selectedRowKeys,
-    onChange: (keys) => setSelectedRowKeys(keys ?? []),
-    getCheckboxProps: (record) => ({
-      disabled: record.isGroup,
+  const visibleColumnsFiltered = useMemo(
+    () =>
+      columns.filter((col) =>
+        visibleColumns.includes((col.key ?? "") as string),
+      ),
+    [columns, visibleColumns],
+  );
+
+  const rowSelection = useMemo<TableProps<InstructionRow>["rowSelection"]>(
+    () => ({
+      selectedRowKeys,
+      onChange: (keys) => setSelectedRowKeys(keys ?? []),
+      getCheckboxProps: (record) => ({ disabled: record.isGroup }),
     }),
-  };
+    [selectedRowKeys],
+  );
 
   return (
     <Flex vertical className={commonStyles.container}>
-      <Flex justify="space-between" align="center" style={{ marginBottom: 16 }}>
+      <Flex className={commonStyles.header}>
         <Title level={4} className={commonStyles.title}>
           <OverridableIcon
             name="importInstructions"
             className={commonStyles.icon}
           />
-          <span style={{ display: "inline-block", verticalAlign: "middle" }}>
-            Import
-            <br />
-            Instructions
-          </span>
+          Import Instructions
         </Title>
-        <Flex gap={8} align="center">
+        <Flex
+          vertical={false}
+          gap={8}
+          className={commonStyles.actions}
+          align="center"
+        >
           <CompactSearch
             value={searchTerm}
             onChange={setSearchTerm}
             placeholder="Search..."
             allowClear
-            style={{ width: 200 }}
+            className={commonStyles.searchField as string}
           />
           <Dropdown
             menu={{
@@ -758,10 +678,12 @@ export const ImportInstructions: React.FC = () => {
               selectable: true,
               multiple: true,
               selectedKeys: visibleColumns,
-              onSelect: ({ selectedKeys }) =>
-                setVisibleColumns(selectedKeys ?? []),
-              onDeselect: ({ selectedKeys }) =>
-                setVisibleColumns(selectedKeys ?? []),
+              onSelect: ({ selectedKeys }) => {
+                setVisibleColumns((selectedKeys ?? []).map(String));
+              },
+              onDeselect: ({ selectedKeys }) => {
+                setVisibleColumns((selectedKeys ?? []).map(String));
+              },
             }}
           >
             <Tooltip title="Column settings">
@@ -823,22 +745,21 @@ export const ImportInstructions: React.FC = () => {
       </Flex>
 
       <div className={commonStyles["table-wrapper"]}>
-        {loading ? (
-          <Flex justify="center" align="center" style={{ flex: 1 }}>
-            <Spin size="large" />
-          </Flex>
-        ) : (
-          <Table<InstructionRow>
-            size="small"
-            rowKey="key"
-            columns={columns}
-            dataSource={tableData}
-            rowSelection={rowSelection}
-            pagination={false}
-            scroll={{ y: "calc(100vh - 280px)" }}
-            expandable={{ defaultExpandAllRows: true }}
-          />
-        )}
+        <Table<InstructionRow>
+          className="flex-table"
+          size="small"
+          rowKey="key"
+          columns={visibleColumnsFiltered}
+          dataSource={tableData}
+          rowSelection={rowSelection}
+          pagination={false}
+          loading={loading}
+          scroll={{ y: "100%" }}
+          expandable={{
+            defaultExpandAllRows: true,
+            defaultExpandedRowKeys: ["Chain", "Service", "Common Variable"],
+          }}
+        />
       </div>
 
       {addModalVisible && (
@@ -908,11 +829,11 @@ const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
             : undefined,
       });
       onSuccess();
-    } catch (error) {
-      if (error && typeof error === "object" && "errorFields" in error) return;
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "errorFields" in err) return;
       notificationService.requestFailed(
         "Failed to add import instruction",
-        error,
+        err,
       );
     } finally {
       setLoading(false);
@@ -923,6 +844,7 @@ const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
     <Modal
       title="Add Instruction"
       open
+      destroyOnHidden
       onCancel={onClose}
       footer={[
         <Button key="cancel" onClick={onClose}>
@@ -1004,11 +926,12 @@ const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
 }) => {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<ImportInstructionResult[] | null>(null);
+  const [result, setResult] = useState<ImportInstructionResult[]>([]);
+  const [uploaded, setUploaded] = useState(false);
   const notificationService = useNotificationService();
 
   const handleUpload = async () => {
-    const file = fileList?.[0];
+    const file = fileList[0];
     const rawFile =
       file && "originFileObj" in file ? file.originFileObj : undefined;
     if (!rawFile) return;
@@ -1016,10 +939,11 @@ const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
     try {
       const results = await api.uploadImportInstructions(rawFile);
       setResult(results);
-    } catch (error) {
+      setUploaded(true);
+    } catch (err: unknown) {
       notificationService.requestFailed(
         "Failed to upload import instructions",
-        error,
+        err,
       );
     } finally {
       setUploading(false);
@@ -1030,13 +954,14 @@ const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
     <Modal
       title="Upload Instructions (yaml, yml)"
       open
+      destroyOnHidden
       onCancel={onClose}
       width={600}
       footer={[
         <Button key="close" onClick={onClose}>
           Close
         </Button>,
-        result === null ? (
+        uploaded ? null : (
           <Button
             key="upload"
             type="primary"
@@ -1046,23 +971,10 @@ const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
           >
             Upload
           </Button>
-        ) : null,
+        ),
       ]}
     >
-      {result === null ? (
-        <Dragger
-          multiple={false}
-          accept=".yaml,.yml"
-          fileList={fileList ?? []}
-          beforeUpload={() => false}
-          onChange={(info) => setFileList(info.fileList.slice(-1))}
-        >
-          <p className="ant-upload-drag-icon">
-            <OverridableIcon name="inbox" />
-          </p>
-          <p className="ant-upload-text">Click or drag file to upload</p>
-        </Dragger>
-      ) : (
+      {uploaded ? (
         <Table
           size="small"
           rowKey={(r) => `${r.entityType}-${r.id}`}
@@ -1080,6 +992,22 @@ const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
           dataSource={result}
           pagination={false}
         />
+      ) : (
+        <Dragger
+          multiple={false}
+          accept=".yaml,.yml"
+          fileList={fileList}
+          beforeUpload={() => false}
+          onChange={(info) => setFileList(info.fileList.slice(-1))}
+        >
+          <p className="ant-upload-drag-icon">
+            <OverridableIcon name="inbox" />
+          </p>
+          <p className="ant-upload-text">Click or drag file to upload</p>
+          <p className="ant-upload-hint">
+            Supports: YAML files with import instructions
+          </p>
+        </Dragger>
       )}
     </Modal>
   );

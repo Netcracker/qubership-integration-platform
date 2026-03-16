@@ -47,6 +47,7 @@ export const SecuredVariables: React.FC = () => {
   const [createForm] = Form.useForm();
   const [columnsWidth, setColumnsWidth] = useState<{ [key: string]: number }>({
     key: 300,
+    value: 400,
   });
   const notificationService = useNotificationService();
   const permissions = usePermissions();
@@ -278,9 +279,9 @@ export const SecuredVariables: React.FC = () => {
         isAddingNew={newVariableKeys[secret]}
         editingKey={editing?.secret === secret ? editing.key : null}
         editingValue={editing?.secret === secret ? editingValue : ""}
-        onStartEditing={(key) => {
+        onStartEditing={(key, value) => {
           setEditing({ secret, key });
-          setEditingValue("");
+          setEditingValue(value);
         }}
         onChangeEditingValue={setEditingValue}
         onCancelEditing={() => {

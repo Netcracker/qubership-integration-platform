@@ -1,6 +1,13 @@
-import { createContext, ReactNode, useEffect, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useForm } from "antd/lib/form/Form";
-import { Form } from "antd";
+import { Flex, Form } from "antd";
 import styles from "./InlineEdit.module.css";
 
 export type InlineEditContextProps = {
@@ -27,7 +34,7 @@ export function InlineEdit<Values>({
   onSubmit,
   onCancel,
   initialActive,
-}: InlineEditProps<Values>): ReactNode {
+}: Readonly<InlineEditProps<Values>>): ReactNode {
   const [form] = useForm<Values>();
   const [processing, setProcessing] = useState<boolean>(false);
   const [active, setActive] = useState<boolean>(initialActive ?? false);
@@ -39,56 +46,65 @@ export function InlineEdit<Values>({
     }
   }, [values, active, form]);
 
-  const toggle = () => {
-    setActive(!active);
-    if (!active) {
+  const toggle = useCallback(() => {
+    setActive((prev) => {
+      if (prev) {
+        onCancel?.();
+        return false;
+      }
       // @ts-expect-error False positive as object of type Values is RecursivePartial<Values>
       form.setFieldsValue(values);
-    } else {
-      onCancel?.();
-    }
-  };
+      return true;
+    });
+  }, [form, values, onCancel]);
+
+  const contextValue = useMemo(() => ({ toggle }), [toggle]);
 
   return (
-    <InlineEditContext.Provider value={{ toggle }}>
+    <InlineEditContext.Provider value={contextValue}>
       {active ? (
-        <Form<Values>
-          form={form}
-          disabled={processing}
-          component={false}
-          onFinish={() => {
-            setProcessing(true);
-            try {
-              const result = onSubmit?.(form.getFieldsValue());
-              if (result instanceof Promise) {
-                result
-                  .then(() => {
+        <Flex style={{ width: "100%", minWidth: 0 }} vertical={false}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Form<Values>
+              form={form}
+              disabled={processing}
+              component={false}
+              onFinish={() => {
+                setProcessing(true);
+                try {
+                  const result = onSubmit?.(form.getFieldsValue());
+                  if (result instanceof Promise) {
+                    result
+                      .then(() => {
+                        setProcessing(false);
+                        toggle();
+                      })
+                      .catch(() => setProcessing(false));
+                  } else {
                     setProcessing(false);
                     toggle();
-                  })
-                  .catch(() => setProcessing(false));
-              } else {
-                setProcessing(false);
+                  }
+                } catch (e) {
+                  console.error(e);
+                  setProcessing(false);
+                }
                 toggle();
-              }
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            } catch (error) {
-              setProcessing(false);
-            }
-            toggle();
-          }}
-          onBlur={toggle}
-        >
-          {editor}
-        </Form>
+              }}
+              onBlur={toggle}
+            >
+              {editor}
+            </Form>
+          </div>
+        </Flex>
       ) : (
-        <div
+        <button
+          type="button"
           className={styles.inlineEditValueWrap}
           style={{ paddingInlineEnd: 24 }}
           onClick={toggle}
         >
           {viewer}
-        </div>
+        </button>
       )}
     </InlineEditContext.Provider>
   );

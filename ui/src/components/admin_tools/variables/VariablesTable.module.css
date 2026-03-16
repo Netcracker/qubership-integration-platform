@@ -41,3 +41,42 @@
   text-overflow: ellipsis;
   min-width: 0;
 }
+
+.editing-wrapper {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-inline-size: unset;
+}
+
+.editing-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.editable-cell-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  min-height: 1.5em;
+}
+
+.editable-cell-wrapper:hover .inline-icon {
+  opacity: 1;
+}
+
+.inline-icon {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  flex-shrink: 0;
+}

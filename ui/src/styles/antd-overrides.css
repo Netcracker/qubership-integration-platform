@@ -372,9 +372,22 @@ pre[class*="language-"] .token.punctuation {
 }
 
 /* Fix Tag text color for colored tags with inline styles (like Source tags) */
-.ant-tag[style*="background:"],
-.ant-tag[style*="background-color:"] {
+[data-theme="light"] .ant-tag[style*="background:"],
+[data-theme="light"] .ant-tag[style*="background-color:"] {
   color: rgb(0 0 0 / 88%) !important;
+}
+
+[data-theme="dark"] .ant-tag[style*="background:"],
+[data-theme="dark"] .ant-tag[style*="background-color:"],
+[data-theme="high-contrast"] .ant-tag[style*="background:"],
+[data-theme="high-contrast"] .ant-tag[style*="background-color:"] {
+  color: var(--vscode-foreground, rgb(255 255 255 / 90%)) !important;
+}
+
+/* Default Tags (no color) in dark theme - antd may use dark text */
+[data-theme="dark"] .ant-tag,
+[data-theme="high-contrast"] .ant-tag {
+  color: var(--vscode-foreground, rgb(255 255 255 / 90%)) !important;
 }
 
 /* Monaco Editor fixes for proper mouse selection */
@@ -501,6 +514,20 @@ pre[class*="language-"] .token.punctuation {
     --vscode-editorGroup-border,
     var(--vscode-border)
   ) !important;
+}
+
+.ant-table a {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+}
+
+.ant-table a:hover {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+  opacity: 0.8;
+}
+
+/* Fix: native <button> in table cells inherits cell color (dark theme) */
+.ant-table-tbody .ant-table-cell button:not(.ant-btn) {
+  color: inherit !important;
 }
 
 /* Segmented theming */

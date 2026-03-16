@@ -68,6 +68,14 @@
   transform: translateY(-1px);
 }
 
+.iconInline {
+  margin-right: 8px;
+}
+
+.searchField {
+  width: 200px;
+}
+
 .table-wrapper {
   flex: 1;
   min-height: 0;

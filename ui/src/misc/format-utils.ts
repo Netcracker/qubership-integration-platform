@@ -29,6 +29,22 @@ export function formatTimestamp(
   return formatOptional(timestamp, formatter);
 }
 
+export function formatTimestampShort(
+  timestamp: string | number | Date,
+): string {
+  const formatter = (t: string | number | Date) => {
+    const date = new Date(t);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const y = date.getFullYear();
+    const m = pad(date.getMonth() + 1);
+    const d = pad(date.getDate());
+    const h = pad(date.getHours());
+    const min = pad(date.getMinutes());
+    return `${y}-${m}-${d} ${h}:${min}`;
+  };
+  return formatOptional(timestamp, formatter);
+}
+
 export function formatUTCSessionDate(date: string, millis?: boolean): string {
   return formatTimestamp(date?.concat("Z"), millis);
 }

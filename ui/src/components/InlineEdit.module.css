@@ -3,10 +3,50 @@
   cursor: pointer;
   min-height: 32px;
   align-content: center;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  width: 100%;
 }
 
 .inlineEditValueWrap:hover {
   padding: 4px 11px;
   border: 1px solid #d9d9d9;
   border-radius: 2px;
+}
+
+.inlineIcon {
+  opacity: 0;
+  margin-inline-start: 4px;
+  transition: opacity 0.2s ease;
+}
+
+.inlineEditValueWrap:hover .inlineIcon {
+  opacity: 0.8;
+}
+
+.inlineEditFormWrap {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-inline-size: unset;
+}
+
+.inlineEditFormWrap > *:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.inlineEditButtons {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  margin-top: 2px;
 }

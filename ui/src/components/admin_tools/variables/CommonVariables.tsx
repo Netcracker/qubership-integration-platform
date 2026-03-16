@@ -26,6 +26,7 @@ export const CommonVariables = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [columnsWidth, setColumnsWidth] = useState<{ [key: string]: number }>({
     key: 300,
+    value: 400,
   });
   const notificationService = useNotificationService();
   const permissions = usePermissions();
@@ -183,8 +184,10 @@ export const CommonVariables = () => {
         isValueHidden={false}
         columnsWidth={columnsWidth}
         onResize={handleResize}
-        enableEdit={hasPermissions(permissions, { commonVariable: ["update"]})}
-        enableDelete={hasPermissions(permissions, { commonVariable: ["delete"]})}
+        enableEdit={hasPermissions(permissions, { commonVariable: ["update"] })}
+        enableDelete={hasPermissions(permissions, {
+          commonVariable: ["delete"],
+        })}
       />
     </Flex>
   );

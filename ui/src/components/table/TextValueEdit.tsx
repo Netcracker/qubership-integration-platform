@@ -1,5 +1,4 @@
-import React, { useContext, useRef } from "react";
-import { InlineEditContext } from "../InlineEdit.tsx";
+import React, { useRef } from "react";
 import { Form, Input, InputProps, InputRef, Space } from "antd";
 import { Rule } from "antd/lib/form/index";
 
@@ -27,7 +26,6 @@ export const TextValueEdit: React.FC<TextValueEditorProps> = ({
   inputProps,
   suffixAction,
 }) => {
-  const inlineEditContext = useContext(InlineEditContext);
   const form = Form.useFormInstance();
   const ref = useRef<InputRef>(null);
 
@@ -35,14 +33,7 @@ export const TextValueEdit: React.FC<TextValueEditorProps> = ({
     ref,
     autoFocus: true,
     onPressEnter: () => form.submit(),
-    onBlur: (event: React.FocusEvent<HTMLInputElement>) => {
-      if (
-        event.relatedTarget &&
-        !ref.current?.nativeElement?.contains(event.relatedTarget)
-      ) {
-        inlineEditContext?.toggle();
-      }
-    },
+    /* Close via Apply/Cancel buttons; no blur-to-cancel */
     ...inputProps,
   };
 

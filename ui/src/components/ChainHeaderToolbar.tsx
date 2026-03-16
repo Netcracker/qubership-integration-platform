@@ -1,6 +1,9 @@
 import React from "react";
 import { Flex } from "antd";
-import { ProtectedButton, ProtectedButtonProps } from "../permissions/ProtectedButton.tsx";
+import {
+  ProtectedButton,
+  ProtectedButtonProps,
+} from "../permissions/ProtectedButton.tsx";
 
 type ChainHeaderToolbarProps = {
   buttons: ProtectedButtonProps[];

@@ -1,10 +1,10 @@
 import JSZip from "jszip";
 import { AxiosResponse } from "axios";
 
-export function downloadFile(file: File) {
+export function downloadFile(file: File, defaultName?: string) {
   const link = document.createElement("a");
   link.href = URL.createObjectURL(file);
-  link.download = file.name;
+  link.download = file.name || defaultName || "download";
   link.target = "_blank";
   link.click();
   link.remove();

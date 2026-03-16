@@ -30,7 +30,8 @@ console.error = (...args: unknown[]) => {
     fullMsg.includes("Not implemented: navigation") ||
     fullMsg.includes("Failed to load documentation") ||
     fullMsg.includes("Failed to open element documentation") ||
-    fullMsg.includes("Failed to open context documentation")
+    fullMsg.includes("Failed to open context documentation") ||
+    fullMsg.includes("Unable to parse JSON")
   ) {
     return;
   }

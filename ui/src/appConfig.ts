@@ -131,7 +131,9 @@ export function configure(config: Partial<AppConfig>): void {
   if (config.permissions !== undefined) {
     const oldValue = appConfigValue.permissions;
     appConfigValue.permissions = config.permissions;
-    overrides.push(`permissions: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.permissions)}`);
+    overrides.push(
+      `permissions: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.permissions)}`,
+    );
   }
 
   if (overrides.length > 0) {

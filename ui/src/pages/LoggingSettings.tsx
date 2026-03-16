@@ -241,7 +241,9 @@ export const LoggingSettings: React.FC = () => {
             valuePropName="checked"
             {...formItemStyle}
           >
-            <Checkbox disabled={!isCustom || disabled}>Produce DPT Events</Checkbox>
+            <Checkbox disabled={!isCustom || disabled}>
+              Produce DPT Events
+            </Checkbox>
           </Form.Item>
           <Form.Item
             label={null}
@@ -249,7 +251,9 @@ export const LoggingSettings: React.FC = () => {
             valuePropName="checked"
             {...formItemStyle}
           >
-            <Checkbox disabled={!isCustom || disabled}>Enable logging masking</Checkbox>
+            <Checkbox disabled={!isCustom || disabled}>
+              Enable logging masking
+            </Checkbox>
           </Form.Item>
         </Form>
       </div>

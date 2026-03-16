@@ -37,16 +37,6 @@ jest.mock("../../../../src/components/modal/ErrorDetails.module.css", () => ({
   default: {},
 }));
 
-jest.mock("../../../../src/components/table/EditableCell.module.css", () => ({
-  __esModule: true,
-  default: {
-    editableCellWrapper: "editable-cell-wrapper",
-    editingWrapper: "editing-wrapper",
-    editingButtons: "editing-buttons",
-    inlineIcon: "inline-icon",
-  },
-}));
-
 jest.mock(
   "../../../../src/components/admin_tools/variables/VariablesTable.module.css",
   () => ({
@@ -58,6 +48,10 @@ jest.mock(
       "key-text": "key-text",
       "multiline-icon": "multiline-icon",
       "delete-button": "delete-button",
+      "editing-wrapper": "editing-wrapper",
+      "editing-buttons": "editing-buttons",
+      "editable-cell-wrapper": "editable-cell-wrapper",
+      "inline-icon": "inline-icon",
     },
   }),
 );
@@ -162,9 +156,9 @@ describe("VariablesTable", () => {
       editingValue: "new-val",
       onConfirmEdit,
     });
+    const editingWrapper = document.querySelector(".editing-wrapper");
+    expect(editingWrapper).toBeInTheDocument();
     const buttons = screen.getAllByRole("button");
-    const applyBtn = buttons.find((b) => b.closest("fieldset"));
-    expect(applyBtn).toBeDefined();
     fireEvent.click(buttons[0]);
     expect(onConfirmEdit).toHaveBeenCalledWith("var-key-1", "new-val");
   });
@@ -236,10 +230,10 @@ describe("VariablesTable", () => {
 
   it("renders Apply and Cancel buttons on new variable row", () => {
     renderTable({ isAddingNew: true });
-    const editingFieldsets = document.querySelectorAll("fieldset");
-    expect(editingFieldsets.length).toBeGreaterThan(0);
+    const editingWrappers = document.querySelectorAll(".editing-wrapper");
+    expect(editingWrappers.length).toBeGreaterThan(0);
     const buttons = Array.from(
-      editingFieldsets[0]?.querySelectorAll("button") ?? [],
+      editingWrappers[0]?.querySelectorAll("button") ?? [],
     );
     expect(buttons.length).toBeGreaterThanOrEqual(2);
   });

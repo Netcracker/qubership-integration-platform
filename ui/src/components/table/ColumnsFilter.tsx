@@ -31,12 +31,12 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
 
   const [columnsOrder, setColumnsOrder] = useState<string[]>(() => {
     const stored = localStorage.getItem(getColumnsOrderKey(storageKey));
-    return stored ? (parseJsonOrDefault<string[]>(stored, [])) : allColumns;
+    return stored ? parseJsonOrDefault<string[]>(stored, []) : allColumns;
   });
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     const stored = localStorage.getItem(getColumnsVisibleKey(storageKey));
-    return stored ? (parseJsonOrDefault<string[]>(stored, [])) : initialColumns;
+    return stored ? parseJsonOrDefault<string[]>(stored, []) : initialColumns;
   });
   useEffect(() => {
     localStorage.setItem(

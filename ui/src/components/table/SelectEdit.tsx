@@ -8,6 +8,9 @@ export type SelectEditProps<ValueType = unknown> = {
   options: SelectProps<ValueType>["options"];
   multiple?: boolean;
   selectProps?: Omit<SelectProps<ValueType>, "onChange" | "onBlur">;
+  onChangeSideEffect?: (value: ValueType) => void;
+  /** When false, skip form submit and close editor via toggle. Use when submit must wait (e.g. Override needs Overridden by first). */
+  shouldSubmitOnChange?: (value: ValueType) => boolean;
 };
 
 export function SelectEdit<ValueType = unknown>({
@@ -15,7 +18,9 @@ export function SelectEdit<ValueType = unknown>({
   options,
   multiple,
   selectProps,
-}: SelectEditProps<ValueType>): React.ReactNode {
+  onChangeSideEffect,
+  shouldSubmitOnChange,
+}: Readonly<SelectEditProps<ValueType>>): React.ReactNode {
   const inlineEditContext = useContext(InlineEditContext);
   const form = Form.useFormInstance();
   const ref = useRef<BaseSelectRef>(null);
@@ -25,18 +30,18 @@ export function SelectEdit<ValueType = unknown>({
       <Select<ValueType>
         ref={ref}
         autoFocus
+        defaultOpen
         mode={multiple ? "multiple" : undefined}
         style={{ width: "100%" }}
-        onChange={() => form.submit()}
-        options={options}
-        onBlur={(event) => {
-          if (
-            event.relatedTarget &&
-            !ref.current?.nativeElement?.contains(event.relatedTarget)
-          ) {
+        onChange={(value) => {
+          onChangeSideEffect?.(value);
+          if (shouldSubmitOnChange?.(value) === false) {
             inlineEditContext?.toggle();
+          } else if (shouldSubmitOnChange?.(value) === true) {
+            form?.submit();
           }
         }}
+        options={options}
         {...selectProps}
       />
     </Form.Item>
