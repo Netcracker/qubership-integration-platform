@@ -28,3 +28,4 @@ coverage
 *.sw?
 
 *.css.d.ts
+*.d.css.ts
