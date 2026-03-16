@@ -1,75 +1,33 @@
 ---
-# The workflow to deploy snapshot artifact versions to GitHub packages 
-# Fill free to adjust java version and additional mvn command-line parameters
-# The workflow will trigger on pushes into branches different from main and release
-# Please make sure that the version in the pom.xml file has the SNAPSHOT postfix
 
-name: Maven GitHub deploy snapshot
+# This workflow is used to deploy Maven snapshot artifacts to GitHub packages or Maven Central repository.
+# It is triggered on pushes to branches other than main and release branches.
+# The workflow uses the `netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy` action to perform the deployment.
+# Please read the documentation on how to configure pom.xml for the deployment to work properly:
+# https://github.com/netcracker/.github/blob/main/docs/maven-publish-pom-preparation_doc.md
+
+name: Deploy Maven Snapshot to GitHub
 
 on:
-  push:
-    branches-ignore:
-      - "main"
-      - "**release*"
-      - "prettier/**"
-  workflow_dispatch:
+  workflow_dispatch: {}
 permissions:
-  packages: write
-
+  packages: write # Required for GitHub packages deployment. For maven central deployment it can be ommited
+  contents: read
 jobs:
-  mvn-deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout code"
-        uses: actions/checkout@v4
-      - name: "Setup xmlstarlet"
-        run: |
-          sudo apt install -y xmlstarlet
-      - name: "Check that version is SNAPSHOT"
-        shell: bash
-        run: |
-          cd ${GITHUB_WORKSPACE}
-          IS_SNAPSHOT=$(xmlstarlet sel -N x="http://maven.apache.org/POM/4.0.0" -t -v "/x:project/x:properties/x:revision[contains(., '-SNAPSHOT')]" ./pom.xml || echo "")
-          if [[ "${IS_SNAPSHOT}" == "" ]]
-          then
-            echo "❗ The project/properties/revision in the pom.xml has no '-SNAPSHOT' postfix." >> $GITHUB_STEP_SUMMARY
-            echo "❗ Workflow will not deploy any artifacts. Please add '-SNAPSHOT' to the revision." >> $GITHUB_STEP_SUMMARY
-            echo "❗ The project/properties/revision in the pom.xml has no '-SNAPSHOT' postfix."
-            echo "❗ Workflow will not deploy any artifacts. Please add '-SNAPSHOT' to the revision."
-            echo "IS_SNAPSHOT=false" >> $GITHUB_ENV
-          else
-            echo "✅ The project/properties/revision in the pom.xml has '-SNAPSHOT' postfix" >> $GITHUB_STEP_SUMMARY
-            echo "✅ Workflow will deploy SNAPSHOT artifact" >> $GITHUB_STEP_SUMMARY
-            echo "✅ The project/properties/revision in the pom.xml has '-SNAPSHOT' postfix."
-            echo "✅ Workflow will deploy SNAPSHOT artifact"
-            echo "IS_SNAPSHOT=true" >> $GITHUB_ENV
-          fi
-      - name: "Set up JDK"
-        if: ${{ env.IS_SNAPSHOT == 'true' }}
-        uses: actions/setup-java@v4
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          java-version: "21"
-          distribution: "temurin"
-          server-id: github
-          server-username: GITHUB_USER
-          server-password: GITHUB_TOKEN
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Deploy Maven Snapshot
+        uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          target-store: 'github'
+          maven-username: ${{ github.actor }}
+          maven-token: ${{ secrets.GITHUB_TOKEN }}
+          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
-
-      - name: Display settings.xml
-        if: ${{ env.IS_SNAPSHOT == 'true' }}
-        run: cat ~/.m2/settings.xml
-      - name: "Disable Maven Central Deploy"
-        if: ${{ env.IS_SNAPSHOT == 'true' }}
-        run: |
-          xmlstarlet ed -L -d "/_:project/_:build/_:plugins/_:plugin[./_:artifactId='central-publishing-maven-plugin']" ./pom.xml
-
-      - name: "Maven deploy"
-        if: ${{ env.IS_SNAPSHOT == 'true' }}
-        run: |
-          mvn --batch-mode deploy -DaltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} \
-          -Dgpg.skip=true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_USER: ${{ github.actor }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
