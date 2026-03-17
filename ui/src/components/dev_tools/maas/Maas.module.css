@@ -1,0 +1,53 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.titleHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 20px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 85%)) !important;
+  transition: color var(--transition-duration) var(--transition-easing);
+}
+
+.titleHeader:hover {
+  color: var(--vscode-textLink-foreground, #1890ff);
+}
+
+.parametersSection {
+  margin-bottom: 24px;
+  max-width: 800px;
+  width: 100%;
+}
+
+.parametersHeading {
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 24px;
+  max-width: 800px;
+  width: 100%;
+}
+
+.actionsContainer {
+  width: 100%;
+}
+
+.labelWithIcon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.infoIcon {
+  margin-left: 8px;
+  color: rgb(0 0 0 / 45%);
+}

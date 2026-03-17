@@ -67,6 +67,10 @@ import type {
   DiagnosticValidation,
   BulkDeploymentRequest,
   BulkDeploymentResult,
+  CreateMaasKafkaRequest,
+  CreateMaasRabbitMQRequest,
+  GetMaasKafkaDeclarativeRequest,
+  GetMaasRabbitMQDeclarativeRequest,
   ApiResponse,
   ImportVariablesResult,
   VariableImportPreview,
@@ -489,6 +493,18 @@ export interface Api {
   runValidations(ids: string[]): Promise<void>;
 
   bulkDeploy(request: BulkDeploymentRequest): Promise<BulkDeploymentResult[]>;
+
+  createMaasKafkaEntity(request: CreateMaasKafkaRequest): Promise<void>;
+
+  createMaasRabbitMQEntity(request: CreateMaasRabbitMQRequest): Promise<void>;
+
+  getMaasKafkaDeclarativeFile(
+    request: GetMaasKafkaDeclarativeRequest,
+  ): Promise<File>;
+
+  getMaasRabbitMQDeclarativeFile(
+    request: GetMaasRabbitMQDeclarativeRequest,
+  ): Promise<File>;
 
   // Admin Tools: Variables Management
   getCommonVariables(): Promise<ApiResponse<Variable[]>>;

@@ -1345,6 +1345,30 @@ export enum BulkDeploymentStatus {
   IGNORED = "IGNORED",
 }
 
+export type CreateMaasKafkaRequest = {
+  namespace: string;
+  topicClassifierName: string;
+};
+
+export type CreateMaasRabbitMQRequest = {
+  namespace: string;
+  vhost: string;
+  exchange: string;
+  queue: string;
+  routingKey?: string;
+};
+
+export type GetMaasKafkaDeclarativeRequest = {
+  topicClassifierName: string;
+};
+
+export type GetMaasRabbitMQDeclarativeRequest = {
+  vhost: string;
+  exchange: string;
+  queue: string;
+  routingKey?: string;
+};
+
 export enum UsedPropertySource {
   HEADER = "HEADER",
   EXCHANGE_PROPERTY = "EXCHANGE_PROPERTY",

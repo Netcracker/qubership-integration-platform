@@ -72,6 +72,10 @@ import {
   DiagnosticValidation,
   BulkDeploymentRequest,
   BulkDeploymentResult,
+  CreateMaasKafkaRequest,
+  CreateMaasRabbitMQRequest,
+  GetMaasKafkaDeclarativeRequest,
+  GetMaasRabbitMQDeclarativeRequest,
   ImportVariablesResult,
   VariableImportPreview,
   UsedProperty,
@@ -1934,6 +1938,64 @@ export class RestApi implements Api {
       request,
     );
     return response.data;
+  };
+
+  createMaasKafkaEntity = async (
+    request: CreateMaasKafkaRequest,
+  ): Promise<void> => {
+    await this.instance.post(`/api/cip/v1/maas-actions/kafka`, undefined, {
+      params: {
+        namespace: request.namespace,
+        topicClassifierName: request.topicClassifierName,
+      },
+    });
+  };
+
+  createMaasRabbitMQEntity = async (
+    request: CreateMaasRabbitMQRequest,
+  ): Promise<void> => {
+    await this.instance.post(`/api/cip/v1/maas-actions/rabbitmq`, undefined, {
+      params: {
+        namespace: request.namespace,
+        vhost: request.vhost,
+        exchange: request.exchange,
+        queue: request.queue,
+        routingKey: request.routingKey,
+      },
+    });
+  };
+
+  getMaasKafkaDeclarativeFile = async (
+    request: GetMaasKafkaDeclarativeRequest,
+  ): Promise<File> => {
+    const response = await this.instance.post<Blob>(
+      `/api/cip/v1/maas-actions/kafka/declarative`,
+      undefined,
+      {
+        params: { topicClassifierName: request.topicClassifierName },
+        responseType: "blob",
+      },
+    );
+    return getFileFromResponse(response);
+  };
+
+  getMaasRabbitMQDeclarativeFile = async (
+    request: GetMaasRabbitMQDeclarativeRequest,
+  ): Promise<File> => {
+    const response = await this.instance.post<Blob>(
+      `/api/cip/v1/maas-actions/rabbitmq/declarative`,
+      undefined,
+      {
+        params: {
+          vhost: request.vhost,
+          exchange: request.exchange,
+          queue: request.queue,
+          routingKey: request.routingKey,
+        },
+        responseType: "blob",
+      },
+    );
+    return getFileFromResponse(response);
   };
 
   getUsedProperties = async (chainId: string): Promise<UsedProperty[]> => {
