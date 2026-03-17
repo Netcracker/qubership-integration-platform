@@ -23,7 +23,7 @@ import {
   TableProps,
 } from "antd";
 import { CompactSearch } from "../table/CompactSearch.tsx";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   exportAsMarkdown,
   MarkdownMappingExportOptions,
@@ -83,6 +83,7 @@ import {
 import { useMappingDescription } from "./useMappingDescription.tsx";
 import { MappingTableItemActionButton } from "./MappingTableItemActionButton.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton.tsx";
 
 export type MappingTableViewProps = Omit<
   React.HTMLAttributes<HTMLElement>,
@@ -623,9 +624,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
       ],
     ]),
   );
-  const [columns, setColumns] = useState<
-    TableProps<MappingTableItem>["columns"]
-  >([]);
+
   const {
     mappingDescription,
     clearConstants,
@@ -780,7 +779,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
   );
 
   const buildColumns =
-    useCallback((): TableProps<MappingTableItem>["columns"] => {
+    useMemo((): TableProps<MappingTableItem>["columns"] => {
       return [
         {
           key: "name",
@@ -1016,7 +1015,10 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                 key: "optionality",
                 title: "Optionality",
                 render: (_value: unknown, item: MappingTableItem) => {
-                  return isAttributeItem(item) ? (
+                  if (isAttributeItem(item)) {
+                    return null;
+                  }
+                  return (
                     readonly ? (
                       item.attribute.required ? (
                         "required"
@@ -1050,8 +1052,6 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                         }}
                       />
                     )
-                  ) : (
-                    <></>
                   );
                 },
                 sorter: (
@@ -1714,9 +1714,13 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
       removeAttribute,
     ]);
 
-  useEffect(() => {
-    setColumns(buildColumns());
-  }, [buildColumns]);
+  const { orderedColumns, columnSettingsButton } =
+    useColumnSettingsBasedOnColumnsType<MappingTableItem>(
+      selectedSchema === SchemaKind.TARGET
+        ? "targetMappingTable"
+        : "sourceMappingTable",
+      buildColumns ?? [],
+    );
 
   return (
     <>
@@ -1745,30 +1749,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
             placeholder="Full text search"
             allowClear
           />
-          <Dropdown
-            menu={{
-              items: (columns ?? [])
-                .filter((column) => column.key !== "actions")
-                .map((column) => ({
-                  key: column.key?.toString() ?? "",
-                  label: column.title as string,
-                  disabled: alwaysVisibleColumns.includes(
-                    column.key?.toString() ?? "",
-                  ),
-                })),
-              selectable: true,
-              multiple: true,
-              selectedKeys:
-                controlsStateMap.get(selectedSchema)?.selectedColumns ?? [],
-              onSelect: ({ selectedKeys }) => {
-                updateControlsState({ selectedColumns: selectedKeys });
-              },
-              onDeselect: ({ selectedKeys }) =>
-                updateControlsState({ selectedColumns: selectedKeys }),
-            }}
-          >
-            <Button icon={<OverridableIcon name="settings" />} />
-          </Dropdown>
+          {columnSettingsButton}
           <Dropdown
             menu={{
               items: [
@@ -1807,7 +1788,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
         <Table<MappingTableItem>
           className="flex-table"
           size="small"
-          columns={columns}
+          columns={orderedColumns}
           dataSource={tableItems}
           rowKey="id"
           pagination={false}

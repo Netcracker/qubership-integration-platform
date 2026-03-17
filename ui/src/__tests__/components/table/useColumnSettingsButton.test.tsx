@@ -307,7 +307,7 @@ describe("useColumnSettingsButton() useColumnSettingsButton method", () => {
       // Assert
       // Actions should not be duplicated
       expect(screen.getByTestId("ordered-columns")).toHaveTextContent(
-        "name,actions,age",
+        "name,age,actions",
       );
     });
 
