@@ -87,6 +87,8 @@ definitions:
     enum:
       - subscribe
       - publish
+      - send
+      - receive
   KafkaProperties:
     type: object
     additionalProperties: true

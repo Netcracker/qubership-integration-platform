@@ -175,3 +175,5 @@ definitions:
     enum:
       - subscribe
       - publish
+      - send
+      - receive
