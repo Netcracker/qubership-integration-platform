@@ -59,6 +59,7 @@ import {
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
+import { PanelResizeHandle } from "../components/PanelResizeHandle.tsx";
 import {
   getElementColor,
   nonEmptyContainerExists,
@@ -101,6 +102,14 @@ const readTheme = () => {
   return "light";
 };
 
+const MIN_PANEL_WIDTH = 230;
+const MAX_PANEL_WIDTH = 500;
+const DEFAULT_LEFT_PANEL_WIDTH = 230;
+const DEFAULT_RIGHT_PANEL_WIDTH = 240;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
 const ChainGraphInner: React.FC = () => {
   const { chainId, elementId } = useParams<string>();
   const chainContext = useContext(ChainContext);
@@ -108,6 +117,10 @@ const ChainGraphInner: React.FC = () => {
   const reactFlowWrapper = useRef(null);
   const [isPageLoaded, setIsPageLoaded] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<string>(() => readTheme());
+  const [leftPanelWidth, setLeftPanelWidth] = useState(DEFAULT_LEFT_PANEL_WIDTH);
+  const [rightPanelWidth, setRightPanelWidth] = useState(
+    DEFAULT_RIGHT_PANEL_WIDTH,
+  );
   const currentThemeRef = useRef(currentTheme);
   const navigate = useNavigate();
   const notificationService = useNotificationService();
@@ -557,7 +570,15 @@ const ChainGraphInner: React.FC = () => {
   return (
     <Flex className={styles["graph-wrapper"]}>
       <Require permissions={{ chain: ["update"] }}>
-        <ElementsLibrarySidebar />
+          <ElementsLibrarySidebar width={leftPanelWidth}  />
+          <PanelResizeHandle
+                direction="left"
+                onResize={(delta) =>
+                  setLeftPanelWidth((w) =>
+                    clamp(w + delta, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH),
+                  )
+                }
+            />
       </Require>
       <div className="react-flow-container" ref={reactFlowWrapper}>
         <ElkDirectionContextProvider
@@ -569,16 +590,18 @@ const ChainGraphInner: React.FC = () => {
           }}
         >
           <ElementFocusContext.Provider value={fitViewToElementIdRef}>
-            <ReactFlow
-              nodes={
-                readOnly
-                  ? nodes.map((node) => ({
-                      ...node,
-                      draggable: false,
-                      connectable: false,
-                    }))
-                  : nodes
-              }
+            <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <ReactFlow
+                  nodes={
+                  readOnly
+                    ? nodes.map((node) => ({
+                        ...node,
+                        draggable: false,
+                        connectable: false,
+                     }))
+                    : nodes
+                }
               nodeTypes={nodeTypes}
               defaultEdgeOptions={{ zIndex: 1001 }}
               edges={renderEdges}
@@ -635,7 +658,32 @@ const ChainGraphInner: React.FC = () => {
               />
               {menu && <ContextMenu menu={menu} closeMenu={closeMenu} />}
             </ReactFlow>
-            {rightPanel && <PageWithRightPanel />}
+            </div>
+              {rightPanel && (
+                      <>
+                        <PanelResizeHandle
+                          direction="right"
+                          onResize={(delta) =>
+                            setRightPanelWidth((w) =>
+                              clamp(w + delta, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH),
+                            )
+                          }
+                        />
+                        <div
+                          style={{
+                            width: rightPanelWidth,
+                            minWidth: MIN_PANEL_WIDTH,
+                            flexShrink: 0,
+                            height: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                          }}
+                        >
+                          <PageWithRightPanel width={rightPanelWidth} />
+                        </div>
+                      </>
+                    )}
+                    </div>
           </ElementFocusContext.Provider>
         </ElkDirectionContextProvider>
       </div>

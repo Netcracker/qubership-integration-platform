@@ -1414,3 +1414,7 @@ export interface DiscoveryResponse {
   updatedSystemsIds: string[];
   errorMessages: DiscoveryError[];
 }
+
+export interface ChainElementCodeResponse {
+  code: string;
+}

@@ -89,6 +89,7 @@ import {
   ImportInstructionResult,
   DeleteImportInstructionsRequest,
   ImportEntityType,
+  ChainElementCodeResponse,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
@@ -2055,6 +2056,16 @@ export class RestApi implements Api {
     const response = await this.instance.get<DiscoveryResponse>(
       `${this.v1()}/systems-catalog/systems/discovery/result`,
     );
+    return response.data;
+  };
+
+  getElementsAsCode = async (
+    chainId: string,
+  ): Promise<ChainElementCodeResponse> => {
+    const response = await this.instance.get<ChainElementCodeResponse>(
+      `${this.v1()}/catalog/chains/${chainId}/elements/code`,
+    );
+
     return response.data;
   };
 

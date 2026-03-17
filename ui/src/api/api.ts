@@ -86,6 +86,7 @@ import type {
   ImportInstructionRequest,
   ImportInstructionResult,
   DeleteImportInstructionsRequest,
+  ChainElementCodeResponse,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -588,6 +589,8 @@ export interface Api {
   uploadImportInstructions(file: File): Promise<ImportInstructionResult[]>;
 
   exportImportInstructions(): Promise<File>;
+
+  getElementsAsCode(chainId: string): Promise<ChainElementCodeResponse>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

@@ -8,6 +8,21 @@
   ) !important;
 }
 
+.rightPanelBorder {
+  border-left: 1px solid var(--vscode-border, rgb(0 0 0 / 15%)) !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.rightPanelBorder :global(.ant-layout-sider-children) {
+  height: 100% !important;
+  min-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 .sideMenu :global(.ant-layout-sider-children) {
   background: var(
     --vscode-sideBar-background,
@@ -79,6 +94,10 @@
 .spacedTabs {
   width: 100%;
   margin-bottom: 10px;
+}
+
+.rightPanelTabs {
+  margin-bottom: 0 !important;
 }
 
 .spacedTabs :global(.ant-tabs-nav) {

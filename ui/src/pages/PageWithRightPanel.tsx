@@ -4,6 +4,9 @@ import { SidebarSearch } from "../components/elements_library/SidebarSearch.tsx"
 import { useCallback, useRef, useState, useMemo, useEffect } from "react";
 import { MenuItem } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { Flex, Menu, Tabs } from "antd";
+import AceEditor from "react-ace";
+import "ace-builds/src-noconflict/mode-text";
+import "ace-builds/src-noconflict/theme-github";
 import { OverridableIcon, IconName } from "../icons/IconProvider.tsx";
 import { FilterButton } from "../components/table/filter/FilterButton.tsx";
 import { useChainFilters } from "../hooks/useChainFilter.ts";
@@ -29,8 +32,18 @@ import { useFocusToElementId } from "../components/graph/ElementFocus.tsx";
 import { UsedPropertiesList } from "../components/UsedPropertiesList.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { EntityFilterModel } from "../components/table/filter/filter.ts";
+import { useElementsAsCode } from "../hooks/useElementsAsCode.tsx";
+import "ace-builds/src-noconflict/mode-yaml";
 
-export const PageWithRightPanel = () => {
+const DEFAULT_WIDTH = 240;
+
+export type PageWithRightPanelProps = {
+  width?: number;
+};
+
+export const PageWithRightPanel = ({
+  width = DEFAULT_WIDTH,
+}: PageWithRightPanelProps = {}) => {
   const allItems = useRef<MenuItem[]>([]);
   const [isSearch, setIsSearch] = useState(false);
   const { filterColumns, filterItemStates, setFilterItemStates } =
@@ -41,8 +54,10 @@ export const PageWithRightPanel = () => {
   const { showModal } = useModalsContext();
   const [filters, setFilters] = useState<EntityFilterModel[]>([]);
   const [activeTab, setActiveTab] = useState<string>("listElements");
+  const [textViewContent, setTextViewContent] = useState<string>("");
 
   const { chainId } = useParams<string>();
+  const { elementAsCode } = useElementsAsCode(chainId ?? "");
   const { libraryElements } = useLibraryContext();
   const notificationService = useNotificationService();
   const navigate = useNavigate();
@@ -86,6 +101,12 @@ export const PageWithRightPanel = () => {
       window.removeEventListener("focus", handleFocus);
     };
   }, [chainId, notificationService]);
+
+  useEffect(() => {
+    if (elementAsCode?.code != null) {
+      setTextViewContent(elementAsCode.code);
+    }
+  }, [elementAsCode?.code]);
 
   const handleElementDoubleClick = useCallback(
     (element: Element) => {
@@ -214,10 +235,10 @@ export const PageWithRightPanel = () => {
   };
 
   return (
-    <Sider width={240} className={styles.sideMenu}>
+    <Sider width={width} className={`${styles.sideMenu} ${styles.rightPanelBorder}`}>
       <Flex vertical={false} justify="left" style={{ width: "100%" }}>
         <Tabs
-          className={styles["spacedTabs"]}
+          className={`${styles.spacedTabs} ${activeTab === "textView" ? styles.rightPanelTabs : ""}`}
           activeKey={activeTab}
           onChange={setActiveTab}
           items={[
@@ -231,6 +252,10 @@ export const PageWithRightPanel = () => {
                     key: "elementProperties",
                     label: <OverridableIcon name="menuUnfold" />,
                   },
+                  {
+                    key: "textView",
+                    label: <OverridableIcon name="file" />
+                  },
                 ]
               : []),
           ]}
@@ -238,24 +263,12 @@ export const PageWithRightPanel = () => {
       </Flex>
       <Flex
         vertical
-        gap={8}
-        style={{ paddingLeft: "12px", paddingRight: "8px" }}
+        gap={activeTab === "textView" ? 0 : 8}
+        style={{
+          paddingLeft:
+            activeTab === "textView" ? 0 : "12px",
+        }}
       >
-        <Flex gap={4} align="center">
-          <SidebarSearch
-            items={allItems.current}
-            onSearch={handleSearch}
-            onClear={() => {
-              setItems(allItems.current);
-              setIsSearch(false);
-              setOpenKeysState(openKeysBeforeSearch.current);
-            }}
-          />
-          <FilterButton
-            count={filterItemStates?.length ?? 0}
-            onClick={addFilter}
-          />
-        </Flex>
         {activeTab === "listElements" && (
           <Menu
             className={styles.libraryElements}
@@ -277,6 +290,30 @@ export const PageWithRightPanel = () => {
         {activeTab === "elementProperties" && !chainId && (
           <div style={{ padding: "16px", textAlign: "center", color: "#999" }}>
             No chain selected
+          </div>
+        )}
+        {activeTab === "textView" && (
+          <div style={{ width: "100%", height: 2110 }}>
+            <AceEditor
+              mode="yaml"
+              theme="eclipse"
+              value={textViewContent}
+              onChange={setTextViewContent}
+              name="rightPanelAceEditor"
+              autoUpdateContent="true"
+              options="editorOptions"
+              editorProps={{ $blockScrolling: true }}
+              width="100%"
+              height="2110px"
+              fontSize={14}
+              readOnly={true}
+              showPrintMargin={false}
+              setOptions={{
+                  readOnly: true,
+                  displayIndentGuides: false,
+                  useWorker: false
+              }}
+            />
           </div>
         )}
       </Flex>
