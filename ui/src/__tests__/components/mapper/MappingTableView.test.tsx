@@ -347,7 +347,7 @@ const useMappingDescriptionMock = {
   require("../../../components/mapper/useMappingDescription.tsx") as any
 ).useMappingDescription.mockImplementation(() => useMappingDescriptionMock);
 
-describe("MappingTableView - SchemaKind.SOURCE", () => {
+describe("MappingTableView", () => {
   const renderComponent = () => {
     return render(
       <MappingTableView

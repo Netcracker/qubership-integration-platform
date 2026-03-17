@@ -1015,10 +1015,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                 key: "optionality",
                 title: "Optionality",
                 render: (_value: unknown, item: MappingTableItem) => {
-                  if (isAttributeItem(item)) {
-                    return null;
-                  }
-                  return (
+                  return isAttributeItem(item) ? (
                     readonly ? (
                       item.attribute.required ? (
                         "required"
@@ -1052,6 +1049,8 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                         }}
                       />
                     )
+                  ) : (
+                    <></>
                   );
                 },
                 sorter: (
