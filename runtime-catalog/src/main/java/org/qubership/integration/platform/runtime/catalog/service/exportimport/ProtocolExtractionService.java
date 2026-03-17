@@ -31,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser.SPECIFICATION_FILE_PROCESSING_ERROR;
@@ -107,19 +108,15 @@ public class ProtocolExtractionService {
     }
 
     private OperationProtocol getProtocolFromYaml(Collection<MultipartFile> files) throws IOException {
-        for (MultipartFile file : files) {
-            JsonNode jsonNode = yamlExportImportMapper.readTree(file.getInputStream());
-            return getProtocolFromNode(jsonNode);
-        }
-        return null;
+        MultipartFile file = files.iterator().next();
+        JsonNode jsonNode = yamlExportImportMapper.readTree(file.getInputStream());
+        return getProtocolFromNode(jsonNode);
     }
 
     private OperationProtocol getProtocolFromJson(Collection<MultipartFile> files) throws IOException {
-        for (MultipartFile file : files) {
-            JsonNode jsonNode = objectMapper.readTree(file.getInputStream());
-            return getProtocolFromNode(jsonNode);
-        }
-        return null;
+        MultipartFile file = files.iterator().next();
+        JsonNode jsonNode = objectMapper.readTree(file.getInputStream());
+        return getProtocolFromNode(jsonNode);
     }
 
     private OperationProtocol getProtocolFromNode(JsonNode jsonNode) {
@@ -138,7 +135,10 @@ public class ProtocolExtractionService {
 
     private OperationProtocol getProtocolFromAsyncSpec(JsonNode jsonNode) {
         if (jsonNode.has(SERVERS)) {
-            return OperationProtocol.fromValue(jsonNode.get(SERVERS).findValuesAsText(PROTOCOL).get(0));
+            List<String> protocols = jsonNode.get(SERVERS).findValuesAsText(PROTOCOL);
+            if (!protocols.isEmpty()) {
+                return OperationProtocol.fromValue(protocols.get(0));
+            }
         }
 
         if (jsonNode.has(INFO) && jsonNode.get(INFO).has(XPROTOCOL)) {

@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.core.util.Json;
 import io.swagger.v3.core.util.Yaml;
 import io.swagger.v3.oas.models.*;
@@ -238,9 +239,74 @@ public class ApiSpecificationExportService {
         return Collections.singletonList(server);
     }
 
-    private String buildAsyncApiSpecification(SpecificationBuildParameters buildParameters) {
-        // TODO
-        throw new ApiSpecificationExportException("OpenAPI specification export not implemented yet");
+    private JsonNode buildAsyncApiSpecification(SpecificationBuildParameters buildParameters) {
+        Collection<ChainElement> elements = buildParameters.getElements();
+        if (elements.isEmpty()) {
+            throw new ApiSpecificationExportException("No async trigger elements found");
+        }
+
+        Set<String> modelIds = elements.stream()
+                .filter(TriggerUtils::isImplementedServiceTrigger)
+                .map(TriggerUtils::getImplementedServiceTriggerSpecificationId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        if (modelIds.isEmpty()) {
+            throw new ApiSpecificationExportException("No specification model found for async triggers");
+        }
+
+        ObjectNode merged = null;
+        for (String modelId : modelIds) {
+            String rawSpec = systemModelService.getMainSystemModelSource(modelId);
+            ObjectMapper mapper = getSpecificationMapper(guessFormat(rawSpec));
+            try {
+                JsonNode parsed = mapper.readTree(rawSpec);
+                if (!(parsed instanceof ObjectNode specNode)) {
+                    throw new ApiSpecificationExportException(
+                            "AsyncAPI specification must be a JSON object, got: " + parsed.getNodeType());
+                }
+                if (merged == null) {
+                    merged = specNode;
+                } else {
+                    mergeAsyncApiSpec(merged, specNode);
+                }
+            } catch (JsonProcessingException exception) {
+                throw new ApiSpecificationExportException("Failed to parse AsyncAPI specification", exception);
+            }
+        }
+        return merged;
+    }
+
+    private void mergeAsyncApiSpec(ObjectNode base, ObjectNode other) {
+        mergeObjectField(base, other, "servers");
+        mergeObjectField(base, other, "channels");
+        mergeObjectField(base, other, "operations");
+        if (other.has("components") && other.get("components") instanceof ObjectNode otherComponents) {
+            if (!base.has("components")) {
+                base.set("components", otherComponents);
+            } else if (base.get("components") instanceof ObjectNode baseComponents) {
+                otherComponents.fieldNames().forEachRemaining(
+                        field -> mergeObjectField(baseComponents, otherComponents, field));
+            }
+        }
+    }
+
+    private void mergeObjectField(ObjectNode base, ObjectNode other, String field) {
+        if (!other.has(field) || !(other.get(field) instanceof ObjectNode)) {
+            return;
+        }
+        if (!base.has(field)) {
+            base.set(field, other.get(field));
+            return;
+        }
+        if (!(base.get(field) instanceof ObjectNode baseField)) {
+            return;
+        }
+        other.get(field).fields().forEachRemaining(entry -> {
+            if (!baseField.has(entry.getKey())) {
+                baseField.set(entry.getKey(), entry.getValue());
+            }
+        });
     }
 
     private Info buildSpecificationInfo(Collection<ChainElement> elements) {
@@ -601,8 +667,7 @@ public class ApiSpecificationExportService {
             if (schema instanceof ArraySchema) {
                 updateReferencesForSchema(((ArraySchema) schema).getItems(), refModifier);
             }
-            if (schema instanceof ComposedSchema) {
-                ComposedSchema composedSchema = (ComposedSchema) schema;
+            if (schema instanceof ComposedSchema composedSchema) {
                 Stream.of(composedSchema.getAllOf(), composedSchema.getOneOf(), composedSchema.getAnyOf())
                         .filter(Objects::nonNull)
                         .flatMap(Collection::stream)

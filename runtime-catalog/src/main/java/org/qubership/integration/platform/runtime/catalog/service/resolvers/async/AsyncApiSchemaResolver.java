@@ -30,6 +30,9 @@ import java.util.Map;
 @Slf4j
 public class AsyncApiSchemaResolver extends CommonSchemaResolver implements SchemaResolver {
 
+    private static final String COMPONENTS_PREFIX = "#/components";
+    private static final String REF_FIELD_NAME = "$ref";
+
     @Override
     public String resolveRef(String schemaRef, JsonNode componentsNode) {
 
@@ -39,8 +42,23 @@ public class AsyncApiSchemaResolver extends CommonSchemaResolver implements Sche
 
         convertPayloadToSchemaNode(schemaNode);
 
-        Map<String, JsonNode> schemaRefs = getNestedRefs(schemaNode, currentComponentsNode, "asyncapi", Collections.EMPTY_LIST);
+        resolveInlineRef(schemaNode, currentComponentsNode);
+
+        Map<String, JsonNode> schemaRefs = getNestedRefs(schemaNode, currentComponentsNode, "asyncapi", Collections.emptyList());
 
         return getResolvedSchema(schemaRef, schemaNode, schemaRefs);
+    }
+
+    private void resolveInlineRef(ObjectNode schemaNode, JsonNode componentsNode) {
+        if (!schemaNode.has(REF_FIELD_NAME) || schemaNode.has("type")) {
+            return;
+        }
+        String ref = schemaNode.get(REF_FIELD_NAME).asText();
+        String path = ref.replace(COMPONENTS_PREFIX, "");
+        JsonNode resolved = componentsNode.at(path);
+        if (!resolved.isMissingNode() && resolved.isObject()) {
+            schemaNode.removeAll();
+            schemaNode.setAll(((ObjectNode) resolved).deepCopy());
+        }
     }
 }
