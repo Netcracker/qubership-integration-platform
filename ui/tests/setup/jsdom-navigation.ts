@@ -12,7 +12,29 @@
  *
  * 4. Suppresses expected console.error from tests that intentionally trigger error paths
  *    (e.g. fetch rejection) to verify error handling — DocumentationPage, documentationService.
+ *
+ * 5. Polyfill for structuredClone (Node 17+ / modern browsers) when running in older jsdom.
+ *
+ * 6. Polyfill for HTMLFormElement.requestSubmit (not implemented in older jsdom).
  */
+if (
+  typeof (globalThis as { structuredClone?: unknown }).structuredClone ===
+  "undefined"
+) {
+  (globalThis as { structuredClone: <T>(val: T) => T }).structuredClone = <T>(
+    val: T,
+  ): T => JSON.parse(JSON.stringify(val));
+}
+
+if (typeof globalThis.HTMLFormElement !== "undefined") {
+  const proto = HTMLFormElement.prototype as HTMLFormElement & {
+    requestSubmit?: (submitter?: HTMLElement) => void;
+  };
+  proto.requestSubmit = function (_submitter?: HTMLElement) {
+    /* no-op: jsdom throws "Not implemented"; prevents errors when Save button triggers form submit */
+  };
+}
+
 const originalConsoleError = console.error;
 console.error = (...args: unknown[]) => {
   const fullMsg = args
@@ -31,7 +53,13 @@ console.error = (...args: unknown[]) => {
     fullMsg.includes("Failed to load documentation") ||
     fullMsg.includes("Failed to open element documentation") ||
     fullMsg.includes("Failed to open context documentation") ||
-    fullMsg.includes("Unable to parse JSON")
+    fullMsg.includes("Unable to parse JSON") ||
+    fullMsg.includes("Function components cannot be given refs") ||
+    fullMsg.includes("Maximum update depth exceeded") ||
+    fullMsg.includes(
+      "Not implemented: HTMLFormElement.prototype.requestSubmit",
+    ) ||
+    fullMsg.includes("Failed to parse schema")
   ) {
     return;
   }

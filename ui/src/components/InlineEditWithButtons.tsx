@@ -1,17 +1,46 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { Button, Form } from "antd";
 import { useForm } from "antd/lib/form/Form";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { InlineEditContext, InlineEditProps } from "./InlineEdit.tsx";
 import styles from "./InlineEdit.module.css";
 
-/**
- * Standalone inline edit with Apply/Cancel buttons.
- * Does not modify InlineEdit; implements its own Form + buttons logic.
- */
-function InlineEditActionButtons({ showApply }: { showApply: boolean }) {
-  const form = Form.useFormInstance();
+export type InlineEditWithButtonsRef<Values> = {
+  getValuesAndClose: () => Values | null;
+};
+
+export type InlineEditWithButtonsProps<Values> = InlineEditProps<Values> & {
+  cancelOnBlur?: boolean;
+  disabled?: boolean;
+  escapeToCancel?: boolean;
+  getApplyEnabled?: (values: Values) => boolean;
+  className?: string;
+  editorClassName?: string;
+  viewerAriaLabel?: string;
+  innerRef?: React.Ref<InlineEditWithButtonsRef<Values>>;
+};
+
+function InlineEditActionButtons<Values>({
+  showApply,
+  getApplyEnabled,
+}: {
+  showApply: boolean;
+  getApplyEnabled?: (values: Values) => boolean;
+}) {
+  const form = Form.useFormInstance<Values>();
   const ctx = useContext(InlineEditContext);
+  const values = Form.useWatch(undefined, form) as Values | undefined;
+
+  const applyEnabled =
+    showApply &&
+    (!getApplyEnabled || getApplyEnabled?.(values ?? ({} as Values)));
 
   return (
     <div className={styles.inlineEditButtons}>
@@ -21,7 +50,9 @@ function InlineEditActionButtons({ showApply }: { showApply: boolean }) {
           type="text"
           size="small"
           onClick={() => form.submit()}
+          disabled={!applyEnabled}
           aria-label="Apply"
+          data-testid="element-name-apply"
         />
       )}
       <Button
@@ -30,18 +61,31 @@ function InlineEditActionButtons({ showApply }: { showApply: boolean }) {
         size="small"
         onClick={() => ctx?.toggle()}
         aria-label="Cancel"
+        data-testid="element-name-cancel"
       />
     </div>
   );
 }
 
 export function InlineEditWithButtons<Values>(
-  props: InlineEditProps<Values>,
+  props: Readonly<InlineEditWithButtonsProps<Values>>,
 ): React.ReactNode {
+  const {
+    cancelOnBlur,
+    disabled,
+    escapeToCancel,
+    getApplyEnabled,
+    className,
+    editorClassName,
+    viewerAriaLabel,
+    innerRef,
+  } = props;
+
   const [form] = useForm<Values>();
   const [processing, setProcessing] = useState(false);
   const [active, setActive] = useState(props.initialActive ?? false);
   const [hasChanges, setHasChanges] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (active) {
@@ -51,15 +95,28 @@ export function InlineEditWithButtons<Values>(
     }
   }, [props.values, active, form]);
 
-  const toggle = () => {
-    setActive(!active);
-    if (!active) {
+  const toggle = useCallback(() => {
+    setActive((prev) => {
+      if (prev) {
+        props.onCancel?.();
+        return false;
+      }
       // @ts-expect-error False positive
       form.setFieldsValue(props.values);
-    } else {
-      props.onCancel?.();
-    }
-  };
+      return true;
+    });
+  }, [form, props.values, props.onCancel]);
+
+  const getValuesAndClose = useCallback((): Values | null => {
+    if (!active) return null;
+    const values = form.getFieldsValue();
+    toggle();
+    return values;
+  }, [active, form, toggle]);
+
+  useImperativeHandle(innerRef, () => ({ getValuesAndClose }), [
+    getValuesAndClose,
+  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -68,14 +125,46 @@ export function InlineEditWithButtons<Values>(
     }
   };
 
+  const handleBlur = useCallback(
+    (e: React.FocusEvent<HTMLDivElement>) => {
+      if (
+        cancelOnBlur &&
+        !e.currentTarget.contains(e.relatedTarget as Node | null)
+      ) {
+        toggle();
+      }
+    },
+    [cancelOnBlur, toggle],
+  );
+
+  const handleKeyDownCapture = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (escapeToCancel && e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        toggle();
+      }
+    },
+    [escapeToCancel, toggle],
+  );
+
+  if (disabled) {
+    return (
+      <div className={className} role="group">
+        {props.viewer}
+      </div>
+    );
+  }
+
   if (!active) {
     return (
       <InlineEditContext.Provider value={{ toggle }}>
         <div
           role="button"
           tabIndex={0}
-          className={styles.inlineEditValueWrap}
-          style={{ paddingInlineEnd: 24 }}
+          aria-label={viewerAriaLabel}
+          className={className ?? styles.inlineEditValueWrap}
+          style={!className ? { paddingInlineEnd: 24 } : undefined}
           onClick={toggle}
           onKeyDown={handleKeyDown}
         >
@@ -87,7 +176,12 @@ export function InlineEditWithButtons<Values>(
 
   return (
     <InlineEditContext.Provider value={{ toggle }}>
-      <div className={styles.inlineEditFormWrap}>
+      <div
+        ref={containerRef}
+        className={editorClassName ?? styles.inlineEditFormWrap}
+        onBlur={cancelOnBlur ? handleBlur : undefined}
+        onKeyDownCapture={escapeToCancel ? handleKeyDownCapture : undefined}
+      >
         <Form<Values>
           form={form}
           disabled={processing}
@@ -109,14 +203,16 @@ export function InlineEditWithButtons<Values>(
                 setProcessing(false);
                 toggle();
               }
-              toggle();
             } catch {
               setProcessing(false);
             }
           }}
         >
           {props.editor}
-          <InlineEditActionButtons showApply={hasChanges} />
+          <InlineEditActionButtons<Values>
+            showApply={hasChanges}
+            getApplyEnabled={getApplyEnabled}
+          />
         </Form>
       </div>
     </InlineEditContext.Provider>

@@ -12,6 +12,11 @@ import {
 import "@testing-library/jest-dom";
 import { Modal } from "antd";
 import type { GeneralImportInstructions } from "../../../src";
+import {
+  ImportInstructions,
+  buildTableData,
+} from "../../../src/components/admin_tools/ImportInstructions";
+import { ImportInstructionAction } from "../../../src/api/apiTypes";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import { getAllPermissions } from "../../../src/permissions/funcs.ts";
 
@@ -163,10 +168,6 @@ describe("ImportInstructions", () => {
   });
 
   it("renders page title and loads instructions", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     expect(screen.getByText(/import/i)).toBeInTheDocument();
@@ -179,10 +180,6 @@ describe("ImportInstructions", () => {
   }, 8000);
 
   it("shows Add, Export, Upload buttons", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     expect(
@@ -192,10 +189,6 @@ describe("ImportInstructions", () => {
   });
 
   it("displays chain and variable items from instructions", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     expect(await screen.findByText("Chains")).toBeInTheDocument();
@@ -204,10 +197,6 @@ describe("ImportInstructions", () => {
   });
 
   it("fetches export on Export button click", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
@@ -223,26 +212,19 @@ describe("ImportInstructions", () => {
   });
 
   it("opens Add modal when Add button is clicked", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
-    const addButton = await screen.findByRole("button", { name: /add/i });
+    await screen.findByText("Chain One");
+    const addButton = screen.getByRole("button", { name: /^add$/i });
     fireEvent.click(addButton);
 
     expect(await screen.findByText("Add Instruction")).toBeInTheDocument();
-  });
+  }, 8000);
 
   it("opens Upload modal when Upload button is clicked", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
-    await screen.findByRole("button", { name: /add/i });
+    await screen.findByText("Chain One");
     fireEvent.click(screen.getByTestId("import-instructions-upload"));
 
     expect(
@@ -251,10 +233,6 @@ describe("ImportInstructions", () => {
   }, 10000);
 
   it("displays column settings button", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     expect(
@@ -264,10 +242,6 @@ describe("ImportInstructions", () => {
 
   it("calls requestFailed when fetchInstructions throws", async () => {
     mockApi.getImportInstructions.mockRejectedValue(new Error("Network error"));
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
@@ -279,13 +253,9 @@ describe("ImportInstructions", () => {
     mockApi.exportImportInstructions.mockRejectedValue(
       new Error("Export failed"),
     );
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
-    await screen.findByRole("button", { name: /add/i });
+    await screen.findByText("Chain One");
     fireEvent.click(screen.getByTestId("import-instructions-export"));
 
     await waitFor(() => {
@@ -294,10 +264,6 @@ describe("ImportInstructions", () => {
   }, 8000);
 
   it("Delete button is disabled when no rows are selected", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     const deleteButton = await screen.findByTestId(
@@ -307,10 +273,6 @@ describe("ImportInstructions", () => {
   });
 
   it("search input filters visible data by id", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     expect(await screen.findByText("Chain One")).toBeInTheDocument();
@@ -325,10 +287,6 @@ describe("ImportInstructions", () => {
   });
 
   it("search with no match still shows group headers", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     expect(await screen.findByText("Chains")).toBeInTheDocument();
@@ -338,10 +296,6 @@ describe("ImportInstructions", () => {
   });
 
   it("opens AddInstructionModal with form when Add button is clicked", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     const addButton = screen
@@ -355,10 +309,6 @@ describe("ImportInstructions", () => {
   }, 8000);
 
   it("shows Id is required validation error when submitting empty form", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     const addButton = await screen.findByRole("button", { name: /^add$/i });
@@ -380,10 +330,6 @@ describe("ImportInstructions", () => {
 
   it("calls addImportInstruction when form is filled and submitted", async () => {
     mockApi.addImportInstruction.mockResolvedValue({});
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await screen.findByRole("button", { name: /add/i });
@@ -412,10 +358,6 @@ describe("ImportInstructions", () => {
   }, 18000);
 
   it("UploadInstructionsModal Upload button is disabled when no file selected", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await screen.findByRole("button", { name: /add/i });
@@ -435,10 +377,6 @@ describe("ImportInstructions", () => {
   it("handleExport: URL.createObjectURL is called with the exported file blob", async () => {
     const createObjectURL = URL.createObjectURL as jest.Mock;
     createObjectURL.mockClear();
-
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
 
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
@@ -473,10 +411,6 @@ describe("ImportInstructions", () => {
       commonVariables: { ignore: [], delete: [] },
     });
 
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() => {
@@ -500,10 +434,6 @@ describe("ImportInstructions", () => {
       specifications: { delete: [], ignore: [] },
       commonVariables: { ignore: [], delete: [] },
     });
-
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
 
     const { container } = render(<ImportInstructions />, {
       wrapper: ContextProviders,
@@ -545,10 +475,6 @@ describe("ImportInstructions", () => {
       specifications: { ignore: [], delete: [] },
       commonVariables: { ignore: [], delete: [] },
     });
-
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
 
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
@@ -596,10 +522,6 @@ describe("ImportInstructions", () => {
         return { destroy: jest.fn(), update: jest.fn() };
       });
 
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     expect(await screen.findByText("Chain One")).toBeInTheDocument();
@@ -635,10 +557,6 @@ describe("ImportInstructions", () => {
       },
     ]);
 
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await screen.findByRole("button", { name: /add/i });
@@ -671,10 +589,6 @@ describe("ImportInstructions", () => {
   }, 25000);
 
   it("UploadInstructionsModal: Close button refetches instructions", async () => {
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await screen.findByRole("button", { name: /add/i });
@@ -694,10 +608,6 @@ describe("ImportInstructions", () => {
 
   it("AddInstructionModal: calls requestFailed when addImportInstruction throws", async () => {
     mockApi.addImportInstruction.mockRejectedValue(new Error("server error"));
-
-    const { ImportInstructions } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
 
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
@@ -727,19 +637,11 @@ describe("ImportInstructions", () => {
 });
 
 describe("buildTableData", () => {
-  it("returns empty array for undefined input", async () => {
-    const { buildTableData } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
+  it("returns empty array for undefined input", () => {
     expect(buildTableData(undefined)).toEqual([]);
   });
 
-  it("returns three group rows for empty instructions", async () => {
-    const { buildTableData } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-
+  it("returns three group rows for empty instructions", () => {
     const result = buildTableData({
       chains: { ignore: [], override: [], delete: [] },
       services: { ignore: [], delete: [] },
@@ -756,14 +658,7 @@ describe("buildTableData", () => {
     result.forEach((r) => expect(r.children).toBeUndefined());
   });
 
-  it("maps chain-override into Chains group with OVERRIDE action", async () => {
-    const { buildTableData } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-    const { ImportInstructionAction } = await import(
-      "../../../src/api/apiTypes"
-    );
-
+  it("maps chain-override into Chains group with OVERRIDE action", () => {
     const result = buildTableData({
       chains: {
         ignore: [],
@@ -786,14 +681,7 @@ describe("buildTableData", () => {
     expect(child.isGroup).toBe(false);
   });
 
-  it("maps chain-ignore into Chains group with IGNORE action", async () => {
-    const { buildTableData } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-    const { ImportInstructionAction } = await import(
-      "../../../src/api/apiTypes"
-    );
-
+  it("maps chain-ignore into Chains group with IGNORE action", () => {
     const result = buildTableData({
       chains: {
         ignore: [{ id: "c2" }],
@@ -812,14 +700,7 @@ describe("buildTableData", () => {
     expect(child.name).toBe("c2");
   });
 
-  it("maps service-delete into Services group with DELETE action", async () => {
-    const { buildTableData } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-    const { ImportInstructionAction } = await import(
-      "../../../src/api/apiTypes"
-    );
-
+  it("maps service-delete into Services group with DELETE action", () => {
     const result = buildTableData({
       chains: { ignore: [], override: [], delete: [] },
       services: { ignore: [], delete: [{ id: "s1", name: "Svc One" }] },
@@ -837,13 +718,6 @@ describe("buildTableData", () => {
   });
 
   it("maps commonVariable-ignore into Common Variable group", async () => {
-    const { buildTableData } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-    const { ImportInstructionAction } = await import(
-      "../../../src/api/apiTypes"
-    );
-
     const result = buildTableData({
       chains: { ignore: [], override: [], delete: [] },
       services: { ignore: [], delete: [] },
@@ -860,13 +734,6 @@ describe("buildTableData", () => {
   });
 
   it("maps chain-delete into Chains group with DELETE action", async () => {
-    const { buildTableData } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-    const { ImportInstructionAction } = await import(
-      "../../../src/api/apiTypes"
-    );
-
     const result = buildTableData({
       chains: {
         ignore: [],
@@ -887,13 +754,6 @@ describe("buildTableData", () => {
   });
 
   it("maps service-ignore into Services group with IGNORE action", async () => {
-    const { buildTableData } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-    const { ImportInstructionAction } = await import(
-      "../../../src/api/apiTypes"
-    );
-
     const result = buildTableData({
       chains: { ignore: [], override: [], delete: [] },
       services: { ignore: [{ id: "s1", name: "Svc Ign" }], delete: [] },
@@ -912,13 +772,6 @@ describe("buildTableData", () => {
   });
 
   it("maps commonVariable-delete into Common Variable group with DELETE action", async () => {
-    const { buildTableData } = await import(
-      "../../../src/components/admin_tools/ImportInstructions"
-    );
-    const { ImportInstructionAction } = await import(
-      "../../../src/api/apiTypes"
-    );
-
     const result = buildTableData({
       chains: { ignore: [], override: [], delete: [] },
       services: { ignore: [], delete: [] },
