@@ -116,6 +116,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
         bodyMimeType: undefined,
         bodyFormData: undefined,
         synchronousGrpcCall: undefined,
+        after: undefined,
       });
     },
     [registry, servicesMap],

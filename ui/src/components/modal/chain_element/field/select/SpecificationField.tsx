@@ -75,6 +75,7 @@ const SpecificationField: React.FC<
         integrationOperationMethod: "",
         integrationOperationPathParameters: undefined,
         integrationOperationQueryParameters: undefined,
+        after: undefined,
       };
 
       updateContext?.(context);

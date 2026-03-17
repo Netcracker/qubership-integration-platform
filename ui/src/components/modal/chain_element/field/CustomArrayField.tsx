@@ -154,22 +154,27 @@ const CustomArrayField: FC<
         if (readOnlyMode) {
           const schemas: Record<string, ValidationItem> = {};
 
-          for (const [code, mediaTypes] of Object.entries(responseSchemas)) {
-            for (const [contentType, schema] of Object.entries(
-              mediaTypes as Record<string, object>,
-            )) {
-              const id = `${code}-${contentType}`;
-              schemas[id] =
-                elementType === "async-api-trigger"
-                  ? { code, label: id, schema: JSON.stringify(schema, null, 2) }
-                  : {
-                      id,
-                      code,
-                      type: "responseValidation",
-                      label: id,
-                      schema: JSON.stringify(schema, null, 2),
-                      contentType,
-                    };
+          for (const [code, schema] of Object.entries(responseSchemas)) {
+            if (elementType === "async-api-trigger") {
+              schemas[code] = {
+                code,
+                label: code,
+                schema: JSON.stringify(schema, null, 2),
+              };
+            } else {
+              for (const [contentType, validationSchema] of Object.entries(
+                schema as Record<string, object>,
+              )) {
+                const id = `${code}-${contentType}`;
+                schemas[id] = {
+                  id,
+                  code,
+                  type: "responseValidation",
+                  label: id,
+                  schema: JSON.stringify(validationSchema, null, 2),
+                  contentType,
+                };
+              }
             }
           }
 

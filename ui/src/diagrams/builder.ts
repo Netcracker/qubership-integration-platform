@@ -1239,17 +1239,17 @@ function getAsyncApiSource(
       const source =
         sourceType === EnvironmentSourceType.MANUAL
           ? (((environment.properties?.["queues"] ??
-              asyncProperties["queues"]) as string) ?? EMPTY_PROPERTY_STUB)
-          : `by classifier ${((environment.properties?.["maas.classifier.name"] ?? asyncProperties["maas.classifier.name"]) as string) ?? EMPTY_PROPERTY_STUB}`;
+              asyncProperties?.["queues"]) as string) ?? EMPTY_PROPERTY_STUB)
+          : `by classifier ${((environment.properties?.["maas.classifier.name"] ?? asyncProperties?.["maas.classifier.name"]) as string) ?? EMPTY_PROPERTY_STUB}`;
       return `queue ${source}`;
     }
     case "kafka": {
       const source =
         sourceType === EnvironmentSourceType.MANUAL
           ? (((environment.properties?.["topic"] ??
-              asyncProperties["integrationOperationPath"]) as string) ??
+              element.properties["integrationOperationPath"]) as string) ??
             EMPTY_PROPERTY_STUB)
-          : `by classifier ${((environment.properties?.["maas.classifier.name"] ?? asyncProperties["maas.classifier.name"]) as string) ?? EMPTY_PROPERTY_STUB}`;
+          : `by classifier ${((environment.properties?.["maas.classifier.name"] ?? asyncProperties?.["maas.classifier.name"]) as string) ?? EMPTY_PROPERTY_STUB}`;
       return `topic ${source}`;
     }
     default: {
@@ -1598,19 +1598,18 @@ function getServiceCallRequestMessage(
       const source =
         sourceType === EnvironmentSourceType.MANUAL
           ? (((environment.properties?.["exchange"] ??
-              asyncProperties["integrationOperationPath"]) as string) ??
+              element.properties["integrationOperationPath"]) as string) ??
             EMPTY_PROPERTY_STUB)
-          : `by classifier ${((environment.properties?.["maas.classifier.name"] ?? asyncProperties["maas.classifier.name"]) as string) ?? EMPTY_PROPERTY_STUB}`;
+          : `by classifier ${((environment.properties?.["maas.classifier.name"] ?? asyncProperties?.["maas.classifier.name"]) as string) ?? EMPTY_PROPERTY_STUB}`;
       return `Put message to exchange ${source}`;
     }
     case "kafka": {
       const source =
         sourceType === EnvironmentSourceType.MANUAL
           ? (((environment.properties?.["topic"] ??
-              asyncProperties["topic"] ??
               element.properties["integrationOperationPath"]) as string) ??
             EMPTY_PROPERTY_STUB)
-          : `by classifier ${((environment.properties?.["maas.classifier.name"] ?? asyncProperties["maas.classifier.name"]) as string) ?? EMPTY_PROPERTY_STUB}`;
+          : `by classifier ${((environment.properties?.["maas.classifier.name"] ?? asyncProperties?.["maas.classifier.name"]) as string) ?? EMPTY_PROPERTY_STUB}`;
       return `Put message to topic ${source}`;
     }
     case "graphql": {

@@ -264,6 +264,7 @@ const SystemOperationField: React.FC<
           integrationOperationPathParameters: undefined,
           integrationOperationQueryParameters:
             Object.keys(queryParams).length > 0 ? queryParams : undefined,
+          after: undefined,
         });
       };
 

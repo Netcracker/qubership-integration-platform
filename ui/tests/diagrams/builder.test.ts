@@ -1,6 +1,12 @@
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
-import { Chain, DiagramMode, Element } from "../../src/api/apiTypes.ts";
+import {
+  Chain,
+  DiagramMode,
+  Element,
+  EnvironmentSourceType,
+} from "../../src/api/apiTypes.ts";
 import { buildSequenceDiagram } from "../../src/diagrams/builder.ts";
+import { api } from "../../src/api/api.ts";
 
 jest.mock("../../src/api/api.ts", () => ({
   api: {
@@ -1449,6 +1455,304 @@ describe("buildSequenceDiagram", () => {
       expect(branches.some((b) => (b.label as string).includes("50%"))).toBe(
         true,
       );
+    });
+  });
+
+  describe("Service Call with async protocols", () => {
+    function setupEnvironment(
+      sourceType: EnvironmentSourceType,
+      properties: Record<string, string> = {},
+    ) {
+      jest.mocked(api.getEnvironments).mockResolvedValue([
+        {
+          id: "env-1",
+          sourceType,
+          properties,
+        },
+      ] as never);
+    }
+
+    it("should show topic from integrationOperationPath for kafka service-call (MANUAL)", async () => {
+      setupEnvironment(EnvironmentSourceType.MANUAL);
+      const sc = makeElement({
+        id: "sc-1",
+        name: "Kafka SC",
+        type: "service-call",
+        properties: {
+          integrationSystemId: "service-1",
+          integrationOperationProtocolType: "kafka",
+          integrationOperationPath: "my-kafka-topic",
+          integrationOperationAsyncProperties: {},
+          before: { type: "none" },
+          after: [],
+        } as never,
+      });
+      const trigger = makeElement({
+        id: "trigger-1",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const chain = makeChain(
+        [trigger, sc],
+        [{ from: "trigger-1", to: "sc-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(
+        messages.some(
+          (m) => m.includes("topic") && m.includes("my-kafka-topic"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should show exchange from integrationOperationPath for amqp service-call (MANUAL)", async () => {
+      setupEnvironment(EnvironmentSourceType.MANUAL);
+      const sc = makeElement({
+        id: "sc-1",
+        name: "AMQP SC",
+        type: "service-call",
+        properties: {
+          integrationSystemId: "service-1",
+          integrationOperationProtocolType: "amqp",
+          integrationOperationPath: "my-amqp-exchange",
+          integrationOperationAsyncProperties: {},
+          before: { type: "none" },
+          after: [],
+        } as never,
+      });
+      const trigger = makeElement({
+        id: "trigger-1",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const chain = makeChain(
+        [trigger, sc],
+        [{ from: "trigger-1", to: "sc-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(
+        messages.some(
+          (m) => m.includes("exchange") && m.includes("my-amqp-exchange"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should prefer environment topic over integrationOperationPath for kafka", async () => {
+      setupEnvironment(EnvironmentSourceType.MANUAL, {
+        topic: "env-topic-override",
+      });
+      const sc = makeElement({
+        id: "sc-1",
+        type: "service-call",
+        properties: {
+          integrationSystemId: "service-1",
+          integrationOperationProtocolType: "kafka",
+          integrationOperationPath: "path-topic",
+          integrationOperationAsyncProperties: {},
+          before: { type: "none" },
+          after: [],
+        } as never,
+      });
+      const trigger = makeElement({
+        id: "trigger-1",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const chain = makeChain(
+        [trigger, sc],
+        [{ from: "trigger-1", to: "sc-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(messages.some((m) => m.includes("env-topic-override"))).toBe(true);
+    });
+
+    it("should show classifier for kafka service-call with MAAS environment", async () => {
+      setupEnvironment(EnvironmentSourceType.MAAS_BY_CLASSIFIER);
+      const sc = makeElement({
+        id: "sc-1",
+        type: "service-call",
+        properties: {
+          integrationSystemId: "service-1",
+          integrationOperationProtocolType: "kafka",
+          integrationOperationPath: "ignored-topic",
+          integrationOperationAsyncProperties: {
+            "maas.classifier.name": "my-classifier",
+          },
+          before: { type: "none" },
+          after: [],
+        } as never,
+      });
+      const trigger = makeElement({
+        id: "trigger-1",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const chain = makeChain(
+        [trigger, sc],
+        [{ from: "trigger-1", to: "sc-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(
+        messages.some(
+          (m) => m.includes("classifier") && m.includes("my-classifier"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should handle null asyncProperties safely for kafka service-call", async () => {
+      setupEnvironment(EnvironmentSourceType.MAAS_BY_CLASSIFIER);
+      const sc = makeElement({
+        id: "sc-1",
+        type: "service-call",
+        properties: {
+          integrationSystemId: "service-1",
+          integrationOperationProtocolType: "kafka",
+          integrationOperationPath: "fallback-topic",
+          before: { type: "none" },
+          after: [],
+        } as never,
+      });
+      const trigger = makeElement({
+        id: "trigger-1",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const chain = makeChain(
+        [trigger, sc],
+        [{ from: "trigger-1", to: "sc-1" }],
+      );
+
+      // Should not throw
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+      expect(diagram).toBeDefined();
+    });
+
+    it("should handle null asyncProperties safely for amqp service-call", async () => {
+      setupEnvironment(EnvironmentSourceType.MANUAL);
+      const sc = makeElement({
+        id: "sc-1",
+        type: "service-call",
+        properties: {
+          integrationSystemId: "service-1",
+          integrationOperationProtocolType: "amqp",
+          integrationOperationPath: "fallback-exchange",
+          before: { type: "none" },
+          after: [],
+        } as never,
+      });
+      const trigger = makeElement({
+        id: "trigger-1",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const chain = makeChain(
+        [trigger, sc],
+        [{ from: "trigger-1", to: "sc-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(
+        messages.some(
+          (m) => m.includes("exchange") && m.includes("fallback-exchange"),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("Async API Trigger with environments", () => {
+    function setupEnvironment(
+      sourceType: EnvironmentSourceType,
+      properties: Record<string, string> = {},
+    ) {
+      jest.mocked(api.getEnvironments).mockResolvedValue([
+        {
+          id: "env-1",
+          sourceType,
+          properties,
+        },
+      ] as never);
+    }
+
+    it("should show topic from integrationOperationPath for kafka async-api-trigger", async () => {
+      setupEnvironment(EnvironmentSourceType.MANUAL);
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "Async Trigger",
+        type: "async-api-trigger",
+        properties: {
+          integrationSystemId: "service-1",
+          integrationOperationProtocolType: "kafka",
+          integrationOperationPath: "trigger-kafka-topic",
+          integrationOperationAsyncProperties: {},
+        } as never,
+      });
+      const chain = makeChain([trigger]);
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(messages.some((m) => m.includes("trigger-kafka-topic"))).toBe(
+        true,
+      );
+    });
+
+    it("should show queues from asyncProperties for amqp async-api-trigger", async () => {
+      setupEnvironment(EnvironmentSourceType.MANUAL);
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "AMQP Trigger",
+        type: "async-api-trigger",
+        properties: {
+          integrationSystemId: "service-1",
+          integrationOperationProtocolType: "amqp",
+          integrationOperationPath: "amqp-exchange",
+          integrationOperationAsyncProperties: {
+            queues: "my-queue",
+          },
+        } as never,
+      });
+      const chain = makeChain([trigger]);
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(messages.some((m) => m.includes("my-queue"))).toBe(true);
+    });
+
+    it("should show classifier for kafka async-api-trigger with MAAS", async () => {
+      setupEnvironment(EnvironmentSourceType.MAAS_BY_CLASSIFIER);
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "Async Trigger",
+        type: "async-api-trigger",
+        properties: {
+          integrationSystemId: "service-1",
+          integrationOperationProtocolType: "kafka",
+          integrationOperationPath: "ignored",
+          integrationOperationAsyncProperties: {
+            "maas.classifier.name": "trigger-classifier",
+          },
+        } as never,
+      });
+      const chain = makeChain([trigger]);
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(messages.some((m) => m.includes("trigger-classifier"))).toBe(true);
     });
   });
 });

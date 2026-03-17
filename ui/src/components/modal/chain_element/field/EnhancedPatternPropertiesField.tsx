@@ -28,6 +28,7 @@ interface ParameterMetadata {
   description?: string;
   deprecated?: boolean;
   secured?: boolean;
+  pathMapped?: boolean;
 }
 
 interface EnhancedParameter extends ParameterMetadata {
@@ -162,6 +163,7 @@ function parseAsyncAPIParameters(
       name: "topic",
       required: false,
       source: "specification",
+      pathMapped: true,
     });
     params.push({
       name: "groupId",
@@ -175,6 +177,7 @@ function parseAsyncAPIParameters(
       name: "exchange",
       required: false,
       source: "specification",
+      pathMapped: true,
     });
     params.push({
       name: "queues",
@@ -408,11 +411,6 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
 
     let updatedData: Record<string, string> | null = null;
 
-    if (isMaasEnvironment && formData.topic !== undefined) {
-      updatedData = { ...formData };
-      delete updatedData.topic;
-    }
-
     if (!isMaasEnvironment && formData["maas.classifier.name"] !== undefined) {
       updatedData = { ...(updatedData ?? formData) };
       delete updatedData["maas.classifier.name"];
@@ -452,24 +450,25 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       formContext.integrationOperationProtocolType ?? "",
     );
     const updates: Record<string, string> = {};
+    let pathMappedUpdate: string | undefined;
 
     if (
       isKafkaProtocol(protocolType) &&
-      !formData["topic"] &&
+      !formContext.integrationOperationPath &&
       !isMaasEnvironment
     ) {
       const topicValue = loadedSpec.topic ?? loadedSpec.channel;
       if (topicValue) {
-        updates["topic"] = topicValue;
+        pathMappedUpdate = topicValue;
       }
     }
 
     if (
       isAmqpProtocol(protocolType) &&
       loadedSpec.exchange &&
-      !formData["exchange"]
+      !formContext.integrationOperationPath
     ) {
-      updates["exchange"] = loadedSpec.exchange;
+      pathMappedUpdate = loadedSpec.exchange;
     }
 
     if (isAmqpProtocol(protocolType) && !formData["queues"]) {
@@ -503,8 +502,14 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       updates["groupId"] = loadedSpec.groupId;
     }
 
-    if (Object.keys(updates).length > 0) {
-      emitChange({ ...formData, ...updates });
+    const hasUpdates = Object.keys(updates).length > 0;
+    if (hasUpdates || pathMappedUpdate !== undefined) {
+      if (hasUpdates) {
+        emitChange({ ...formData, ...updates });
+      }
+      if (pathMappedUpdate !== undefined) {
+        updateContext?.({ integrationOperationPath: pathMappedUpdate });
+      }
       setAutoFilledOperationId(operationId);
     }
   }, [
@@ -512,6 +517,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     loadedSpecOperationId,
     formContext.integrationOperationProtocolType,
     formContext.integrationOperationId,
+    formContext.integrationOperationPath,
     formContext?.elementType,
     paramType,
     autoFilledOperationId,
@@ -519,6 +525,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     onChange,
     isMaasEnvironment,
     emitChange,
+    updateContext,
   ]);
 
   const elementType = formContext.elementType;
@@ -559,6 +566,19 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     specParameters
       .filter((p) => !p.required && !isHiddenParameter(p.name))
       .forEach((p) => {
+        if (p.pathMapped) {
+          const value =
+            (formContext.integrationOperationPath as string) || "";
+          result.push({
+            ...p,
+            value,
+            isOverridden: false,
+            canDelete: false,
+          });
+          processed.add(p.name);
+          return;
+        }
+
         const hasFormValue = formData[p.name] !== undefined;
         const isAsyncOrAdditional =
           paramType === "async" || paramType === "additional";
@@ -621,6 +641,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     specParameters,
     envParameters,
     formData,
+    formContext.integrationOperationPath,
     paramType,
     isMaasEnvironment,
     isAsyncApiTrigger,
@@ -690,6 +711,41 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       });
     }, 300);
   };
+
+  const lastSentPathRef = React.useRef<string>();
+
+  const handlePathMappedValueChange = (key: string, value: string) => {
+    setLocalValues((prev) => ({ ...prev, [key]: value }));
+
+    if (debounceTimersRef.current[key]) {
+      clearTimeout(debounceTimersRef.current[key]);
+    }
+
+    debounceTimersRef.current[key] = setTimeout(() => {
+      lastSentPathRef.current = value;
+      updateContext?.({ integrationOperationPath: value });
+    }, 300);
+  };
+
+  useEffect(() => {
+    const currentPath = formContext.integrationOperationPath as string;
+    if (currentPath === lastSentPathRef.current) return;
+
+    setLocalValues((prev) => {
+      const pathMappedNames = specParameters
+        .filter((p) => p.pathMapped)
+        .map((p) => p.name);
+      let changed = false;
+      const updated = { ...prev };
+      for (const name of pathMappedNames) {
+        if (name in updated) {
+          delete updated[name];
+          changed = true;
+        }
+      }
+      return changed ? updated : prev;
+    });
+  }, [formContext.integrationOperationPath, specParameters]);
 
   const handleDelete = (key: string) => {
     const updated = { ...formData };
@@ -796,7 +852,12 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
                         <Input
                           value={localValues[param.name] ?? param.value}
                           onChange={(e) =>
-                            handleValueChange(param.name, e.target.value)
+                            param.pathMapped
+                              ? handlePathMappedValueChange(
+                                  param.name,
+                                  e.target.value,
+                                )
+                              : handleValueChange(param.name, e.target.value)
                           }
                           disabled={disabled || readonly}
                           placeholder="Value"
