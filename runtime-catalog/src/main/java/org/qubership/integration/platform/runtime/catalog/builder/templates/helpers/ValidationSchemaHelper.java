@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.util.List;
 import java.util.Map;
@@ -21,7 +23,12 @@ import java.util.Map;
 @TemplatesHelper("combined-validation-schema")
 public class ValidationSchemaHelper extends BaseHelper implements Helper<String> {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+
+    @Autowired
+    public ValidationSchemaHelper(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public Object apply(String propertyName, Options options) {
@@ -46,13 +53,13 @@ public class ValidationSchemaHelper extends BaseHelper implements Helper<String>
         }
 
         try {
-            ObjectNode combined = OBJECT_MAPPER.createObjectNode();
+            ObjectNode combined = objectMapper.createObjectNode();
             combined.put("$schema", "http://json-schema.org/draft-07/schema#");
             ArrayNode oneOfArray = combined.putArray("oneOf");
             for (String schema : schemas) {
-                oneOfArray.add(OBJECT_MAPPER.readTree(schema));
+                oneOfArray.add(objectMapper.readTree(schema));
             }
-            return OBJECT_MAPPER.writeValueAsString(combined);
+            return objectMapper.writeValueAsString(combined);
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Error combining validation schemas", e);
         }

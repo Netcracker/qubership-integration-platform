@@ -20,10 +20,10 @@ import static org.mockito.Mockito.*;
 class ValidationSchemaHelperTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private final ValidationSchemaHelper helper = spy(new ValidationSchemaHelper(OBJECT_MAPPER));
 
     @Test
     void applyReturnsNullForNullValue() {
-        ValidationSchemaHelper helper = spy(new ValidationSchemaHelper());
         Options options = mock(Options.class);
         doReturn(null).when(helper).getPropertyValue(eq("after"), any());
 
@@ -34,7 +34,6 @@ class ValidationSchemaHelperTest {
 
     @Test
     void applyReturnsNullForEmptyList() {
-        ValidationSchemaHelper helper = spy(new ValidationSchemaHelper());
         Options options = mock(Options.class);
         doReturn(Collections.emptyList()).when(helper).getPropertyValue(eq("after"), any());
 
@@ -45,7 +44,6 @@ class ValidationSchemaHelperTest {
 
     @Test
     void applyReturnsNullWhenNoSchemasInList() {
-        ValidationSchemaHelper helper = spy(new ValidationSchemaHelper());
         Options options = mock(Options.class);
         List<Map<String, Object>> list = List.of(
                 Map.of("name", "op1"),
@@ -60,7 +58,6 @@ class ValidationSchemaHelperTest {
 
     @Test
     void applyReturnsNullWhenSchemasAreEmpty() {
-        ValidationSchemaHelper helper = spy(new ValidationSchemaHelper());
         Options options = mock(Options.class);
         List<Map<String, Object>> list = List.of(
                 Map.of("schema", "")
@@ -74,7 +71,6 @@ class ValidationSchemaHelperTest {
 
     @Test
     void applyReturnsSingleSchemaAsIs() {
-        ValidationSchemaHelper helper = spy(new ValidationSchemaHelper());
         Options options = mock(Options.class);
         String schema = "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}}}";
         List<Map<String, Object>> list = List.of(
@@ -89,7 +85,6 @@ class ValidationSchemaHelperTest {
 
     @Test
     void applyCombinesMultipleSchemasWithOneOf() throws Exception {
-        ValidationSchemaHelper helper = spy(new ValidationSchemaHelper());
         Options options = mock(Options.class);
         String schema1 = "{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"}}}";
         String schema2 = "{\"type\":\"object\",\"properties\":{\"b\":{\"type\":\"integer\"}}}";
@@ -112,7 +107,6 @@ class ValidationSchemaHelperTest {
 
     @Test
     void applyFiltersOutEmptySchemasAndNonStringEntries() {
-        ValidationSchemaHelper helper = spy(new ValidationSchemaHelper());
         Options options = mock(Options.class);
         String validSchema = "{\"type\":\"object\"}";
         List<Map<String, Object>> list = List.of(
@@ -130,7 +124,6 @@ class ValidationSchemaHelperTest {
 
     @Test
     void applyReturnsNullForNonListValue() {
-        ValidationSchemaHelper helper = spy(new ValidationSchemaHelper());
         Options options = mock(Options.class);
         doReturn("not a list").when(helper).getPropertyValue(eq("after"), any());
 
