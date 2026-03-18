@@ -24,6 +24,7 @@ import {
   Connection,
   CreateElementRequest,
   Element,
+  LibraryElement,
   TransferElementRequest,
 } from "../../api/apiTypes.ts";
 import { useAutoLayout } from "./useAutoLayout.tsx";
@@ -124,6 +125,16 @@ function buildDecorativeEdges(nodes: ChainGraphNode[], edges: Edge[]): Edge[] {
   }
 
   return out;
+}
+
+function buildGraphNodes(
+  elements: Element[],
+  libraryElements: LibraryElement[] | null,
+): ChainGraphNode[] {
+  return elements.flatMap((element) => [
+    getNodeFromElement(element, getLibraryElement(element, libraryElements)),
+    ...buildGraphNodes(element.children ?? [], libraryElements),
+  ]);
 }
 
 export const useChainGraph = (
@@ -464,7 +475,7 @@ export const useChainGraph = (
 
       const fakeNode = getFakeNode(dropPosition);
       const intersecting = getIntersectingNodes(fakeNode).filter(
-        (node) => node.type === "container",
+        (node) => node.type === "container" || node.type === "swimlane",
       );
 
       const parentNode = intersecting.sort((a, b) => {
@@ -477,7 +488,9 @@ export const useChainGraph = (
       if (parentNode) {
         createElementRequest = {
           ...createElementRequest,
-          parentElementId: parentNode.id,
+          ...(parentNode.type === "swimlane"
+            ? { swimlaneId: parentNode.id }
+            : { parentElementId: parentNode.id }),
         };
       }
 
@@ -505,8 +518,15 @@ export const useChainGraph = (
             )
           : [];
 
-        const arrangedNew = await arrangeNodes(childNodes.concat(newNode), []);
-        const allNodes = (nodes as ChainGraphNode[]).concat(arrangedNew);
+        const updatedNodes = buildGraphNodes(response.updatedElements ?? [], libraryElements);
+
+        const arrangedNodes = await arrangeNodes(
+          childNodes.concat(newNode, ...updatedNodes),
+          edges,
+        );
+        const allNodes = (nodes as ChainGraphNode[])
+          .filter((node) => !arrangedNodes.some((n) => n.id === node.id))
+          .concat(arrangedNodes);
         const withToggle = attachToggle(allNodes);
         const withCount = setNestedUnitCounts(withToggle);
 
@@ -518,8 +538,8 @@ export const useChainGraph = (
         const ordered = sortParentsBeforeChildren(withDropPosition);
         setNodes(ordered);
 
-        if (parentNode) {
-          structureChanged([parentNode.id]);
+        if (parentNode || newNode.parentId) {
+          structureChanged([parentNode?.id ?? newNode.parentId]);
         }
 
         clearDragVisuals();
@@ -664,18 +684,24 @@ export const useChainGraph = (
 
         const deletedNodeIds = (
           elementsDeleteResponse.removedElements || []
-        ).map((element: { id: string }) => element.id);
+        ).map((element) => element.id);
 
         elementsDeleteResponse.removedDependencies?.forEach((connection) =>
           deletedEdgeIds.push(connection.id),
         );
 
+        const updatedNodes = buildGraphNodes(elementsDeleteResponse.updatedElements ?? [], libraryElements);
+        const updatedNodeIds = new Set(updatedNodes.map((node) => node.id));
+
         const allNodes = (nodes as ChainGraphNode[]).filter(
-          (node) => !deletedNodeIds.includes(node.id),
+          (node) =>
+            !deletedNodeIds.includes(node.id) &&
+            !updatedNodeIds.has(node.id),
         );
         const allEdges = edges.filter(
           (edge) => !deletedEdgeIds.includes(edge.id),
         );
+        allNodes.push(...(await arrangeNodes(updatedNodes, allEdges)));
 
         const ordered = sortParentsBeforeChildren(allNodes);
         setNodes(ordered);
@@ -766,14 +792,25 @@ export const useChainGraph = (
       let finalParentId = originalParentId;
       try {
         const request: TransferElementRequest = {
-          parentId: newParentNode?.id ?? null,
+          parentId:
+            newParentNode?.type === "container"
+              ? (newParentNode?.id ?? null)
+              : null,
+          swimlaneId:
+            newParentNode?.type === "swimlane"
+              ? (newParentNode?.id ?? null)
+              : null,
           elements: selectedIds,
-          swimlaneId: null,
         };
         const response = await api.transferElement(request, chainId);
+        const updatedElement = findUpdatedElement(
+          response.updatedElements,
+          draggedNode.id,
+        );
         finalParentId =
-          findUpdatedElement(response.updatedElements, draggedNode.id)
-            ?.parentElementId ?? undefined;
+          updatedElement?.parentElementId ??
+          updatedElement?.swimlaneId ??
+          undefined;
       } catch (error) {
         notificationService.errorWithDetails(
           "Drag element failed",

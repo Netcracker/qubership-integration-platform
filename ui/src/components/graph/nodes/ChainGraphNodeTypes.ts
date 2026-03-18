@@ -3,6 +3,7 @@ import { ElkDirection } from "../../../hooks/graph/useElkDirection.tsx";
 import { Edge, Node } from "@xyflow/react";
 import { ContainerNode } from "./ContainerNode.tsx";
 import { UnitNode } from "./UnitNode.tsx";
+import { SwimlaneNode } from "./SwimlaneNode.tsx";
 
 export type ChainGraphNodeData = {
   elementType: string;
@@ -27,6 +28,7 @@ export type ChainGraphNodeWithChildren = ChainGraphNode & {
 
 export const nodeTypes = {
   container: ContainerNode,
+  swimlane: SwimlaneNode,
   unit: UnitNode,
 };
 

@@ -62,6 +62,7 @@ import ContextMenu from "../components/graph/ContextMenu.tsx";
 import { PanelResizeHandle } from "../components/PanelResizeHandle.tsx";
 import {
   getElementColor,
+  isSwimlanesOnly,
   nonEmptyContainerExists,
   sanitizeEdge,
 } from "../misc/chain-graph-utils.ts";
@@ -76,6 +77,7 @@ import { Require } from "../permissions/Require.tsx";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
+import { getSwimlaneBorderColor } from "../components/graph/nodes/SwimlaneNode.tsx";
 
 const readTheme = () => {
   if (typeof document === "undefined") return "light";
@@ -510,6 +512,12 @@ const ChainGraphInner: React.FC = () => {
 
   const getMinimapNodeColor = useCallback(
     (node: Node<ChainGraphNodeData>) => {
+      if (node.type === "swimlane") {
+        return getSwimlaneBorderColor(
+          (node.data.properties as Record<string, unknown>)["color"] as string,
+        );
+      }
+
       if (node.type === "container") {
         return getCssVariableValue("--container-header-background", "#fff9e6");
       }
@@ -553,6 +561,7 @@ const ChainGraphInner: React.FC = () => {
       if (
         changes.nodes.length > 0 &&
         (await nonEmptyContainerExists(changes.nodes as ChainGraphNode[]))
+        && (!isSwimlanesOnly(changes.nodes as ChainGraphNode[]))
       ) {
         Modal.confirm({
           title: "Delete Container",

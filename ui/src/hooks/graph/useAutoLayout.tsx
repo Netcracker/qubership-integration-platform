@@ -92,12 +92,25 @@ function buildElkGraph<
   for (const node of visibleNodes) {
     parentMap.set(node.id, node.parentId);
     const hasChildren = visibleNodes.some((n) => n.parentId === node.id);
+    const isSwimlane = node.type === "swimlane";
 
     nodeMap.set(node.id, {
       id: node.id,
-      ...(hasChildren
+      ...(hasChildren || node.type === "unit"
         ? { width: node.width ?? 150, height: node.height ?? 50 }
         : { width: 150, height: 50 }),
+      layoutOptions: isSwimlane
+        ? {
+            "elk.padding":
+              direction === "RIGHT"
+                ? "[top=20,left=55,right=20,bottom=20]"
+                : "[top=55,left=20,right=20,bottom=20]",
+            "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
+            "elk.nodeSize.constraints": "MINIMUM_SIZE",
+            "elk.nodeSize.minimum":
+              direction === "RIGHT" ? "(50, 150)" : "(150, 50)",
+          }
+        : undefined,
     });
   }
 
@@ -113,6 +126,7 @@ function buildElkGraph<
     if (elkNode.children?.length || containerNodeIds.has(elkNode.id)) {
       elkNode.layoutOptions = {
         ...layoutOptions,
+        ...elkNode.layoutOptions,
         "elk.direction": direction,
         "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
         "elk.layered.nodePlacement.bk.fixedAlignment": "LEFTUP",
@@ -354,15 +368,33 @@ export async function arrangeNodes<
   const laid = [...updated, ...untouched];
 
   leftAlignDisconnectedSiblings(laid, edges, direction, true);
+  alignSwimlaneSize(laid, direction);
 
   return laid;
+}
+
+function alignSwimlaneSize<NodeData extends Record<string, unknown>>(
+  nodes: Node<NodeData>[],
+  direction: ElkDirection,
+) {
+  const swimlanes = nodes.filter((node) => node.type === "swimlane");
+  if (direction === "RIGHT") {
+    const maxWidth = Math.max(...swimlanes.map((node) => node.width ?? 0));
+    swimlanes.forEach((swimlane) => (swimlane.width = maxWidth));
+  } else {
+    const maxHeight = Math.max(...swimlanes.map((node) => node.height ?? 0));
+    swimlanes.forEach((swimlane) => (swimlane.height = maxHeight));
+  }
 }
 
 function autoLayout(
   reactFlow: ReturnType<typeof useReactFlow>,
   direction: ElkDirection,
 ): void {
-  const nodes = reactFlow.getNodes();
+  const nodes = reactFlow.getNodes().map(node => {
+    const bounds = reactFlow.getNodesBounds([node]);
+    return { ...node, width: bounds.width, height: bounds.height };
+  });
   const edges = reactFlow
     .getEdges()
     .filter(

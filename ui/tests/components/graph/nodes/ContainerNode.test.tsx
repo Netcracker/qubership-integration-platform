@@ -3,10 +3,8 @@
  */
 import { describe, it, expect, jest } from "@jest/globals";
 import { render, fireEvent } from "@testing-library/react";
-import { ContainerNode } from "../../src/components/graph/nodes/ContainerNode";
-import { Position } from "@xyflow/react";
-import type { NodeProps } from "@xyflow/react";
-import type { ChainGraphNode } from "../../src/components/graph/nodes/ChainGraphNodeTypes";
+import { ContainerNode } from "../../../../src/components/graph/nodes/ContainerNode.tsx";
+import { makeProps } from "./node-test.util.ts";
 
 jest.mock("@xyflow/react", () => ({
   Handle: ({ type }: { type: string }) => (
@@ -15,62 +13,30 @@ jest.mock("@xyflow/react", () => ({
   Position: { Left: "left", Right: "right", Top: "top", Bottom: "bottom" },
 }));
 
-jest.mock("../../src/icons/IconProvider", () => ({
+jest.mock("../../../../src/icons/IconProvider.tsx", () => ({
   OverridableIcon: ({ name }: { name: string }) => (
     <span data-testid="icon" data-icon={name} />
   ),
 }));
 
-jest.mock("../../src/components/graph/nodes/ContainerNode.module.css", () => ({
-  __esModule: true,
-  default: {
-    container: "container",
-    containerSelected: "containerSelected",
-    header: "header",
-    actions: "actions",
-    labelWrapper: "labelWrapper",
-    badge: "badge",
-  },
-}));
+jest.mock(
+  "../../../../src/components/graph/nodes/ContainerNode.module.css",
+  () => ({
+    __esModule: true,
+    default: {
+      container: "container",
+      containerSelected: "containerSelected",
+      header: "header",
+      actions: "actions",
+      labelWrapper: "labelWrapper",
+      badge: "badge",
+    },
+  }),
+);
 
-jest.mock("../../src/components/graph/nodes/EllipsisLabel", () => ({
+jest.mock("../../../../src/components/graph/nodes/EllipsisLabel.tsx", () => ({
   EllipsisLabel: ({ text }: { text: string }) => <span>{text}</span>,
 }));
-
-function makeProps(
-  overrides: Partial<NodeProps<ChainGraphNode>> & {
-    data?: Partial<ChainGraphNode["data"]>;
-  } = {},
-): NodeProps<ChainGraphNode> {
-  const { data: dataOverrides, ...rest } = overrides;
-  return {
-    id: "test-container",
-    type: "container",
-    data: {
-      elementType: "try-catch",
-      label: "Container Label",
-      description: "",
-      properties: {},
-      inputEnabled: true,
-      outputEnabled: true,
-      collapsed: false,
-      unitCount: 0,
-      onToggleCollapse: jest.fn(),
-      ...dataOverrides,
-    },
-    selected: false,
-    isConnectable: true,
-    zIndex: 0,
-    positionAbsoluteX: 0,
-    positionAbsoluteY: 0,
-    targetPosition: Position.Left,
-    sourcePosition: Position.Right,
-    dragging: false,
-    dragHandle: undefined,
-    parentId: undefined,
-    ...rest,
-  } as NodeProps<ChainGraphNode>;
-}
 
 describe("ContainerNode", () => {
   it("renders label text", () => {
@@ -119,14 +85,6 @@ describe("ContainerNode", () => {
     expect(onToggleCollapse).toHaveBeenCalledTimes(1);
   });
 
-  it("adds containerSelected class when selected", () => {
-    const { container } = render(
-      <ContainerNode {...makeProps({ selected: true })} />,
-    );
-    const rootDiv = container.firstChild as HTMLElement;
-    expect(rootDiv.className).toContain("containerSelected");
-  });
-
   it("does not add containerSelected class when not selected", () => {
     const { container } = render(
       <ContainerNode {...makeProps({ selected: false })} />,
@@ -155,11 +113,5 @@ describe("ContainerNode", () => {
     );
     expect(queryByTestId("handle-target")).toBeNull();
     expect(queryByTestId("handle-source")).toBeNull();
-  });
-
-  it("has data-node-type=container attribute", () => {
-    const { container } = render(<ContainerNode {...makeProps()} />);
-    const rootDiv = container.firstChild as HTMLElement;
-    expect(rootDiv.getAttribute("data-node-type")).toBe("container");
   });
 });

@@ -47,7 +47,7 @@ import {
 } from "./theme/themeInit.ts";
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
 import { IconProvider } from "./icons/IconProvider.tsx";
-import { createContext, useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { getConfig } from "./appConfig.ts";
 import { reapplyCssVariables } from "./config/initConfig.ts";
 import { LiveExchanges } from "./components/admin_tools/exchanges/LiveExchanges.tsx";
@@ -61,16 +61,9 @@ import { ImportInstructions } from "./components/admin_tools/ImportInstructions.
 import { UserPermissionsProvider } from "./permissions/UserPermissionsProvider.tsx";
 import { Require } from "./permissions/Require.tsx";
 import { NotAuthorized } from "./permissions/NotAuthorized.tsx";
+import { ThemeContext, ThemeContextValue } from "./theme/context.tsx";
 
 const { Header } = Layout;
-
-type ThemeContextValue = {
-  theme: ThemeMode;
-  onThemeChange: (theme: ThemeMode) => void;
-  showThemeSwitcher: boolean;
-};
-
-const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const RootLayout = () => {
   const themeContext = useContext(ThemeContext);

@@ -55,12 +55,10 @@ export function getNodeFromElement(
   position?: XYPosition,
 ): ChainGraphNode {
   const defaultPosition: XYPosition = { x: 0, y: 0 };
-  const nodeType =
-    libraryElement?.container || element.type === "container"
-      ? "container"
-      : "unit";
   const isHorizontal = direction === "RIGHT";
-  const isContainer = nodeType === "container";
+  const isContainer = libraryElement?.container || element.type === "container";
+  const isSwimlane = libraryElement?.name === "swimlane";
+  const nodeType = isContainer ? "container" : isSwimlane ? "swimlane" : "unit";
 
   const hasChildren =
     Array.isArray(element.children) && element.children.length > 0;
@@ -79,32 +77,29 @@ export function getNodeFromElement(
       ...getDataFromElement(element, libraryElement),
       direction,
     },
-    position: element.parentElementId ? defaultPosition : possiblePosition,
-    draggable: !(
-      libraryElement?.parentRestriction !== undefined &&
-      libraryElement?.parentRestriction.length > 0
-    ),
+    position:
+      element.parentElementId || element.swimlaneId
+        ? defaultPosition
+        : possiblePosition,
+    draggable:
+      !(
+        libraryElement?.parentRestriction !== undefined &&
+        libraryElement?.parentRestriction.length > 0
+      ) && !isSwimlane,
     targetPosition: isHorizontal ? Position.Left : Position.Top,
     sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
     ...defaultSize,
-    ...(element.parentElementId && {
-      parentId: element.parentElementId,
+    ...((element.parentElementId || element.swimlaneId) && {
+      parentId: element.parentElementId ?? element.swimlaneId,
     }),
-    ...(isContainer
-      ? {
-          className: "container-node",
-          style: {
-            borderRadius: 5,
-            fontWeight: 500,
-          },
-        }
-      : {
-          style: {
-            backgroundColor: getElementColor(libraryElement),
-            borderRadius: 5,
-            fontWeight: 500,
-          },
-        }),
+    style: {
+      borderRadius: 5,
+      borderWidth: 0,
+      fontWeight: 500,
+      ...(isContainer || isSwimlane
+        ? {}
+        : { backgroundColor: getElementColor(libraryElement) }),
+    },
   };
 }
 
@@ -167,7 +162,11 @@ export function getPossibleGraphIntersection(
 ): Node | undefined {
   return allIntersections
     .filter((intersectingNode) => !draggedChildren?.includes(intersectingNode))
-    .filter((intersectingNode) => intersectingNode.type === "container")
+    .filter(
+      (intersectingNode) =>
+        intersectingNode.type === "container" ||
+        intersectingNode.type === "swimlane",
+    )
     .sort((a, b) => {
       const areaA = (a.width ?? 0) * (a.height ?? 0);
       const areaB = (b.width ?? 0) * (b.height ?? 0);
@@ -399,6 +398,11 @@ export async function nonEmptyContainerExists(
   const tree = buildTree(nodesToDelete);
 
   return await isEmptyContainerFound(tree);
+}
+
+export function isSwimlanesOnly(nodesToDelete: ChainGraphNode[]): boolean {
+  const tree = buildTree(nodesToDelete);
+  return tree.every((node) => node.type === "swimlane");
 }
 
 export function getContainerIdsForEdges(

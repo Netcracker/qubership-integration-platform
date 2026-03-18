@@ -46,6 +46,15 @@ export const COLOR_PALETTE: Record<string, string> = {
   lightblue: "#4FC0F8",
 };
 
+export const SWIMLANE_COLORS: Record<string, string> = {
+  Blue: "#bddcf2",
+  Green: "#d0e7a1",
+  Yellow: "#fdf39d",
+  Purple: "#c6b0f2",
+  Lagoon: "#a5e1d2",
+  Brown: "#cabcb7",
+};
+
 // Helper to get actual color from semantic name
 export function getSemanticColor(semanticName: string): string {
   const paletteKey = SOURCE_COLORS[semanticName];

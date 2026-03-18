@@ -1,105 +1,82 @@
-import { Handle, NodeProps, Position } from "@xyflow/react";
+import { NodeProps } from "@xyflow/react";
 import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
 import { useMemo } from "react";
 import { IconName, OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { Flex } from "antd";
+import { NodeContentWrapper } from "./NodeContentWrapper.tsx";
 
-export function UnitNode({
-  data,
-  isConnectable,
-  selected,
-  targetPosition = Position.Left,
-  sourcePosition = Position.Right,
-}: NodeProps<ChainGraphNode>) {
+export function UnitNode({ data, ...rest }: NodeProps<ChainGraphNode>) {
   const trimmedLabel = useMemo(
     () => (data.label?.split("\n")[0] ?? "Node").trim(),
     [data.label],
   );
 
   return (
-    <div
+    <NodeContentWrapper
+      {...{ data, ...rest }}
       style={{
-        border: "2px solid transparent",
-        borderColor: selected ? "var(--vscode-focusBorder)" : "transparent",
         boxShadow:
           data.mandatoryChecksPassed === false
             ? "0 0 0 2px var(--ant-color-error, #ff4d4f)"
             : "none",
-        borderRadius: 5,
-        width: 148,
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
-        backgroundColor: "inherit",
       }}
     >
-      <div
-        style={{
-          width: "100%",
-          flexDirection: "row",
-          display: "flex",
-          gap: 6,
-          userSelect: "none",
-          textAlign: "center",
-          lineHeight: 1.35,
-          paddingTop: "8px",
-          paddingLeft: "3px",
-          paddingRight: "2px",
-        }}
+      <Flex
+        gap={"2px"}
+        style={{ paddingTop: "8px", paddingBottom: "6px" }}
+        vertical={true}
       >
-        <OverridableIcon
-          name={data.elementType as IconName}
-          style={{ fontSize: 16 }}
-        />
-        <div
-          style={{
-            flex: 1,
-          }}
+        <Flex
+          gap={"small"}
+          vertical={false}
+          align={"center"}
+          justify={"left"}
+          wrap={false}
+          style={{ width: "100%", padding: "0 8px 0 8px" }}
         >
-          <span
-            style={{
-              fontSize: 12,
-              textAlign: "left",
-              overflowWrap: "anywhere",
-              display: "block",
-            }}
-          >
-            {trimmedLabel}
-          </span>
+          <OverridableIcon
+            name={data.elementType as IconName}
+            style={{ fontSize: 16 }}
+          />
           <div
             style={{
-              textAlign: "right",
-              marginTop: 2,
+              flex: 1,
             }}
           >
             <span
               style={{
-                background: "rgba(0, 0, 0, 0.15)",
-                padding: "2px 5px",
-                borderRadius: 3,
-                fontSize: 8,
+                fontSize: 12,
+                textAlign: "left",
+                overflowWrap: "anywhere",
+                display: "block",
               }}
             >
-              {data.typeTitle}
+              {trimmedLabel}
             </span>
           </div>
+        </Flex>
+        <div
+          style={{
+            textAlign: "right",
+          }}
+        >
+          <span
+            style={{
+              background: "rgba(0, 0, 0, 0.15)",
+              padding: "2px 5px",
+              borderTopLeftRadius: 3,
+              borderBottomLeftRadius: 3,
+              borderTopRightRadius: 0,
+              borderBottomRightRadius: 0,
+              fontSize: 8,
+            }}
+          >
+            {data.typeTitle}
+          </span>
         </div>
-      </div>
-
-      {data.inputEnabled !== false && (
-        <Handle
-          type="target"
-          position={targetPosition}
-          isConnectable={isConnectable}
-        />
-      )}
-
-      {data.outputEnabled !== false && (
-        <Handle
-          type="source"
-          position={sourcePosition}
-          isConnectable={isConnectable}
-        />
-      )}
-    </div>
+      </Flex>
+    </NodeContentWrapper>
   );
 }
