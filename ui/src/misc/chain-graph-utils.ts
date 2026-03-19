@@ -26,6 +26,7 @@ export function getDataFromElement(
       inputEnabled: libraryElement?.inputEnabled,
       outputEnabled: libraryElement?.outputEnabled,
       typeTitle: libraryElement?.title,
+      deprecated: libraryElement?.deprecated,
     };
   }
   return node;
@@ -69,6 +70,7 @@ export function getNodeFromElement(
       : { width: 150, height: 50 };
 
   const possiblePosition = position ?? defaultPosition;
+  const elementColor = getElementColor(libraryElement);
 
   return {
     id: element.id,
@@ -98,7 +100,11 @@ export function getNodeFromElement(
       fontWeight: 500,
       ...(isContainer || isSwimlane
         ? {}
-        : { backgroundColor: getElementColor(libraryElement) }),
+        : libraryElement?.deprecated
+          ? {
+              background: `repeating-linear-gradient(135deg, #9ca3af, #9ca3af 1px, ${elementColor} 2px, ${elementColor} 10px)`,
+            }
+          : { backgroundColor: elementColor }),
     },
   };
 }

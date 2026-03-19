@@ -27,7 +27,11 @@ export const ContainerNodeBase: React.FC<ContainerNodeBaseProps> = ({
         outlineColor: color,
         display: "flex",
         flexDirection: direction === "DOWN" ? "column" : "row",
-        backgroundColor: color,
+        ...(rest.data.deprecated
+          ? {
+              background: `repeating-linear-gradient(135deg, #9ca3af, #9ca3af 1px, ${color} 2px, ${color} 10px)`,
+            }
+          : { backgroundColor: color }),
       }}
     >
       {header}

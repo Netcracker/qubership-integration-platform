@@ -41,17 +41,11 @@ export const LibraryProvider: React.FC<{ children: ReactNode }> = ({
     const elements: LibraryElement[] = [];
     libraryData?.groups.forEach((group) => {
       group.elements.forEach((element: LibraryElement) => {
-        //TODO check if it necessary
-        if (element.deprecated || element.unsupported) return;
-
         elements.push(element);
       });
     });
     Object.values(libraryData.childElements).forEach(
       (element: LibraryElement) => {
-        //TODO check if it necessary
-        if (element.deprecated || element.unsupported) return;
-
         elements.push(element);
       },
     );
