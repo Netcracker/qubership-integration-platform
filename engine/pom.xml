@@ -25,7 +25,7 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:https//github.com/Netcracker/qubership-integration-engine.git</connection>
+        <connection>scm:git:https://github.com/Netcracker/qubership-integration-engine.git</connection>
         <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-engine.git
         </developerConnection>
         <url>scm:git:https://github.com/Netcracker/qubership-integration-engine.git</url>
@@ -35,7 +35,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.10</version>
+        <version>3.5.11</version>
     </parent>
 
     <properties>
@@ -44,18 +44,15 @@
         <java.version>21</java.version>
 
         <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
-        <jackson-bom.version>2.17.0</jackson-bom.version>
 
         <!-- 3rd party dependencies -->
 
         <camel.version>4.14.5</camel.version>
-        <spring-cloud.version>2024.0.3</spring-cloud.version>
+        <spring-cloud.version>2025.0.1</spring-cloud.version>
         <snappy-java.version>1.1.10.8</snappy-java.version>
-        <postgres-driver.version>42.7.9</postgres-driver.version>
         <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
         <atlasmap.version>2.5.2</atlasmap.version>
         <logback-gelf.version>5.0.1</logback-gelf.version>
-        <commons-lang3.version>3.14.0</commons-lang3.version>
         <commons-text.version>1.11.0</commons-text.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
@@ -70,7 +67,6 @@
         <opensearch.version>2.14.0</opensearch.version>
         <jakarta.ws.rs-api.version>4.0.0</jakarta.ws.rs-api.version>
         <reflections.version>0.10.2</reflections.version>
-        <kafka-clients.version>3.9.1</kafka-clients.version>
         <lz4-java.version>1.10.1</lz4-java.version>
         <jose4j.version>0.9.6</jose4j.version>
 
@@ -78,7 +74,6 @@
 
         <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
-        <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
     </properties>
 
@@ -87,18 +82,11 @@
 
             <!-- BOMs -->
             <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-bom</artifactId>
-                <version>4.1.110.Final</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
-            <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-bom</artifactId>
-                <version>1.63.2</version>
+                <version>1.75.0</version>
                 <type>pom</type>
+                <scope>import</scope>
             </dependency>
 
             <dependency>
@@ -133,14 +121,6 @@
                 <scope>import</scope>
             </dependency>
 
-            <dependency>
-                <groupId>com.fasterxml.jackson</groupId>
-                <artifactId>jackson-bom</artifactId>
-                <version>${jackson-bom.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
             <!-- Dependencies -->
 
             <dependency>
@@ -155,12 +135,6 @@
                 <version>${logback-gelf.version}</version>
             </dependency>
 
-            <!-- Apache utilities library -->
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-lang3</artifactId>
-                <version>${commons-lang3.version}</version>
-            </dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-text</artifactId>
@@ -171,7 +145,6 @@
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
-                <optional>true</optional>
             </dependency>
 
             <!-- For rabbitmq-custom component -->
@@ -179,7 +152,6 @@
                 <groupId>com.rabbitmq</groupId>
                 <artifactId>amqp-client</artifactId>
                 <version>${amqp-client.version}</version>
-                <scope>compile</scope>
             </dependency>
 
             <!-- Mapper dependencies -->
@@ -194,11 +166,6 @@
                 <version>${mapstruct.version}</version>
             </dependency>
 
-            <dependency>
-                <groupId>org.postgresql</groupId>
-                <artifactId>postgresql</artifactId>
-                <version>${postgres-driver.version}</version>
-            </dependency>
             <dependency>
                 <groupId>io.hypersistence</groupId>
                 <artifactId>hypersistence-utils-hibernate-63</artifactId>
@@ -300,7 +267,7 @@
             <dependency>
                 <groupId>org.apache.kafka</groupId>
                 <artifactId>kafka-clients</artifactId>
-                <version>${kafka-clients.version}</version>
+                <version>${kafka.version}</version>
                 <exclusions>
                     <exclusion>
                         <groupId>org.lz4</groupId>
@@ -400,17 +367,18 @@
         <dependency>
             <groupId>jakarta.ws.rs</groupId>
             <artifactId>jakarta.ws.rs-api</artifactId>
-            <version>4.0.0</version>
         </dependency>
 
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-test</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
@@ -469,10 +437,6 @@
         <dependency>
             <groupId>org.apache.camel</groupId>
             <artifactId>camel-jacksonxml</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.camel</groupId>
-            <artifactId>camel-servlet</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.camel</groupId>
@@ -614,10 +578,6 @@
             <artifactId>spring-webflux</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-jdbc</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.networknt</groupId>
             <artifactId>json-schema-validator</artifactId>
         </dependency>
@@ -676,7 +636,6 @@
         <dependency>
             <groupId>org.opensearch.client</groupId>
             <artifactId>opensearch-java</artifactId>
-            <version>${opensearch.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
