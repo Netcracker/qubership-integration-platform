@@ -126,7 +126,10 @@ function makeProps(
         ...fcOverrides,
       } as FormContext,
     } as EnhancedFieldProps["registry"],
-    fieldPathId: { $id: "root_integrationOperationAsyncProperties", path: "root_integrationOperationAsyncProperties" },
+    fieldPathId: {
+      $id: "root_integrationOperationAsyncProperties",
+      path: "root_integrationOperationAsyncProperties",
+    },
     ...rest,
   } as EnhancedFieldProps;
 }
@@ -183,9 +186,7 @@ describe("EnhancedPatternPropertiesField", () => {
 
       let container!: HTMLElement;
       await act(async () => {
-        const result = render(
-          <EnhancedPatternPropertiesField {...props} />,
-        );
+        const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
 
@@ -214,9 +215,7 @@ describe("EnhancedPatternPropertiesField", () => {
 
       let container!: HTMLElement;
       await act(async () => {
-        const result = render(
-          <EnhancedPatternPropertiesField {...props} />,
-        );
+        const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
 
@@ -238,9 +237,7 @@ describe("EnhancedPatternPropertiesField", () => {
 
       let container!: HTMLElement;
       await act(async () => {
-        const result = render(
-          <EnhancedPatternPropertiesField {...props} />,
-        );
+        const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
 
@@ -284,9 +281,7 @@ describe("EnhancedPatternPropertiesField", () => {
 
       let container!: HTMLElement;
       await act(async () => {
-        const result = render(
-          <EnhancedPatternPropertiesField {...props} />,
-        );
+        const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
 
@@ -320,9 +315,7 @@ describe("EnhancedPatternPropertiesField", () => {
 
       let container!: HTMLElement;
       await act(async () => {
-        const result = render(
-          <EnhancedPatternPropertiesField {...props} />,
-        );
+        const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
 
@@ -356,9 +349,7 @@ describe("EnhancedPatternPropertiesField", () => {
 
       let container!: HTMLElement;
       await act(async () => {
-        const result = render(
-          <EnhancedPatternPropertiesField {...props} />,
-        );
+        const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
 
@@ -524,9 +515,7 @@ describe("EnhancedPatternPropertiesField", () => {
 
       let container!: HTMLElement;
       await act(async () => {
-        const result = render(
-          <EnhancedPatternPropertiesField {...props} />,
-        );
+        const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
 

@@ -371,7 +371,7 @@ export function buildMappingTableItems(
   return items;
 }
 
-function compareGroupItems(
+export function compareGroupItems(
   i0: MappingTableItem,
   i1: MappingTableItem,
   sortOrder: SortOrder,
@@ -435,7 +435,7 @@ function getSearchContexts(
     : getTargetSearchContexts(mappingDescription, item);
 }
 
-function getSourceSearchContexts(
+export function getSourceSearchContexts(
   mappingDescription: MappingDescription,
   item: MappingTableItem,
 ): string[] {
@@ -523,7 +523,7 @@ function getTargetSearchContexts(
   ].filter((value) => !!value);
 }
 
-function updateConstantValueToMatchType(
+export function updateConstantValueToMatchType(
   valueSupplier: ValueSupplier,
   type: DataType,
 ): ValueSupplier {
@@ -778,940 +778,926 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
     [messageApi, updateConstant],
   );
 
-  const buildColumns =
-    useMemo((): TableProps<MappingTableItem>["columns"] => {
-      return [
-        {
-          key: "name",
-          title: "Name",
-          render: (_value: unknown, item: MappingTableItem) => {
-            return isBodyGroup(item) ? (
-              <Space>
-                <span>body</span>
-                {mappingDescription[selectedSchema].body ? (
-                  <Select<string>
-                    size={"small"}
-                    value={bodyFormat}
-                    variant="borderless"
-                    options={[
-                      { value: SourceFormat.JSON, label: "JSON" },
-                      { value: SourceFormat.XML, label: "XML" },
-                    ]}
-                    onChange={(value) => {
-                      if (!mappingDescription[selectedSchema].body) {
-                        return;
-                      }
-                      const type = MetadataUtil.setValue(
-                        mappingDescription[selectedSchema].body,
-                        METADATA_DATA_FORMAT_KEY,
-                        value,
-                      );
-                      updateBodyType(selectedSchema, type);
-                    }}
-                  />
-                ) : (
-                  <></>
-                )}
-              </Space>
-            ) : isConstantGroup(item) ? (
-              <span>constants</span>
-            ) : isHeaderGroup(item) ? (
-              <span>headers</span>
-            ) : isPropertyGroup(item) ? (
-              <span>properties</span>
-            ) : isAttributeItem(item) ? (
-              readonly ? (
-                item.attribute.name
-              ) : (
-                <InlineEdit<{ name: string }>
-                  values={{ name: item.attribute.name }}
-                  editor={<TextValueEdit name={"name"} />}
-                  viewer={item.attribute.name}
-                  initialActive={!item.attribute.name}
-                  onSubmit={({ name }) => {
-                    tryUpdateAttribute(item.kind, item.path, { name });
-                  }}
-                />
-              )
-            ) : isConstantItem(item) ? (
-              readonly ? (
-                item.constant.name
-              ) : (
-                <InlineEdit<{ name: string }>
-                  values={{ name: item.constant.name }}
-                  editor={<TextValueEdit name={"name"} />}
-                  viewer={item.constant.name}
-                  initialActive={!item.constant.name}
-                  onSubmit={({ name }) => {
-                    tryUpdateConstant(item.constant.id, { name });
-                  }}
-                />
-              )
-            ) : (
-              <></>
-            );
-          },
-          onCell: (item: MappingTableItem) => {
-            return (isConstantItem(item) && !item.constant.name) ||
-              (isAttributeItem(item) && !item.attribute.name)
-              ? { className: styles["invalid-value"] }
-              : {};
-          },
-          sorter: (
-            i0: MappingTableItem,
-            i1: MappingTableItem,
-            sortOrder: SortOrder | undefined,
-          ) => {
-            if (isAttributeItem(i0) || isConstantItem(i0)) {
-              const name1 = isAttributeItem(i0)
-                ? i0.attribute.name
-                : i0.constant.name;
-              const name2 = isAttributeItem(i0)
-                ? (i1 as AttributeItem).attribute.name
-                : (i1 as ConstantItem).constant.name;
-              return name1.localeCompare(name2);
-            } else {
-              return compareGroupItems(i0, i1, sortOrder ?? null);
-            }
-          },
-          sortDirections: ["ascend" as const, "descend" as const, null],
-          sortOrder:
-            controlsStateMap.get(selectedSchema)?.sorts.columnKey === "name"
-              ? controlsStateMap.get(selectedSchema)?.sorts.order
-              : null,
-          filterDropdown: (props: FilterDropdownProps) => (
-            <TextColumnFilterDropdown {...props} />
-          ),
-          onFilter: (value: boolean | React.Key, item: MappingTableItem) => {
-            return (
-              (!isAttributeItem(item) && !isConstantItem(item)) ||
-              getTextColumnFilterFn((i: MappingTableItem) =>
-                isAttributeItem(i)
-                  ? i.attribute.name
-                  : isConstantItem(i)
-                    ? i.constant.name
-                    : "",
-              )(value, item)
-            );
-          },
-          filteredValue:
-            controlsStateMap.get(selectedSchema)?.filters.name || null,
-        },
-        {
-          key: "type",
-          title: "Type",
-          render: (_value: unknown, item: MappingTableItem) => {
-            if (isBodyGroup(item)) {
-              return (
-                <InlineTypeEdit
-                  type={item.type}
-                  definitions={
-                    item.type ? DataTypes.getTypeDefinitions(item.type) : []
-                  }
-                  readonly={readonly}
-                  onSubmit={(type) => {
+  const buildColumns = useMemo((): TableProps<MappingTableItem>["columns"] => {
+    return [
+      {
+        key: "name",
+        title: "Name",
+        render: (_value: unknown, item: MappingTableItem) => {
+          return isBodyGroup(item) ? (
+            <Space>
+              <span>body</span>
+              {mappingDescription[selectedSchema].body ? (
+                <Select<string>
+                  size={"small"}
+                  value={bodyFormat}
+                  variant="borderless"
+                  options={[
+                    { value: SourceFormat.JSON, label: "JSON" },
+                    { value: SourceFormat.XML, label: "XML" },
+                  ]}
+                  onChange={(value) => {
+                    if (!mappingDescription[selectedSchema].body) {
+                      return;
+                    }
+                    const type = MetadataUtil.setValue(
+                      mappingDescription[selectedSchema].body,
+                      METADATA_DATA_FORMAT_KEY,
+                      value,
+                    );
                     updateBodyType(selectedSchema, type);
                   }}
                 />
-              );
-            } else if (isConstantItem(item)) {
-              return (
-                <InlineTypeEdit
-                  type={item.constant.type}
-                  definitions={[]}
-                  readonly={readonly}
-                  disableObjectType={true}
-                  disableArrayTypes={true}
-                  onSubmit={(type) => {
-                    if (type) {
-                      tryUpdateConstant(item.constant.id, {
-                        ...item.constant,
-                        type,
-                        valueSupplier: updateConstantValueToMatchType(
-                          item.constant.valueSupplier,
-                          type,
-                        ),
-                      });
-                    }
-                  }}
-                />
-              );
-            } else if (isAttributeItem(item)) {
-              return (
-                <InlineTypeEdit
-                  type={item.attribute.type}
-                  definitions={item.typeDefinitions}
-                  readonly={readonly}
-                  onSubmit={(type) => {
-                    if (type) {
-                      tryUpdateAttribute(item.kind, item.path, {
-                        type,
-                        defaultValue: undefined,
-                      });
-                    }
-                  }}
-                />
-              );
-            }
-          },
-          sorter: (
-            i0: MappingTableItem,
-            i1: MappingTableItem,
-            sortOrder: SortOrder | undefined,
-          ) => {
-            if (isAttributeItem(i0) || isConstantItem(i0)) {
-              const name1 = isAttributeItem(i0)
-                ? DataTypes.buildTypeName(i0.attribute.type, i0.typeDefinitions)
-                : DataTypes.buildTypeName(i0.constant.type, []);
-              const name2 = isAttributeItem(i0)
-                ? DataTypes.buildTypeName(
-                    (i1 as AttributeItem).attribute.type,
-                    i0.typeDefinitions,
-                  )
-                : DataTypes.buildTypeName(
-                    (i1 as ConstantItem).constant.type,
-                    [],
-                  );
-              return name1.localeCompare(name2);
-            } else {
-              return compareGroupItems(i0, i1, sortOrder ?? null);
-            }
-          },
-          sortDirections: ["ascend" as const, "descend" as const, null],
-          sortOrder:
-            controlsStateMap.get(selectedSchema)?.sorts.columnKey === "type"
-              ? controlsStateMap.get(selectedSchema)?.sorts.order
-              : null,
-          filterDropdown: (props: FilterDropdownProps) => (
-            <EnumColumnFilterDropdown
-              options={[
-                { value: "string", label: "string" },
-                { value: "number", label: "number" },
-                { value: "boolean", label: "boolean" },
-                { value: "object", label: "object" },
-                { value: "array", label: "array" },
-              ]}
-              {...props}
-            />
-          ),
-          onFilter: (value: boolean | React.Key, item: MappingTableItem) => {
-            return (
-              !(isAttributeItem(item) || isConstantItem(item)) ||
-              getEnumColumnFilterFn((i) =>
-                isAttributeItem(i)
-                  ? i.resolvedType.name
-                  : isConstantItem(i)
-                    ? i.constant.type.name
-                    : "",
-              )(value, item)
-            );
-          },
-          filteredValue:
-            controlsStateMap.get(selectedSchema)?.filters.type || null,
-        },
-        ...(selectedSchema === SchemaKind.TARGET
-          ? [
-              {
-                key: "optionality",
-                title: "Optionality",
-                render: (_value: unknown, item: MappingTableItem) => {
-                  return isAttributeItem(item) ? (
-                    readonly ? (
-                      item.attribute.required ? (
-                        "required"
-                      ) : (
-                        "optional"
-                      )
-                    ) : (
-                      <InlineEdit<{ optionality: string }>
-                        values={{
-                          optionality: String(!!item.attribute.required),
-                        }}
-                        editor={
-                          <SelectEdit
-                            name="optionality"
-                            options={[
-                              {
-                                value: "false",
-                                label: "optional",
-                              },
-                              { value: "true", label: "required" },
-                            ]}
-                          />
-                        }
-                        viewer={
-                          item.attribute.required ? "required" : "optional"
-                        }
-                        onSubmit={({ optionality }) => {
-                          tryUpdateAttribute(item.kind, item.path, {
-                            required: optionality === "true",
-                          });
-                        }}
-                      />
-                    )
-                  ) : (
-                    <></>
-                  );
-                },
-                sorter: (
-                  i0: MappingTableItem,
-                  i1: MappingTableItem,
-                  sortOrder: SortOrder | undefined,
-                ) => {
-                  if (isAttributeItem(i0)) {
-                    const s1 = i0.attribute.required ? "required" : "optional";
-                    const s2 = (i1 as AttributeItem).attribute.required
-                      ? "required"
-                      : "optional";
-                    return s1.localeCompare(s2);
-                  } else {
-                    return compareGroupItems(i0, i1, sortOrder ?? null);
-                  }
-                },
-                sortDirections: ["ascend" as const, "descend" as const, null],
-                sortOrder:
-                  controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
-                  "optionality"
-                    ? controlsStateMap.get(selectedSchema)?.sorts.order
-                    : null,
-                filterDropdown: (props: FilterDropdownProps) => (
-                  <EnumColumnFilterDropdown
-                    options={[
-                      { value: "false", label: "optional" },
-                      { value: "true", label: "required" },
-                    ]}
-                    {...props}
-                  />
-                ),
-                onFilter: (
-                  value: boolean | React.Key,
-                  item: MappingTableItem,
-                ) => {
-                  return (
-                    !isAttributeItem(item) ||
-                    getEnumColumnFilterFn((i: AttributeItem) =>
-                      String(i.attribute.required ?? false),
-                    )(value, item)
-                  );
-                },
-                filteredValue:
-                  controlsStateMap.get(selectedSchema)?.filters.optionality ||
-                  null,
-              },
-            ]
-          : []),
-        {
-          key: "description",
-          title: "Description",
-          render: (_value: unknown, item: MappingTableItem) => {
-            return isAttributeItem(item) ? (
-              readonly ? (
-                (MetadataUtil.getString(item.attribute, DESCRIPTION_KEY) ??
-                PLACEHOLDER)
-              ) : (
-                <InlineEdit<{ description: string }>
-                  values={{
-                    description:
-                      MetadataUtil.getString(item.attribute, DESCRIPTION_KEY) ??
-                      "",
-                  }}
-                  editor={<TextValueEdit name="description" rules={[]} />}
-                  viewer={
-                    MetadataUtil.getString(item.attribute, DESCRIPTION_KEY) ??
-                    PLACEHOLDER
-                  }
-                  onSubmit={({ description }) => {
-                    tryUpdateAttribute(item.kind, item.path, {
-                      metadata: MetadataUtil.upsert(
-                        item.attribute.metadata,
-                        DESCRIPTION_KEY,
-                        description ? description : undefined,
-                      ),
-                    });
-                  }}
-                />
-              )
-            ) : isConstantItem(item) ? (
-              readonly ? (
-                (MetadataUtil.getString(item.constant, DESCRIPTION_KEY) ??
-                PLACEHOLDER)
-              ) : (
-                <InlineEdit<{ description: string }>
-                  values={{
-                    description:
-                      MetadataUtil.getString(item.constant, DESCRIPTION_KEY) ??
-                      "",
-                  }}
-                  editor={<TextValueEdit name="description" rules={[]} />}
-                  viewer={
-                    MetadataUtil.getString(item.constant, DESCRIPTION_KEY) ??
-                    PLACEHOLDER
-                  }
-                  onSubmit={({ description }) => {
-                    tryUpdateConstant(item.constant.id, {
-                      metadata: MetadataUtil.upsert(
-                        item.constant.metadata,
-                        DESCRIPTION_KEY,
-                        description ? description : undefined,
-                      ),
-                    });
-                  }}
-                />
-              )
-            ) : (
-              <></>
-            );
-          },
-          sorter: (
-            i0: MappingTableItem,
-            i1: MappingTableItem,
-            sortOrder: SortOrder | undefined,
-          ) => {
-            if (isAttributeItem(i0) || isConstantItem(i0)) {
-              const description1 = isAttributeItem(i0)
-                ? MetadataUtil.getString(i0.attribute, DESCRIPTION_KEY) || ""
-                : MetadataUtil.getString(i0.constant, DESCRIPTION_KEY) || "";
-              const description2 = isAttributeItem(i0)
-                ? MetadataUtil.getString(
-                    (i1 as AttributeItem).attribute,
-                    DESCRIPTION_KEY,
-                  ) || ""
-                : MetadataUtil.getString(
-                    (i1 as ConstantItem).constant,
-                    DESCRIPTION_KEY,
-                  ) || "";
-              return description1.localeCompare(description2);
-            } else {
-              return compareGroupItems(i0, i1, sortOrder ?? null);
-            }
-          },
-          sortDirections: ["ascend" as const, "descend" as const, null],
-          sortOrder:
-            controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
-            "description"
-              ? controlsStateMap.get(selectedSchema)?.sorts.order
-              : null,
-          filterDropdown: (props: FilterDropdownProps) => (
-            <TextColumnFilterDropdown {...props} />
-          ),
-          onFilter: (value: boolean | React.Key, item: MappingTableItem) => {
-            return (
-              (!isAttributeItem(item) && !isConstantItem(item)) ||
-              getTextColumnFilterFn((i: MappingTableItem) =>
-                isAttributeItem(i)
-                  ? (MetadataUtil.getString(i.attribute, DESCRIPTION_KEY) ?? "")
-                  : isConstantItem(i)
-                    ? (MetadataUtil.getString(i.constant, DESCRIPTION_KEY) ??
-                      "")
-                    : "",
-              )(value, item)
-            );
-          },
-          filteredValue:
-            controlsStateMap.get(selectedSchema)?.filters.description || null,
-        },
-        {
-          key: "defaultValue",
-          title: "Default value",
-          render: (_value: unknown, item: MappingTableItem) => {
-            return isAttributeItem(item) ? (
-              item.resolvedType.name === "string" ||
-              item.resolvedType.name === "boolean" ||
-              item.resolvedType.name === "number" ? (
-                readonly ? (
-                  (item.attribute.defaultValue ?? PLACEHOLDER)
-                ) : (
-                  <InlineEdit<{ value: string | undefined }>
-                    values={{
-                      value:
-                        item.resolvedType.name === "boolean" &&
-                        item.attribute.defaultValue === undefined
-                          ? ""
-                          : item.attribute.defaultValue,
-                    }}
-                    editor={
-                      <DefaultValueEdit
-                        name={"value"}
-                        type={item.resolvedType.name}
-                      />
-                    }
-                    viewer={item.attribute.defaultValue ?? PLACEHOLDER}
-                    onSubmit={({ value }) => {
-                      tryUpdateAttribute(item.kind, item.path, {
-                        defaultValue:
-                          item.resolvedType.name === "boolean" && value === ""
-                            ? undefined
-                            : value,
-                      });
-                    }}
-                  />
-                )
               ) : (
                 <></>
-              )
-            ) : isConstantItem(item) ? (
-              <ConstantValue
-                className={inlineEditStyles["inlineEditValueWrap"]}
-                valueSupplier={item.constant.valueSupplier}
-                onClick={() => {
-                  if (readonly) {
-                    return;
+              )}
+            </Space>
+          ) : isConstantGroup(item) ? (
+            <span>constants</span>
+          ) : isHeaderGroup(item) ? (
+            <span>headers</span>
+          ) : isPropertyGroup(item) ? (
+            <span>properties</span>
+          ) : isAttributeItem(item) ? (
+            readonly ? (
+              item.attribute.name
+            ) : (
+              <InlineEdit<{ name: string }>
+                values={{ name: item.attribute.name }}
+                editor={<TextValueEdit name={"name"} />}
+                viewer={item.attribute.name}
+                initialActive={!item.attribute.name}
+                onSubmit={({ name }) => {
+                  tryUpdateAttribute(item.kind, item.path, { name });
+                }}
+              />
+            )
+          ) : isConstantItem(item) ? (
+            readonly ? (
+              item.constant.name
+            ) : (
+              <InlineEdit<{ name: string }>
+                values={{ name: item.constant.name }}
+                editor={<TextValueEdit name={"name"} />}
+                viewer={item.constant.name}
+                initialActive={!item.constant.name}
+                onSubmit={({ name }) => {
+                  tryUpdateConstant(item.constant.id, { name });
+                }}
+              />
+            )
+          ) : (
+            <></>
+          );
+        },
+        onCell: (item: MappingTableItem) => {
+          return (isConstantItem(item) && !item.constant.name) ||
+            (isAttributeItem(item) && !item.attribute.name)
+            ? { className: styles["invalid-value"] }
+            : {};
+        },
+        sorter: (
+          i0: MappingTableItem,
+          i1: MappingTableItem,
+          sortOrder: SortOrder | undefined,
+        ) => {
+          if (isAttributeItem(i0) || isConstantItem(i0)) {
+            const name1 = isAttributeItem(i0)
+              ? i0.attribute.name
+              : i0.constant.name;
+            const name2 = isAttributeItem(i0)
+              ? (i1 as AttributeItem).attribute.name
+              : (i1 as ConstantItem).constant.name;
+            return name1.localeCompare(name2);
+          } else {
+            return compareGroupItems(i0, i1, sortOrder ?? null);
+          }
+        },
+        sortDirections: ["ascend" as const, "descend" as const, null],
+        sortOrder:
+          controlsStateMap.get(selectedSchema)?.sorts.columnKey === "name"
+            ? controlsStateMap.get(selectedSchema)?.sorts.order
+            : null,
+        filterDropdown: (props: FilterDropdownProps) => (
+          <TextColumnFilterDropdown {...props} />
+        ),
+        onFilter: (value: boolean | React.Key, item: MappingTableItem) => {
+          return (
+            (!isAttributeItem(item) && !isConstantItem(item)) ||
+            getTextColumnFilterFn((i: MappingTableItem) =>
+              isAttributeItem(i)
+                ? i.attribute.name
+                : isConstantItem(i)
+                  ? i.constant.name
+                  : "",
+            )(value, item)
+          );
+        },
+        filteredValue:
+          controlsStateMap.get(selectedSchema)?.filters.name || null,
+      },
+      {
+        key: "type",
+        title: "Type",
+        render: (_value: unknown, item: MappingTableItem) => {
+          if (isBodyGroup(item)) {
+            return (
+              <InlineTypeEdit
+                type={item.type}
+                definitions={
+                  item.type ? DataTypes.getTypeDefinitions(item.type) : []
+                }
+                readonly={readonly}
+                onSubmit={(type) => {
+                  updateBodyType(selectedSchema, type);
+                }}
+              />
+            );
+          } else if (isConstantItem(item)) {
+            return (
+              <InlineTypeEdit
+                type={item.constant.type}
+                definitions={[]}
+                readonly={readonly}
+                disableObjectType={true}
+                disableArrayTypes={true}
+                onSubmit={(type) => {
+                  if (type) {
+                    tryUpdateConstant(item.constant.id, {
+                      ...item.constant,
+                      type,
+                      valueSupplier: updateConstantValueToMatchType(
+                        item.constant.valueSupplier,
+                        type,
+                      ),
+                    });
                   }
-                  showModal({
-                    component: (
-                      <ConstantValueEditDialog
-                        type={item.constant.type}
-                        valueSupplier={item.constant.valueSupplier}
-                        onSubmit={(valueSupplier) => {
-                          tryUpdateConstant(item.constant.id, {
-                            valueSupplier,
-                          });
-                        }}
-                      />
+                }}
+              />
+            );
+          } else if (isAttributeItem(item)) {
+            return (
+              <InlineTypeEdit
+                type={item.attribute.type}
+                definitions={item.typeDefinitions}
+                readonly={readonly}
+                onSubmit={(type) => {
+                  if (type) {
+                    tryUpdateAttribute(item.kind, item.path, {
+                      type,
+                      defaultValue: undefined,
+                    });
+                  }
+                }}
+              />
+            );
+          }
+        },
+        sorter: (
+          i0: MappingTableItem,
+          i1: MappingTableItem,
+          sortOrder: SortOrder | undefined,
+        ) => {
+          if (isAttributeItem(i0) || isConstantItem(i0)) {
+            const name1 = isAttributeItem(i0)
+              ? DataTypes.buildTypeName(i0.attribute.type, i0.typeDefinitions)
+              : DataTypes.buildTypeName(i0.constant.type, []);
+            const name2 = isAttributeItem(i0)
+              ? DataTypes.buildTypeName(
+                  (i1 as AttributeItem).attribute.type,
+                  i0.typeDefinitions,
+                )
+              : DataTypes.buildTypeName((i1 as ConstantItem).constant.type, []);
+            return name1.localeCompare(name2);
+          } else {
+            return compareGroupItems(i0, i1, sortOrder ?? null);
+          }
+        },
+        sortDirections: ["ascend" as const, "descend" as const, null],
+        sortOrder:
+          controlsStateMap.get(selectedSchema)?.sorts.columnKey === "type"
+            ? controlsStateMap.get(selectedSchema)?.sorts.order
+            : null,
+        filterDropdown: (props: FilterDropdownProps) => (
+          <EnumColumnFilterDropdown
+            options={[
+              { value: "string", label: "string" },
+              { value: "number", label: "number" },
+              { value: "boolean", label: "boolean" },
+              { value: "object", label: "object" },
+              { value: "array", label: "array" },
+            ]}
+            {...props}
+          />
+        ),
+        onFilter: (value: boolean | React.Key, item: MappingTableItem) => {
+          return (
+            !(isAttributeItem(item) || isConstantItem(item)) ||
+            getEnumColumnFilterFn((i) =>
+              isAttributeItem(i)
+                ? i.resolvedType.name
+                : isConstantItem(i)
+                  ? i.constant.type.name
+                  : "",
+            )(value, item)
+          );
+        },
+        filteredValue:
+          controlsStateMap.get(selectedSchema)?.filters.type || null,
+      },
+      ...(selectedSchema === SchemaKind.TARGET
+        ? [
+            {
+              key: "optionality",
+              title: "Optionality",
+              render: (_value: unknown, item: MappingTableItem) => {
+                return isAttributeItem(item) ? (
+                  readonly ? (
+                    item.attribute.required ? (
+                      "required"
+                    ) : (
+                      "optional"
+                    )
+                  ) : (
+                    <InlineEdit<{ optionality: string }>
+                      values={{
+                        optionality: String(!!item.attribute.required),
+                      }}
+                      editor={
+                        <SelectEdit
+                          name="optionality"
+                          options={[
+                            {
+                              value: "false",
+                              label: "optional",
+                            },
+                            { value: "true", label: "required" },
+                          ]}
+                        />
+                      }
+                      viewer={item.attribute.required ? "required" : "optional"}
+                      onSubmit={({ optionality }) => {
+                        tryUpdateAttribute(item.kind, item.path, {
+                          required: optionality === "true",
+                        });
+                      }}
+                    />
+                  )
+                ) : (
+                  <></>
+                );
+              },
+              sorter: (
+                i0: MappingTableItem,
+                i1: MappingTableItem,
+                sortOrder: SortOrder | undefined,
+              ) => {
+                if (isAttributeItem(i0)) {
+                  const s1 = i0.attribute.required ? "required" : "optional";
+                  const s2 = (i1 as AttributeItem).attribute.required
+                    ? "required"
+                    : "optional";
+                  return s1.localeCompare(s2);
+                } else {
+                  return compareGroupItems(i0, i1, sortOrder ?? null);
+                }
+              },
+              sortDirections: ["ascend" as const, "descend" as const, null],
+              sortOrder:
+                controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
+                "optionality"
+                  ? controlsStateMap.get(selectedSchema)?.sorts.order
+                  : null,
+              filterDropdown: (props: FilterDropdownProps) => (
+                <EnumColumnFilterDropdown
+                  options={[
+                    { value: "false", label: "optional" },
+                    { value: "true", label: "required" },
+                  ]}
+                  {...props}
+                />
+              ),
+              onFilter: (
+                value: boolean | React.Key,
+                item: MappingTableItem,
+              ) => {
+                return (
+                  !isAttributeItem(item) ||
+                  getEnumColumnFilterFn((i: AttributeItem) =>
+                    String(i.attribute.required ?? false),
+                  )(value, item)
+                );
+              },
+              filteredValue:
+                controlsStateMap.get(selectedSchema)?.filters.optionality ||
+                null,
+            },
+          ]
+        : []),
+      {
+        key: "description",
+        title: "Description",
+        render: (_value: unknown, item: MappingTableItem) => {
+          return isAttributeItem(item) ? (
+            readonly ? (
+              (MetadataUtil.getString(item.attribute, DESCRIPTION_KEY) ??
+              PLACEHOLDER)
+            ) : (
+              <InlineEdit<{ description: string }>
+                values={{
+                  description:
+                    MetadataUtil.getString(item.attribute, DESCRIPTION_KEY) ??
+                    "",
+                }}
+                editor={<TextValueEdit name="description" rules={[]} />}
+                viewer={
+                  MetadataUtil.getString(item.attribute, DESCRIPTION_KEY) ??
+                  PLACEHOLDER
+                }
+                onSubmit={({ description }) => {
+                  tryUpdateAttribute(item.kind, item.path, {
+                    metadata: MetadataUtil.upsert(
+                      item.attribute.metadata,
+                      DESCRIPTION_KEY,
+                      description ? description : undefined,
                     ),
                   });
                 }}
               />
+            )
+          ) : isConstantItem(item) ? (
+            readonly ? (
+              (MetadataUtil.getString(item.constant, DESCRIPTION_KEY) ??
+              PLACEHOLDER)
             ) : (
-              <></>
-            );
-          },
-          sorter: (
-            i0: MappingTableItem,
-            i1: MappingTableItem,
-            sortOrder: SortOrder | undefined,
-          ) => {
-            if (isAttributeItem(i0)) {
-              const value1 = i0.attribute.defaultValue ?? "";
-              const value2 = (i1 as AttributeItem).attribute.defaultValue ?? "";
-              return value1.localeCompare(value2);
-            } else if (isConstantItem(i0)) {
-              const value1 =
-                i0.constant.valueSupplier.kind === "given"
-                  ? i0.constant.valueSupplier.value
-                  : i0.constant.valueSupplier.generator.name +
-                    " " +
-                    i0.constant.valueSupplier.generator.parameters.join(" ");
-              const c1 = i1 as ConstantItem;
-              const value2 =
-                c1.constant.valueSupplier.kind === "given"
-                  ? c1.constant.valueSupplier.value
-                  : c1.constant.valueSupplier.generator.name +
-                    " " +
-                    c1.constant.valueSupplier.generator.parameters.join(" ");
-              return value1.localeCompare(value2);
-            } else {
-              return compareGroupItems(i0, i1, sortOrder ?? null);
-            }
-          },
-          sortDirections: ["ascend" as const, "descend" as const, null],
-          sortOrder:
-            controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
-            "defaultValue"
-              ? controlsStateMap.get(selectedSchema)?.sorts.order
-              : null,
-          filterDropdown: (props: FilterDropdownProps) => (
-            <TextColumnFilterDropdown {...props} />
-          ),
-          onFilter: (value: boolean | React.Key, item: MappingTableItem) => {
-            return (
-              !isAttributeItem(item) ||
-              getTextColumnFilterFn(
-                (i: AttributeItem) => i.attribute.defaultValue ?? "",
-              )(value, item)
-            );
-          },
-          filteredValue:
-            controlsStateMap.get(selectedSchema)?.filters.defaultValue || null,
-        },
-        ...(selectedSchema === SchemaKind.SOURCE
-          ? [
-              {
-                key: "targets",
-                title: "Targets",
-                render: (_value: unknown, item: MappingTableItem) => {
-                  return isAttributeItem(item) || isConstantItem(item) ? (
-                    <InlineElementReferencesEdit
-                      readonly={readonly}
-                      mappingDescription={mappingDescription}
-                      isTarget={true}
-                      values={item.actions.map((a) => a.target)}
-                      onSubmit={(values) => {
-                        const source = buildElementReference(item);
-                        const targets = values.filter((reference) =>
-                          MappingUtil.isAttributeReference(reference),
-                        );
-                        createOrUpdateMappingActionsForSource(source, targets);
-                      }}
-                    />
-                  ) : (
-                    <></>
-                  );
-                },
-                filterDropdown: (props: FilterDropdownProps) => (
-                  <ElementReferenceColumnFilterDropdown
-                    enableConstLocation={false}
-                    {...props}
-                  />
-                ),
-                onFilter: (
-                  value: React.Key | boolean,
-                  item: MappingTableItem,
-                ) => {
-                  return (
-                    (!isAttributeItem(item) && !isConstantItem(item)) ||
-                    getElementReferenceColumnFilterFn(
-                      (item: AttributeItem | ConstantItem) => {
-                        return item.actions.map((action) => action.target);
-                      },
-                      true,
-                      mappingDescription,
-                    )(value, item)
-                  );
-                },
-                filteredValue:
-                  controlsStateMap.get(selectedSchema)?.filters.targets || null,
-              },
-            ]
-          : [
-              {
-                key: "sources",
-                title: "Sources",
-                render: (_value: unknown, item: MappingTableItem) => {
-                  return isAttributeItem(item) ? (
-                    <InlineElementReferencesEdit
-                      readonly={readonly}
-                      mappingDescription={mappingDescription}
-                      isTarget={false}
-                      values={item.actions.flatMap((a) => a.sources)}
-                      onSubmit={(values) => {
-                        const target = {
-                          type: "attribute" as const,
-                          kind: item.kind,
-                          path: item.path.map((i) => i.id),
-                        };
-                        createOrUpdateMappingActionForTarget(
-                          item.actions,
-                          target,
-                          values,
-                        );
-                      }}
-                    />
-                  ) : (
-                    <></>
-                  );
-                },
-                filterDropdown: (props: FilterDropdownProps) => (
-                  <ElementReferenceColumnFilterDropdown
-                    enableConstLocation={true}
-                    {...props}
-                  />
-                ),
-                onFilter: (
-                  value: React.Key | boolean,
-                  item: MappingTableItem,
-                ) => {
-                  return (
-                    (!isAttributeItem(item) && !isConstantItem(item)) ||
-                    getElementReferenceColumnFilterFn(
-                      (item: AttributeItem | ConstantItem) => {
-                        return item.actions.flatMap((action) => action.sources);
-                      },
-                      false,
-                      mappingDescription,
-                    )(value, item)
-                  );
-                },
-                filteredValue:
-                  controlsStateMap.get(selectedSchema)?.filters.sources || null,
-              },
-              {
-                key: "transformation",
-                title: "Transformation",
-                render: (_value: unknown, item: MappingTableItem) => {
-                  return isAttributeItem(item) ? (
-                    item.actions.map((action, index) => (
-                      <div
-                        key={index}
-                        className={inlineEditStyles["inlineEditValueWrap"]}
-                        onClick={() => {
-                          if (readonly) {
-                            return;
-                          }
-                          showModal({
-                            component: (
-                              <TransformationContext.Provider
-                                value={{
-                                  mappingDescription: mappingDescription,
-                                  action,
-                                }}
-                              >
-                                <TransformationEditDialog
-                                  transformation={action.transformation}
-                                  onSubmit={(transformation) => {
-                                    updateActions((a) => {
-                                      return a.id === action.id
-                                        ? {
-                                            ...a,
-                                            transformation,
-                                          }
-                                        : a;
-                                    });
-                                  }}
-                                />
-                              </TransformationContext.Provider>
-                            ),
-                          });
-                        }}
-                      >
-                        <TransformationValue
-                          key={index}
-                          transformation={action.transformation}
-                          errors={verifyMappingAction(
-                            action,
-                            mappingDescription,
-                          )}
-                        />
-                      </div>
-                    ))
-                  ) : (
-                    <></>
-                  );
-                },
-                onCell: (item: MappingTableItem) => {
-                  return isAttributeItem(item) &&
-                    item.actions.flatMap((action) =>
-                      verifyMappingAction(action, mappingDescription),
-                    ).length > 0
-                    ? { className: styles["invalid-value"] }
-                    : {};
-                },
-                sorter: (
-                  i0: MappingTableItem,
-                  i1: MappingTableItem,
-                  sortOrder: SortOrder | undefined,
-                ) => {
-                  if (isAttributeItem(i0)) {
-                    const value1 = i0.actions
-                      .map((action) => action.transformation)
-                      .filter((transformation) => !!transformation)
-                      .map((transformation) =>
-                        [
-                          transformation.name,
-                          ...transformation.parameters,
-                        ].join(" "),
-                      )
-                      .join();
-                    const value2 = (i1 as AttributeItem).actions
-                      .map((action) => action.transformation)
-                      .filter((transformation) => !!transformation)
-                      .map((transformation) =>
-                        [
-                          transformation.name,
-                          ...transformation.parameters,
-                        ].join(" "),
-                      )
-                      .join();
-                    return value1.localeCompare(value2);
-                  } else if (isConstantItem(i0)) {
-                    return 0;
-                  } else {
-                    return compareGroupItems(i0, i1, sortOrder ?? null);
-                  }
-                },
-                sortDirections: ["ascend" as const, "descend" as const, null],
-                sortOrder:
-                  controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
-                  "transformation"
-                    ? controlsStateMap.get(selectedSchema)?.sorts.order
-                    : null,
-                filterDropdown: (props: FilterDropdownProps) => (
-                  <TransformationColumnFilterDropdown {...props} />
-                ),
-                onFilter: (
-                  value: React.Key | boolean,
-                  item: MappingTableItem,
-                ) => {
-                  return (
-                    !isAttributeItem(item) ||
-                    getTransformationColumnFilterFn((i: AttributeItem) =>
-                      i.actions.flatMap((action) => action.transformation),
-                    )(value, item)
-                  );
-                },
-                filteredValue:
-                  controlsStateMap.get(selectedSchema)?.filters
-                    .transformation || null,
-              },
-              {
-                key: "transformationDescription",
-                title: "Transformation description",
-                render: (_value: unknown, item: MappingTableItem) => {
-                  if (isAttributeItem(item) && item.actions.length > 0) {
-                    const description = item.actions
-                      .map((action) =>
-                        MetadataUtil.getString(action, DESCRIPTION_KEY),
-                      )
-                      .filter((description) => !!description)
-                      .join(" ");
-                    return readonly ? (
-                      description || PLACEHOLDER
-                    ) : (
-                      <InlineEdit<{ description: string }>
-                        values={{ description }}
-                        editor={<TextValueEdit name="description" rules={[]} />}
-                        viewer={description || PLACEHOLDER}
-                        onSubmit={({ description }) => {
-                          updateActions((action) => {
-                            return item.actions.some((a) => a.id === action.id)
-                              ? MetadataUtil.setValue(
-                                  action,
-                                  DESCRIPTION_KEY,
-                                  description,
-                                )
-                              : action;
-                          });
-                        }}
-                      />
-                    );
-                  } else {
-                    return <></>;
-                  }
-                },
-                sorter: (
-                  i0: MappingTableItem,
-                  i1: MappingTableItem,
-                  sortOrder: SortOrder | undefined,
-                ) => {
-                  if (isAttributeItem(i0)) {
-                    const value1 = i0.actions
-                      .map(
-                        (action) =>
-                          MetadataUtil.getString(action, DESCRIPTION_KEY) ?? "",
-                      )
-                      .join();
-                    const value2 = (i1 as AttributeItem).actions
-                      .map(
-                        (action) =>
-                          MetadataUtil.getString(action, DESCRIPTION_KEY) ?? "",
-                      )
-                      .join();
-                    return value1.localeCompare(value2);
-                  } else if (isConstantItem(i0)) {
-                    return 0;
-                  } else {
-                    return compareGroupItems(i0, i1, sortOrder ?? null);
-                  }
-                },
-                sortDirections: ["ascend" as const, "descend" as const, null],
-                sortOrder:
-                  controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
-                  "transformationDescription"
-                    ? controlsStateMap.get(selectedSchema)?.sorts.order
-                    : null,
-                filterDropdown: (props: FilterDropdownProps) => (
-                  <TextColumnFilterDropdown {...props} />
-                ),
-                onFilter: (
-                  value: boolean | React.Key,
-                  item: MappingTableItem,
-                ) => {
-                  return (
-                    !isAttributeItem(item) ||
-                    getTextColumnFilterFn((i: MappingTableItem) =>
-                      isAttributeItem(i)
-                        ? i.actions
-                            .map(
-                              (action) =>
-                                MetadataUtil.getString(
-                                  action,
-                                  DESCRIPTION_KEY,
-                                ) ?? "",
-                            )
-                            .join()
-                        : "",
-                    )(value, item)
-                  );
-                },
-                filteredValue:
-                  controlsStateMap.get(selectedSchema)?.filters
-                    .transformationDescription || null,
-              },
-            ]),
-        {
-          key: "actions",
-          title: "",
-          width: 40,
-          align: "right" as const,
-          className: "actions-column",
-          render: (_value: unknown, item: MappingTableItem) => {
-            return (
-              <MappingTableItemActionButton
-                elementId={elementId}
-                item={item}
-                readonly={readonly}
-                enableEdit={false}
-                enableXmlNamespaces={bodyFormat === SourceFormat.XML.toString()}
-                schemaKind={selectedSchema}
-                onLoad={(type) => {
-                  if (isBodyGroup(item)) {
-                    updateBodyType(selectedSchema, type);
-                  } else if (isAttributeItem(item)) {
-                    tryUpdateAttribute(item.kind, item.path, {
-                      type,
-                    });
-                  }
+              <InlineEdit<{ description: string }>
+                values={{
+                  description:
+                    MetadataUtil.getString(item.constant, DESCRIPTION_KEY) ??
+                    "",
                 }}
-                onExport={() => exportElement(item)}
-                onUpdateXmlNamespaces={(namespaces) =>
-                  updateXmlNamespaces(
-                    selectedSchema,
-                    isAttributeItem(item) ? item.path : [],
-                    namespaces,
-                  )
+                editor={<TextValueEdit name="description" rules={[]} />}
+                viewer={
+                  MetadataUtil.getString(item.constant, DESCRIPTION_KEY) ??
+                  PLACEHOLDER
                 }
-                onAdd={() => tryAddElement(item)}
-                onClear={() => clearTreeForItem(item)}
-                onDelete={() => {
-                  if (isConstantItem(item)) {
-                    removeConstant(item.constant.id);
-                  } else if (isAttributeItem(item)) {
-                    removeAttribute(selectedSchema, item.kind, item.path);
-                  }
+                onSubmit={({ description }) => {
+                  tryUpdateConstant(item.constant.id, {
+                    metadata: MetadataUtil.upsert(
+                      item.constant.metadata,
+                      DESCRIPTION_KEY,
+                      description ? description : undefined,
+                    ),
+                  });
                 }}
               />
-            );
-          },
+            )
+          ) : (
+            <></>
+          );
         },
-      ].map((column) => ({
-        ...column,
-        hidden:
-          !alwaysVisibleColumns.includes(column.key) &&
-          !controlsStateMap
-            .get(selectedSchema)
-            ?.selectedColumns?.includes(column.key),
-      }));
-    }, [
-      controlsStateMap,
-      selectedSchema,
-      mappingDescription,
-      bodyFormat,
-      readonly,
-      updateBodyType,
-      tryUpdateAttribute,
-      tryUpdateConstant,
-      showModal,
-      createOrUpdateMappingActionsForSource,
-      createOrUpdateMappingActionForTarget,
-      updateActions,
-      elementId,
-      exportElement,
-      updateXmlNamespaces,
-      tryAddElement,
-      clearTreeForItem,
-      removeConstant,
-      removeAttribute,
-    ]);
+        sorter: (
+          i0: MappingTableItem,
+          i1: MappingTableItem,
+          sortOrder: SortOrder | undefined,
+        ) => {
+          if (isAttributeItem(i0) || isConstantItem(i0)) {
+            const description1 = isAttributeItem(i0)
+              ? MetadataUtil.getString(i0.attribute, DESCRIPTION_KEY) || ""
+              : MetadataUtil.getString(i0.constant, DESCRIPTION_KEY) || "";
+            const description2 = isAttributeItem(i0)
+              ? MetadataUtil.getString(
+                  (i1 as AttributeItem).attribute,
+                  DESCRIPTION_KEY,
+                ) || ""
+              : MetadataUtil.getString(
+                  (i1 as ConstantItem).constant,
+                  DESCRIPTION_KEY,
+                ) || "";
+            return description1.localeCompare(description2);
+          } else {
+            return compareGroupItems(i0, i1, sortOrder ?? null);
+          }
+        },
+        sortDirections: ["ascend" as const, "descend" as const, null],
+        sortOrder:
+          controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
+          "description"
+            ? controlsStateMap.get(selectedSchema)?.sorts.order
+            : null,
+        filterDropdown: (props: FilterDropdownProps) => (
+          <TextColumnFilterDropdown {...props} />
+        ),
+        onFilter: (value: boolean | React.Key, item: MappingTableItem) => {
+          return (
+            (!isAttributeItem(item) && !isConstantItem(item)) ||
+            getTextColumnFilterFn((i: MappingTableItem) =>
+              isAttributeItem(i)
+                ? (MetadataUtil.getString(i.attribute, DESCRIPTION_KEY) ?? "")
+                : isConstantItem(i)
+                  ? (MetadataUtil.getString(i.constant, DESCRIPTION_KEY) ?? "")
+                  : "",
+            )(value, item)
+          );
+        },
+        filteredValue:
+          controlsStateMap.get(selectedSchema)?.filters.description || null,
+      },
+      {
+        key: "defaultValue",
+        title: "Default value",
+        render: (_value: unknown, item: MappingTableItem) => {
+          return isAttributeItem(item) ? (
+            item.resolvedType.name === "string" ||
+            item.resolvedType.name === "boolean" ||
+            item.resolvedType.name === "number" ? (
+              readonly ? (
+                (item.attribute.defaultValue ?? PLACEHOLDER)
+              ) : (
+                <InlineEdit<{ value: string | undefined }>
+                  values={{
+                    value:
+                      item.resolvedType.name === "boolean" &&
+                      item.attribute.defaultValue === undefined
+                        ? ""
+                        : item.attribute.defaultValue,
+                  }}
+                  editor={
+                    <DefaultValueEdit
+                      name={"value"}
+                      type={item.resolvedType.name}
+                    />
+                  }
+                  viewer={item.attribute.defaultValue ?? PLACEHOLDER}
+                  onSubmit={({ value }) => {
+                    tryUpdateAttribute(item.kind, item.path, {
+                      defaultValue:
+                        item.resolvedType.name === "boolean" && value === ""
+                          ? undefined
+                          : value,
+                    });
+                  }}
+                />
+              )
+            ) : (
+              <></>
+            )
+          ) : isConstantItem(item) ? (
+            <ConstantValue
+              className={inlineEditStyles["inlineEditValueWrap"]}
+              valueSupplier={item.constant.valueSupplier}
+              onClick={() => {
+                if (readonly) {
+                  return;
+                }
+                showModal({
+                  component: (
+                    <ConstantValueEditDialog
+                      type={item.constant.type}
+                      valueSupplier={item.constant.valueSupplier}
+                      onSubmit={(valueSupplier) => {
+                        tryUpdateConstant(item.constant.id, {
+                          valueSupplier,
+                        });
+                      }}
+                    />
+                  ),
+                });
+              }}
+            />
+          ) : (
+            <></>
+          );
+        },
+        sorter: (
+          i0: MappingTableItem,
+          i1: MappingTableItem,
+          sortOrder: SortOrder | undefined,
+        ) => {
+          if (isAttributeItem(i0)) {
+            const value1 = i0.attribute.defaultValue ?? "";
+            const value2 = (i1 as AttributeItem).attribute.defaultValue ?? "";
+            return value1.localeCompare(value2);
+          } else if (isConstantItem(i0)) {
+            const value1 =
+              i0.constant.valueSupplier.kind === "given"
+                ? i0.constant.valueSupplier.value
+                : i0.constant.valueSupplier.generator.name +
+                  " " +
+                  i0.constant.valueSupplier.generator.parameters.join(" ");
+            const c1 = i1 as ConstantItem;
+            const value2 =
+              c1.constant.valueSupplier.kind === "given"
+                ? c1.constant.valueSupplier.value
+                : c1.constant.valueSupplier.generator.name +
+                  " " +
+                  c1.constant.valueSupplier.generator.parameters.join(" ");
+            return value1.localeCompare(value2);
+          } else {
+            return compareGroupItems(i0, i1, sortOrder ?? null);
+          }
+        },
+        sortDirections: ["ascend" as const, "descend" as const, null],
+        sortOrder:
+          controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
+          "defaultValue"
+            ? controlsStateMap.get(selectedSchema)?.sorts.order
+            : null,
+        filterDropdown: (props: FilterDropdownProps) => (
+          <TextColumnFilterDropdown {...props} />
+        ),
+        onFilter: (value: boolean | React.Key, item: MappingTableItem) => {
+          return (
+            !isAttributeItem(item) ||
+            getTextColumnFilterFn(
+              (i: AttributeItem) => i.attribute.defaultValue ?? "",
+            )(value, item)
+          );
+        },
+        filteredValue:
+          controlsStateMap.get(selectedSchema)?.filters.defaultValue || null,
+      },
+      ...(selectedSchema === SchemaKind.SOURCE
+        ? [
+            {
+              key: "targets",
+              title: "Targets",
+              render: (_value: unknown, item: MappingTableItem) => {
+                return isAttributeItem(item) || isConstantItem(item) ? (
+                  <InlineElementReferencesEdit
+                    readonly={readonly}
+                    mappingDescription={mappingDescription}
+                    isTarget={true}
+                    values={item.actions.map((a) => a.target)}
+                    onSubmit={(values) => {
+                      const source = buildElementReference(item);
+                      const targets = values.filter((reference) =>
+                        MappingUtil.isAttributeReference(reference),
+                      );
+                      createOrUpdateMappingActionsForSource(source, targets);
+                    }}
+                  />
+                ) : (
+                  <></>
+                );
+              },
+              filterDropdown: (props: FilterDropdownProps) => (
+                <ElementReferenceColumnFilterDropdown
+                  enableConstLocation={false}
+                  {...props}
+                />
+              ),
+              onFilter: (
+                value: React.Key | boolean,
+                item: MappingTableItem,
+              ) => {
+                return (
+                  (!isAttributeItem(item) && !isConstantItem(item)) ||
+                  getElementReferenceColumnFilterFn(
+                    (item: AttributeItem | ConstantItem) => {
+                      return item.actions.map((action) => action.target);
+                    },
+                    true,
+                    mappingDescription,
+                  )(value, item)
+                );
+              },
+              filteredValue:
+                controlsStateMap.get(selectedSchema)?.filters.targets || null,
+            },
+          ]
+        : [
+            {
+              key: "sources",
+              title: "Sources",
+              render: (_value: unknown, item: MappingTableItem) => {
+                return isAttributeItem(item) ? (
+                  <InlineElementReferencesEdit
+                    readonly={readonly}
+                    mappingDescription={mappingDescription}
+                    isTarget={false}
+                    values={item.actions.flatMap((a) => a.sources)}
+                    onSubmit={(values) => {
+                      const target = {
+                        type: "attribute" as const,
+                        kind: item.kind,
+                        path: item.path.map((i) => i.id),
+                      };
+                      createOrUpdateMappingActionForTarget(
+                        item.actions,
+                        target,
+                        values,
+                      );
+                    }}
+                  />
+                ) : (
+                  <></>
+                );
+              },
+              filterDropdown: (props: FilterDropdownProps) => (
+                <ElementReferenceColumnFilterDropdown
+                  enableConstLocation={true}
+                  {...props}
+                />
+              ),
+              onFilter: (
+                value: React.Key | boolean,
+                item: MappingTableItem,
+              ) => {
+                return (
+                  (!isAttributeItem(item) && !isConstantItem(item)) ||
+                  getElementReferenceColumnFilterFn(
+                    (item: AttributeItem | ConstantItem) => {
+                      return item.actions.flatMap((action) => action.sources);
+                    },
+                    false,
+                    mappingDescription,
+                  )(value, item)
+                );
+              },
+              filteredValue:
+                controlsStateMap.get(selectedSchema)?.filters.sources || null,
+            },
+            {
+              key: "transformation",
+              title: "Transformation",
+              render: (_value: unknown, item: MappingTableItem) => {
+                return isAttributeItem(item) ? (
+                  item.actions.map((action, index) => (
+                    <div
+                      key={index}
+                      className={inlineEditStyles["inlineEditValueWrap"]}
+                      onClick={() => {
+                        if (readonly) {
+                          return;
+                        }
+                        showModal({
+                          component: (
+                            <TransformationContext.Provider
+                              value={{
+                                mappingDescription: mappingDescription,
+                                action,
+                              }}
+                            >
+                              <TransformationEditDialog
+                                transformation={action.transformation}
+                                onSubmit={(transformation) => {
+                                  updateActions((a) => {
+                                    return a.id === action.id
+                                      ? {
+                                          ...a,
+                                          transformation,
+                                        }
+                                      : a;
+                                  });
+                                }}
+                              />
+                            </TransformationContext.Provider>
+                          ),
+                        });
+                      }}
+                    >
+                      <TransformationValue
+                        key={index}
+                        transformation={action.transformation}
+                        errors={verifyMappingAction(action, mappingDescription)}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <></>
+                );
+              },
+              onCell: (item: MappingTableItem) => {
+                return isAttributeItem(item) &&
+                  item.actions.flatMap((action) =>
+                    verifyMappingAction(action, mappingDescription),
+                  ).length > 0
+                  ? { className: styles["invalid-value"] }
+                  : {};
+              },
+              sorter: (
+                i0: MappingTableItem,
+                i1: MappingTableItem,
+                sortOrder: SortOrder | undefined,
+              ) => {
+                if (isAttributeItem(i0)) {
+                  const value1 = i0.actions
+                    .map((action) => action.transformation)
+                    .filter((transformation) => !!transformation)
+                    .map((transformation) =>
+                      [transformation.name, ...transformation.parameters].join(
+                        " ",
+                      ),
+                    )
+                    .join();
+                  const value2 = (i1 as AttributeItem).actions
+                    .map((action) => action.transformation)
+                    .filter((transformation) => !!transformation)
+                    .map((transformation) =>
+                      [transformation.name, ...transformation.parameters].join(
+                        " ",
+                      ),
+                    )
+                    .join();
+                  return value1.localeCompare(value2);
+                } else if (isConstantItem(i0)) {
+                  return 0;
+                } else {
+                  return compareGroupItems(i0, i1, sortOrder ?? null);
+                }
+              },
+              sortDirections: ["ascend" as const, "descend" as const, null],
+              sortOrder:
+                controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
+                "transformation"
+                  ? controlsStateMap.get(selectedSchema)?.sorts.order
+                  : null,
+              filterDropdown: (props: FilterDropdownProps) => (
+                <TransformationColumnFilterDropdown {...props} />
+              ),
+              onFilter: (
+                value: React.Key | boolean,
+                item: MappingTableItem,
+              ) => {
+                return (
+                  !isAttributeItem(item) ||
+                  getTransformationColumnFilterFn((i: AttributeItem) =>
+                    i.actions.flatMap((action) => action.transformation),
+                  )(value, item)
+                );
+              },
+              filteredValue:
+                controlsStateMap.get(selectedSchema)?.filters.transformation ||
+                null,
+            },
+            {
+              key: "transformationDescription",
+              title: "Transformation description",
+              render: (_value: unknown, item: MappingTableItem) => {
+                if (isAttributeItem(item) && item.actions.length > 0) {
+                  const description = item.actions
+                    .map((action) =>
+                      MetadataUtil.getString(action, DESCRIPTION_KEY),
+                    )
+                    .filter((description) => !!description)
+                    .join(" ");
+                  return readonly ? (
+                    description || PLACEHOLDER
+                  ) : (
+                    <InlineEdit<{ description: string }>
+                      values={{ description }}
+                      editor={<TextValueEdit name="description" rules={[]} />}
+                      viewer={description || PLACEHOLDER}
+                      onSubmit={({ description }) => {
+                        updateActions((action) => {
+                          return item.actions.some((a) => a.id === action.id)
+                            ? MetadataUtil.setValue(
+                                action,
+                                DESCRIPTION_KEY,
+                                description,
+                              )
+                            : action;
+                        });
+                      }}
+                    />
+                  );
+                } else {
+                  return <></>;
+                }
+              },
+              sorter: (
+                i0: MappingTableItem,
+                i1: MappingTableItem,
+                sortOrder: SortOrder | undefined,
+              ) => {
+                if (isAttributeItem(i0)) {
+                  const value1 = i0.actions
+                    .map(
+                      (action) =>
+                        MetadataUtil.getString(action, DESCRIPTION_KEY) ?? "",
+                    )
+                    .join();
+                  const value2 = (i1 as AttributeItem).actions
+                    .map(
+                      (action) =>
+                        MetadataUtil.getString(action, DESCRIPTION_KEY) ?? "",
+                    )
+                    .join();
+                  return value1.localeCompare(value2);
+                } else if (isConstantItem(i0)) {
+                  return 0;
+                } else {
+                  return compareGroupItems(i0, i1, sortOrder ?? null);
+                }
+              },
+              sortDirections: ["ascend" as const, "descend" as const, null],
+              sortOrder:
+                controlsStateMap.get(selectedSchema)?.sorts.columnKey ===
+                "transformationDescription"
+                  ? controlsStateMap.get(selectedSchema)?.sorts.order
+                  : null,
+              filterDropdown: (props: FilterDropdownProps) => (
+                <TextColumnFilterDropdown {...props} />
+              ),
+              onFilter: (
+                value: boolean | React.Key,
+                item: MappingTableItem,
+              ) => {
+                return (
+                  !isAttributeItem(item) ||
+                  getTextColumnFilterFn((i: MappingTableItem) =>
+                    isAttributeItem(i)
+                      ? i.actions
+                          .map(
+                            (action) =>
+                              MetadataUtil.getString(action, DESCRIPTION_KEY) ??
+                              "",
+                          )
+                          .join()
+                      : "",
+                  )(value, item)
+                );
+              },
+              filteredValue:
+                controlsStateMap.get(selectedSchema)?.filters
+                  .transformationDescription || null,
+            },
+          ]),
+      {
+        key: "actions",
+        title: "",
+        width: 40,
+        align: "right" as const,
+        className: "actions-column",
+        render: (_value: unknown, item: MappingTableItem) => {
+          return (
+            <MappingTableItemActionButton
+              elementId={elementId}
+              item={item}
+              readonly={readonly}
+              enableEdit={false}
+              enableXmlNamespaces={bodyFormat === SourceFormat.XML.toString()}
+              schemaKind={selectedSchema}
+              onLoad={(type) => {
+                if (isBodyGroup(item)) {
+                  updateBodyType(selectedSchema, type);
+                } else if (isAttributeItem(item)) {
+                  tryUpdateAttribute(item.kind, item.path, {
+                    type,
+                  });
+                }
+              }}
+              onExport={() => exportElement(item)}
+              onUpdateXmlNamespaces={(namespaces) =>
+                updateXmlNamespaces(
+                  selectedSchema,
+                  isAttributeItem(item) ? item.path : [],
+                  namespaces,
+                )
+              }
+              onAdd={() => tryAddElement(item)}
+              onClear={() => clearTreeForItem(item)}
+              onDelete={() => {
+                if (isConstantItem(item)) {
+                  removeConstant(item.constant.id);
+                } else if (isAttributeItem(item)) {
+                  removeAttribute(selectedSchema, item.kind, item.path);
+                }
+              }}
+            />
+          );
+        },
+      },
+    ].map((column) => ({
+      ...column,
+      hidden:
+        !alwaysVisibleColumns.includes(column.key) &&
+        !controlsStateMap
+          .get(selectedSchema)
+          ?.selectedColumns?.includes(column.key),
+    }));
+  }, [
+    controlsStateMap,
+    selectedSchema,
+    mappingDescription,
+    bodyFormat,
+    readonly,
+    updateBodyType,
+    tryUpdateAttribute,
+    tryUpdateConstant,
+    showModal,
+    createOrUpdateMappingActionsForSource,
+    createOrUpdateMappingActionForTarget,
+    updateActions,
+    elementId,
+    exportElement,
+    updateXmlNamespaces,
+    tryAddElement,
+    clearTreeForItem,
+    removeConstant,
+    removeAttribute,
+  ]);
 
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<MappingTableItem>(

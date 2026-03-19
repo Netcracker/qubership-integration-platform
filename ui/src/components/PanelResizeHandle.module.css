@@ -7,6 +7,10 @@
   align-items: stretch;
   justify-content: center;
   background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
   position: relative;
   overflow: visible;
 }

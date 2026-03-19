@@ -7,7 +7,11 @@ import { downloadFile } from "../../../misc/download-utils.ts";
 import { MaasFormActions } from "./MaasFormActions.tsx";
 import { MaasPageHeader } from "./MaasPageHeader.tsx";
 import { NamespaceField } from "./NamespaceField.tsx";
-import { KafkaMaasFormData, NON_WHITESPACE_PATTERN, getMaasDefaultNamespace } from "./types.ts";
+import {
+  KafkaMaasFormData,
+  NON_WHITESPACE_PATTERN,
+  getMaasDefaultNamespace,
+} from "./types.ts";
 import sharedStyles from "../DevTools.module.css";
 import styles from "./Maas.module.css";
 
@@ -96,14 +100,8 @@ export const KafkaMaasPage: React.FC = () => {
       />
 
       <div className={styles["parametersSection"]}>
-        <div className={styles["parametersHeading"]}>
-          Parameters
-        </div>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleCreate}
-        >
+        <div className={styles["parametersHeading"]}>Parameters</div>
+        <Form form={form} layout="vertical" onFinish={handleCreate}>
           <NamespaceField />
 
           <Form.Item
@@ -112,7 +110,10 @@ export const KafkaMaasPage: React.FC = () => {
             required
             rules={[
               { required: true, message: "Topic Classifier Name is required" },
-              { pattern: NON_WHITESPACE_PATTERN, message: "Topic Classifier Name cannot be empty" },
+              {
+                pattern: NON_WHITESPACE_PATTERN,
+                message: "Topic Classifier Name cannot be empty",
+              },
             ]}
           >
             <Input placeholder="Enter topic classifier name" />

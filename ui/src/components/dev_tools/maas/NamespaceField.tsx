@@ -10,7 +10,10 @@ export const NamespaceField: React.FC = () => {
       required
       rules={[
         { required: true, message: "Namespace is required" },
-        { pattern: NON_WHITESPACE_PATTERN, message: "Namespace cannot be empty" },
+        {
+          pattern: NON_WHITESPACE_PATTERN,
+          message: "Namespace cannot be empty",
+        },
       ]}
     >
       <Input />

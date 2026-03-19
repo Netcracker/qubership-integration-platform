@@ -567,8 +567,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       .filter((p) => !p.required && !isHiddenParameter(p.name))
       .forEach((p) => {
         if (p.pathMapped) {
-          const value =
-            (formContext.integrationOperationPath as string) || "";
+          const value = (formContext.integrationOperationPath as string) || "";
           result.push({
             ...p,
             value,

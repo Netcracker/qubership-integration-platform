@@ -52,6 +52,10 @@ import { EntityLabels } from "../labels/EntityLabels.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../permissions/funcs.ts";
+import {
+  submitAddInstruction,
+  uploadImportInstructionsFile,
+} from "./importInstructionsHandlers.ts";
 
 const { Title } = Typography;
 
@@ -815,26 +819,9 @@ const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
   }, [entityType, action, form]);
 
   const handleSubmit = async () => {
+    setLoading(true);
     try {
-      const values = await form.validateFields();
-      setLoading(true);
-      await api.addImportInstruction({
-        id: values.id.trim(),
-        entityType: ENTITY_TO_API[values.entityType],
-        action: values.action,
-        overriddenBy:
-          values.entityType === "Chain" &&
-          values.action === ImportInstructionAction.OVERRIDE
-            ? (values.overriddenBy?.trim() ?? null)
-            : undefined,
-      });
-      onSuccess();
-    } catch (err: unknown) {
-      if (err && typeof err === "object" && "errorFields" in err) return;
-      notificationService.requestFailed(
-        "Failed to add import instruction",
-        err,
-      );
+      await submitAddInstruction(form, api, notificationService, onSuccess);
     } finally {
       setLoading(false);
     }
@@ -931,19 +918,16 @@ const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
   const notificationService = useNotificationService();
 
   const handleUpload = async () => {
-    const file = fileList[0];
-    const rawFile =
-      file && "originFileObj" in file ? file.originFileObj : undefined;
-    if (!rawFile) return;
     setUploading(true);
     try {
-      const results = await api.uploadImportInstructions(rawFile);
-      setResult(results);
-      setUploaded(true);
-    } catch (err: unknown) {
-      notificationService.requestFailed(
-        "Failed to upload import instructions",
-        err,
+      await uploadImportInstructionsFile(
+        fileList,
+        api,
+        notificationService,
+        (results) => {
+          setResult(results);
+          setUploaded(true);
+        },
       );
     } finally {
       setUploading(false);

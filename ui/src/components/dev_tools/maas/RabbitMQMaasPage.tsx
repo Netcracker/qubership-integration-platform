@@ -47,13 +47,16 @@ export const RabbitMQMaasPage: React.FC = () => {
     return true;
   }, [formValues]);
 
-  const getInitialFormValues = useCallback((): Partial<RabbitMQMaasFormData> => ({
-    [RABBITMQ_FIELD_NAMES.NAMESPACE]: getMaasDefaultNamespace(),
-    [RABBITMQ_FIELD_NAMES.VHOST]: DEFAULT_VHOST,
-    [RABBITMQ_FIELD_NAMES.EXCHANGE]: "",
-    [RABBITMQ_FIELD_NAMES.QUEUE]: "",
-    [RABBITMQ_FIELD_NAMES.ROUTING_KEY]: "",
-  }), []);
+  const getInitialFormValues = useCallback(
+    (): Partial<RabbitMQMaasFormData> => ({
+      [RABBITMQ_FIELD_NAMES.NAMESPACE]: getMaasDefaultNamespace(),
+      [RABBITMQ_FIELD_NAMES.VHOST]: DEFAULT_VHOST,
+      [RABBITMQ_FIELD_NAMES.EXCHANGE]: "",
+      [RABBITMQ_FIELD_NAMES.QUEUE]: "",
+      [RABBITMQ_FIELD_NAMES.ROUTING_KEY]: "",
+    }),
+    [],
+  );
 
   useEffect(() => {
     form.setFieldsValue(getInitialFormValues());
@@ -123,13 +126,13 @@ export const RabbitMQMaasPage: React.FC = () => {
       if (!exchangeTrimmed && !queueTrimmed) {
         return Promise.reject(
           new Error(
-            'Fields "Exchange Name" and "Queue Name" can\'t be empty at the same time.'
-          )
+            'Fields "Exchange Name" and "Queue Name" can\'t be empty at the same time.',
+          ),
         );
       }
       return Promise.resolve();
     },
-    [form]
+    [form],
   );
 
   const validateRoutingKey = useCallback(
@@ -143,14 +146,14 @@ export const RabbitMQMaasPage: React.FC = () => {
         if (!exchangeTrimmed || !queueTrimmed) {
           return Promise.reject(
             new Error(
-              'Fields "Exchange Name" and "Queue Name" must be specified.'
-            )
+              'Fields "Exchange Name" and "Queue Name" must be specified.',
+            ),
           );
         }
       }
       return Promise.resolve();
     },
-    [form]
+    [form],
   );
 
   return (
@@ -163,14 +166,8 @@ export const RabbitMQMaasPage: React.FC = () => {
       />
 
       <div className={styles["parametersSection"]}>
-        <div className={styles["parametersHeading"]}>
-          Parameters
-        </div>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleCreate}
-        >
+        <div className={styles["parametersHeading"]}>Parameters</div>
+        <Form form={form} layout="vertical" onFinish={handleCreate}>
           <NamespaceField />
 
           <Form.Item
@@ -222,7 +219,10 @@ export const RabbitMQMaasPage: React.FC = () => {
               </span>
             }
             name={RABBITMQ_FIELD_NAMES.ROUTING_KEY}
-            dependencies={[RABBITMQ_FIELD_NAMES.EXCHANGE, RABBITMQ_FIELD_NAMES.QUEUE]}
+            dependencies={[
+              RABBITMQ_FIELD_NAMES.EXCHANGE,
+              RABBITMQ_FIELD_NAMES.QUEUE,
+            ]}
             rules={[{ validator: validateRoutingKey }]}
           >
             <Input placeholder="Enter routing key" />

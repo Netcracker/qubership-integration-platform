@@ -43,6 +43,10 @@
   --vscode-list-activeSelectionForeground: #fff;
   --vscode-list-hoverBackground: #f5f5f5;
 
+  /* Badge Colors */
+  --vscode-badge-background: #e8e8e8;
+  --vscode-badge-foreground: #333;
+
   /* Shadows */
   --modal-shadow: 0 12px 32px rgb(0 0 0 / 12%);
 
@@ -96,6 +100,10 @@
   --vscode-list-activeSelectionBackground: #264f78;
   --vscode-list-activeSelectionForeground: #fff;
   --vscode-list-hoverBackground: #262626;
+
+  /* Badge Colors */
+  --vscode-badge-background: #3a3a3a;
+  --vscode-badge-foreground: rgb(255 255 255 / 85%);
   --modal-shadow: 0 4px 12px rgb(0 0 0 / 30%);
 
   /* Container Node Colors */
@@ -134,6 +142,10 @@
   --vscode-list-activeSelectionBackground: #ff0;
   --vscode-list-activeSelectionForeground: #000;
   --vscode-list-hoverBackground: #333;
+
+  /* Badge Colors */
+  --vscode-badge-background: #333;
+  --vscode-badge-foreground: #fff;
   --modal-shadow: 0 4px 12px rgb(255 255 255 / 30%);
 
   /* Container Node Colors */

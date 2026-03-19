@@ -1,7 +1,7 @@
 .sideMenu {
   overflow: auto;
   scrollbar-gutter: auto;
-  border-radius: 0 0 0 15px;
+  border-radius: 8px 0 0 8px;
   background: var(
     --vscode-sideBar-background,
     var(--vscode-editor-background, #fff)
@@ -14,6 +14,7 @@
   min-height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
+  border-radius: 0 8px 8px 0 !important;
 }
 
 .rightPanelBorder :global(.ant-layout-sider-children) {
@@ -23,11 +24,20 @@
   flex-direction: column !important;
 }
 
-.sideMenu :global(.ant-layout-sider-children) {
+.sideMenuRight {
+  border-radius: 0 8px 8px 0;
+}
+
+.sideMenu :global(.ant-layout-sider-children),
+.sideMenuRight :global(.ant-layout-sider-children) {
   background: var(
     --vscode-sideBar-background,
     var(--vscode-editor-background, #fff)
   ) !important;
+}
+
+.sideMenu :global(.ant-input-affix-wrapper) {
+  border-radius: 8px;
 }
 
 .libraryElements {
@@ -104,7 +114,6 @@
   width: 100%;
   margin: 0;
   padding: 1px;
-  border-top: 1px solid var(--vscode-border, rgb(0 0 0 / 15%)) !important;
 }
 
 .spacedTabs :global(.ant-tabs-nav::before) {
@@ -117,12 +126,20 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  width: 100%;
+  text-align: left;
+  color: inherit;
 }
 
 .elementListItemIcon {
   flex-shrink: 0;
   margin-top: 2px;
   font-size: 16px;
+  color: inherit;
 }
 
 .elementListItemContent {
@@ -130,14 +147,29 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  color: inherit;
 }
 
 .elementTypeBadge {
   display: inline-block;
-  background-color: #e8e8e8;
-  color: #333;
+  background-color: var(--vscode-badge-background, #e8e8e8);
+  color: var(--vscode-badge-foreground, #333);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 12px;
   width: fit-content;
+}
+
+.rightPanelCodeBlock {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.rightPanelCodeBlock :global(.monaco-editor) {
+  flex: 1;
+  min-height: 0;
 }

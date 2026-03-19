@@ -4,12 +4,14 @@ export type ThemeModeWithSystem = ThemeMode | "system";
 const THEME_STORAGE_KEY = "qip-ui-theme-mode";
 
 export function getSystemTheme(): ThemeMode {
-  if (typeof window === "undefined") {
+  if (globalThis.window === undefined) {
     return "light";
   }
 
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const prefersHighContrast = window.matchMedia(
+  const prefersDark = globalThis.matchMedia(
+    "(prefers-color-scheme: dark)",
+  ).matches;
+  const prefersHighContrast = globalThis.matchMedia(
     "(prefers-contrast: more)",
   ).matches;
 
@@ -21,7 +23,7 @@ export function getSystemTheme(): ThemeMode {
 }
 
 export function getSavedTheme(): ThemeMode | null {
-  if (typeof window === "undefined" || typeof localStorage === "undefined") {
+  if (globalThis.window === undefined || typeof localStorage === "undefined") {
     return null;
   }
 
@@ -34,7 +36,7 @@ export function getSavedTheme(): ThemeMode | null {
 }
 
 export function saveTheme(theme: ThemeMode): void {
-  if (typeof window === "undefined" || typeof localStorage === "undefined") {
+  if (globalThis.window === undefined || typeof localStorage === "undefined") {
     return;
   }
 
@@ -42,7 +44,7 @@ export function saveTheme(theme: ThemeMode): void {
 }
 
 export function clearSavedTheme(): void {
-  if (typeof window === "undefined" || typeof localStorage === "undefined") {
+  if (globalThis.window === undefined || typeof localStorage === "undefined") {
     return;
   }
 
@@ -75,7 +77,7 @@ export function applyThemeToDOM(theme: ThemeMode): void {
   }
 
   const root = document.documentElement;
-  const hasWindow = typeof window !== "undefined";
+  const hasWindow = globalThis.window !== undefined;
   const importantVariables = [
     "--vscode-editor-background",
     "--vscode-panel-background",
@@ -131,7 +133,7 @@ export function applyThemeToDOM(theme: ThemeMode): void {
       root.classList.remove("theme-switching");
 
       if (hasWindow && hasChanges) {
-        window.dispatchEvent(
+        globalThis.dispatchEvent(
           new CustomEvent("theme-variables-updated", { detail: { theme } }),
         );
       }
@@ -139,9 +141,9 @@ export function applyThemeToDOM(theme: ThemeMode): void {
   };
 
   if (hasWindow) {
-    if (typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(applyInlineVariables);
+    if (typeof globalThis.requestAnimationFrame === "function") {
+      globalThis.requestAnimationFrame(() => {
+        globalThis.requestAnimationFrame(applyInlineVariables);
       });
     } else {
       setTimeout(() => {
@@ -154,7 +156,7 @@ export function applyThemeToDOM(theme: ThemeMode): void {
 }
 
 export function initializeBrowserTheme(): ThemeMode {
-  const theme = getSystemTheme();
+  const theme = getSavedTheme() ?? getSystemTheme();
   applyThemeToDOM(theme);
 
   return theme;
@@ -163,14 +165,14 @@ export function initializeBrowserTheme(): ThemeMode {
 export function setupThemeListener(
   callback: (theme: ThemeMode) => void,
 ): () => void {
-  if (typeof window === "undefined") {
+  if (globalThis.window === undefined) {
     return () => {};
   }
 
-  const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
-  const highContrastQuery = window.matchMedia("(prefers-contrast: more)");
+  const darkModeQuery = globalThis.matchMedia("(prefers-color-scheme: dark)");
+  const highContrastQuery = globalThis.matchMedia("(prefers-contrast: more)");
 
-  const handleChange = () => {
+  const handleSystemChange = () => {
     const savedTheme = getSavedTheme();
 
     // If no theme is saved (System theme is active), follow system changes
@@ -183,12 +185,27 @@ export function setupThemeListener(
     // User can manually switch to System theme to enable auto-switching
   };
 
-  // Use modern addEventListener API
-  darkModeQuery.addEventListener("change", handleChange);
-  highContrastQuery.addEventListener("change", handleChange);
+  const handleStorageChange = (event: StorageEvent) => {
+    if (event.key === THEME_STORAGE_KEY && event.newValue) {
+      const newTheme = event.newValue as ThemeMode;
+      if (
+        newTheme === "light" ||
+        newTheme === "dark" ||
+        newTheme === "high-contrast"
+      ) {
+        applyThemeToDOM(newTheme);
+        callback(newTheme);
+      }
+    }
+  };
+
+  darkModeQuery.addEventListener("change", handleSystemChange);
+  highContrastQuery.addEventListener("change", handleSystemChange);
+  globalThis.addEventListener("storage", handleStorageChange);
 
   return () => {
-    darkModeQuery.removeEventListener("change", handleChange);
-    highContrastQuery.removeEventListener("change", handleChange);
+    darkModeQuery.removeEventListener("change", handleSystemChange);
+    highContrastQuery.removeEventListener("change", handleSystemChange);
+    globalThis.removeEventListener("storage", handleStorageChange);
   };
 }

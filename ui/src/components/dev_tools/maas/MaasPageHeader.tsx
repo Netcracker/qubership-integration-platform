@@ -12,7 +12,12 @@ export const MaasPageHeader: React.FC<MaasPageHeaderProps> = ({
   onExport,
 }) => {
   return (
-    <Flex vertical={false} justify="space-between" align="center" className={styles["header"]}>
+    <Flex
+      vertical={false}
+      justify="space-between"
+      align="center"
+      className={styles["header"]}
+    >
       <Title level={4} className={styles["titleHeader"]}>
         {title}
       </Title>

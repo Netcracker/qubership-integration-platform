@@ -19,10 +19,7 @@ export const MaasFormActions: React.FC<MaasFormActionsProps> = ({
       >
         Create
       </Button>
-      <Button
-        disabled={createInProgress}
-        onClick={onReset}
-      >
+      <Button disabled={createInProgress} onClick={onReset}>
         Reset
       </Button>
     </Flex>

@@ -17,13 +17,24 @@ export const PanelResizeHandle: React.FC<PanelResizeHandleProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const lastX = useRef(0);
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      setIsDragging(true);
-      lastX.current = e.clientX;
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    lastX.current = e.clientX;
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const step = 10;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        onResize(direction === "right" ? step : -step);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        onResize(direction === "right" ? -step : step);
+      }
     },
-    [],
+    [direction, onResize],
   );
 
   useEffect(() => {
@@ -55,13 +66,14 @@ export const PanelResizeHandle: React.FC<PanelResizeHandleProps> = ({
   }, [isDragging, direction, onResize, onResizeEnd]);
 
   return (
-    <div
-      role="separator"
-      aria-orientation="vertical"
+    <button
+      type="button"
+      aria-label="Resize panel"
       className={`${styles.handle} ${isDragging ? styles.dragging : ""}`}
       onMouseDown={handleMouseDown}
+      onKeyDown={handleKeyDown}
     >
-      <div className={styles.line} />
-    </div>
+      <span className={styles.line} aria-hidden />
+    </button>
   );
 };

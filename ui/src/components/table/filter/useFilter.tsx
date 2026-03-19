@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { FilterItemState } from "./FilterItem";
 import { Filter } from "./Filter.tsx";
 import { useModalsContext } from "../../../Modals";
@@ -11,6 +11,10 @@ export const useFilter = (
   filters: EntityFilterModel[];
   filterButton: JSX.Element;
   resetFilters: () => void;
+  filterColumns: FilterColumn[];
+  filterItemStates: FilterItemState[];
+  setFilterItemStates: React.Dispatch<React.SetStateAction<FilterItemState[]>>;
+  applyFilters: (filterItems: FilterItemState[]) => void;
 } => {
   const { showModal } = useModalsContext();
   const [filters, setFilters] = useState<EntityFilterModel[]>([]);
@@ -51,5 +55,13 @@ export const useFilter = (
     setFilterItemStates([]);
   };
 
-  return { filters, filterButton, resetFilters };
+  return {
+    filters,
+    filterButton,
+    resetFilters,
+    filterColumns,
+    filterItemStates,
+    setFilterItemStates,
+    applyFilters,
+  };
 };
