@@ -2,11 +2,9 @@ package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import groovy.xml.slurpersupport.GPathResult;
-import io.quarkus.test.Mock;
 import jakarta.enterprise.inject.Instance;
 import jakarta.persistence.EntityNotFoundException;
 import org.apache.camel.Exchange;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,20 +45,10 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ContextLoaderProcessorTest {
 
-    @Mock
-    CheckpointSessionService checkpointSessionService;
-
-    @Mock
-    ObjectMapper checkpointMapper;
-
-    @BeforeEach
-    void setUp() {
-        checkpointSessionService = mock(CheckpointSessionService.class);
-        checkpointMapper = ObjectMappers.getCheckpointMapper();
-    }
-
     @Test
     void shouldRestoreCheckpointAndUpdatePayloadWhenProcessCalled() {
+        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
+        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
         ContextOperationsWrapper contextOperations = mock(ContextOperationsWrapper.class);
         ContextLoaderProcessor processor = processor(
                 checkpointSessionService,
@@ -140,6 +128,8 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldThrowCheckpointExceptionWhenCheckpointNotFound() {
+        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
+        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
         ContextLoaderProcessor processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
@@ -175,6 +165,8 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldDeserializeSerializablePropertyWithMetadata() {
+        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
+        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
         ContextLoaderProcessor processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
@@ -196,6 +188,8 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldDeserializeXmlPropertyAsGPathResult() {
+        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
+        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
         ContextLoaderProcessor processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
@@ -222,6 +216,8 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldDeserializePropertyWithoutTypeUsingMapperWhenClassNotFound() {
+        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
+        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
         ContextLoaderProcessor processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
@@ -243,6 +239,8 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldFallbackToStringWhenPropertyDeserializationFails() {
+        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
+        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
         ContextLoaderProcessor processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
