@@ -77,7 +77,7 @@ public class LogRecordProcessor implements Processor {
 
         Map<Object, Object> businessIdentifiers = new HashMap<>();
 
-        if (StringUtils.isNotBlank((String) exchange.getProperty(PROPERTY_BUSINESS_IDENTIFIERS))) {
+        if (StringUtils.isNotBlank(exchange.getProperty(PROPERTY_BUSINESS_IDENTIFIERS, String.class))) {
             businessIdentifiers = exchange.getProperty(PROPERTY_BUSINESS_IDENTIFIERS, Map.class);
         }
 

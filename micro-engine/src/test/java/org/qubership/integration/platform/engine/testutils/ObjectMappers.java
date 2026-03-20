@@ -33,6 +33,11 @@ public final class ObjectMappers {
         return buildObjectMapper();
     }
 
+    public static ObjectMapper getCheckpointMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+        return objectMapper;
+    }
 
     private static ObjectMapper buildObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
