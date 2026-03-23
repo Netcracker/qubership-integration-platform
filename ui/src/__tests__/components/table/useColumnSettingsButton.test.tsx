@@ -282,11 +282,11 @@ describe("useColumnSettingsButton() useColumnSettingsButton method", () => {
       // Simulate localStorage with actions present in order
       localStorage.setItem(
         "order-key",
-        JSON.stringify(["name", "actions", "age"]),
+        JSON.stringify(["name", "age", "actions"]),
       );
       localStorage.setItem(
         "visible-key",
-        JSON.stringify(["name", "actions", "age"]),
+        JSON.stringify(["name", "age", "actions"]),
       );
 
       function TestComponent() {

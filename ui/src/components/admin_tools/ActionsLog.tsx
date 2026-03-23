@@ -19,7 +19,7 @@ import {
 } from "../../misc/format-utils.ts";
 import DateRangePicker from "../modal/DateRangePicker.tsx";
 import { exportActionsLogAsExcel } from "../../misc/log-export-utils.ts";
-import type { FilterDropdownProps } from "antd/lib/table/interface";
+import type { ColumnGroupType, ColumnType, FilterDropdownProps } from "antd/lib/table/interface";
 import {
   getTextColumnFilterFn,
   TextColumnFilterDropdown,
@@ -173,6 +173,9 @@ export const ActionsLog: React.FC = () => {
     entityType: 300,
     entityName: 500,
     parentName: 400,
+    entityId: 300,
+    parentId: 300,
+    requestId: 300,
   });
 
   const totalColumnsWidth = Object.values(columnsWidth).reduce(
@@ -209,6 +212,18 @@ export const ActionsLog: React.FC = () => {
       : firstLine;
   };
 
+  const handleHeaderCell = (
+    column: ColumnGroupType<ActionLog> | ColumnType<ActionLog>,
+  ) => {
+    const key = column.key?.toString();
+    return key
+      ? {
+          width: columnsWidth[key],
+          onResize: handleResize(key),
+        }
+      : {};
+  };
+
   const columns: TableProps<ActionLog>["columns"] = [
     {
       title: "Action Time",
@@ -220,10 +235,7 @@ export const ActionsLog: React.FC = () => {
         <TimestampColumnFilterDropdown {...props} />
       ),
       onFilter: getTimestampColumnFilterFn((log) => log.actionTime),
-      onHeaderCell: () => ({
-        width: columnsWidth.actionTime,
-        onResize: handleResize("actionTime"),
-      }),
+      onHeaderCell: handleHeaderCell,
       render: (_, actionLog) => <>{formatTimestamp(actionLog.actionTime)}</>,
     },
     {
@@ -237,10 +249,7 @@ export const ActionsLog: React.FC = () => {
       onFilter: getTextColumnFilterFn((log) =>
         log?.username ? log?.username : "",
       ),
-      onHeaderCell: () => ({
-        width: columnsWidth.username,
-        onResize: handleResize("username"),
-      }),
+      onHeaderCell: handleHeaderCell,
     },
     {
       title: "Operation",
@@ -249,10 +258,7 @@ export const ActionsLog: React.FC = () => {
       width: columnsWidth.operation,
       filterDropdown: operationFilter,
       onFilter: operationOnFilter,
-      onHeaderCell: () => ({
-        width: columnsWidth.operation,
-        onResize: handleResize("operation"),
-      }),
+      onHeaderCell: handleHeaderCell,
       render: (_, actionLog) => (
         <>
           <Badge
@@ -270,10 +276,7 @@ export const ActionsLog: React.FC = () => {
       width: columnsWidth.entityType,
       filterDropdown: entityTypeFilter,
       onFilter: entityTypeOnFilter,
-      onHeaderCell: () => ({
-        width: columnsWidth.entityType,
-        onResize: handleResize("entityType"),
-      }),
+      onHeaderCell: handleHeaderCell,
       render: (_, actionLog) => (
         <>
           {getIconByEntityType(actionLog.entityType)}
@@ -292,10 +295,7 @@ export const ActionsLog: React.FC = () => {
       onFilter: getTextColumnFilterFn((log) =>
         log?.entityName ? log.entityName : "",
       ),
-      onHeaderCell: () => ({
-        width: columnsWidth.entityName,
-        onResize: handleResize("entityName"),
-      }),
+      onHeaderCell: handleHeaderCell,
       render: (_, actionLog) =>
         renderEntityLink(actionLog, columnsWidth.entityName),
     },
@@ -310,10 +310,7 @@ export const ActionsLog: React.FC = () => {
       onFilter: getTextColumnFilterFn((log) =>
         log?.parentName ? log.parentName : "",
       ),
-      onHeaderCell: () => ({
-        width: columnsWidth.parentName,
-        onResize: handleResize("parentName"),
-      }),
+      onHeaderCell: handleHeaderCell,
       render: (_, actionLog) =>
         renderParentLink(actionLog, columnsWidth.parentName),
     },
@@ -324,17 +321,26 @@ export const ActionsLog: React.FC = () => {
     },
     {
       title: "Entity Id",
+      key: "entityId",
       dataIndex: "entityId",
+      width: columnsWidth.entityId,
+      onHeaderCell: handleHeaderCell,
       hidden: true,
     },
     {
       title: "Parent Id",
+      key: "parentId",
       dataIndex: "parentId",
+      width: columnsWidth.parentId,
+      onHeaderCell: handleHeaderCell,
       hidden: true,
     },
     {
       title: "Request Id",
+      key: "requestId",
       dataIndex: "requestId",
+      width: columnsWidth.requestId,
+      onHeaderCell: handleHeaderCell,
       hidden: true,
     },
   ];

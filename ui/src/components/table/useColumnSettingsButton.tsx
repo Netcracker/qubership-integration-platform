@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ColumnSettingsButton } from "./ColumnSettingsButton";
 import { ColumnsType } from "antd/lib/table";
+import { getColumnsOrderKey, getColumnsVisibleKey } from "./ColumnsFilter";
+import { parseJsonOrDefault } from "../../misc/json-helper";
 
 const ACTIONS_COLUMN_NAME = "actions"; //always displayed last and not manageable
 
@@ -11,12 +13,21 @@ export const useColumnSettingsButton = <T,>(
   tableColumnDefinitions: ColumnsType<T>,
 ) => {
   const allColumnKeysMemo = useMemo(() => {
-    return allColumnKeys;
+    const storedOrder = localStorage.getItem(getColumnsOrderKey(storageKey));
+    return storedOrder
+      ? parseJsonOrDefault<string[]>(storedOrder, [])
+      : allColumnKeys;
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
   const visibleKeysMemo = useMemo(() => {
-    return visibleKeys;
+    const storedVisible = localStorage.getItem(
+      getColumnsVisibleKey(storageKey),
+    );
+    return storedVisible
+      ? parseJsonOrDefault<string[]>(storedVisible, [])
+      : visibleKeys;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
@@ -26,8 +37,8 @@ export const useColumnSettingsButton = <T,>(
   const hasActions = allColumnKeys.includes(ACTIONS_COLUMN_NAME);
 
   useEffect(() => {
-    setColumnsOrder(allColumnKeys);
-    setVisibleColumns(visibleKeys);
+    setColumnsOrder(allColumnKeysMemo);
+    setVisibleColumns(visibleKeysMemo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
@@ -43,10 +54,10 @@ export const useColumnSettingsButton = <T,>(
         return tableColumnDefinitions.find((col) => col.key === key);
       })
       .filter(Boolean)
-      .map((columnType) => {
-        columnType.hidden = false;
-        return columnType;
-      }) as ColumnsType<T>;
+      .map((columnType) => ({
+        ...columnType,
+        hidden: false,
+      })) as ColumnsType<T>;
     if (
       hasActions &&
       !ordered.some((column) => column.key === ACTIONS_COLUMN_NAME)
@@ -61,10 +72,10 @@ export const useColumnSettingsButton = <T,>(
   const columnSettingsButton = (
     <ColumnSettingsButton
       key={storageKey + "SettingsButton"}
-      allColumns={allColumnKeysMemo.filter(
+      allColumns={allColumnKeys.filter(
         (key) => key !== ACTIONS_COLUMN_NAME,
       )}
-      defaultColumns={visibleKeysMemo}
+      defaultColumns={visibleKeys}
       storageKey={storageKey}
       labelsByKey={Object.fromEntries(
         tableColumnDefinitions.map((c) => [c.key as string, c.title as string]),
