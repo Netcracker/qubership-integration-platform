@@ -20,6 +20,7 @@ import { DataTypes } from "../../mapper/util/types.ts";
 import { Attributes } from "../../mapper/util/attributes.ts";
 import { MappingActions } from "../../mapper/util/actions.ts";
 import { XmlNamespace } from "../../mapper/model/metadata.ts";
+import { migrateActions } from "../../mapper/util/migration.ts";
 
 function removeConnectionForActions(
   actions: MappingAction[],
@@ -149,7 +150,17 @@ export const useMappingDescription = ({
     (schemaKind: SchemaKind, type: DataType | undefined | null) => {
       updateMapping(
         (mapping) => ({
-          [schemaKind]: { ...mapping[schemaKind], body: type },
+          [schemaKind]: {
+            ...mapping[schemaKind],
+            body: type,
+          },
+          actions: migrateActions(
+            mapping.actions,
+            schemaKind,
+            [],
+            mapping[schemaKind].body,
+            type ?? null,
+          ),
         }),
         true,
         () => {},
@@ -252,8 +263,18 @@ export const useMappingDescription = ({
                   path.slice(0, -1),
                   { ...path.slice(-1).pop()!, ...changes },
                 ),
+                actions:
+                  "type" in changes
+                    ? migrateActions(
+                        mapping.actions,
+                        schemaKind,
+                        path.map((a) => a.id),
+                        path.slice(-1).pop()!.type,
+                        changes.type ?? null,
+                      )
+                    : mapping.actions,
               },
-        false,
+        true,
         onError,
       );
     },

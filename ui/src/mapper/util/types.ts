@@ -389,7 +389,7 @@ export class DataTypes {
   }
 
   public static buildTypeName(
-    type: DataType,
+    type: DataType | undefined | null,
     definitions: TypeDefinition[],
   ): string {
     switch (type?.name) {
@@ -411,7 +411,7 @@ export class DataTypes {
       case "oneOf":
         return `one of ${this.describeNestedTypes(type)}`;
       default:
-        return type?.name;
+        return type?.name ?? "";
     }
   }
 

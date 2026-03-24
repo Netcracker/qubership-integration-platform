@@ -597,9 +597,9 @@ describe("Mapper", () => {
     });
 
     describe("buildTypeName", () => {
-      it("should return undefined value when type is undefined or null", () => {
+      it("should return empty string when type is undefined or null", () => {
         [undefined, null].forEach((type) =>
-          expect(DataTypes.buildTypeName(type, [])).toBeUndefined(),
+          expect(DataTypes.buildTypeName(type, [])).toEqual(""),
         );
       });
 

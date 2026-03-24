@@ -84,6 +84,11 @@ import { useMappingDescription } from "./useMappingDescription.tsx";
 import { MappingTableItemActionButton } from "./MappingTableItemActionButton.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton.tsx";
+import {
+  compareDataTypes,
+  hasBreakingChanges,
+} from "../../mapper/util/compare.ts";
+import { LoadConfirmationDialog } from "./LoadConfirmationDialog.tsx";
 
 export type MappingTableViewProps = Omit<
   React.HTMLAttributes<HTMLElement>,
@@ -228,6 +233,46 @@ function exportMappingAsMarkdown(mapping: MappingDescription): void {
   const fileName = `mapping-${timestamp}.md`;
   const file = new File([blob], fileName, { type: "text/markdown" });
   downloadFile(file);
+}
+
+export function loadTypeWithConfirmation(
+  item: MappingTableItem,
+  schemaKind: SchemaKind,
+  type: DataType,
+  mappingDescription: MappingDescription,
+  showModal: ReturnType<typeof useModalsContext>["showModal"],
+  loadDataType: (
+    item: MappingTableItem,
+    schemaKind: SchemaKind,
+    type: DataType,
+  ) => void,
+): void {
+  const presentContext = isBodyGroup(item)
+    ? {
+        type: mappingDescription[schemaKind].body ?? DataTypes.nullType(),
+        definitions: [],
+      }
+    : isAttributeItem(item)
+      ? { type: item.resolvedType, definitions: item.typeDefinitions }
+      : { type: DataTypes.nullType(), definitions: [] };
+  const path = isAttributeItem(item) ? item.path.map((a) => a.name) : [];
+  const differences = compareDataTypes(
+    presentContext,
+    { type, definitions: [] },
+    path,
+  );
+  if (hasBreakingChanges(differences)) {
+    showModal({
+      component: (
+        <LoadConfirmationDialog
+          differences={differences}
+          onSubmit={() => loadDataType(item, schemaKind, type)}
+        />
+      ),
+    });
+  } else {
+    loadDataType(item, schemaKind, type);
+  }
 }
 
 export function buildAttributeItemId(
@@ -776,6 +821,33 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
       });
     },
     [messageApi, updateConstant],
+  );
+
+  const loadDataType = useCallback(
+    (item: MappingTableItem, schemaKind: SchemaKind, type: DataType) => {
+      if (isBodyGroup(item)) {
+        updateBodyType(schemaKind, type);
+      } else if (isAttributeItem(item)) {
+        tryUpdateAttribute(item.kind, item.path, {
+          type,
+        });
+      }
+    },
+    [tryUpdateAttribute, updateBodyType],
+  );
+
+  const loadDataTypeWithConfirmation = useCallback(
+    (item: MappingTableItem, schemaKind: SchemaKind, type: DataType) => {
+      loadTypeWithConfirmation(
+        item,
+        schemaKind,
+        type,
+        mappingDescription,
+        showModal,
+        loadDataType,
+      );
+    },
+    [loadDataType, mappingDescription, showModal],
   );
 
   const buildColumns = useMemo((): TableProps<MappingTableItem>["columns"] => {
@@ -1640,13 +1712,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
               enableXmlNamespaces={bodyFormat === SourceFormat.XML.toString()}
               schemaKind={selectedSchema}
               onLoad={(type) => {
-                if (isBodyGroup(item)) {
-                  updateBodyType(selectedSchema, type);
-                } else if (isAttributeItem(item)) {
-                  tryUpdateAttribute(item.kind, item.path, {
-                    type,
-                  });
-                }
+                loadDataTypeWithConfirmation(item, selectedSchema, type);
               }}
               onExport={() => exportElement(item)}
               onUpdateXmlNamespaces={(namespaces) =>

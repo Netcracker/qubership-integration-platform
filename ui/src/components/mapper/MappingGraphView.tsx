@@ -41,6 +41,7 @@ import {
   isConstantItem,
   isHeaderGroup,
   isPropertyGroup,
+  loadTypeWithConfirmation,
   MappingTableItem,
   TableControlsState,
 } from "./MappingTableView.tsx";
@@ -613,6 +614,33 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
     targetItems,
   ]);
 
+  const loadDataType = useCallback(
+    (item: MappingTableItem, schemaKind: SchemaKind, type: DataType) => {
+      if (isBodyGroup(item)) {
+        updateBodyType(schemaKind, type);
+      } else if (isAttributeItem(item)) {
+        tryUpdateAttribute(schemaKind, item.kind, item.path, {
+          type,
+        });
+      }
+    },
+    [tryUpdateAttribute, updateBodyType],
+  );
+
+  const loadDataTypeWithConfirmation = useCallback(
+    (item: MappingTableItem, schemaKind: SchemaKind, type: DataType) => {
+      loadTypeWithConfirmation(
+        item,
+        schemaKind,
+        type,
+        mappingDescription,
+        showModal,
+        loadDataType,
+      );
+    },
+    [loadDataType, mappingDescription, showModal],
+  );
+
   const buildSourceColumns = useCallback(() => {
     return [
       {
@@ -689,15 +717,9 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
                   });
                 }
               }}
-              onLoad={(type) => {
-                if (isBodyGroup(item)) {
-                  updateBodyType(SchemaKind.SOURCE, type);
-                } else if (isAttributeItem(item)) {
-                  tryUpdateAttribute(SchemaKind.SOURCE, item.kind, item.path, {
-                    type,
-                  });
-                }
-              }}
+              onLoad={(type) =>
+                loadDataTypeWithConfirmation(item, SchemaKind.SOURCE, type)
+              }
               onExport={() => exportElement(item)}
               onUpdateXmlNamespaces={(namespaces) =>
                 updateXmlNamespaces(
@@ -1226,15 +1248,9 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
                   });
                 }
               }}
-              onLoad={(type) => {
-                if (isBodyGroup(item)) {
-                  updateBodyType(SchemaKind.TARGET, type);
-                } else if (isAttributeItem(item)) {
-                  tryUpdateAttribute(SchemaKind.TARGET, item.kind, item.path, {
-                    type,
-                  });
-                }
-              }}
+              onLoad={(type) =>
+                loadDataTypeWithConfirmation(item, SchemaKind.TARGET, type)
+              }
               onExport={() => exportElement(item)}
               onUpdateXmlNamespaces={(namespaces) =>
                 updateXmlNamespaces(

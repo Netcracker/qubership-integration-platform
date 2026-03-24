@@ -127,4 +127,18 @@ export class Attributes {
   public static pathExists(attribute: Attribute, path: string[]): boolean {
     return this.restorePath(attribute, path) !== null;
   }
+
+  public static resolvePath(
+    path: string[],
+    attribute: Attribute,
+  ): string[] | null {
+    return (
+      Attributes.walk(attribute, (_, p) => {
+        const pth = p.slice(1);
+        const matches =
+          pth.length === path.length && pth.every((a, i) => a.name === path[i]);
+        return matches ? pth.map((a) => a.id) : null;
+      }) ?? null
+    );
+  }
 }

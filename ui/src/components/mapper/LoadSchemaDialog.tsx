@@ -49,6 +49,7 @@ import { exportAsJsonSchema } from "../../mapper/json-schema/json-schema.ts";
 import { api } from "../../api/api.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { normalizeProtocol } from "../../misc/protocol-utils.ts";
+import { MetadataUtil } from "../../mapper/util/metadata.ts";
 
 function buildGraphQLOperations(schemaText: string, queryText: string) {
   const operations: GraphQLOperationInfo[] = [];
@@ -223,6 +224,18 @@ function importCode(
   } catch (error) {
     onError(error);
   }
+}
+
+function addOperationMetadata(element: Element, type: DataType) {
+  return [
+    "integrationSystemId",
+    "integrationSpecificationGroupId",
+    "integrationSpecificationId",
+    "integrationOperationId",
+  ].reduce((t, name) => {
+    const value = element.properties?.[name] as string;
+    return value ? MetadataUtil.setValue(t, name, value) : t;
+  }, type);
 }
 
 function importDataType(
@@ -661,6 +674,14 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
             activeTab,
             data,
             (type) => {
+              if (activeTab === "schema") {
+                const element = data.schema.element
+                  ? chainElements.find((e) => e.id === data.schema.element)
+                  : undefined;
+                if (element) {
+                  type = addOperationMetadata(element, type);
+                }
+              }
               onSubmit?.(type);
               closeContainingModal();
             },
