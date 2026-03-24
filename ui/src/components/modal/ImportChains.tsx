@@ -38,7 +38,7 @@ import { InlineEdit } from "../InlineEdit.tsx";
 import { capitalize } from "../../misc/format-utils.ts";
 import { SelectEdit } from "../table/SelectEdit.tsx";
 import Checkbox from "antd/lib/checkbox";
-import { ImportStatus } from "../labels/ImportStatus.tsx";
+import { StatusTag } from "../labels/StatusTag.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
@@ -373,7 +373,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
         title: "Instruction Action",
         dataIndex: "instructionAction",
         render: (_, item) => (
-          <ImportStatus status={item.instructionAction ?? ""} />
+          <StatusTag status={item.instructionAction ?? ""} />
         ),
       },
       {
@@ -497,7 +497,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
       title: "Status",
       dataIndex: "status",
       render: (_, item) => (
-        <ImportStatus status={item.status} message={item.errorMessage} />
+        <StatusTag status={item.status} message={item.errorMessage} />
       ),
     },
   ];
@@ -531,7 +531,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
       title: "Status",
       dataIndex: "status",
       render: (_, item) => (
-        <ImportStatus status={item.status} message={item.message} />
+        <StatusTag status={item.status} message={item.message} />
       ),
     },
   ];
@@ -550,7 +550,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
         title: "Status",
         dataIndex: "status",
         render: (_, item) => (
-          <ImportStatus status={item.status} message={item.error} />
+          <StatusTag status={item.status} message={item.error} />
         ),
       },
     ];
@@ -565,7 +565,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
         title: "Status",
         dataIndex: "status",
         render: (_, item) => (
-          <ImportStatus status={item.status} message={item.errorMessage} />
+          <StatusTag status={item.status} message={item.errorMessage} />
         ),
       },
     ];

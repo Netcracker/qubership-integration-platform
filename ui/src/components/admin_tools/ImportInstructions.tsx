@@ -24,7 +24,7 @@ import {
   ImportEntityType,
 } from "../../api/apiTypes.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
-import { ImportStatus } from "../labels/ImportStatus.tsx";
+import { StatusTag } from "../labels/StatusTag.tsx";
 import { InlineEdit } from "../InlineEdit.tsx";
 import { InlineEditWithButtons } from "../InlineEditWithButtons.tsx";
 import { SelectEdit } from "../table/SelectEdit.tsx";
@@ -969,7 +969,7 @@ const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
               dataIndex: "status",
               key: "status",
               render: (_status, row: ImportInstructionResult) => (
-                <ImportStatus status={row.status} message={row.errorMessage} />
+                <StatusTag status={row.status} message={row.errorMessage} />
               ),
             },
           ]}

@@ -1,9 +1,7 @@
 import {
   Breadcrumb,
   Button,
-  Dropdown,
   Flex,
-  MenuProps,
   message,
   Modal,
   Table,
@@ -19,14 +17,14 @@ import {
   ListFolderRequest,
   UpdateFolderRequest,
 } from "../api/apiTypes.ts";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/api.ts";
 import { TableProps } from "antd/lib/table";
 import { formatTimestamp } from "../misc/format-utils.ts";
 import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { CompactSearch } from "../components/table/CompactSearch.tsx";
-import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
+import type { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
 import { ChainCreate } from "../components/modal/ChainCreate.tsx";
@@ -57,6 +55,7 @@ import {
 } from "../permissions/ProtectedDropdown.tsx";
 import { MenuInfo } from "rc-menu/lib/interface";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
+import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -108,20 +107,6 @@ function compareChainTableItemsByTypeAndName(
   }
 }
 
-function buildPathItems(path: FolderItem[]): BreadcrumbProps["items"] {
-  const items = path.map((folder, index) => ({
-    title: folder.name,
-    href: index < path.length - 1 ? `/chains?folder=${folder.id}` : undefined,
-  }));
-  return [
-    {
-      href: "/chains",
-      title: <OverridableIcon name="home" />,
-    },
-    ...items,
-  ];
-}
-
 type OperationType = "move" | "copy";
 
 type Operation = {
@@ -139,7 +124,7 @@ const Chains = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [loadedFolders, setLoadedFolders] = useState<Set<string>>(new Set());
   const [searchParams] = useSearchParams();
-  const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
+  const [folderPath, setFolderPath] = useState<FolderItem[]>([]);
   const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
   const [searchString, setSearchString] = useState<string>("");
@@ -204,9 +189,7 @@ const Chains = () => {
       setIsLoading(false);
     });
 
-    await getPathToFolder(folderId).then((path) =>
-      setPathItems(buildPathItems(path)),
-    );
+    await getPathToFolder(folderId).then((path) => setFolderPath(path));
   }, [getFolderId, getPathToFolder, listFolder]);
 
   const openFolder = async (folderId: string) => {
@@ -368,13 +351,14 @@ const Chains = () => {
     snapshotAction: BulkDeploymentSnapshotAction,
   ) => {
     if (chainIds.length === 0) {
-      return;
+      return [];
     }
     setIsLoading(true);
     try {
-      await api.bulkDeploy({ chainIds, domains, snapshotAction });
+      return await api.bulkDeploy({ chainIds, domains, snapshotAction });
     } catch (error) {
       notificationService.requestFailed("Failed to deploy chains", error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -410,15 +394,37 @@ const Chains = () => {
     }
   };
 
+  const isDestinationInView = useCallback(
+    (destinationFolderId?: string): boolean => {
+      const currentFolderId = getFolderId();
+      // Moving to the current folder level (e.g. from expanded subfolder via breadcrumb)
+      if (destinationFolderId === currentFolderId) {
+        return true;
+      }
+      // Moving to a visible subfolder in the table
+      return (
+        destinationFolderId !== undefined &&
+        folderItems.some((i) => i.id === destinationFolderId)
+      );
+    },
+    [getFolderId, folderItems],
+  );
+
   const moveChain = async (chainId: string, destinationFolderId?: string) => {
     setIsLoading(true);
     try {
       const chain = await api.moveChain(chainId, destinationFolderId);
-      setFolderItems(
-        folderItems.map((i) =>
-          i.id === chainId ? { itemType: CatalogItemType.CHAIN, ...chain } : i,
-        ),
-      );
+      if (isDestinationInView(destinationFolderId)) {
+        setFolderItems((prev) =>
+          prev.map((i) =>
+            i.id === chainId
+              ? { itemType: CatalogItemType.CHAIN, ...chain }
+              : i,
+          ),
+        );
+      } else {
+        setFolderItems((prev) => prev.filter((i) => i.id !== chainId));
+      }
     } catch (error) {
       notificationService.requestFailed("Failed to move chain", error);
     } finally {
@@ -430,17 +436,116 @@ const Chains = () => {
     setIsLoading(true);
     try {
       const response = await api.moveFolder(folderId, destinationFolderId);
-      setFolderItems(
-        folderItems.map((item) =>
-          item.id === folderId ? { ...item, ...response } : item,
-        ),
-      );
+      if (isDestinationInView(destinationFolderId)) {
+        setFolderItems((prev) =>
+          prev.map((item) =>
+            item.id === folderId
+              ? { ...item, ...response, parentId: destinationFolderId }
+              : item,
+          ),
+        );
+      } else {
+        const ids = new Set<string>([folderId]);
+        traverseElementsDepthFirst(tableItems, (element, path) => {
+          if (path.some((i) => i.id === folderId)) {
+            ids.add(element.id);
+          }
+        });
+        setFolderItems((prev) => prev.filter((i) => !ids.has(i.id)));
+      }
     } catch (error) {
       notificationService.requestFailed("Failed to move folder", error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const {
+    dropTargetId,
+    isDragging,
+    dropBreadcrumbId,
+    getBreadcrumbDropProps,
+    onRow,
+  } = useTableDragDrop({
+    tableItems,
+    onMoveChain: moveChain,
+    onMoveFolder: moveFolder,
+    disabled: isLoading,
+  });
+
+  const breadcrumbItems: BreadcrumbProps["items"] = useMemo(() => {
+    const dropClass = (dropId: string) =>
+      dropBreadcrumbId === dropId ? styles.breadcrumbDropTarget : undefined;
+
+    const handleKeyDown =
+      (handler: () => void) => (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handler();
+        }
+      };
+
+    const homeItem = {
+      title: (
+        <span
+          {...(isDragging ? getBreadcrumbDropProps(undefined) : {})}
+          className={[
+            styles.breadcrumbItem,
+            !isDragging ? styles.breadcrumbItemClickable : undefined,
+            isDragging ? dropClass("root") : undefined,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          {...(!isDragging
+            ? {
+                role: "link" as const,
+                tabIndex: 0,
+                onClick: () => void navigate("/chains"),
+                onKeyDown: handleKeyDown(() => void navigate("/chains")),
+              }
+            : {})}
+        >
+          <OverridableIcon name="home" />
+        </span>
+      ),
+    };
+    const pathItems = folderPath.map((folder, index) => {
+      const isClickable = !isDragging && index < folderPath.length - 1;
+      const handleClick = () =>
+        void navigate(`/chains?folder=${folder.id}`);
+      return {
+        title: (
+          <span
+            {...(isDragging ? getBreadcrumbDropProps(folder.id) : {})}
+            className={[
+              styles.breadcrumbItem,
+              isClickable ? styles.breadcrumbItemClickable : undefined,
+              isDragging ? dropClass(folder.id) : undefined,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            {...(isClickable
+              ? {
+                  role: "link" as const,
+                  tabIndex: 0,
+                  onClick: handleClick,
+                  onKeyDown: handleKeyDown(handleClick),
+                }
+              : {})}
+          >
+            {folder.name}
+          </span>
+        ),
+      };
+    });
+    return [homeItem, ...pathItems];
+  }, [
+    folderPath,
+    isDragging,
+    dropBreadcrumbId,
+    getBreadcrumbDropProps,
+    navigate,
+  ]);
 
   const pasteItem = async (destinationFolderId?: string) => {
     if (!operation) {
@@ -609,9 +714,8 @@ const Chains = () => {
       showModal({
         component: (
           <DeployChains
-            onSubmit={(options: DeployOptions) => {
-              deploySelectedChains(options).catch(() => undefined);
-            }}
+            chainCount={selectedRowKeys.length}
+            onSubmit={(options: DeployOptions) => deploySelectedChains(options)}
           />
         ),
       });
@@ -669,7 +773,7 @@ const Chains = () => {
           i.itemType === CatalogItemType.CHAIN,
       )
       .map((i) => i.id);
-    await deployChains(chainIds, options.domains, options.snapshotAction);
+    return deployChains(chainIds, options.domains, options.snapshotAction);
   };
 
   const onContextMenuItemClick = async (item: FolderItem, key: React.Key) => {
@@ -937,8 +1041,8 @@ const Chains = () => {
       {contextHolder}
       <Flex vertical gap={16} className={styles.container}>
         <Flex vertical={false} gap={4} align="center">
-          {pathItems && pathItems.length > 0 ? (
-            <Breadcrumb items={pathItems} style={{ marginLeft: 9 }} />
+          {breadcrumbItems && breadcrumbItems.length > 0 ? (
+            <Breadcrumb items={breadcrumbItems} className={styles.breadcrumb} />
           ) : null}
           <div style={{ flex: 1 }} />
           <CompactSearch
@@ -1044,7 +1148,15 @@ const Chains = () => {
           pagination={false}
           scroll={{ y: "" }}
           rowKey="id"
-          rowClassName="clickable-row"
+          rowClassName={(record) =>
+            [
+              "clickable-row",
+              dropTargetId === record.id ? styles.dropTarget : "",
+            ]
+              .filter(Boolean)
+              .join(" ")
+          }
+          onRow={onRow}
           loading={isLoading}
           expandable={{
             expandedRowKeys,

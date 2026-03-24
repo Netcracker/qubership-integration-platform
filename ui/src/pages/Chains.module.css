@@ -4,3 +4,35 @@
   border-radius: 8px;
   padding: 16px;
 }
+
+.dropTarget {
+  outline: 2px solid var(--ant-color-primary, #1677ff);
+  outline-offset: -2px;
+  background-color: var(--ant-color-primary-bg, rgb(22 119 255 / 4%));
+}
+
+.breadcrumb ol {
+  align-items: center;
+}
+
+.breadcrumb :global(.ant-breadcrumb-separator) {
+  margin-inline: 2px;
+}
+
+.breadcrumbItem {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: default;
+}
+
+.breadcrumbItemClickable {
+  cursor: pointer;
+}
+
+.breadcrumbDropTarget {
+  outline: 2px solid var(--ant-color-primary, #1677ff);
+  outline-offset: -2px;
+  background-color: var(--ant-color-primary-bg, rgb(22 119 255 / 4%));
+}

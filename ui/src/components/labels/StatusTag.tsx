@@ -2,6 +2,7 @@ import { formatSnakeCased } from "../../misc/format-utils.ts";
 import React, { useEffect, useState } from "react";
 import { Tag, Tooltip } from "antd";
 import {
+  BulkDeploymentStatus,
   ImportEntityStatus,
   ImportInstructionAction,
   ImportInstructionStatus,
@@ -9,21 +10,18 @@ import {
 } from "../../api/apiTypes.ts";
 import type { PresetStatusColorType } from "antd/es/_util/colors";
 
-export type CombinedImportStatus =
+type CombinedStatus =
   | ImportEntityStatus
   | SystemImportStatus
   | ImportInstructionStatus
-  | ImportInstructionAction;
+  | ImportInstructionAction
+  | BulkDeploymentStatus;
 
-export type ImportStatusProps = {
-  status?: CombinedImportStatus;
-  message?: string;
-};
-
-function getStatusColor(status: CombinedImportStatus): PresetStatusColorType {
+function getStatusColor(status: CombinedStatus): PresetStatusColorType {
   switch (status) {
     case SystemImportStatus.CREATED:
     case ImportEntityStatus.CREATED:
+    case BulkDeploymentStatus.CREATED:
       return "success";
     case ImportInstructionStatus.OVERRIDDEN:
     case SystemImportStatus.UPDATED:
@@ -36,6 +34,7 @@ function getStatusColor(status: CombinedImportStatus): PresetStatusColorType {
     case SystemImportStatus.IGNORED:
     case ImportEntityStatus.IGNORED:
     case ImportInstructionAction.IGNORE:
+    case BulkDeploymentStatus.IGNORED:
       return "default";
     case ImportEntityStatus.SKIPPED:
     case ImportInstructionStatus.DELETED:
@@ -45,16 +44,18 @@ function getStatusColor(status: CombinedImportStatus): PresetStatusColorType {
     case ImportInstructionStatus.ERROR_ON_DELETE:
     case SystemImportStatus.ERROR:
     case ImportEntityStatus.ERROR:
+    case BulkDeploymentStatus.FAILED_DEPLOY:
+    case BulkDeploymentStatus.FAILED_SNAPSHOT:
       return "error";
     default:
       return "default";
   }
 }
 
-export const ImportStatus: React.FC<ImportStatusProps> = ({
-  status,
-  message,
-}) => {
+export const StatusTag: React.FC<{
+  status?: CombinedStatus;
+  message?: string;
+}> = ({ status, message }) => {
   const [color, setColor] = useState<PresetStatusColorType>("default");
 
   useEffect(() => {
