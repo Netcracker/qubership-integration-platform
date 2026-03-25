@@ -7,6 +7,7 @@ import { api } from "../../../api/api";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import { DetailedDesignTemplate } from "../../../api/apiTypes";
 import { removeExtension } from "../../../misc/file-utils";
+import { getErrorMessage } from "../../../misc/error-utils";
 
 type CreateDesignTemplateModalProps = {
   onTemplateCreated: (template: DetailedDesignTemplate) => void;
@@ -30,7 +31,7 @@ export const CreateDesignTemplateModal: React.FC<
       onTemplateCreated(template);
     } catch (error) {
       notificationService.requestFailed(
-        "Failed to create or update design template",
+        getErrorMessage(error, "Failed to create or update design template"),
         error,
       );
     }
