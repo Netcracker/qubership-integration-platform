@@ -218,6 +218,10 @@ public class DetailedDesignService {
                     "Invalid template name format: " + name + ", must match the pattern: " + TEMPLATE_ID_PATTERN.pattern());
         }
 
+        if (designTemplateRepository.findByName(name) != null) {
+            throw new IllegalArgumentException("Template name is not unique");
+        }
+
         String id = buildTemplateId(name);
 
         if (builtinTemplates.containsKey(id)) {
