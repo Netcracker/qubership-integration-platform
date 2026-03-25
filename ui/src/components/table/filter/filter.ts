@@ -180,6 +180,19 @@ export const DateFilterConditions: FilterConditions = {
   valueType: FilterValueType.DATE,
 };
 
+export const ExtendedStringFilterConditions: FilterConditions = {
+  defaultCondition: FilterCondition.CONTAINS,
+  allowedConditions: [
+    FilterCondition.IS,
+    FilterCondition.IS_NOT,
+    FilterCondition.CONTAINS,
+    FilterCondition.DOES_NOT_CONTAIN,
+    FilterCondition.STARTS_WITH,
+    FilterCondition.ENDS_WITH,
+  ],
+  valueType: FilterValueType.STRING,
+};
+
 export interface EntityFilterModel {
   column: FilterColumn["name"];
   condition: string;

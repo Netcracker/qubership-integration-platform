@@ -13,6 +13,7 @@ import {
   StringFilterConditions,
   FilterColumn,
   EntityFilterModel,
+  ExtendedStringFilterConditions,
 } from "../components/table/filter/filter";
 import { useFilter } from "../components/table/filter/useFilter";
 import { capitalize } from "../misc/format-utils.ts";
@@ -131,6 +132,11 @@ export const useChainFilters = (): {
         name: "Service",
         allowedValues: services,
         conditions: ListFilterConditions,
+      },
+      {
+        id: "CLASSIFIER",
+        name: "Classifier",
+        conditions: ExtendedStringFilterConditions,
       },
     ],
     [buildFilterValues, domains, services],
