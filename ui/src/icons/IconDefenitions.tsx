@@ -113,6 +113,8 @@ import {
   ImportOutlined,
   ShrinkOutlined,
   ArrowsAltOutlined,
+  CheckSquareOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 
 export const commonIcons = {
@@ -205,6 +207,8 @@ export const commonIcons = {
   refresh: RedoOutlined,
   cloudSync: CloudSyncOutlined,
   importInstructions: ImportOutlined,
+  warning: WarningOutlined,
+  checkSquare: CheckSquareOutlined,
 };
 
 export const elementIcons = {

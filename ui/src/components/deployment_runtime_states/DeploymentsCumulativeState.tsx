@@ -15,6 +15,10 @@ function getDeploymentsStatus(deployments: Deployment[]): string {
       ?.flatMap((deployment) => Object.values(deployment.runtime?.states ?? {}))
       .map((runtimeState) => runtimeState.status.toUpperCase()),
   );
+  return getCumulativeStatus(statuses);
+}
+
+export function getCumulativeStatus(statuses: Set<string>): string {
   if (statuses.size === 0) {
     return "DRAFT";
   } else if (statuses.size === 1) {

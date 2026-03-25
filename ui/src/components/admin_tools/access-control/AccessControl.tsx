@@ -8,6 +8,7 @@ import {
   Tooltip,
   Drawer,
   Descriptions,
+  Space,
 } from "antd";
 import { useResizeHeight } from "../../../hooks/useResizeHeigth.tsx";
 import { ResizableTitle } from "../../ResizableTitle.tsx";
@@ -31,7 +32,7 @@ import { useModalsContext } from "../../../Modals.tsx";
 import { AbacAttributesPopUp } from "./AbacAttributesPopUp.tsx";
 import { AddDeleteRolesPopUp } from "./AddDeleteRolesPopUp.tsx";
 import { useNavigate } from "react-router";
-import { DeploymentsCumulativeState } from "../../deployment_runtime_states/DeploymentsCumulativeState.tsx";
+import { DeploymentsCumulativeState, getCumulativeStatus } from "../../deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
@@ -144,7 +145,7 @@ export const AccessControl: React.FC = () => {
     }
 
     const recordsToDeploy = records.filter(
-      (record) => record.chainId && record.unsavedChanges,
+      (record) => record.chainId && hasUnsavedChanges(record),
     );
 
     if (recordsToDeploy.length === 0) {
@@ -166,11 +167,10 @@ export const AccessControl: React.FC = () => {
 
       if (accessControlData?.roles) {
         const deployedChainIds = new Set(
-          recordsToDeploy.map((r) => `${r.chainId}-${r.elementId}`),
+          recordsToDeploy.map((r) => buildRowKey(r)),
         );
         const updatedRoles = accessControlData.roles.map((role) => {
-          const rowKey = `${role.chainId}-${role.elementId}`;
-          if (deployedChainIds.has(rowKey)) {
+          if (deployedChainIds.has(buildRowKey(role))) {
             return { ...role, unsavedChanges: false };
           }
           return role;
@@ -186,6 +186,18 @@ export const AccessControl: React.FC = () => {
         err instanceof Error ? err : new Error(String(err)),
       );
     }
+  };
+
+  const selectUnsavedChains = () => {
+    if (!accessControlData?.roles) {
+      return;
+    }
+
+    const selected: string[] = accessControlData?.roles
+      .filter((row) => hasUnsavedChanges(row))
+      .map((row) => buildRowKey(row));
+
+    setSelectedRowKeys(selected);
   };
 
   const columns: ColumnsType<AccessControlData> = [
@@ -402,6 +414,40 @@ export const AccessControl: React.FC = () => {
       columns,
     );
 
+  const hasUnsavedChanges = (data: AccessControlData): boolean => {
+    return (
+      data.unsavedChanges &&
+      getCumulativeStatus(new Set(data.deploymentStatus)) === "DEPLOYED"
+    );
+  };
+
+  const buildRowKey = (row: AccessControlData): string => {
+    return `${row.chainId}-${row.elementId}`;
+  }
+
+  const redeployButtonDisabled = (): boolean => {
+    if (
+      selectedRowKeys.length === 0 ||
+      !accessControlData?.roles ||
+      accessControlData?.roles.length === 0
+    ) {
+      return true;
+    }
+    const selectedWithUnsavedChanges = accessControlData.roles
+      .filter((row) => selectedRowKeys.includes(buildRowKey(row)))
+      .filter((row) => hasUnsavedChanges(row));
+
+    return selectedRowKeys.length !== selectedWithUnsavedChanges.length;
+  };
+
+  const unsavedChangesButtonDisabled = (): boolean => {
+    if (!accessControlData?.roles || accessControlData?.roles.length === 0) {
+      return true;
+    }
+
+    return !accessControlData.roles.some((row) => hasUnsavedChanges(row));
+  };
+
   return (
     <Flex vertical className={commonStyles["container"]}>
       <Flex className={commonStyles["header"]}>
@@ -414,11 +460,19 @@ export const AccessControl: React.FC = () => {
         </Title>
         <Flex vertical={false} gap={4} className={commonStyles["actions"]}>
           {columnSettingsButton}
+          <Tooltip title="Select Unsaved Chains" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="checkSquare" />}
+              onClick={selectUnsavedChains}
+              disabled={unsavedChangesButtonDisabled()}
+            />
+          </Tooltip>
           <ProtectedButton
             require={{ deployment: ["create"] }}
             tooltipProps={{ title: "Redeploy", placement: "bottom" }}
             buttonProps={{
               iconName: "send",
+              disabled: redeployButtonDisabled(),
               onClick: () => {
                 if (selectedRowKeys.length === 0) {
                   notificationService.info(
@@ -429,8 +483,7 @@ export const AccessControl: React.FC = () => {
                 }
                 const selectedRecords = (accessControlData?.roles ?? []).filter(
                   (record: AccessControlData) => {
-                    const rowKey = `${record.chainId}-${record.elementId}`;
-                    return selectedRowKeys.includes(rowKey);
+                    return selectedRowKeys.includes(buildRowKey(record));
                   },
                 );
                 if (selectedRecords.length > 0) {
@@ -459,8 +512,7 @@ export const AccessControl: React.FC = () => {
                 }
                 const selectedRecords = (accessControlData?.roles ?? []).filter(
                   (record: AccessControlData) => {
-                    const rowKey = `${record.chainId}-${record.elementId}`;
-                    return selectedRowKeys.includes(rowKey);
+                    return selectedRowKeys.includes(buildRowKey(record));
                   },
                 );
                 if (selectedRecords.length > 0) {
@@ -509,8 +561,7 @@ export const AccessControl: React.FC = () => {
                 }
                 const selectedRecords = (accessControlData?.roles ?? []).filter(
                   (record: AccessControlData) => {
-                    const rowKey = `${record.chainId}-${record.elementId}`;
-                    return selectedRowKeys.includes(rowKey);
+                    return selectedRowKeys.includes(buildRowKey(record));
                   },
                 );
                 if (selectedRecords.length > 0) {
@@ -572,6 +623,16 @@ export const AccessControl: React.FC = () => {
             onClose={onClose}
           >
             <Descriptions column={1} size="small" layout="vertical">
+              {hasUnsavedChanges(currentRecord) && (
+                <Descriptions.Item>
+                  <Tag color="blue" style={{ fontSize: 13 }}>
+                    <Space>
+                      <OverridableIcon name="warning" />
+                      Unsaved Changes
+                    </Space>
+                  </Tag>
+                </Descriptions.Item>
+              )}
               <Descriptions.Item label="Endpoint">
                 {currentRecord.chainId ? (
                   <a
@@ -720,9 +781,7 @@ export const AccessControl: React.FC = () => {
                 y: containerHeight - 59 || 400,
               }}
               pagination={false}
-              rowKey={(record: AccessControlData) =>
-                `${record.chainId}-${record.elementId}`
-              }
+              rowKey={(record: AccessControlData) => buildRowKey(record)}
               loading={isLoading}
               onScroll={(event) => void onScroll(event)}
               rowSelection={{
@@ -737,7 +796,7 @@ export const AccessControl: React.FC = () => {
                 },
               }}
               rowClassName={(row) =>
-                row.unsavedChanges ? "highlight-row" : ""
+                hasUnsavedChanges(row) ? "highlight-row" : ""
               }
               onRow={(row: AccessControlData) => {
                 return {
