@@ -79,6 +79,15 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
     }
   }, [isAddingNew]);
 
+  const addVariable = () => {
+    if (
+      newRecord.current.key &&
+      newRecord.current.key !== NEW_VARIABLE_KEY
+    ) {
+      onAdd(newRecord.current.key, newRecord.current.value);
+    }
+  };
+
   const handleAddKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     newRecord.current.key = e.target.value;
   };
@@ -86,13 +95,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (
-        newRecord.current.key &&
-        newRecord.current.value &&
-        newRecord.current.key !== NEW_VARIABLE_KEY
-      ) {
-        onAdd(newRecord.current.key, newRecord.current.value);
-      }
+      addVariable();
     }
   };
 
@@ -199,13 +202,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
           const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (
-                newRecord.current.key &&
-                newRecord.current.value &&
-                newRecord.current.key !== NEW_VARIABLE_KEY
-              ) {
-                onAdd(newRecord.current.key, newRecord.current.value);
-              }
+              addVariable();
             } else if (e.key === "Escape") {
               e.preventDefault();
               onCancelEditing();
@@ -227,15 +224,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
                 <Button
                   icon={<OverridableIcon name="check" />}
                   type="text"
-                  onClick={() => {
-                    if (
-                      newRecord.current.key &&
-                      newRecord.current.value &&
-                      newRecord.current.key !== NEW_VARIABLE_KEY
-                    ) {
-                      onAdd(newRecord.current.key, newRecord.current.value);
-                    }
-                  }}
+                  onClick={addVariable}
                 />
                 <Button
                   icon={<OverridableIcon name="close" />}

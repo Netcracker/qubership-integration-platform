@@ -52,6 +52,7 @@ export const SecuredVariables: React.FC = () => {
   });
   const notificationService = useNotificationService();
   const permissions = usePermissions();
+  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
 
   const handleResize = useCallback(
     (dataIndex: string) =>
@@ -152,7 +153,7 @@ export const SecuredVariables: React.FC = () => {
 
   const handleAddVariable = useCallback(
     async (secret: string, key: string, value: string) => {
-      if (!key || !value) return;
+      if (!key) return;
       const response = await api.createSecuredVariables(secret, [
         { key, value },
       ]);
@@ -286,8 +287,16 @@ export const SecuredVariables: React.FC = () => {
         }}
         onChangeEditingValue={setEditingValue}
         onCancelEditing={() => {
-          setEditing(null);
-          setEditingValue("");
+          if (editing) {
+            setEditing(null);
+            setEditingValue("");
+          } else {
+            setNewVariableKeys((prev) => {
+              const state = { ...prev };
+              delete state[secret];
+              return state;
+            });
+          }
         }}
         onConfirmEdit={(key, value) =>
           void handleUpdateVariable(secret, key, value)
@@ -376,6 +385,7 @@ export const SecuredVariables: React.FC = () => {
             require={{ secret: ["create"] }}
             tooltipProps={{ title: "Add secret", placement: "bottom" }}
             buttonProps={{
+              type: "primary",
               iconName: "plus",
               onClick: () => setCreateModalVisible(true),
             }}
@@ -384,7 +394,7 @@ export const SecuredVariables: React.FC = () => {
       </Flex>
 
       <Modal
-        title="Create New Secret"
+        title="Create Secret"
         open={createModalVisible}
         onCancel={() => setCreateModalVisible(false)}
         footer={null}
@@ -396,8 +406,15 @@ export const SecuredVariables: React.FC = () => {
         >
           <Form.Item
             name="secretName"
-            label="Secret Name"
-            rules={[{ required: true, message: "Enter secret name" }]}
+            label="Name"
+            rules={[
+              {
+                required: true,
+                pattern: /^[a-z]+[-a-z0-9]*$/,
+                message:
+                  'Please use lower case without special characters. If necessary, use "-" as a separator.',
+              },
+            ]}
           >
             <Input placeholder="e.g., my-secret" />
           </Form.Item>
@@ -458,11 +475,15 @@ export const SecuredVariables: React.FC = () => {
                       iconName: "plus",
                       size: "small",
                       type: "text",
-                      onClick: () =>
+                      onClick: () => {
                         setNewVariableKeys((prev) => ({
                           ...prev,
                           [secret]: true,
-                        })),
+                        }));
+                        if (!expandedRowKeys.includes(secret)) {
+                          setExpandedRowKeys((prev) => [...prev, secret]);
+                        }
+                      },
                     }}
                   />
                 </div>
@@ -474,6 +495,10 @@ export const SecuredVariables: React.FC = () => {
           expandIcon: treeExpandIcon(),
           expandedRowRender: (record) => expandedRowRender(record.secret),
           rowExpandable: () => true,
+          expandedRowKeys,
+          onExpandedRowsChange: (rowKeys) => {
+            setExpandedRowKeys([...rowKeys]);
+          },
         }}
         pagination={false}
         size="small"

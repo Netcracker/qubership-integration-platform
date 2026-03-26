@@ -228,14 +228,13 @@ describe("VariablesTable", () => {
     expect(buttons.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("calls onAdd via Enter on key input when key and value are filled", () => {
+  it("calls onAdd via Enter on key input when value is not filled", () => {
     const onAdd = jest.fn();
     renderTable({ isAddingNew: true, onAdd });
     const keyInput = screen.getByPlaceholderText("Key");
     fireEvent.change(keyInput, { target: { value: "my-new-key" } });
     fireEvent.keyDown(keyInput, { key: "Enter" });
-    // onAdd is NOT called because value is empty; just verifying no error
-    expect(onAdd).not.toHaveBeenCalled();
+    expect(onAdd).toHaveBeenCalled();
   });
 
   it("does not include NEW_VARIABLE_KEY row when isAddingNew=false", () => {
