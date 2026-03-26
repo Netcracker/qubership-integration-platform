@@ -12,6 +12,7 @@ import {
   Typography,
 } from "antd";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { treeExpandIcon } from "../../table/TreeExpandIcon.tsx";
 import { LiveExchange, SessionsLoggingLevel } from "../../../api/apiTypes.ts";
 import { ResizableTitle } from "../../ResizableTitle.tsx";
 import commonStyles from "../CommonStyle.module.css";
@@ -364,6 +365,7 @@ export const LiveExchanges: React.FC = () => {
           rowKey="exchangeId"
           loading={isLoading}
           expandable={{
+            expandIcon: treeExpandIcon(),
             childrenColumnName: "exchanges",
           }}
           components={{

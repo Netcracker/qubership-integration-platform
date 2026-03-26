@@ -82,6 +82,7 @@ import { TRANSFORMATIONS } from "../../mapper/model/transformations.ts";
 import { ElementReferencesList } from "./ElementReferencesList.tsx";
 import { traverseElementsDepthFirst } from "../../misc/tree-utils.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
 
 const MAPPER_DND_REFERENCE_MEDIA_TYPE = "mapper/reference-json";
 const DRAG_POINT_ID = "drag-point";
@@ -1383,6 +1384,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
               },
             })}
             expandable={{
+              expandIcon: treeExpandIcon(),
               defaultExpandedRowKeys: [
                 "constant-group",
                 "header-group",
@@ -1456,6 +1458,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
               },
             })}
             expandable={{
+              expandIcon: treeExpandIcon(),
               defaultExpandedRowKeys: [
                 "constant-group",
                 "header-group",

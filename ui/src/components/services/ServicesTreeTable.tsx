@@ -4,6 +4,7 @@ import type {
   FilterDropdownProps,
   TableRowSelection,
 } from "antd/es/table/interface";
+import { treeExpandIcon } from "../table/TreeExpandIcon";
 import { formatTimestamp } from "../../misc/format-utils";
 import { UsageStatusTag } from "./utils";
 import { SourceFlagTag } from "./ui/SourceFlagTag";
@@ -693,7 +694,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         columns={finalColumns}
         rowKey={rowKey}
         loading={loading}
-        expandable={{ ...expandable, indentSize: 24 }}
+        expandable={{ expandIcon: treeExpandIcon(), ...expandable, indentSize: 24 }}
         size={"small"}
         pagination={pagination}
         tableLayout="fixed"

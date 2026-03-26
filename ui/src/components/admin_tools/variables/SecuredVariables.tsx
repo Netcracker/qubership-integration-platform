@@ -20,6 +20,7 @@ import { useNotificationService } from "../../../hooks/useNotificationService.ts
 import { ResizeCallbackData } from "react-resizable";
 import { LongActionButton } from "../../LongActionButton.tsx";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { treeExpandIcon } from "../../table/TreeExpandIcon.tsx";
 import { api } from "../../../api/api.ts";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { Require } from "../../../permissions/Require.tsx";
@@ -470,6 +471,7 @@ export const SecuredVariables: React.FC = () => {
           },
         ]}
         expandable={{
+          expandIcon: treeExpandIcon(),
           expandedRowRender: (record) => expandedRowRender(record.secret),
           rowExpandable: () => true,
         }}

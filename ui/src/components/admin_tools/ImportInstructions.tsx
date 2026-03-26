@@ -15,6 +15,7 @@ import {
 import type { MenuProps, TableProps } from "antd";
 import Dragger from "antd/es/upload/Dragger";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
 import commonStyles from "./CommonStyle.module.css";
 import { api } from "../../api/api.ts";
 import {
@@ -760,6 +761,7 @@ export const ImportInstructions: React.FC = () => {
           loading={loading}
           scroll={{ y: "100%" }}
           expandable={{
+            expandIcon: treeExpandIcon(),
             defaultExpandAllRows: true,
             defaultExpandedRowKeys: ["Chain", "Service", "Common Variable"],
           }}

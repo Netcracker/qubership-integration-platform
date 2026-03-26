@@ -528,9 +528,9 @@ describe("Diagnostic", () => {
       expect(container.textContent).toContain("No Children");
     });
 
-    // Should render a spacer span (width: 20) instead of expand icon
-    const spacers = container.querySelectorAll("span[style*='width: 20px']");
-    expect(spacers.length).toBeGreaterThan(0);
+    // Should not render expand icon (role="button") for rows without children
+    const expandIcons = container.querySelectorAll("span[role='button']");
+    expect(expandIcons.length).toBe(0);
   });
 
   it("renders child chain row with icon and link to chain", async () => {

@@ -56,6 +56,7 @@ import {
 import { MenuInfo } from "rc-menu/lib/interface";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
+import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -67,12 +68,7 @@ function buildTableItems(
   const itemMap = new Map<string, ChainTableItem>(
     folderItems.map((item) => [
       item.id,
-      item.itemType === CatalogItemType.FOLDER
-        ? {
-            ...item,
-            children: [],
-          }
-        : { ...item },
+      { ...item, children: [] },
     ]),
   );
   const items: ChainTableItem[] = [];
@@ -113,6 +109,8 @@ type Operation = {
   item: ChainTableItem;
   operation: OperationType;
 };
+
+const chainExpandIcon = treeExpandIcon<ChainTableItem>();
 
 const Chains = () => {
   const navigate = useNavigate();
@@ -206,6 +204,10 @@ const Chains = () => {
       const s = new Set(loadedFolders);
       s.add(folderId);
       setLoadedFolders(s);
+      const hasChildren = response.some((item) => item.parentId === folderId);
+      if (hasChildren) {
+        setExpandedRowKeys((keys) => [...keys, folderId]);
+      }
     });
   };
 
@@ -477,63 +479,58 @@ const Chains = () => {
     const dropClass = (dropId: string) =>
       dropBreadcrumbId === dropId ? styles.breadcrumbDropTarget : undefined;
 
-    const handleKeyDown =
-      (handler: () => void) => (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handler();
-        }
-      };
-
     const homeItem = {
       title: (
         <span
           {...(isDragging ? getBreadcrumbDropProps(undefined) : {})}
           className={[
             styles.breadcrumbItem,
-            !isDragging ? styles.breadcrumbItemClickable : undefined,
             isDragging ? dropClass("root") : undefined,
           ]
             .filter(Boolean)
             .join(" ")}
-          {...(!isDragging
-            ? {
-                role: "link" as const,
-                tabIndex: 0,
-                onClick: () => void navigate("/chains"),
-                onKeyDown: handleKeyDown(() => void navigate("/chains")),
-              }
-            : {})}
         >
-          <OverridableIcon name="home" />
+          <a
+            href="/chains"
+            onClick={(e) => {
+              e.preventDefault();
+              if (!isDragging) {
+                void navigate("/chains");
+              }
+            }}
+          >
+            <OverridableIcon name="home" />
+          </a>
         </span>
       ),
     };
     const pathItems = folderPath.map((folder, index) => {
       const isClickable = !isDragging && index < folderPath.length - 1;
-      const handleClick = () =>
-        void navigate(`/chains?folder=${folder.id}`);
+      const folderUrl = `/chains?folder=${folder.id}`;
       return {
         title: (
           <span
             {...(isDragging ? getBreadcrumbDropProps(folder.id) : {})}
             className={[
               styles.breadcrumbItem,
-              isClickable ? styles.breadcrumbItemClickable : undefined,
               isDragging ? dropClass(folder.id) : undefined,
             ]
               .filter(Boolean)
               .join(" ")}
-            {...(isClickable
-              ? {
-                  role: "link" as const,
-                  tabIndex: 0,
-                  onClick: handleClick,
-                  onKeyDown: handleKeyDown(handleClick),
-                }
-              : {})}
           >
-            {folder.name}
+            {isClickable ? (
+              <a
+                href={folderUrl}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void navigate(folderUrl);
+                }}
+              >
+                {folder.name}
+              </a>
+            ) : (
+              folder.name
+            )}
           </span>
         ),
       };
@@ -899,7 +896,13 @@ const Chains = () => {
             <OverridableIcon name="file" />
           )}
           <a
+            href={
+              item.itemType === CatalogItemType.FOLDER
+                ? `/chains?folder=${item.id}`
+                : `/chains/${item.id}`
+            }
             onClick={(event) => {
+              event.preventDefault();
               event.stopPropagation();
               void navigate(
                 item.itemType === CatalogItemType.FOLDER
@@ -1159,12 +1162,27 @@ const Chains = () => {
           onRow={onRow}
           loading={isLoading}
           expandable={{
-            expandedRowKeys,
-            onExpandedRowsChange: (rowKeys) => {
-              setExpandedRowKeys([...rowKeys]);
+            expandIcon: ({ record, ...rest }) => {
+              const hideArrow =
+                record.itemType !== CatalogItemType.FOLDER ||
+                (loadedFolders.has(record.id) &&
+                  (record.children?.length ?? 0) === 0);
+              const props = { ...rest, record };
+              return chainExpandIcon(
+                hideArrow ? { ...props, expandable: false } : props,
+              );
             },
+            expandedRowKeys,
             onExpand: (expanded, item) => {
-              if (expanded && !loadedFolders.has(item.id)) {
+              if (!expanded) {
+                setExpandedRowKeys((keys) =>
+                  keys.filter((k) => k !== item.id),
+                );
+                return;
+              }
+              if (loadedFolders.has(item.id)) {
+                setExpandedRowKeys((keys) => [...keys, item.id]);
+              } else {
                 void openFolder(item.id);
               }
             },

@@ -6,16 +6,16 @@ import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
 import { ColumnsType } from "antd/lib/table";
 import React from "react";
-import { ColumnsFilter } from "../../../components/table/ColumnsFilter";
-import { useColumnSettingsButton } from "../../../components/table/useColumnSettingsButton";
+import { ColumnsFilter } from "../../../src/components/table/ColumnsFilter";
+import { useColumnSettingsButton } from "../../../src/components/table/useColumnSettingsButton";
 
 // src/components/table/useColumnSettingsButton.test.tsx
 // Mock getColumnsOrderKey and getColumnsVisibleKey from ColumnsFilter
 jest.mock<typeof ColumnsFilter>(
-  "../../../components/table/ColumnsFilter",
+  "../../../src/components/table/ColumnsFilter",
   () => {
     const actual = jest.requireActual<typeof ColumnsFilter>(
-      "../../../components/table/ColumnsFilter",
+      "../../../src/components/table/ColumnsFilter",
     );
     return {
       ...actual,

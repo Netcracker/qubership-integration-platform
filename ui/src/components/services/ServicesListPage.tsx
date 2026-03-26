@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import styles from "./Services.module.css";
-import { Input, Typography, message, Flex } from "antd";
+import { Typography, message, Flex } from "antd";
 import { CompactSearch } from "../table/CompactSearch.tsx";
 import { CreateServiceModal } from "./modals/CreateServiceModal";
 import { useNavigate } from "react-router-dom";
@@ -37,8 +37,8 @@ import ImportServicesModal from "./modals/ImportServicesModal";
 import { useModalsContext } from "../../Modals";
 import { getErrorMessage } from "../../misc/error-utils";
 import { useAsyncRequest } from "./useAsyncRequest";
-import type { ExpandableConfig } from "antd/es/table/interface";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
 import { ServiceDiscoveryButton } from "./ui/ServiceDiscoveryButton.tsx";
 import { Require } from "../../permissions/Require.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
@@ -239,36 +239,7 @@ export const ServicesListPage: React.FC = () => {
       );
     },
     childrenColumnName: "children",
-    expandIcon: ({
-      expanded,
-      onExpand,
-      record,
-    }: Parameters<
-      NonNullable<ExpandableConfig<ServiceEntity>["expandIcon"]>
-    >[0]) =>
-      expandable.rowExpandable(record) ? (
-        <span
-          onClick={(e) => {
-            onExpand(record, e);
-            e.stopPropagation();
-          }}
-          style={{
-            cursor: "pointer",
-            fontSize: 11,
-            color: "var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.45))",
-            display: "inline-flex",
-            alignItems: "center",
-            verticalAlign: "sub",
-            marginRight: 6,
-          }}
-        >
-          {expanded ? (
-            <OverridableIcon name="down" />
-          ) : (
-            <OverridableIcon name="right" />
-          )}
-        </span>
-      ) : null,
+    expandIcon: treeExpandIcon<ServiceEntity>(),
   };
 
   const isRootEntity = (record: ServiceEntity) => {

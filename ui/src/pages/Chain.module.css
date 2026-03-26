@@ -28,6 +28,10 @@
   padding-bottom: 40px;
 }
 
+.breadcrumb li:last-child {
+  cursor: default;
+}
+
 .chainTabs {
   flex: 1;
   min-height: 0;

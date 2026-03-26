@@ -83,6 +83,7 @@ import {
 import { useMappingDescription } from "./useMappingDescription.tsx";
 import { MappingTableItemActionButton } from "./MappingTableItemActionButton.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton.tsx";
 import {
   compareDataTypes,
@@ -247,14 +248,20 @@ export function loadTypeWithConfirmation(
     type: DataType,
   ) => void,
 ): void {
-  const presentContext = isBodyGroup(item)
-    ? {
-        type: mappingDescription[schemaKind].body ?? DataTypes.nullType(),
-        definitions: [],
-      }
-    : isAttributeItem(item)
-      ? { type: item.resolvedType, definitions: item.typeDefinitions }
-      : { type: DataTypes.nullType(), definitions: [] };
+  let presentContext;
+  if (isBodyGroup(item)) {
+    presentContext = {
+      type: mappingDescription[schemaKind].body ?? DataTypes.nullType(),
+      definitions: [],
+    };
+  } else if (isAttributeItem(item)) {
+    presentContext = {
+      type: item.resolvedType,
+      definitions: item.typeDefinitions,
+    };
+  } else {
+    presentContext = { type: DataTypes.nullType(), definitions: [] };
+  }
   const path = isAttributeItem(item) ? item.path.map((a) => a.name) : [];
   const differences = compareDataTypes(
     presentContext,
@@ -1845,6 +1852,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
           pagination={false}
           scroll={{ y: "" }}
           expandable={{
+            expandIcon: treeExpandIcon(),
             defaultExpandedRowKeys: [
               "constant-group",
               "header-group",

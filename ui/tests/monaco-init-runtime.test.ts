@@ -3,10 +3,7 @@ import {
   initBundledMonaco,
 } from "../src/monaco-init-runtime";
 import { configureMonacoLoader } from "../src/monaco-loader-config";
-import {
-  getMonacoWorkerBasePath,
-  setMonacoWorkerBasePath,
-} from "../src/monaco-worker-config";
+import * as workerConfig from "../src/monaco-worker-config";
 
 jest.mock("../src/monaco-loader-config", () => ({
   configureMonacoLoader: jest.fn(),
@@ -20,19 +17,20 @@ jest.mock("../src/monaco-worker-config", () => ({
 jest.mock("monaco-editor", () => ({}));
 
 const mockedConfigureMonacoLoader = configureMonacoLoader as jest.Mock;
-const mockedGetMonacoWorkerBasePath = getMonacoWorkerBasePath as jest.Mock;
-const mockedSetMonacoWorkerBasePath = setMonacoWorkerBasePath as jest.Mock;
 
 describe("monaco-init-runtime", () => {
   beforeEach(() => {
-    mockedConfigureMonacoLoader.mockClear();
-    mockedGetMonacoWorkerBasePath.mockClear();
-    mockedSetMonacoWorkerBasePath.mockClear();
+    mockedConfigureMonacoLoader.mockReset();
+    (workerConfig.getMonacoWorkerBasePath as jest.Mock).mockReset();
+    (workerConfig.setMonacoWorkerBasePath as jest.Mock).mockReset();
+    // Reset globals to prevent leaking between tests
+    delete (global as Record<string, unknown>).window;
+    delete (global as Record<string, unknown>).document;
   });
 
   describe("initExternalMonaco", () => {
     it("configures loader with monaco and sets default worker base path", () => {
-      mockedGetMonacoWorkerBasePath.mockReturnValueOnce(null);
+      (workerConfig.getMonacoWorkerBasePath as jest.Mock).mockReturnValue(null);
       Object.defineProperty(global, "window", {
         value: { location: { origin: "https://example.com" } },
         configurable: true,
@@ -41,13 +39,13 @@ describe("monaco-init-runtime", () => {
       initExternalMonaco();
 
       expect(mockedConfigureMonacoLoader).toHaveBeenCalledTimes(1);
-      expect(mockedSetMonacoWorkerBasePath).toHaveBeenCalledWith(
+      expect(workerConfig.setMonacoWorkerBasePath).toHaveBeenCalledWith(
         "https://example.com/assets/monaco-work",
       );
     });
 
     it("normalizes trailing slashes in origin", () => {
-      mockedGetMonacoWorkerBasePath.mockReturnValueOnce(null);
+      (workerConfig.getMonacoWorkerBasePath as jest.Mock).mockReturnValue(null);
       Object.defineProperty(global, "window", {
         value: { location: { origin: "https://example.com///" } },
         configurable: true,
@@ -55,13 +53,15 @@ describe("monaco-init-runtime", () => {
 
       initExternalMonaco();
 
-      expect(mockedSetMonacoWorkerBasePath).toHaveBeenCalledWith(
+      expect(workerConfig.setMonacoWorkerBasePath).toHaveBeenCalledWith(
         "https://example.com/assets/monaco-work",
       );
     });
 
     it("does not override worker base path if already set", () => {
-      mockedGetMonacoWorkerBasePath.mockReturnValueOnce("https://custom/base");
+      (workerConfig.getMonacoWorkerBasePath as jest.Mock).mockReturnValue(
+        "https://custom/base",
+      );
       Object.defineProperty(global, "window", {
         value: { location: { origin: "https://example.com" } },
         configurable: true,
@@ -69,13 +69,13 @@ describe("monaco-init-runtime", () => {
 
       initExternalMonaco();
 
-      expect(mockedSetMonacoWorkerBasePath).not.toHaveBeenCalled();
+      expect(workerConfig.setMonacoWorkerBasePath).not.toHaveBeenCalled();
     });
   });
 
   describe("initBundledMonaco", () => {
     it("configures loader and uses global base when provided", () => {
-      mockedGetMonacoWorkerBasePath.mockReturnValueOnce(null);
+      (workerConfig.getMonacoWorkerBasePath as jest.Mock).mockReturnValue(null);
 
       Object.defineProperty(global, "window", {
         value: { __QIP_MONACO_WORKER_BASE__: "https://host/assets/monaco" },
@@ -89,13 +89,13 @@ describe("monaco-init-runtime", () => {
       initBundledMonaco();
 
       expect(mockedConfigureMonacoLoader).toHaveBeenCalledTimes(1);
-      expect(mockedSetMonacoWorkerBasePath).toHaveBeenCalledWith(
+      expect(workerConfig.setMonacoWorkerBasePath).toHaveBeenCalledWith(
         "https://host/assets/monaco",
       );
     });
 
     it("derives worker base path from current script URL", () => {
-      mockedGetMonacoWorkerBasePath.mockReturnValueOnce(null);
+      (workerConfig.getMonacoWorkerBasePath as jest.Mock).mockReturnValue(null);
 
       Object.defineProperty(global, "window", {
         value: {},
@@ -112,7 +112,7 @@ describe("monaco-init-runtime", () => {
 
       initBundledMonaco();
 
-      expect(mockedSetMonacoWorkerBasePath).toHaveBeenCalledWith(
+      expect(workerConfig.setMonacoWorkerBasePath).toHaveBeenCalledWith(
         "https://host/app/dist-lib/assets/monaco-work",
       );
     });

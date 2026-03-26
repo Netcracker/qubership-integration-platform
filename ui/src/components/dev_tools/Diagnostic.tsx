@@ -21,6 +21,7 @@ import { api } from "../../api/api";
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { formatTimestamp } from "../../misc/format-utils";
 import { IconName, OverridableIcon } from "../../icons/IconProvider";
+import { treeExpandIcon } from "../table/TreeExpandIcon";
 import { useModalsContext } from "../../Modals";
 import { DiagnosticValidationModal } from "./DiagnosticValidationModal";
 import { useDiagnosticValidationFilters } from "./useDiagnosticValidationFilters";
@@ -431,16 +432,7 @@ export const Diagnostic: React.FC = () => {
         sticky
         scroll={{ y: "" }}
         expandable={{
-          expandIcon: ({ expanded, onExpand, record, expandable }) =>
-            expandable ? (
-              <OverridableIcon
-                name={expanded ? "down" : "right"}
-                style={{ cursor: "pointer", marginRight: 8, fontSize: 12 }}
-                onClick={(e) => onExpand(record, e)}
-              />
-            ) : (
-              <span style={{ display: "inline-block", width: 20 }} />
-            ),
+          expandIcon: treeExpandIcon(),
           expandedRowKeys,
           onExpandedRowsChange: (rowKeys) => {
             setExpandedRowKeys([...rowKeys]);

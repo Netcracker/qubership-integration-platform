@@ -1,0 +1,25 @@
+/* Must use float: left to match Ant Design's .ant-table-row-indent layout */
+.expandIcon {
+  all: unset;
+  float: left;
+  cursor: pointer;
+  color: var(--vscode-descriptionForeground, rgb(0 0 0 / 45%));
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+}
+
+/* Zero-width space establishes line-height so the icon
+   vertically centers with adjacent text content */
+.expandIcon::before {
+  content: "\200b";
+}
+
+.expandSpacer {
+  float: left;
+  width: 17px;
+}
+
+.expandSpacer::before {
+  content: "\200b";
+}

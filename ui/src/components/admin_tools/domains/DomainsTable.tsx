@@ -3,6 +3,7 @@ import { Table, Button, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { EngineTable } from "./EngineTable";
 import { useEngines } from "./hooks/useEngines";
+import { treeExpandIcon } from "../../table/TreeExpandIcon";
 import tableStyles from "./Tables.module.css";
 import { EngineDomain } from "../../../api/apiTypes.ts";
 
@@ -77,6 +78,7 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
       pagination={false}
       className={tableStyles.mainTable}
       expandable={{
+        expandIcon: treeExpandIcon(),
         expandedRowRender: (record) => <EnginesForDomain domain={record} />,
         expandedRowKeys: expandedRowKeys,
         onExpandedRowsChange: (expandedKeys) =>

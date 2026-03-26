@@ -49,24 +49,43 @@ const ChainPage = () => {
   }, [chainId, getChain, setChain]);
 
   useEffect(() => {
+    const link = (href: string, content: React.ReactNode) => (
+      <a
+        href={href}
+        onClick={(e) => {
+          e.preventDefault();
+          void navigate(href);
+        }}
+      >
+        {content}
+      </a>
+    );
+
     const navigationItems = Object.entries(chain?.navigationPath ?? [])
       .reverse()
       .map(([key, value], index, arr) => ({
-        title: value,
-        href: index < arr.length - 1 ? `/chains?folder=${key}` : undefined,
+        title:
+          index < arr.length - 1
+            ? link(`/chains?folder=${key}`, value)
+            : value,
       }));
 
     setPathItems([
-      { href: "/chains", title: <OverridableIcon name="home" /> },
+      { title: link("/chains", <OverridableIcon name="home" />) },
       ...navigationItems,
       ...(sessionId
         ? [
-            { title: "Sessions", href: `/chains/${chainId}/sessions` },
+            {
+              title: link(
+                `/chains/${chainId}/sessions`,
+                "Sessions",
+              ),
+            },
             { title: sessionId },
           ]
         : []),
     ]);
-  }, [chain, chainId, sessionId]);
+  }, [chain, chainId, sessionId, navigate]);
 
   const handleTabChange = (key: string) => {
     void navigate(`/chains/${chainId}/${key}`);
@@ -162,7 +181,7 @@ const ChainPage = () => {
                 style={{ minHeight: 32 }}
               >
                 <Col>
-                  <Breadcrumb items={pathItems} />
+                  <Breadcrumb items={pathItems} className={styles.breadcrumb} style={{ marginLeft: 8 }} />
                 </Col>
                 <Col>
                   <Flex

@@ -1,3 +1,7 @@
+/**
+ * @jest-environment jsdom
+ */
+
 import type { AxiosRequestConfig, AxiosAdapter } from "axios";
 import {
   ImportEntityType,

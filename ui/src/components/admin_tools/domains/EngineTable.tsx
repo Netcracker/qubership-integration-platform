@@ -3,6 +3,7 @@ import { Button, Flex, Spin, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Engine, RunningStatus } from "../../../api/apiTypes.ts";
 import { DeploymentsTable } from "./DeploymentsTable";
+import { treeExpandIcon } from "../../table/TreeExpandIcon";
 import tableStyles from "./Tables.module.css";
 import { useDeploymentsForEngine } from "./hooks/useDeploymentsForEngine";
 import { RunningStatusValue } from "./RunningStatusValue.tsx";
@@ -102,6 +103,7 @@ export const EngineTable: React.FC<Props> = ({
           pagination={false}
           size="small"
           expandable={{
+            expandIcon: treeExpandIcon(),
             expandedRowRender: (engine) => (
               <DeploymentsForEngine engine={engine} domainName={domainName} />
             ),
