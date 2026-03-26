@@ -5,20 +5,6 @@ import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-Object.defineProperty(globalThis, "matchMedia", {
-  writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
-
 jest.mock("react-resizable/css/styles.css", () => ({}));
 jest.mock(
   "../../../../src/components/admin_tools/variables/Resizable.css",
@@ -63,9 +49,13 @@ jest.mock("../../../../src/components/ResizableTitle.tsx", () => ({
 }));
 
 jest.mock("antd", () => {
-  const realAntd = jest.requireActual("antd");
+  const actual: Record<string, unknown> = jest.requireActual("antd");
+  const mock: Record<string, unknown> = jest.requireActual(
+    "../../../__mocks__/LightweightTable",
+  );
   return {
-    ...(realAntd as Record<string, unknown>),
+    ...actual,
+    Table: mock.LightweightTable,
     Popconfirm: ({
       children,
       onConfirm,

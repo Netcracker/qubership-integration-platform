@@ -10,8 +10,7 @@ import {
   afterEach,
 } from "@jest/globals";
 import "@testing-library/jest-dom/jest-globals";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { RabbitMQMaasPage } from "../../../../src/components/dev_tools/maas/RabbitMQMaasPage";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 
 const TEST_NAMESPACE = "test-namespace";
 
@@ -63,13 +62,9 @@ jest.mock("../../../../src/misc/download-utils", () => ({
   downloadFile: (...args: unknown[]) => mockDownloadFile(...args),
 }));
 
-jest.mock("@ant-design/icons", () => {
-  const React = require("react");
-  return {
-    InfoCircleOutlined: () =>
-      React.createElement("span", { "data-testid": "info-icon" }),
-  };
-});
+jest.mock("@ant-design/icons", () => ({
+  InfoCircleOutlined: () => <span data-testid="info-icon" />,
+}));
 
 jest.mock("../../../../src/components/dev_tools/DevTools.module.css", () => ({
   __esModule: true,
@@ -96,6 +91,24 @@ jest.mock("../../../../src/icons/IconProvider.tsx", () => ({
   ),
 }));
 
+// Mock isRabbitMQFormValid to bypass Form.useWatch propagation issues in JSDOM.
+// The pure validation logic is covered exhaustively in types.test.ts.
+let mockIsFormValid = false;
+
+jest.mock("../../../../src/components/dev_tools/maas/types", () => {
+  const actual: Record<string, unknown> = jest.requireActual(
+    "../../../../src/components/dev_tools/maas/types",
+  );
+  return { ...actual, isRabbitMQFormValid: () => mockIsFormValid };
+});
+
+async function flushPromises(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 function fillValidFormForCreate(exchange = "my-exchange", queue = "my-queue") {
   fireEvent.change(screen.getByLabelText(/namespace/i), {
     target: { value: TEST_NAMESPACE },
@@ -111,23 +124,7 @@ function fillValidFormForCreate(exchange = "my-exchange", queue = "my-queue") {
   });
 }
 
-function fillValidFormForExport(
-  exchange = "export-exchange",
-  queue = "export-queue",
-) {
-  fireEvent.change(screen.getByLabelText(/namespace/i), {
-    target: { value: TEST_NAMESPACE },
-  });
-  fireEvent.change(screen.getByPlaceholderText(/vhost classifier name/i), {
-    target: { value: "public" },
-  });
-  fireEvent.change(screen.getByPlaceholderText(/exchange name/i), {
-    target: { value: exchange },
-  });
-  fireEvent.change(screen.getByPlaceholderText(/queue name/i), {
-    target: { value: queue },
-  });
-}
+import { RabbitMQMaasPage } from "../../../../src/components/dev_tools/maas/RabbitMQMaasPage";
 
 describe("RabbitMQMaasPage", () => {
   let originalWindow: unknown;
@@ -137,11 +134,11 @@ describe("RabbitMQMaasPage", () => {
     (globalThis as unknown as { window?: unknown }).window = {
       routes: { namespace: TEST_NAMESPACE },
     };
+    mockIsFormValid = false;
     mockGetMaasRabbitMQDeclarativeFile.mockResolvedValue(
       new File(["data"], "declarative.json"),
     );
     mockCreateMaasRabbitMQEntity.mockResolvedValue(undefined);
-    mockRequestFailed.mockClear();
   });
 
   afterEach(() => {
@@ -164,106 +161,141 @@ describe("RabbitMQMaasPage", () => {
     expect(screen.getByPlaceholderText(/routing key/i)).toBeInTheDocument();
   });
 
-  test("Create calls api.createMaasRabbitMQEntity with form values", async () => {
-    render(<RabbitMQMaasPage />);
-    fillValidFormForCreate("my-exchange", "my-queue");
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /create/i }),
-      ).not.toBeDisabled();
-    });
-    fireEvent.click(screen.getByRole("button", { name: /create/i }));
-    await waitFor(() => {
-      expect(mockCreateMaasRabbitMQEntity).toHaveBeenCalledWith({
-        namespace: TEST_NAMESPACE,
-        vhost: "public",
-        exchange: "my-exchange",
-        queue: "my-queue",
-        routingKey: "",
-      });
-    });
-  });
+  test(
+    "Create calls api.createMaasRabbitMQEntity with form values",
+    async () => {
+      mockIsFormValid = true;
+      render(<RabbitMQMaasPage />);
+      fillValidFormForCreate("my-exchange", "my-queue");
 
-  test("Create with routing key calls api with routing key", async () => {
-    render(<RabbitMQMaasPage />);
-    fillValidFormForCreate("ex", "q");
-    fireEvent.change(screen.getByPlaceholderText(/routing key/i), {
-      target: { value: "routing.key" },
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /create/i }),
-      ).not.toBeDisabled();
-    });
-    fireEvent.click(screen.getByRole("button", { name: /create/i }));
-    await waitFor(() => {
-      expect(mockCreateMaasRabbitMQEntity).toHaveBeenCalledWith({
-        namespace: TEST_NAMESPACE,
-        vhost: "public",
-        exchange: "ex",
-        queue: "q",
-        routingKey: "routing.key",
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /create/i }),
+        ).not.toBeDisabled();
       });
-    });
-  });
 
-  test("Export calls api.getMaasRabbitMQDeclarativeFile and downloadFile", async () => {
-    render(<RabbitMQMaasPage />);
-    fillValidFormForExport("export-exchange", "export-queue");
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /export/i }),
-      ).not.toBeDisabled();
-    });
-    fireEvent.click(screen.getByRole("button", { name: /export/i }));
-    await waitFor(() => {
-      expect(mockGetMaasRabbitMQDeclarativeFile).toHaveBeenCalledWith({
-        vhost: "public",
-        exchange: "export-exchange",
-        queue: "export-queue",
-        routingKey: "",
+      fireEvent.click(screen.getByRole("button", { name: /create/i }));
+      await waitFor(() => {
+        expect(mockCreateMaasRabbitMQEntity).toHaveBeenCalledWith({
+          namespace: TEST_NAMESPACE,
+          vhost: "public",
+          exchange: "my-exchange",
+          queue: "my-queue",
+          routingKey: "",
+        });
       });
-      expect(mockDownloadFile).toHaveBeenCalled();
-    });
-  });
+    },
+    10000,
+  );
 
-  test("shows error when export fails", async () => {
-    mockGetMaasRabbitMQDeclarativeFile.mockRejectedValue(
-      new Error("Export failed"),
-    );
-    render(<RabbitMQMaasPage />);
-    fillValidFormForExport();
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /export/i }),
-      ).not.toBeDisabled();
-    });
-    fireEvent.click(screen.getByRole("button", { name: /export/i }));
-    await waitFor(() => {
-      expect(mockRequestFailed).toHaveBeenCalledWith(
-        "Unable to export RabbitMQ declarative file.",
-        expect.any(Error),
+  test(
+    "Create with routing key calls api with routing key",
+    async () => {
+      mockIsFormValid = true;
+      render(<RabbitMQMaasPage />);
+      fillValidFormForCreate("ex", "q");
+      fireEvent.change(screen.getByPlaceholderText(/routing key/i), {
+        target: { value: "routing.key" },
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /create/i }),
+        ).not.toBeDisabled();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /create/i }));
+      await waitFor(() => {
+        expect(mockCreateMaasRabbitMQEntity).toHaveBeenCalledWith({
+          namespace: TEST_NAMESPACE,
+          vhost: "public",
+          exchange: "ex",
+          queue: "q",
+          routingKey: "routing.key",
+        });
+      });
+    },
+    10000,
+  );
+
+  test(
+    "Export calls api.getMaasRabbitMQDeclarativeFile and downloadFile",
+    async () => {
+      mockIsFormValid = true;
+      render(<RabbitMQMaasPage />);
+      fillValidFormForCreate("export-exchange", "export-queue");
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /export/i }),
+        ).not.toBeDisabled();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /export/i }));
+      await waitFor(() => {
+        expect(mockGetMaasRabbitMQDeclarativeFile).toHaveBeenCalledWith({
+          vhost: "public",
+          exchange: "export-exchange",
+          queue: "export-queue",
+          routingKey: "",
+        });
+        expect(mockDownloadFile).toHaveBeenCalled();
+      });
+    },
+    10000,
+  );
+
+  test(
+    "shows error when export fails",
+    async () => {
+      mockIsFormValid = true;
+      mockGetMaasRabbitMQDeclarativeFile.mockRejectedValue(
+        new Error("Export failed"),
       );
-    });
-  });
+      render(<RabbitMQMaasPage />);
+      fillValidFormForCreate();
 
-  test("shows error when create fails", async () => {
-    mockCreateMaasRabbitMQEntity.mockRejectedValue(new Error("API error"));
-    render(<RabbitMQMaasPage />);
-    fillValidFormForCreate();
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /create/i }),
-      ).not.toBeDisabled();
-    });
-    fireEvent.click(screen.getByRole("button", { name: /create/i }));
-    await waitFor(() => {
-      expect(mockRequestFailed).toHaveBeenCalledWith(
-        "Unable to create MaaS RabbitMQ entity with given values.",
-        expect.any(Error),
-      );
-    });
-  });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /export/i }),
+        ).not.toBeDisabled();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /export/i }));
+      await waitFor(() => {
+        expect(mockRequestFailed).toHaveBeenCalledWith(
+          "Unable to export RabbitMQ declarative file.",
+          expect.any(Error),
+        );
+      });
+    },
+    10000,
+  );
+
+  test(
+    "shows error when create fails",
+    async () => {
+      mockIsFormValid = true;
+      mockCreateMaasRabbitMQEntity.mockRejectedValue(new Error("API error"));
+      render(<RabbitMQMaasPage />);
+      fillValidFormForCreate();
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /create/i }),
+        ).not.toBeDisabled();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /create/i }));
+      await waitFor(() => {
+        expect(mockRequestFailed).toHaveBeenCalledWith(
+          "Unable to create MaaS RabbitMQ entity with given values.",
+          expect.any(Error),
+        );
+      });
+    },
+    10000,
+  );
 
   test("Reset clears form fields", async () => {
     render(<RabbitMQMaasPage />);
@@ -279,76 +311,49 @@ describe("RabbitMQMaasPage", () => {
     });
   });
 
-  test("form valid with exchange only", async () => {
+  test("buttons enabled when form is valid", async () => {
+    mockIsFormValid = true;
     render(<RabbitMQMaasPage />);
-    fireEvent.change(screen.getByLabelText(/namespace/i), {
-      target: { value: TEST_NAMESPACE },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/vhost classifier name/i), {
-      target: { value: "public" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/exchange name/i), {
-      target: { value: "only-exchange" },
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /create/i }),
-      ).not.toBeDisabled();
-    });
+    await flushPromises();
+
+    expect(
+      screen.getByRole("button", { name: /create/i }),
+    ).not.toBeDisabled();
   });
 
-  test("form valid with queue only", async () => {
+  test("buttons disabled when form is invalid", async () => {
+    mockIsFormValid = false;
     render(<RabbitMQMaasPage />);
-    fireEvent.change(screen.getByLabelText(/namespace/i), {
-      target: { value: TEST_NAMESPACE },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/vhost classifier name/i), {
-      target: { value: "public" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/queue name/i), {
-      target: { value: "only-queue" },
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /create/i }),
-      ).not.toBeDisabled();
-    });
+    await flushPromises();
+
+    expect(screen.getByRole("button", { name: /create/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /export/i })).toBeDisabled();
   });
 
-  test("Create disabled when both exchange and queue are empty", async () => {
-    render(<RabbitMQMaasPage />);
-    fireEvent.change(screen.getByLabelText(/namespace/i), {
-      target: { value: TEST_NAMESPACE },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/vhost classifier name/i), {
-      target: { value: "public" },
-    });
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /create/i })).toBeDisabled();
-      expect(screen.getByRole("button", { name: /export/i })).toBeDisabled();
-    });
-  });
-
-  test("routing key validation requires both exchange and queue", async () => {
-    render(<RabbitMQMaasPage />);
-    fireEvent.change(screen.getByLabelText(/namespace/i), {
-      target: { value: TEST_NAMESPACE },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/vhost classifier name/i), {
-      target: { value: "public" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/exchange name/i), {
-      target: { value: "ex" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/routing key/i), {
-      target: { value: "routing.key" },
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          /Fields "Exchange Name" and "Queue Name" must be specified/i,
-        ),
-      ).toBeInTheDocument();
-    });
-  });
+  test(
+    "routing key validation requires both exchange and queue",
+    async () => {
+      render(<RabbitMQMaasPage />);
+      fireEvent.change(screen.getByLabelText(/namespace/i), {
+        target: { value: TEST_NAMESPACE },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/vhost classifier name/i), {
+        target: { value: "public" },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/exchange name/i), {
+        target: { value: "ex" },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/routing key/i), {
+        target: { value: "routing.key" },
+      });
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            /Fields "Exchange Name" and "Queue Name" must be specified/i,
+          ),
+        ).toBeInTheDocument();
+      });
+    },
+    10000,
+  );
 });

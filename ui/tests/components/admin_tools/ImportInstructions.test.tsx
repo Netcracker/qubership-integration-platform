@@ -14,20 +14,6 @@ import { ImportInstructionAction } from "../../../src/api/apiTypes";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import { getAllPermissions } from "../../../src/permissions/funcs.ts";
 
-Object.defineProperty(globalThis, "matchMedia", {
-  writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
-
 Object.defineProperty(URL, "createObjectURL", {
   writable: true,
   value: jest.fn().mockReturnValue("blob:test"),
@@ -36,6 +22,14 @@ Object.defineProperty(URL, "createObjectURL", {
 Object.defineProperty(URL, "revokeObjectURL", {
   writable: true,
   value: jest.fn(),
+});
+
+jest.mock("antd", () => {
+  const actual: Record<string, unknown> = jest.requireActual("antd");
+  const mock: Record<string, unknown> = jest.requireActual(
+    "../../__mocks__/LightweightTable",
+  );
+  return { ...actual, Table: mock.LightweightTable };
 });
 
 jest.mock("antd/es/upload/Dragger", () => ({
@@ -77,14 +71,10 @@ jest.mock("../../../src/api/api", () => ({
   },
 }));
 
-const mockApi = jest.requireMock("../../../src/api/api").api as {
-  getImportInstructions: jest.Mock;
-  addImportInstruction: jest.Mock;
-  updateImportInstruction: jest.Mock;
-  deleteImportInstructions: jest.Mock;
-  uploadImportInstructions: jest.Mock;
-  exportImportInstructions: jest.Mock;
-};
+const mockApiModule: { api: Record<string, jest.Mock> } = jest.requireMock(
+  "../../../src/api/api",
+);
+const mockApi = mockApiModule.api;
 
 const mockRequestFailed = jest.fn();
 const mockSuccess = jest.fn();
@@ -156,8 +146,6 @@ async function flushPromises(): Promise<void> {
 describe("ImportInstructions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockRequestFailed.mockClear();
-    mockSuccess.mockClear();
     mockApi.getImportInstructions.mockResolvedValue(sampleInstructions);
     mockApi.exportImportInstructions.mockResolvedValue(
       new File(["content"], "qip-import-instructions.yaml"),
@@ -165,6 +153,7 @@ describe("ImportInstructions", () => {
   });
 
   afterEach(() => {
+    // restoreAllMocks is needed to undo jest.spyOn (e.g. confirmSpy)
     jest.restoreAllMocks();
   });
 
@@ -307,61 +296,6 @@ describe("ImportInstructions", () => {
     expect(within(dialog).getByPlaceholderText("Enter id")).toBeInTheDocument();
   });
 
-  // it("shows Id is required validation error when submitting empty form", async () => {
-  //   render(<ImportInstructions />, { wrapper: ContextProviders });
-
-  //   await flushPromises();
-  //   const addButton = screen
-  //     .getAllByRole("button", { name: /^add$/i })
-  //     .find((b) => !b.closest('[role="dialog"]'));
-  //   expect(addButton).toBeDefined();
-  //   fireEvent.click(addButton!);
-
-  //   expect(screen.getByText("Add Instruction")).toBeInTheDocument();
-
-  //   const addInModalButton = screen
-  //     .getAllByRole("button", { name: /^add$/i })
-  //     .find((b) => b.closest(".ant-modal-footer"));
-  //   expect(addInModalButton).toBeDefined();
-  //   fireEvent.click(addInModalButton!);
-
-  //   await waitFor(
-  //     () => {
-  //       expect(screen.getByText("Id is required")).toBeInTheDocument();
-  //     },
-  //     { timeout: 2000 },
-  //   );
-  //   expect(mockApi.addImportInstruction).not.toHaveBeenCalled();
-  // }, 8000);
-
-  // it("calls addImportInstruction when form is filled and submitted", async () => {
-  //   mockApi.addImportInstruction.mockResolvedValue({});
-  //   render(<ImportInstructions />, { wrapper: ContextProviders });
-
-  //   await flushPromises();
-  //   const addButton = screen
-  //     .getAllByRole("button", { name: /^add$/i })
-  //     .find((b) => !b.closest('[role="dialog"]'));
-  //   expect(addButton).toBeDefined();
-  //   fireEvent.click(addButton!);
-
-  //   const dialog = screen.getByRole("dialog");
-  //   const idInput = within(dialog).getByPlaceholderText("Enter id");
-  //   fireEvent.change(idInput, { target: { value: "my-chain-id" } });
-
-  //   const addInModalButton = screen
-  //     .getAllByRole("button", { name: /^add$/i })
-  //     .find((b) => b.closest(".ant-modal-footer"));
-  //   if (addInModalButton) {
-  //     fireEvent.click(addInModalButton);
-  //   }
-
-  //   await flushPromises();
-  //   expect(mockApi.addImportInstruction).toHaveBeenCalledWith(
-  //     expect.objectContaining({ id: "my-chain-id" }),
-  //   );
-  // }, 8000);
-
   it("UploadInstructionsModal Upload button is disabled when no file selected", async () => {
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
@@ -380,8 +314,9 @@ describe("ImportInstructions", () => {
   });
 
   it("handleExport: URL.createObjectURL is called with the exported file blob", async () => {
-    const createObjectURL = URL.createObjectURL as jest.Mock;
-    createObjectURL.mockClear();
+    const createObjectURLMock = (URL as unknown as Record<string, jest.Mock>)
+      .createObjectURL;
+    createObjectURLMock.mockClear();
 
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
@@ -390,7 +325,7 @@ describe("ImportInstructions", () => {
 
     await flushPromises();
     expect(mockApi.exportImportInstructions).toHaveBeenCalled();
-    expect(createObjectURL).toHaveBeenCalled();
+    expect(createObjectURLMock).toHaveBeenCalled();
   });
 
   it("renders labels as Tag components and modifiedWhen as formatted date", async () => {
@@ -506,9 +441,7 @@ describe("ImportInstructions", () => {
   it("handleDelete: select row, confirm delete modal, deleteImportInstructions called", async () => {
     mockApi.deleteImportInstructions.mockResolvedValue(undefined);
 
-    const confirmSpy = jest
-      .spyOn(Modal, "confirm")
-      .mockImplementation((props = {}) => {
+    jest.spyOn(Modal, "confirm").mockImplementation((props = {}) => {
         const onOk = props.onOk as
           | ((...args: unknown[]) => unknown)
           | undefined;
@@ -534,41 +467,7 @@ describe("ImportInstructions", () => {
 
     await flushPromises();
     expect(mockApi.deleteImportInstructions).toHaveBeenCalled();
-
-    confirmSpy.mockRestore();
   });
-
-  // it("UploadInstructionsModal: selecting file enables Upload button and triggers uploadImportInstructions", async () => {
-  //   mockApi.uploadImportInstructions.mockResolvedValue([
-  //     {
-  //       id: "c1",
-  //       name: "Chain 1",
-  //       entityType: "CHAIN",
-  //       status: "CREATED",
-  //       errorMessage: null,
-  //     },
-  //   ]);
-
-  //   render(<ImportInstructions />, { wrapper: ContextProviders });
-
-  //   await flushPromises();
-  //   fireEvent.click(screen.getByTestId("import-instructions-upload"));
-
-  //   const dragger = screen.getByTestId("dragger");
-  //   fireEvent.click(dragger);
-
-  //   const uploadButton = screen
-  //     .queryAllByRole("button", { name: /^upload$/i })
-  //     .find(
-  //       (b) =>
-  //         b.closest(".ant-modal-footer") && !(b as HTMLButtonElement).disabled,
-  //     );
-  //   expect(uploadButton).toBeDefined();
-  //   fireEvent.click(uploadButton!);
-
-  //   await flushPromises();
-  //   expect(mockApi.uploadImportInstructions).toHaveBeenCalled();
-  // });
 
   it("UploadInstructionsModal: Close button refetches instructions", async () => {
     render(<ImportInstructions />, { wrapper: ContextProviders });
@@ -587,32 +486,6 @@ describe("ImportInstructions", () => {
     expect(mockApi.getImportInstructions).toHaveBeenCalledTimes(2);
   });
 
-  // it("AddInstructionModal: calls requestFailed when addImportInstruction throws", async () => {
-  //   mockApi.addImportInstruction.mockRejectedValue(new Error("server error"));
-
-  //   render(<ImportInstructions />, { wrapper: ContextProviders });
-
-  //   await flushPromises();
-  //   const addButton = screen
-  //     .getAllByRole("button", { name: /^add$/i })
-  //     .find((b) => !b.closest('[role="dialog"]'));
-  //   expect(addButton).toBeDefined();
-  //   fireEvent.click(addButton!);
-
-  //   const dialog = screen.getByRole("dialog");
-  //   const idInput = within(dialog).getByPlaceholderText("Enter id");
-  //   fireEvent.change(idInput, { target: { value: "some-id" } });
-
-  //   const addInModalButton = screen
-  //     .getAllByRole("button", { name: /^add$/i })
-  //     .find((b) => b.closest(".ant-modal-footer"));
-  //   expect(addInModalButton).toBeDefined();
-  //   fireEvent.click(addInModalButton!);
-
-  //   await flushPromises();
-  //   expect(mockApi.addImportInstruction).toHaveBeenCalled();
-  //   expect(mockRequestFailed).toHaveBeenCalled();
-  // }, 8000);
 });
 
 describe("buildTableData", () => {
@@ -696,7 +569,7 @@ describe("buildTableData", () => {
     expect(serviceGroup.children![0].key).toBe("Service-DELETE-s1");
   });
 
-  it("maps commonVariable-ignore into Common Variable group", async () => {
+  it("maps commonVariable-ignore into Common Variable group", () => {
     const result = buildTableData({
       chains: { ignore: [], override: [], delete: [] },
       services: { ignore: [], delete: [] },
@@ -712,7 +585,7 @@ describe("buildTableData", () => {
     expect(varGroup.children![0].key).toBe("Common Variable-IGNORE-v1");
   });
 
-  it("maps chain-delete into Chains group with DELETE action", async () => {
+  it("maps chain-delete into Chains group with DELETE action", () => {
     const result = buildTableData({
       chains: {
         ignore: [],
@@ -732,7 +605,7 @@ describe("buildTableData", () => {
     expect(chainGroup.children![0].entityType).toBe("Chain");
   });
 
-  it("maps service-ignore into Services group with IGNORE action", async () => {
+  it("maps service-ignore into Services group with IGNORE action", () => {
     const result = buildTableData({
       chains: { ignore: [], override: [], delete: [] },
       services: { ignore: [{ id: "s1", name: "Svc Ign" }], delete: [] },
@@ -750,7 +623,7 @@ describe("buildTableData", () => {
     expect(serviceGroup.children![0].entityType).toBe("Service");
   });
 
-  it("maps commonVariable-delete into Common Variable group with DELETE action", async () => {
+  it("maps commonVariable-delete into Common Variable group with DELETE action", () => {
     const result = buildTableData({
       chains: { ignore: [], override: [], delete: [] },
       services: { ignore: [], delete: [] },

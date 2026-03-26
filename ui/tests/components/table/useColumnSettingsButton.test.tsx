@@ -140,8 +140,8 @@ describe("useColumnSettingsButton() useColumnSettingsButton method", () => {
         // But since ColumnSettingsButton is not mocked, we can't directly access onChange
         // Instead, we can simulate the change by exposing the handler
         // So we will expose the handleColumnsChange via a ref for testing
-        const [order, setOrder] = React.useState(["name", "age"]);
-        const [visible, setVisible] = React.useState(["name", "age"]);
+        const [, setOrder] = React.useState(["name", "age"]);
+        const [, setVisible] = React.useState(["name", "age"]);
         React.useEffect(() => {
           setOrder(["age", "name"]);
           setVisible(["age"]);

@@ -56,10 +56,19 @@ jest.mock(
 );
 
 jest.mock("../../../../src/permissions/ProtectedButton", () => ({
-  ProtectedButton: ({ buttonProps, tooltipProps }: ProtectedButtonProps) => (
-    <button data-testid={tooltipProps.title} {...buttonProps} />
-  ),
+  ProtectedButton: ({ buttonProps, tooltipProps }: ProtectedButtonProps) => {
+    const { iconName: _, ...domProps } = buttonProps as any;
+    return <button data-testid={tooltipProps.title} {...domProps} />;
+  },
 }));
+
+jest.mock("antd", () => {
+  const actual: Record<string, unknown> = jest.requireActual("antd");
+  const mock: Record<string, unknown> = jest.requireActual(
+    "../../../__mocks__/LightweightTable",
+  );
+  return { ...actual, Table: mock.LightweightTable };
+});
 
 // Mock CSS modules
 jest.mock(
@@ -168,7 +177,11 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
               unsavedChanges: true,
               deploymentStatus: ["DEPLOYED"],
             }),
-            createMockAccessControlData({ unsavedChanges: false }),
+            createMockAccessControlData({
+              chainId: "chain-2",
+              elementId: "elem-2",
+              unsavedChanges: false,
+            }),
           ],
         },
       });
@@ -531,7 +544,10 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
 });
 
 function getDataTable() {
-  return screen.getAllByRole("table")[1];
+  const tables = screen.getAllByRole("table");
+  // Real antd Table with scroll renders two tables (header + body);
+  // LightweightTable mock renders one. Pick the last one (body data).
+  return tables[tables.length - 1];
 }
 
 function getUnsavedChangesButton() {

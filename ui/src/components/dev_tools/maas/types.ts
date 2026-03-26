@@ -33,6 +33,14 @@ export const RABBITMQ_FIELD_NAMES = {
   ROUTING_KEY: "routingKey",
 } as const;
 
+/**
+ * Form field names for Kafka MaaS.
+ */
+export const KAFKA_FIELD_NAMES = {
+  NAMESPACE: "namespace",
+  TOPIC_CLASSIFIER_NAME: "topicClassifierName",
+} as const;
+
 export interface KafkaMaasFormData {
   namespace: string;
   topicClassifierName: string;
@@ -71,4 +79,45 @@ export interface MaasPageHeaderProps {
   exportInProgress: boolean;
   isFormValid: boolean;
   onExport: () => void;
+}
+
+/**
+ * Pure validation function for RabbitMQ MaaS form.
+ * Returns true when all required fields are filled and cross-field constraints are met.
+ */
+export function isRabbitMQFormValid(
+  formValues: Partial<RabbitMQMaasFormData> | undefined,
+): boolean {
+  const namespace = formValues?.namespace;
+  const vhost = formValues?.vhost;
+  const exchange = formValues?.exchange?.trim() ?? "";
+  const queue = formValues?.queue?.trim() ?? "";
+  const routingKey = formValues?.routingKey?.trim() ?? "";
+  if (
+    !namespace ||
+    !vhost ||
+    !NON_WHITESPACE_PATTERN.test(namespace) ||
+    !NON_WHITESPACE_PATTERN.test(vhost)
+  ) {
+    return false;
+  }
+  if (!exchange && !queue) return false;
+  return !(routingKey && (!exchange || !queue));
+}
+
+/**
+ * Pure validation function for Kafka MaaS form.
+ * Returns true when namespace and topic classifier name are non-empty.
+ */
+export function isKafkaFormValid(
+  formValues: Partial<KafkaMaasFormData> | undefined,
+): boolean {
+  const namespace = formValues?.namespace;
+  const topicClassifierName = formValues?.topicClassifierName;
+  return (
+    !!namespace &&
+    !!topicClassifierName &&
+    NON_WHITESPACE_PATTERN.test(namespace) &&
+    NON_WHITESPACE_PATTERN.test(topicClassifierName)
+  );
 }

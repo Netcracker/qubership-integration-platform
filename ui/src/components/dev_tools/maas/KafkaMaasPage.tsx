@@ -10,7 +10,9 @@ import { NamespaceField } from "./NamespaceField.tsx";
 import {
   KafkaMaasFormData,
   NON_WHITESPACE_PATTERN,
+  KAFKA_FIELD_NAMES,
   getMaasDefaultNamespace,
+  isKafkaFormValid,
 } from "./types.ts";
 import sharedStyles from "../DevTools.module.css";
 import styles from "./Maas.module.css";
@@ -25,34 +27,29 @@ export const KafkaMaasPage: React.FC = () => {
     | Partial<KafkaMaasFormData>
     | undefined;
 
-  const isFormValid = useMemo(() => {
-    const namespace = formValues?.namespace;
-    const topicClassifierName = formValues?.topicClassifierName;
-    return (
-      !!namespace &&
-      !!topicClassifierName &&
-      NON_WHITESPACE_PATTERN.test(namespace) &&
-      NON_WHITESPACE_PATTERN.test(topicClassifierName)
-    );
-  }, [formValues]);
+  const isFormValid = useMemo(() => isKafkaFormValid(formValues), [formValues]);
+
+  const getInitialFormValues = useCallback(
+    (): Partial<KafkaMaasFormData> => ({
+      [KAFKA_FIELD_NAMES.NAMESPACE]: getMaasDefaultNamespace(),
+      [KAFKA_FIELD_NAMES.TOPIC_CLASSIFIER_NAME]: "",
+    }),
+    [],
+  );
 
   useEffect(() => {
-    form.setFieldsValue({
-      namespace: getMaasDefaultNamespace(),
-      topicClassifierName: "",
-    });
-  }, [form]);
+    form.setFieldsValue(getInitialFormValues());
+  }, [form, getInitialFormValues]);
 
   const handleReset = useCallback(() => {
-    form.setFieldsValue({
-      namespace: getMaasDefaultNamespace(),
-      topicClassifierName: "",
-    });
-  }, [form]);
+    form.setFieldsValue(getInitialFormValues());
+  }, [form, getInitialFormValues]);
 
   const handleExport = useCallback(async () => {
     try {
-      const values = await form.validateFields(["topicClassifierName"]);
+      const values = await form.validateFields([
+        KAFKA_FIELD_NAMES.TOPIC_CLASSIFIER_NAME,
+      ]);
       setExportInProgress(true);
       const file = await api.getMaasKafkaDeclarativeFile({
         topicClassifierName: values.topicClassifierName,
@@ -96,17 +93,21 @@ export const KafkaMaasPage: React.FC = () => {
         title="Kafka - MaaS"
         exportInProgress={exportInProgress}
         isFormValid={isFormValid}
-        onExport={handleExport}
+        onExport={() => void handleExport()}
       />
 
       <div className={styles["parametersSection"]}>
         <div className={styles["parametersHeading"]}>Parameters</div>
-        <Form form={form} layout="vertical" onFinish={handleCreate}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={() => void handleCreate()}
+        >
           <NamespaceField />
 
           <Form.Item
             label="Topic Classifier Name"
-            name="topicClassifierName"
+            name={KAFKA_FIELD_NAMES.TOPIC_CLASSIFIER_NAME}
             required
             rules={[
               { required: true, message: "Topic Classifier Name is required" },
@@ -125,7 +126,7 @@ export const KafkaMaasPage: React.FC = () => {
         <MaasFormActions
           createInProgress={createInProgress}
           isFormValid={isFormValid}
-          onCreate={handleCreate}
+          onCreate={() => void handleCreate()}
           onReset={handleReset}
         />
       </div>

@@ -14,6 +14,7 @@ import {
   DEFAULT_VHOST,
   RABBITMQ_FIELD_NAMES,
   getMaasDefaultNamespace,
+  isRabbitMQFormValid,
 } from "./types.ts";
 import sharedStyles from "../DevTools.module.css";
 import styles from "./Maas.module.css";
@@ -28,24 +29,10 @@ export const RabbitMQMaasPage: React.FC = () => {
     | Partial<RabbitMQMaasFormData>
     | undefined;
 
-  const isFormValid = useMemo(() => {
-    const namespace = formValues?.namespace;
-    const vhost = formValues?.vhost;
-    const exchange = formValues?.exchange?.trim() ?? "";
-    const queue = formValues?.queue?.trim() ?? "";
-    const routingKey = formValues?.routingKey?.trim() ?? "";
-    if (
-      !namespace ||
-      !vhost ||
-      !NON_WHITESPACE_PATTERN.test(namespace) ||
-      !NON_WHITESPACE_PATTERN.test(vhost)
-    ) {
-      return false;
-    }
-    if (!exchange && !queue) return false;
-    if (routingKey && (!exchange || !queue)) return false;
-    return true;
-  }, [formValues]);
+  const isFormValid = useMemo(
+    () => isRabbitMQFormValid(formValues),
+    [formValues],
+  );
 
   const getInitialFormValues = useCallback(
     (): Partial<RabbitMQMaasFormData> => ({
@@ -119,11 +106,13 @@ export const RabbitMQMaasPage: React.FC = () => {
 
   const validateExchangeOrQueue = useCallback(
     (_: unknown) => {
-      const exchange = form.getFieldValue(RABBITMQ_FIELD_NAMES.EXCHANGE);
-      const queue = form.getFieldValue(RABBITMQ_FIELD_NAMES.QUEUE);
-      const exchangeTrimmed = exchange?.trim() || "";
-      const queueTrimmed = queue?.trim() || "";
-      if (!exchangeTrimmed && !queueTrimmed) {
+      const exchange = String(
+        form.getFieldValue(RABBITMQ_FIELD_NAMES.EXCHANGE) ?? "",
+      ).trim();
+      const queue = String(
+        form.getFieldValue(RABBITMQ_FIELD_NAMES.QUEUE) ?? "",
+      ).trim();
+      if (!exchange && !queue) {
         return Promise.reject(
           new Error(
             'Fields "Exchange Name" and "Queue Name" can\'t be empty at the same time.',
@@ -139,11 +128,13 @@ export const RabbitMQMaasPage: React.FC = () => {
     (_: unknown, value: string) => {
       const routingKeyTrimmed = value?.trim() || "";
       if (routingKeyTrimmed) {
-        const exchange = form.getFieldValue(RABBITMQ_FIELD_NAMES.EXCHANGE);
-        const queue = form.getFieldValue(RABBITMQ_FIELD_NAMES.QUEUE);
-        const exchangeTrimmed = exchange?.trim() || "";
-        const queueTrimmed = queue?.trim() || "";
-        if (!exchangeTrimmed || !queueTrimmed) {
+        const exchange = String(
+          form.getFieldValue(RABBITMQ_FIELD_NAMES.EXCHANGE) ?? "",
+        ).trim();
+        const queue = String(
+          form.getFieldValue(RABBITMQ_FIELD_NAMES.QUEUE) ?? "",
+        ).trim();
+        if (!exchange || !queue) {
           return Promise.reject(
             new Error(
               'Fields "Exchange Name" and "Queue Name" must be specified.',
@@ -162,12 +153,16 @@ export const RabbitMQMaasPage: React.FC = () => {
         title="RabbitMQ - MaaS"
         exportInProgress={exportInProgress}
         isFormValid={isFormValid}
-        onExport={handleExport}
+        onExport={() => void handleExport()}
       />
 
       <div className={styles["parametersSection"]}>
         <div className={styles["parametersHeading"]}>Parameters</div>
-        <Form form={form} layout="vertical" onFinish={handleCreate}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={() => void handleCreate()}
+        >
           <NamespaceField />
 
           <Form.Item
@@ -234,7 +229,7 @@ export const RabbitMQMaasPage: React.FC = () => {
         <MaasFormActions
           createInProgress={createInProgress}
           isFormValid={isFormValid}
-          onCreate={handleCreate}
+          onCreate={() => void handleCreate()}
           onReset={handleReset}
         />
       </div>

@@ -2,21 +2,7 @@
  * @jest-environment jsdom
  */
 
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
-
-import { describe, it, expect, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 import { render, fireEvent, waitFor, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
@@ -27,12 +13,24 @@ import {
   ValidationState,
 } from "../../src/api/apiTypes";
 
-const mockGetValidations = jest.fn<() => Promise<DiagnosticValidation[]>>();
-const mockGetValidation = jest.fn<() => Promise<DiagnosticValidation>>();
-const mockRunValidations = jest.fn<() => Promise<void>>();
+const mockGetValidations = jest.fn<
+  (...args: unknown[]) => Promise<DiagnosticValidation[]>
+>();
+const mockGetValidation = jest.fn<
+  (...args: unknown[]) => Promise<DiagnosticValidation>
+>();
+const mockRunValidations = jest.fn<(...args: unknown[]) => Promise<void>>();
 const mockShowModal = jest.fn();
 const mockInfo = jest.fn();
 const mockRequestFailed = jest.fn();
+
+jest.mock("antd", () => {
+  const actual: Record<string, unknown> = jest.requireActual("antd");
+  const mock: Record<string, unknown> = jest.requireActual(
+    "../__mocks__/LightweightTable",
+  );
+  return { ...actual, Table: mock.LightweightTable };
+});
 
 jest.mock("../../src/api/api", () => ({
   api: {
@@ -74,6 +72,14 @@ jest.mock(
       filters: [],
       filterButton: <button data-testid="filter-button">Filter</button>,
     }),
+  }),
+);
+
+jest.mock(
+  "../../src/components/table/TreeExpandIcon.module.css",
+  () => ({
+    expandIcon: "expandIcon",
+    expandSpacer: "expandSpacer",
   }),
 );
 
@@ -159,17 +165,17 @@ describe("Diagnostic", () => {
 
     expect(
       screen.getByText(/only available for testing environment/),
-    ).toBeTruthy();
+    ).toBeInTheDocument();
   });
 
   it("renders Run Diagnostic button as primary with play icon", async () => {
     await renderAndWaitForLoad();
 
     const button = screen.getByTitle("Run Diagnostic");
-    expect(button).toBeTruthy();
+    expect(button).toBeInTheDocument();
     expect(
       button.querySelector("[data-testid='icon-caretRightFilled']"),
-    ).toBeTruthy();
+    ).toBeInTheDocument();
   });
 
   it("displays alerts count with colored tag for ERROR severity", async () => {
@@ -184,7 +190,7 @@ describe("Diagnostic", () => {
     await waitFor(() => {
       const tags = container.querySelectorAll(".ant-tag");
       const alertTag = Array.from(tags).find((tag) => tag.textContent === "5");
-      expect(alertTag).toBeTruthy();
+      expect(alertTag).toBeInTheDocument();
     });
   });
 
@@ -200,7 +206,7 @@ describe("Diagnostic", () => {
     await waitFor(() => {
       const tags = container.querySelectorAll(".ant-tag");
       const alertTag = Array.from(tags).find((tag) => tag.textContent === "2");
-      expect(alertTag).toBeTruthy();
+      expect(alertTag).toBeInTheDocument();
     });
   });
 
@@ -212,7 +218,7 @@ describe("Diagnostic", () => {
     await waitFor(() => {
       const tags = container.querySelectorAll(".ant-tag");
       const zeroTag = Array.from(tags).find((tag) => tag.textContent === "0");
-      expect(zeroTag).toBeTruthy();
+      expect(zeroTag).toBeInTheDocument();
     });
   });
 
@@ -222,7 +228,7 @@ describe("Diagnostic", () => {
     ]);
 
     await waitFor(() => {
-      expect(screen.getByText("Clickable Validation")).toBeTruthy();
+      expect(screen.getByText("Clickable Validation")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByText("Clickable Validation"));
@@ -286,9 +292,8 @@ describe("Diagnostic", () => {
       expect(container.textContent).toContain("Expandable");
     });
 
-    // Expand icon should be present for validation with children
     const expandIcon = container.querySelector("[data-testid='icon-right']");
-    expect(expandIcon).toBeTruthy();
+    expect(expandIcon).toBeInTheDocument();
   });
 
   it("renders chain entities without nested children for CHAIN entityType", async () => {
@@ -338,7 +343,6 @@ describe("Diagnostic", () => {
       expect(container.textContent).toContain("No Alerts");
     });
 
-    // No expand icon for items without children
     const expandIcons = container.querySelectorAll(
       "[data-testid='icon-right']",
     );
@@ -367,7 +371,7 @@ describe("Diagnostic", () => {
     ]);
 
     await waitFor(() => {
-      expect(container.querySelector("[data-testid='icon-bulb']")).toBeTruthy();
+      expect(container.querySelector("[data-testid='icon-bulb']")).toBeInTheDocument();
     });
   });
 
@@ -471,7 +475,6 @@ describe("Diagnostic", () => {
 
     await waitFor(() => {
       expect(container.textContent).toContain("Parent");
-      // Only one "Finished" badge for the parent, not for children
       const badges = container.querySelectorAll(".ant-badge");
       expect(badges.length).toBe(1);
     });
@@ -528,9 +531,8 @@ describe("Diagnostic", () => {
       expect(container.textContent).toContain("No Children");
     });
 
-    // Should not render expand icon (role="button") for rows without children
-    const expandIcons = container.querySelectorAll("span[role='button']");
-    expect(expandIcons.length).toBe(0);
+    const spacers = container.querySelectorAll("span.expandSpacer");
+    expect(spacers.length).toBeGreaterThan(0);
   });
 
   it("renders child chain row with icon and link to chain", async () => {
@@ -557,14 +559,13 @@ describe("Diagnostic", () => {
       expect(container.textContent).toContain("Parent Val");
     });
 
-    // Expand the parent row
     const expandIcon = container.querySelector("[data-testid='icon-right']");
-    expect(expandIcon).toBeTruthy();
+    expect(expandIcon).toBeInTheDocument();
     fireEvent.click(expandIcon!);
 
     await waitFor(() => {
       const chainLink = container.querySelector("a[href='/chains/c1']");
-      expect(chainLink).toBeTruthy();
+      expect(chainLink).toBeInTheDocument();
       expect(chainLink!.textContent).toBe("My Chain");
     });
   });
@@ -592,7 +593,6 @@ describe("Diagnostic", () => {
       expect(container.textContent).toContain("Parent Val");
     });
 
-    // Expand parent validation row
     const expandIcon = container.querySelector("[data-testid='icon-right']");
     fireEvent.click(expandIcon!);
 
@@ -648,7 +648,6 @@ describe("Diagnostic", () => {
     });
     mockGetValidation.mockResolvedValue(detailedValidation);
 
-    // Render with alertsCount > 0 but no chainEntities (not pre-loaded)
     const { container } = await renderAndWaitForLoad([
       makeValidation({
         id: "v1",
@@ -662,9 +661,8 @@ describe("Diagnostic", () => {
       expect(container.textContent).toContain("Expandable Val");
     });
 
-    // Expand the row - should trigger openValidation
     const expandIcon = container.querySelector("[data-testid='icon-right']");
-    expect(expandIcon).toBeTruthy();
+    expect(expandIcon).toBeInTheDocument();
     fireEvent.click(expandIcon!);
 
     await waitFor(() => {
@@ -714,10 +712,9 @@ describe("Diagnostic", () => {
     });
   });
 
-  it("disables Run Diagnostic button while loading", async () => {
-    // While initial load is in progress, button should be disabled
+  it("disables Run Diagnostic button while loading", () => {
     mockGetValidations.mockImplementation(
-      () => new Promise(() => {}), // Never resolves - simulates loading
+      () => new Promise(() => {}),
     );
 
     render(<Diagnostic />);
