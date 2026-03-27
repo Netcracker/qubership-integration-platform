@@ -8,8 +8,8 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MockExchanges;
 
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(MockitoExtension.class)
@@ -20,7 +20,7 @@ class SessionWarningStatusProcessorTest {
 
     @Test
     void shouldSetOverallWarningToTrue() throws Exception {
-        Exchange exchange = mock(Exchange.class);
+        Exchange exchange = MockExchanges.basic();
 
         try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class)) {
             processor.process(exchange);

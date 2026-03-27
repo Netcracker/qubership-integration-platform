@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MockExchanges;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,17 +25,20 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class MetadataServiceTest {
 
-    @Mock
-    MetadataConverter converter;
-
     @InjectMocks
     MetadataService service;
 
+    @Mock
+    MetadataConverter converter;
+    @Mock
+    Route route;
+    @Mock
+    Metadata metadata;
+    @Mock
+    CamelContext camelContext;
+
     @Test
     void shouldReturnMetadataWhenRouteHasRouteMetadataKey() {
-        Route route = mock(Route.class);
-        Metadata metadata = mock(Metadata.class);
-
         Map<String, Object> props = new HashMap<>();
         props.put(CamelConstants.ROUTE_METADATA_KEY, metadata);
         when(route.getProperties()).thenReturn(props);
@@ -47,8 +51,6 @@ class MetadataServiceTest {
 
     @Test
     void shouldReturnEmptyWhenRouteDoesNotHaveRouteMetadataKey() {
-        Route route = mock(Route.class);
-
         Map<String, Object> props = new HashMap<>();
         when(route.getProperties()).thenReturn(props);
 
@@ -59,10 +61,7 @@ class MetadataServiceTest {
 
     @Test
     void shouldReturnMetadataWhenExchangeResolvesRouteFromContext() {
-        Exchange exchange = mock(Exchange.class);
-        CamelContext camelContext = mock(CamelContext.class);
-        Route route = mock(Route.class);
-        Metadata metadata = mock(Metadata.class);
+        Exchange exchange = MockExchanges.basic();
 
         when(exchange.getContext()).thenReturn(camelContext);
         when(exchange.getFromRouteId()).thenReturn("route-1");
@@ -81,7 +80,6 @@ class MetadataServiceTest {
 
     @Test
     void shouldReturnEmptyWhenCamelContextHasNoRouteForRouteId() {
-        CamelContext camelContext = mock(CamelContext.class);
         when(camelContext.getRoute("missing-route")).thenReturn(null);
 
         Optional<Metadata> result = service.getMetadata(camelContext, "missing-route");
@@ -92,9 +90,6 @@ class MetadataServiceTest {
 
     @Test
     void shouldReturnEmptyWhenRouteExistsButHasNoMetadata() {
-        CamelContext camelContext = mock(CamelContext.class);
-        Route route = mock(Route.class);
-
         when(camelContext.getRoute("route-1")).thenReturn(route);
         when(route.getProperties()).thenReturn(new HashMap<>());
 
@@ -106,7 +101,6 @@ class MetadataServiceTest {
     @Test
     void shouldSetRoutePropertyWithConvertedMetadataWhenSetMetadata() {
         RouteDefinition routeDefinition = mock(RouteDefinition.class);
-        Metadata metadata = mock(Metadata.class);
 
         when(converter.toString(metadata)).thenReturn("meta-as-string");
 

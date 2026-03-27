@@ -25,10 +25,10 @@ class PostgresIdempotentRepositoryTest {
 
     private static final String EXPIRY_PROPERTY = SYSTEM_PROPERTY_PREFIX + "keyExpiry";
 
+    private PostgresIdempotentRepository repository;
+
     @Mock
     private IdempotencyRecordService idempotencyRecordService;
-
-    private PostgresIdempotentRepository repository;
 
     @BeforeEach
     void setUp() {

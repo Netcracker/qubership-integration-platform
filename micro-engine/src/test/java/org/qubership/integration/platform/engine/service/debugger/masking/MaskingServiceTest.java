@@ -16,10 +16,12 @@
 
 package org.qubership.integration.platform.engine.service.debugger.masking;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.ws.rs.NotSupportedException;
 import jakarta.ws.rs.core.MediaType;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -39,15 +41,18 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class MaskingServiceTest {
 
-    private MaskingService service(ObjectMapper mapper) {
-        return new MaskingService(mapper);
+    private MaskingService service;
+
+    private ObjectMapper mapper;
+
+    @BeforeEach
+    void setUp() {
+        mapper = ObjectMappers.getObjectMapper();
+        service = new MaskingService(mapper);
     }
 
     @Test
-    void shouldMaskJsonValuesAndArraysWhenJson() throws Exception {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
+    void shouldMaskJsonValuesAndArraysWhenJson() throws JsonProcessingException {
         String json = """
                 {
                   "password": "123",
@@ -73,7 +78,7 @@ class MaskingServiceTest {
                 """;
 
         Set<String> fields = Set.of("password", "token", "codes");
-        String masked = svc.maskFields(json, fields, MediaType.APPLICATION_JSON_TYPE);
+        String masked = service.maskFields(json, fields, MediaType.APPLICATION_JSON_TYPE);
 
         JsonNode root = mapper.readTree(masked);
         assertEquals(CamelConstants.MASKING_TEMPLATE, root.get("password").asText());
@@ -92,12 +97,9 @@ class MaskingServiceTest {
 
     @Test
     void shouldTreatJsonPatchAsJson() throws Exception {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
         String json = "{\"token\":\"abc\",\"other\":\"v\"}";
         MediaType jsonPatch = MediaType.valueOf("application/json-patch+json");
-        String masked = svc.maskFields(json, Set.of("token"), jsonPatch);
+        String masked = service.maskFields(json, Set.of("token"), jsonPatch);
 
         JsonNode root = mapper.readTree(masked);
         assertEquals(CamelConstants.MASKING_TEMPLATE, root.get("token").asText());
@@ -106,19 +108,13 @@ class MaskingServiceTest {
 
     @Test
     void shouldWrapJsonErrorsWhenInvalidJson() {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
         assertThrows(LoggingMaskingException.class, () ->
-                svc.maskFields("{bad}", Set.of("password"), MediaType.APPLICATION_JSON_TYPE)
+                service.maskFields("{bad}", Set.of("password"), MediaType.APPLICATION_JSON_TYPE)
         );
     }
 
     @Test
-    void shouldMaskXmlElementsAndAttributesWhenXml() throws Exception {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
+    void shouldMaskXmlElementsAndAttributesWhenXml() {
         String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <root token="abc">
@@ -131,7 +127,7 @@ class MaskingServiceTest {
                 </root>
                 """;
 
-        String masked = svc.maskFields(xml, Set.of("password", "token", "secret", "attr"), MediaType.APPLICATION_XML_TYPE);
+        String masked = service.maskFields(xml, Set.of("password", "token", "secret", "attr"), MediaType.APPLICATION_XML_TYPE);
 
         assertTrue(masked.contains("<password>" + CamelConstants.MASKING_TEMPLATE + "</password>"));
         assertTrue(masked.contains("token=\"" + CamelConstants.MASKING_TEMPLATE + "\""));
@@ -148,47 +144,35 @@ class MaskingServiceTest {
 
     @Test
     void shouldWrapXmlErrorsWhenInvalidXml() {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
         String brokenXml = "<root><password>123</password>";
         assertThrows(LoggingMaskingException.class, () ->
-                svc.maskFields(brokenXml, Set.of("password"), MediaType.APPLICATION_XML_TYPE)
+                service.maskFields(brokenXml, Set.of("password"), MediaType.APPLICATION_XML_TYPE)
         );
     }
 
     @Test
     void shouldMaskFormUrlencodedWithDecodedKeyMatch() throws Exception {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
         String form = "password=abc&user=Bob&%74%6F%6B%65%6E=xyz";
-        String masked = svc.maskFields(form, Set.of("password", "token"), MediaType.valueOf("application/x-www-form-urlencoded"));
+        String masked = service.maskFields(form, Set.of("password", "token"), MediaType.valueOf("application/x-www-form-urlencoded"));
 
         assertEquals("password=" + CamelConstants.MASKING_TEMPLATE + "&user=Bob&%74%6F%6B%65%6E=" + CamelConstants.MASKING_TEMPLATE, masked);
     }
 
     @Test
     void shouldWrapFormUrlencodedErrorsOnBadPercent() {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
         String form = "%ZZ=abc&user=Bob";
         assertThrows(LoggingMaskingException.class, () ->
-                svc.maskFields(form, Set.of("user"), MediaType.valueOf("application/x-www-form-urlencoded"))
+                service.maskFields(form, Set.of("user"), MediaType.valueOf("application/x-www-form-urlencoded"))
         );
     }
 
     @Test
     void shouldMaskMapValuesOnlyForExistingKeys() {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
         Map<String, String> map = new HashMap<>();
         map.put("password", "123");
         map.put("user", "bob");
 
-        svc.maskFields(map, Set.of("password", "token"));
+        service.maskFields(map, Set.of("password", "token"));
 
         assertEquals(CamelConstants.MASKING_TEMPLATE, map.get("password"));
         assertEquals("bob", map.get("user"));
@@ -197,9 +181,6 @@ class MaskingServiceTest {
 
     @Test
     void shouldMaskPropertiesValuesViaSetValueOnlyForExistingKeys() {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
         SessionElementProperty p1 = Mockito.mock(SessionElementProperty.class);
         SessionElementProperty p2 = Mockito.mock(SessionElementProperty.class);
 
@@ -207,7 +188,7 @@ class MaskingServiceTest {
         props.put("secret", p1);
         props.put("keep", p2);
 
-        svc.maskPropertiesFields(props, Set.of("secret", "missing"));
+        service.maskPropertiesFields(props, Set.of("secret", "missing"));
 
         verify(p1, times(1)).setValue(CamelConstants.MASKING_TEMPLATE);
         verify(p2, never()).setValue(any());
@@ -215,21 +196,15 @@ class MaskingServiceTest {
 
     @Test
     void shouldThrowNotSupportedWhenUnknownContentType() {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
         assertThrows(NotSupportedException.class, () ->
-                svc.maskFields("abc", Set.of("x"), MediaType.TEXT_PLAIN_TYPE)
+                service.maskFields("abc", Set.of("x"), MediaType.TEXT_PLAIN_TYPE)
         );
     }
 
     @Test
     void shouldThrowNotSupportedWhenContentTypeNull() {
-        ObjectMapper mapper = ObjectMappers.getObjectMapper();
-        MaskingService svc = service(mapper);
-
         assertThrows(NotSupportedException.class, () ->
-                svc.maskFields("{}", Set.of("x"), null)
+                service.maskFields("{}", Set.of("x"), null)
         );
     }
 }

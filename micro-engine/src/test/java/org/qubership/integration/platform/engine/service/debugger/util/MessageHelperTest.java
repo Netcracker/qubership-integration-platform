@@ -21,8 +21,10 @@ import org.apache.camel.Message;
 import org.apache.camel.StreamCache;
 import org.apache.camel.TypeConverter;
 import org.apache.camel.WrappedFile;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.MockExchanges;
 
@@ -36,120 +38,106 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class MessageHelperTest {
 
+    @Mock
+    Exchange exchange;
+    @Mock
+    Message message;
+    @Mock
+    TypeConverter converter;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.withMessageAndConverter();
+        message = MockExchanges.getMessage(exchange);
+        converter = MockExchanges.getTypeConverter(exchange);
+    }
+
     @Test
     void shouldReturnNullWhenBodyIsNull() {
-        Exchange ex = MockExchanges.withMessageAndConverter();
-        Message msg = MockExchanges.getMessage(ex);
-        TypeConverter tc = MockExchanges.getTypeConverter(ex);
+        when(message.getBody()).thenReturn(null);
 
-        when(msg.getBody()).thenReturn(null);
-
-        assertNull(MessageHelper.extractBody(ex));
-        verifyNoInteractions(tc);
+        assertNull(MessageHelper.extractBody(exchange));
+        verifyNoInteractions(converter);
     }
 
     @Test
     void shouldReturnFileBasedStringWhenBodyIsFile() {
-        Exchange ex = MockExchanges.withMessageAndConverter();
-        Message msg = MockExchanges.getMessage(ex);
-        TypeConverter tc = MockExchanges.getTypeConverter(ex);
-
         File file = new File("readme.txt");
-        when(msg.getBody()).thenReturn(file);
+        when(message.getBody()).thenReturn(file);
 
-        String res = MessageHelper.extractBody(ex);
+        String res = MessageHelper.extractBody(exchange);
         assertEquals("[Body is file based: " + file + "]", res);
-        verifyNoInteractions(tc);
+        verifyNoInteractions(converter);
     }
 
     @Test
     void shouldReturnFileBasedStringWhenBodyIsWrappedFile() {
-        Exchange ex = MockExchanges.withMessageAndConverter();
-        Message msg = MockExchanges.getMessage(ex);
-        TypeConverter tc = MockExchanges.getTypeConverter(ex);
-
         WrappedFile<?> wf = mock(WrappedFile.class);
         when(wf.toString()).thenReturn("WF(myfile)");
-        when(msg.getBody()).thenReturn(wf);
+        when(message.getBody()).thenReturn(wf);
 
-        String res = MessageHelper.extractBody(ex);
+        String res = MessageHelper.extractBody(exchange);
         assertEquals("[Body is file based: WF(myfile)]", res);
-        verifyNoInteractions(tc);
+        verifyNoInteractions(converter);
     }
 
     @Test
     void shouldConvertStreamCacheWithTypeConverterAndResetTwice() {
-        Exchange ex = MockExchanges.withMessageAndConverter();
-        Message msg = MockExchanges.getMessage(ex);
-        TypeConverter tc = MockExchanges.getTypeConverter(ex);
-
         StreamCache sc = mock(StreamCache.class);
-        when(msg.getBody()).thenReturn(sc);
-        assert tc != null;
-        when(tc.tryConvertTo(eq(String.class), eq(ex), same(sc))).thenReturn("converted");
+        when(message.getBody()).thenReturn(sc);
+        assert converter != null;
+        when(converter.tryConvertTo(eq(String.class), eq(exchange), same(sc))).thenReturn("converted");
 
-        String res = MessageHelper.extractBody(ex);
+        String res = MessageHelper.extractBody(exchange);
         assertEquals("converted", res);
         verify(sc, times(2)).reset();
     }
 
     @Test
     void shouldReadAndConvertInputStreamBodyWhenInputStreamProvided() {
-        Exchange ex = MockExchanges.withMessageAndConverter();
-        Message msg = MockExchanges.getMessage(ex);
-        TypeConverter tc = MockExchanges.getTypeConverter(ex);
-
         byte[] bytes = "hello".getBytes(StandardCharsets.UTF_8);
         ByteArrayInputStream is = new ByteArrayInputStream(bytes);
-        when(msg.getBody()).thenReturn(is);
+        when(message.getBody()).thenReturn(is);
 
-        assert tc != null;
-        when(tc.tryConvertTo(eq(String.class), eq(ex), any(byte[].class)))
+        assert converter != null;
+        when(converter.tryConvertTo(eq(String.class), eq(exchange), any(byte[].class)))
                 .thenAnswer(inv -> new String((byte[]) inv.getArgument(2), StandardCharsets.UTF_8));
 
-        String res = MessageHelper.extractBody(ex);
+        String res = MessageHelper.extractBody(exchange);
         assertEquals("hello", res);
     }
 
     @Test
     void shouldFallbackToToStringWhenConverterFailsOrReturnsNull() {
-        Exchange ex = MockExchanges.withMessageAndConverter();
-        Message msg = MockExchanges.getMessage(ex);
-        TypeConverter tc = MockExchanges.getTypeConverter(ex);
-
         Object body = new Object() {
             @Override
             public String toString() {
                 return "obj";
             }
         };
-        when(msg.getBody()).thenReturn(body);
-        assert tc != null;
-        when(tc.tryConvertTo(eq(String.class), eq(ex), same(body)))
+        when(message.getBody()).thenReturn(body);
+        assert converter != null;
+        when(converter.tryConvertTo(eq(String.class), eq(exchange), same(body)))
                 .thenThrow(new RuntimeException("boom"))
                 .thenReturn(null);
 
-        String res = MessageHelper.extractBody(ex);
+        String res = MessageHelper.extractBody(exchange);
         assertEquals("obj", res);
     }
 
     @Test
     void shouldReturnNullWhenConverterReturnsNullAndToStringThrows() {
-        Exchange ex = MockExchanges.withMessageAndConverter();
-        Message msg = MockExchanges.getMessage(ex);
-        TypeConverter tc = MockExchanges.getTypeConverter(ex);
-
         Object body = new Object() {
             @Override
             public String toString() {
                 throw new RuntimeException("nope");
             }
         };
-        when(msg.getBody()).thenReturn(body);
-        assert tc != null;
-        when(tc.tryConvertTo(eq(String.class), eq(ex), same(body))).thenReturn(null);
+        when(message.getBody()).thenReturn(body);
+        assert converter != null;
+        when(converter.tryConvertTo(eq(String.class), eq(exchange), same(body))).thenReturn(null);
 
-        String res = MessageHelper.extractBody(ex);
+        String res = MessageHelper.extractBody(exchange);
         assertNull(res);
     }
 }

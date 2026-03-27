@@ -1,9 +1,11 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import org.apache.camel.Exchange;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
@@ -12,7 +14,6 @@ import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.MockExchanges;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
 
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -52,13 +53,22 @@ class KafkaTriggerProcessorTest {
         }
         """;
 
-    private final JsonMessageValidator validator = mock(JsonMessageValidator.class);
-    private final KafkaTriggerProcessor processor = new KafkaTriggerProcessor(validator);
+    private KafkaTriggerProcessor processor;
+
+    @Mock
+    JsonMessageValidator validator;
+    @Mock
+    Exchange exchange;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.defaultExchange();
+        processor = new KafkaTriggerProcessor(validator);
+    }
+
 
     @Test
     void shouldSetContentTypeAndValidateMessageWhenAsyncValidationSchemaPresent() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Properties.ASYNC_VALIDATION_SCHEMA, ASYNC_VALIDATION_SCHEMA);
         exchange.getMessage().setBody(VALID_KAFKA_MESSAGE);
 
@@ -73,8 +83,6 @@ class KafkaTriggerProcessorTest {
 
     @Test
     void shouldSetContentTypeAndSkipValidationWhenAsyncValidationSchemaNull() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.getMessage().setBody(VALID_KAFKA_MESSAGE);
 
         try (MockedStatic<ExchangeUtils> exchangeUtils = mockStatic(ExchangeUtils.class)) {
@@ -88,8 +96,6 @@ class KafkaTriggerProcessorTest {
 
     @Test
     void shouldSetContentTypeAndSkipValidationWhenAsyncValidationSchemaEmpty() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Properties.ASYNC_VALIDATION_SCHEMA, "");
         exchange.getMessage().setBody(VALID_KAFKA_MESSAGE);
 

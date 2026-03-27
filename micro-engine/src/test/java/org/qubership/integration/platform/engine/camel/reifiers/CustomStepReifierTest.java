@@ -27,13 +27,12 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class CustomStepReifierTest {
 
-    private CamelContext camelContext;
     private Route route;
     private StepDefinition definition;
 
     @BeforeEach
     void setUp() {
-        camelContext = new DefaultCamelContext();
+        CamelContext camelContext = new DefaultCamelContext();
         route = mock(Route.class);
         definition = new StepDefinition();
         definition.setId("step-1");

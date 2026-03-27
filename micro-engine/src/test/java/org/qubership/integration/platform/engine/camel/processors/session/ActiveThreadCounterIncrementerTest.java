@@ -7,11 +7,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MockExchanges;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -22,7 +22,7 @@ class ActiveThreadCounterIncrementerTest {
 
     @Test
     void shouldIncrementActiveThreadCounterWhenPropertyExists() throws Exception {
-        Exchange exchange = mock(Exchange.class);
+        Exchange exchange = MockExchanges.basic();
         AtomicInteger activeThreadCounter = new AtomicInteger(2);
 
         when(exchange.getProperty(

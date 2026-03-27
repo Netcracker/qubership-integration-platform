@@ -32,12 +32,12 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class QuartzSchedulerServiceTest {
 
+    private QuartzSchedulerService service;
+
     @Mock
     Scheduler scheduler;
     @Mock
     MetadataService metadataService;
-
-    private QuartzSchedulerService service;
 
     @BeforeEach
     void setUp() {

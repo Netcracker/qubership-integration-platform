@@ -1,9 +1,11 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import org.apache.camel.Exchange;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.service.contextstorage.ContextStorageService;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
@@ -15,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID;
@@ -44,12 +45,21 @@ class ContextStorageProcessorTest {
     private static final String PROPERTY_TARGET_NAME = getStaticString("PROPERTY_TARGET_NAME");
     private static final String PROPERTY_UNWRAP = getStaticString("PROPERTY_UNWRAP");
 
-    private final ContextStorageService contextStorageService = mock(ContextStorageService.class);
-    private final ContextStorageProcessor processor = new ContextStorageProcessor(contextStorageService);
+    private ContextStorageProcessor processor;
+
+    @Mock
+    ContextStorageService contextStorageService;
+    @Mock
+    Exchange exchange;
+
+    @BeforeEach
+    void setUp() {
+        processor = new ContextStorageProcessor(contextStorageService);
+        exchange = MockExchanges.defaultExchange();
+    }
 
     @Test
     void shouldGetWrappedValueToBodyWhenOperationGetAndTargetBody() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Map<String, String> storedValues = new LinkedHashMap<>();
         storedValues.put("customerId", "C-100500");
         storedValues.put("orderId", "O-42");
@@ -75,7 +85,6 @@ class ContextStorageProcessorTest {
 
     @Test
     void shouldGetUnwrappedValueToHeaderWhenOperationGetAndTargetHeader() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Map<String, String> storedValues = new LinkedHashMap<>();
         storedValues.put("customerId", "C-100500");
 
@@ -101,7 +110,6 @@ class ContextStorageProcessorTest {
 
     @Test
     void shouldGetWrappedValueToPropertyWhenOperationGetAndTargetProperty() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Map<String, String> storedValues = Map.of("customerId", "C-100500");
 
         exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
@@ -126,7 +134,6 @@ class ContextStorageProcessorTest {
 
     @Test
     void shouldUseExplicitContextIdForGetWhenProvided() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Map<String, String> storedValues = Map.of("customerId", "C-100500");
 
         exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
@@ -151,7 +158,6 @@ class ContextStorageProcessorTest {
 
     @Test
     void shouldStoreValueWhenOperationSetAndContextIdFallsBackToCorrelationId() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
         exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
         exchange.setProperty(PROPERTY_CONTEXT_SERVICE_ID, CONTEXT_SERVICE_ID_VALUE);
@@ -173,7 +179,6 @@ class ContextStorageProcessorTest {
 
     @Test
     void shouldDeleteContextWhenOperationDeleteAndExplicitContextIdProvided() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         exchange.setProperty(PROPERTY_USE_CORRELATION_ID, false);
         exchange.setProperty(PROPERTY_CONTEXT_ID, CONTEXT_ID_VALUE);
         exchange.setProperty(PROPERTY_CONTEXT_SERVICE_ID, ANOTHER_CONTEXT_SERVICE_ID_VALUE);

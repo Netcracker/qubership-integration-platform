@@ -1,30 +1,34 @@
 package org.qubership.integration.platform.engine.camel;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.errorhandling.ValidationException;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.ObjectMappers;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class JsonMessageValidatorTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    JsonMessageValidator validator;
+
+    @BeforeEach
+    void setUp() {
+        ObjectMapper objectMapper = ObjectMappers.getObjectMapper();
+        validator = new JsonMessageValidator(objectMapper);
+    }
 
     @Test
     void shouldValidateMessageWhenJsonMatchesSchema() {
-        JsonMessageValidator validator = new JsonMessageValidator(objectMapper);
-
         String jsonMessage = """
                 {
-                  "name": "Alex",
+                  "name": "Harry",
                   "age": 30
                 }
                 """;
@@ -50,8 +54,6 @@ class JsonMessageValidatorTest {
 
     @Test
     void shouldThrowValidationExceptionWhenMessageBodyIsBlank() {
-        JsonMessageValidator validator = new JsonMessageValidator(objectMapper);
-
         String jsonSchema = """
                 {
                   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -69,8 +71,6 @@ class JsonMessageValidatorTest {
 
     @Test
     void shouldThrowValidationExceptionWhenMessageBodyCannotBeParsed() {
-        JsonMessageValidator validator = new JsonMessageValidator(objectMapper);
-
         String jsonSchema = """
                 {
                   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -88,8 +88,6 @@ class JsonMessageValidatorTest {
 
     @Test
     void shouldThrowValidationExceptionWhenMessageDoesNotMatchSchema() {
-        JsonMessageValidator validator = new JsonMessageValidator(objectMapper);
-
         String jsonMessage = """
                 {
                   "name": 123
@@ -114,9 +112,6 @@ class JsonMessageValidatorTest {
                 () -> validator.validate(jsonMessage, jsonSchema)
         );
 
-        assertEquals(
-                true,
-                exception.getMessage().startsWith(JsonMessageValidator.MESSAGE_VALIDATION_ERROR)
-        );
+        assertTrue(exception.getMessage().startsWith(JsonMessageValidator.MESSAGE_VALIDATION_ERROR));
     }
 }

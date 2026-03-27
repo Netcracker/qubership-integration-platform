@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.forms.FormData;
 import org.qubership.integration.platform.engine.forms.FormEntry;
@@ -33,19 +34,25 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class FormBuilderProcessorTest {
 
-    private final SimpleLanguage simpleLanguage = mock(SimpleLanguage.class);
     private final FormBuilderProcessor processor = new FormBuilderProcessor();
+
+    @Mock
+    SimpleLanguage simpleLanguage;
+    @Mock
+    Exchange exchange;
+    @Mock
+    FormData formData;
+    @Mock
+    FormEntry entry;
 
     @BeforeEach
     void setUp() throws Exception {
+        exchange = MockExchanges.defaultExchange();
         setField(processor, "simpleLanguage", simpleLanguage);
     }
 
     @Test
     void shouldDoNothingWhenBodyMimeTypeBlank() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-        FormData formData = mock(FormData.class);
-
         exchange.setProperty(CamelConstants.Properties.BODY_MIME_TYPE, "   ");
         exchange.setProperty(CamelConstants.Properties.BODY_FORM_DATA, formData);
 
@@ -58,8 +65,6 @@ class FormBuilderProcessorTest {
 
     @Test
     void shouldDoNothingWhenFormDataNull() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(
                 CamelConstants.Properties.BODY_MIME_TYPE,
                 MediaType.APPLICATION_FORM_URLENCODED
@@ -74,9 +79,6 @@ class FormBuilderProcessorTest {
 
     @Test
     void shouldThrowExceptionWhenFormContentTypeUnsupported() {
-        Exchange exchange = MockExchanges.defaultExchange();
-        FormData formData = mock(FormData.class);
-
         exchange.setProperty(CamelConstants.Properties.BODY_MIME_TYPE, MediaType.APPLICATION_JSON);
         exchange.setProperty(CamelConstants.Properties.BODY_FORM_DATA, formData);
 
@@ -93,9 +95,6 @@ class FormBuilderProcessorTest {
 
     @Test
     void shouldBuildUrlEncodedFormWhenMimeTypeApplicationFormUrlEncoded() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-        FormData formData = mock(FormData.class);
-        FormEntry entry = mock(FormEntry.class);
         Expression expression = mock(Expression.class);
 
         exchange.setProperty(
@@ -125,10 +124,6 @@ class FormBuilderProcessorTest {
 
     @Test
     void shouldBuildMultipartFormWhenMimeTypeMultipartFormData() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
-        FormData formData = mock(FormData.class);
-        FormEntry entry = mock(FormEntry.class);
         Expression fileNameExpression = mock(Expression.class);
         Expression valueExpression = mock(Expression.class);
 

@@ -18,14 +18,13 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ChainEndpointTest {
 
-    private ChainComponent component;
     private ChainEndpoint endpoint;
+    private ChainComponent component;
 
     @BeforeEach
     void setUp() {
         component = spy(new ChainComponent());
         component.setCamelContext(new DefaultCamelContext());
-
         endpoint = new ChainEndpoint("cip-chain:routeA", component);
     }
 

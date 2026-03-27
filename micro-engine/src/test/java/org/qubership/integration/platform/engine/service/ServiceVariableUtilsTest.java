@@ -23,10 +23,10 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ServiceVariableUtilsTest {
 
+    private ServiceVariableUtils utils;
+
     @Mock
     Exchange exchange;
-
-    private ServiceVariableUtils utils;
 
     @BeforeEach
     void setUp() throws Exception {

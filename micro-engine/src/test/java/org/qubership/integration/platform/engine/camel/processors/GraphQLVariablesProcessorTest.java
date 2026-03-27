@@ -3,9 +3,11 @@ package org.qubership.integration.platform.engine.camel.processors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
 import org.apache.camel.util.json.JsonObject;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
@@ -20,12 +22,23 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class GraphQLVariablesProcessorTest {
 
-    private final ObjectMapper objectMapper = ObjectMappers.getObjectMapper();
-    private final GraphQLVariablesProcessor processor = new GraphQLVariablesProcessor(objectMapper);
+    private GraphQLVariablesProcessor processor;
+
+    @Mock
+    Exchange exchange;
+
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void setUp() {
+        objectMapper = ObjectMappers.getObjectMapper();
+        exchange = MockExchanges.defaultExchange();
+        processor = new GraphQLVariablesProcessor(objectMapper);
+    }
+
 
     @Test
     void shouldSetGraphQlVariablesHeaderWhenVariablesJsonPresent() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         String variablesJson = "{\"customerId\":\"C-100500\",\"active\":true}";
 
         exchange.setProperty(Properties.GQL_VARIABLES_JSON, variablesJson);
@@ -40,8 +53,6 @@ class GraphQLVariablesProcessorTest {
 
     @Test
     void shouldSetEmptyGraphQlVariablesHeaderWhenVariablesJsonNull() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         processor.process(exchange);
 
         JsonObject actual = exchange.getMessage().getHeader(Headers.GQL_VARIABLES_HEADER, JsonObject.class);
@@ -52,8 +63,6 @@ class GraphQLVariablesProcessorTest {
 
     @Test
     void shouldSetEmptyGraphQlVariablesHeaderWhenVariablesJsonEmpty() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Properties.GQL_VARIABLES_JSON, "");
 
         processor.process(exchange);

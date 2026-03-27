@@ -47,7 +47,7 @@ class KafkaCustomComponentTest {
         );
 
         assertNotNull(ep);
-        assertTrue(ep instanceof KafkaCustomEndpoint);
+        assertInstanceOf(KafkaCustomEndpoint.class, ep);
 
         KafkaConfiguration cfg = ep.getConfiguration();
         assertNotNull(cfg);

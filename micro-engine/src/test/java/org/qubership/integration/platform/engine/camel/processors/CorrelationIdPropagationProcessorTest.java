@@ -3,9 +3,11 @@ package org.qubership.integration.platform.engine.camel.processors;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.MockExchanges;
@@ -28,14 +30,22 @@ class CorrelationIdPropagationProcessorTest {
     private static final String CORRELATION_ID_VALUE = "9c8d4f7e-2c18-4a9d-a5b7-61a0d36e4f21";
     private static final String CORRELATION_ID_NAME_VALUE = "correlationId";
 
-    private final ObjectMapper objectMapper = ObjectMappers.getObjectMapper();
-    private final CorrelationIdPropagationProcessor processor =
-            new CorrelationIdPropagationProcessor(objectMapper);
+    private CorrelationIdPropagationProcessor processor;
+
+    @Mock
+    Exchange exchange;
+
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.defaultExchange();
+        objectMapper = ObjectMappers.getObjectMapper();
+        processor = new CorrelationIdPropagationProcessor(objectMapper);
+    }
 
     @Test
-    void shouldSetHeaderWhenCorrelationIdPresentAndPositionHeader() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
+    void shouldSetHeaderWhenCorrelationIdPresentAndPositionHeader() {
         exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
         exchange.setProperty(CORRELATION_ID_POSITION, HEADER);
         exchange.setProperty(CORRELATION_ID_NAME, CORRELATION_ID_NAME_VALUE);
@@ -50,8 +60,6 @@ class CorrelationIdPropagationProcessorTest {
 
     @Test
     void shouldAddCorrelationIdToBodyWhenCorrelationIdPresentAndPositionBody() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
         exchange.setProperty(CORRELATION_ID_POSITION, BODY);
         exchange.setProperty(CORRELATION_ID_NAME, CORRELATION_ID_NAME_VALUE);
@@ -72,8 +80,6 @@ class CorrelationIdPropagationProcessorTest {
 
     @Test
     void shouldNotPropagateWhenCorrelationIdAbsent() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(CORRELATION_ID_POSITION, HEADER);
         exchange.setProperty(CORRELATION_ID_NAME, CORRELATION_ID_NAME_VALUE);
 
@@ -84,8 +90,6 @@ class CorrelationIdPropagationProcessorTest {
 
     @Test
     void shouldNotPropagateWhenCorrelationIdEqualsStringNull() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(CORRELATION_ID, "null");
         exchange.setProperty(CORRELATION_ID_POSITION, HEADER);
         exchange.setProperty(CORRELATION_ID_NAME, CORRELATION_ID_NAME_VALUE);
@@ -97,8 +101,6 @@ class CorrelationIdPropagationProcessorTest {
 
     @Test
     void shouldKeepBodyUnchangedWhenBodyIsInvalidJson() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
         exchange.setProperty(CORRELATION_ID_POSITION, BODY);
         exchange.setProperty(CORRELATION_ID_NAME, CORRELATION_ID_NAME_VALUE);

@@ -23,6 +23,8 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ChainProducerTest {
 
+    private ChainProducer producer;
+
     @Mock
     ChainEndpoint endpoint;
     @Mock
@@ -33,21 +35,22 @@ class ChainProducerTest {
     AsyncProcessor asyncProcessor;
     @Mock
     HeaderFilterStrategy headerFilterStrategy;
-
-    private ChainProducer producer;
+    @Mock
+    Exchange exchange;
+    @Mock
+    AsyncCallback callback;
 
     @BeforeEach
     void setUp() {
         producer = new ChainProducer(endpoint);
+        exchange = MockExchanges.defaultExchange();
+        callback = mock(AsyncCallback.class);
 
         when(endpoint.getComponent()).thenReturn(component);
     }
 
     @Test
     void shouldSetExceptionAndCompleteCallbackWhenNoConsumerAndFailIfNoConsumersTrue() {
-        Exchange exchange = MockExchanges.defaultExchange();
-        AsyncCallback callback = mock(AsyncCallback.class);
-
         when(component.getConsumer(endpoint)).thenReturn(null);
         when(endpoint.isFailIfNoConsumers()).thenReturn(true);
 
@@ -61,9 +64,6 @@ class ChainProducerTest {
 
     @Test
     void shouldIgnoreMessageAndCompleteCallbackWhenNoConsumerAndFailIfNoConsumersFalse() {
-        Exchange exchange = MockExchanges.defaultExchange();
-        AsyncCallback callback = mock(AsyncCallback.class);
-
         when(component.getConsumer(endpoint)).thenReturn(null);
         when(endpoint.isFailIfNoConsumers()).thenReturn(false);
 
@@ -76,11 +76,8 @@ class ChainProducerTest {
 
     @Test
     void shouldProcessOnSameExchangeWhenPropagatePropertiesTrueAndNoHeaderFilter() {
-        Exchange exchange = MockExchanges.defaultExchange();
         exchange.getProperties().put("p", "v");
         exchange.getIn().setHeader("h", "v");
-
-        AsyncCallback callback = mock(AsyncCallback.class);
 
         when(component.getConsumer(endpoint)).thenReturn(consumer);
         when(consumer.getAsyncProcessor()).thenReturn(asyncProcessor);
@@ -109,11 +106,8 @@ class ChainProducerTest {
 
     @Test
     void shouldCopyExchangeAndNotPropagatePropertiesWhenPropagatePropertiesFalse() {
-        Exchange exchange = MockExchanges.defaultExchange();
         exchange.getProperties().put("p", "v");
         exchange.getIn().setHeader("h", "v");
-
-        AsyncCallback callback = mock(AsyncCallback.class);
 
         when(component.getConsumer(endpoint)).thenReturn(consumer);
         when(consumer.getAsyncProcessor()).thenReturn(asyncProcessor);
@@ -143,7 +137,7 @@ class ChainProducerTest {
         assertNotNull(exchange.getException());
         assertInstanceOf(IllegalStateException.class, exchange.getException());
 
-        assertEquals("ok", exchange.getOut().getHeader("resp"));
+        assertEquals("ok", exchange.getMessage().getHeader("resp"));
 
         assertEquals("v", exchange.getProperties().get("p"));
 
@@ -153,11 +147,8 @@ class ChainProducerTest {
 
     @Test
     void shouldFilterHeadersUsingHeaderFilterStrategy() {
-        Exchange exchange = MockExchanges.defaultExchange();
         exchange.getIn().setHeader("keep", "1");
         exchange.getIn().setHeader("removeCamel", "x");
-
-        AsyncCallback callback = mock(AsyncCallback.class);
 
         when(component.getConsumer(endpoint)).thenReturn(consumer);
         when(consumer.getAsyncProcessor()).thenReturn(asyncProcessor);
@@ -193,11 +184,11 @@ class ChainProducerTest {
 
         assertTrue(result);
 
-        assertNull(exchange.getOut().getHeader("removeExternal"));
-        assertEquals("y", exchange.getOut().getHeader("keepExternal"));
+        assertNull(exchange.getMessage().getHeader("removeExternal"));
+        assertEquals("y", exchange.getMessage().getHeader("keepExternal"));
 
-        assertNull(exchange.getOut().getHeader("removeCamel"));
-        assertEquals("1", exchange.getOut().getHeader("keep"));
+        assertNull(exchange.getMessage().getHeader("removeCamel"));
+        assertEquals("1", exchange.getMessage().getHeader("keep"));
 
         verify(asyncProcessor).process(any(Exchange.class), any(AsyncCallback.class));
         verify(callback).done(true);
@@ -207,9 +198,6 @@ class ChainProducerTest {
 
     @Test
     void shouldSetExceptionAndCompleteCallbackWhenAsyncProcessorThrows() {
-        Exchange exchange = MockExchanges.defaultExchange();
-        AsyncCallback callback = mock(AsyncCallback.class);
-
         when(component.getConsumer(endpoint)).thenReturn(consumer);
         when(consumer.getAsyncProcessor()).thenReturn(asyncProcessor);
 

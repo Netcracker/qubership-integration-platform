@@ -3,9 +3,11 @@ package org.qubership.integration.platform.engine.camel.processors;
 import com.rabbitmq.client.Channel;
 import org.apache.camel.Exchange;
 import org.apache.camel.component.springrabbit.SpringRabbitMQConstants;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
@@ -15,7 +17,6 @@ import org.qubership.integration.platform.engine.testutils.MockExchanges;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
 import org.springframework.amqp.core.AcknowledgeMode;
 
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -55,14 +56,23 @@ class RabbitMqTriggerProcessorTest {
         }
         """;
 
-    private final JsonMessageValidator validator = mock(JsonMessageValidator.class);
-    private final RabbitMqTriggerProcessor processor = new RabbitMqTriggerProcessor(validator);
+    private RabbitMqTriggerProcessor processor;
+
+    @Mock
+    JsonMessageValidator validator;
+    @Mock
+    Exchange exchange;
+    @Mock
+    Channel channel;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.defaultExchange();
+        processor = new RabbitMqTriggerProcessor(validator);
+    }
 
     @Test
     void shouldAcknowledgeMessageAndValidateWhenAcknowledgeModeManualAndSchemaPresent() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-        Channel channel = mock(Channel.class);
-
         exchange.setProperty(Properties.ACKNOWLEDGE_MODE_PROP, AcknowledgeMode.MANUAL.name());
         exchange.setProperty(SpringRabbitMQConstants.CHANNEL, channel);
         exchange.setProperty(Properties.ASYNC_VALIDATION_SCHEMA, ASYNC_VALIDATION_SCHEMA);
@@ -81,8 +91,6 @@ class RabbitMqTriggerProcessorTest {
 
     @Test
     void shouldNotAcknowledgeWhenAcknowledgeModePropertyMissingAndShouldValidateWhenSchemaPresent() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Properties.ASYNC_VALIDATION_SCHEMA, ASYNC_VALIDATION_SCHEMA);
         exchange.getMessage().setBody(VALID_RABBIT_MESSAGE);
 
@@ -97,9 +105,6 @@ class RabbitMqTriggerProcessorTest {
 
     @Test
     void shouldNotAcknowledgeWhenAcknowledgeModeNotManual() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-        Channel channel = mock(Channel.class);
-
         exchange.setProperty(Properties.ACKNOWLEDGE_MODE_PROP, AcknowledgeMode.AUTO.name());
         exchange.setProperty(SpringRabbitMQConstants.CHANNEL, channel);
         exchange.getMessage().setBody(VALID_RABBIT_MESSAGE);
@@ -115,8 +120,6 @@ class RabbitMqTriggerProcessorTest {
 
     @Test
     void shouldSetContentTypeAndSkipValidationWhenAsyncValidationSchemaNull() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.getMessage().setBody(VALID_RABBIT_MESSAGE);
 
         try (MockedStatic<ExchangeUtils> exchangeUtils = mockStatic(ExchangeUtils.class)) {
@@ -130,8 +133,6 @@ class RabbitMqTriggerProcessorTest {
 
     @Test
     void shouldSetContentTypeAndSkipValidationWhenAsyncValidationSchemaEmpty() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Properties.ASYNC_VALIDATION_SCHEMA, "");
         exchange.getMessage().setBody(VALID_RABBIT_MESSAGE);
 

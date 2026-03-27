@@ -2,9 +2,11 @@ package org.qubership.integration.platform.engine.camel.processors;
 
 import jakarta.ws.rs.core.HttpHeaders;
 import org.apache.camel.Exchange;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.camel.CorrelationIdSetter;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
@@ -17,7 +19,6 @@ import org.qubership.integration.platform.engine.testutils.MockExchanges;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -85,14 +86,23 @@ class HttpTriggerProcessorTest {
             }
             """;
 
-    private final CorrelationIdSetter correlationIdSetter = mock(CorrelationIdSetter.class);
-    private final JsonMessageValidator validator = mock(JsonMessageValidator.class);
-    private final HttpTriggerProcessor processor = new HttpTriggerProcessor(correlationIdSetter, validator);
+    private HttpTriggerProcessor processor;
+
+    @Mock
+    CorrelationIdSetter correlationIdSetter;
+    @Mock
+    JsonMessageValidator validator;
+    @Mock
+    Exchange exchange;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.defaultExchange();
+        processor = new HttpTriggerProcessor(correlationIdSetter, validator);
+    }
 
     @Test
     void shouldParsePathVariablesSaveLoggingContextParseResponseFiltersAndRemoveHeadersWhenRequestValid() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Exchange.STEP_ID, "request--" + HTTP_TRIGGER_STEP_ID);
         exchange.setProperty(Properties.ALLOWED_CONTENT_TYPES_PROP, new String[]{"application/json"});
         exchange.setProperty(Properties.VALIDATION_SCHEMA, VALIDATION_SCHEMA);
@@ -166,8 +176,6 @@ class HttpTriggerProcessorTest {
 
     @Test
     void shouldSkipPathVariablesParsingWhenCheckpointTriggerStep() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Exchange.STEP_ID, "request--" + HTTP_TRIGGER_STEP_ID);
         exchange.setProperty(Properties.IS_CHECKPOINT_TRIGGER_STEP, true);
 
@@ -195,8 +203,6 @@ class HttpTriggerProcessorTest {
 
     @Test
     void shouldThrowValidationExceptionWhenGetRequestContainsBodyAndValidationEnabled() {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Exchange.STEP_ID, "request--" + HTTP_TRIGGER_STEP_ID);
         exchange.setProperty(Properties.REJECT_REQUEST_IF_NULL_BODY_GET_DELETE_PROP, true);
 
@@ -220,8 +226,6 @@ class HttpTriggerProcessorTest {
 
     @Test
     void shouldThrowValidationExceptionWhenRequestContentTypeUnsupported() {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Exchange.STEP_ID, "request--" + HTTP_TRIGGER_STEP_ID);
         exchange.setProperty(Properties.ALLOWED_CONTENT_TYPES_PROP, new String[]{"application/json"});
 
@@ -241,8 +245,6 @@ class HttpTriggerProcessorTest {
 
     @Test
     void shouldThrowRuntimeExceptionWhenAllowedContentTypeConfigurationUnsupported() {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Exchange.STEP_ID, "request--" + HTTP_TRIGGER_STEP_ID);
         exchange.setProperty(Properties.ALLOWED_CONTENT_TYPES_PROP, new String[]{"not-a-mime"});
 
@@ -265,8 +267,6 @@ class HttpTriggerProcessorTest {
 
     @Test
     void shouldParseOnlyPresentResponseFilterParameters() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(Exchange.STEP_ID, "request--" + HTTP_TRIGGER_STEP_ID);
         exchange.setProperty(Properties.RESPONSE_FILTER, true);
 

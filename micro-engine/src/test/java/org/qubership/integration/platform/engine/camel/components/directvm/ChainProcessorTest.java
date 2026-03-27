@@ -6,14 +6,15 @@ import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.ExchangePattern;
 import org.apache.camel.impl.DefaultCamelContext;
-import org.apache.camel.support.DefaultExchange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MockExchanges;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -22,6 +23,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(MockitoExtension.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ChainProcessorTest {
+
+    @Mock
+    Exchange exchange;
 
     private ChainComponent component;
     private CamelContext endpointContext;
@@ -33,11 +37,11 @@ class ChainProcessorTest {
         endpointContext = new DefaultCamelContext();
         component.setCamelContext(endpointContext);
         endpoint = new ChainEndpoint("cip-chain:routeA", component);
+        exchange = MockExchanges.defaultExchange(new DefaultCamelContext(), ExchangePattern.InOut);
     }
 
     @Test
     void shouldSetChainCallTriggeredSessionToTrueDuringProcessingAndRestoreAfterDoneWhenPreviouslyFalse() {
-        Exchange exchange = new DefaultExchange(new DefaultCamelContext(), ExchangePattern.InOut);
         exchange.getMessage().setBody("in");
         exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, false);
 
@@ -68,7 +72,6 @@ class ChainProcessorTest {
 
     @Test
     void shouldRestoreChainCallTriggeredSessionToTrueAfterDoneWhenPreviouslyTrue() {
-        Exchange exchange = new DefaultExchange(new DefaultCamelContext(), ExchangePattern.InOut);
         exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, true);
 
         AsyncProcessor delegate = asyncProcessor((ex, cb) -> {
@@ -90,8 +93,6 @@ class ChainProcessorTest {
 
     @Test
     void shouldCopyExceptionBackToOriginalExchange() {
-        Exchange exchange = new DefaultExchange(new DefaultCamelContext(), ExchangePattern.InOut);
-
         IllegalStateException boom = new IllegalStateException("boom");
         AsyncProcessor delegate = asyncProcessor((ex, cb) -> {
             ex.setException(boom);
@@ -123,8 +124,6 @@ class ChainProcessorTest {
 
         component.setCamelContext(ctxWithAppCl);
         endpoint = new ChainEndpoint("cip-chain:routeA", component);
-
-        Exchange exchange = new DefaultExchange(new DefaultCamelContext(), ExchangePattern.InOut);
 
         AsyncProcessor delegate = asyncProcessor((ex, cb) -> {
             assertSame(appCl, Thread.currentThread().getContextClassLoader());

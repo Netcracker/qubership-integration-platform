@@ -3,9 +3,11 @@ package org.qubership.integration.platform.engine.camel.processors;
 import org.apache.camel.Exchange;
 import org.apache.camel.Expression;
 import org.apache.camel.language.simple.SimpleLanguage;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
@@ -33,13 +35,23 @@ class LogRecordProcessorTest {
     private static final String PROPERTY_BUSINESS_IDENTIFIERS = getStaticString("PROPERTY_BUSINESS_IDENTIFIERS");
     private static final String PROPERTY_MESSAGE = getStaticString("PROPERTY_MESSAGE");
 
-    private final ChainLogger chainLogger = mock(ChainLogger.class);
-    private final SimpleLanguage simpleInterpreter = mock(SimpleLanguage.class);
-    private final LogRecordProcessor processor = new LogRecordProcessor(chainLogger, simpleInterpreter);
+    private LogRecordProcessor processor;
+
+    @Mock
+    SimpleLanguage simpleInterpreter;
+    @Mock
+    ChainLogger chainLogger;
+    @Mock
+    Exchange exchange;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.defaultExchange();
+        processor = new LogRecordProcessor(chainLogger, simpleInterpreter);
+    }
 
     @Test
     void shouldLogErrorRecordWithSenderReceiverAndEvaluatedBusinessIdentifiers() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Expression customerExpression = mock(Expression.class);
         Expression orderExpression = mock(Expression.class);
 
@@ -75,8 +87,6 @@ class LogRecordProcessorTest {
 
     @Test
     void shouldLogWarningRecordWhenDefaultLogLevelAllowsWarn() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(PROPERTY_LOG_LEVEL, "WARNING");
         exchange.setProperty(PROPERTY_SENDER, "Customer API");
         exchange.setProperty(PROPERTY_RECEIVER, "Billing");
@@ -92,8 +102,6 @@ class LogRecordProcessorTest {
 
     @Test
     void shouldNotLogInfoRecordWhenDefaultLogLevelDoesNotAllowInfo() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(PROPERTY_LOG_LEVEL, "INFO");
         exchange.setProperty(PROPERTY_SENDER, "Customer API");
         exchange.setProperty(PROPERTY_RECEIVER, "Billing");
@@ -106,8 +114,6 @@ class LogRecordProcessorTest {
 
     @Test
     void shouldLogMessageOnlyWhenSenderAndReceiverMissing() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(PROPERTY_LOG_LEVEL, "ERROR");
         exchange.setProperty(PROPERTY_MESSAGE, "Standalone error record");
 
@@ -119,8 +125,6 @@ class LogRecordProcessorTest {
 
     @Test
     void shouldNotSetBusinessIdentifiersWhenIdentifiersMapEmpty() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(PROPERTY_LOG_LEVEL, "ERROR");
         exchange.setProperty(PROPERTY_MESSAGE, "No business ids available");
         exchange.setProperty(PROPERTY_BUSINESS_IDENTIFIERS, new LinkedHashMap<>());

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.camel.components.servlet.CustomHttpRestServletResolveConsumerStrategy;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomEndpoint;
@@ -35,9 +36,25 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class CamelServletMetricsTagsContributorTest {
 
+    private CamelServletMetricsTagsContributor contributor;
+
+    @Mock
+    CamelServlet camelServlet;
+    @Mock
+    HttpConsumer consumer;
+    @Mock
+    HttpCommonEndpoint endpoint;
+    @Mock
+    ServletCustomEndpoint servletEndpoint;
+    @Mock
+    ServletTagsProvider tagsProvider;
+    @Mock
+    static HttpServerMetricsTagsContributor.Context context;
+    @Mock
+    static HttpServerRequest request;
+
     private GatewayHttpRegistry httpRegistry;
     private CustomHttpRestServletResolveConsumerStrategy resolveConsumerStrategy;
-    private CamelServletMetricsTagsContributor contributor;
 
     @BeforeEach
     void setUp() {
@@ -65,7 +82,6 @@ class CamelServletMetricsTagsContributorTest {
     @Test
     void shouldReturnEmptyTagsWhenNoConsumerResolved() {
         HttpServerMetricsTagsContributor.Context context = context("/camel/orders", HttpMethod.POST);
-        CamelServlet camelServlet = mock(CamelServlet.class);
 
         when(httpRegistry.getCamelServlet("camel-servlet")).thenReturn(camelServlet);
         when(camelServlet.getConsumers()).thenReturn(Map.of());
@@ -79,9 +95,6 @@ class CamelServletMetricsTagsContributorTest {
     @Test
     void shouldReturnUriTagWhenConsumerResolvedWithRegularEndpoint() {
         HttpServerMetricsTagsContributor.Context context = context("/camel/orders", HttpMethod.GET);
-        CamelServlet camelServlet = mock(CamelServlet.class);
-        HttpConsumer consumer = mock(HttpConsumer.class);
-        HttpCommonEndpoint endpoint = mock(HttpCommonEndpoint.class);
         Map<String, HttpConsumer> consumers = Map.of("orders", consumer);
 
         when(httpRegistry.getCamelServlet("camel-servlet")).thenReturn(camelServlet);
@@ -101,17 +114,14 @@ class CamelServletMetricsTagsContributorTest {
     @Test
     void shouldReturnUriTagOnlyWhenServletCustomEndpointHasNoTagsProvider() {
         HttpServerMetricsTagsContributor.Context context = context("/camel/orders", HttpMethod.GET);
-        CamelServlet camelServlet = mock(CamelServlet.class);
-        HttpConsumer consumer = mock(HttpConsumer.class);
-        ServletCustomEndpoint endpoint = mock(ServletCustomEndpoint.class);
         Map<String, HttpConsumer> consumers = Map.of("orders", consumer);
 
         when(httpRegistry.getCamelServlet("camel-servlet")).thenReturn(camelServlet);
         when(camelServlet.getConsumers()).thenReturn(consumers);
         when(resolveConsumerStrategy.resolvePath("/orders", "GET", consumers)).thenReturn(consumer);
-        when(consumer.getEndpoint()).thenReturn(endpoint);
-        when(endpoint.getPath()).thenReturn("/orders");
-        when(endpoint.getTagsProvider()).thenReturn(null);
+        when(consumer.getEndpoint()).thenReturn(servletEndpoint);
+        when(servletEndpoint.getPath()).thenReturn("/orders");
+        when(servletEndpoint.getTagsProvider()).thenReturn(null);
 
         Tags result = contributor.contribute(context);
 
@@ -124,18 +134,14 @@ class CamelServletMetricsTagsContributorTest {
     @Test
     void shouldReturnUriAndCustomTagsWhenServletCustomEndpointHasTagsProvider() {
         HttpServerMetricsTagsContributor.Context context = context("/camel/orders", HttpMethod.PUT);
-        CamelServlet camelServlet = mock(CamelServlet.class);
-        HttpConsumer consumer = mock(HttpConsumer.class);
-        ServletCustomEndpoint endpoint = mock(ServletCustomEndpoint.class);
-        ServletTagsProvider tagsProvider = mock(ServletTagsProvider.class);
         Map<String, HttpConsumer> consumers = Map.of("orders", consumer);
 
         when(httpRegistry.getCamelServlet("camel-servlet")).thenReturn(camelServlet);
         when(camelServlet.getConsumers()).thenReturn(consumers);
         when(resolveConsumerStrategy.resolvePath("/orders", "PUT", consumers)).thenReturn(consumer);
-        when(consumer.getEndpoint()).thenReturn(endpoint);
-        when(endpoint.getPath()).thenReturn("/orders");
-        when(endpoint.getTagsProvider()).thenReturn(tagsProvider);
+        when(consumer.getEndpoint()).thenReturn(servletEndpoint);
+        when(servletEndpoint.getPath()).thenReturn("/orders");
+        when(servletEndpoint.getTagsProvider()).thenReturn(tagsProvider);
         when(tagsProvider.get()).thenReturn(
                 java.util.List.of(
                         Tag.of("system", "billing"),
@@ -156,9 +162,6 @@ class CamelServletMetricsTagsContributorTest {
     }
 
     private static HttpServerMetricsTagsContributor.Context contextWithPath(String path) {
-        HttpServerMetricsTagsContributor.Context context = mock(HttpServerMetricsTagsContributor.Context.class);
-        HttpServerRequest request = mock(HttpServerRequest.class);
-
         when(context.request()).thenReturn(request);
         when(request.path()).thenReturn(path);
 
@@ -166,9 +169,6 @@ class CamelServletMetricsTagsContributorTest {
     }
 
     private static HttpServerMetricsTagsContributor.Context context(String path, HttpMethod method) {
-        HttpServerMetricsTagsContributor.Context context = mock(HttpServerMetricsTagsContributor.Context.class);
-        HttpServerRequest request = mock(HttpServerRequest.class);
-
         when(context.request()).thenReturn(request);
         when(request.path()).thenReturn(path);
         when(request.method()).thenReturn(method);

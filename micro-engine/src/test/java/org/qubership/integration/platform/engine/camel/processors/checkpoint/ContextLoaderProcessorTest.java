@@ -5,9 +5,11 @@ import groovy.xml.slurpersupport.GPathResult;
 import jakarta.enterprise.inject.Instance;
 import jakarta.persistence.EntityNotFoundException;
 import org.apache.camel.Exchange;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextOperationsWrapper;
@@ -45,26 +47,38 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ContextLoaderProcessorTest {
 
-    @Test
-    void shouldRestoreCheckpointAndUpdatePayloadWhenProcessCalled() {
-        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
+    private ContextLoaderProcessor processor;
+
+    @Mock
+    CheckpointSessionService checkpointSessionService;
+    @Mock
+    ContextOperationsWrapper contextOperations;
+    @Mock
+    CheckpointUtils.CheckpointInfo checkpointInfo;
+    @Mock
+    Checkpoint checkpoint;
+    @Mock
+    Exchange exchange;
+
+    @BeforeEach
+    void setUp() {
         ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
-        ContextOperationsWrapper contextOperations = mock(ContextOperationsWrapper.class);
-        ContextLoaderProcessor processor = processor(
+        exchange = MockExchanges.defaultExchange();
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 java.util.Optional.of(contextOperations)
         );
+    }
 
-        Exchange exchange = MockExchanges.defaultExchange();
+    @Test
+    void shouldRestoreCheckpointAndUpdatePayloadWhenProcessCalled() {
         exchange.setProperty(SESSION_ID, "6dc1fb7d-bf4b-4c8d-ae92-3d28e4f5022c");
 
-        CheckpointUtils.CheckpointInfo checkpointInfo = mock(CheckpointUtils.CheckpointInfo.class);
         when(checkpointInfo.sessionId()).thenReturn("a7d6d278-87db-43f8-8cda-2d23f6b7f0b1");
         when(checkpointInfo.chainId()).thenReturn("f2b4f91e-4fd5-43e8-b9b9-fcb4c7b7e28a");
         when(checkpointInfo.checkpointElementId()).thenReturn("e93ad8d0-a925-4b89-b6d0-551be4ee2a77");
 
-        Checkpoint checkpoint = mock(Checkpoint.class);
         SessionInfo parentSession = mock(SessionInfo.class);
         SessionInfo originalSession = mock(SessionInfo.class);
 
@@ -95,16 +109,16 @@ class ContextLoaderProcessorTest {
                     .thenReturn(checkpointInfo);
             messageHelperMock.when(() -> MessageHelper.extractBody(exchange))
                     .thenReturn("""
-                        {
-                          "properties": {
-                            "requestProperty": "request-value"
-                          },
-                          "headers": {
-                            "requestHeader": "request-header-value"
-                          },
-                          "body": "request-body"
-                        }
-                        """);
+                            {
+                              "properties": {
+                                "requestProperty": "request-value"
+                              },
+                              "headers": {
+                                "requestHeader": "request-header-value"
+                              },
+                              "body": "request-body"
+                            }
+                            """);
 
             processor.process(exchange);
 
@@ -128,17 +142,6 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldThrowCheckpointExceptionWhenCheckpointNotFound() {
-        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
-        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
-        ContextLoaderProcessor processor = processor(
-                checkpointSessionService,
-                checkpointMapper,
-                java.util.Optional.empty()
-        );
-
-        Exchange exchange = MockExchanges.defaultExchange();
-
-        CheckpointUtils.CheckpointInfo checkpointInfo = mock(CheckpointUtils.CheckpointInfo.class);
         when(checkpointInfo.sessionId()).thenReturn("4d0d2a1e-7b63-44f6-9f97-bdf83ff8d4de");
         when(checkpointInfo.chainId()).thenReturn("46a4ce5f-a4f4-4f57-8f88-3f7463220de1");
         when(checkpointInfo.checkpointElementId()).thenReturn("7f9f42e8-c089-4236-9f87-5bbd6e2e0c10");
@@ -165,15 +168,6 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldDeserializeSerializablePropertyWithMetadata() {
-        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
-        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
-        ContextLoaderProcessor processor = processor(
-                checkpointSessionService,
-                checkpointMapper,
-                java.util.Optional.empty()
-        );
-
-        Checkpoint checkpoint = mock(Checkpoint.class);
         ArrayList<String> value = new ArrayList<>(List.of("one", "two"));
         Property property = property("list", ArrayList.class.getName(), serialize(value), null);
 
@@ -188,15 +182,6 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldDeserializeXmlPropertyAsGPathResult() {
-        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
-        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
-        ContextLoaderProcessor processor = processor(
-                checkpointSessionService,
-                checkpointMapper,
-                java.util.Optional.empty()
-        );
-
-        Checkpoint checkpoint = mock(Checkpoint.class);
         Property property = property(
                 "xml",
                 GPathResult.class.getName(),
@@ -216,15 +201,6 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldDeserializePropertyWithoutTypeUsingMapperWhenClassNotFound() {
-        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
-        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
-        ContextLoaderProcessor processor = processor(
-                checkpointSessionService,
-                checkpointMapper,
-                java.util.Optional.empty()
-        );
-
-        Checkpoint checkpoint = mock(Checkpoint.class);
         byte[] value = "{\"a\":1}".getBytes(StandardCharsets.UTF_8);
         Property property = property("prop", "missing.Type", value, null);
 
@@ -239,15 +215,6 @@ class ContextLoaderProcessorTest {
 
     @Test
     void shouldFallbackToStringWhenPropertyDeserializationFails() {
-        CheckpointSessionService checkpointSessionService = mock(CheckpointSessionService.class);
-        ObjectMapper checkpointMapper = ObjectMappers.getCheckpointMapper();
-        ContextLoaderProcessor processor = processor(
-                checkpointSessionService,
-                checkpointMapper,
-                java.util.Optional.empty()
-        );
-
-        Checkpoint checkpoint = mock(Checkpoint.class);
         byte[] value = "plain-text".getBytes(StandardCharsets.UTF_8);
         Property property = property("prop", ArrayList.class.getName(), value, null);
 

@@ -20,19 +20,20 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ChainBlockingProducerTest {
 
+    private ChainBlockingProducer producer;
+
     @Mock
     ChainEndpoint endpoint;
     @Mock
     ChainConsumer consumer;
-
     @Mock
     Processor processor;
     @Mock
     AsyncProcessor asyncProcessor;
     @Mock
     Exchange exchange;
-
-    private ChainBlockingProducer producer;
+    @Mock
+    AsyncCallback callback;
 
     @BeforeEach
     void setUp() {
@@ -83,8 +84,6 @@ class ChainBlockingProducerTest {
 
     @Test
     void shouldDelegateToConsumerAsyncProcessorWhenProcessAsyncAndConsumerAvailable() {
-        AsyncCallback callback = mock(AsyncCallback.class);
-
         when(endpoint.getConsumer()).thenReturn(consumer);
         when(consumer.getAsyncProcessor()).thenReturn(asyncProcessor);
         when(asyncProcessor.process(exchange, callback)).thenReturn(false);
@@ -98,9 +97,6 @@ class ChainBlockingProducerTest {
 
     @Test
     void shouldSetExceptionAndCompleteCallbackWhenAsyncProcessorThrows() {
-        var exchange = MockExchanges.withDefaultCamelContext();
-        AsyncCallback callback = mock(AsyncCallback.class);
-
         when(endpoint.getConsumer()).thenReturn(consumer);
         when(consumer.getAsyncProcessor()).thenReturn(asyncProcessor);
 
@@ -116,8 +112,6 @@ class ChainBlockingProducerTest {
 
     @Test
     void shouldSetExceptionAndCompleteCallbackWhenNoConsumerAndFailIfNoConsumersTrueInAsyncProcess() {
-        AsyncCallback callback = mock(AsyncCallback.class);
-
         when(endpoint.getConsumer()).thenReturn(null);
         when(endpoint.isFailIfNoConsumers()).thenReturn(true);
 

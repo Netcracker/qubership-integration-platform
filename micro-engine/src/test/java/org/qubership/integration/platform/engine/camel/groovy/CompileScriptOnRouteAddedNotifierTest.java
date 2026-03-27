@@ -11,9 +11,11 @@ import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.model.language.ExpressionDefinition;
 import org.apache.camel.spi.CamelEvent;
 import org.codehaus.groovy.control.CompilationFailedException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryGroovyShellFactory;
@@ -34,11 +36,35 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class CompileScriptOnRouteAddedNotifierTest {
 
+    @Mock
+    CompileScriptOnRouteAddedNotifier notifier;
+    @Mock
+    ExternalLibraryGroovyShellFactory groovyShellFactory;
+    @Mock
+    GroovyLanguageWithResettableCache groovyLanguage;
+    @Mock
+    GroovyShell groovyShell;
+    @Mock
+    GroovyClassLoader groovyClassLoader;
+    @Mock
+    ExpressionNode groovyProcessor;
+    @Mock
+    ExpressionDefinition groovyExpression;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
+        groovyLanguage = mock(GroovyLanguageWithResettableCache.class);
+        notifier = notifier(groovyShellFactory, groovyLanguage);
+        groovyShell = mock(GroovyShell.class);
+        groovyClassLoader = mock(GroovyClassLoader.class);
+        groovyProcessor = mock(ExpressionNode.class);
+        groovyExpression = mock(ExpressionDefinition.class);
+    }
+
+
     @Test
     void shouldIgnoreNonRouteAddedEventWhenNotifyCalled() throws Exception {
-        ExternalLibraryGroovyShellFactory groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
-        GroovyLanguageWithResettableCache groovyLanguage = mock(GroovyLanguageWithResettableCache.class);
-        CompileScriptOnRouteAddedNotifier notifier = notifier(groovyShellFactory, groovyLanguage);
         CamelEvent event = mock(CamelEvent.class);
 
         notifier.notify(event);
@@ -49,10 +75,6 @@ class CompileScriptOnRouteAddedNotifierTest {
 
     @Test
     void shouldIgnoreRouteAddedEventWhenNamedNodeIsNotRouteDefinition() throws Exception {
-        ExternalLibraryGroovyShellFactory groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
-        GroovyLanguageWithResettableCache groovyLanguage = mock(GroovyLanguageWithResettableCache.class);
-        CompileScriptOnRouteAddedNotifier notifier = notifier(groovyShellFactory, groovyLanguage);
-
         CamelEvent.RouteAddedEvent event = mock(CamelEvent.RouteAddedEvent.class);
         Route route = mock(Route.class);
         NamedNode namedNode = mock(NamedNode.class);
@@ -68,12 +90,6 @@ class CompileScriptOnRouteAddedNotifierTest {
 
     @Test
     void shouldCompileOnlyGroovyExpressionNodesWhenRouteAdded() throws Exception {
-        ExternalLibraryGroovyShellFactory groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
-        GroovyLanguageWithResettableCache groovyLanguage = mock(GroovyLanguageWithResettableCache.class);
-        CompileScriptOnRouteAddedNotifier notifier = notifier(groovyShellFactory, groovyLanguage);
-
-        GroovyShell groovyShell = mock(GroovyShell.class);
-        GroovyClassLoader groovyClassLoader = mock(GroovyClassLoader.class);
         when(groovyShellFactory.createGroovyShell(null)).thenReturn(groovyShell);
         when(groovyShell.getClassLoader()).thenReturn(groovyClassLoader);
         when(groovyClassLoader.parseClass("return 1")).thenReturn(castScriptClass(DummyScript.class));
@@ -81,8 +97,6 @@ class CompileScriptOnRouteAddedNotifierTest {
         RouteDefinition routeDefinition = new RouteDefinition();
 
         ProcessorDefinition<?> nonExpressionProcessor = mock(ProcessorDefinition.class);
-        ExpressionNode groovyProcessor = mock(ExpressionNode.class);
-        ExpressionDefinition groovyExpression = mock(ExpressionDefinition.class);
         ExpressionNode nonGroovyProcessor = mock(ExpressionNode.class);
         ExpressionDefinition nonGroovyExpression = mock(ExpressionDefinition.class);
 
@@ -110,20 +124,11 @@ class CompileScriptOnRouteAddedNotifierTest {
 
     @Test
     void shouldPreserveWhitespaceWhenTrimDisabled() throws Exception {
-        ExternalLibraryGroovyShellFactory groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
-        GroovyLanguageWithResettableCache groovyLanguage = mock(GroovyLanguageWithResettableCache.class);
-        CompileScriptOnRouteAddedNotifier notifier = notifier(groovyShellFactory, groovyLanguage);
-
-        GroovyShell groovyShell = mock(GroovyShell.class);
-        GroovyClassLoader groovyClassLoader = mock(GroovyClassLoader.class);
         when(groovyShellFactory.createGroovyShell(null)).thenReturn(groovyShell);
         when(groovyShell.getClassLoader()).thenReturn(groovyClassLoader);
         when(groovyClassLoader.parseClass("  return 1  ")).thenReturn(castScriptClass(DummyScript.class));
 
         RouteDefinition routeDefinition = new RouteDefinition();
-
-        ExpressionNode groovyProcessor = mock(ExpressionNode.class);
-        ExpressionDefinition groovyExpression = mock(ExpressionDefinition.class);
 
         when(groovyProcessor.getExpression()).thenReturn(groovyExpression);
         when(groovyProcessor.getId()).thenReturn("groovy-1");
@@ -143,12 +148,6 @@ class CompileScriptOnRouteAddedNotifierTest {
 
     @Test
     void shouldThrowDeploymentRetriableExceptionWhenGroovyCompilationFailsDueToClassResolveError() throws Exception {
-        ExternalLibraryGroovyShellFactory groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
-        GroovyLanguageWithResettableCache groovyLanguage = mock(GroovyLanguageWithResettableCache.class);
-        CompileScriptOnRouteAddedNotifier notifier = notifier(groovyShellFactory, groovyLanguage);
-
-        GroovyShell groovyShell = mock(GroovyShell.class);
-        GroovyClassLoader groovyClassLoader = mock(GroovyClassLoader.class);
         CompilationFailedException exception = mock(CompilationFailedException.class);
 
         when(groovyShellFactory.createGroovyShell(null)).thenReturn(groovyShell);
@@ -157,9 +156,6 @@ class CompileScriptOnRouteAddedNotifierTest {
         when(groovyClassLoader.parseClass("return MissingType.newInstance()")).thenThrow(exception);
 
         RouteDefinition routeDefinition = new RouteDefinition();
-
-        ExpressionNode groovyProcessor = mock(ExpressionNode.class);
-        ExpressionDefinition groovyExpression = mock(ExpressionDefinition.class);
 
         when(groovyProcessor.getExpression()).thenReturn(groovyExpression);
         when(groovyProcessor.getId()).thenReturn("groovy-1");
@@ -181,12 +177,6 @@ class CompileScriptOnRouteAddedNotifierTest {
 
     @Test
     void shouldThrowRuntimeExceptionWhenGroovyCompilationFailsForOtherReason() throws Exception {
-        ExternalLibraryGroovyShellFactory groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
-        GroovyLanguageWithResettableCache groovyLanguage = mock(GroovyLanguageWithResettableCache.class);
-        CompileScriptOnRouteAddedNotifier notifier = notifier(groovyShellFactory, groovyLanguage);
-
-        GroovyShell groovyShell = mock(GroovyShell.class);
-        GroovyClassLoader groovyClassLoader = mock(GroovyClassLoader.class);
         CompilationFailedException exception = mock(CompilationFailedException.class);
 
         when(groovyShellFactory.createGroovyShell(null)).thenReturn(groovyShell);
@@ -195,9 +185,6 @@ class CompileScriptOnRouteAddedNotifierTest {
         when(groovyClassLoader.parseClass("return 1 +")).thenThrow(exception);
 
         RouteDefinition routeDefinition = new RouteDefinition();
-
-        ExpressionNode groovyProcessor = mock(ExpressionNode.class);
-        ExpressionDefinition groovyExpression = mock(ExpressionDefinition.class);
 
         when(groovyProcessor.getExpression()).thenReturn(groovyExpression);
         when(groovyProcessor.getId()).thenReturn("groovy-1");

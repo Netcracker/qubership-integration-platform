@@ -16,11 +16,7 @@
 
 package org.qubership.integration.platform.engine.testutils;
 
-import org.apache.camel.CamelContext;
-import org.apache.camel.Exchange;
-import org.apache.camel.ExchangePropertyKey;
-import org.apache.camel.Message;
-import org.apache.camel.TypeConverter;
+import org.apache.camel.*;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.support.DefaultExchange;
 
@@ -136,6 +132,10 @@ public final class MockExchanges {
 
     public static Exchange defaultExchange() {
         return new DefaultExchange(new DefaultCamelContext());
+    }
+
+    public static Exchange defaultExchange(DefaultCamelContext camelContext, ExchangePattern pattern) {
+        return new DefaultExchange(camelContext, pattern);
     }
 
     public static TypeConverter getTypeConverter(Exchange ex) {

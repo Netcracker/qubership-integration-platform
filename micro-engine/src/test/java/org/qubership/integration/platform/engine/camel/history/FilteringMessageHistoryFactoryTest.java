@@ -5,11 +5,14 @@ import org.apache.camel.Exchange;
 import org.apache.camel.MessageHistory;
 import org.apache.camel.NamedNode;
 import org.apache.camel.spi.MessageHistoryFactory;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MockExchanges;
 
 import java.util.function.Predicate;
 
@@ -24,17 +27,27 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class FilteringMessageHistoryFactoryTest {
 
+    private FilteringMessageHistoryFactory factory;
+
+    @Mock
+    Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter;
+    @Mock
+    MessageHistoryFactory delegateFactory;
+    @Mock
+    MessageHistory messageHistory;
+    @Mock
+    NamedNode node;
+    @Mock
+    Exchange exchange;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.basic();
+        factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
+    }
+
     @Test
     void shouldCreateMessageHistoryWhenFilterMatches() {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
-        MessageHistory messageHistory = mock(MessageHistory.class);
-        NamedNode node = mock(NamedNode.class);
-        Exchange exchange = mock(Exchange.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
-
         when(filter.test(org.mockito.ArgumentMatchers.any())).thenReturn(true);
         when(delegateFactory.newMessageHistory("route-1", node, exchange)).thenReturn(messageHistory);
 
@@ -46,14 +59,6 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldReturnNullWhenFilterDoesNotMatch() {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
-        NamedNode node = mock(NamedNode.class);
-        Exchange exchange = mock(Exchange.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
-
         when(filter.test(org.mockito.ArgumentMatchers.any())).thenReturn(false);
 
         MessageHistory result = factory.newMessageHistory("route-1", node, exchange);
@@ -63,14 +68,6 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldPassFilteringEntityToPredicateWhenCreatingMessageHistory() {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
-        NamedNode node = mock(NamedNode.class);
-        Exchange exchange = mock(Exchange.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
-
         when(filter.test(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
             FilteringMessageHistoryFactory.FilteringEntity entity = invocation.getArgument(0);
             return "route-1".equals(entity.routeId())
@@ -85,12 +82,6 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldDelegateIsCopyMessage() {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
-
         when(delegateFactory.isCopyMessage()).thenReturn(true);
 
         assertTrue(factory.isCopyMessage());
@@ -98,12 +89,6 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldDelegateSetCopyMessage() {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
-
         factory.setCopyMessage(true);
 
         verify(delegateFactory).setCopyMessage(true);
@@ -111,12 +96,6 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldDelegateGetNodePattern() {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
-
         when(delegateFactory.getNodePattern()).thenReturn("direct:*");
 
         assertSame("direct:*", factory.getNodePattern());
@@ -124,12 +103,6 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldDelegateSetNodePattern() {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
-
         factory.setNodePattern("direct:*");
 
         verify(delegateFactory).setNodePattern("direct:*");
@@ -137,12 +110,7 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldDelegateGetCamelContext() {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
         CamelContext camelContext = mock(CamelContext.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
 
         when(delegateFactory.getCamelContext()).thenReturn(camelContext);
 
@@ -151,12 +119,7 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldDelegateSetCamelContext() {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
         CamelContext camelContext = mock(CamelContext.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
 
         factory.setCamelContext(camelContext);
 
@@ -165,12 +128,6 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldDelegateStart() throws Exception {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
-
         factory.start();
 
         verify(delegateFactory).start();
@@ -178,12 +135,6 @@ class FilteringMessageHistoryFactoryTest {
 
     @Test
     void shouldDelegateStop() throws Exception {
-        @SuppressWarnings("unchecked")
-        Predicate<FilteringMessageHistoryFactory.FilteringEntity> filter = mock(Predicate.class);
-        MessageHistoryFactory delegateFactory = mock(MessageHistoryFactory.class);
-
-        FilteringMessageHistoryFactory factory = new FilteringMessageHistoryFactory(filter, delegateFactory);
-
         factory.stop();
 
         verify(delegateFactory).stop();

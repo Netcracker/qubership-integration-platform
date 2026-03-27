@@ -30,10 +30,9 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 class MetadataBuilderEventNotifierTest {
 
     @Mock
-    MetadataConverter metadataConverter;
-    @Mock
     MetadataBuilderEventNotifier notifier;
-
+    @Mock
+    MetadataConverter metadataConverter;
 
     @BeforeEach
     void setUp() {

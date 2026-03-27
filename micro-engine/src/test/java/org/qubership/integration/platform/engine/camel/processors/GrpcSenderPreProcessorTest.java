@@ -3,9 +3,11 @@ package org.qubership.integration.platform.engine.camel.processors;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
 import org.apache.camel.Exchange;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
@@ -13,7 +15,6 @@ import org.qubership.integration.platform.engine.testutils.MockExchanges;
 import org.qubership.integration.platform.engine.util.GrpcProcessorUtils;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -23,15 +24,25 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class GrpcSenderPreProcessorTest {
 
-    private final JsonFormat.Parser grpcParser = mock(JsonFormat.Parser.class);
-    private final GrpcSenderPreProcessor processor = new GrpcSenderPreProcessor(grpcParser);
+    private GrpcSenderPreProcessor processor;
+
+    @Mock
+    JsonFormat.Parser grpcParser;
+    @Mock
+    Exchange exchange;
+    @Mock
+    Message.Builder builder;
+    @Mock
+    Message builtMessage;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.defaultExchange();
+        processor = new GrpcSenderPreProcessor(grpcParser);
+    }
 
     @Test
     void shouldMergeJsonIntoBuilderAndSetBuiltMessageWhenBodyNotEmpty() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-        Message.Builder builder = mock(Message.Builder.class);
-        Message builtMessage = mock(Message.class);
-
         FakeGrpcRequest.builder = builder;
 
         exchange.getMessage().setBody("{\"customerId\":\"C-100500\"}");
@@ -51,10 +62,6 @@ class GrpcSenderPreProcessorTest {
 
     @Test
     void shouldSkipMergeAndSetBuiltMessageWhenBodyEmpty() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-        Message.Builder builder = mock(Message.Builder.class);
-        Message builtMessage = mock(Message.class);
-
         FakeGrpcRequest.builder = builder;
 
         exchange.getMessage().setBody("");
@@ -74,10 +81,6 @@ class GrpcSenderPreProcessorTest {
 
     @Test
     void shouldSkipMergeAndSetBuiltMessageWhenBodyNull() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-        Message.Builder builder = mock(Message.Builder.class);
-        Message builtMessage = mock(Message.class);
-
         FakeGrpcRequest.builder = builder;
 
         when(builder.build()).thenReturn(builtMessage);

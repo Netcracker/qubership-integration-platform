@@ -53,6 +53,8 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class CheckpointSessionServiceTest {
 
+    private CheckpointSessionService checkpointSessionService;
+
     @Mock
     SessionInfoRepository sessionRepo;
     @Mock
@@ -64,11 +66,9 @@ class CheckpointSessionServiceTest {
     @Mock
     ObjectMapper mapper;
 
-    private CheckpointSessionService svc;
-
     @BeforeEach
     void setUp() {
-        svc = new CheckpointSessionService(sessionRepo, checkpointRepo, rest, mapper);
+        checkpointSessionService = new CheckpointSessionService(sessionRepo, checkpointRepo, rest, mapper);
     }
 
     @Test
@@ -77,7 +77,7 @@ class CheckpointSessionServiceTest {
                 .thenReturn(List.of());
 
         assertThrows(EntityNotFoundException.class, () ->
-                svc.retryFromLastCheckpoint("chain", "session", "{\"x\":1}", () -> null, true)
+                checkpointSessionService.retryFromLastCheckpoint("chain", "session", "{\"x\":1}", () -> null, true)
         );
 
         verifyNoInteractions(rest);
@@ -99,7 +99,7 @@ class CheckpointSessionServiceTest {
 
         Supplier<Pair<String, String>> auth = () -> Pair.of("Authorization", "Bearer 123");
 
-        svc.retryFromLastCheckpoint("chain", "session", "{\"k\":\"v\"}", auth, true);
+        checkpointSessionService.retryFromLastCheckpoint("chain", "session", "{\"k\":\"v\"}", auth, true);
 
         @SuppressWarnings({"rawtypes", "unchecked"})
         ArgumentCaptor<Map<String, String>> headersCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
@@ -132,7 +132,7 @@ class CheckpointSessionServiceTest {
         when(checkpointRepo.findAllBySessionChainIdAndSessionId(eq("chain"), eq("session"), any(Page.class), any(Sort.class)))
                 .thenReturn(List.of(checkpoint));
 
-        svc.retryFromLastCheckpoint("chain", "session", "", () -> null, false);
+        checkpointSessionService.retryFromLastCheckpoint("chain", "session", "", () -> null, false);
 
         @SuppressWarnings({"rawtypes", "unchecked"})
         ArgumentCaptor<Map<String, String>> headersCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
@@ -155,7 +155,7 @@ class CheckpointSessionServiceTest {
                 .thenReturn(null);
 
         assertThrows(EntityNotFoundException.class, () ->
-                svc.retryFromCheckpoint("chain", "session", "el-1", "{}", () -> null, true)
+                checkpointSessionService.retryFromCheckpoint("chain", "session", "el-1", "{}", () -> null, true)
         );
 
         verifyNoInteractions(rest);
@@ -175,7 +175,7 @@ class CheckpointSessionServiceTest {
         when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "el-1"))
                 .thenReturn(checkpoint);
 
-        svc.retryFromCheckpoint("chain", "session", "el-1", "{\"a\":1}", () -> Pair.of("X", "Y"), true);
+        checkpointSessionService.retryFromCheckpoint("chain", "session", "el-1", "{\"a\":1}", () -> Pair.of("X", "Y"), true);
 
         @SuppressWarnings({"rawtypes", "unchecked"})
         ArgumentCaptor<Map<String, String>> headersCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
@@ -198,12 +198,12 @@ class CheckpointSessionServiceTest {
         when(checkpointRepo.findAllBySessionChainIdAndSessionId(anyString(), anyString(), any(Page.class), any(Sort.class)))
                 .thenReturn(null);
 
-        assertNull(svc.findLastCheckpoint("c", "s"));
+        assertNull(checkpointSessionService.findLastCheckpoint("c", "s"));
 
         when(checkpointRepo.findAllBySessionChainIdAndSessionId(anyString(), anyString(), any(Page.class), any(Sort.class)))
                 .thenReturn(List.of());
 
-        assertNull(svc.findLastCheckpoint("c", "s"));
+        assertNull(checkpointSessionService.findLastCheckpoint("c", "s"));
     }
 
     @Test
@@ -214,7 +214,7 @@ class CheckpointSessionServiceTest {
         when(checkpointRepo.findAllBySessionChainIdAndSessionId(eq("c"), eq("s"), any(Page.class), any(Sort.class)))
                 .thenReturn(List.of(c1, c2));
 
-        assertSame(c1, svc.findLastCheckpoint("c", "s"));
+        assertSame(c1, checkpointSessionService.findLastCheckpoint("c", "s"));
     }
 
     @Test
@@ -222,14 +222,14 @@ class CheckpointSessionServiceTest {
         List<SessionInfo> list = List.of(mock(SessionInfo.class));
         when(sessionRepo.findAllByChainIdAndExecutionStatus("c", ExecutionStatus.COMPLETED_WITH_ERRORS)).thenReturn(list);
 
-        assertSame(list, svc.findAllFailedChainSessionsInfo("c"));
+        assertSame(list, checkpointSessionService.findAllFailedChainSessionsInfo("c"));
     }
 
     @Test
     void shouldPersistAndReturnSameSessionWhenSaveSession() {
         SessionInfo session = mock(SessionInfo.class);
 
-        SessionInfo out = svc.saveSession(session);
+        SessionInfo out = checkpointSessionService.saveSession(session);
 
         assertSame(session, out);
         verify(sessionRepo).persistAndFlush(session);
@@ -241,7 +241,7 @@ class CheckpointSessionServiceTest {
 
         Checkpoint checkpoint = mock(Checkpoint.class);
 
-        assertThrows(EntityNotFoundException.class, () -> svc.saveAndAssignCheckpoint(checkpoint, "s"));
+        assertThrows(EntityNotFoundException.class, () -> checkpointSessionService.saveAndAssignCheckpoint(checkpoint, "s"));
     }
 
     @Test
@@ -256,7 +256,7 @@ class CheckpointSessionServiceTest {
 
         when(checkpoint.getProperties()).thenReturn(props);
 
-        svc.saveAndAssignCheckpoint(checkpoint, "s");
+        checkpointSessionService.saveAndAssignCheckpoint(checkpoint, "s");
 
         verify(checkpoint).assignProperties(props);
         verify(session).assignCheckpoint(checkpoint);
@@ -270,7 +270,7 @@ class CheckpointSessionServiceTest {
         when(sessionRepo.findByIdOptional("s")).thenReturn(Optional.of(session));
         when(sessionRepo.findByIdOptional("p")).thenReturn(Optional.of(parent));
 
-        svc.updateSessionParent("s", "p");
+        checkpointSessionService.updateSessionParent("s", "p");
 
         verify(session).setParentSession(parent);
     }
@@ -279,12 +279,12 @@ class CheckpointSessionServiceTest {
     void shouldThrowEntityNotFoundWhenUpdateParentAndAnySessionMissing() {
         when(sessionRepo.findByIdOptional("s")).thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class, () -> svc.updateSessionParent("s", "p"));
+        assertThrows(EntityNotFoundException.class, () -> checkpointSessionService.updateSessionParent("s", "p"));
     }
 
     @Test
     void shouldDeleteRootSessionByIdWhenRemoveAllRelatedCheckpointsAndIsRoot() {
-        svc.removeAllRelatedCheckpoints("s", true);
+        checkpointSessionService.removeAllRelatedCheckpoints("s", true);
 
         verify(sessionRepo).deleteById("s");
         verify(sessionRepo, never()).deleteAllRelatedSessionsAndCheckpoints(anyString());
@@ -292,7 +292,7 @@ class CheckpointSessionServiceTest {
 
     @Test
     void shouldDeleteRelatedWhenRemoveAllRelatedCheckpointsAndNotRoot() {
-        svc.removeAllRelatedCheckpoints("s", false);
+        checkpointSessionService.removeAllRelatedCheckpoints("s", false);
 
         verify(sessionRepo).deleteAllRelatedSessionsAndCheckpoints("s");
         verify(sessionRepo, never()).deleteById(anyString());
@@ -300,7 +300,7 @@ class CheckpointSessionServiceTest {
 
     @Test
     void shouldDelegateDeleteOldRecordsByInterval() {
-        svc.deleteOldRecordsByInterval("P30D");
+        checkpointSessionService.deleteOldRecordsByInterval("P30D");
 
         verify(sessionRepo).deleteOldRecordsByInterval("P30D");
     }

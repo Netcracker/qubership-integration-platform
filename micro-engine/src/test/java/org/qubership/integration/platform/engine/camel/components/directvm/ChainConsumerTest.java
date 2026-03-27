@@ -20,9 +20,9 @@ import static org.mockito.Mockito.mock;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ChainConsumerTest {
 
+    private ChainConsumer consumer;
     private ChainComponent component;
     private ChainEndpoint endpoint;
-    private Processor processor;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -32,13 +32,13 @@ class ChainConsumerTest {
         component.setCamelContext(new DefaultCamelContext());
 
         endpoint = new ChainEndpoint("cip-chain:routeA", component);
-        processor = mock(Processor.class);
+        Processor processor = mock(Processor.class);
+
+        consumer = new ChainConsumer(endpoint, processor);
     }
 
     @Test
     void shouldRegisterConsumerInComponentWhenStarted() {
-        ChainConsumer consumer = new ChainConsumer(endpoint, processor);
-
         consumer.start();
 
         assertSame(consumer, component.getConsumer(endpoint));
@@ -46,45 +46,34 @@ class ChainConsumerTest {
 
     @Test
     void shouldUnregisterConsumerInComponentWhenStopped() {
-        ChainConsumer consumer = new ChainConsumer(endpoint, processor);
-
         consumer.start();
         assertSame(consumer, component.getConsumer(endpoint));
 
         consumer.stop();
-
         assertNull(component.getConsumer(endpoint));
     }
 
     @Test
     void shouldUnregisterConsumerInComponentWhenSuspended() {
-        ChainConsumer consumer = new ChainConsumer(endpoint, processor);
-
         consumer.start();
         assertSame(consumer, component.getConsumer(endpoint));
 
         consumer.suspend();
-
         assertNull(component.getConsumer(endpoint));
     }
 
     @Test
     void shouldRegisterConsumerInComponentWhenResumed() {
-        ChainConsumer consumer = new ChainConsumer(endpoint, processor);
-
         consumer.start();
         consumer.suspend();
         assertNull(component.getConsumer(endpoint));
 
         consumer.resume();
-
         assertSame(consumer, component.getConsumer(endpoint));
     }
 
     @Test
     void shouldReturnChainEndpointWhenGetEndpointCalled() {
-        ChainConsumer consumer = new ChainConsumer(endpoint, processor);
-
         assertSame(endpoint, consumer.getEndpoint());
     }
 

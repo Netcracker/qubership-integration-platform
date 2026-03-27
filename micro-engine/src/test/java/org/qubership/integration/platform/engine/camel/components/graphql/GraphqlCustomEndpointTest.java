@@ -30,12 +30,12 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class GraphqlCustomEndpointTest {
 
+    private GraphqlCustomEndpoint endpoint;
+
     @Mock
     Component component;
     @Mock
     HttpClientConfigurer httpClientConfigurer;
-
-    private GraphqlCustomEndpoint endpoint;
 
     @BeforeEach
     void setUp() {

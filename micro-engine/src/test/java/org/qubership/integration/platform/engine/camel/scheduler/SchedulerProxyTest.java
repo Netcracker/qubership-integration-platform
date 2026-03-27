@@ -24,10 +24,10 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class SchedulerProxyTest {
 
+    private SchedulerProxy proxy;
+
     @Mock
     Scheduler scheduler;
-
-    private SchedulerProxy proxy;
 
     @BeforeEach
     void setUp() {

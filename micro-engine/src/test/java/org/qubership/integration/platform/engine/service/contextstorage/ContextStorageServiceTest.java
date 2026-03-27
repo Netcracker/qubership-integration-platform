@@ -23,10 +23,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.qubership.integration.platform.engine.errorhandling.ContextStorageException;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ContextSystemRecords;
 import org.qubership.integration.platform.engine.persistence.shared.repository.ContextStorageRepository;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.ObjectMappers;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -40,14 +42,17 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ContextStorageServiceTest {
 
-    private ContextStorageRepository repository;
-    private ObjectMapper mapper;
     private ContextStorageService service;
+
+    @Mock
+    private ContextStorageRepository repository;
+
+    ObjectMapper mapper;
 
     @BeforeEach
     void setUp() {
         repository = mock(ContextStorageRepository.class);
-        mapper = new ObjectMapper();
+        mapper = ObjectMappers.getObjectMapper();
         service = new ContextStorageService(repository, mapper);
     }
 

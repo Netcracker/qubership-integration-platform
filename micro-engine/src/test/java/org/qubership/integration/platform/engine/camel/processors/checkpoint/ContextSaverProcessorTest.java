@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextOperationsWrapper;
@@ -49,25 +50,31 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ContextSaverProcessorTest {
 
-    private CheckpointSessionService checkpointSessionService;
+    private ContextSaverProcessor processor;
+
+    @Mock
+    CheckpointSessionService checkpointSessionService;
+    @Mock
+    ContextOperationsWrapper contextOperations;
+    @Mock
+    private Exchange exchange;
+
     private ObjectMapper checkpointMapper;
 
     @BeforeEach
     void setUp() {
-        checkpointSessionService = mock(CheckpointSessionService.class);
+        exchange = MockExchanges.defaultExchange();
         checkpointMapper = ObjectMappers.getCheckpointMapper();
     }
 
     @Test
     void shouldSaveCheckpointWhenProcessCalledForRegularSession() throws Exception {
-        ContextOperationsWrapper contextOperations = mock(ContextOperationsWrapper.class);
-        ContextSaverProcessor processor = processor(
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 Optional.of(contextOperations)
         );
 
-        Exchange exchange = MockExchanges.defaultExchange();
         exchange.setProperty(CamelConstants.Properties.CHECKPOINT_ELEMENT_ID, "9f8fe5db-e713-4f49-8b4f-4f7a0cfef9be");
         exchange.setProperty(CamelConstants.Properties.SESSION_ID, "497db4d8-4a3b-4e2e-8f65-2ca018a72240");
         exchange.setProperty("customProperty", "custom-value");
@@ -123,13 +130,12 @@ class ContextSaverProcessorTest {
 
     @Test
     void shouldSkipCheckpointSaveWhenChainCallTriggeredSession() throws Exception {
-        ContextSaverProcessor processor = processor(
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 Optional.empty()
         );
 
-        Exchange exchange = MockExchanges.defaultExchange();
         exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, true);
         exchange.setProperty(CamelConstants.Properties.CHECKPOINT_ELEMENT_ID, "1b9b5406-1a56-4887-9d27-2b777b7bc8de");
 
@@ -145,13 +151,12 @@ class ContextSaverProcessorTest {
 
     @Test
     void shouldThrowRuntimeExceptionWhenCheckpointSaveFails() throws Exception {
-        ContextSaverProcessor processor = processor(
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 Optional.empty()
         );
 
-        Exchange exchange = MockExchanges.defaultExchange();
         exchange.setProperty(CamelConstants.Properties.CHECKPOINT_ELEMENT_ID, "7a37f33b-30ae-4183-9fd7-f0e0b980b005");
         exchange.setProperty(CamelConstants.Properties.SESSION_ID, "00f05368-cf2f-4eb3-a318-8f2e4f7c4e31");
 
@@ -172,7 +177,7 @@ class ContextSaverProcessorTest {
 
     @Test
     void shouldCreatePropertiesForSave() {
-        ContextSaverProcessor processor = processor(
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 Optional.empty()
@@ -188,7 +193,7 @@ class ContextSaverProcessorTest {
 
     @Test
     void shouldSerializeSerializablePropertyWithIoLibrary() {
-        ContextSaverProcessor processor = processor(
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 Optional.empty()
@@ -201,7 +206,7 @@ class ContextSaverProcessorTest {
 
     @Test
     void shouldSerializeNonSerializablePropertyWithObjectMapper() throws Exception {
-        ContextSaverProcessor processor = processor(
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 Optional.empty()
@@ -235,7 +240,7 @@ class ContextSaverProcessorTest {
 
     @Test
     void shouldSerializeGPathResultProperty() throws Exception {
-        ContextSaverProcessor processor = processor(
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 Optional.empty()
@@ -252,7 +257,7 @@ class ContextSaverProcessorTest {
 
     @Test
     void shouldSerializeWithObjectMapper() throws Exception {
-        ContextSaverProcessor processor = processor(
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 Optional.empty()
@@ -285,7 +290,7 @@ class ContextSaverProcessorTest {
 
     @Test
     void shouldSerializeWithIoLibrary() throws Exception {
-        ContextSaverProcessor processor = processor(
+        processor = processor(
                 checkpointSessionService,
                 checkpointMapper,
                 Optional.empty()

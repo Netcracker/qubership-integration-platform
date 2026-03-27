@@ -1,8 +1,10 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
+import io.quarkus.test.Mock;
 import org.apache.camel.Exchange;
 import org.apache.camel.Expression;
 import org.apache.camel.language.simple.SimpleLanguage;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,12 +27,23 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class HeaderModificationProcessorTest {
 
-    private final SimpleLanguage simpleInterpreter = mock(SimpleLanguage.class);
-    private final HeaderModificationProcessor processor = new HeaderModificationProcessor(simpleInterpreter);
+    private HeaderModificationProcessor processor;
+
+    @Mock
+    SimpleLanguage simpleInterpreter;
+    @Mock
+    Exchange exchange;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.defaultExchange();
+        simpleInterpreter = mock(SimpleLanguage.class);
+        processor = new HeaderModificationProcessor(simpleInterpreter);
+    }
+
 
     @Test
     void shouldAddHeadersWhenHeadersToAddPresent() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Expression firstExpression = mock(Expression.class);
         Expression secondExpression = mock(Expression.class);
 
@@ -53,7 +66,6 @@ class HeaderModificationProcessorTest {
 
     @Test
     void shouldSkipEmptyHeaderValuesWhenHeadersToAddPresent() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Expression expression = mock(Expression.class);
 
         Map<String, String> headersToAdd = new LinkedHashMap<>();
@@ -73,7 +85,6 @@ class HeaderModificationProcessorTest {
 
     @Test
     void shouldRemoveHeadersByPatternAndKeepAddedHeaders() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Expression expression = mock(Expression.class);
 
         Map<String, String> headersToAdd = new LinkedHashMap<>();
@@ -103,8 +114,6 @@ class HeaderModificationProcessorTest {
 
     @Test
     void shouldRemoveHeadersByPatternWhenHeadersToAddAbsent() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(
                 CamelConstants.Properties.HEADER_MODIFICATION_TO_REMOVE,
                 List.of("X-*")

@@ -27,8 +27,10 @@ import org.apache.camel.Message;
 import org.apache.camel.component.http.HttpConstants;
 import org.apache.camel.http.base.HttpOperationFailedException;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException;
 import org.qubership.integration.platform.engine.camel.exceptions.IterationLimitException;
 import org.qubership.integration.platform.engine.errorhandling.ChainExecutionTerminatedException;
@@ -44,6 +46,7 @@ import org.qubership.integration.platform.engine.testutils.MockExchanges;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
@@ -52,300 +55,211 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ChainGlobalExceptionHandlerTest {
 
-    private ChainGlobalExceptionHandler newHandler(ObjectMapper mapper) throws Exception {
+    private ChainGlobalExceptionHandler chainGlobalExceptionHandler;
+
+    @Mock
+    Exchange exchange;
+
+    ChainExceptionResponseHandlerService service;
+    Map<String, String> extras;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        ObjectMapper mapper = mock(ObjectMapper.class);
         when(mapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
-        return new ChainGlobalExceptionHandler(mapper);
-    }
 
-    private Exchange newExchangeWithExtras() {
-        Exchange ex = MockExchanges.withMessage();
-        ex.setProperty(CamelConstants.Properties.SESSION_ID, "S-1");
-        ex.setProperty(CamelConstants.ChainProperties.FAILED_ELEMENT_ID, "E-1");
-        return ex;
-    }
+        chainGlobalExceptionHandler = spy(new ChainGlobalExceptionHandler(mapper));
+        service = new ChainExceptionResponseHandlerService(chainGlobalExceptionHandler);
 
-    private void verifyCommonHeaders(Exchange ex, int httpCode) throws Exception {
-        Message msg = MockExchanges.getMessage(ex);
-        verify(msg).removeHeaders("*");
-        verify(msg).setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
-        verify(msg).setHeader(HttpConstants.HTTP_RESPONSE_CODE, httpCode);
-        verify(msg).setBody("{\"ok\":true}");
+        exchange = MockExchanges.withMessage();
+        exchange.setProperty(CamelConstants.Properties.SESSION_ID, "S-1");
+        exchange.setProperty(CamelConstants.ChainProperties.FAILED_ELEMENT_ID, "E-1");
+
+        extras = new HashMap<>();
     }
 
     @Test
     void shouldDispatchToDefaultHandlerWhenThrowable() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new RuntimeException("boom"));
 
-        service.handleExceptionResponse(ex, new RuntimeException("boom"));
-
-        verify(spyHandler).handleGeneralException(any(Throwable.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleGeneralException(any(Throwable.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchValidationExceptionWhenSpecific() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new ValidationException("bad"));
 
-        service.handleExceptionResponse(ex, new ValidationException("bad"));
-
-        verify(spyHandler).handleException(any(ValidationException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleException(any(ValidationException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchResponseValidationExceptionWhenSpecific() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new ResponseValidationException("bad"));
 
-        service.handleExceptionResponse(ex, new ResponseValidationException("bad"));
-
-        verify(spyHandler).handleException(any(ResponseValidationException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleException(any(ResponseValidationException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchCamelAuthorizationExceptionWhenSpecific() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new CamelAuthorizationException("denied", exchange));
 
-        service.handleExceptionResponse(ex, new CamelAuthorizationException("denied", ex));
-
-        verify(spyHandler).handleException(any(CamelAuthorizationException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleException(any(CamelAuthorizationException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchUnknownHostExceptionWhenSpecific() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new UnknownHostException("no_host"));
 
-        service.handleExceptionResponse(ex, new UnknownHostException("nohost"));
-
-        verify(spyHandler).handleException(any(UnknownHostException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleException(any(UnknownHostException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchHttpOperationFailedExceptionWhen504RedirectsToTimeout() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        doNothing().when(spyHandler).handleTimeoutException(any(Exception.class), any(), any(), anyMap());
+        doNothing().when(chainGlobalExceptionHandler).handleTimeoutException(any(Exception.class), any(), any(), anyMap());
 
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
-        var httpEx = new HttpOperationFailedException("http://x", 504, "Gateway Timeout", null, null, null);
+        HttpOperationFailedException httpEx = new HttpOperationFailedException("http://x", 504, "Gateway Timeout", null, null, null);
 
-        service.handleExceptionResponse(ex, httpEx);
+        service.handleExceptionResponse(exchange, httpEx);
 
-        verify(spyHandler).handleTimeoutException(eq(httpEx), eq(ex), eq(ErrorCode.SOCKET_TIMEOUT), anyMap());
+        verify(chainGlobalExceptionHandler).handleTimeoutException(eq(httpEx), eq(exchange), eq(ErrorCode.SOCKET_TIMEOUT), anyMap());
     }
 
     @Test
     void shouldDispatchHttpOperationFailedExceptionWhenNon504GoesServiceReturnedError() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
-        var httpEx = new HttpOperationFailedException("http://x", 400, "Bad Request", null, null, null);
+        HttpOperationFailedException httpEx = new HttpOperationFailedException("http://x", 400, "Bad Request", null, null, null);
 
-        service.handleExceptionResponse(ex, httpEx);
+        service.handleExceptionResponse(exchange, httpEx);
 
-        verify(spyHandler).handleException(eq(httpEx), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleException(eq(httpEx), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchTimeoutExceptionWhenKafkaTimeout() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new TimeoutException("kafka timeout"));
 
-        service.handleExceptionResponse(ex, new TimeoutException("kafka timeout"));
-
-        verify(spyHandler).handleException(any(TimeoutException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleException(any(TimeoutException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchIterationLimitExceptionWhenLimitReached() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new IterationLimitException("limit"));
 
-        service.handleExceptionResponse(ex, new IterationLimitException("limit"));
-
-        verify(spyHandler).handleException(any(IterationLimitException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleException(any(IterationLimitException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchChainExecutionTimeoutExceptionWhenTimeout() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new ChainExecutionTimeoutException("t"));
 
-        service.handleExceptionResponse(ex, new ChainExecutionTimeoutException("t"));
-
-        verify(spyHandler).handleException(any(ChainExecutionTimeoutException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleException(any(ChainExecutionTimeoutException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchChainExecutionTerminatedExceptionWhenTerminated() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new ChainExecutionTerminatedException("x"));
 
-        service.handleExceptionResponse(ex, new ChainExecutionTerminatedException("x"));
-
-        verify(spyHandler).handleException(any(ChainExecutionTerminatedException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleException(any(ChainExecutionTerminatedException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchChainConsumerNotAvailableExceptionWhenNoConsumer() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new ChainConsumerNotAvailableException("chain", exchange));
 
-        service.handleExceptionResponse(ex, new ChainConsumerNotAvailableException("chain", ex));
-
-        verify(spyHandler).handleChainCallException(any(ChainConsumerNotAvailableException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleChainCallException(any(ChainConsumerNotAvailableException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchSocketTimeoutExceptionWhenOccurs() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new SocketTimeoutException("st"));
 
-        service.handleExceptionResponse(ex, new SocketTimeoutException("st"));
-
-        verify(spyHandler).handleTimeoutException(any(Exception.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleTimeoutException(any(Exception.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldDispatchInvalidProtocolBufferExceptionWhenOccurs() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var spyHandler = spy(newHandler(mapper));
-        var service = new ChainExceptionResponseHandlerService(spyHandler);
-        var ex = newExchangeWithExtras();
+        service.handleExceptionResponse(exchange, new InvalidProtocolBufferException("ipb"));
 
-        service.handleExceptionResponse(ex, new InvalidProtocolBufferException("ipb"));
-
-        verify(spyHandler).handleInvalidProtocolBufferException(any(InvalidProtocolBufferException.class), eq(ex), any(ErrorCode.class), anyMap());
+        verify(chainGlobalExceptionHandler).handleInvalidProtocolBufferException(any(InvalidProtocolBufferException.class), eq(exchange), any(ErrorCode.class), anyMap());
     }
 
     @Test
     void shouldHandleResponseValidationDirectly() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var handler = newHandler(mapper);
-        var ex = newExchangeWithExtras();
-        var extras = new HashMap<String, String>();
-        var err = ErrorCode.RESPONSE_VALIDATION_ERROR;
+        ErrorCode errorCode = ErrorCode.RESPONSE_VALIDATION_ERROR;
 
-        handler.handleException(new ResponseValidationException("bad"), ex, err, extras);
+        chainGlobalExceptionHandler.handleException(new ResponseValidationException("bad"), exchange, errorCode, extras);
 
-        verifyCommonHeaders(ex, err.getHttpErrorCode());
+        verifyCommonHeaders(exchange, errorCode.getHttpErrorCode());
         assertEquals("bad", extras.get(CamelConstants.ChainProperties.EXCEPTION_EXTRA_VALIDATION_RESULT));
     }
 
     @Test
     void shouldHandleCamelAuthorizationDirectly() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var handler = newHandler(mapper);
-        var ex = newExchangeWithExtras();
-        var extras = new HashMap<String, String>();
-        var err = ErrorCode.AUTHORIZATION_ERROR;
+        ErrorCode errorCode = ErrorCode.AUTHORIZATION_ERROR;
 
-        handler.handleException(new CamelAuthorizationException("denied", ex), ex, err, extras);
+        chainGlobalExceptionHandler.handleException(new CamelAuthorizationException("denied", exchange), exchange, errorCode, extras);
 
-        verifyCommonHeaders(ex, err.getHttpErrorCode());
+        verifyCommonHeaders(exchange, errorCode.getHttpErrorCode());
     }
 
     @Test
     void shouldHandleKafkaTimeoutDirectly() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var handler = newHandler(mapper);
-        var ex = newExchangeWithExtras();
-        var extras = new HashMap<String, String>();
-        var err = ErrorCode.KAFKA_TIMEOUT;
+        ErrorCode errorCode = ErrorCode.KAFKA_TIMEOUT;
 
-        handler.handleException(new TimeoutException("t"), ex, err, extras);
+        chainGlobalExceptionHandler.handleException(new TimeoutException("t"), exchange, errorCode, extras);
 
-        verifyCommonHeaders(ex, err.getHttpErrorCode());
+        verifyCommonHeaders(exchange, errorCode.getHttpErrorCode());
     }
 
     @Test
     void shouldHandleIterationLimitDirectly() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var handler = newHandler(mapper);
-        var ex = newExchangeWithExtras();
-        var extras = new HashMap<String, String>();
-        var err = ErrorCode.LOOP_ITERATIONS_LIMIT_REACHED;
+        ErrorCode errorCode = ErrorCode.LOOP_ITERATIONS_LIMIT_REACHED;
 
-        handler.handleException(new IterationLimitException("l"), ex, err, extras);
+        chainGlobalExceptionHandler.handleException(new IterationLimitException("l"), exchange, errorCode, extras);
 
-        verifyCommonHeaders(ex, err.getHttpErrorCode());
+        verifyCommonHeaders(exchange, errorCode.getHttpErrorCode());
     }
 
     @Test
     void shouldHandleChainExecutionTimeoutDirectly() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var handler = newHandler(mapper);
-        var ex = newExchangeWithExtras();
-        var extras = new HashMap<String, String>();
-        var err = ErrorCode.TIMEOUT_REACHED;
+        ErrorCode errorCode = ErrorCode.TIMEOUT_REACHED;
 
-        handler.handleException(new ChainExecutionTimeoutException("t"), ex, err, extras);
+        chainGlobalExceptionHandler.handleException(new ChainExecutionTimeoutException("t"), exchange, errorCode, extras);
 
-        verifyCommonHeaders(ex, err.getHttpErrorCode());
+        verifyCommonHeaders(exchange, errorCode.getHttpErrorCode());
     }
 
     @Test
     void shouldHandleChainExecutionTerminatedDirectly() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var handler = newHandler(mapper);
-        var ex = newExchangeWithExtras();
-        var extras = new HashMap<String, String>();
-        var err = ErrorCode.FORCE_TERMINATED;
+        ErrorCode err = ErrorCode.FORCE_TERMINATED;
 
-        handler.handleException(new ChainExecutionTerminatedException("x"), ex, err, extras);
+        chainGlobalExceptionHandler.handleException(new ChainExecutionTerminatedException("x"), exchange, err, extras);
 
-        verifyCommonHeaders(ex, err.getHttpErrorCode());
+        verifyCommonHeaders(exchange, err.getHttpErrorCode());
     }
 
     @Test
     void shouldHandleChainConsumerNotAvailableDirectly() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var handler = newHandler(mapper);
-        var ex = newExchangeWithExtras();
-        var extras = new HashMap<String, String>();
-        var err = ErrorCode.CHAIN_ENDPOINT_NOT_FOUND;
+        ErrorCode errorCode = ErrorCode.CHAIN_ENDPOINT_NOT_FOUND;
 
-        handler.handleChainCallException(new ChainConsumerNotAvailableException("c", ex), ex, err, extras);
+        chainGlobalExceptionHandler.handleChainCallException(new ChainConsumerNotAvailableException("c", exchange), exchange, errorCode, extras);
 
-        verifyCommonHeaders(ex, err.getHttpErrorCode());
+        verifyCommonHeaders(exchange, errorCode.getHttpErrorCode());
     }
 
     @Test
     void shouldHandleInvalidProtocolBufferWhenCalledDirectly() throws Exception {
-        ObjectMapper mapper = mock(ObjectMapper.class);
-        var handler = newHandler(mapper);
-        var ex = newExchangeWithExtras();
-        var extras = new HashMap<String, String>();
-        var err = ErrorCode.REQUEST_VALIDATION_ERROR;
+        ErrorCode errorCode = ErrorCode.REQUEST_VALIDATION_ERROR;
 
-        handler.handleInvalidProtocolBufferException(new InvalidProtocolBufferException("ipb"), ex, err, extras);
+        chainGlobalExceptionHandler.handleInvalidProtocolBufferException(new InvalidProtocolBufferException("ipb"), exchange, errorCode, extras);
 
-        verifyCommonHeaders(ex, err.getHttpErrorCode());
+        verifyCommonHeaders(exchange, errorCode.getHttpErrorCode());
+    }
+
+    private void verifyCommonHeaders(Exchange ex, int httpCode) throws Exception {
+        Message message = MockExchanges.getMessage(ex);
+        verify(message).removeHeaders("*");
+        verify(message).setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
+        verify(message).setHeader(HttpConstants.HTTP_RESPONSE_CODE, httpCode);
+        verify(message).setBody("{\"ok\":true}");
     }
 }

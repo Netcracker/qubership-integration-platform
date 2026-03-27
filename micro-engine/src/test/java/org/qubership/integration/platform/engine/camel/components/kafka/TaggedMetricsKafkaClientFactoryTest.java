@@ -28,8 +28,10 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class TaggedMetricsKafkaClientFactoryTest {
 
-    @Mock KafkaClientFactory delegate;
-    @Mock MeterRegistry meterRegistry;
+    @Mock
+    KafkaClientFactory delegate;
+    @Mock
+    MeterRegistry meterRegistry;
 
     private Collection<Tag> tags;
     private TaggedMetricsKafkaClientFactory factory;

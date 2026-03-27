@@ -3,6 +3,7 @@ package org.qubership.integration.platform.engine.camel.components.rabbitmq.seri
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.rabbitmq.client.LongString;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,17 +22,24 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class LongStringSerializerTest {
 
+    private LongStringSerializer serializer;
+
     @Mock
     JsonGenerator generator;
     @Mock
     SerializerProvider provider;
+    @Mock
+    LongString value;
+
+    @BeforeEach()
+    void setUp() {
+        value = mock(LongString.class);
+        serializer = new LongStringSerializer(LongString.class);
+    }
 
     @Test
     void shouldWriteUtf8StringWhenSerialize() throws Exception {
-        LongString value = mock(LongString.class);
         when(value.getBytes()).thenReturn("hello".getBytes(StandardCharsets.UTF_8));
-
-        LongStringSerializer serializer = new LongStringSerializer(LongString.class);
 
         serializer.serialize(value, generator, provider);
 
@@ -40,13 +48,10 @@ class LongStringSerializerTest {
 
     @Test
     void shouldRethrowIOExceptionWhenGeneratorFails() throws Exception {
-        LongString value = mock(LongString.class);
         when(value.getBytes()).thenReturn("hello".getBytes(StandardCharsets.UTF_8));
 
         IOException boom = new IOException("boom");
         doThrow(boom).when(generator).writeString(anyString());
-
-        LongStringSerializer serializer = new LongStringSerializer(LongString.class);
 
         assertThrows(IOException.class, () -> serializer.serialize(value, generator, provider));
 

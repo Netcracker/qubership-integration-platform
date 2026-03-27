@@ -20,6 +20,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.spi.InflightRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +36,7 @@ import org.qubership.integration.platform.engine.model.deployment.properties.Cam
 import org.qubership.integration.platform.engine.rest.v1.dto.LiveExchangeDTO;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MockExchanges;
 
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +48,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class LiveExchangesServiceTest {
+
+    @InjectMocks
+    LiveExchangesService service;
 
     @Mock
     CamelContext camelContext;
@@ -59,14 +64,18 @@ class LiveExchangesServiceTest {
     @Mock
     CamelDebuggerPropertiesService propertiesService;
 
-    @InjectMocks
-    LiveExchangesService service;
+    @Mock
+    Exchange exchange;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.basic();
+    }
 
     @Test
     void shouldBuildDtoWithDurationsWhenStartTimesPresent() {
         when(camelContext.getInflightRepository()).thenReturn(inflightRepository);
 
-        Exchange exchange = mock(Exchange.class);
         InflightRepository.InflightExchange holder = mock(InflightRepository.InflightExchange.class);
         when(holder.getExchange()).thenReturn(exchange);
 
@@ -122,7 +131,6 @@ class LiveExchangesServiceTest {
     void shouldSetNullDurationsWhenStartTimesAbsent() {
         when(camelContext.getInflightRepository()).thenReturn(inflightRepository);
 
-        Exchange exchange = mock(Exchange.class);
         InflightRepository.InflightExchange holder = mock(InflightRepository.InflightExchange.class);
         when(holder.getExchange()).thenReturn(exchange);
 
@@ -162,7 +170,6 @@ class LiveExchangesServiceTest {
     void shouldSetTerminatedExceptionWhenKillingExistingLiveExchange() {
         when(camelContext.getInflightRepository()).thenReturn(inflightRepository);
 
-        Exchange exchange = mock(Exchange.class);
         when(exchange.getExchangeId()).thenReturn("ex-1");
 
         InflightRepository.InflightExchange holder = mock(InflightRepository.InflightExchange.class);
@@ -184,7 +191,6 @@ class LiveExchangesServiceTest {
     void shouldThrowEntityNotFoundWhenNoLiveExchangeFound() {
         when(camelContext.getInflightRepository()).thenReturn(inflightRepository);
 
-        Exchange exchange = mock(Exchange.class);
         when(exchange.getExchangeId()).thenReturn("ex-other");
 
         InflightRepository.InflightExchange holder = mock(InflightRepository.InflightExchange.class);

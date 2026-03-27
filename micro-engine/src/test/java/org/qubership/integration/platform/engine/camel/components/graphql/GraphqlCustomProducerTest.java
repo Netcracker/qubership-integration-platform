@@ -33,6 +33,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class GraphqlCustomProducerTest {
+
     @Mock
     GraphqlEndpoint endpoint;
     @Mock

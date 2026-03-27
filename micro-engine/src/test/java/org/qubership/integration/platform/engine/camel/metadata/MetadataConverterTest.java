@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
@@ -20,19 +21,23 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class MetadataConverterTest {
 
-    private ObjectMapper objectMapper;
     private MetadataConverter converter;
+
+    @Mock
+    Metadata metadata;
+
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
         objectMapper = mock(ObjectMapper.class);
         converter = new MetadataConverter();
         converter.objectMapper = objectMapper;
+        metadata = mock(Metadata.class);
     }
 
     @Test
     void shouldSerializeMetadataWhenToStringCalled() throws Exception {
-        Metadata metadata = mock(Metadata.class);
         when(objectMapper.writeValueAsString(metadata)).thenReturn("{\"key\":\"value\"}");
 
         String result = converter.toString(metadata);
@@ -42,7 +47,6 @@ class MetadataConverterTest {
 
     @Test
     void shouldThrowRuntimeExceptionWhenSerializationFails() throws Exception {
-        Metadata metadata = mock(Metadata.class);
         JsonProcessingException exception = new JsonProcessingException("serialize failed") {
         };
         when(objectMapper.writeValueAsString(metadata)).thenThrow(exception);
@@ -55,7 +59,6 @@ class MetadataConverterTest {
 
     @Test
     void shouldDeserializeMetadataWhenToMetadataCalled() throws Exception {
-        Metadata metadata = mock(Metadata.class);
         when(objectMapper.readValue("{\"key\":\"value\"}", Metadata.class)).thenReturn(metadata);
 
         Metadata result = converter.toMetadata("{\"key\":\"value\"}");

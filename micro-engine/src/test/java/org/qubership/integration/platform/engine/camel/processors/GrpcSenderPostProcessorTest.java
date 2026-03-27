@@ -7,9 +7,11 @@ import com.google.protobuf.util.JsonFormat;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import org.apache.camel.Exchange;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
@@ -30,14 +32,25 @@ class GrpcSenderPostProcessorTest {
     private static final String GRPC_SERVICE_NAME = "customer.profile.v1.CustomerProfileService";
     private static final String GRPC_METHOD_NAME = "GetCustomerProfile";
 
-    private final JsonFormat.Printer grpcPrinter = mock(JsonFormat.Printer.class);
-    private final ObjectMapper objectMapper = ObjectMappers.getObjectMapper();
-    private final GrpcSenderPostProcessor processor =
-            new GrpcSenderPostProcessor(grpcPrinter, objectMapper);
+    private GrpcSenderPostProcessor processor;
+
+    @Mock
+    JsonFormat.Printer grpcPrinter;
+    @Mock
+    Exchange exchange;
+
+    private ObjectMapper objectMapper = ObjectMappers.getObjectMapper();
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.defaultExchange();
+        objectMapper = ObjectMappers.getObjectMapper();
+        processor = new GrpcSenderPostProcessor(grpcPrinter, objectMapper);
+    }
+
 
     @Test
     void shouldConvertSingleGrpcResponseToJsonAndCleanupProperties() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Message response = mock(Message.class);
 
         exchange.getMessage().setBody(response);
@@ -62,7 +75,6 @@ class GrpcSenderPostProcessorTest {
 
     @Test
     void shouldConvertGrpcResponsesListToJsonArrayAndCleanupProperties() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Message firstResponse = mock(Message.class);
         Message secondResponse = mock(Message.class);
 
@@ -76,11 +88,11 @@ class GrpcSenderPostProcessorTest {
         processor.process(exchange);
 
         JsonNode expected = objectMapper.readTree("""
-            [
-              {"customerId":"C-100500"},
-              {"customerId":"C-100501"}
-            ]
-            """);
+                [
+                  {"customerId":"C-100500"},
+                  {"customerId":"C-100501"}
+                ]
+                """);
         JsonNode actual = objectMapper.readTree(exchange.getMessage().getBody(String.class));
 
         assertEquals(expected, actual);

@@ -1,9 +1,11 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
 import org.apache.camel.Exchange;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
 import org.qubership.integration.platform.engine.errorhandling.ResponseValidationException;
@@ -15,7 +17,6 @@ import org.qubership.integration.platform.engine.testutils.MockExchanges;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -54,13 +55,21 @@ class ResponseValidationProcessorTest {
         }
         """;
 
-    private final JsonMessageValidator validator = mock(JsonMessageValidator.class);
-    private final ResponseValidationProcessor processor = new ResponseValidationProcessor(validator);
+    private ResponseValidationProcessor processor;
+
+    @Mock
+    JsonMessageValidator validator;
+    @Mock
+    Exchange exchange;
+
+    @BeforeEach
+    void setUp() {
+        exchange = MockExchanges.defaultExchange();
+        processor = new ResponseValidationProcessor(validator);
+    }
 
     @Test
     void shouldValidateJsonResponseWhenValidationSchemaPresent() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(CamelConstants.Properties.VALIDATION_SCHEMA, VALIDATION_SCHEMA);
         exchange.getMessage().setBody(VALID_RESPONSE_BODY);
 
@@ -71,8 +80,6 @@ class ResponseValidationProcessorTest {
 
     @Test
     void shouldSkipValidationWhenValidationSchemaNull() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.getMessage().setBody(VALID_RESPONSE_BODY);
 
         processor.process(exchange);
@@ -82,8 +89,6 @@ class ResponseValidationProcessorTest {
 
     @Test
     void shouldSkipValidationWhenValidationSchemaBlank() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(CamelConstants.Properties.VALIDATION_SCHEMA, "   ");
         exchange.getMessage().setBody(VALID_RESPONSE_BODY);
 
@@ -94,8 +99,6 @@ class ResponseValidationProcessorTest {
 
     @Test
     void shouldThrowResponseValidationExceptionWhenValidatorThrowsValidationException() {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(CamelConstants.Properties.VALIDATION_SCHEMA, VALIDATION_SCHEMA);
         exchange.getMessage().setBody(VALID_RESPONSE_BODY);
 

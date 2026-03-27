@@ -43,25 +43,27 @@ import static org.mockito.Mockito.when;
 class HttpTriggerFinishProcessorTest {
 
     private static final String HTTP_TRIGGER_NODE_ID = "8d4f5d1e-9a6b-4f39-91d8-3d2f6fbb2101";
-    private static final String ANOTHER_NODE_ID = "1a2b7c5d-4f63-48b2-b2e9-98d0e53bc102";
-
-    @Mock
-    private CamelDebuggerPropertiesService propertiesService;
-    @Mock
-    private PayloadExtractor payloadExtractor;
-    @Mock
-    private ChainLogger chainLogger;
-    @Mock
-    private MetricsService metricsService;
-    @Mock
-    private CamelDebuggerProperties dbgProperties;
-    @Mock
-    private DeploymentRuntimeProperties runtimeProperties;
 
     private HttpTriggerFinishProcessor processor;
 
+    @Mock
+    CamelDebuggerPropertiesService propertiesService;
+    @Mock
+    PayloadExtractor payloadExtractor;
+    @Mock
+    ChainLogger chainLogger;
+    @Mock
+    MetricsService metricsService;
+    @Mock
+    CamelDebuggerProperties dbgProperties;
+    @Mock
+    DeploymentRuntimeProperties runtimeProperties;
+    @Mock
+    Exchange exchange;
+
     @BeforeEach
     void setUp() {
+        exchange = MockExchanges.defaultExchange();
         processor = new HttpTriggerFinishProcessor(
                 propertiesService,
                 payloadExtractor,
@@ -72,8 +74,6 @@ class HttpTriggerFinishProcessorTest {
 
     @Test
     void shouldSkipHttpTriggerRequestLoggingWhenLogLevelNotInfoAndSessionNotFailed() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(CamelConstants.Properties.HTTP_TRIGGER_CHAIN_FAILED, false);
 
         mockDebuggerProperties(exchange, LogLoggingLevel.WARN);
@@ -92,7 +92,6 @@ class HttpTriggerFinishProcessorTest {
 
     @Test
     void shouldLogHttpTriggerRequestFinishedWithSelectedLogPayloadAndNodeIdWhenInfoLevel() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         MessageHistory messageHistory = mock(MessageHistory.class);
         NamedNode triggerNode = mock(NamedNode.class);
 
@@ -138,7 +137,6 @@ class HttpTriggerFinishProcessorTest {
 
     @Test
     void shouldLogHttpTriggerRequestFinishedWithLegacyPayloadWhenSessionFailedAndLogLevelNotInfo() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         Exception exception = new IllegalStateException("HTTP trigger failed");
 
         exchange.setProperty(CamelConstants.Properties.HTTP_TRIGGER_CHAIN_FAILED, true);
@@ -180,7 +178,6 @@ class HttpTriggerFinishProcessorTest {
 
     @Test
     void shouldUseNullNodeIdWhenHttpTriggerProcessorNotFoundInMessageHistory() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
         MessageHistory messageHistory = mock(MessageHistory.class);
         NamedNode anotherNode = mock(NamedNode.class);
 
@@ -223,8 +220,6 @@ class HttpTriggerFinishProcessorTest {
 
     @Test
     void shouldContinueWhenMetricsProcessingFails() throws Exception {
-        Exchange exchange = MockExchanges.defaultExchange();
-
         exchange.setProperty(CamelConstants.Properties.HTTP_TRIGGER_CHAIN_FAILED, false);
         exchange.setProperty(CamelConstants.Properties.START_TIME_MS, System.currentTimeMillis() - 1000);
 

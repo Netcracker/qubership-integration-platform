@@ -3,6 +3,7 @@ package org.qubership.integration.platform.engine.camel.components.servlet;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.camel.component.servlet.ServletEndpoint;
 import org.apache.camel.http.common.HttpConsumer;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
@@ -17,11 +18,15 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class CustomHttpRestServletResolveConsumerStrategyTest {
 
+    CustomHttpRestServletResolveConsumerStrategy strategy;
+
+    @BeforeEach
+    void setUp() {
+        strategy = new CustomHttpRestServletResolveConsumerStrategy();
+    }
+
     @Test
     void shouldReturnNullWhenPathIsNull() {
-        CustomHttpRestServletResolveConsumerStrategy strategy =
-                new CustomHttpRestServletResolveConsumerStrategy();
-
         HttpConsumer result = strategy.resolvePath(null, "GET", Map.of());
 
         assertNull(result);
@@ -29,9 +34,6 @@ class CustomHttpRestServletResolveConsumerStrategyTest {
 
     @Test
     void shouldReturnMatchingConsumerWhenResolvePathCalled() {
-        CustomHttpRestServletResolveConsumerStrategy strategy =
-                new CustomHttpRestServletResolveConsumerStrategy();
-
         HttpConsumer consumer = consumer("/orders", "GET", false);
 
         HttpConsumer result = strategy.resolvePath("/orders", "GET", Map.of("orders", consumer));
@@ -41,9 +43,6 @@ class CustomHttpRestServletResolveConsumerStrategyTest {
 
     @Test
     void shouldReturnNullWhenNoConsumerMatchesPathOrMethod() {
-        CustomHttpRestServletResolveConsumerStrategy strategy =
-                new CustomHttpRestServletResolveConsumerStrategy();
-
         HttpConsumer consumer = consumer("/orders", "GET", false);
 
         HttpConsumer result = strategy.resolvePath("/customers", "POST", Map.of("orders", consumer));
