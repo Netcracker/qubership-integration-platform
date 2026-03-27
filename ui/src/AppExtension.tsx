@@ -29,6 +29,7 @@ import { IconProvider } from "./icons/IconProvider.tsx";
 import { ContextServiceParametersPage } from "./components/services/context/ContextServiceParametersPage.tsx";
 import { getConfig } from "./appConfig.ts";
 import { reapplyCssVariables } from "./config/initConfig.ts";
+import { UserPermissionsProvider } from "./permissions/UserPermissionsProvider.tsx";
 
 const router = createMemoryRouter(
   createRoutesFromElements(
@@ -113,19 +114,21 @@ const AppExtension = () => {
 
   return (
     <ConfigProvider theme={antdConfig}>
-      <AntdApp>
-        <IconProvider>
-          <Layout className={styles.layout}>
-            <EventNotification>
-              <Modals>
-                <Content className={styles.content}>
-                  <RouterProvider router={router} />
-                </Content>
-              </Modals>
-            </EventNotification>
-          </Layout>
-        </IconProvider>
-      </AntdApp>
+      <UserPermissionsProvider>
+        <AntdApp>
+          <IconProvider>
+            <Layout className={styles.layout}>
+              <EventNotification>
+                <Modals>
+                  <Content className={styles.content}>
+                    <RouterProvider router={router} />
+                  </Content>
+                </Modals>
+              </EventNotification>
+            </Layout>
+          </IconProvider>
+        </AntdApp>
+      </UserPermissionsProvider>
     </ConfigProvider>
   );
 };
