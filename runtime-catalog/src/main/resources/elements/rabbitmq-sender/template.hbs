@@ -1,0 +1,7 @@
+<process ref="rabbitMqSenderProcessor" />
+
+{{#if-property 'propagateContext' not-equals='false'}}
+    <process ref="contextPropagationProcessor"/>
+{{/if-property}}
+
+<toD id="{{identifier}}" uri="rabbitmq-custom:{{property 'exchange'}}{{escape (query)}}&amp;metricsCollector=#{{identifier}}"/>

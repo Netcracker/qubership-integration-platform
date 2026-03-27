@@ -1,0 +1,11 @@
+id: "fb67f871-61fb-43a3-9251-644d8f8c504e"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "84622525-982c-49ca-ac5d-d44bda2c03ea"
+    name: "Chain trigger"
+    element-type: "chain-trigger-2"
+    original-id: "08a00fc7-ebf3-436a-91a7-944288fa1635"
+    properties:
+      elementId: "84622525-982c-49ca-ac5d-d44bda2c03ea"

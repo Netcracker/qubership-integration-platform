@@ -1,0 +1,84 @@
+source:
+  headers:
+    - id: 1696a4ee25a64b37a769fdf5066c386f
+      name: source_header
+      type:
+        name: string
+  properties:
+    - id: b0e69e614d684f77b998c78b41b9b787
+      name: source_property
+      type:
+        name: string
+  body:
+target:
+  headers:
+    - id: 2d194883b6fa4ae9a4081cdd3e6e25ff
+      name: target_header_1
+      type:
+        name: string
+    - id: c76b4edadeec4e61bcd91502b890a3b4
+      name: target_header_2
+      type:
+        name: string
+  properties:
+    - id: 10ac0f55e53b400791fd7d994d3b7e76
+      name: target_property
+      type:
+        name: string
+    - id: 57e3a7fbb091452faca560485144c66b
+      name: target_property_2
+      type:
+        name: string
+  body:
+constants:
+  - id: a277fe00b4bb420e9cdb90d882565237
+    name: foo
+    type:
+      name: string
+    valueSupplier:
+      kind: given
+      value: foo
+  - id: 8c66b1735f6f408e82a58d031bb95746
+    name: bar
+    type:
+      name: string
+    valueSupplier:
+      kind: given
+      value: bar
+actions:
+  - id: d9c1e674620c48aa9d1f0cbca4f5356c
+    sources:
+      - type: constant
+        constantId: a277fe00b4bb420e9cdb90d882565237
+      - type: constant
+        constantId: 8c66b1735f6f408e82a58d031bb95746
+    target:
+      type: attribute
+      kind: header
+      path:
+        - 2d194883b6fa4ae9a4081cdd3e6e25ff
+    transformation:
+  - id: 10dc05fc84dd443e980635151da8750e
+    sources:
+      - type: attribute
+        kind: header
+        path:
+          - 1696a4ee25a64b37a769fdf5066c386f
+    target:
+      type: attribute
+      kind: property
+      path:
+        - 10ac0f55e53b400791fd7d994d3b7e76
+    transformation:
+  - id: 87c44170caa14dba90dee6afae8686ee
+    sources:
+      - type: attribute
+        kind: property
+        path:
+          - b0e69e614d684f77b998c78b41b9b787
+    target:
+      type: attribute
+      kind: property
+      path:
+        - 57e3a7fbb091452faca560485144c66b
+    transformation:

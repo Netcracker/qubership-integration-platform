@@ -1,0 +1,12 @@
+id: "a953d998-c8b8-4009-ab00-1ecf3998f606"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "ebdc77f9-39d4-4520-931d-94c6be9529b0"
+    name: "Scheduler"
+    element-type: "quartz-scheduler"
+    original-id: "b75a9976-3ab2-4e9c-8c6b-dd26cb978d03"
+    properties:
+      cron: "0 */20 * ? * *"
+      deleteJob: false

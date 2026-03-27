@@ -1,0 +1,2 @@
+<from uri="rabbitmq-custom:{{property 'exchange'}}{{escape (query)}}&amp;metricsCollector=#{{identifier}}"/>
+<process id="{{identifier}}" ref="rabbitMqTriggerProcessor"/>

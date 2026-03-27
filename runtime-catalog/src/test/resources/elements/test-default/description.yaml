@@ -1,0 +1,9 @@
+name: test-default
+title: Test default
+description: Default for test
+inputEnabled: false
+outputEnabled: false
+container: true
+parentRestriction:
+  - test-switch
+  - test-container

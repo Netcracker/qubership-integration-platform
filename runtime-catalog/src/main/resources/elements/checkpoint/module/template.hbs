@@ -1,0 +1,14 @@
+<doTry>
+    <step id="{{identifier}}">
+        <setProperty name="internalProperty_checkpointElementId">
+            <constant>{{property 'checkpointElementId'}}</constant>
+        </setProperty>
+
+        <process ref="contextSaverProcessor"/>
+
+        <removeProperty name="internalProperty_checkpointElementId"/>
+    </step>
+    <doCatch>
+        <exception>java.lang.Exception</exception>
+    </doCatch>
+</doTry>

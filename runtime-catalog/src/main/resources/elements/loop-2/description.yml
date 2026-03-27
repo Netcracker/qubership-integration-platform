@@ -1,0 +1,43 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: loop-2
+title: Loop
+folder: routing
+inputEnabled: true
+outputEnabled: true
+container: true
+mandatoryInnerElement: true
+descriptionFormatter: loop-formatter
+properties:
+  common:
+    - name: expression
+      type: custom
+      mandatory: true
+      uiComponent: loop
+    - name: doWhile
+      title: Expression is used
+      type: boolean
+    - name: copy
+      title: Copy start context each iteration
+      type: boolean
+    - name: loopIndexPropertyName
+      title: Loop iteration index property
+      type: string
+      description: If set, holds a name of the property storing zero-based index of the current iteration. The property holding iteration index is removing after loop exits.
+    - name: maxLoopIteration
+      title: Maximum iteration count
+      type: number
+      default: 1500
+      description: When specified number of iterations is reached, chain stops processing and throw an error.

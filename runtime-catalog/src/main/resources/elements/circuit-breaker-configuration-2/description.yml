@@ -1,0 +1,82 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: circuit-breaker-configuration-2
+title: Circuit Breaker Configuration
+folder: routing
+inputEnabled: false
+outputEnabled: false
+container: true
+mandatoryInnerElement: true
+parentRestriction:
+  - circuit-breaker-2
+properties:
+  common:
+    - name: failureRateThreshold
+      title: Failure rate threshold (%)
+      description: Configures the failure rate threshold in percentage. If the failure rate is equal or greater than the threshold the CircuitBreaker transitions to open and starts short-circuiting calls. The threshold must be greater than 0 and not greater than 100.
+      type: number
+      mandatory: true
+      default: 50
+      autofocus: true
+    - name: permittedNumberOfCallsInHalfOpenState
+      title: Permitted number of calls in half open state
+      description: Configures the number of permitted calls when the CircuitBreaker is half open. The size must be greater than 0
+      type: number
+      mandatory: true
+      default: 10
+    - name: slidingWindowSize
+      title: Sliding window size
+      description: Configures the size of the sliding window which is used to record the outcome of calls when the CircuitBreaker is closed. Sliding window can either be count-based or time-based. If slidingWindowType is COUNT_BASED, the last slidingWindowSize calls are recorded and aggregated. If slidingWindowType is TIME_BASED, the calls of the last slidingWindowSize seconds are recorded and aggregated. If the "Sliding window type" is COUNT_BASED, the "Minimum number of calls" cannot be greater than "Sliding window size"
+      type: number
+      mandatory: true
+      default: 100
+    - name: slidingWindowType
+      title: Sliding window type
+      description:
+      type: string
+      allowedValues:
+        - COUNT_BASED
+        - TIME_BASED
+      mandatory: false
+      default: COUNT_BASED
+    - name: minimumNumberOfCalls
+      title: Minimum number of calls
+      description: Configures the minimum number of calls which are required (per sliding window period) before the CircuitBreaker can calculate the error rate. For example, if "Minimum number of calls" is 10, then at least 10 calls must be recorded, before the failure rate can be calculated. If only 9 calls have been recorded the CircuitBreaker will not transition to open even if all 9 calls have failed
+      type: number
+      mandatory: true
+      default: 100
+    - name: waitDurationInOpenState
+      title: Wait duration in open state (s)
+      description: Configures the wait duration (in seconds) which specifies how long the CircuitBreaker should stay open, before it switches to half open
+      type: number
+      mandatory: true
+      default: 60
+    - name: automaticTransitionFromOpenToHalfOpenEnabled
+      title: Automatic transition from open to half open state
+      description: Enables automatic transition from OPEN to HALF_OPEN state once the "Wait duration in open state" has passed
+      type: boolean
+      default: false
+    - name: slowCallDurationThreshold
+      title: Slow call duration threshold (s)
+      description: Configures the duration threshold (seconds) above which calls are considered as slow and increase the slow calls percentage
+      type: number
+      mandatory: true
+      default: 60
+    - name: slowCallRateThreshold
+      title: Slow call rate threshold (%)
+      description: Configures a threshold in percentage. The CircuitBreaker considers a call as slow when the call duration is greater than "Slow call duration threshold" duration. When the percentage of slow calls is equal or greater the threshold, the CircuitBreaker transitions to open and starts short-circuiting calls
+      type: number
+      mandatory: true
+      default: 100

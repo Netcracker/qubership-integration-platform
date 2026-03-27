@@ -1,0 +1,76 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: sftp-upload
+title: SFTP Upload
+description: sftp uploader
+folder: files
+inputEnabled: true
+outputEnabled: true
+container: false
+designParameters:
+  externalParticipantId: 'SFTP server: ##{connectUrl}'
+  externalParticipantName: 'SFTP server: ##{connectUrl}'
+  requestLineTitle: 'Upload file: ##{fileName}'
+  directionToChain: false
+  hasResponse: false
+properties:
+  common:
+    - name: connectUrl
+      title: Host:Port/Directory
+      description: Connection url
+      type: string
+      mandatory: true
+      autofocus: true
+  advanced:
+    - name: fileName
+      title: File Name
+      description: Use Expression such as File Language to dynamically set the filename
+      type: string
+      query: true
+    - name: autoCreate
+      title: Create directory to file
+      type: boolean
+      query: true
+    - name: username
+      title: Username
+      type: string
+      query: true
+    - name: password
+      title: Password
+      description: For security purposes, use reference to secured variables when entering passwords
+      type: string
+      query: true
+  hidden:
+    - name: binary
+      title: Binary
+      description: Specifies the file transfer mode, BINARY or ASCII. Default is ASCII (false)
+      type: boolean
+      default: true
+      query: true
+    - name: allowNullBody
+      title: Allow null body
+      type: boolean
+      default: true
+      query: true
+    - name: useUserKnownHostsFile
+      title: useUserKnownHostsFile
+      type: boolean
+      default: false
+      query: true
+    - name: throwExceptionOnConnectFailed
+      title: Throw exception if Connection fails
+      type: boolean
+      query: true
+      default: true

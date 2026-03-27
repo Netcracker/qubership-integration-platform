@@ -1,0 +1,11 @@
+{{#if-property 'headerModificationToAdd' presented=''}}
+    <setProperty name="internalProperty_headerModificationToAdd">
+        <constant>{{escape (property-json 'headerModificationToAdd')}}</constant>
+    </setProperty>
+{{/if-property}}
+{{#if-property 'headerModificationToRemove' presented=''}}
+    <setProperty name="internalProperty_headerModificationToRemove">
+        <constant>{{escape (property-json 'headerModificationToRemove')}}</constant>
+    </setProperty>
+{{/if-property}}
+<process id="{{identifier}}" ref="headerModificationProcessor"/>

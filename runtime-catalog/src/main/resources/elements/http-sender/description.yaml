@@ -1,0 +1,94 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: http-sender
+title: HTTP Sender
+description: Make a call to a specified URI on external system
+folder: senders
+inputEnabled: true
+colorType: sender
+outputEnabled: true
+container: false
+properties:
+  common:
+    - name: methodComponent
+      title: HTTP Method
+      description: HTTP method
+      type: custom
+      uiComponent: http-method
+    - name: uri
+      title: URI
+      description: "URI format: https://example.com:443/test. Port is optional parameter (default ports - HTTP: 80, HTTPS: 443)"
+      type: string
+      mandatory: true
+      autofocus: true
+    - name: connectTimeout
+      title: Connection timeout (ms)
+      description: Specifies connection timeout in millis (default value will be used if nothing is given)
+      type: number
+      mandatory: false
+      default: 120000
+      query: true
+  advanced:
+    - name: isExternalCall
+      title: External call
+      description: If checked, then communication is done via Egress gateway. Both HTTP and HTTPS are allowed. When default registration of routes is disabled via global environment settings, it is required to manually configure these routes to properly invoke specified endpoint.
+      type: boolean
+      default: true
+    - name: m2m
+      title: Enable M2M Security
+      description: Specifies whether M2M token should be used to make a call
+      type: boolean
+      default: false
+    - name: reuseEstablishedConnection
+      title: Reuse established connection
+      description: If checked - HTTP client will use the connection for multiple requests
+      type: boolean
+      mandatory: false
+      default: true
+      query: false
+    - name: correlationIdReceiver
+      title: Receive correlation Id
+      type: custom
+      uiComponent: correlation-id
+    - name: propagateContext
+      title: Propagate context
+      description: Propagate context to headers before sending message
+      type: boolean
+      default: true
+      query: false
+    - name: overrideContextComponent
+      title: Override Context Component
+      type: custom
+      uiComponent: context-override
+  hidden:
+    - name: overrideContextParams
+      title: Override context parameters
+      description: Propagate props to headers before sending message
+      type: string # map<string, string>
+      query: false
+    - name: httpMethod
+      title: HTTP Method
+      type: string
+      mandatory: true
+      default: GET
+    - name: correlationIdName
+      title: Correlation id name
+      type: string
+    - name: correlationIdPosition
+      title: Correlation id position
+      type: string
+      allowedValues:
+        - Header
+        - Body

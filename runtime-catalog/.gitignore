@@ -1,0 +1,10 @@
+.idea
+.vscode
+.git
+*.iml
+target
+/utils/
+**/.flattened-pom.xml
+.flattened-pom.xml
+*.log
+.jpb

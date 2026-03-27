@@ -1,0 +1,5 @@
+org.qubership.integration.platform.runtime.catalog.model.mapper.atlasmap.action.QIPCustomAction
+org.qubership.integration.platform.runtime.catalog.model.mapper.atlasmap.action.QIPDateTimeAction
+org.qubership.integration.platform.runtime.catalog.model.mapper.atlasmap.action.QIPDictionaryAction
+org.qubership.integration.platform.runtime.catalog.model.mapper.atlasmap.action.QIPDefaultValueAction
+org.qubership.integration.platform.runtime.catalog.model.mapper.atlasmap.action.QIPFormatDateTimeAction

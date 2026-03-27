@@ -1,0 +1,185 @@
+---
+id: "bd8106ae-366f-4daf-8edd-14e7ee9d59ee"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707483028553
+elements:
+  - id: "0bbc87f5-a347-4812-b525-9be76dc6f9a4"
+    name: "Loop"
+    description: "Loop description"
+    element-type: "loop"
+    children:
+      - id: "f96db371-21be-4f9c-9dce-8303dd5d15c6"
+        name: "Loop Expression"
+        description: "Loop Expression description"
+        element-type: "loop-expression"
+        properties:
+          doWhile: true
+          expression: "#{exchangeProperty.elementsNumber} > 0"
+  - id: "1d764c0c-c8f3-496e-b744-211b9bd8ff26"
+    name: "XSLT Script"
+    description: "XSLT Script description"
+    element-type: "script"
+    properties-filename: "script-1d764c0c-c8f3-496e-b744-211b9bd8ff26.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "252da343-8af9-4c85-b8c4-e10e54e944fe"
+    name: "Try-Catch-Finally"
+    element-type: "try-catch-finally"
+    children:
+      - id: "01006108-4120-408b-8444-a847207a4b5f"
+        name: "Catch#1"
+        description: "Catch#1 description"
+        element-type: "catch"
+        properties:
+          exception: "java.lang.Exception"
+          priorityNumber: "99"
+      - id: "2952a26c-ee05-4f99-acc4-986c62c66d0f"
+        name: "Catch#0"
+        description: "Catch#0 description"
+        element-type: "catch"
+        properties:
+          exception: "java.lang.Exception"
+          priorityNumber: 0
+      - id: "37e84b50-1772-44e6-8ed1-f87cffd1bd49"
+        name: "Try"
+        element-type: "try"
+  - id: "2b9ffe8b-6802-457b-a034-76f762578ae7"
+    name: "Container to remove"
+    element-type: "container"
+    children:
+      - id: "0a7fa778-b8ea-4835-b843-0a888f9b33e8"
+        name: "Async Split Element Mapper"
+        description: "Async Split Element Mapper description"
+        element-type: "mapper-2"
+        properties:
+          exportFileExtension: "json"
+          propertiesToExportInSeparateFile: "mappingDescription"
+          throwException: true
+      - id: "7e5ca284-647f-429d-9007-8135a9f2f1ea"
+        name: "Catch#0 Script"
+        description: "Catch#0 Script description"
+        element-type: "script"
+        properties-filename: "script-7e5ca284-647f-429d-9007-8135a9f2f1ea.groovy"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"
+  - id: "4bb005a5-e73a-4998-ad75-26e936132add"
+    name: "After Choice HTTP Sender"
+    description: "After Choice HTTP Sender description"
+    element-type: "http-sender"
+    properties:
+      connectTimeout: 120000
+      httpMethod: "POST"
+      isExternalCall: true
+      m2m: false
+      reuseEstablishedConnection: true
+      uri: "http://localhost:8080/v2/test"
+  - id: "530e5b3d-6407-4a53-a50b-991f413d8493"
+    name: "Try Script"
+    description: "Try Script description"
+    element-type: "script"
+    properties-filename: "script-530e5b3d-6407-4a53-a50b-991f413d8493.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "5fbd6c9f-6f1e-4db6-aaff-648da17e257b"
+    name: "Choice"
+    description: "Choice description"
+    element-type: "choice"
+    children:
+      - id: "fe3997b5-ff43-46ce-9b8b-43b6ea9fcb71"
+        name: "When"
+        element-type: "when"
+        properties:
+          condition: "${exchangeProperty.exists}"
+          priorityNumber: 0
+  - id: "7973f48c-21b7-492c-9f66-b5df079333d7"
+    name: "Split Async"
+    element-type: "split-async"
+    children:
+      - id: "3a89ee61-01d9-45dc-a8ab-c609ba273e5d"
+        name: "Sync Split Element"
+        element-type: "sync-split-element"
+      - id: "8324529f-f331-471a-aeec-8c9a829796b8"
+        name: "Async Split Element"
+        element-type: "async-split-element"
+  - id: "8a0718e5-6093-458d-be5b-8ac8e9b164c5"
+    name: "Main HTTP Trigger"
+    description: "Main HTTP Trigger description"
+    element-type: "http-trigger"
+    properties:
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "v1/test"
+      externalRoute: true
+      httpMethodRestrict: "POST"
+  - id: "92678e9d-2de9-4393-9632-a29020a96efa"
+    name: "Try Mapper"
+    description: "Try Mapper description"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "9abeb67f-6c4c-46c7-ab8f-3014d3836337"
+    name: "After Choice Script"
+    description: "After Choice Script description"
+    element-type: "script"
+    properties-filename: "script-9abeb67f-6c4c-46c7-ab8f-3014d3836337.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "abd7aa6b-10fc-4085-9468-0d2a8a0d9f46"
+    name: "Template HTTP Trigger"
+    description: "Template HTTP Trigger description"
+    element-type: "http-trigger"
+    properties:
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "v1/test/template"
+      externalRoute: true
+      httpMethodRestrict: "POST"
+  - id: "ad09974e-41cb-471d-afb4-3c61ec1af75a"
+    name: "XSLT"
+    description: "XSLT description"
+    element-type: "xslt"
+    properties:
+      templateName: "/tmp/test.template"
+  - id: "c1e09332-b80e-4590-a1b9-51986923bbc3"
+    name: "Header Modification"
+    element-type: "header-modification"
+dependencies:
+  - from: "01006108-4120-408b-8444-a847207a4b5f"
+    to: "7973f48c-21b7-492c-9f66-b5df079333d7"
+  - from: "8324529f-f331-471a-aeec-8c9a829796b8"
+    to: "0a7fa778-b8ea-4835-b843-0a888f9b33e8"
+  - from: "530e5b3d-6407-4a53-a50b-991f413d8493"
+    to: "0bbc87f5-a347-4812-b525-9be76dc6f9a4"
+  - from: "ad09974e-41cb-471d-afb4-3c61ec1af75a"
+    to: "1d764c0c-c8f3-496e-b744-211b9bd8ff26"
+  - from: "8a0718e5-6093-458d-be5b-8ac8e9b164c5"
+    to: "252da343-8af9-4c85-b8c4-e10e54e944fe"
+  - from: "2952a26c-ee05-4f99-acc4-986c62c66d0f"
+    to: "7e5ca284-647f-429d-9007-8135a9f2f1ea"
+  - from: "37e84b50-1772-44e6-8ed1-f87cffd1bd49"
+    to: "530e5b3d-6407-4a53-a50b-991f413d8493"
+  - from: "37e84b50-1772-44e6-8ed1-f87cffd1bd49"
+    to: "92678e9d-2de9-4393-9632-a29020a96efa"
+  - from: "3a89ee61-01d9-45dc-a8ab-c609ba273e5d"
+    to: "7e5ca284-647f-429d-9007-8135a9f2f1ea"
+  - from: "5fbd6c9f-6f1e-4db6-aaff-648da17e257b"
+    to: "4bb005a5-e73a-4998-ad75-26e936132add"
+  - from: "7e5ca284-647f-429d-9007-8135a9f2f1ea"
+    to: "5fbd6c9f-6f1e-4db6-aaff-648da17e257b"
+  - from: "5fbd6c9f-6f1e-4db6-aaff-648da17e257b"
+    to: "9abeb67f-6c4c-46c7-ab8f-3014d3836337"
+  - from: "92678e9d-2de9-4393-9632-a29020a96efa"
+    to: "ad09974e-41cb-471d-afb4-3c61ec1af75a"
+  - from: "abd7aa6b-10fc-4085-9468-0d2a8a0d9f46"
+    to: "ad09974e-41cb-471d-afb4-3c61ec1af75a"
+  - from: "f96db371-21be-4f9c-9dce-8303dd5d15c6"
+    to: "ad09974e-41cb-471d-afb4-3c61ec1af75a"
+  - from: "fe3997b5-ff43-46ce-9b8b-43b6ea9fcb71"
+    to: "c1e09332-b80e-4590-a1b9-51986923bbc3"

@@ -1,0 +1,20 @@
+id: "c45ea990-cd81-4c3b-bee1-8f5eb0ea474f"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "f5d2c390-9031-4c40-ac5b-b96fecad6387"
+    name: "Condition"
+    element-type: "condition"
+    original-id: "4acf8469-e708-40b3-a2c5-1f347c4a1174"
+    children:
+      - id: "1f826b65-16b4-45fc-9bb8-eb34a1f749a4"
+        name: "If"
+        element-type: "if"
+        original-id: "a557cd0a-504f-42d2-adb2-de0393d89614"
+        properties:
+          condition: "${exchangeProperty.test} == \"true\""
+      - id: "bb82763f-8319-4bf9-a093-c00135abb84c"
+        name: "Else"
+        element-type: "else"
+        original-id: "e2bc7f78-a24d-4d1d-922f-de3859a46947"

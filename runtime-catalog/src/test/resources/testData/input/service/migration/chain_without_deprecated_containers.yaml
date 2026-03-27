@@ -1,0 +1,25 @@
+---
+id: "af44d2de-7b9e-406e-a277-3784191864d5"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707390843018
+elements:
+  - id: "17dd9ced-92a3-453a-a2b5-7185107d3fea"
+    name: "Script"
+    element-type: "script"
+    properties-filename: "script-17dd9ced-92a3-453a-a2b5-7185107d3fea.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "25ff7713-0cb9-417f-b3a6-b00413c280fa"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    properties:
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "v1/test"
+      externalRoute: true
+      httpMethodRestrict: "POST"
+dependencies:
+  - from: "25ff7713-0cb9-417f-b3a6-b00413c280fa"
+    to: "17dd9ced-92a3-453a-a2b5-7185107d3fea"

@@ -1,0 +1,7 @@
+<route>
+    <enrich id="265336cc-e5e6-4110-89f2-aa8df93f69e9">
+        <simple>
+            sftp:/ftp/test?fileName=test.txt&amp;autoCreate=true&amp;username=client&amp;password=client&amp;binary=true&amp;allowNullBody=true&amp;useUserKnownHostsFile=false
+        </simple>
+    </enrich>
+</route>

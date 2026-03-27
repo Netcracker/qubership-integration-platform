@@ -1,0 +1,28 @@
+id: "a6e95c20-cd2c-4589-a4f4-6743b8833012"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "5c72dcd7-c6eb-4895-a202-e90e629bd6b9"
+    name: "Circuit Breaker"
+    element-type: "circuit-breaker-2"
+    original-id: "9476d088-2884-4fbb-9f63-542bd9b4f786"
+    children:
+      - id: "f9b816e9-7940-43c6-91d4-9b46102158a4"
+        name: "Circuit Breaker Configuration"
+        element-type: "circuit-breaker-configuration-2"
+        original-id: "48e21f3c-76c9-4bab-bb66-138e78843c03"
+        properties:
+          slidingWindowSize: 100
+          slidingWindowType: "COUNT_BASED"
+          failureRateThreshold: 50
+          minimumNumberOfCalls: 100
+          slowCallRateThreshold: 100
+          waitDurationInOpenState: 60
+          slowCallDurationThreshold: 60
+          permittedNumberOfCallsInHalfOpenState: 10
+          automaticTransitionFromOpenToHalfOpenEnabled: false
+      - id: "8c7f94b1-2f20-4373-b3ae-28aa8157cf84"
+        name: "On fallback"
+        element-type: "on-fallback-2"
+        original-id: "d0b43761-42dc-4ad0-ae86-65895cf7d271"

@@ -1,0 +1,17 @@
+---
+id: "895f0c9f-a444-4d8d-8ab1-6b863622e2be"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707291431398
+elements:
+  - id: "e7ae9124-66c5-4ab2-ad29-67d503684f0a"
+    name: "Try-Catch-Finally"
+    element-type: "try-catch-finally"
+    children:
+      - id: "5e04e6ae-286b-474b-835c-e8dd6ee19dd7"
+        name: "Catch"
+        description: "Catch description"
+        element-type: "catch"
+        properties:
+          exception: "java.lang.Exception"
+          priorityNumber: 0

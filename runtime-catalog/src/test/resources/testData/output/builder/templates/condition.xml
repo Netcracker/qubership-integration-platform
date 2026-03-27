@@ -1,0 +1,17 @@
+<route>
+    <choice id="f5d2c390-9031-4c40-ac5b-b96fecad6387">
+        <when>
+            <simple>
+                ${exchangeProperty.test} == &quot;true&quot;
+            </simple>
+            <step id="1f826b65-16b4-45fc-9bb8-eb34a1f749a4">
+                <toD uri="direct:1f826b65-16b4-45fc-9bb8-eb34a1f749a4"/>
+            </step>
+        </when>
+        <otherwise>
+            <step id="bb82763f-8319-4bf9-a093-c00135abb84c">
+                <toD uri="direct:bb82763f-8319-4bf9-a093-c00135abb84c"/>
+            </step>
+        </otherwise>
+    </choice>
+</route>

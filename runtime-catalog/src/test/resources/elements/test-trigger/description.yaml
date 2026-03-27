@@ -1,0 +1,46 @@
+name: test-trigger
+title: Test trigger
+type: trigger
+inputEnabled: false
+outputEnabled: true
+container: false
+properties:
+  common:
+    - name: roles
+      title: Roles
+      description: Allowed user roles to access HTTP trigger
+      type: string
+      multiple: true
+      allowCustomValue: true
+  advanced:
+    - name: chunked
+      title: Chunked
+      type: boolean
+      default: true
+      query: true
+    - name: externalRoute
+      title: External route
+      type: boolean
+      default: true
+    - name: correlationId
+      title: Use Correlation Id
+      type: custom
+      uiComponent: correlation-id
+  hidden:
+    - name: httpMethodRestrict
+      type: string
+      query: true
+    - name: correlationIdPosition
+      title: Correlation id position
+      type: string
+      allowedValues:
+        - Header
+        - Body
+      default: Header
+    - name: invalidURI
+      title: Is URI invalid
+      type: boolean
+    - name: validationSchema
+      title: Json Request Schema
+      description: Schema for input message validation
+      type: string

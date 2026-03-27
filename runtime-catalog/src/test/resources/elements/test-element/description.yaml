@@ -1,0 +1,7 @@
+name: test-element
+title: Test element
+description: Element for testing
+inputEnabled: true
+outputEnabled: true
+container: false
+ordered: false

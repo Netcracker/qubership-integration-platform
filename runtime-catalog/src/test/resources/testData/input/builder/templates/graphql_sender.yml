@@ -1,0 +1,20 @@
+id: "560cbe40-fe99-431d-ac2c-a7d65a4fd9aa"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "faf6e313-96c9-4880-81a4-2831de1380b1"
+    name: "GraphQL Sender"
+    element-type: "graphql-sender"
+    original-id: "dedf8fa3-06e4-41e1-9e60-0fe5e8aedf3f"
+    properties:
+      uri: "http://localhost:8080/test/graphQL"
+      query: "{\r\n  hero {\r\n    name\r\n  }\r\n}"
+      queryHeader: "CamelGraphQLQuery"
+      operationName: "test_operation"
+      variablesJSON: "{\n    \"hero\": {\n        \"name\": \"string\"\n    }\n}"
+      isExternalCall: "true"
+      variablesHeader: "CamelGraphQLVariables"
+      correlationIdName: "test_correlation_id"
+      correlationIdPosition: "Header"
+      propagateContext: true

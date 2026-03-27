@@ -1,0 +1,52 @@
+id: "a3c4ba79-1e0a-4da6-96e9-cc94a6ed2fe3"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "1f6d1551-e965-48f3-b3c7-c68556be1004"
+    name: "Service Call"
+    element-type: "service-call"
+    original-id: "5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f"
+    properties:
+      authorizationConfiguration:
+        type: "m2m"
+      after: []
+      before:
+        type: "script"
+        script: "exchange.getMessage().setBody(\"testRequestBody\")"
+      retryCount: "2"
+      retryDelay: "5000"
+      systemType: "INTERNAL"
+      errorThrowing: true
+      connectionTimeout: "120000"
+      correlationIdName: "test_correlation_id"
+      integrationSystemId: "8b3663ff-7dc5-45d1-afd4-0de909ffdc65"
+      correlationIdPosition: "Header"
+      integrationOperationId: "820cf456-d96e-4848-af34-e197668ed7e4"
+      integrationOperationPath: "{ENV}.order.command.queue"
+      integrationGqlQueryHeader: "CamelGraphQLQuery"
+      integrationOperationMethod: "publish"
+      integrationSpecificationId: "94e7cb44-3b34-43d1-8b43-41d7c813c589"
+      createRelatedEntitiesViaMaas: "false"
+      integrationGqlVariablesHeader: "CamelGraphQLVariables"
+      integrationSpecificationGroupId: "4f40b794-f3e2-49b4-99fb-6bb7ee0d20df"
+      integrationOperationProtocolType: "kafka"
+      integrationOperationPathParameters: {}
+      propagateContext: true
+    service-environment:
+      id: "9c8c1b26-63b6-4f6d-91f9-371d743965f0"
+      name: "General"
+      address: "{KAFKA_BROKERS}"
+      systemId: "8b3663ff-7dc5-45d1-afd4-0de909ffdc65"
+      properties:
+        groupId: "{ENV}-qip-kafka-consumer-group"
+        saslMechanism: "{KAFKA_SASL_MECHANISM}"
+        maxPollRecords: "5"
+        saslJaasConfig: "{KAFKA_SASL_JAAS_CONFIG}"
+        securityProtocol: "{KAFKA_SECURITY_PROTOCOL}"
+        maxPollIntervalMs: "600000"
+      sourceType: "MANUAL"
+      createdWhen: 1666715860344
+      description: null
+      modifiedWhen: 1669643915793
+      notActivated: false

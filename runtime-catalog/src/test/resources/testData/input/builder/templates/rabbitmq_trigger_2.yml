@@ -1,0 +1,23 @@
+id: "054be870-c562-4b9b-b50f-27fa093edbdc"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "5528e3fb-b970-4261-b72d-9c22742b2ef2"
+    name: "RabbitMQ Trigger"
+    element-type: "rabbitmq-trigger-2"
+    original-id: "05bbcdb7-bd74-49a7-ab15-83f4d7f675f5"
+    properties:
+      queues: "test-queue"
+      exchange: "test_exchange"
+      password: "client"
+      username: "client"
+      addresses: "rabbitmq-main:9092"
+      routingKey: "test_key"
+      exchangeType: "direct"
+      deadLetterQueue: "test_deadletter_queue"
+      deadLetterExchange: "test_deadletter_exchange"
+      deadLetterRoutingKey: "test_deadletter_key"
+      deadLetterExchangeType: "direct"
+      acknowledgeMode: AUTO
+      autoDeclare: false

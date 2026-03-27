@@ -1,0 +1,87 @@
+/*
+ * Copyright 2024-2025 NetCracker Technology Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer;
+
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.util.zip.ZipOutputStream;
+
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
+
+@Slf4j
+@Component
+public class ExportableObjectWriterVisitor {
+
+    private final YAMLMapper yamlMapper;
+
+    @Value("${app.prefix}")
+    private String appName;
+
+    @Value("${qip.export.legacy-format}")
+    private boolean isLegacyExport;
+
+    @Autowired
+    public ExportableObjectWriterVisitor(YAMLMapper yamlExportImportMapper) {
+        this.yamlMapper = yamlExportImportMapper;
+    }
+
+    public void visit(ExportedIntegrationSystem exportedIntegrationSystem, ZipOutputStream zipOut, String entryPath) throws IOException {
+        ExportImportUtils.writeSystemObject(zipOut,
+                entryPath + ExportImportUtils.generateMainSystemFileExportName(exportedIntegrationSystem.getId(), appName, isLegacyExport),
+                yamlMapper.writeValueAsString(exportedIntegrationSystem.getObjectNode()));
+    }
+
+    public void visit(ExportedSpecificationGroup exportedSpecificationGroup, ZipOutputStream zipOut, String entryPath) throws IOException {
+        ExportImportUtils.writeSystemObject(zipOut,
+                entryPath
+                + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId(), appName, isLegacyExport),
+                yamlMapper.writeValueAsString(exportedSpecificationGroup.getObjectNode()));
+    }
+
+    public void visit(ExportedSpecification exportedSpecification, ZipOutputStream zipOut, String entryPath) throws IOException {
+        ExportImportUtils.writeSystemObject(zipOut,
+                entryPath
+                + ExportImportUtils.generateSpecificationFileExportName(exportedSpecification.getId(), appName, isLegacyExport),
+                yamlMapper.writeValueAsString(exportedSpecification.getObjectNode()));
+    }
+
+    public void visit(ExportedSpecificationSource exportedSpecificationSource, ZipOutputStream zipOut, String entryPath) throws IOException {
+        if (exportedSpecificationSource.getSource() == null) {
+            log.warn("Can't find source for specification {}", exportedSpecificationSource.getId());
+            return;
+        }
+
+        String fileName = isLegacyExport
+                ? exportedSpecificationSource.getName()
+                : RESOURCES_FOLDER_PREFIX + exportedSpecificationSource.getName();
+        ExportImportUtils.writeSystemObject(zipOut, entryPath + fileName,
+                exportedSpecificationSource.getSource());
+    }
+
+    public void visit(ExportedContextService exportedContextService, ZipOutputStream zipOut, String entryPath) throws IOException {
+        ExportImportUtils.writeSystemObject(zipOut,
+                entryPath + ExportImportUtils.generateMainContextServiceFileExportName(exportedContextService.getId(), appName, isLegacyExport),
+                yamlMapper.writeValueAsString(exportedContextService.getObjectNode()));
+    }
+}

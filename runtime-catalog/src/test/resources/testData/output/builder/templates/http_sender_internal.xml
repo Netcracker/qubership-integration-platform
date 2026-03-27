@@ -1,0 +1,47 @@
+<route>
+    <setHeader name="CamelHttpUri">
+        <simple>v1/test</simple>
+    </setHeader>
+    <setProperty name="correlationIdPosition">
+        <constant>Body</constant>
+    </setProperty>
+    <setProperty name="correlationIdName">
+        <constant>test_correlation_id</constant>
+    </setProperty>
+    <process ref="correlationIdPropagationProcessor"/>
+    <process ref="securityProcessor"/>
+    <step id="d849b129-f0b1-4ae6-bd5e-4256e4cf075f">
+        <setHeader name="CamelHttpMethod">
+            <constant>GET</constant>
+        </setHeader>
+        <doTry>
+            <process ref="httpSenderProcessor"/>
+            <process ref="contextPropagationProcessor"/>
+            <process ref="httpProducerCharsetProcessor"/>
+
+            <toD allowOptimisedComponents="false" uri="http:stub?connectTimeout=120000&amp;connectionRequestTimeout=120000&amp;soTimeout=120000&amp;responseTimeout=120000&amp;httpClientConfigurer=#d849b129-f0b1-4ae6-bd5e-4256e4cf075f&amp;followRedirects=true"/>
+
+            <process ref="correlationIdReceiverProcessor"/>
+            <doCatch>
+                <exception>java.lang.Exception</exception>
+                <choice>
+                    <when>
+                        <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+
+                        <setHeader name="CamelHttpResponseCode">
+                            <simple>${exchangeProperty.CamelExceptionCaught.statusCode}</simple>
+                        </setHeader>
+                        <process ref="setCaughtHttpExceptionContextProcessor"/>
+                    </when>
+                </choice>
+                <process ref="throwCaughtExceptionProcessor"/>
+            </doCatch>
+            <doFinally>
+                <removeProperty name="internalProperty_overrideContextParams"/>
+                <process ref="contextRestoreProcessor"/>
+                <process ref="securityRestoreProcessor"/>
+            </doFinally>
+        </doTry>
+    </step>
+    <removeHeader name="CamelHttpUri"/>
+</route>

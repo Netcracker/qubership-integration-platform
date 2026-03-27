@@ -1,0 +1,47 @@
+<route>
+    <setHeader name="CamelHttpUri">
+        <simple>http://egress-gateway:8080%%{route-c7e16f2f-763c-432c-9c5f-146805402998}/v1/test</simple>
+    </setHeader>
+    <setProperty name="correlationIdPosition">
+        <constant>Header</constant>
+    </setProperty>
+    <setProperty name="correlationIdName">
+        <constant>test_correlation_id</constant>
+    </setProperty>
+    <process ref="correlationIdPropagationProcessor"/>
+    <process ref="securityProcessor"/>
+    <step id="a4af88ef-fdb5-453d-9ce3-d6f20413311b">
+        <setHeader name="CamelHttpMethod">
+            <constant>POST</constant>
+        </setHeader>
+        <doTry>
+            <process ref="httpSenderProcessor"/>
+            <process ref="contextPropagationProcessor"/>
+            <process ref="httpProducerCharsetProcessor"/>
+
+            <toD allowOptimisedComponents="false" uri="http:stub?connectTimeout=120000&amp;connectionRequestTimeout=120000&amp;soTimeout=120000&amp;responseTimeout=120000&amp;httpClientConfigurer=#a4af88ef-fdb5-453d-9ce3-d6f20413311b&amp;followRedirects=true"/>
+
+            <process ref="correlationIdReceiverProcessor"/>
+            <doCatch>
+                <exception>java.lang.Exception</exception>
+                <choice>
+                    <when>
+                        <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+
+                        <setHeader name="CamelHttpResponseCode">
+                            <simple>${exchangeProperty.CamelExceptionCaught.statusCode}</simple>
+                        </setHeader>
+                        <process ref="setCaughtHttpExceptionContextProcessor"/>
+                    </when>
+                </choice>
+                <process ref="throwCaughtExceptionProcessor"/>
+            </doCatch>
+            <doFinally>
+                <removeProperty name="internalProperty_overrideContextParams"/>
+                <process ref="contextRestoreProcessor"/>
+                <process ref="securityRestoreProcessor"/>
+            </doFinally>
+        </doTry>
+    </step>
+    <removeHeader name="CamelHttpUri"/>
+</route>
