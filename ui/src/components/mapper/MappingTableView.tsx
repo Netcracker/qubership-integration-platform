@@ -1850,7 +1850,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
           dataSource={tableItems}
           rowKey="id"
           pagination={false}
-          scroll={{ y: "" }}
+          scroll={{ y: "45vh" }}
           expandable={{
             expandIcon: treeExpandIcon(),
             defaultExpandedRowKeys: [
