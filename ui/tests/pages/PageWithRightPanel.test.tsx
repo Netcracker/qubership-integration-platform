@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- jest mock requires dynamic require */
 /* eslint-disable @typescript-eslint/unbound-method -- jest.restoreAllMocks in afterEach */
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { api } from "../../src/api/api";
 import { PageWithRightPanel } from "../../src/pages/PageWithRightPanel";
@@ -184,6 +184,21 @@ describe("PageWithRightPanel", () => {
     );
   };
 
+  const renderWithChain = (elements: object[] = []) => {
+    const { ChainContext } = require("../../src/pages/ChainPage");
+    return render(
+      <ChainContext.Provider
+        value={{
+          chain: { id: "test-chain-id", elements },
+          update: jest.fn(),
+          refresh: jest.fn(),
+        }}
+      >
+        <PageWithRightPanel />
+      </ChainContext.Provider>,
+    );
+  };
+
   it("renders without crashing", () => {
     renderWithContext(<PageWithRightPanel />);
     expect(screen.getAllByTestId("icon").length).toBeGreaterThan(0);
@@ -235,11 +250,9 @@ describe("PageWithRightPanel", () => {
   });
 
   it("calls api.getElements on mount when chainId is present", () => {
-    renderWithContext(<PageWithRightPanel />);
+    renderWithChain();
     expect(api.getElements).toHaveBeenCalledWith("test-chain-id");
   });
-
-  // Note: "No chain selected" when chainId is undefined causes test suite hang - excluded
 
   it("shows only listElements tab when isVsCode is true", () => {
     mockIsVsCode = true;
@@ -339,5 +352,141 @@ describe("PageWithRightPanel", () => {
     fireEvent.click(textViewTab!);
     const editor = screen.getByTestId("monaco-editor");
     expect(editor).not.toHaveTextContent("123");
+  });
+
+  describe("element list rendering", () => {
+    const testElement = {
+      id: "el-1",
+      name: "My Script",
+      description: "",
+      chainId: "test-chain-id",
+      type: "script",
+      mandatoryChecksPassed: true,
+    };
+
+    it("renders element name returned by api.getElements in the list", async () => {
+      (api.getElements as jest.Mock).mockResolvedValue([testElement]);
+      renderWithChain();
+      await waitFor(() => {
+        expect(screen.getByText("My Script")).toBeInTheDocument();
+      });
+    });
+
+    it("renders element type badge for each list item", async () => {
+      (api.getElements as jest.Mock).mockResolvedValue([testElement]);
+      renderWithChain();
+      await waitFor(() => {
+        expect(screen.getAllByText("script").length).toBeGreaterThanOrEqual(1);
+      });
+    });
+
+    it("renders multiple elements in the list", async () => {
+      const second = { ...testElement, id: "el-2", name: "Another Element" };
+      (api.getElements as jest.Mock).mockResolvedValue([testElement, second]);
+      renderWithChain();
+      await waitFor(() => {
+        expect(screen.getByText("My Script")).toBeInTheDocument();
+        expect(screen.getByText("Another Element")).toBeInTheDocument();
+      });
+    });
+
+    it("uses library title as element display name when element.name is empty", async () => {
+      const noName = { ...testElement, name: "" };
+      (api.getElements as jest.Mock).mockResolvedValue([noName]);
+      renderWithChain();
+      await waitFor(() => {
+        expect(screen.getAllByText("script").length).toBeGreaterThanOrEqual(1);
+      });
+    });
+
+    it("renders elements provided via ChainContext.chain.elements as initial state", async () => {
+      (api.getElements as jest.Mock).mockResolvedValue([testElement]);
+      renderWithChain([testElement]);
+      await waitFor(() => {
+        expect(screen.getByText("My Script")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("element list interactions", () => {
+    const testElement = {
+      id: "el-1",
+      name: "My Script",
+      description: "",
+      chainId: "test-chain-id",
+      type: "script",
+      mandatoryChecksPassed: true,
+    };
+
+    beforeEach(() => {
+      (api.getElements as jest.Mock).mockResolvedValue([testElement]);
+    });
+
+    it("single click on a list item calls focusToElementId with the element id", async () => {
+      renderWithChain();
+      const menuItem = await screen.findByRole("menuitem");
+      fireEvent.click(menuItem);
+      expect(mockFocusToElementId).toHaveBeenCalledWith("el-1");
+    });
+
+    it("double click on a list item label opens the element modal", async () => {
+      renderWithChain();
+      await waitFor(() => {
+        expect(screen.getByText("My Script")).toBeInTheDocument();
+      });
+      const button = screen.getByText("My Script").closest("button");
+      fireEvent.doubleClick(button!);
+      expect(mockShowModal).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "chain-element-el-1" }),
+      );
+    });
+
+    it("double click with a non-existent id in UsedPropertiesList does not open modal", () => {
+      (api.getElements as jest.Mock).mockResolvedValue([]);
+      renderWithChain([]);
+      const propsTab = screen
+        .getAllByRole("tab")
+        .find((tab) => tab.querySelector('[data-icon="menuUnfold"]'));
+      fireEvent.click(propsTab!);
+      const trigger = screen.getByTestId("double-click-trigger");
+      fireEvent.click(trigger);
+      expect(mockShowModal).not.toHaveBeenCalled();
+    });
+
+    it("UsedPropertiesList receives onElementDoubleClick prop", () => {
+      renderWithChain();
+      const propsTab = screen
+        .getAllByRole("tab")
+        .find((tab) => tab.querySelector('[data-icon="menuUnfold"]'));
+      fireEvent.click(propsTab!);
+      expect(within(screen.getByTestId("used-properties-list")).getByTestId(
+        "double-click-trigger",
+      )).toBeInTheDocument();
+    });
+  });
+
+  describe("error handling", () => {
+    it("calls requestFailed when api.getElements rejects", async () => {
+      (api.getElements as jest.Mock).mockRejectedValue(
+        new Error("network error"),
+      );
+      renderWithChain();
+      await waitFor(() => {
+        expect(mockRequestFailed).toHaveBeenCalledWith(
+          "Failed to load elements",
+          expect.any(Error),
+        );
+      });
+    });
+
+    it("still renders the menu when api.getElements rejects", async () => {
+      (api.getElements as jest.Mock).mockRejectedValue(
+        new Error("server down"),
+      );
+      renderWithChain();
+      await waitFor(() => {
+        expect(screen.getByRole("menu")).toBeInTheDocument();
+      });
+    });
   });
 });

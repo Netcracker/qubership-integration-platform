@@ -1,4 +1,4 @@
-import {
+﻿import {
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
@@ -545,6 +545,10 @@ export const useChainGraph = (
           structureChanged([parentNode?.id ?? newNode.parentId]);
         }
 
+        if (onChainUpdate) {
+          void onChainUpdate();
+        }
+
         clearDragVisuals();
       } catch (error) {
         notificationService.requestFailed("Failed to create element", error);
@@ -564,6 +568,7 @@ export const useChainGraph = (
       notificationService,
       structureChanged,
       clearDragVisuals,
+      onChainUpdate,
     ],
   );
 

@@ -37,8 +37,6 @@ import { useElementsAsCode } from "../hooks/useElementsAsCode.tsx";
 
 const DEFAULT_WIDTH = 240;
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment -- useParams and api response types from external libs */
-
 export type PageWithRightPanelProps = {
   width?: number;
 };
@@ -46,6 +44,8 @@ export type PageWithRightPanelProps = {
 export const PageWithRightPanel = ({
   width = DEFAULT_WIDTH,
 }: PageWithRightPanelProps = {}) => {
+  const chainContext = useContext(ChainContext);
+
   const { showModal } = useModalsContext();
   const [activeTab, setActiveTab] = useState<string>("listElements");
   const [textViewContent, setTextViewContent] = useState<string>("");
@@ -58,8 +58,9 @@ export const PageWithRightPanel = ({
   const monacoRef = useRef<Monaco | null>(null); // eslint-disable-line @typescript-eslint/no-redundant-type-constituents -- Monaco from @monaco-editor/react may include any in union
   const notificationService = useNotificationService();
   const navigate = useNavigate();
-  const chainContext = useContext(ChainContext);
-  const [elements, setElements] = useState<Element[]>([]);
+  const [elements, setElements] = useState<Element[]>(
+      chainContext?.chain?.elements ?? [],
+  );
 
   let direction: "RIGHT" | "DOWN" = "RIGHT";
   try {
@@ -70,36 +71,33 @@ export const PageWithRightPanel = ({
   }
 
   useEffect(() => {
-    if (!chainId) {
-      setElements([]);
-      return;
-    }
+    setElements(chainContext?.chain?.elements ?? []);
+  }, [chainContext?.chain?.elements]);
 
-    const fetchElements = async () => {
+  useEffect(() => {
+    const chainId = chainContext?.chain?.id;
+    if (!chainId) return;
+
+    let cancelled = false;
+    const load = async () => {
       try {
-        const fetchedElements = await api.getElements(chainId);
-        setElements(fetchedElements);
+        const elementsResponse = await api.getElements(chainId);
+        if (cancelled) return;
+        setElements(elementsResponse);
       } catch (error) {
+        console.error(
+          "Failed to refresh chain structure before loading schema",
+          error,
+        );
         notificationService.requestFailed("Failed to load elements", error);
       }
     };
 
-    void fetchElements();
-
-    const handleFocus = () => {
-      void fetchElements();
-    };
-    window.addEventListener("focus", handleFocus);
-
-    const intervalId = setInterval(() => {
-      void fetchElements();
-    }, 3000);
-
+    void load();
     return () => {
-      clearInterval(intervalId);
-      window.removeEventListener("focus", handleFocus);
+      cancelled = true;
     };
-  }, [chainId, notificationService]);
+  }, [chainContext?.chain?.id]);
 
   useEffect(() => {
     if (elementAsCode?.code != null && typeof elementAsCode.code === "string") {
