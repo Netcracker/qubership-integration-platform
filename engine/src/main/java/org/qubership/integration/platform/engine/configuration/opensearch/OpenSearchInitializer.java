@@ -74,9 +74,6 @@ public class OpenSearchInitializer {
     @Value("${qip.opensearch.rollover.min_rollover_age_to_delete:14d}")
     private TimeValue minRolloverAgeToDelete;
 
-    @Value("${qip.opensearch.kafka-client.enabled:false}")
-    private boolean kafkaClientEnabled;
-
     private final Environment environment;
     private final ObjectMapper jsonMapper;
     private final OpenSearchClientSupplier openSearchClientSupplier;
@@ -94,10 +91,6 @@ public class OpenSearchInitializer {
 
     @PostConstruct
     public void initialize() {
-        if (kafkaClientEnabled) {
-            log.info("Update opensearch template and indexes was skipped due to enabled kafka client");
-            return;
-        }
         log.info("Update opensearch template and indexes");
         updateTemplateAndIndexes(openSearchClientSupplier.getClient());
     }
