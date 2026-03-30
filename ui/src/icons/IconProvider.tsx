@@ -30,6 +30,24 @@ const allIcons = {
   ...elementIcons,
 };
 
+/** Слияние конфига: устаревший ключ `icons.qip` подставляет `logo`, если `logo` не задан. */
+function mergeAllIconsWithConfig(
+  configIcons: IconOverrides | undefined,
+): IconOverrides {
+  if (!configIcons) {
+    return allIcons;
+  }
+  const merged: IconOverrides = { ...allIcons, ...configIcons };
+  if (
+    Object.hasOwn(configIcons, "qip") &&
+    configIcons.qip !== undefined &&
+    !Object.hasOwn(configIcons, "logo")
+  ) {
+    merged.logo = configIcons.qip;
+  }
+  return merged;
+}
+
 export interface IconContextType {
   icons: IconOverrides;
   setIcons: (icons: IconOverrides) => void;
@@ -43,18 +61,13 @@ export const IconContext = createContext<IconContextType>({
 export const IconProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [icons, setIcons] = useState<IconOverrides>(() => {
-    const config = getConfig();
-    return config.icons ? { ...allIcons, ...config.icons } : allIcons;
-  });
+  const [icons, setIcons] = useState<IconOverrides>(() =>
+    mergeAllIconsWithConfig(getConfig().icons),
+  );
 
   useEffect(() => {
     const applyConfig = (cfg: ReturnType<typeof getConfig>) => {
-      if (cfg.icons) {
-        setIcons(() => ({ ...allIcons, ...cfg.icons }));
-      } else {
-        setIcons(() => allIcons);
-      }
+      setIcons(() => mergeAllIconsWithConfig(cfg.icons));
     };
 
     applyConfig(getConfig());

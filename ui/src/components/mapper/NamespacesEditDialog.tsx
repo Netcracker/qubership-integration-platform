@@ -1,10 +1,15 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider";
 import { XmlNamespace } from "../../mapper/model/metadata";
 import { Button, Flex, message, Modal, Table, TableProps } from "antd";
 import { InlineEdit } from "../InlineEdit";
 import { TextValueEdit } from "../table/TextValueEdit";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import {
+  attachResizeToColumns,
+  sumScrollXForColumns,
+  useTableColumnResize,
+} from "../table/useTableColumnResize.tsx";
 
 export type NamespacesEditDialogProps = {
   namespaces: XmlNamespace[];
@@ -55,6 +60,119 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
     setTableData([]);
   }, []);
 
+  const namespaceColumns = useMemo(
+    () => [
+      {
+        key: "alias",
+        title: "Prefix",
+        dataIndex: "alias",
+        sorter: (
+          a: XmlNamespace,
+          b: XmlNamespace,
+          sortOrder: string | undefined,
+        ) => {
+          if (sortOrder === "ascend") {
+            return a.alias.localeCompare(b.alias);
+          } else if (sortOrder === "descend") {
+            return b.alias.localeCompare(a.alias);
+          }
+          return 0;
+        },
+        render: (value: string, _record: XmlNamespace, index: number) => {
+          return (
+            <InlineEdit<{ value: string }>
+              values={{ value }}
+              editor={<TextValueEdit name="value" />}
+              viewer={value}
+              initialActive={value === ""}
+              onSubmit={({ value }) => {
+                if (tableData?.some((r) => r.alias === value)) {
+                  messageApi.error(`Already exists: ${value}`);
+                } else {
+                  updateRecord(index, { alias: value });
+                }
+              }}
+            />
+          );
+        },
+      },
+      {
+        key: "uri",
+        title: "URI",
+        dataIndex: "uri",
+        sorter: (
+          a: XmlNamespace,
+          b: XmlNamespace,
+          sortOrder: string | undefined,
+        ) => {
+          if (sortOrder === "ascend") {
+            return a.uri.localeCompare(b.uri);
+          } else if (sortOrder === "descend") {
+            return b.uri.localeCompare(a.uri);
+          }
+          return 0;
+        },
+        render: (value: string, _record: XmlNamespace, index: number) => {
+          return (
+            <InlineEdit<{ value: string }>
+              values={{ value }}
+              editor={<TextValueEdit name="value" rules={[]} />}
+              viewer={value}
+              onSubmit={({ value }) => {
+                updateRecord(index, { uri: value });
+              }}
+            />
+          );
+        },
+      },
+      {
+        key: "actions",
+        className: "actions-column",
+        width: 40,
+        align: "right" as const,
+        render: (_: unknown, _record: XmlNamespace, index: number) => {
+          return (
+            <Button
+              type="text"
+              icon={<OverridableIcon name="delete" />}
+              onClick={() => deleteRecord(index)}
+            />
+          );
+        },
+      },
+    ],
+    [tableData, messageApi, updateRecord, deleteRecord],
+  );
+
+  const namespaceColumnResize = useTableColumnResize({
+    alias: 160,
+    uri: 360,
+  });
+
+  const columnsWithResize = useMemo(
+    () =>
+      attachResizeToColumns(
+        namespaceColumns,
+        namespaceColumnResize.columnWidths,
+        namespaceColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      namespaceColumns,
+      namespaceColumnResize.columnWidths,
+      namespaceColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const scrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        columnsWithResize,
+        namespaceColumnResize.columnWidths,
+      ),
+    [columnsWithResize, namespaceColumnResize.columnWidths],
+  );
+
   return (
     <Modal
       title="Edit namespaces"
@@ -98,90 +216,12 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
           <Table
             className="flex-table"
             size="small"
-            scroll={{ y: "" }}
-            columns={[
-              {
-                key: "alias",
-                title: "Prefix",
-                dataIndex: "alias",
-                sorter: (a, b, sortOrder) => {
-                  if (sortOrder === "ascend") {
-                    return a.alias.localeCompare(b.alias);
-                  } else if (sortOrder === "descend") {
-                    return b.alias.localeCompare(a.alias);
-                  }
-                  return 0;
-                },
-                render: (
-                  value: string,
-                  _record: XmlNamespace,
-                  index: number,
-                ) => {
-                  return (
-                    <InlineEdit<{ value: string }>
-                      values={{ value }}
-                      editor={<TextValueEdit name="value" />}
-                      viewer={value}
-                      initialActive={value === ""}
-                      onSubmit={({ value }) => {
-                        if (tableData?.some((r) => r.alias === value)) {
-                          messageApi.error(`Already exists: ${value}`);
-                        } else {
-                          updateRecord(index, { alias: value });
-                        }
-                      }}
-                    />
-                  );
-                },
-              },
-              {
-                key: "uri",
-                title: "URI",
-                dataIndex: "uri",
-                sorter: (a, b, sortOrder) => {
-                  if (sortOrder === "ascend") {
-                    return a.uri.localeCompare(b.uri);
-                  } else if (sortOrder === "descend") {
-                    return b.uri.localeCompare(a.uri);
-                  }
-                  return 0;
-                },
-                render: (
-                  value: string,
-                  _record: XmlNamespace,
-                  index: number,
-                ) => {
-                  return (
-                    <InlineEdit<{ value: string }>
-                      values={{ value }}
-                      editor={<TextValueEdit name="value" rules={[]} />}
-                      viewer={value}
-                      onSubmit={({ value }) => {
-                        updateRecord(index, { uri: value });
-                      }}
-                    />
-                  );
-                },
-              },
-              {
-                key: "actions",
-                className: "actions-column",
-                width: 40,
-                align: "right",
-                render: (_, _record, index: number) => {
-                  return (
-                    <Button
-                      type="text"
-                      icon={<OverridableIcon name="delete" />}
-                      onClick={() => deleteRecord(index)}
-                    />
-                  );
-                },
-              },
-            ]}
+            scroll={{ x: scrollX, y: "" }}
+            columns={columnsWithResize}
             dataSource={tableData}
             pagination={false}
             rowKey={(record) => record.alias}
+            components={namespaceColumnResize.resizableHeaderComponents}
           />
         </Flex>
       </>

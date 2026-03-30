@@ -114,7 +114,7 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
         >
           <Input ref={nameInput} />
         </Form.Item>
-        <Form.Item name="Description" label="description">
+        <Form.Item name="Description" label="Description">
           <TextArea style={{ height: 120, resize: "none" }} />
         </Form.Item>
         {mode === "create" ? (

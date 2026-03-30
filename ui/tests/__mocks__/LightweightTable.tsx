@@ -5,6 +5,9 @@
  * row selection checkboxes, and expandable children — just enough DOM for
  * typical test queries (getByText, getByRole, querySelector) while avoiding
  * the heavy rendering cost of the real antd Table.
+ *
+ * Supports expandable.expandedRowRender (flat tables) in addition to tree
+ * childrenColumnName rows.
  */
 import React from "react";
 
@@ -37,6 +40,13 @@ interface ExpandableConfig {
     expandable: boolean;
   }) => React.ReactNode;
   childrenColumnName?: string;
+  expandedRowRender?: (
+    record: unknown,
+    index: number,
+    indent: number,
+    expanded: boolean,
+  ) => React.ReactNode;
+  rowExpandable?: (record: unknown) => boolean;
 }
 
 interface LightTableProps {
@@ -87,6 +97,7 @@ function RenderRows({
   rowClassName?: string | ((record: unknown, index: number) => string);
   onRow?: (record: unknown, index: number) => React.HTMLAttributes<HTMLTableRowElement>;
 }) {
+  const bodyColSpan = columns.length + (rowSelection ? 1 : 0);
   const childrenCol = expandable?.childrenColumnName ?? "children";
   // When defaultExpandAllRows is set OR no expandable config is provided
   // (tree data mode), always render children without tracking expanded state.
@@ -112,7 +123,11 @@ function RenderRows({
         const key = getRowKey(rec, idx, rowKeyProp);
         const children = rec[childrenCol] as unknown[] | undefined;
         const hasChildren = Array.isArray(children) && children.length > 0;
+        // Ant Design: empty children array still means "row can expand" (lazy / onExpand).
+        const lazyExpandable = Array.isArray(children);
         const isExpanded = expandedKeys.has(key);
+        const rowExpandOk =
+          !expandable?.rowExpandable || expandable.rowExpandable(record);
 
         const cls =
           typeof rowClassName === "function"
@@ -169,9 +184,14 @@ function RenderRows({
                               expanded: isExpanded,
                               onExpand: (_record, e) => toggleExpand(e),
                               record,
-                              expandable: hasChildren || Array.isArray(children),
+                              expandable:
+                                lazyExpandable ||
+                                (!!expandable.expandedRowRender &&
+                                  rowExpandOk),
                             })
-                          : hasChildren && (
+                          : (lazyExpandable ||
+                              (!!expandable.expandedRowRender &&
+                                rowExpandOk)) && (
                               <span
                                 className="ant-table-row-expand-icon"
                                 onClick={toggleExpand}
@@ -184,6 +204,18 @@ function RenderRows({
                 );
               })}
             </tr>
+            {expandable?.expandedRowRender &&
+              isExpanded &&
+              rowExpandOk && (
+                <tr
+                  className="ant-table-expanded-row"
+                  data-testid="light-table-expanded-row"
+                >
+                  <td colSpan={bodyColSpan}>
+                    {expandable.expandedRowRender(record, idx, 0, isExpanded)}
+                  </td>
+                </tr>
+              )}
             {(alwaysExpand || isExpanded) && hasChildren && (
               <RenderRows
                 rows={children}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Button, Flex, Spin, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Engine, RunningStatus } from "../../../api/apiTypes.ts";
@@ -7,6 +7,12 @@ import { treeExpandIcon } from "../../table/TreeExpandIcon";
 import tableStyles from "./Tables.module.css";
 import { useDeploymentsForEngine } from "./hooks/useDeploymentsForEngine";
 import { RunningStatusValue } from "./RunningStatusValue.tsx";
+import {
+  attachResizeToColumns,
+  useTableColumnResize,
+} from "../../table/useTableColumnResize.tsx";
+
+const ENGINE_EXPAND_COLUMN_WIDTH = 48;
 
 interface Props {
   engines: Engine[];
@@ -29,7 +35,6 @@ const columns: ColumnsType<Engine> = [
       <Typography.Text type="secondary">{text}</Typography.Text>
     ),
     align: "right",
-    width: "20%",
   },
   {
     title: <span className={tableStyles.columnHeader}>State</span>,
@@ -41,7 +46,6 @@ const columns: ColumnsType<Engine> = [
       </Flex>
     ),
     align: "right",
-    width: "15%",
   },
   {
     title: <span className={tableStyles.columnHeader}>Pod status</span>,
@@ -56,7 +60,6 @@ const columns: ColumnsType<Engine> = [
       );
     },
     align: "right",
-    width: "18%",
   },
 ];
 
@@ -70,10 +73,12 @@ const DeploymentsForEngine: React.FC<{
   );
   if (error) {
     return (
-      <Typography.Text type="danger">
-        Error while loading engines list {engine.name}.{" "}
+      <Flex align="center" gap={8} wrap="wrap">
+        <Typography.Text type="danger" style={{ margin: 0 }}>
+          Error while loading engines list {engine.name}.
+        </Typography.Text>
         <Button onClick={() => void retry()}>Retry</Button>
-      </Typography.Text>
+      </Flex>
     );
   }
 
@@ -87,6 +92,31 @@ export const EngineTable: React.FC<Props> = ({
 }) => {
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
+  const engineColumnResize = useTableColumnResize({
+    name: 220,
+    host: 200,
+    runningStatus: 160,
+    ready: 140,
+  });
+
+  const columnsWithResize = useMemo(
+    () =>
+      attachResizeToColumns(
+        columns,
+        engineColumnResize.columnWidths,
+        engineColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      columns,
+      engineColumnResize.columnWidths,
+      engineColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const scrollX =
+    engineColumnResize.totalColumnsWidth + ENGINE_EXPAND_COLUMN_WIDTH;
+
   React.useEffect(() => {
     if (engines.length > 0) {
       setExpandedRowKeys(engines.map((engine) => engine.id));
@@ -98,10 +128,12 @@ export const EngineTable: React.FC<Props> = ({
       <Spin spinning={isLoading}>
         <Table
           rowKey="id"
-          columns={columns}
+          columns={columnsWithResize}
           dataSource={engines}
           pagination={false}
           size="small"
+          scroll={{ x: scrollX }}
+          components={engineColumnResize.resizableHeaderComponents}
           expandable={{
             expandIcon: treeExpandIcon(),
             expandedRowRender: (engine) => (

@@ -1,12 +1,16 @@
 import { Modal, Upload, Table, Button, message, Flex } from "antd";
 import type { RcFile } from "antd/es/upload";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { VariableImportPreview } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { api } from "../../../api/api.ts";
+import {
+  attachResizeToColumns,
+  useTableColumnResize,
+} from "../../table/useTableColumnResize.tsx";
 
 interface Props {
   onSuccess?: () => void;
@@ -21,6 +25,35 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
   const [previewData, setPreviewData] = useState<VariableImportPreview[]>([]);
   const [selectedNames, setSelectedNames] = useState<React.Key[]>([]);
   const notificationService = useNotificationService();
+
+  const previewColumns = useMemo(
+    () => [
+      { title: "Name", dataIndex: "name", key: "name" },
+      { title: "Value", dataIndex: "value", key: "value" },
+    ],
+    [],
+  );
+
+  const {
+    columnWidths,
+    createResizeHandlers,
+    totalColumnsWidth,
+    resizableHeaderComponents,
+  } = useTableColumnResize({
+    name: 220,
+    value: 280,
+  });
+
+  const columnsWithResize = useMemo(
+    () =>
+      attachResizeToColumns(
+        previewColumns,
+        columnWidths,
+        createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [previewColumns, columnWidths, createResizeHandlers],
+  );
 
   const handleCancel = () => {
     closeContainingModal();
@@ -126,10 +159,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
             rowKey="name"
             className="flex-table"
             style={{ height: "100%" }}
-            columns={[
-              { title: "Name", dataIndex: "name", key: "name" },
-              { title: "Value", dataIndex: "value", key: "value" },
-            ]}
+            columns={columnsWithResize}
             dataSource={previewData}
             rowSelection={{
               selectedRowKeys: selectedNames,
@@ -138,7 +168,8 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
             pagination={false}
             size="small"
             sticky
-            scroll={{ y: "" }}
+            scroll={{ x: totalColumnsWidth, y: "" }}
+            components={resizableHeaderComponents}
           />
         )}
       </Flex>

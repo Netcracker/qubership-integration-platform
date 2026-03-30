@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Modal, Upload, Table, Button, message, Typography, Tag } from "antd";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../../ModalContextProvider";
@@ -12,6 +12,10 @@ import { getErrorMessage } from "../../../misc/error-utils";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import { validateFiles } from "../utils";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import {
+  attachResizeToColumns,
+  useTableColumnResize,
+} from "../../table/useTableColumnResize.tsx";
 
 interface Props {
   onSuccess?: () => void;
@@ -56,6 +60,67 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
       setLoading(false);
     }
   };
+
+  const importResultColumns = useMemo(
+    () => [
+      {
+        title: "Name",
+        dataIndex: "name",
+        key: "name",
+        render: (text: string) => (
+          <Typography.Text ellipsis style={{ maxWidth: 180 }} strong>
+            {text}
+          </Typography.Text>
+        ),
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        render: (status: SystemImportStatus) => (
+          <Tag
+            color={statusColor[status] || "default"}
+            style={{ fontSize: 16 }}
+          >
+            {status.charAt(0) + status.slice(1).toLowerCase()}
+          </Tag>
+        ),
+      },
+      {
+        title: "Message",
+        dataIndex: "message",
+        key: "message",
+        render: (msg: string) => (
+          <Typography.Text
+            style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+          >
+            {msg || "—"}
+          </Typography.Text>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const importResultColumnResize = useTableColumnResize({
+    name: 180,
+    status: 120,
+  });
+
+  const columnsWithResize = useMemo(
+    () =>
+      attachResizeToColumns(
+        importResultColumns,
+        importResultColumnResize.columnWidths,
+        importResultColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      importResultColumns,
+      importResultColumnResize.columnWidths,
+      importResultColumnResize.createResizeHandlers,
+    ],
+  );
 
   const handleFilesChange = (fileList: RcFile[]) => {
     if (fileList.length > 1) {
@@ -148,41 +213,12 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
             </Typography.Title>
             <Table
               rowKey="id"
-              columns={[
-                {
-                  title: "Name",
-                  dataIndex: "name",
-                  key: "name",
-                  render: (text: string) => (
-                    <Typography.Text ellipsis style={{ maxWidth: 180 }} strong>
-                      {text}
-                    </Typography.Text>
-                  ),
-                },
-                {
-                  title: "Status",
-                  dataIndex: "status",
-                  key: "status",
-                  render: (status: SystemImportStatus) => (
-                    <Tag
-                      color={statusColor[status] || "default"}
-                      style={{ fontSize: 16 }}
-                    >
-                      {status.charAt(0) + status.slice(1).toLowerCase()}
-                    </Tag>
-                  ),
-                },
-                {
-                  title: "Message",
-                  dataIndex: "message",
-                  key: "message",
-                  render: (msg: string) => msg || "—",
-                },
-              ]}
+              columns={columnsWithResize}
               dataSource={result}
               pagination={false}
               style={{ marginTop: 8 }}
               size="middle"
+              components={importResultColumnResize.resizableHeaderComponents}
             />
             <Button
               style={{ marginTop: 24 }}

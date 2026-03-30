@@ -518,7 +518,10 @@ export const useChainGraph = (
             )
           : [];
 
-        const updatedNodes = buildGraphNodes(response.updatedElements ?? [], libraryElements);
+        const updatedNodes = buildGraphNodes(
+          response.updatedElements ?? [],
+          libraryElements,
+        );
 
         const arrangedNodes = await arrangeNodes(
           childNodes.concat(newNode, ...updatedNodes),
@@ -690,13 +693,15 @@ export const useChainGraph = (
           deletedEdgeIds.push(connection.id),
         );
 
-        const updatedNodes = buildGraphNodes(elementsDeleteResponse.updatedElements ?? [], libraryElements);
+        const updatedNodes = buildGraphNodes(
+          elementsDeleteResponse.updatedElements ?? [],
+          libraryElements,
+        );
         const updatedNodeIds = new Set(updatedNodes.map((node) => node.id));
 
         const allNodes = (nodes as ChainGraphNode[]).filter(
           (node) =>
-            !deletedNodeIds.includes(node.id) &&
-            !updatedNodeIds.has(node.id),
+            !deletedNodeIds.includes(node.id) && !updatedNodeIds.has(node.id),
         );
         const allEdges = edges.filter(
           (edge) => !deletedEdgeIds.includes(edge.id),

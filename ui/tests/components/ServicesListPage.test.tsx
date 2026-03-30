@@ -16,6 +16,12 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+globalThis.ResizeObserver = class ResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+};
+
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { render, fireEvent, waitFor, screen } from "@testing-library/react";
@@ -88,7 +94,7 @@ jest.mock("../../src/components/services/Services.module.css", () => ({}), {
 // Mock components that import CSS
 jest.mock("../../src/components/services/ServicesTreeTable", () => ({
   useServicesTreeTable: () => ({
-    Table: () => <table data-testid="services-table" />,
+    tableElement: <table data-testid="services-table" />,
     FilterButton: () => (
       <button data-testid="columns-filter-button">Columns</button>
     ),
@@ -105,7 +111,8 @@ jest.mock("../../src/components/services/ServicesTreeTable", () => ({
 }));
 
 jest.mock("../../src/components/services/modals/CreateServiceModal", () => ({
-  CreateServiceModal: () => <div data-testid="create-modal" />,
+  CreateServiceModal: ({ open }: { open?: boolean }) =>
+    open ? <div data-testid="create-modal" /> : null,
 }));
 
 jest.mock("../../src/components/services/modals/ImportServicesModal", () => ({
@@ -125,6 +132,34 @@ jest.mock("../../src/misc/error-utils", () => ({
   getErrorMessage: (e: unknown, msg: string) => msg,
 }));
 
+jest.mock("../../src/hooks/useResizeHeigth.tsx", () => ({
+  useResizeHeight: () => [jest.fn(), 520],
+}));
+
+jest.mock("../../src/permissions/Require.tsx", () => ({
+  Require: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock("../../src/permissions/ProtectedButton.tsx", () => ({
+  ProtectedButton: ({
+    buttonProps,
+    tooltipProps,
+  }: {
+    buttonProps: Record<string, unknown> & { onClick?: () => void };
+    tooltipProps: { title: string };
+  }) => {
+    const { iconName: _i, icon: _n, ...rest } = buttonProps;
+    return (
+      <button
+        type="button"
+        data-testid={`svc-action-${String(tooltipProps.title).replace(/\s+/g, "-").toLowerCase()}`}
+        {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
+      />
+    );
+  },
+}));
+
+import { message } from "antd";
 import { ServicesListPage } from "../../src/components/services/ServicesListPage";
 
 const makeService = (
@@ -141,9 +176,12 @@ const makeService = (
   }) as IntegrationSystem;
 
 describe("ServicesListPage", () => {
+  let messageInfoSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    messageInfoSpy = jest.spyOn(message, "info").mockImplementation(() => {});
     mockGetServices.mockResolvedValue([
       makeService("1", "Service A", IntegrationSystemType.IMPLEMENTED),
       makeService("2", "Service B", IntegrationSystemType.IMPLEMENTED),
@@ -157,6 +195,7 @@ describe("ServicesListPage", () => {
   afterEach(() => {
     jest.useRealTimers();
     mockFilters = [];
+    messageInfoSpy.mockRestore();
   });
 
   it("calls getServices on initial load when no search/filters", async () => {
@@ -221,5 +260,43 @@ describe("ServicesListPage", () => {
     await waitFor(() => {
       expect(mockGetContextServices).toHaveBeenCalled();
     });
+  });
+
+  it("shows Implemented Services title for default tab", async () => {
+    jest.useRealTimers();
+    render(<ServicesListPage />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+    expect(screen.getByText("Implemented Services")).toBeInTheDocument();
+  });
+
+  it("calls showModal when Upload services is clicked", async () => {
+    jest.useRealTimers();
+    render(<ServicesListPage />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId("svc-action-upload-services"));
+    expect(mockShowModal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        component: expect.anything(),
+      }),
+    );
+  });
+
+  it("opens Create service modal when Create service is clicked", async () => {
+    jest.useRealTimers();
+    render(<ServicesListPage />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+    expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("svc-action-create-service"));
+    expect(screen.getByTestId("create-modal")).toBeInTheDocument();
+  });
+
+  it("shows message when Download selected with no selection", async () => {
+    jest.useRealTimers();
+    render(<ServicesListPage />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+    fireEvent.click(
+      screen.getByTestId("svc-action-download-selected-services"),
+    );
+    expect(messageInfoSpy).toHaveBeenCalledWith("No services selected");
   });
 });

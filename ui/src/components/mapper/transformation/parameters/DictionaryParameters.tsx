@@ -8,7 +8,13 @@ import {
   TableProps,
   Tabs,
 } from "antd";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { InlineEdit } from "../../../InlineEdit";
 import {
   KeyValuePair,
@@ -26,6 +32,11 @@ import {
   useMonacoTheme,
   applyVSCodeThemeToMonaco,
 } from "../../../../hooks/useMonacoTheme";
+import {
+  attachResizeToColumns,
+  sumScrollXForColumns,
+  useTableColumnResize,
+} from "../../../table/useTableColumnResize.tsx";
 
 const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
 
@@ -149,6 +160,119 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
     onChange?.([]);
   }, [onChange]);
 
+  const dictionaryColumns = useMemo(
+    () => [
+      {
+        key: "key",
+        title: "Input",
+        dataIndex: "key",
+        sorter: (
+          a: KeyValuePair,
+          b: KeyValuePair,
+          sortOrder: string | undefined,
+        ) => {
+          if (sortOrder === "ascend") {
+            return a.key.localeCompare(b.key);
+          } else if (sortOrder === "descend") {
+            return b.key.localeCompare(a.key);
+          }
+          return 0;
+        },
+        render: (value: string, _record: KeyValuePair, index: number) => {
+          return (
+            <InlineEdit<{ value: string }>
+              values={{ value }}
+              editor={<TextValueEdit name="value" />}
+              viewer={value}
+              initialActive={value === ""}
+              onSubmit={({ value }) => {
+                if (tableData?.some((r) => r.key === value)) {
+                  messageApi.error(`Already exists: ${value}`);
+                } else {
+                  updateRecord(index, { key: value });
+                }
+              }}
+            />
+          );
+        },
+      },
+      {
+        key: "value",
+        title: "Result",
+        dataIndex: "value",
+        sorter: (
+          a: KeyValuePair,
+          b: KeyValuePair,
+          sortOrder: string | undefined,
+        ) => {
+          if (sortOrder === "ascend") {
+            return a.value.localeCompare(b.value);
+          } else if (sortOrder === "descend") {
+            return b.value.localeCompare(a.value);
+          }
+          return 0;
+        },
+        render: (value: string, _record: KeyValuePair, index: number) => {
+          return (
+            <InlineEdit<{ value: string }>
+              values={{ value }}
+              editor={<TextValueEdit name="value" rules={[]} />}
+              viewer={value}
+              onSubmit={({ value }) => {
+                updateRecord(index, { value });
+              }}
+            />
+          );
+        },
+      },
+      {
+        key: "actions",
+        className: "actions-column",
+        width: 40,
+        align: "right" as const,
+        render: (_: unknown, _record: KeyValuePair, index: number) => {
+          return (
+            <Button
+              type="text"
+              icon={<OverridableIcon name="delete" />}
+              onClick={() => deleteRecord(index)}
+            />
+          );
+        },
+      },
+    ],
+    [tableData, messageApi, updateRecord, deleteRecord],
+  );
+
+  const dictionaryColumnResize = useTableColumnResize({
+    key: 160,
+    value: 220,
+  });
+
+  const columnsWithResize = useMemo(
+    () =>
+      attachResizeToColumns(
+        dictionaryColumns,
+        dictionaryColumnResize.columnWidths,
+        dictionaryColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      dictionaryColumns,
+      dictionaryColumnResize.columnWidths,
+      dictionaryColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const scrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        columnsWithResize,
+        dictionaryColumnResize.columnWidths,
+      ),
+    [columnsWithResize, dictionaryColumnResize.columnWidths],
+  );
+
   return (
     <>
       {contextHolder}
@@ -172,82 +296,12 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
         <Table
           className="flex-table"
           size="small"
-          scroll={{ y: "" }}
-          columns={[
-            {
-              key: "key",
-              title: "Input",
-              dataIndex: "key",
-              sorter: (a, b, sortOrder) => {
-                if (sortOrder === "ascend") {
-                  return a.key.localeCompare(b.key);
-                } else if (sortOrder === "descend") {
-                  return b.key.localeCompare(a.key);
-                }
-                return 0;
-              },
-              render: (value: string, _record: KeyValuePair, index: number) => {
-                return (
-                  <InlineEdit<{ value: string }>
-                    values={{ value }}
-                    editor={<TextValueEdit name="value" />}
-                    viewer={value}
-                    initialActive={value === ""}
-                    onSubmit={({ value }) => {
-                      if (tableData?.some((r) => r.key === value)) {
-                        messageApi.error(`Already exists: ${value}`);
-                      } else {
-                        updateRecord(index, { key: value });
-                      }
-                    }}
-                  />
-                );
-              },
-            },
-            {
-              key: "value",
-              title: "Result",
-              dataIndex: "value",
-              sorter: (a, b, sortOrder) => {
-                if (sortOrder === "ascend") {
-                  return a.value.localeCompare(b.value);
-                } else if (sortOrder === "descend") {
-                  return b.value.localeCompare(a.value);
-                }
-                return 0;
-              },
-              render: (value: string, _record: KeyValuePair, index: number) => {
-                return (
-                  <InlineEdit<{ value: string }>
-                    values={{ value }}
-                    editor={<TextValueEdit name="value" rules={[]} />}
-                    viewer={value}
-                    onSubmit={({ value }) => {
-                      updateRecord(index, { value });
-                    }}
-                  />
-                );
-              },
-            },
-            {
-              key: "actions",
-              className: "actions-column",
-              width: 40,
-              align: "right",
-              render: (_, _record, index: number) => {
-                return (
-                  <Button
-                    type="text"
-                    icon={<OverridableIcon name="delete" />}
-                    onClick={() => deleteRecord(index)}
-                  />
-                );
-              },
-            },
-          ]}
+          scroll={tableData?.length ? { x: scrollX, y: "" } : { x: scrollX }}
+          columns={columnsWithResize}
           dataSource={tableData}
           pagination={false}
           rowKey={(record) => record.key}
+          components={dictionaryColumnResize.resizableHeaderComponents}
         />
       </Flex>
     </>

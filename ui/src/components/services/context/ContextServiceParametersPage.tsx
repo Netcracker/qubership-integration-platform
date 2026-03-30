@@ -1,4 +1,4 @@
-import { Breadcrumb, Tabs } from "antd";
+import { Breadcrumb, Flex, Tabs } from "antd";
 import { useParams } from "react-router";
 import { formatTimestamp } from "../../../misc/format-utils";
 import styles from "../Services.module.css";
@@ -73,9 +73,18 @@ export const ContextServiceParametersPage: React.FC = () => {
 
   return (
     <ServiceParametersPageLayout>
-      <Breadcrumb items={breadcrumbItems} />
-      <ServiceParametersPageHeader />
-      <Tabs items={tabItems} activeKey={activeTab} />
+      <Flex vertical style={{ flex: 1, minHeight: 0 }}>
+        <div style={{ flexShrink: 0 }}>
+          <Breadcrumb items={breadcrumbItems} />
+          <ServiceParametersPageHeader />
+        </div>
+        <Tabs
+          className="flex-tabs"
+          style={{ flex: 1, minHeight: 0 }}
+          items={tabItems}
+          activeKey={activeTab}
+        />
+      </Flex>
     </ServiceParametersPageLayout>
   );
 };

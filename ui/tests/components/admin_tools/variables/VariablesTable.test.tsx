@@ -42,35 +42,55 @@ jest.mock(
   }),
 );
 
-jest.mock("../../../../src/components/ResizableTitle.tsx", () => ({
-  ResizableTitle: (props: React.HTMLAttributes<HTMLElement>) => (
-    <th {...props} />
-  ),
+jest.mock("../../../../src/components/table/ResizableTitle.tsx", () => ({
+  ResizableTitle: React.forwardRef<
+    HTMLTableCellElement,
+    React.ThHTMLAttributes<HTMLTableCellElement> & {
+      onResize?: unknown;
+      onResizeStop?: unknown;
+      width?: unknown;
+      minResizeWidth?: unknown;
+      maxResizeWidth?: unknown;
+      resizeHandleZIndex?: unknown;
+    }
+  >((props, ref) => {
+    const {
+      onResize: _onResize,
+      onResizeStop: _onResizeStop,
+      width: _width,
+      minResizeWidth: _minResizeWidth,
+      maxResizeWidth: _maxResizeWidth,
+      resizeHandleZIndex: _resizeHandleZIndex,
+      ...rest
+    } = props;
+    return <th ref={ref} {...rest} />;
+  }),
 }));
 
 jest.mock("antd", () => {
-  const actual: Record<string, unknown> = jest.requireActual("antd");
-  const mock: Record<string, unknown> = jest.requireActual(
-    "../../../__mocks__/LightweightTable",
-  );
-  return {
-    ...actual,
-    Table: mock.LightweightTable,
+  const React = require("react");
+  const {
+    antdMockWithLightweightTable,
+  } = require("tests/helpers/antdMockWithLightweightTable");
+  return antdMockWithLightweightTable({
     Popconfirm: ({
       children,
       onConfirm,
     }: {
       children: React.ReactNode;
       onConfirm?: () => void;
-    }) => (
-      <div>
-        {children}
-        <button data-testid="popconfirm-ok" onClick={onConfirm}>
-          OK
-        </button>
-      </div>
-    ),
-  };
+    }) =>
+      React.createElement(
+        "div",
+        null,
+        children,
+        React.createElement(
+          "button",
+          { "data-testid": "popconfirm-ok", onClick: onConfirm },
+          "OK",
+        ),
+      ),
+  });
 });
 
 import VariablesTable from "../../../../src/components/admin_tools/variables/VariablesTable";

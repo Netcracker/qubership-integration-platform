@@ -1,8 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { Table, Input, Button, Popconfirm, TableProps } from "antd";
 import type { InputRef } from "antd";
-import { ResizableProps } from "react-resizable";
-import "react-resizable/css/styles.css";
 import "./Resizable.css";
 import { NEW_VARIABLE_KEY } from "./useVariablesState";
 import styles from "./VariablesTable.module.css";
@@ -12,8 +10,15 @@ import {
 } from "../../table/TextColumnFilterDropdown";
 import type { FilterDropdownProps } from "antd/lib/table/interface";
 import type { Variable } from "../../../api/apiTypes.ts";
-import { ResizableTitle } from "../../ResizableTitle.tsx";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import {
+  attachResizeToColumns,
+  useTableColumnResize,
+} from "../../table/useTableColumnResize.tsx";
+import {
+  createActionsSizing,
+  DEFAULT_ACTIONS_COLUMN_WIDTH,
+} from "../../table/actionsColumn.ts";
 
 interface VariablesTableProps {
   variables: Variable[];
@@ -29,8 +34,6 @@ interface VariablesTableProps {
   editingValue: string;
   onChangeEditingValue: (value: string) => void;
   onConfirmEdit: (key: string, newValue: string) => void;
-  columnsWidth: { [key: string]: number };
-  onResize: (dataIndex: string) => ResizableProps["onResize"];
   enableKeySort?: boolean;
   enableValueSort?: boolean;
   enableKeyFilter?: boolean;
@@ -55,8 +58,6 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   editingValue,
   onChangeEditingValue,
   onConfirmEdit,
-  columnsWidth,
-  onResize,
   enableKeySort,
   enableValueSort,
   enableKeyFilter,
@@ -71,6 +72,10 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   const newRecord = useRef<{ key: string; value: string }>({
     key: "",
     value: "",
+  });
+  const variablesColumnResize = useTableColumnResize({
+    key: 300,
+    value: 400,
   });
 
   useEffect(() => {
@@ -99,10 +104,8 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
     }
   };
 
-  const totalColumnsWidth = Object.values(columnsWidth).reduce(
-    (acc, width) => acc + width,
-    0,
-  );
+  const totalColumnsWidth =
+    variablesColumnResize.totalColumnsWidth + DEFAULT_ACTIONS_COLUMN_WIDTH;
 
   /* Ant Design Table column/row types infer as error/any in strict mode; types are safe for Variable. */
   const columns: TableProps<Variable>["columns"] = [
@@ -110,11 +113,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
       title: "Key",
       dataIndex: "key",
       key: "key",
-      width: columnsWidth.key,
-      onHeaderCell: () => ({
-        width: columnsWidth.key,
-        onResize: onResize("key"),
-      }),
+      width: variablesColumnResize.columnWidths.key,
       sorter: enableKeySort
         ? (a: Variable, b: Variable) => a.key.localeCompare(b.key)
         : undefined,
@@ -143,11 +142,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
       title: "Value",
       dataIndex: "value",
       key: "value",
-      width: columnsWidth.value,
-      onHeaderCell: () => ({
-        width: columnsWidth.value,
-        onResize: onResize("value"),
-      }),
+      width: variablesColumnResize.columnWidths.value,
       sorter: enableValueSort
         ? (a: Variable, b: Variable) => a.value.localeCompare(b.value)
         : undefined,
@@ -264,8 +259,8 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
     {
       title: "",
       key: "actions",
-      width: 40,
       align: "right" as const,
+      ...createActionsSizing<Variable>(),
       render: (_: unknown, record: Variable) =>
         record.key !== NEW_VARIABLE_KEY &&
         enableDelete && (
@@ -284,6 +279,21 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
         ),
     },
   ];
+  const columnsWithResize = attachResizeToColumns(
+    columns,
+    variablesColumnResize.columnWidths,
+    variablesColumnResize.createResizeHandlers,
+    { minWidth: 80 },
+  );
+  const columnsWithResizeNoRightActionsHandle = columnsWithResize.map(
+    (column) =>
+      column.key === "value"
+        ? {
+            ...column,
+            onHeaderCell: undefined,
+          }
+        : column,
+  );
 
   const dataWithNewRow: Variable[] = [
     ...(isAddingNew ? [{ key: NEW_VARIABLE_KEY, value: "" }] : []),
@@ -294,12 +304,8 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
     <Table<Variable>
       className={flex ? "flex-table" : undefined}
       dataSource={dataWithNewRow}
-      columns={columns}
-      components={{
-        header: {
-          cell: ResizableTitle,
-        },
-      }}
+      columns={columnsWithResizeNoRightActionsHandle}
+      components={variablesColumnResize.resizableHeaderComponents}
       rowKey="key"
       pagination={false}
       size="small"

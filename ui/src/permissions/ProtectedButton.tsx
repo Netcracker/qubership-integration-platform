@@ -13,12 +13,19 @@ type ButtonWithTooltipProps = {
   buttonProps: ButtonProps & { iconName?: IconName };
 };
 
+const defaultTooltipPopupContainer = () => document.body;
+
 const ButtonWithTooltip: React.FC<ButtonWithTooltipProps> = ({
   tooltipProps,
   buttonProps: { iconName, icon, ...restButtonProps },
 }): ReactNode => {
   return (
-    <Tooltip {...tooltipProps}>
+    <Tooltip
+      {...tooltipProps}
+      getPopupContainer={
+        tooltipProps.getPopupContainer ?? defaultTooltipPopupContainer
+      }
+    >
       <Button
         icon={iconName ? <OverridableIcon name={iconName} /> : icon}
         {...restButtonProps}

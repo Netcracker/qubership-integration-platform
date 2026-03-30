@@ -12,6 +12,8 @@ export type ElementNameInlineEditRef = {
 export type ElementNameInlineEditProps = {
   value: string;
   typeLabel?: string;
+  /** Rendered immediately after the type label (e.g. Help button) */
+  afterTypeLabel?: React.ReactNode;
   onSave: (newValue: string) => void | Promise<void>;
   disabled?: boolean;
 };
@@ -20,7 +22,7 @@ export const ElementNameInlineEdit = forwardRef<
   ElementNameInlineEditRef,
   Readonly<ElementNameInlineEditProps>
 >(function ElementNameInlineEdit(
-  { value, typeLabel, onSave, disabled = false },
+  { value, typeLabel, afterTypeLabel, onSave, disabled = false },
   ref,
 ): React.ReactElement {
   const innerRef = useRef<InlineEditWithButtonsRef<{ name: string }>>(null);
@@ -54,10 +56,15 @@ export const ElementNameInlineEdit = forwardRef<
           <span className={styles["modal-title-name"]} title={value}>
             {value}
           </span>
-          {typeLabel && (
-            <span className={styles["modal-title-type"]}>
-              {"\u00A0"}
-              {typeLabel}
+          {(typeLabel || afterTypeLabel) && (
+            <span className={styles["type-with-help"]}>
+              {typeLabel && (
+                <span className={styles["modal-title-type"]}>
+                  {"\u00A0"}
+                  {typeLabel}
+                </span>
+              )}
+              {afterTypeLabel}
             </span>
           )}
           {!disabled && (

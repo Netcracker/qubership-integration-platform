@@ -57,13 +57,9 @@ const mockNestedChain: ChainItem = {
 
 // --------------- Mocks ---------------
 
-jest.mock("antd", () => {
-  const actual: Record<string, unknown> = jest.requireActual("antd");
-  const mock: Record<string, unknown> = jest.requireActual(
-    "../__mocks__/LightweightTable",
-  );
-  return { ...actual, Table: mock.LightweightTable };
-});
+jest.mock("antd", () =>
+  require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
+);
 
 jest.mock("react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -344,6 +340,49 @@ describe("Chains page", () => {
       // Only chains get deployment state
       expect(states).toHaveLength(1);
     });
+  });
+
+  // --- Table toolbar (TableToolbar + CompactSearch + actions) ---
+
+  it("renders full text search in toolbar", async () => {
+    render(<Chains />);
+    await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
+    expect(
+      screen.getByPlaceholderText("Full text search"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders toolbar ProtectedButtons by tooltip title", async () => {
+    render(<Chains />);
+    await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
+    expect(screen.getByTestId("protected-btn-import-chains")).toBeInTheDocument();
+    expect(screen.getByTestId("protected-btn-paste")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("protected-btn-deploy-selected-chains"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("protected-btn-export-selected-chains"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId(
+        "protected-btn-delete-selected-chains-and-folders",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("protected-btn-compare-selected-chains"),
+    ).toBeInTheDocument();
+  });
+
+  it("calls showModal when Import chains is clicked", async () => {
+    render(<Chains />);
+    await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId("protected-btn-import-chains"));
+    expect(mockShowModal).toHaveBeenCalledTimes(1);
+    expect(mockShowModal.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        component: expect.anything(),
+      }),
+    );
   });
 
   // --- Breadcrumb ---

@@ -1,6 +1,11 @@
 html {
   background: white;
   height: 100%;
+
+  /* Toolbar tooltips near the right edge can extend past the viewport by a
+     subpixel amount; that triggers html scrollbars and a second-axis gutter
+     (Deployments, Sessions). Clipping x overflow keeps layout stable. */
+  overflow-x: clip;
 }
 
 :root {
@@ -35,6 +40,9 @@ body {
   min-width: 320px;
   min-height: 100vh;
   height: 100%;
+
+  /* Portaled tooltips attach under body; clip here too if html alone is not enough. */
+  overflow-x: clip;
 }
 
 #root {
@@ -287,4 +295,8 @@ button:focus-visible {
 
 .ant-table-cell.actions-column:not(.ant-table-cell-row-hover) > * {
   visibility: collapse;
+}
+
+.ant-table-filter-dropdown {
+  z-index: 1050;
 }

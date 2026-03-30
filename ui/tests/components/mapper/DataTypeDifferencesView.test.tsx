@@ -15,7 +15,7 @@ describe("DataTypeDifferencesView", () => {
       second: {
         type: { name: "string" },
         definitions: [],
-      }
+      },
     };
     render(<DataTypeDifferencesView differences={[difference]} />);
     // Check content

@@ -84,9 +84,7 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
             <Typography.Text type="secondary" style={{ marginRight: "auto" }}>
               {chainCount} chain(s) to deploy
             </Typography.Text>
-            <Button onClick={closeContainingModal}>
-              Cancel
-            </Button>
+            <Button onClick={closeContainingModal}>Cancel</Button>
             <Button
               type="primary"
               form="deployOptionsForm"
@@ -105,44 +103,44 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
     >
       {step === "form" ? (
         <Form<DeployOptions>
-            layout="vertical"
-            id="deployOptionsForm"
-            initialValues={{
-              domains: ["default"],
-              snapshotAction: BulkDeploymentSnapshotAction.CREATE_NEW,
-            }}
-            onFinish={(values) => void onFinish(values)}
+          layout="vertical"
+          id="deployOptionsForm"
+          initialValues={{
+            domains: ["default"],
+            snapshotAction: BulkDeploymentSnapshotAction.CREATE_NEW,
+          }}
+          onFinish={(values) => void onFinish(values)}
+        >
+          <Form.Item
+            name="domains"
+            label="Engine domains"
+            rules={[{ required: true }]}
           >
-            <Form.Item
-              name="domains"
-              label="Engine domains"
-              rules={[{ required: true }]}
-            >
-              <Select
-                loading={isDomainsLoading}
-                mode="multiple"
-                allowClear
-                options={domains.map((domain) => ({
-                  value: domain.id,
-                  label: domain.name,
-                }))}
-              />
-            </Form.Item>
-            <Form.Item name="snapshotAction" label="Snapshot action">
-              <Select
-                options={[
-                  {
-                    value: BulkDeploymentSnapshotAction.CREATE_NEW,
-                    label: "Create new",
-                  },
-                  {
-                    value: BulkDeploymentSnapshotAction.LAST_CREATED,
-                    label: "Reuse latest, otherwise create new",
-                  },
-                ]}
-              />
-            </Form.Item>
-          </Form>
+            <Select
+              loading={isDomainsLoading}
+              mode="multiple"
+              allowClear
+              options={domains.map((domain) => ({
+                value: domain.id,
+                label: domain.name,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item name="snapshotAction" label="Snapshot action">
+            <Select
+              options={[
+                {
+                  value: BulkDeploymentSnapshotAction.CREATE_NEW,
+                  label: "Create new",
+                },
+                {
+                  value: BulkDeploymentSnapshotAction.LAST_CREATED,
+                  label: "Reuse latest, otherwise create new",
+                },
+              ]}
+            />
+          </Form.Item>
+        </Form>
       ) : (
         <Table<BulkDeploymentResult>
           columns={resultColumns}

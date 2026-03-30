@@ -2,7 +2,14 @@
  * @jest-environment jsdom
  */
 import React, { PropsWithChildren } from "react";
-import { render, screen, fireEvent, within, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  within,
+  act,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { Modal } from "antd";
 import type { GeneralImportInstructions } from "../../../src";
@@ -10,9 +17,30 @@ import {
   ImportInstructions,
   buildTableData,
 } from "../../../src/components/admin_tools/ImportInstructions";
-import { ImportInstructionAction } from "../../../src/api/apiTypes";
+import {
+  ImportEntityType,
+  ImportInstructionAction,
+  ImportInstructionStatus,
+} from "../../../src/api/apiTypes";
+import { uploadImportInstructionsFile } from "../../../src/components/admin_tools/importInstructionsHandlers";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import { getAllPermissions } from "../../../src/permissions/funcs.ts";
+
+Object.defineProperty(globalThis, "matchMedia", {
+  writable: true,
+  value: jest.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+});
+
+jest.mock("react-resizable/css/styles.css", () => ({}));
 
 Object.defineProperty(URL, "createObjectURL", {
   writable: true,
@@ -24,12 +52,18 @@ Object.defineProperty(URL, "revokeObjectURL", {
   value: jest.fn(),
 });
 
-jest.mock("antd", () => {
-  const actual: Record<string, unknown> = jest.requireActual("antd");
-  const mock: Record<string, unknown> = jest.requireActual(
-    "../../__mocks__/LightweightTable",
-  );
-  return { ...actual, Table: mock.LightweightTable };
+jest.mock("antd", () =>
+  require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
+);
+
+jest.mock("../../../src/components/admin_tools/importInstructionsHandlers.ts", () => {
+  const actual = jest.requireActual(
+    "../../../src/components/admin_tools/importInstructionsHandlers.ts",
+  ) as Record<string, unknown>;
+  return {
+    ...actual,
+    uploadImportInstructionsFile: jest.fn(),
+  };
 });
 
 jest.mock("antd/es/upload/Dragger", () => ({
@@ -113,6 +147,11 @@ jest.mock("../../../src/components/InlineEdit.module.css", () => ({
   },
 }));
 
+const mockUploadImportInstructionsFile =
+  uploadImportInstructionsFile as jest.MockedFunction<
+    typeof uploadImportInstructionsFile
+  >;
+
 const sampleInstructions: GeneralImportInstructions = {
   chains: {
     ignore: [{ id: "chain-1", name: "Chain One" }],
@@ -138,7 +177,6 @@ const ContextProviders: React.FC<PropsWithChildren> = ({ children }) => {
 
 async function flushPromises(): Promise<void> {
   await act(async () => {
-    await Promise.resolve();
     await Promise.resolve();
   });
 }
@@ -311,6 +349,44 @@ describe("ImportInstructions", () => {
       .find((b) => b.closest(".ant-modal-footer"));
     expect(uploadButton).toBeDefined();
     expect(uploadButton).toBeDisabled();
+  });
+
+  it("UploadInstructionsModal shows result table with Id and Status after upload", async () => {
+    mockUploadImportInstructionsFile.mockImplementation(
+      async (_fileList, _api, _notification, onSuccess) => {
+        onSuccess([
+          {
+            id: "row-1",
+            name: "UploadedName",
+            entityType: ImportEntityType.CHAIN,
+            status: ImportInstructionStatus.NO_ACTION,
+            errorMessage: "",
+          },
+        ]);
+      },
+    );
+
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+    await flushPromises();
+    fireEvent.click(screen.getByTestId("import-instructions-upload"));
+    fireEvent.click(screen.getByTestId("dragger"));
+
+    const uploadButton = screen
+      .getAllByRole("button", { name: /^upload$/i })
+      .find((b) => b.closest(".ant-modal-footer"));
+    expect(uploadButton).toBeDefined();
+    fireEvent.click(uploadButton!);
+
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => {
+      expect(within(dialog).getByText("UploadedName")).toBeInTheDocument();
+    });
+    expect(
+      within(dialog).getAllByRole("columnheader", { name: "Id" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(dialog).getByRole("columnheader", { name: "Status" }),
+    ).toBeInTheDocument();
   });
 
   it("handleExport: URL.createObjectURL is called with the exported file blob", async () => {

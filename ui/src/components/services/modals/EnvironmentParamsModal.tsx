@@ -1,10 +1,23 @@
-import React, { useEffect, useState, useRef } from "react";
-import { Modal, Form, Input, Badge, Button, Switch, Select } from "antd";
+import React, { useEffect, useMemo, useState, useRef } from "react";
+import {
+  Modal,
+  Form,
+  Input,
+  Badge,
+  Button,
+  Switch,
+  Select,
+  Table,
+  Segmented,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
 import { EntityLabels } from "../../labels/EntityLabels";
-import { Environment, EnvironmentRequest } from "../../../api/apiTypes";
+import {
+  Environment,
+  EnvironmentRequest,
+  EnvironmentSourceType,
+} from "../../../api/apiTypes";
 import { useServiceContext } from "../detail/ServiceParametersPage";
-import { Segmented } from "antd";
-import { EnvironmentSourceType } from "../../../api/apiTypes";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { environmentLabelOptions } from "../utils.tsx";
 import { isAmqpProtocol, isKafkaProtocol } from "../../../misc/protocol-utils";
@@ -17,6 +30,16 @@ interface EnvironmentParamsModalProps {
   onSave: (envRequest: EnvironmentRequest) => Promise<void>;
   saving: boolean;
 }
+
+type EnvPropRow =
+  | { rowKey: string; kind: "saved"; propKey: string; value: string }
+  | {
+      rowKey: string;
+      kind: "draft";
+      id: string;
+      propKey: string;
+      value: string;
+    };
 
 export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   open,
@@ -166,12 +189,6 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   const tableForeground = "var(--vscode-foreground, rgba(0, 0, 0, 0.88))";
   const mutedColor = "var(--vscode-descriptionForeground, rgba(0, 0, 0, 0.6))";
 
-  const cellStyle = {
-    border: `1px solid ${tableBorderColor}`,
-    padding: 4,
-    background: tableBackground,
-    color: tableForeground,
-  };
   const iconBtnStyle = {
     width: 28,
     height: 28,
@@ -181,18 +198,170 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
     justifyContent: "center",
   };
 
-  const propertiesTableTransition = {
-    transition: "max-height 0.35s ease, opacity 0.35s ease",
-    overflow: "hidden",
-    opacity: 1,
-    maxHeight: 1000,
-  };
+  const propertiesTableData = useMemo((): EnvPropRow[] => {
+    const saved = Object.entries(propertiesObj).map(([propKey, value]) => ({
+      rowKey: `saved:${propKey}`,
+      kind: "saved" as const,
+      propKey,
+      value,
+    }));
+    const drafts = addingRows.map((r) => ({
+      rowKey: `draft:${r.id}`,
+      kind: "draft" as const,
+      id: r.id,
+      propKey: r.key,
+      value: r.value,
+    }));
+    return [...saved, ...drafts];
+  }, [propertiesObj, addingRows]);
 
-  const propertiesTableHidden = {
-    ...propertiesTableTransition,
-    opacity: 0,
-    maxHeight: 0,
-    pointerEvents: "none",
+  const propertiesColumns: ColumnsType<EnvPropRow> = [
+    {
+      title: "Key",
+      key: "col-key",
+      width: "35%",
+      render: (_, record) =>
+        record.kind === "saved" ? (
+          record.propKey
+        ) : (
+          <Input
+            ref={(el) => {
+              if (el) keyInputRefs.current[record.id] = el;
+            }}
+            value={record.propKey}
+            onChange={(e) => {
+              setAddingRows((rows) =>
+                rows.map((r) =>
+                  r.id === record.id ? { ...r, key: e.target.value } : r,
+                ),
+              );
+            }}
+            onPressEnter={() =>
+              handleAddRow({
+                id: record.id,
+                key: record.propKey,
+                value: record.value,
+              })
+            }
+            style={{ minWidth: 80 }}
+          />
+        ),
+    },
+    {
+      title: "Value",
+      key: "col-value",
+      width: "60%",
+      render: (_, record) => {
+        if (record.kind === "draft") {
+          return (
+            <Input
+              value={record.value}
+              onChange={(e) => {
+                setAddingRows((rows) =>
+                  rows.map((r) =>
+                    r.id === record.id ? { ...r, value: e.target.value } : r,
+                  ),
+                );
+              }}
+              onPressEnter={() =>
+                handleAddRow({
+                  id: record.id,
+                  key: record.propKey,
+                  value: record.value,
+                })
+              }
+              style={{ minWidth: 80 }}
+            />
+          );
+        }
+        const propKey = record.propKey;
+        return editingValueKey === propKey ? (
+          <Input
+            ref={(el) => {
+              if (el) valueInputRefs.current[propKey] = el;
+            }}
+            defaultValue={record.value}
+            onBlur={(e) => {
+              setPropertiesObj((prev) => ({
+                ...prev,
+                [propKey]: e.target.value,
+              }));
+              setEditingValueKey(null);
+            }}
+            onPressEnter={(e) => {
+              setPropertiesObj((prev) => ({
+                ...prev,
+                [propKey]: e.currentTarget.value,
+              }));
+              setEditingValueKey(null);
+            }}
+            style={{ width: "100%" }}
+          />
+        ) : (
+          <div
+            role="button"
+            tabIndex={0}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              minHeight: 32,
+              cursor: "pointer",
+              color: tableForeground,
+            }}
+            onMouseEnter={() => setHoverValueKey(propKey)}
+            onMouseLeave={() => setHoverValueKey(null)}
+            onClick={() => setEditingValueKey(propKey)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setEditingValueKey(propKey);
+              }
+            }}
+          >
+            <span style={{ flex: 1 }}>{record.value}</span>
+            {hoverValueKey === propKey && (
+              <OverridableIcon
+                name="edit"
+                style={{ marginLeft: 8, color: mutedColor }}
+              />
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      title: "",
+      key: "col-actions",
+      width: 56,
+      align: "center",
+      render: (_, record) => (
+        <Button
+          type="text"
+          icon={<OverridableIcon name="delete" />}
+          danger
+          style={iconBtnStyle}
+          onClick={() => {
+            if (record.kind === "saved") {
+              setPropertiesObj((prev) => {
+                const copy = { ...prev };
+                delete copy[record.propKey];
+                return copy;
+              });
+            } else {
+              setAddingRows((rows) => rows.filter((r) => r.id !== record.id));
+            }
+          }}
+        />
+      ),
+    },
+  ];
+
+  /** Only used when Properties is expanded; keeps table/TextArea in a bounded flex area. */
+  const propertiesExpandedPanelStyle = {
+    flex: 1,
+    minHeight: 0,
+    display: "flex",
+    flexDirection: "column" as const,
   };
 
   return (
@@ -205,8 +374,22 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
       cancelText="Cancel"
       width={900}
       confirmLoading={saving}
+      rootClassName={`environment-params-modal${showProperties ? " environment-params-modal--expanded" : ""}`}
     >
-      <Form form={form} layout="vertical">
+      <Form
+        form={form}
+        layout="vertical"
+        style={
+          showProperties
+            ? {
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }
+            : undefined
+        }
+      >
         {environment?.labels && environment?.labels?.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <EntityLabels
@@ -311,12 +494,20 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
           </Form.Item>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            ...(showProperties ? { flex: 1, minHeight: 0 } : {}),
+          }}
+        >
           <div
             style={{
+              flex: "none",
               display: "flex",
               alignItems: "center",
               userSelect: "none",
+              marginBottom: showProperties ? 8 : 0,
             }}
           >
             <span
@@ -374,190 +565,78 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
             )}
           </div>
 
-          <div
-            style={{
-              ...(showProperties
-                ? propertiesTableTransition
-                : propertiesTableHidden),
-              background: tableBackground,
-              border: `1px solid ${tableBorderColor}`,
-              borderRadius: 6,
-              marginTop: 8,
-            }}
-          >
-            {showAsKeyValue ? (
-              <Input.TextArea
-                value={propertiesText}
-                onChange={(e) => {
-                  const lines = e.target.value.split("\n");
-                  const obj: Record<string, string> = {};
-                  lines.forEach((line) => {
-                    const match = line.match(/^([^=;]+)=([^;]*);?$/);
-                    if (match) obj[match[1]] = match[2];
-                  });
-                  setPropertiesObj(obj);
-                  setPropertiesText(e.target.value);
-                }}
-                onFocus={() => setIsEditingText(true)}
-                onBlur={() => setIsEditingText(false)}
-                autoSize={{ minRows: 6, maxRows: 16 }}
-                style={{
-                  fontFamily: "monospace",
-                  marginTop: 8,
-                  background: tableBackground,
-                  color: tableForeground,
-                  borderColor: tableBorderColor,
-                }}
-              />
-            ) : (
-              <Form.Item style={{ margin: 0 }}>
-                <table
+          {showProperties ? (
+            <div
+              style={{
+                ...propertiesExpandedPanelStyle,
+                ...(showAsKeyValue
+                  ? {
+                      background: tableBackground,
+                      border: `1px solid ${tableBorderColor}`,
+                      borderRadius: 6,
+                    }
+                  : {
+                      background: "transparent",
+                      border: "none",
+                      borderRadius: 0,
+                    }),
+              }}
+            >
+              {showAsKeyValue ? (
+                <Input.TextArea
+                  value={propertiesText}
+                  onChange={(e) => {
+                    const lines = e.target.value.split("\n");
+                    const obj: Record<string, string> = {};
+                    lines.forEach((line) => {
+                      const match = line.match(/^([^=;]+)=([^;]*);?$/);
+                      if (match) obj[match[1]] = match[2];
+                    });
+                    setPropertiesObj(obj);
+                    setPropertiesText(e.target.value);
+                  }}
+                  onFocus={() => setIsEditingText(true)}
+                  onBlur={() => setIsEditingText(false)}
+                  autoSize={{ minRows: 6, maxRows: 16 }}
                   style={{
-                    width: "100%",
+                    fontFamily: "monospace",
                     marginTop: 8,
-                    borderCollapse: "collapse",
+                    background: tableBackground,
                     color: tableForeground,
+                    borderColor: tableBorderColor,
+                  }}
+                />
+              ) : (
+                <Form.Item
+                  style={{
+                    margin: 0,
+                    flex: 1,
+                    minHeight: 0,
+                    display: "flex",
+                    flexDirection: "column",
                   }}
                 >
-                  <thead>
-                    <tr>
-                      <th style={{ ...cellStyle, width: "35%" }}>Key</th>
-                      <th style={{ ...cellStyle, width: "60%" }}>Value</th>
-                      <th style={{ ...cellStyle, width: "5%" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(propertiesObj).map(([key, value]) => (
-                      <tr key={key}>
-                        <td style={cellStyle}>{key}</td>
-                        <td style={cellStyle}>
-                          {editingValueKey === key ? (
-                            <Input
-                              ref={(el) =>
-                                el && (valueInputRefs.current[key] = el)
-                              }
-                              defaultValue={value}
-                              onBlur={(e) => {
-                                setPropertiesObj((prev) => ({
-                                  ...prev,
-                                  [key]: e.target.value,
-                                }));
-                                setEditingValueKey(null);
-                              }}
-                              onPressEnter={(e) => {
-                                setPropertiesObj((prev) => ({
-                                  ...prev,
-                                  [key]: (e.target as HTMLInputElement).value,
-                                }));
-                                setEditingValueKey(null);
-                              }}
-                              style={{ width: "100%" }}
-                            />
-                          ) : (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                minHeight: 32,
-                                cursor: "pointer",
-                                color: tableForeground,
-                              }}
-                              onMouseEnter={() => setHoverValueKey(key)}
-                              onMouseLeave={() => setHoverValueKey(null)}
-                              onClick={() => setEditingValueKey(key)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  setEditingValueKey(key);
-                                }
-                              }}
-                            >
-                              <span style={{ flex: 1 }}>{value}</span>
-                              {hoverValueKey === key && (
-                                <OverridableIcon
-                                  name="edit"
-                                  style={{ marginLeft: 8, color: mutedColor }}
-                                />
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ ...cellStyle, textAlign: "center" }}>
-                          <Button
-                            type="text"
-                            icon={<OverridableIcon name="delete" />}
-                            danger
-                            style={iconBtnStyle}
-                            onClick={() => {
-                              setPropertiesObj((prev) => {
-                                const copy = { ...prev };
-                                delete copy[key];
-                                return copy;
-                              });
-                            }}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                    {addingRows.map((record) => (
-                      <tr key={record.id}>
-                        <td style={cellStyle}>
-                          <Input
-                            ref={(el) =>
-                              el && (keyInputRefs.current[record.id] = el)
-                            }
-                            value={record.key}
-                            onChange={(e) => {
-                              setAddingRows((rows) =>
-                                rows.map((r) =>
-                                  r.id === record.id
-                                    ? { ...r, key: e.target.value }
-                                    : r,
-                                ),
-                              );
-                            }}
-                            onPressEnter={() => handleAddRow(record)}
-                            style={{ minWidth: 80 }}
-                          />
-                        </td>
-                        <td style={cellStyle}>
-                          <Input
-                            value={record.value}
-                            onChange={(e) => {
-                              setAddingRows((rows) =>
-                                rows.map((r) =>
-                                  r.id === record.id
-                                    ? { ...r, value: e.target.value }
-                                    : r,
-                                ),
-                              );
-                            }}
-                            onPressEnter={() => handleAddRow(record)}
-                            style={{ minWidth: 80 }}
-                          />
-                        </td>
-                        <td style={{ ...cellStyle, textAlign: "center" }}>
-                          <Button
-                            type="text"
-                            icon={<OverridableIcon name="delete" />}
-                            danger
-                            style={iconBtnStyle}
-                            onClick={() => {
-                              setAddingRows((rows) =>
-                                rows.filter((r) => r.id !== record.id),
-                              );
-                            }}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </Form.Item>
-            )}
-          </div>
+                  <Table<EnvPropRow>
+                    className="environment-params-properties-table flex-table"
+                    rowKey="rowKey"
+                    size="small"
+                    bordered
+                    pagination={false}
+                    tableLayout="fixed"
+                    dataSource={propertiesTableData}
+                    columns={propertiesColumns}
+                    scroll={{ y: "100%" }}
+                    style={{
+                      flex: 1,
+                      minHeight: 0,
+                      background: tableBackground,
+                      color: tableForeground,
+                    }}
+                  />
+                </Form.Item>
+              )}
+            </div>
+          ) : null}
         </div>
       </Form>
     </Modal>

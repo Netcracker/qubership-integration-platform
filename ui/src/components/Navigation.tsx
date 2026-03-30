@@ -1,5 +1,5 @@
 import { Button, Menu } from "antd";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import styles from "./Navigation.module.css";
 import { NotificationBar } from "./notifications/NotificationBar.tsx";
 import { SettingsPanel } from "./SettingsPanel.tsx";
@@ -25,6 +25,7 @@ const Navigation = ({
   currentTheme,
   onThemeChange,
 }: NavigationProps) => {
+  const navigate = useNavigate();
   const shouldShowDevTools = isDev();
   const { openContextDoc } = useDocumentation();
   const { pathname } = useLocation();
@@ -63,15 +64,25 @@ const Navigation = ({
 
   return (
     <nav className={styles.navigation}>
-      <Menu
-        style={{ border: "none" }}
-        items={items}
-        key="menu"
-        mode="horizontal"
-        className={styles.menu}
-        selectedKeys={[selectedKey]}
-      ></Menu>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <div className={styles["nav-main"]}>
+        <Button
+          icon={<OverridableIcon name="logo" />}
+          onClick={() => void navigate("/chains")}
+          type="text"
+          size="large"
+          title="Home"
+          className={styles["home-button"]}
+        />
+        <Menu
+          style={{ border: "none" }}
+          items={items}
+          key="menu"
+          mode="horizontal"
+          className={styles.menu}
+          selectedKeys={[selectedKey]}
+        />
+      </div>
+      <div className={styles["utilities"]}>
         {!isVsCode && (
           <Button
             icon={<OverridableIcon name="questionCircle" />}

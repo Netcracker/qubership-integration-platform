@@ -1,4 +1,4 @@
-import React, { useState, UIEvent } from "react";
+import React, { useMemo, useState, UIEvent } from "react";
 import {
   Flex,
   Table,
@@ -11,7 +11,6 @@ import {
   Space,
 } from "antd";
 import { useResizeHeight } from "../../../hooks/useResizeHeigth.tsx";
-import { ResizableTitle } from "../../ResizableTitle.tsx";
 import commonStyles from "../CommonStyle.module.css";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { makeEnumColumnFilterDropdown } from "../../EnumColumnFilterDropdown.tsx";
@@ -32,10 +31,19 @@ import { useModalsContext } from "../../../Modals.tsx";
 import { AbacAttributesPopUp } from "./AbacAttributesPopUp.tsx";
 import { AddDeleteRolesPopUp } from "./AddDeleteRolesPopUp.tsx";
 import { useNavigate } from "react-router";
-import { DeploymentsCumulativeState, getCumulativeStatus } from "../../deployment_runtime_states/DeploymentsCumulativeState.tsx";
+import {
+  DeploymentsCumulativeState,
+  getCumulativeStatus,
+} from "../../deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
+import {
+  attachResizeToColumns,
+  useTableColumnResize,
+} from "../../table/useTableColumnResize.tsx";
+import { CompactSearch } from "../../table/CompactSearch.tsx";
+import { matchesByFields } from "../../table/tableSearch.ts";
 
 const { Title } = Typography;
 
@@ -60,6 +68,42 @@ const accessControlTypeOptions = Object.values(AccessControlType).map(
   }),
 );
 
+function routeTypeLabel(record: AccessControlData): string {
+  const props = record.properties as unknown as
+    | AccessControlProperty
+    | undefined;
+  const { externalRoute, privateRoute } = props ?? {};
+  if (externalRoute && privateRoute) return "External, Private";
+  if (externalRoute) return "External";
+  if (privateRoute) return "Private";
+  return "Internal";
+}
+
+function accessControlMatchesSearch(
+  record: AccessControlData,
+  term: string,
+): boolean {
+  const props = record.properties as unknown as
+    | AccessControlProperty
+    | undefined;
+  const roles = props?.roles;
+  const rolesStr = Array.isArray(roles) ? roles.join(" ") : "";
+  const act = props?.accessControlType;
+  let actStr = "";
+  if (typeof act === "string") actStr = act;
+  else if (act != null) actStr = String(act);
+  return matchesByFields(term, [
+    props?.contextPath ?? "",
+    record.chainName,
+    record.chainId,
+    record.elementId,
+    rolesStr,
+    actStr,
+    routeTypeLabel(record),
+    ...(record.deploymentStatus ?? []),
+  ]);
+}
+
 export const AccessControl: React.FC = () => {
   const {
     isLoading,
@@ -83,9 +127,9 @@ export const AccessControl: React.FC = () => {
   const [deployedChainIds, setDeployedChainIds] = useState<Set<string>>(
     new Set(),
   );
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const [columnsWidth] = useState<{ [key: string]: number }>({
-    checkbox: 50,
+  const accessControlColumnResize = useTableColumnResize({
     endpoint: 200,
     type: 100,
     accessControlType: 160,
@@ -95,9 +139,12 @@ export const AccessControl: React.FC = () => {
     chainStatus: 110,
   });
 
-  const totalColumnsWidth = Object.values(columnsWidth).reduce(
-    (acc, width) => acc + width,
-    0,
+  const filteredRoles = useMemo(
+    () =>
+      (accessControlData?.roles ?? []).filter((row) =>
+        accessControlMatchesSearch(row, searchTerm),
+      ),
+    [accessControlData?.roles, searchTerm],
   );
 
   const { filterDropdown: accessControlTypeFilter } =
@@ -423,7 +470,7 @@ export const AccessControl: React.FC = () => {
 
   const buildRowKey = (row: AccessControlData): string => {
     return `${row.chainId}-${row.elementId}`;
-  }
+  };
 
   const redeployButtonDisabled = (): boolean => {
     if (
@@ -448,6 +495,21 @@ export const AccessControl: React.FC = () => {
     return !accessControlData.roles.some((row) => hasUnsavedChanges(row));
   };
 
+  const columnsWithResize = useMemo(
+    () =>
+      attachResizeToColumns(
+        orderedColumns,
+        accessControlColumnResize.columnWidths,
+        accessControlColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      orderedColumns,
+      accessControlColumnResize.columnWidths,
+      accessControlColumnResize.createResizeHandlers,
+    ],
+  );
+
   return (
     <Flex vertical className={commonStyles["container"]}>
       <Flex className={commonStyles["header"]}>
@@ -458,7 +520,20 @@ export const AccessControl: React.FC = () => {
           />
           Access Control
         </Title>
-        <Flex vertical={false} gap={4} className={commonStyles["actions"]}>
+        <Flex
+          vertical={false}
+          align="center"
+          gap={8}
+          wrap="wrap"
+          className={commonStyles["actions"]}
+        >
+          <CompactSearch
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search access control..."
+            allowClear
+            className={commonStyles["searchField"] as string}
+          />
           {columnSettingsButton}
           <Tooltip title="Select Unsaved Chains" placement="bottom">
             <Button
@@ -611,7 +686,7 @@ export const AccessControl: React.FC = () => {
           display: "flex",
           flexDirection: "column",
           borderRadius: "8px",
-          overflowY: "auto",
+          overflow: "hidden",
         }}
       >
         {currentRecord && (
@@ -774,10 +849,10 @@ export const AccessControl: React.FC = () => {
             <Table<AccessControlData>
               className="flex-table"
               size="small"
-              columns={orderedColumns}
-              dataSource={accessControlData?.roles}
+              columns={columnsWithResize}
+              dataSource={filteredRoles}
               scroll={{
-                x: totalColumnsWidth,
+                x: accessControlColumnResize.totalColumnsWidth,
                 y: containerHeight - 59 || 400,
               }}
               pagination={false}
@@ -790,11 +865,7 @@ export const AccessControl: React.FC = () => {
                   setSelectedRowKeys(newSelectedRowKeys);
                 },
               }}
-              components={{
-                header: {
-                  cell: ResizableTitle,
-                },
-              }}
+              components={accessControlColumnResize.resizableHeaderComponents}
               rowClassName={(row) =>
                 hasUnsavedChanges(row) ? "highlight-row" : ""
               }

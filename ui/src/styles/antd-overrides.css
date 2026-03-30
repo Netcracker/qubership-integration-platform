@@ -384,6 +384,21 @@ pre[class*="language-"] .token.punctuation {
   color: var(--vscode-foreground, rgb(255 255 255 / 90%)) !important;
 }
 
+/* Light-background tags need dark text for readability in dark theme */
+[data-theme="dark"] .ant-tag[style*="background:"][style*="217"],
+[data-theme="dark"] .ant-tag[style*="background:"][style*="245"],
+[data-theme="dark"] .ant-tag[style*="background:"][style*="240"],
+[data-theme="dark"] .ant-tag[style*="background:"][style*="250"],
+[data-theme="dark"] .ant-tag[style*="background:"][style*="232"],
+.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="217"],
+.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="245"],
+.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="240"],
+.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="250"],
+.vscode-webview[data-theme="dark"]
+  .ant-tag[style*="background:"][style*="232"] {
+  color: rgb(0 0 0 / 88%) !important;
+}
+
 /* Default Tags (no color) in dark theme - antd may use dark text */
 [data-theme="dark"] .ant-tag,
 [data-theme="high-contrast"] .ant-tag {
@@ -462,6 +477,21 @@ pre[class*="language-"] .token.punctuation {
   color: var(--vscode-foreground) !important;
 }
 
+/* Environment modal — Properties key/value table: avoid double outer frame (parent had
+   border + bordered Table) and drop the extra vertical rule on the scrollbar gutter column */
+.environment-params-properties-table.ant-table-wrapper {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.environment-params-properties-table
+  .ant-table-bordered
+  .ant-table-cell-scrollbar {
+  border-inline-end: none !important;
+  box-shadow: none !important;
+  background: var(--vscode-editor-background) !important;
+}
+
 /* Table theming */
 .ant-table {
   border-color: var(
@@ -477,6 +507,19 @@ pre[class*="language-"] .token.punctuation {
     --vscode-editorGroup-border,
     var(--vscode-border)
   ) !important;
+}
+
+/* Horizontal scroll "ping" gradients on table edges (Ant Design fixed-column / overflow cue) */
+.ant-table-wrapper .ant-table-ping-left .ant-table-container::before,
+.ant-table-wrapper .ant-table-ping-right .ant-table-container::after {
+  box-shadow: none !important;
+}
+
+.ant-table-wrapper .ant-table-ping-left .ant-table-cell-fix-left-first::after,
+.ant-table-wrapper .ant-table-ping-left .ant-table-cell-fix-left-last::after,
+.ant-table-wrapper .ant-table-ping-right .ant-table-cell-fix-right-first::after,
+.ant-table-wrapper .ant-table-ping-right .ant-table-cell-fix-right-last::after {
+  box-shadow: none !important;
 }
 
 .ant-table-thead > tr > th {
@@ -710,4 +753,71 @@ pre[class*="language-"] .token.punctuation {
 
 .ant-message-custom-content {
   color: var(--vscode-foreground) !important;
+}
+
+/*
+ * Edit / Add Environment modal (rootClassName on Modal):
+ * — collapsed: shrink to content (no giant gap under Properties);
+ * — expanded: cap to viewport; flex chain so only the Properties table scrolls.
+ * Placed last so it wins over earlier .ant-modal* rules and typical CSS-in-JS order.
+ */
+html body .ant-modal-root.environment-params-modal .ant-modal {
+  height: auto !important;
+  max-height: calc(100dvh - 24px) !important;
+}
+
+html body .ant-modal-root.environment-params-modal .ant-modal-content {
+  height: auto !important;
+  max-height: calc(100dvh - 24px) !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal:not(
+    .environment-params-modal--expanded
+  )
+  .ant-modal-body {
+  height: auto !important;
+  flex: none !important;
+  min-height: 0 !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal:not(
+    .environment-params-modal--expanded
+  )
+  .ant-modal-body
+  .ant-form {
+  height: auto !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal {
+  height: calc(100dvh - 48px) !important;
+  max-height: calc(100dvh - 24px) !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal-content {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  max-height: calc(100dvh - 24px) !important;
+  overflow: hidden !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
 }

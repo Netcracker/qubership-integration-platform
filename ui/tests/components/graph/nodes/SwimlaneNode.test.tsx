@@ -17,7 +17,7 @@ jest.mock("@xyflow/react", () => ({
 
 describe("SwimlaneNode", () => {
   it("should render label text", () => {
-    render(<SwimlaneNode {...makeProps({ data: { label: "Node label"} })} />);
+    render(<SwimlaneNode {...makeProps({ data: { label: "Node label" } })} />);
     expect(screen.queryByText("Node label")).toBeInTheDocument();
   });
 

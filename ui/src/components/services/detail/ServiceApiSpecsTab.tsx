@@ -28,10 +28,23 @@ import {
 import { IntegrationSystemType } from "../../../api/apiTypes";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
+import { endpointColumnTitleForProtocol } from "../endpointColumnTitle.ts";
 
 const STORAGE_KEY = "systemParameters";
 
-const SpecificationGroupColumnsKeys = () => [
+const specificationGroupAllColumnKeys = () => [
+  "name",
+  "usedBy",
+  "status",
+  "source",
+  "labels",
+  "createdWhen",
+  "createdBy",
+  "modifiedWhen",
+  "modifiedBy",
+];
+
+const specificationGroupDefaultVisibleKeys = () => [
   "name",
   "usedBy",
   "status",
@@ -39,7 +52,21 @@ const SpecificationGroupColumnsKeys = () => [
   "labels",
 ];
 
-const SpecificationColumnsKeys = () => [
+const specificationModelAllColumnKeys = () => [
+  "name",
+  "usedBy",
+  "status",
+  "source",
+  "labels",
+  "method",
+  "url",
+  "createdWhen",
+  "createdBy",
+  "modifiedWhen",
+  "modifiedBy",
+];
+
+const specificationModelDefaultVisibleKeys = () => [
   "name",
   "usedBy",
   "status",
@@ -49,7 +76,23 @@ const SpecificationColumnsKeys = () => [
   "url",
 ];
 
-const OperationColumnKeys = () => ["name", "method", "url", "usedBy"];
+const operationAllColumnKeys = () => [
+  "name",
+  "method",
+  "url",
+  "usedBy",
+  "createdWhen",
+  "createdBy",
+  "modifiedWhen",
+  "modifiedBy",
+];
+
+const buildOperationDefaultVisibleKeys = () => [
+  "name",
+  "method",
+  "url",
+  "usedBy",
+];
 
 const getGroupActions =
   (
@@ -265,9 +308,13 @@ export const ServiceApiSpecsTab: React.FC = () => {
     system?.type === IntegrationSystemType.IMPLEMENTED;
   const toolbarSignatureRef = useRef<string>("");
 
-  const serviceSpecColumnsKeys = SpecificationGroupColumnsKeys();
-  const specificationColumnsKeys = SpecificationColumnsKeys();
-  const operationColumnKeys = OperationColumnKeys();
+  const serviceSpecColumnsKeys = specificationGroupAllColumnKeys();
+  const serviceSpecDefaultVisibleKeys = specificationGroupDefaultVisibleKeys();
+  const specificationColumnsKeys = specificationModelAllColumnKeys();
+  const specificationDefaultVisibleKeys =
+    specificationModelDefaultVisibleKeys();
+  const operationColumnKeys = operationAllColumnKeys();
+  const operationVisibleKeys = buildOperationDefaultVisibleKeys();
 
   const {
     loading: loadingGroups,
@@ -319,7 +366,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
     rowKey: "id",
     columns: serviceSpecColumnsKeys,
     storageKey: STORAGE_KEY + "_groups",
-    defaultVisibleKeys: serviceSpecColumnsKeys,
+    defaultVisibleKeys: serviceSpecDefaultVisibleKeys,
     loading: loadingGroups,
     expandable: {
       expandedRowKeys: expandedGroups,
@@ -370,7 +417,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
     rowKey: "id",
     columns: specificationColumnsKeys,
     storageKey: STORAGE_KEY + "_models",
-    defaultVisibleKeys: specificationColumnsKeys,
+    defaultVisibleKeys: specificationDefaultVisibleKeys,
     expandable: {
       expandedRowKeys: expandedSpecs,
       onExpand: (expanded, record) => {
@@ -417,7 +464,8 @@ export const ServiceApiSpecsTab: React.FC = () => {
     columns: operationColumnKeys,
     allColumns: operationColumnKeys,
     storageKey: STORAGE_KEY + "_operations",
-    defaultVisibleKeys: operationColumnKeys,
+    defaultVisibleKeys: operationVisibleKeys,
+    urlColumnTitle: endpointColumnTitleForProtocol(system?.protocol),
   });
 
   const currentTable = useMemo<TableType>(() => {
@@ -728,11 +776,12 @@ export const ServiceApiSpecsTab: React.FC = () => {
       {errorGroups && (
         <div className={css.serviceApiSpecsTabError}>Error: {errorGroups}</div>
       )}
-      {!loadingGroups && !errorGroups && currentTable === "groups" && (
-        <serviceGroupsTable.Table />
-      )}
-      {currentTable === "specs" && <modelsTable.Table />}
-      {currentTable === "operations" && <operationsTable.Table />}
+      {!loadingGroups &&
+        !errorGroups &&
+        currentTable === "groups" &&
+        serviceGroupsTable.tableElement}
+      {currentTable === "specs" && modelsTable.tableElement}
+      {currentTable === "operations" && operationsTable.tableElement}
       {errorModels && (
         <div className={css.serviceApiSpecsTabError}>Error: {errorModels}</div>
       )}

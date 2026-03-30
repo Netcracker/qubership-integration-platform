@@ -57,7 +57,10 @@ export const ServiceParametersPageLayout: React.FC<
     >
       <div
         style={{
-          flexShrink: 0,
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
           background: "var(--vscode-editor-background, #ffffff)",
           zIndex: 2,
           paddingLeft: sidePadding,
@@ -277,20 +280,26 @@ export const ServiceParametersPage: React.FC = () => {
       <ChainsContext.Provider value={chains}>
         <ServiceParametersToolbarContext.Provider value={{ setToolbar }}>
           <ServiceParametersPageLayout>
-            <Breadcrumb items={breadcrumbItems} />
-            <ServiceParametersPageHeader />
-            <Tabs
-              items={tabItems}
-              activeKey={activeTab}
-              onChange={handleTabChange}
-              tabBarExtraContent={
-                tabToolbar ? (
-                  <Flex gap={4} align="center">
-                    {tabToolbar}
-                  </Flex>
-                ) : null
-              }
-            />
+            <Flex vertical style={{ flex: 1, minHeight: 0 }}>
+              <div style={{ flexShrink: 0 }}>
+                <Breadcrumb items={breadcrumbItems} />
+                <ServiceParametersPageHeader />
+              </div>
+              <Tabs
+                className="flex-tabs"
+                style={{ flex: 1, minHeight: 0 }}
+                items={tabItems}
+                activeKey={activeTab}
+                onChange={handleTabChange}
+                tabBarExtraContent={
+                  tabToolbar ? (
+                    <Flex gap={4} align="center">
+                      {tabToolbar}
+                    </Flex>
+                  ) : null
+                }
+              />
+            </Flex>
           </ServiceParametersPageLayout>
         </ServiceParametersToolbarContext.Provider>
       </ChainsContext.Provider>

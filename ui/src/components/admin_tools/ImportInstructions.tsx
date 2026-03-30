@@ -1,18 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
-  Dropdown,
   Flex,
   Form,
   Input,
   Modal,
   Select,
   Table,
-  Tooltip,
   Typography,
   UploadFile,
 } from "antd";
-import type { MenuProps, TableProps } from "antd";
+import type { TableProps } from "antd";
 import Dragger from "antd/es/upload/Dragger";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
@@ -57,6 +55,11 @@ import {
   submitAddInstruction,
   uploadImportInstructionsFile,
 } from "./importInstructionsHandlers.ts";
+import {
+  attachResizeToColumns,
+  useTableColumnResize,
+} from "../table/useTableColumnResize.tsx";
+import { useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton.tsx";
 
 const { Title } = Typography;
 
@@ -91,6 +94,11 @@ const ENTITY_DISPLAY: Record<InstructionEntityType, string> = {
   "Common Variable": "Common Variables",
 };
 
+/** Injected by rc-table; must match expandable.columnWidth and scroll.x. */
+const IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH = 48;
+/** Explicit width so scroll.x includes the selection column. */
+const IMPORT_INSTRUCTIONS_SELECTION_COLUMN_WIDTH = 48;
+
 const ENTITY_ICON: Record<InstructionEntityType, string> = {
   Chain: "link",
   Service: "cluster",
@@ -122,14 +130,6 @@ const ACTION_FILTER_OPTIONS = [
   { label: "Ignore", value: ImportInstructionAction.IGNORE },
   { label: "Override", value: ImportInstructionAction.OVERRIDE },
   { label: "Delete", value: ImportInstructionAction.DELETE },
-];
-
-const COLUMN_VISIBILITY_MENU_ITEMS: MenuProps["items"] = [
-  { label: "Id", key: "id" },
-  { label: "Action", key: "action" },
-  { label: "Overridden By", key: "overriddenBy" },
-  { label: "Labels", key: "labels" },
-  { label: "Modified When", key: "modifiedWhen" },
 ];
 
 const { filterDropdown: ACTION_FILTER_DROPDOWN } = makeEnumColumnFilterDropdown<
@@ -311,13 +311,6 @@ export const ImportInstructions: React.FC = () => {
   const [pendingOverrideRowKey, setPendingOverrideRowKey] = useState<
     string | null
   >(null);
-  const [visibleColumns, setVisibleColumns] = useState<string[]>([
-    "id",
-    "action",
-    "overriddenBy",
-    "labels",
-    "modifiedWhen",
-  ]);
   const permissions = usePermissions();
   const [enableEdit, setEnableEdit] = useState<boolean>(false);
 
@@ -617,7 +610,7 @@ export const ImportInstructions: React.FC = () => {
         },
       },
       {
-        title: "Modified When",
+        title: "Modified At",
         key: "modifiedWhen",
         width: 160,
         filterDropdown: TimestampFilterDropdown,
@@ -637,12 +630,33 @@ export const ImportInstructions: React.FC = () => {
     ];
   }, [handleUpdateAction, pendingOverrideRowKey, enableEdit]);
 
-  const visibleColumnsFiltered = useMemo(
+  const { orderedColumns, columnSettingsButton } =
+    useColumnSettingsBasedOnColumnsType<InstructionRow>(
+      "importInstructionsTable",
+      columns,
+    );
+
+  const importInstructionsColumnResize = useTableColumnResize({
+    id: 280,
+    action: 140,
+    overriddenBy: 200,
+    labels: 200,
+    modifiedWhen: 160,
+  });
+
+  const visibleColumnsWithResize = useMemo(
     () =>
-      columns.filter((col) =>
-        visibleColumns.includes((col.key ?? "") as string),
+      attachResizeToColumns(
+        orderedColumns,
+        importInstructionsColumnResize.columnWidths,
+        importInstructionsColumnResize.createResizeHandlers,
+        { minWidth: 80 },
       ),
-    [columns, visibleColumns],
+    [
+      orderedColumns,
+      importInstructionsColumnResize.columnWidths,
+      importInstructionsColumnResize.createResizeHandlers,
+    ],
   );
 
   const rowSelection = useMemo<TableProps<InstructionRow>["rowSelection"]>(
@@ -650,6 +664,7 @@ export const ImportInstructions: React.FC = () => {
       selectedRowKeys,
       onChange: (keys) => setSelectedRowKeys(keys ?? []),
       getCheckboxProps: (record) => ({ disabled: record.isGroup }),
+      columnWidth: IMPORT_INSTRUCTIONS_SELECTION_COLUMN_WIDTH,
     }),
     [selectedRowKeys],
   );
@@ -677,27 +692,9 @@ export const ImportInstructions: React.FC = () => {
             allowClear
             className={commonStyles.searchField as string}
           />
-          <Dropdown
-            menu={{
-              items: COLUMN_VISIBILITY_MENU_ITEMS,
-              selectable: true,
-              multiple: true,
-              selectedKeys: visibleColumns,
-              onSelect: ({ selectedKeys }) => {
-                setVisibleColumns((selectedKeys ?? []).map(String));
-              },
-              onDeselect: ({ selectedKeys }) => {
-                setVisibleColumns((selectedKeys ?? []).map(String));
-              },
-            }}
-          >
-            <Tooltip title="Column settings">
-              <Button
-                data-testid="import-instructions-column-settings"
-                icon={<OverridableIcon name="settings" />}
-              />
-            </Tooltip>
-          </Dropdown>
+          <span data-testid="import-instructions-column-settings">
+            {columnSettingsButton}
+          </span>
           <ProtectedButton
             require={{ importInstructions: ["delete"] }}
             tooltipProps={{ title: "Delete selected" }}
@@ -754,14 +751,22 @@ export const ImportInstructions: React.FC = () => {
           className="flex-table"
           size="small"
           rowKey="key"
-          columns={visibleColumnsFiltered}
+          columns={visibleColumnsWithResize}
           dataSource={tableData}
           rowSelection={rowSelection}
           pagination={false}
           loading={loading}
-          scroll={{ y: "100%" }}
+          scroll={{
+            x:
+              importInstructionsColumnResize.totalColumnsWidth +
+              IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH +
+              IMPORT_INSTRUCTIONS_SELECTION_COLUMN_WIDTH,
+            y: "100%",
+          }}
+          components={importInstructionsColumnResize.resizableHeaderComponents}
           expandable={{
             expandIcon: treeExpandIcon(),
+            columnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
             defaultExpandAllRows: true,
             defaultExpandedRowKeys: ["Chain", "Service", "Common Variable"],
           }}
@@ -919,6 +924,41 @@ const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
   const [uploaded, setUploaded] = useState(false);
   const notificationService = useNotificationService();
 
+  const uploadResultColumns = useMemo(
+    () => [
+      { title: "Id", dataIndex: "name", key: "id" },
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        render: (_status: unknown, row: ImportInstructionResult) => (
+          <StatusTag status={row.status} message={row.errorMessage} />
+        ),
+      },
+    ],
+    [],
+  );
+
+  const uploadInstructionsColumnResize = useTableColumnResize({
+    id: 280,
+    status: 200,
+  });
+
+  const uploadColumnsWithResize = useMemo(
+    () =>
+      attachResizeToColumns(
+        uploadResultColumns,
+        uploadInstructionsColumnResize.columnWidths,
+        uploadInstructionsColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      uploadResultColumns,
+      uploadInstructionsColumnResize.columnWidths,
+      uploadInstructionsColumnResize.createResizeHandlers,
+    ],
+  );
+
   const handleUpload = async () => {
     setUploading(true);
     try {
@@ -964,19 +1004,11 @@ const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
         <Table
           size="small"
           rowKey={(r) => `${r.entityType}-${r.id}`}
-          columns={[
-            { title: "Id", dataIndex: "name", key: "id" },
-            {
-              title: "Status",
-              dataIndex: "status",
-              key: "status",
-              render: (_status, row: ImportInstructionResult) => (
-                <StatusTag status={row.status} message={row.errorMessage} />
-              ),
-            },
-          ]}
+          columns={uploadColumnsWithResize}
           dataSource={result}
           pagination={false}
+          scroll={{ x: uploadInstructionsColumnResize.totalColumnsWidth }}
+          components={uploadInstructionsColumnResize.resizableHeaderComponents}
         />
       ) : (
         <Dragger

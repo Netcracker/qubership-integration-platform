@@ -59,11 +59,11 @@ src/
 
 ## Theme modes
 
-| Mode               | How it activates                          | Where colors come from                                     |
-| ------------------ | ----------------------------------------- | ---------------------------------------------------------- |
-| **Light**          | Default (no attribute)                    | `--vscode-*` defaults in `theme-variables.css`             |
-| **Dark**           | `[data-theme="dark"]` on `:root`          | Dark overrides in `theme-variables.css`                    |
-| **High Contrast**  | `[data-theme="high-contrast"]` on `:root` | HC overrides in `theme-variables.css`                      |
+| Mode                           | How it activates                          | Where colors come from                                     |
+| ------------------------------ | ----------------------------------------- | ---------------------------------------------------------- |
+| **Light**                      | Default (no attribute)                    | `--vscode-*` defaults in `theme-variables.css`             |
+| **Dark**                       | `[data-theme="dark"]` on `:root`          | Dark overrides in `theme-variables.css`                    |
+| **High Contrast**              | `[data-theme="high-contrast"]` on `:root` | HC overrides in `theme-variables.css`                      |
 | **Visual Studio Code Webview** | `:root.vscode-webview` class              | Real `--vscode-*` variables injected by the extension host |
 
 In Visual Studio Code webview mode the extension host injects the actual IDE theme colors as CSS variables,
@@ -85,6 +85,10 @@ const { isDark, isVSCodeWebview, palette } = useVSCodeTheme();
 - Explicitly specify a record type parameter for `Table` and `TableColumn`.
 - For tables located in flex containers use `flex-table` class name.
 - Use `InlineEdit` component to implement editable table cells.
+- For table text-search, use shared helpers from `src/components/table/tableSearch.ts`
+  (`normalizeSearchTerm`, `matchesByFields`) instead of local duplicated logic.
+- In search haystack builders for mixed types, do not use `filter(Boolean)`; keep valid
+  `0`/`false` values and explicitly filter only `null`/`undefined`/`""`.
 
 ## Access control
 

@@ -33,7 +33,7 @@ jest.mock("../../../../src/components/graph/nodes/EllipsisLabel.tsx", () => ({
 
 describe("NodeContentWrapper", () => {
   it("should render context", () => {
-    render(<NodeContentWrapper {...makeProps()} >Hello!</NodeContentWrapper>);
+    render(<NodeContentWrapper {...makeProps()}>Hello!</NodeContentWrapper>);
     expect(screen.queryByText("Hello!")).toBeInTheDocument();
   });
 
@@ -57,9 +57,7 @@ describe("NodeContentWrapper", () => {
 
   it("should render source handle when inputEnabled", () => {
     const { getByTestId } = render(
-      <ContainerNode
-        {...makeProps({ data: { inputEnabled: true } })}
-      />,
+      <ContainerNode {...makeProps({ data: { inputEnabled: true } })} />,
     );
     expect(getByTestId("handle-source")).toBeTruthy();
   });

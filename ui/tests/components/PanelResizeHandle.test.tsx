@@ -20,7 +20,9 @@ describe("PanelResizeHandle", () => {
       <PanelResizeHandle direction="right" onResize={onResize} />,
     );
 
-    fireEvent.mouseDown(getByRole("button", { name: "Resize panel" }), { clientX: 100 });
+    fireEvent.mouseDown(getByRole("button", { name: "Resize panel" }), {
+      clientX: 100,
+    });
     fireEvent.mouseMove(document, { clientX: 90 });
     fireEvent.mouseUp(document);
 
@@ -37,7 +39,9 @@ describe("PanelResizeHandle", () => {
       />,
     );
 
-    fireEvent.mouseDown(getByRole("button", { name: "Resize panel" }), { clientX: 100 });
+    fireEvent.mouseDown(getByRole("button", { name: "Resize panel" }), {
+      clientX: 100,
+    });
     fireEvent.mouseUp(document);
 
     expect(onResizeEnd).toHaveBeenCalledTimes(1);

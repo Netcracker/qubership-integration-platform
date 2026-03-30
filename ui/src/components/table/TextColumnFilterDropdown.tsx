@@ -3,6 +3,7 @@ import React, { ReactNode, useCallback, useMemo } from "react";
 import { Button, Col, Input, Row, Select, SelectProps } from "antd";
 import type { AnyObject } from "antd/lib/_util/type";
 import { parseJson } from "../../misc/json-helper.ts";
+import { tableFilterPopupContainer } from "./tableFilterPopupContainer";
 
 export type TextFilterCondition =
   | "contains"
@@ -140,6 +141,7 @@ export const TextColumnFilterDropdown: React.FC<
         <Col>
           <Select<TextFilterCondition>
             style={{ width: 150 }}
+            getPopupContainer={tableFilterPopupContainer}
             onChange={(value) => updateTextFilter({ condition: value })}
             options={options}
             value={

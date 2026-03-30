@@ -16,13 +16,9 @@ import { ActionsLog } from "../../../src/components/admin_tools/ActionsLog.tsx";
 // src/components/admin_tools/ActionsLog.integration.test.tsx
 // ====== MOCKS ======
 
-jest.mock("antd", () => {
-  const actual: Record<string, unknown> = jest.requireActual("antd");
-  const mock: Record<string, unknown> = jest.requireActual(
-    "../../__mocks__/LightweightTable",
-  );
-  return { ...actual, Table: mock.LightweightTable };
-});
+jest.mock("antd", () =>
+  require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
+);
 
 // Mock useActionLog
 jest.mock("../../../src/hooks/useActionLog.tsx", () => ({
@@ -115,11 +111,19 @@ jest.mock("../../../src/components/EnumColumnFilterDropdown.tsx", () => ({
   }),
 }));
 
-// Mock ResizableTitle
-jest.mock("../../../src/components/ResizableTitle.tsx", () => ({
-  ResizableTitle: (props: { children?: React.ReactNode }) => (
-    <th>{props.children}</th>
-  ),
+jest.mock("../../../src/components/table/ResizableTitle.tsx", () => ({
+  ResizableTitle: ({
+    children,
+    onResize: _onResize,
+    onResizeStop: _onResizeStop,
+    width: _width,
+    minResizeWidth: _minResizeWidth,
+    maxResizeWidth: _maxResizeWidth,
+    resizeHandleZIndex: _resizeHandleZIndex,
+    ...rest
+  }: {
+    children?: React.ReactNode;
+  }) => <th {...rest}>{children}</th>,
 }));
 
 // Mock CSS module
@@ -199,6 +203,22 @@ describe("ActionsLog() ActionsLog method", () => {
       render(<ActionsLog />);
       expect(screen.getByText("Audit")).toBeInTheDocument();
       expect(screen.getByTestId("icon-audit")).toBeInTheDocument();
+    });
+
+    it("renders compact search with audit log placeholder", () => {
+      render(<ActionsLog />);
+      expect(
+        screen.getByPlaceholderText("Search audit log..."),
+      ).toBeInTheDocument();
+    });
+
+    it("filters rows by search term across log fields", () => {
+      render(<ActionsLog />);
+      const search = screen.getByPlaceholderText("Search audit log...");
+      fireEvent.change(search, { target: { value: "alice" } });
+      expect(screen.getByText("alice")).toBeInTheDocument();
+      expect(screen.queryByText("bob")).not.toBeInTheDocument();
+      expect(screen.queryByText("carol")).not.toBeInTheDocument();
     });
 
     it("renders the refresh and export buttons", () => {

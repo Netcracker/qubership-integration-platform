@@ -3,8 +3,7 @@ import { ColumnSettingsButton } from "./ColumnSettingsButton";
 import { ColumnsType } from "antd/lib/table";
 import { getColumnsOrderKey, getColumnsVisibleKey } from "./ColumnsFilter";
 import { parseJsonOrDefault } from "../../misc/json-helper";
-
-const ACTIONS_COLUMN_NAME = "actions"; //always displayed last and not manageable
+import { ACTIONS_COLUMN_KEY } from "./actionsColumn.ts";
 
 export const useColumnSettingsButton = <T,>(
   storageKey: string,
@@ -34,7 +33,7 @@ export const useColumnSettingsButton = <T,>(
   const [columnsOrder, setColumnsOrder] = useState<string[]>(allColumnKeysMemo);
   const [visibleColumns, setVisibleColumns] =
     useState<string[]>(visibleKeysMemo);
-  const hasActions = allColumnKeys.includes(ACTIONS_COLUMN_NAME);
+  const hasActions = allColumnKeys.includes(ACTIONS_COLUMN_KEY);
 
   useEffect(() => {
     setColumnsOrder(allColumnKeysMemo);
@@ -60,10 +59,10 @@ export const useColumnSettingsButton = <T,>(
       })) as ColumnsType<T>;
     if (
       hasActions &&
-      !ordered.some((column) => column.key === ACTIONS_COLUMN_NAME)
+      !ordered.some((column) => column.key === ACTIONS_COLUMN_KEY)
     ) {
       ordered.push(
-        tableColumnDefinitions.find((col) => col.key === ACTIONS_COLUMN_NAME)!,
+        tableColumnDefinitions.find((col) => col.key === ACTIONS_COLUMN_KEY)!,
       );
     }
     return ordered;
@@ -72,9 +71,7 @@ export const useColumnSettingsButton = <T,>(
   const columnSettingsButton = (
     <ColumnSettingsButton
       key={storageKey + "SettingsButton"}
-      allColumns={allColumnKeys.filter(
-        (key) => key !== ACTIONS_COLUMN_NAME,
-      )}
+      allColumns={allColumnKeysMemo.filter((key) => key !== ACTIONS_COLUMN_KEY)}
       defaultColumns={visibleKeys}
       storageKey={storageKey}
       labelsByKey={Object.fromEntries(

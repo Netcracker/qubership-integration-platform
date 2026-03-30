@@ -674,6 +674,16 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
                 node.data.typeTitle ??
                 node.data.elementType
               }
+              afterTypeLabel={
+                <Button
+                  icon={<OverridableIcon name="questionCircle" />}
+                  onClick={() => openElementDoc(node.data.elementType)}
+                  type="text"
+                  title="Help"
+                  size="small"
+                  className={styles["modal-header-help-btn"]}
+                />
+              }
               onSave={handleNameSave}
               disabled={!canEditChain || libraryElementIsLoading}
             />
@@ -684,13 +694,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             wrap={false}
             style={{ flexShrink: 0, marginLeft: "auto" }}
           >
-            <Button
-              icon={<OverridableIcon name="questionCircle" />}
-              onClick={() => openElementDoc(node.data.elementType)}
-              type="text"
-              title="Help"
-              size="small"
-            />
             <FullscreenButton
               isFullscreen={isFullscreen}
               onClick={handleFullscreen}

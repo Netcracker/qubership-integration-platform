@@ -42,8 +42,13 @@ import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
 import { ServiceDiscoveryButton } from "./ui/ServiceDiscoveryButton.tsx";
 import { Require } from "../../permissions/Require.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
+import commonStyles from "../admin_tools/CommonStyle.module.css";
+import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 
 const STORAGE_KEY = "servicesListTable";
+
+/** `scroll.y` is body max-height; reserve thead (tree + filter row on Name). */
+const SERVICES_LIST_TABLE_HEAD_RESERVE_PX = 100;
 
 const visibleColumns: string[] = [
   "name",
@@ -340,11 +345,29 @@ export const ServicesListPage: React.FC = () => {
   const rowClassName = (record: ServiceEntity) =>
     loadingRows.includes(record.id) ? styles.loadingRow : "";
 
+  const [servicesTableAreaRef, servicesTableAreaHeight] =
+    useResizeHeight<HTMLDivElement>();
+
+  const servicesTableBodyScrollY = useMemo(() => {
+    if (servicesTableAreaHeight <= 0) {
+      return 400;
+    }
+    return Math.max(
+      120,
+      servicesTableAreaHeight - SERVICES_LIST_TABLE_HEAD_RESERVE_PX,
+    );
+  }, [servicesTableAreaHeight]);
+
+  const servicesTableScroll = useMemo(
+    () => ({ y: servicesTableBodyScrollY }),
+    [servicesTableBodyScrollY],
+  );
+
   const servicesTable = useServicesTreeTable<ServiceEntity>({
     dataSource: buildDataSource,
     rowKey: "id",
     columns: allServicesTreeTableColumns.map((col) => col.key),
-    scroll: { y: "" },
+    scroll: servicesTableScroll,
     className: "flex-table",
     style: { flex: 1, minHeight: 0 },
     allColumns: [
@@ -554,13 +577,13 @@ export const ServicesListPage: React.FC = () => {
           })()}
         </Typography.Title>
 
-        <div className={styles["actions"]}>
+        <Flex className={styles["actions"]} align="center" gap={8} wrap="wrap">
           <CompactSearch
             value={searchString}
             onChange={handleSearchChange}
             placeholder="Search services..."
             allowClear
-            style={{ width: 500 }}
+            className={commonStyles["searchField"] as string}
             onSearchConfirm={(v) => {
               clearTimeout(searchDebounceRef.current);
               setDebouncedSearch(v);
@@ -629,10 +652,11 @@ export const ServicesListPage: React.FC = () => {
               onClick: () => setCreateModalOpen(true),
             }}
           />
-        </div>
+        </Flex>
       </div>
 
       <div
+        ref={servicesTableAreaRef}
         style={{
           flex: 1,
           minHeight: 0,
@@ -640,7 +664,7 @@ export const ServicesListPage: React.FC = () => {
           flexDirection: "column",
         }}
       >
-        <servicesTable.Table />
+        {servicesTable.tableElement}
         {error && (
           <div style={{ color: "var(--vscode-errorForeground, #d73a49)" }}>
             Error: {error}

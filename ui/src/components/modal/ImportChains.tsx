@@ -41,6 +41,14 @@ import Checkbox from "antd/lib/checkbox";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import {
+  attachResizeToColumns,
+  sumScrollXForColumns,
+  useTableColumnResize,
+} from "../table/useTableColumnResize.tsx";
+
+/** rc-table selection column when `rowSelection` is set; not in `columns`. */
+const IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH = 48;
 
 type ImportChainsProps = {
   onSuccess?: () => void;
@@ -63,6 +71,35 @@ type ResultImportInstructionTableItem = Partial<ImportInstructionResult> & {
 type PreviewImportChainTableItem = ChainImportPreview & {
   domains: EngineDomain[];
 };
+
+const PREVIEW_IMPORT_SERVICE_TABLE_COLUMNS: TableProps<
+  Record<string, unknown>
+>["columns"] = [
+  { title: "Name", dataIndex: "name", key: "name" },
+  { title: "ID", dataIndex: "id", key: "id" },
+];
+
+const PREVIEW_IMPORT_COMMON_VARIABLES_TABLE_COLUMNS: TableProps<
+  Record<string, unknown>
+>["columns"] = [
+  { title: "Name", dataIndex: "name", key: "name" },
+  { title: "Value", dataIndex: "value", key: "value" },
+  { title: "Current Value", dataIndex: "currentValue", key: "currentValue" },
+];
+
+const RESULT_COMMON_VARIABLES_TABLE_COLUMNS: TableProps<ImportVariableResult>["columns"] =
+  [
+    { title: "Name", dataIndex: "name", key: "name" },
+    { title: "Value", dataIndex: "value", key: "value" },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (_, item) => (
+        <ImportStatus status={item.status} message={item.error} />
+      ),
+    },
+  ];
 
 function getInstructionTableItems(
   obj: ChainImportInstructions | ImportInstructions | undefined | null,
@@ -99,20 +136,18 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
   const [domains, setDomains] = useState<EngineDomain[]>([]);
   const [validateByHashChecked, setValidateByHashChecked] =
     useState<boolean>(false);
-  const [
-    previewImportInstructionTableItems,
-    setPreviewImportInstructionTableItems,
-  ] = useState<PreviewImportInstructionTableItem[]>([]);
+  const [, setPreviewImportInstructionTableItems] = useState<
+    PreviewImportInstructionTableItem[]
+  >([]);
   const [previewImportChainTableItems, setPreviewImportChainTableItems] =
     useState<PreviewImportChainTableItem[]>([]);
   const [progress, setProgress] = useState<number>(0);
   const [importResult, setImportResult] = useState<ImportResult | undefined>(
     undefined,
   );
-  const [
-    resultImportInstructionTableItems,
-    setResultImportInstructionTableItems,
-  ] = useState<ResultImportInstructionTableItem[]>([]);
+  const [, setResultImportInstructionTableItems] = useState<
+    ResultImportInstructionTableItem[]
+  >([]);
 
   const previewServices = useMemo(
     () => [
@@ -321,254 +356,379 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
   };
 
   const previewChainTableColumns: TableProps<PreviewImportChainTableItem>["columns"] =
-    [
-      {
-        title: "Name",
-        dataIndex: "name",
-      },
-      {
-        title: "ID",
-        dataIndex: "id",
-      },
-      {
-        title: "Domain",
-        render: (_, item) => (
-          <InlineEdit<{ domains: string[] }>
-            values={{ domains: item.domains.map((i) => i.id) }}
-            editor={
-              <SelectEdit
-                name="domains"
-                multiple
-                options={Object.values(domains).map((i) => ({
-                  label: i.name,
-                  value: i.id,
-                }))}
-              />
-            }
-            viewer={
-              <Flex gap="4px 4px" wrap>
-                {item.domains.map((i) => (
-                  <Tag key={i.id}>{i.name}</Tag>
-                ))}
-              </Flex>
-            }
-            onSubmit={(values) => {
-              setPreviewImportChainTableItems(
-                previewImportChainTableItems.map((i) =>
-                  i.id === item.id
-                    ? {
-                        ...i,
-                        domains: domains.filter((d) =>
-                          values.domains.includes(d.id),
-                        ),
-                      }
-                    : i,
-                ),
-              );
-            }}
-          />
-        ),
-      },
-      {
-        title: "Instruction Action",
-        dataIndex: "instructionAction",
-        render: (_, item) => (
-          <StatusTag status={item.instructionAction ?? ""} />
-        ),
-      },
-      {
-        title: (
-          <Space>
-            Action{" "}
-            <Dropdown
-              menu={{
-                items: Object.values(ChainCommitRequestAction).map((i) => ({
-                  key: i,
-                  label: capitalize(i),
-                })),
-                onClick: ({ key }) => {
-                  setPreviewImportChainTableItems(
-                    previewImportChainTableItems.map((i) => ({
-                      ...i,
-                      deployAction: key as ChainCommitRequestAction,
-                    })),
-                  );
-                },
+    useMemo(
+      () => [
+        {
+          title: "Name",
+          dataIndex: "name",
+          key: "name",
+        },
+        {
+          title: "ID",
+          dataIndex: "id",
+          key: "id",
+        },
+        {
+          title: "Domain",
+          key: "domains",
+          render: (_, item) => (
+            <InlineEdit<{ domains: string[] }>
+              values={{ domains: item.domains.map((i) => i.id) }}
+              editor={
+                <SelectEdit
+                  name="domains"
+                  multiple
+                  options={Object.values(domains).map((i) => ({
+                    label: i.name,
+                    value: i.id,
+                  }))}
+                />
+              }
+              viewer={
+                <Flex gap="4px 4px" wrap>
+                  {item.domains.map((i) => (
+                    <Tag key={i.id}>{i.name}</Tag>
+                  ))}
+                </Flex>
+              }
+              onSubmit={(values) => {
+                setPreviewImportChainTableItems(
+                  previewImportChainTableItems.map((i) =>
+                    i.id === item.id
+                      ? {
+                          ...i,
+                          domains: domains.filter((d) =>
+                            values.domains.includes(d.id),
+                          ),
+                        }
+                      : i,
+                  ),
+                );
               }}
-            >
-              <OverridableIcon name="down" />
-            </Dropdown>
-          </Space>
-        ),
-        render: (_, item) => (
-          <InlineEdit<{ action: ChainCommitRequestAction }>
-            values={{ action: item.deployAction }}
-            editor={
-              <SelectEdit
-                name="action"
-                options={Object.values(ChainCommitRequestAction).map((i) => ({
-                  label: capitalize(i),
-                  value: i,
-                }))}
-              />
-            }
-            viewer={capitalize(item.deployAction)}
-            onSubmit={({ action }) => {
-              setPreviewImportChainTableItems(
-                previewImportChainTableItems.map((i) =>
-                  i.id === item.id
-                    ? {
+            />
+          ),
+        },
+        {
+          title: "Instruction Action",
+          dataIndex: "instructionAction",
+          key: "instructionAction",
+          render: (_, item) => (
+            <StatusTag status={item.instructionAction ?? ""} />
+          ),
+        },
+        {
+          key: "deployAction",
+          title: (
+            <Space>
+              Action{" "}
+              <Dropdown
+                menu={{
+                  items: Object.values(ChainCommitRequestAction).map((i) => ({
+                    key: i,
+                    label: capitalize(i),
+                  })),
+                  onClick: ({ key }) => {
+                    setPreviewImportChainTableItems(
+                      previewImportChainTableItems.map((i) => ({
                         ...i,
-                        deployAction: action,
-                      }
-                    : i,
-                ),
-              );
-            }}
-          />
-        ),
-      },
-    ];
+                        deployAction: key as ChainCommitRequestAction,
+                      })),
+                    );
+                  },
+                }}
+              >
+                <OverridableIcon name="down" />
+              </Dropdown>
+            </Space>
+          ),
+          render: (_, item) => (
+            <InlineEdit<{ action: ChainCommitRequestAction }>
+              values={{ action: item.deployAction }}
+              editor={
+                <SelectEdit
+                  name="action"
+                  options={Object.values(ChainCommitRequestAction).map((i) => ({
+                    label: capitalize(i),
+                    value: i,
+                  }))}
+                />
+              }
+              viewer={capitalize(item.deployAction)}
+              onSubmit={({ action }) => {
+                setPreviewImportChainTableItems(
+                  previewImportChainTableItems.map((i) =>
+                    i.id === item.id
+                      ? {
+                          ...i,
+                          deployAction: action,
+                        }
+                      : i,
+                  ),
+                );
+              }}
+            />
+          ),
+        },
+      ],
+      [domains, previewImportChainTableItems],
+    );
 
-  const previewServiceTableColumns: TableProps["columns"] = [
-    {
-      title: "Name",
-      dataIndex: "name",
-    },
-    {
-      title: "ID",
-      dataIndex: "id",
-    },
-  ];
+  const resultChainTableColumns: TableProps<ImportChainResult>["columns"] =
+    useMemo(
+      () => [
+        {
+          title: "Name",
+          dataIndex: "name",
+          key: "name",
+          render: (_, item) =>
+            item.status === ImportEntityStatus.CREATED ||
+            item.status === ImportEntityStatus.UPDATED ? (
+              <a onClick={() => window.open(`/chains/${item.id}`, "_blank")}>
+                {item.name}
+              </a>
+            ) : (
+              item.name
+            ),
+        },
+        {
+          title: "ID",
+          dataIndex: "id",
+          key: "id",
+        },
+        {
+          title: "Status",
+          dataIndex: "status",
+          key: "status",
+          render: (_, item) => (
+            <StatusTag status={item.status} message={item.errorMessage} />
+          ),
+        },
+      ],
+      [],
+    );
 
-  const previewCommonVariablesTableColumns: TableProps["columns"] = [
-    {
-      title: "Name",
-      dataIndex: "name",
-    },
-    {
-      title: "Value",
-      dataIndex: "value",
-    },
-    {
-      title: "Current Value",
-      dataIndex: "currentValue",
-    },
-  ];
+  const resultServiceTableColumns: TableProps<ImportSystemResult>["columns"] =
+    useMemo(
+      () => [
+        {
+          title: "Name",
+          dataIndex: "name",
+          key: "name",
+          render: (_, item) =>
+            item.status === SystemImportStatus.CREATED ||
+            item.status === SystemImportStatus.UPDATED ? (
+              <a
+                onClick={() => {
+                  const url = contextServiceIds.has(item.id)
+                    ? `/services/context/${item.id}/parameters`
+                    : `/services/systems/${item.id}`;
+                  window.open(url, "_blank");
+                }}
+              >
+                {item.name}
+              </a>
+            ) : (
+              item.name
+            ),
+        },
+        {
+          title: "ID",
+          dataIndex: "id",
+          key: "id",
+        },
+        {
+          title: "Status",
+          dataIndex: "status",
+          key: "status",
+          render: (_, item) => (
+            <StatusTag status={item.status} message={item.message} />
+          ),
+        },
+      ],
+      [contextServiceIds],
+    );
 
-  const previewImportInstructionTableColumns: TableProps["columns"] = [
-    {
-      title: "ID",
-      dataIndex: "name",
-    },
-    {
-      title: "Action",
-      dataIndex: "action",
-    },
-    {
-      title: "Overridden By",
-      dataIndex: "overriddenByName",
-    },
-    {
-      title: "Labels",
-      dataIndex: "labels",
-    },
-  ];
+  const previewChainColumnResize = useTableColumnResize({
+    name: 180,
+    id: 220,
+    domains: 220,
+    instructionAction: 160,
+    deployAction: 170,
+  });
+  const previewServiceColumnResize = useTableColumnResize({
+    name: 240,
+    id: 280,
+  });
+  const previewVariablesColumnResize = useTableColumnResize({
+    name: 200,
+    value: 200,
+    currentValue: 200,
+  });
+  const resultChainColumnResize = useTableColumnResize({
+    name: 220,
+    id: 260,
+    status: 180,
+  });
+  const resultServiceColumnResize = useTableColumnResize({
+    name: 220,
+    id: 260,
+    status: 180,
+  });
+  const resultVariablesColumnResize = useTableColumnResize({
+    name: 200,
+    value: 200,
+    status: 180,
+  });
 
-  const resultChainTableColumns: TableProps<ImportChainResult>["columns"] = [
-    {
-      title: "Name",
-      dataIndex: "name",
-      render: (_, item) =>
-        item.status === ImportEntityStatus.CREATED ||
-        item.status === ImportEntityStatus.UPDATED ? (
-          <a onClick={() => window.open(`/chains/${item.id}`, "_blank")}>
-            {item.name}
-          </a>
-        ) : (
-          item.name
-        ),
-    },
-    {
-      title: "ID",
-      dataIndex: "id",
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      render: (_, item) => (
-        <StatusTag status={item.status} message={item.errorMessage} />
+  const previewChainColumnsResized = useMemo(
+    () =>
+      attachResizeToColumns(
+        previewChainTableColumns,
+        previewChainColumnResize.columnWidths,
+        previewChainColumnResize.createResizeHandlers,
+        { minWidth: 80 },
       ),
-    },
-  ];
+    [
+      previewChainTableColumns,
+      previewChainColumnResize.columnWidths,
+      previewChainColumnResize.createResizeHandlers,
+    ],
+  );
 
-  const resultServiceTableColumns: TableProps<ImportSystemResult>["columns"] = [
-    {
-      title: "Name",
-      dataIndex: "name",
-      render: (_, item) =>
-        item.status === SystemImportStatus.CREATED ||
-        item.status === SystemImportStatus.UPDATED ? (
-          <a
-            onClick={() => {
-              const url = contextServiceIds.has(item.id)
-                ? `/services/context/${item.id}/parameters`
-                : `/services/systems/${item.id}`;
-              window.open(url, "_blank");
-            }}
-          >
-            {item.name}
-          </a>
-        ) : (
-          item.name
-        ),
-    },
-    {
-      title: "ID",
-      dataIndex: "id",
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      render: (_, item) => (
-        <StatusTag status={item.status} message={item.message} />
+  const previewServiceColumnsResized = useMemo(
+    () =>
+      attachResizeToColumns(
+        PREVIEW_IMPORT_SERVICE_TABLE_COLUMNS,
+        previewServiceColumnResize.columnWidths,
+        previewServiceColumnResize.createResizeHandlers,
+        { minWidth: 80 },
       ),
-    },
-  ];
-
-  const resultCommonVariablesTableColumns: TableProps<ImportVariableResult>["columns"] =
     [
-      {
-        title: "Name",
-        dataIndex: "name",
-      },
-      {
-        title: "Value",
-        dataIndex: "value",
-      },
-      {
-        title: "Status",
-        dataIndex: "status",
-        render: (_, item) => (
-          <StatusTag status={item.status} message={item.error} />
-        ),
-      },
-    ];
+      PREVIEW_IMPORT_SERVICE_TABLE_COLUMNS,
+      previewServiceColumnResize.columnWidths,
+      previewServiceColumnResize.createResizeHandlers,
+    ],
+  );
 
-  const resultImportInstructionTableColumns: TableProps<ResultImportInstructionTableItem>["columns"] =
+  const previewVariablesColumnsResized = useMemo(
+    () =>
+      attachResizeToColumns(
+        PREVIEW_IMPORT_COMMON_VARIABLES_TABLE_COLUMNS,
+        previewVariablesColumnResize.columnWidths,
+        previewVariablesColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
     [
-      {
-        title: "ID",
-        dataIndex: "name",
-      },
-      {
-        title: "Status",
-        dataIndex: "status",
-        render: (_, item) => (
-          <StatusTag status={item.status} message={item.errorMessage} />
-        ),
-      },
-    ];
+      PREVIEW_IMPORT_COMMON_VARIABLES_TABLE_COLUMNS,
+      previewVariablesColumnResize.columnWidths,
+      previewVariablesColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const resultChainColumnsResized = useMemo(
+    () =>
+      attachResizeToColumns(
+        resultChainTableColumns,
+        resultChainColumnResize.columnWidths,
+        resultChainColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      resultChainTableColumns,
+      resultChainColumnResize.columnWidths,
+      resultChainColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const resultServiceColumnsResized = useMemo(
+    () =>
+      attachResizeToColumns(
+        resultServiceTableColumns,
+        resultServiceColumnResize.columnWidths,
+        resultServiceColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      resultServiceTableColumns,
+      resultServiceColumnResize.columnWidths,
+      resultServiceColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const resultVariablesColumnsResized = useMemo(
+    () =>
+      attachResizeToColumns(
+        RESULT_COMMON_VARIABLES_TABLE_COLUMNS,
+        resultVariablesColumnResize.columnWidths,
+        resultVariablesColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      RESULT_COMMON_VARIABLES_TABLE_COLUMNS,
+      resultVariablesColumnResize.columnWidths,
+      resultVariablesColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const previewChainScrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        previewChainColumnsResized,
+        previewChainColumnResize.columnWidths,
+      ),
+    [previewChainColumnsResized, previewChainColumnResize.columnWidths],
+  );
+
+  const previewServiceScrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        previewServiceColumnsResized,
+        previewServiceColumnResize.columnWidths,
+        {
+          selectionColumnWidth: IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH,
+        },
+      ),
+    [previewServiceColumnsResized, previewServiceColumnResize.columnWidths],
+  );
+
+  const previewVariablesScrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        previewVariablesColumnsResized,
+        previewVariablesColumnResize.columnWidths,
+        {
+          selectionColumnWidth: IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH,
+        },
+      ),
+    [previewVariablesColumnsResized, previewVariablesColumnResize.columnWidths],
+  );
+
+  const resultChainScrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        resultChainColumnsResized,
+        resultChainColumnResize.columnWidths,
+      ),
+    [resultChainColumnsResized, resultChainColumnResize.columnWidths],
+  );
+
+  const resultServiceScrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        resultServiceColumnsResized,
+        resultServiceColumnResize.columnWidths,
+      ),
+    [resultServiceColumnsResized, resultServiceColumnResize.columnWidths],
+  );
+
+  const resultVariablesScrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        resultVariablesColumnsResized,
+        resultVariablesColumnResize.columnWidths,
+      ),
+    [resultVariablesColumnsResized, resultVariablesColumnResize.columnWidths],
+  );
 
   return (
     <Modal
@@ -668,10 +828,16 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                         className="flex-table"
                         size="small"
                         rowKey="id"
-                        columns={previewChainTableColumns}
+                        columns={previewChainColumnsResized}
                         dataSource={previewImportChainTableItems}
                         pagination={false}
-                        scroll={{ y: "" }}
+                        scroll={{
+                          x: previewChainScrollX,
+                          y: "",
+                        }}
+                        components={
+                          previewChainColumnResize.resizableHeaderComponents
+                        }
                       />
                     </Flex>
                   ),
@@ -685,7 +851,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                       className="flex-table"
                       size="small"
                       rowKey="id"
-                      columns={previewServiceTableColumns}
+                      columns={previewServiceColumnsResized}
                       dataSource={previewServices}
                       rowSelection={{
                         type: "checkbox",
@@ -695,7 +861,13 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                           setSelectedServiceRowKeys(selectedKeys),
                       }}
                       pagination={false}
-                      scroll={{ y: "" }}
+                      scroll={{
+                        x: previewServiceScrollX,
+                        y: "",
+                      }}
+                      components={
+                        previewServiceColumnResize.resizableHeaderComponents
+                      }
                     />
                   ),
                 },
@@ -708,7 +880,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                       className="flex-table"
                       size="small"
                       rowKey="name"
-                      columns={previewCommonVariablesTableColumns}
+                      columns={previewVariablesColumnsResized}
                       dataSource={importPreview?.variables}
                       rowSelection={{
                         type: "checkbox",
@@ -718,7 +890,13 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                           setSelectedVariableRowKeys(selectedKeys),
                       }}
                       pagination={false}
-                      scroll={{ y: "" }}
+                      scroll={{
+                        x: previewVariablesScrollX,
+                        y: "",
+                      }}
+                      components={
+                        previewVariablesColumnResize.resizableHeaderComponents
+                      }
                     />
                   ),
                 },
@@ -763,10 +941,16 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                       className="flex-table"
                       size="small"
                       rowKey="id"
-                      columns={resultChainTableColumns}
+                      columns={resultChainColumnsResized}
                       dataSource={importResult?.chains}
                       pagination={false}
-                      scroll={{ y: "" }}
+                      scroll={{
+                        x: resultChainScrollX,
+                        y: "",
+                      }}
+                      components={
+                        resultChainColumnResize.resizableHeaderComponents
+                      }
                     />
                   ),
                 },
@@ -779,10 +963,16 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                       className="flex-table"
                       size="small"
                       rowKey="id"
-                      columns={resultServiceTableColumns}
+                      columns={resultServiceColumnsResized}
                       dataSource={resultServices}
                       pagination={false}
-                      scroll={{ y: "" }}
+                      scroll={{
+                        x: resultServiceScrollX,
+                        y: "",
+                      }}
+                      components={
+                        resultServiceColumnResize.resizableHeaderComponents
+                      }
                     />
                   ),
                 },
@@ -795,10 +985,16 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                       className="flex-table"
                       size="small"
                       rowKey="name"
-                      columns={resultCommonVariablesTableColumns}
+                      columns={resultVariablesColumnsResized}
                       dataSource={importResult?.variables}
                       pagination={false}
-                      scroll={{ y: "" }}
+                      scroll={{
+                        x: resultVariablesScrollX,
+                        y: "",
+                      }}
+                      components={
+                        resultVariablesColumnResize.resizableHeaderComponents
+                      }
                     />
                   ),
                 },

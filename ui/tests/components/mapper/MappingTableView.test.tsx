@@ -4,7 +4,7 @@
 
 import React from "react";
 import "@testing-library/jest-dom";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { MappingTableView } from "../../../src/components/mapper/MappingTableView";
 import { MappingDescription } from "../../../src/mapper/model/model";
 
@@ -234,17 +234,18 @@ jest.mock(
 );
 
 jest.mock("antd", () => {
-  const actual: Record<string, unknown> = jest.requireActual("antd");
-  const mock: Record<string, unknown> = jest.requireActual(
-    "../../../src/../tests/__mocks__/LightweightTable",
-  );
-  return {
-    ...actual,
-    Table: mock.LightweightTable,
+  const React = require("react");
+  const {
+    antdMockWithLightweightTable,
+  } = require("tests/helpers/antdMockWithLightweightTable");
+  return antdMockWithLightweightTable({
     message: {
-      useMessage: () => [{ open: jest.fn() }, <div key="msg">msg</div>],
+      useMessage: () => [
+        { open: jest.fn() },
+        React.createElement("div", { key: "msg" }, "msg"),
+      ],
     },
-  };
+  });
 });
 
 jest.mock("../../../src/components/mapper/MappingTableView.module.css", () => ({
@@ -424,21 +425,18 @@ describe("MappingTableView", () => {
 
     renderComponent();
 
-    const sourceRadio = screen.getByRole("radio", { name: /source/i });
-    sourceRadio.click();
+    fireEvent.click(screen.getByRole("radio", { name: /source/i }));
 
-    await waitFor(() => {
-      const columnHeaders = screen.getAllByRole("columnheader");
-      const columnTitles = columnHeaders.map((header) =>
-        header.textContent?.trim().toLowerCase(),
+    const columnHeaders = await screen.findAllByRole("columnheader");
+    const columnTitles = columnHeaders.map((header) =>
+      header.textContent?.trim().toLowerCase(),
+    );
+
+    expectedSelectedColumns.forEach((column) => {
+      const columnTitle = column.toLowerCase();
+      expect(columnTitles).toContainEqual(
+        expect.stringContaining(columnTitle),
       );
-
-      expectedSelectedColumns.forEach((column) => {
-        const columnTitle = column.toLowerCase();
-        expect(columnTitles).toContainEqual(
-          expect.stringContaining(columnTitle),
-        );
-      });
     });
   });
 
@@ -490,21 +488,18 @@ describe("MappingTableView", () => {
 
     renderComponent();
 
-    const targetRadio = screen.getByRole("radio", { name: /target/i });
-    targetRadio.click();
+    fireEvent.click(screen.getByRole("radio", { name: /target/i }));
 
-    await waitFor(() => {
-      const columnHeaders = screen.getAllByRole("columnheader");
-      const columnTitles = columnHeaders.map((header) =>
-        header.textContent?.trim().toLowerCase(),
+    const columnHeaders = await screen.findAllByRole("columnheader");
+    const columnTitles = columnHeaders.map((header) =>
+      header.textContent?.trim().toLowerCase(),
+    );
+
+    expectedSelectedColumns.forEach((column) => {
+      const columnTitle = column.toLowerCase();
+      expect(columnTitles).toContainEqual(
+        expect.stringContaining(columnTitle),
       );
-
-      expectedSelectedColumns.forEach((column) => {
-        const columnTitle = column.toLowerCase();
-        expect(columnTitles).toContainEqual(
-          expect.stringContaining(columnTitle),
-        );
-      });
     });
   });
 });

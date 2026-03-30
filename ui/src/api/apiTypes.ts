@@ -1119,6 +1119,8 @@ export interface SystemOperation {
   path: string;
   modelId: string;
   chains: BaseEntity[];
+  channel?: string;
+  topic?: string;
 }
 
 export interface OperationInfo {

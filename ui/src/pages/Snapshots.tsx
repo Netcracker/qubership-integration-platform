@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { Button, Table } from "antd";
+import React, { useMemo, useState } from "react";
+import { Button, Flex, Table } from "antd";
+import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import { useNavigate } from "react-router";
@@ -27,19 +28,58 @@ import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
-import { ChainHeaderToolbar } from "../components/ChainHeaderToolbar.tsx";
+import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedDropdown } from "../permissions/ProtectedDropdown.tsx";
 import { Require } from "../permissions/Require.tsx";
+import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
+import {
+  attachResizeToColumns,
+  sumScrollXForColumns,
+  useTableColumnResize,
+} from "../components/table/useTableColumnResize.tsx";
+import { TableToolbar } from "../components/table/TableToolbar.tsx";
+import {
+  createActionsColumnBase,
+  disableResizeBeforeActions,
+} from "../components/table/actionsColumn.ts";
+import { CompactSearch } from "../components/table/CompactSearch.tsx";
+import { matchesByFields } from "../components/table/tableSearch.ts";
+
+const SNAPSHOTS_SELECTION_COLUMN_WIDTH = 48;
+
+function snapshotMatchesSearch(snapshot: Snapshot, term: string): boolean {
+  const labelNames = snapshot.labels?.map((l) => l.name) ?? [];
+  const createdStr = snapshot.createdWhen
+    ? formatTimestamp(snapshot.createdWhen)
+    : "";
+  const modifiedStr = snapshot.modifiedWhen
+    ? formatTimestamp(snapshot.modifiedWhen)
+    : "";
+  return matchesByFields(term, [
+    snapshot.name,
+    ...labelNames,
+    snapshot.createdBy?.username,
+    snapshot.modifiedBy?.username,
+    createdStr,
+    modifiedStr,
+  ]);
+}
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
   const navigate = useNavigate();
   const { isLoading, snapshots, setSnapshots } = useSnapshots(chainId);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredSnapshots = useMemo(
+    () =>
+      (snapshots ?? []).filter((row) => snapshotMatchesSearch(row, searchTerm)),
+    [snapshots, searchTerm],
+  );
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
 
@@ -276,10 +316,7 @@ export const Snapshots: React.FC = () => {
       ),
     },
     {
-      title: "",
-      key: "actions",
-      width: 40,
-      className: "actions-column",
+      ...createActionsColumnBase<Snapshot>(),
       render: (_, snapshot) => (
         <>
           <ProtectedDropdown
@@ -329,6 +366,42 @@ export const Snapshots: React.FC = () => {
     },
   ];
 
+  const { orderedColumns, columnSettingsButton } =
+    useColumnSettingsBasedOnColumnsType<Snapshot>("snapshotsTable", columns);
+
+  const snapshotsColumnResize = useTableColumnResize({
+    name: 200,
+    labels: 200,
+    createdBy: 120,
+    createdWhen: 168,
+    modifiedBy: 120,
+    modifiedWhen: 168,
+  });
+
+  const columnsWithResize = useMemo(() => {
+    const resized = attachResizeToColumns(
+      orderedColumns,
+      snapshotsColumnResize.columnWidths,
+      snapshotsColumnResize.createResizeHandlers,
+      { minWidth: 80 },
+    );
+    return disableResizeBeforeActions(resized);
+  }, [
+    orderedColumns,
+    snapshotsColumnResize.columnWidths,
+    snapshotsColumnResize.createResizeHandlers,
+  ]);
+
+  const scrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        columnsWithResize,
+        snapshotsColumnResize.columnWidths,
+        { selectionColumnWidth: SNAPSHOTS_SELECTION_COLUMN_WIDTH },
+      ),
+    [columnsWithResize, snapshotsColumnResize.columnWidths],
+  );
+
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
   };
@@ -339,54 +412,65 @@ export const Snapshots: React.FC = () => {
     onChange: onSelectChange,
   };
 
-  useRegisterChainHeaderActions(
-    <ChainHeaderToolbar
-      buttons={[
-        {
-          require: { snapshot: ["create"] },
-          tooltipProps: { title: "Create snapshot" },
-          buttonProps: {
-            type: "primary",
-            iconName: "plus",
-            onClick: onCreateBtnClick,
-          },
-        },
-        {
-          require: { snapshot: ["delete"] },
-          tooltipProps: { title: "Delete selected snapshots" },
-          buttonProps: {
-            iconName: "delete",
-            onClick: onDeleteBtnClick,
-            disabled: selectedRowKeys.length === 0,
-          },
-        },
-        {
-          require: { snapshot: ["read"] },
-          tooltipProps: { title: "Compare selected snapshots" },
-          buttonProps: {
-            icon: <>⇄</>,
-            onClick: onCompareBtnClick,
-            disabled: selectedRowKeys.length !== 2,
-          },
-        },
-      ]}
-    />,
-    [selectedRowKeys.length],
-  );
-
   return (
     <TablePageLayout>
+      <TableToolbar
+        leading={
+          <CompactSearch
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search snapshots..."
+            allowClear
+            className={commonStyles.searchField as string}
+          />
+        }
+        trailing={
+          <Flex align="center" gap={8} wrap="wrap">
+            {columnSettingsButton}
+            <ProtectedButton
+              require={{ snapshot: ["create"] }}
+              tooltipProps={{ title: "Create snapshot" }}
+              buttonProps={{
+                type: "primary",
+                iconName: "plus",
+                onClick: onCreateBtnClick,
+              }}
+            />
+            <ProtectedButton
+              require={{ snapshot: ["delete"] }}
+              tooltipProps={{ title: "Delete selected snapshots" }}
+              buttonProps={{
+                iconName: "delete",
+                onClick: onDeleteBtnClick,
+                disabled: selectedRowKeys.length === 0,
+              }}
+            />
+            <ProtectedButton
+              require={{ snapshot: ["read"] }}
+              tooltipProps={{ title: "Compare selected snapshots" }}
+              buttonProps={{
+                icon: <>⇄</>,
+                onClick: onCompareBtnClick,
+                disabled: selectedRowKeys.length !== 2,
+              }}
+            />
+          </Flex>
+        }
+      />
       <Table
         size="small"
-        columns={columns}
+        columns={columnsWithResize}
         rowSelection={rowSelection}
-        dataSource={snapshots}
+        dataSource={filteredSnapshots}
         pagination={false}
         loading={isLoading}
         rowKey="id"
         className="flex-table"
         style={{ flex: 1, minHeight: 0 }}
-        scroll={{ y: "" }}
+        scroll={
+          filteredSnapshots.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }
+        }
+        components={snapshotsColumnResize.resizableHeaderComponents}
       />
     </TablePageLayout>
   );

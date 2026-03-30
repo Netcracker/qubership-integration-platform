@@ -2,7 +2,7 @@ import { Flex, Modal, Table, Tag, Typography } from "antd";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import { OverridableIcon } from "../../../icons/IconProvider";
 import commonStyles from "../CommonStyle.module.css";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../../api/api";
 import { DetailedDesignTemplate } from "../../../api/apiTypes";
 import { formatTimestamp } from "../../../misc/format-utils";
@@ -12,15 +12,42 @@ import { TableRowSelection } from "antd/es/table/interface";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton";
 import { ColumnsType } from "antd/lib/table";
+import {
+  attachResizeToColumns,
+  useTableColumnResize,
+} from "../../table/useTableColumnResize.tsx";
+import { CompactSearch } from "../../table/CompactSearch.tsx";
+import { matchesByFields } from "../../table/tableSearch.ts";
 
 const { Title } = Typography;
+
+const DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH = 48;
+
+function designTemplateMatchesSearch(
+  template: DetailedDesignTemplate,
+  term: string,
+): boolean {
+  const typeLabel = template.builtIn ? "built-in" : "custom";
+  return matchesByFields(term, [
+    template.name,
+    typeLabel,
+    template.createdWhen ?? "",
+  ]);
+}
 
 export const DesignTemplates: React.FC = () => {
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
   const [isLoading, setIsLoading] = useState(false);
   const [tableData, setTableData] = useState<DetailedDesignTemplate[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  const filteredTableData = useMemo(
+    () =>
+      tableData.filter((row) => designTemplateMatchesSearch(row, searchTerm)),
+    [tableData, searchTerm],
+  );
 
   const columns: ColumnsType<DetailedDesignTemplate> = [
     {
@@ -53,7 +80,7 @@ export const DesignTemplates: React.FC = () => {
       },
     },
     {
-      title: "Created When",
+      title: "Created At",
       dataIndex: "createdWhen",
       key: "createdWhen",
       width: 180,
@@ -67,6 +94,31 @@ export const DesignTemplates: React.FC = () => {
       "designTemplatesTable",
       columns,
     );
+
+  const designTemplatesColumnResize = useTableColumnResize({
+    name: 280,
+    type: 160,
+    createdWhen: 180,
+  });
+
+  const columnsWithResize = useMemo(
+    () =>
+      attachResizeToColumns(
+        orderedColumns,
+        designTemplatesColumnResize.columnWidths,
+        designTemplatesColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      orderedColumns,
+      designTemplatesColumnResize.columnWidths,
+      designTemplatesColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const scrollX =
+    designTemplatesColumnResize.totalColumnsWidth +
+    DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH;
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -185,9 +237,18 @@ export const DesignTemplates: React.FC = () => {
         <Flex
           vertical={false}
           gap={8}
+          wrap="wrap"
           className={commonStyles["actions"]}
           align={"center"}
         >
+          <CompactSearch
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search templates..."
+            allowClear
+            className={commonStyles["searchField"] as string}
+          />
+          {columnSettingsButton}
           <ProtectedButton
             require={{ designTemplate: ["delete"] }}
             tooltipProps={{
@@ -206,7 +267,6 @@ export const DesignTemplates: React.FC = () => {
               },
             }}
           />
-          {columnSettingsButton}
           <ProtectedButton
             require={{ designTemplate: ["export"] }}
             tooltipProps={{
@@ -243,12 +303,14 @@ export const DesignTemplates: React.FC = () => {
         <Table<DetailedDesignTemplate>
           className="flex-table"
           size="small"
-          columns={orderedColumns}
+          columns={columnsWithResize}
           rowSelection={rowSelection}
-          dataSource={tableData}
+          dataSource={filteredTableData}
           pagination={false}
           rowKey="id"
           loading={isLoading}
+          scroll={{ x: scrollX }}
+          components={designTemplatesColumnResize.resizableHeaderComponents}
         />
       </Flex>
     </Flex>

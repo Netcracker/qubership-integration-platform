@@ -57,7 +57,12 @@ type TestTableProps = {
   disabled?: boolean;
 };
 
-function TestTable({ items, onMoveChain, onMoveFolder, disabled }: TestTableProps) {
+function TestTable({
+  items,
+  onMoveChain,
+  onMoveFolder,
+  disabled,
+}: TestTableProps) {
   const { draggedItemId, dropTargetId, onRow } = useTableDragDrop({
     tableItems: items,
     onMoveChain,
@@ -118,9 +123,6 @@ describe("Table Drag & Drop integration", () => {
       }
     });
   });
-
-
-
 
   it("rows have draggable='true'", () => {
     render(

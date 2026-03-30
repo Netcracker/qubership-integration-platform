@@ -67,9 +67,7 @@ const ChainPage = () => {
       .reverse()
       .map(([key, value], index, arr) => ({
         title:
-          index < arr.length - 1
-            ? link(`/chains?folder=${key}`, value)
-            : value,
+          index < arr.length - 1 ? link(`/chains?folder=${key}`, value) : value,
       }));
 
     setPathItems([
@@ -78,10 +76,7 @@ const ChainPage = () => {
       ...(sessionId
         ? [
             {
-              title: link(
-                `/chains/${chainId}/sessions`,
-                "Sessions",
-              ),
+              title: link(`/chains/${chainId}/sessions`, "Sessions"),
             },
             { title: sessionId },
           ]

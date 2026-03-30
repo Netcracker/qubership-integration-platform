@@ -16,6 +16,10 @@ jest.mock("../../../../src/api/api", () => ({
   api: mockApi,
 }));
 
+jest.mock("antd", () =>
+  require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
+);
+
 import React from "react";
 import "@testing-library/jest-dom";
 import {
@@ -27,6 +31,7 @@ import {
 } from "@testing-library/react";
 import { SecuredVariables } from "../../../../src/components/admin_tools/variables/SecuredVariables";
 import { ProtectedButtonProps } from "../../../../src/permissions/ProtectedButton";
+import * as downloadUtils from "../../../../src/misc/download-utils";
 
 // Mock CSS modules
 jest.mock(
@@ -126,9 +131,16 @@ jest.mock("../../../../src/components/LongActionButton", () => ({
 }));
 
 jest.mock("../../../../src/permissions/ProtectedButton", () => ({
-  ProtectedButton: ({ buttonProps, tooltipProps }: ProtectedButtonProps) => (
-    <button data-testid={tooltipProps.title} {...buttonProps} />
-  ),
+  ProtectedButton: ({ buttonProps, tooltipProps }: ProtectedButtonProps) => {
+    const { iconName: _icon, icon: _iconNode, ...rest } = buttonProps;
+    return (
+      <button
+        type="button"
+        data-testid={String(tooltipProps.title)}
+        {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
+      />
+    );
+  },
 }));
 
 jest.mock("../../../../src/permissions/Require", () => ({
@@ -214,37 +226,53 @@ describe("SecuredVariables Component", () => {
     it("loads and displays secrets on mount", async () => {
       render(<SecuredVariables />);
 
-      await waitFor(() => {
-        expect(mockApi.getSecuredVariables).toHaveBeenCalledTimes(1);
-        expect(screen.getByText("default-secret")).toBeInTheDocument();
-        expect(screen.getByText("app-secret")).toBeInTheDocument();
-      });
+      await screen.findByText("default-secret");
+      await screen.findByText("app-secret");
+      expect(mockApi.getSecuredVariables).toHaveBeenCalledTimes(1);
     });
 
     it('marks the default secret with a "default" tag', async () => {
       render(<SecuredVariables />);
 
-      await waitFor(() => {
-        const defaultSecretRow = screen
-          .getByText("default-secret")
-          .closest("tr");
-        expect(
-          within(defaultSecretRow!).getByText("default"),
-        ).toBeInTheDocument();
-      });
+      await screen.findByText("default-secret");
+      const defaultSecretRow = screen.getByText("default-secret").closest("tr");
+      expect(
+        within(defaultSecretRow!).getByText("default"),
+      ).toBeInTheDocument();
     });
 
     it("displays variables table when secret row is expanded", async () => {
       render(<SecuredVariables />);
 
-      await waitFor(() => screen.getByText("default-secret"));
+      await screen.findByText("default-secret");
 
-      const expandButton = getExpandButtonOnDefaultSecret();
-      expandButton.click();
+      getExpandButtonOnDefaultSecret().click();
 
+      await screen.findByTestId("variables-table");
+      expect(screen.getByTestId("variables-count")).toHaveTextContent("2");
+    });
+
+    it("exports Helm chart for default secret via downloadHelmChart and downloadFile", async () => {
+      render(<SecuredVariables />);
+      await screen.findByText("default-secret");
+      const row = screen.getByText("default-secret").closest("tr");
+      expect(row).toBeTruthy();
+      fireEvent.click(within(row!).getByTestId("long-action-button"));
       await waitFor(() => {
-        expect(screen.getByTestId("variables-table")).toBeInTheDocument();
-        expect(screen.getByTestId("variables-count")).toHaveTextContent("2");
+        expect(mockApi.downloadHelmChart).toHaveBeenCalledWith("default-secret");
+        expect(downloadUtils.downloadFile).toHaveBeenCalled();
+      });
+    });
+
+    it("enables adding new variable when Add variable is clicked on secret row", async () => {
+      render(<SecuredVariables />);
+      await screen.findByText("default-secret");
+      fireEvent.click(getExpandButtonOnDefaultSecret());
+      await screen.findByTestId("variables-table");
+      const row = screen.getByText("default-secret").closest("tr");
+      fireEvent.click(within(row!).getByTestId("Add variable"));
+      await waitFor(() => {
+        expect(screen.getByTestId("is-adding-new")).toHaveTextContent("true");
       });
     });
   });
@@ -253,31 +281,27 @@ describe("SecuredVariables Component", () => {
     it('opens create secret modal when "Create Secret" button is clicked', async () => {
       render(<SecuredVariables />);
 
-      await waitFor(() => screen.getByText("Secured Variables"));
+      expect(screen.getByText("Secured Variables")).toBeInTheDocument();
 
       const createButton = screen.getByTestId("Add secret");
       fireEvent.click(createButton);
 
-      await waitFor(() => {
-        expect(screen.getByRole("textbox")).toBeInTheDocument();
-      });
+      expect(
+        await screen.findByPlaceholderText("e.g., my-secret"),
+      ).toBeInTheDocument();
     });
 
     it("creates a new secret successfully", async () => {
       render(<SecuredVariables />);
 
-      await waitFor(() => screen.getByText("Secured Variables"));
+      expect(screen.getByText("Secured Variables")).toBeInTheDocument();
 
       const createButton = screen.getByTestId("Add secret");
       fireEvent.click(createButton);
 
-      await waitFor(() => {
-        const input = screen.getByRole("textbox");
-        fireEvent.change(input, { target: { value: "new-secret" } });
-
-        const submitButton = screen.getByRole("button", { name: /create/i });
-        fireEvent.click(submitButton);
-      });
+      const nameInput = await screen.findByPlaceholderText("e.g., my-secret");
+      fireEvent.change(nameInput, { target: { value: "new-secret" } });
+      fireEvent.click(screen.getByRole("button", { name: /create/i }));
 
       await waitFor(() => {
         expect(mockApi.createSecret).toHaveBeenCalledWith("new-secret");
@@ -286,44 +310,47 @@ describe("SecuredVariables Component", () => {
     });
 
     it("handles secret creation failure with notification", async () => {
+      const consoleErrorSpy = jest
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
       mockApi.createSecret.mockResolvedValue({
         success: false,
         error: { responseBody: { errorMessage: "Secret already exists" } },
       });
 
-      render(<SecuredVariables />);
+      try {
+        render(<SecuredVariables />);
 
-      await waitFor(() => screen.getByText("Secured Variables"));
+        expect(screen.getByText("Secured Variables")).toBeInTheDocument();
 
-      const createButton = screen.getByTestId("Add secret");
-      fireEvent.click(createButton);
+        const createButton = screen.getByTestId("Add secret");
+        fireEvent.click(createButton);
 
-      await waitFor(() => {
-        const input = screen.getByRole("textbox");
-        fireEvent.change(input, { target: { value: "duplicate-secret" } });
+        const nameInput = await screen.findByPlaceholderText("e.g., my-secret");
+        fireEvent.change(nameInput, { target: { value: "duplicate-secret" } });
+        fireEvent.click(screen.getByRole("button", { name: /create/i }));
 
-        const submitButton = screen.getByRole("button", { name: /create/i });
-        fireEvent.click(submitButton);
-      });
-
-      await waitFor(() => {
-        expect(mockNotificationService.requestFailed).toHaveBeenCalledWith(
-          "Secret already exists",
-          null,
+        await waitFor(() =>
+          expect(mockNotificationService.requestFailed).toHaveBeenCalledWith(
+            "Secret already exists",
+            null,
+          ),
         );
-      });
+      } finally {
+        consoleErrorSpy.mockRestore();
+      }
     });
   });
 
   describe("Variable Management", () => {
     beforeEach(async () => {
       render(<SecuredVariables />);
-      await waitFor(() => screen.getByText("default-secret"));
+      await screen.findByText("default-secret");
 
-      // Expand the default secret row
       const expandButton = getExpandButtonOnDefaultSecret();
       fireEvent.click(expandButton);
-      await waitFor(() => screen.getByTestId("variables-table"));
+      await screen.findByTestId("variables-table");
     });
 
     it("adds a new variable to a secret", async () => {
@@ -391,9 +418,22 @@ describe("SecuredVariables Component", () => {
 });
 
 function getExpandButtonOnDefaultSecret() {
-  const allButtons = screen.getAllByRole("button");
-
-  return allButtons.find((button) =>
-    button.closest(".ant-table-row-expand-icon-cell"),
-  )!;
+  const row = screen.getByText("default-secret").closest("tr");
+  if (!row) {
+    throw new Error("default-secret row not found");
+  }
+  const fromAntCell = row.querySelector(
+    ".ant-table-row-expand-icon-cell button",
+  ) as HTMLButtonElement | null;
+  if (fromAntCell) {
+    return fromAntCell;
+  }
+  const icon =
+    within(row).queryByTestId("icon-right") ??
+    within(row).queryByTestId("icon-down");
+  const btn = icon?.closest("button");
+  if (!btn) {
+    throw new Error("expand button not found for default-secret row");
+  }
+  return btn as HTMLButtonElement;
 }

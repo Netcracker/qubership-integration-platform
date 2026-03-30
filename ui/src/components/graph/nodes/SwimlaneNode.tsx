@@ -25,25 +25,27 @@ export const SwimlaneNode: React.FC<NodeProps<ChainGraphNode>> = ({
 
   return (
     <ContainerNodeBase
-      header={<Flex
-        style={{
-          padding: 8,
-          backgroundColor: color,
-        }}
-      >
-        <EllipsisLabel
-          text={trimmedLabel}
+      header={
+        <Flex
           style={{
-            minWidth: 0,
-            writingMode:
-              data.direction === "RIGHT" ? "sideways-lr" : "horizontal-tb",
-            display: "block",
+            padding: 8,
+            backgroundColor: color,
           }}
-        />
-      </Flex>}
+        >
+          <EllipsisLabel
+            text={trimmedLabel}
+            style={{
+              minWidth: 0,
+              writingMode:
+                data.direction === "RIGHT" ? "sideways-lr" : "horizontal-tb",
+              display: "block",
+            }}
+          />
+        </Flex>
+      }
       color={color}
       direction={data.direction}
-      {...{data, ...rest}}
+      {...{ data, ...rest }}
     />
   );
 };

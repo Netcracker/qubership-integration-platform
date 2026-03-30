@@ -391,7 +391,7 @@ function autoLayout(
   reactFlow: ReturnType<typeof useReactFlow>,
   direction: ElkDirection,
 ): void {
-  const nodes = reactFlow.getNodes().map(node => {
+  const nodes = reactFlow.getNodes().map((node) => {
     const bounds = reactFlow.getNodesBounds([node]);
     return { ...node, width: bounds.width, height: bounds.height };
   });

@@ -45,6 +45,31 @@
   opacity: 0.9;
 }
 
+:global([data-theme="dark"]) .modal-title-type,
+:global(.vscode-webview[data-theme="dark"]) .modal-title-type,
+:global([data-theme="high-contrast"]) .modal-title-type,
+:global(.vscode-webview[data-theme="high-contrast"]) .modal-title-type {
+  background: rgb(255 255 255 / 24%);
+}
+
+.modal-title-with-help {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.type-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.modal-header-help-btn {
+  flex-shrink: 0;
+}
+
 .modal-header {
   background: var(--vscode-modal-background, var(--vscode-panel-background));
   color: var(--vscode-modal-foreground, var(--vscode-foreground));
