@@ -105,7 +105,6 @@ import {
   BulbOutlined,
   BarChartOutlined,
   ToolOutlined,
-  RightSquareOutlined,
   MenuUnfoldOutlined,
   InfoCircleOutlined,
   HddOutlined,
@@ -114,7 +113,7 @@ import {
   ShrinkOutlined,
   ArrowsAltOutlined,
   CheckSquareOutlined,
-  WarningOutlined,
+  WarningOutlined, InsertRowRightOutlined, InsertRowLeftOutlined
 } from "@ant-design/icons";
 
 export const commonIcons = {
@@ -197,7 +196,8 @@ export const commonIcons = {
   bulb: BulbOutlined,
   barChart: BarChartOutlined,
   tool: ToolOutlined,
-  rightPanel: RightSquareOutlined,
+  rightPanel: InsertRowRightOutlined,
+  leftPanel: InsertRowLeftOutlined,
   block: BlockOutlined,
   menuUnfold: MenuUnfoldOutlined,
   info: InfoCircleOutlined,

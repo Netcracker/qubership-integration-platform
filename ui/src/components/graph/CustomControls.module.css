@@ -1,7 +1,7 @@
 .container {
   position: absolute;
-  left: 10px;
-  bottom: 10px;
+  left: 15px;
+  top: 15px;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -29,6 +29,11 @@
 
 .button:global(.ant-btn-text) {
   color: inherit;
+}
+
+.button[data-active="true"]:global(.ant-btn-text),
+.button[data-active="true"]:global(.ant-btn.ant-btn-icon-only) {
+  color: var(--vscode-button-background, #0078d4) !important;
 }
 
 .button + .button {

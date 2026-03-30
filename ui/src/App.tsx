@@ -62,20 +62,39 @@ import { UserPermissionsProvider } from "./permissions/UserPermissionsProvider.t
 import { Require } from "./permissions/Require.tsx";
 import { NotAuthorized } from "./permissions/NotAuthorized.tsx";
 import { ThemeContext, ThemeContextValue } from "./theme/context.tsx";
+import {
+  ChainFullscreenContextProvider,
+  useChainFullscreenContext,
+} from "./pages/ChainFullscreenContext.tsx";
 
 const { Header } = Layout;
 
 const RootLayout = () => {
   const themeContext = useContext(ThemeContext);
   return (
+    <ChainFullscreenContextProvider>
+      <RootLayoutInner themeContext={themeContext} />
+    </ChainFullscreenContextProvider>
+  );
+};
+
+const RootLayoutInner = ({
+  themeContext,
+}: {
+  themeContext: ThemeContextValue | null;
+}) => {
+  const fullscreenCtx = useChainFullscreenContext();
+  return (
     <Layout className={styles.layout}>
-      <Header className={styles.header}>
-        <Navigation
-          showThemeSwitcher={themeContext?.showThemeSwitcher ?? false}
-          currentTheme={themeContext?.theme}
-          onThemeChange={themeContext?.onThemeChange}
-        />
-      </Header>
+      {!fullscreenCtx?.fullscreen && (
+        <Header className={styles.header}>
+          <Navigation
+            showThemeSwitcher={themeContext?.showThemeSwitcher ?? false}
+            currentTheme={themeContext?.theme}
+            onThemeChange={themeContext?.onThemeChange}
+          />
+        </Header>
+      )}
       <Content className={styles.content}>
         <Outlet />
       </Content>

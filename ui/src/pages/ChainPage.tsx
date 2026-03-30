@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
 import {
+  type FC,
   type ReactNode,
   createContext,
   useCallback,
@@ -15,6 +16,7 @@ import { Chain } from "../api/apiTypes.ts";
 import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
+import { useChainFullscreenContext } from "./ChainFullscreenContext.tsx";
 
 export type ChainContextData = {
   chain: Chain | undefined;
@@ -157,55 +159,78 @@ const ChainPage = () => {
         }}
       >
         <Flex className={styles.stretched} gap={4} vertical>
-          {isVsCode ? (
-            <Tabs
-              activeKey={activeKey}
-              onChange={handleTabChange}
-              items={tabItems}
-              style={{ marginBottom: 0 }}
-              tabBarExtraContent={
-                <Flex
-                  gap={8}
-                  align="center"
-                  style={{ flexWrap: "wrap", minHeight: 32 }}
-                >
-                  {headerActions}
-                </Flex>
-              }
-            />
-          ) : (
-            <>
-              <Row
-                justify="space-between"
-                align="middle"
-                style={{ minHeight: 32 }}
-              >
-                <Col>
-                  <Breadcrumb items={pathItems} className={styles.breadcrumb} style={{ marginLeft: 8 }} />
-                </Col>
-                <Col>
-                  <Flex
-                    gap={8}
-                    align="center"
-                    style={{ flexWrap: "wrap", minHeight: 32 }}
-                  >
-                    {headerActions}
-                  </Flex>
-                </Col>
-              </Row>
-              <Tabs
-                activeKey={activeKey}
-                onChange={handleTabChange}
-                items={tabItems}
-              />
-            </>
-          )}
+          <ChainPageHeader
+            activeKey={activeKey}
+            tabItems={tabItems}
+            headerActions={headerActions}
+            pathItems={pathItems}
+            onTabChange={handleTabChange}
+          />
           <Flex className={styles.stretched}>
             <Outlet />
           </Flex>
         </Flex>
       </ChainContext.Provider>
     </ChainHeaderActionsContextProvider>
+  );
+};
+
+type ChainPageHeaderProps = {
+  activeKey: string;
+  tabItems: { key: string; label: string }[];
+  headerActions: ReactNode;
+  pathItems: BreadcrumbProps["items"];
+  onTabChange: (key: string) => void;
+};
+
+const ChainPageHeader: FC<ChainPageHeaderProps> = ({
+  activeKey,
+  tabItems,
+  headerActions,
+  pathItems,
+  onTabChange,
+}) => {
+  const fullscreenCtx = useChainFullscreenContext();
+  if (fullscreenCtx?.fullscreen) return null;
+
+  if (isVsCode) {
+    return (
+      <Tabs
+        activeKey={activeKey}
+        onChange={onTabChange}
+        items={tabItems}
+        style={{ marginBottom: 0 }}
+        tabBarExtraContent={
+          <Flex
+            gap={8}
+            align="center"
+            style={{ flexWrap: "wrap", minHeight: 32 }}
+          >
+            {headerActions}
+          </Flex>
+        }
+      />
+    );
+  }
+
+  return (
+    <>
+      <Row justify="space-between" align="middle" style={{ minHeight: 32 }}>
+        <Col>
+          <Breadcrumb items={pathItems} className={styles.breadcrumb} style={{ marginLeft: 8 }} />
+        </Col>
+        <Col>
+          <Flex
+            gap={8}
+            align="center"
+            style={{ flexWrap: "wrap", minHeight: 32 }}
+          >
+            {headerActions}
+          </Flex>
+        </Col>
+      </Row>
+      <Tabs activeKey={activeKey} onChange={onTabChange} items={tabItems} />
+    </>
   );
 };
 

@@ -177,7 +177,8 @@ const ChainGraphInner: React.FC = () => {
     [edges, decorativeEdges],
   );
 
-  const { rightPanel, toggleRightPanel } = useElkDirection();
+  const { leftPanel, toggleLeftPanel, rightPanel, toggleRightPanel } =
+    useElkDirection();
   const fitViewToElementIdRef = useRef<FitViewToElementIdFn | null>(null);
 
   const handleElementUpdated = useCallback(
@@ -463,7 +464,7 @@ const ChainGraphInner: React.FC = () => {
 
     const updateTheme = () => {
       const theme = readTheme();
-      if (!theme || typeof theme !== "string") return;
+      if (!theme) return;
       if (currentThemeRef.current === theme) {
         if (document.body.dataset.theme !== theme) {
           document.body.dataset.theme = theme;
@@ -562,8 +563,8 @@ const ChainGraphInner: React.FC = () => {
     async (changes: OnDeleteEvent) => {
       if (
         changes.nodes.length > 0 &&
-        (await nonEmptyContainerExists(changes.nodes as ChainGraphNode[]))
-        && (!isSwimlanesOnly(changes.nodes as ChainGraphNode[]))
+        (await nonEmptyContainerExists(changes.nodes as ChainGraphNode[])) &&
+        !isSwimlanesOnly(changes.nodes as ChainGraphNode[])
       ) {
         Modal.confirm({
           title: "Delete Container",
@@ -581,21 +582,27 @@ const ChainGraphInner: React.FC = () => {
   return (
     <Flex className={styles["graph-wrapper"]}>
       <Require permissions={{ chain: ["update"] }}>
-        <ElementsLibrarySidebar width={leftPanelWidth} />
-        <PanelResizeHandle
-          direction="left"
-          onResize={(delta) =>
-            setLeftPanelWidth((w) =>
-              clamp(w + delta, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH),
-            )
-          }
-        />
+        {leftPanel && (
+          <>
+            <ElementsLibrarySidebar width={leftPanelWidth} />
+            <PanelResizeHandle
+              direction="left"
+              onResize={(delta) =>
+                setLeftPanelWidth((w) =>
+                  clamp(w + delta, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH),
+                )
+              }
+            />
+          </>
+        )}
       </Require>
       <div className="react-flow-container" ref={reactFlowWrapper}>
         <ElkDirectionContextProvider
           elkDirectionControl={{
             direction,
             toggleDirection,
+            leftPanel,
+            toggleLeftPanel,
             rightPanel,
             toggleRightPanel,
           }}
@@ -666,6 +673,7 @@ const ChainGraphInner: React.FC = () => {
                     nodeStrokeWidth={2}
                   />
                   <CustomControls
+                    showLeftPanelToggle={!readOnly}
                     onExpandAllContainers={expandAllContainers}
                     onCollapseAllContainers={collapseAllContainers}
                   />

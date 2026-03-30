@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-/* eslint-disable @typescript-eslint/no-require-imports -- jest mock requires dynamic require */
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
@@ -91,9 +90,12 @@ jest.mock("../../src/hooks/graph/useChainGraph", () => ({
   }),
 }));
 
+let mockLeftPanel = true;
 let mockRightPanel = false;
 jest.mock("../../src/hooks/graph/useElkDirection", () => ({
   useElkDirection: () => ({
+    leftPanel: mockLeftPanel,
+    toggleLeftPanel: jest.fn(),
     rightPanel: mockRightPanel,
     toggleRightPanel: jest.fn(),
   }),
@@ -172,6 +174,18 @@ jest.mock("../../src/pages/ElkDirectionContext", () => ({
   }) => <>{children}</>,
 }));
 
+jest.mock("../../src/pages/ChainFullscreenContext", () => ({
+  ChainFullscreenContextProvider: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => <>{children}</>,
+  useChainFullscreenContext: () => ({
+    fullscreen: false,
+    toggleFullscreen: jest.fn(),
+  }),
+}));
+
 jest.mock("../../src/pages/PageWithRightPanel", () => ({
   PageWithRightPanel: () => <div data-testid="page-with-right-panel" />,
 }));
@@ -203,20 +217,19 @@ jest.mock("../../src/components/graph/ContextMenu", () => ({
   default: () => null,
 }));
 
-jest.mock("../../src/pages/ChainPage", () => {
-  const React = require("react");
-  return {
-    ChainContext: React.createContext({
-      chain: undefined,
-      refresh: jest.fn(),
-      update: jest.fn(),
-    }),
-  };
-});
+jest.mock("../../src/pages/ChainPage", () => ({
+  ChainContext: React.createContext({
+    chain: undefined,
+    refresh: jest.fn(),
+    update: jest.fn(),
+  }),
+}));
 
 describe("ChainGraph", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockLeftPanel = true;
+    mockRightPanel = false;
     document.body.setAttribute("data-theme", "light");
   });
 
@@ -239,6 +252,13 @@ describe("ChainGraph", () => {
     mockRightPanel = true;
     render(<ChainGraph />);
     expect(screen.getByTestId("page-with-right-panel")).toBeInTheDocument();
-    mockRightPanel = false;
+  });
+
+  it("hides ElementsLibrarySidebar when leftPanel is false", () => {
+    mockLeftPanel = false;
+    render(<ChainGraph />);
+    expect(
+      screen.queryByTestId("elements-library-sidebar"),
+    ).not.toBeInTheDocument();
   });
 });
