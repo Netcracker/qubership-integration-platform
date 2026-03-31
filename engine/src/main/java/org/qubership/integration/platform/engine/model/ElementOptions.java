@@ -38,6 +38,7 @@ public class ElementOptions {
     // pubsub
     public static final String PROJECT_ID = "projectId";
     public static final String DESTINATION_NAME = "destinationName";
+    public static final String SERVICE_ACCOUNT_KEY = "serviceAccountKey";
 
     public static final String CONNECTION_SOURCE_TYPE_PROP = "connectionSourceType";
 

@@ -16,10 +16,12 @@
 
 package org.qubership.integration.platform.engine.kubernetes;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
-import io.kubernetes.client.openapi.apis.AppsV1Api;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
+import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1SecretList;
@@ -38,28 +40,31 @@ public class KubeOperator {
 
     private static final String DEFAULT_ERR_MESSAGE = "Invalid k8s cluster parameters or API error. ";
 
+    private final ObjectMapper objectMapper;
     private final CoreV1Api coreApi;
-    private final AppsV1Api appsApi;
+    private final CustomObjectsApi customObjectsApi;
 
     private final String namespace;
     private final Boolean devmode;
 
-    public KubeOperator() {
+    public KubeOperator(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
         coreApi = new CoreV1Api();
-        appsApi = new AppsV1Api();
+        customObjectsApi = new CustomObjectsApi();
         namespace = null;
         devmode = null;
     }
 
-    public KubeOperator(ApiClient client,
-        String namespace,
-        Boolean devmode) {
+    public KubeOperator(
+            ObjectMapper objectMapper,
+            ApiClient client,
+            String namespace,
+            Boolean devmode
+    ) {
+        this.objectMapper = objectMapper;
+        coreApi = new CoreV1Api(client);
 
-        coreApi = new CoreV1Api();
-        coreApi.setApiClient(client);
-
-        appsApi = new AppsV1Api();
-        appsApi.setApiClient(client);
+        customObjectsApi = new CustomObjectsApi(client);
 
         this.namespace = namespace;
         this.devmode = devmode;
@@ -114,7 +119,79 @@ public class KubeOperator {
         return secrets;
     }
 
+    public void createOrReplaceCustomObject(KubeCustomObjectRequest request) {
+        String resourceVersion = getCustomObjectResourceVersion(request);
+        try {
+            if (resourceVersion != null) {
+                request.getBody().getMetadata().setResourceVersion(resourceVersion);
+                customObjectsApi.replaceNamespacedCustomObject(
+                        request.getGroup(),
+                        request.getVersion(),
+                        namespace,
+                        request.getResourceNamePlural(),
+                        request.getBody().getMetadata().getName(),
+                        request.getBody(),
+                        null,
+                        null
+                );
+            } else {
+                customObjectsApi.createNamespacedCustomObject(
+                        request.getGroup(),
+                        request.getVersion(),
+                        namespace,
+                        request.getResourceNamePlural(),
+                        request.getBody(),
+                        null,
+                        null,
+                        null
+                );
+            }
+        } catch (ApiException e) {
+            if (e.getCode() != 404) {
+                if (!isDevmode()) {
+                    log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+                }
+                throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+            }
+        } catch (Exception e) {
+            if (!isDevmode()) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
+        }
+    }
+
     public Boolean isDevmode() {
         return devmode;
+    }
+
+    private String getCustomObjectResourceVersion(KubeCustomObjectRequest request) {
+        try {
+            Object response = customObjectsApi.getNamespacedCustomObject(
+                    request.getGroup(),
+                    request.getVersion(),
+                    namespace,
+                    request.getResourceNamePlural(),
+                    request.getBody().getMetadata().getName()
+            );
+
+            JsonNode responseNode = objectMapper.convertValue(response, JsonNode.class);
+            JsonNode resourceVersion = responseNode.path("metadata").path("resourceVersion");
+            return resourceVersion.isMissingNode() || resourceVersion.isNull() ? null : resourceVersion.asText();
+        } catch (ApiException e) {
+            if (e.getCode() == 404) {
+                return null;
+            } else {
+                if (!isDevmode()) {
+                    log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+                }
+                throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+            }
+        } catch (Exception e) {
+            if (!isDevmode()) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
+        }
     }
 }

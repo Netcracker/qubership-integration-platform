@@ -4,7 +4,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.qubership.integration.platform.engine.kafka.DefaultOpenSearchKafkaProducer;
 import org.qubership.integration.platform.engine.kafka.OpenSearchKafkaProducer;
-import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
+import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -42,7 +42,7 @@ public class OpenSearchStandaloneKafkaAutoConfiguration {
         );
     }
 
-    private ProducerFactory<String, KafkaQueueElement> openSearchProducerFactory() {
+    private ProducerFactory<String, SessionElementElastic> openSearchProducerFactory() {
         Map<String, Object> configProps = new HashMap<>();
 
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaClientBootstrapServers);

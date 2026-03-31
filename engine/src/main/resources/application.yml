@@ -210,6 +210,8 @@ qip:
         predeploy-check-enabled: ${CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED:true}
       rabbitmq:
         predeploy-check-enabled: ${CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED:true}
+      pubsub:
+        predeploy-check-enabled: ${CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED:true}
   deployments:
     retry-delay: 30000
     thread-pool:
@@ -309,3 +311,8 @@ kubernetes:
   variables-secret:
     name: ${app.prefix}-secured-variables-v2
     label: ${app.prefix}-variable-type
+
+springdoc:
+  swagger-ui:
+    tagsSorter: alpha
+    operationsSorter: alpha

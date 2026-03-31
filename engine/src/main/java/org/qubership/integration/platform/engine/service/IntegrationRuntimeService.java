@@ -42,7 +42,6 @@ import org.qubership.integration.platform.engine.camel.history.FilteringMessageH
 import org.qubership.integration.platform.engine.cloudcore.maas.MaasService;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
-import org.qubership.integration.platform.engine.configuration.camel.CamelContextProperties;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
 import org.qubership.integration.platform.engine.consul.EngineStateReporter;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
@@ -103,6 +102,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger log = ExtendedErrorLoggerFactory.getLogger(IntegrationRuntimeService.class);
 
+    public static final Integer TRUNCATED_MESSAGE_SIZE = 500 * 1024;
+
     private final ServerConfiguration serverConfiguration;
     private final QuartzSchedulerService quartzSchedulerService;
     private final TracingConfiguration tracingConfiguration;
@@ -139,7 +140,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private boolean enableStreamCaching;
 
     private final int streamCachingBufferSize;
-    private final CamelContextProperties camelContextProperties;
 
     @Autowired
     public IntegrationRuntimeService(ServerConfiguration serverConfiguration,
@@ -162,8 +162,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         FormDataConverter formDataConverter,
         SecurityAccessPolicyConverter securityAccessPolicyConverter,
         ObjectFactory<CamelDebugger> camelDebuggerFactory,
-        @Qualifier("camelObservationTracer") ObjectFactory<MicrometerObservationTracer> tracerFactory,
-        CamelContextProperties camelContextProperties
+        @Qualifier("camelObservationTracer") ObjectFactory<MicrometerObservationTracer> tracerFactory
+
     ) {
         this.serverConfiguration = serverConfiguration;
         this.quartzSchedulerService = quartzSchedulerService;
@@ -186,7 +186,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         this.securityAccessPolicyConverter = securityAccessPolicyConverter;
         this.camelDebuggerFactory = camelDebuggerFactory;
         this.tracerFactory = tracerFactory;
-        this.camelContextProperties = camelContextProperties;
     }
 
     @Override
@@ -358,7 +357,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                         if (isNull(exception)) {
                             removeOldDeployments(deployment, deploymentStatus -> true);
                         } else {
-                            stateBuilder.errorMessage(exception.getMessage());
+                            String truncatedMessage = exception.getMessage();
+                            if (truncatedMessage != null && truncatedMessage.length() > TRUNCATED_MESSAGE_SIZE) {
+                                truncatedMessage = truncatedMessage.substring(0, TRUNCATED_MESSAGE_SIZE) + "... [truncated]";
+                            }
+                            stateBuilder.errorMessage(truncatedMessage);
 
                             log.error(chainErrorCode, "Failed to deploy chain {} with id {}. Deployment: {}",
                                     deployment.getDeploymentInfo().getChainName(), chainId, deploymentId, exception);
@@ -549,7 +552,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         String configurationXml
     ) throws Exception {
         SpringCamelContext context = new SpringCamelContext(applicationContext);
-        context.getGlobalOptions().putAll(camelContextProperties.getGlobalOptions());
+
         context.getTypeConverterRegistry().addTypeConverter(
             FormData.class,
             String.class,
