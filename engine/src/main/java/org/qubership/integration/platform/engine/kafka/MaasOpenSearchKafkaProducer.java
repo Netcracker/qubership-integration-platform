@@ -3,7 +3,7 @@ package org.qubership.integration.platform.engine.kafka;
 import com.netcracker.maas.declarative.kafka.client.api.MaasKafkaProducer;
 import com.netcracker.maas.declarative.kafka.client.api.model.MaasProducerRecord;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
+import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 
 import java.util.Date;
 
@@ -17,12 +17,12 @@ public class MaasOpenSearchKafkaProducer implements OpenSearchKafkaProducer {
     }
 
     @Override
-    public void send(String key, KafkaQueueElement kafkaQueueElement) {
+    public void send(String key, SessionElementElastic sessionElementElastic) {
         try {
-            MaasProducerRecord<String, KafkaQueueElement> record = new MaasProducerRecord<>(
+            MaasProducerRecord<String, SessionElementElastic> record = new MaasProducerRecord<>(
                     null,
                     key,
-                    kafkaQueueElement,
+                    sessionElementElastic,
                     new Date().getTime(),
                     null
             );
