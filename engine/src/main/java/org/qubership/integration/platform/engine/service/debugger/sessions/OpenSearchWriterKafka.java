@@ -19,7 +19,6 @@ package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.kafka.OpenSearchKafkaProducer;
-import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -38,11 +37,7 @@ public class OpenSearchWriterKafka extends OpenSearchWriter {
     }
 
     private void sendToKafka(SessionElementElastic element) {
-        KafkaQueueElement kafkaQueueElement = KafkaQueueElement.builder()
-                .id(element.getId())
-                .source(element)
-                .build();
-        openSearchKafkaProducer.send(element.getId(), kafkaQueueElement);
+        openSearchKafkaProducer.send(element.getId(), element);
     }
 
     @Override

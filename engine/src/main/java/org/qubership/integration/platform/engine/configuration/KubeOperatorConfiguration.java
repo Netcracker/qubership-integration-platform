@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.util.ClientBuilder;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
@@ -64,7 +65,7 @@ public class KubeOperatorConfiguration {
      */
     @Bean
     @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "false", matchIfMissing = true)
-    public KubeOperator kubeOperator() {
+    public KubeOperator kubeOperator(ObjectMapper objectMapper) {
         try {
             log.info("Creating KubernetesOperator bean in PROD mode");
 
@@ -75,10 +76,10 @@ public class KubeOperatorConfiguration {
                     .setAuthentication(new TokenFileAuthentication(tokenFilePath))
                     .build();
 
-            return new KubeOperator(client, namespace, false);
+            return new KubeOperator(objectMapper, client, namespace, false);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
-            return new KubeOperator();
+            return new KubeOperator(objectMapper);
         }
     }
 
@@ -88,7 +89,7 @@ public class KubeOperatorConfiguration {
      */
     @Bean
     @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "true")
-    public KubeOperator kubeOperatorDev() {
+    public KubeOperator kubeOperatorDev(ObjectMapper objectMapper) {
         try {
             log.info("Creating KubernetesOperator bean in DEV mode");
 
@@ -98,10 +99,10 @@ public class KubeOperatorConfiguration {
                     .setAuthentication(new AccessTokenAuthentication(devToken))
                     .build();
 
-            return new KubeOperator(client, namespace, true);
+            return new KubeOperator(objectMapper, client, namespace, true);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
-            return new KubeOperator();
+            return new KubeOperator(objectMapper);
         }
     }
 }
