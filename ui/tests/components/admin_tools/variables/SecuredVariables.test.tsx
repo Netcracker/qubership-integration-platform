@@ -259,7 +259,9 @@ describe("SecuredVariables Component", () => {
       expect(row).toBeTruthy();
       fireEvent.click(within(row!).getByTestId("long-action-button"));
       await waitFor(() => {
-        expect(mockApi.downloadHelmChart).toHaveBeenCalledWith("default-secret");
+        expect(mockApi.downloadHelmChart).toHaveBeenCalledWith(
+          "default-secret",
+        );
         expect(downloadUtils.downloadFile).toHaveBeenCalled();
       });
     });
@@ -301,7 +303,7 @@ describe("SecuredVariables Component", () => {
 
       const nameInput = await screen.findByPlaceholderText("e.g., my-secret");
       fireEvent.change(nameInput, { target: { value: "new-secret" } });
-      fireEvent.click(screen.getByRole("button", { name: /create/i }));
+      fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
       await waitFor(() => {
         expect(mockApi.createSecret).toHaveBeenCalledWith("new-secret");
@@ -329,7 +331,7 @@ describe("SecuredVariables Component", () => {
 
         const nameInput = await screen.findByPlaceholderText("e.g., my-secret");
         fireEvent.change(nameInput, { target: { value: "duplicate-secret" } });
-        fireEvent.click(screen.getByRole("button", { name: /create/i }));
+        fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
         await waitFor(() =>
           expect(mockNotificationService.requestFailed).toHaveBeenCalledWith(
@@ -340,6 +342,47 @@ describe("SecuredVariables Component", () => {
       } finally {
         consoleErrorSpy.mockRestore();
       }
+    });
+
+    it("Cancel clears secret name when modal is reopened", async () => {
+      render(<SecuredVariables />);
+
+      await screen.findByText("Secured Variables");
+      fireEvent.click(screen.getByTestId("Add secret"));
+
+      const dialog = await screen.findByRole("dialog");
+      const nameInput = within(dialog).getByPlaceholderText("e.g., my-secret");
+      fireEvent.change(nameInput, { target: { value: "tmp-secret" } });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: /^cancel$/i }),
+      );
+
+      fireEvent.click(screen.getByTestId("Add secret"));
+      const dialog2 = await screen.findByRole("dialog");
+      expect(
+        within(dialog2).getByPlaceholderText("e.g., my-secret"),
+      ).toHaveValue("");
+    });
+
+    it("Modal close icon resets secret name when reopened", async () => {
+      render(<SecuredVariables />);
+
+      await screen.findByText("Secured Variables");
+      fireEvent.click(screen.getByTestId("Add secret"));
+
+      const dialog = await screen.findByRole("dialog");
+      const nameInput = within(dialog).getByPlaceholderText("e.g., my-secret");
+      fireEvent.change(nameInput, { target: { value: "x-secret" } });
+
+      const closeIcon = dialog.querySelector(".ant-modal-close");
+      expect(closeIcon).toBeTruthy();
+      fireEvent.click(closeIcon as Element);
+
+      fireEvent.click(screen.getByTestId("Add secret"));
+      const dialog2 = await screen.findByRole("dialog");
+      expect(
+        within(dialog2).getByPlaceholderText("e.g., my-secret"),
+      ).toHaveValue("");
     });
   });
 

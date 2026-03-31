@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Flex, message, Table } from "antd";
+import { Button, Flex, message, Table, Tooltip } from "antd";
 import { useNavigate, useParams } from "react-router";
 import { TableProps } from "antd/lib/table";
 import {
@@ -54,6 +54,7 @@ import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
 import {
@@ -588,6 +589,11 @@ export const Sessions: React.FC = () => {
     await retrySessions(selectedSessions, notificationService);
   };
 
+  const onRefreshSessions = useCallback(() => {
+    setSelectedRowKeys([]);
+    void fetchSessions(0);
+  }, [fetchSessions]);
+
   const rowSelection: TableRowSelection<SessionTableItem> = {
     type: "checkbox",
     selectedRowKeys,
@@ -616,12 +622,21 @@ export const Sessions: React.FC = () => {
               }
               placeholder="Search sessions..."
               allowClear
-              className={commonStyles.searchField as string}
+              className={commonStyles.searchField}
             />
           }
           trailing={
             <Flex align="center" gap={8} wrap="wrap">
               {columnSettingsButton}
+              <Tooltip title="Refresh" placement="bottom">
+                <Button
+                  data-testid="sessions-refresh"
+                  icon={<OverridableIcon name="refresh" />}
+                  onClick={() => onRefreshSessions()}
+                >
+                  Refresh
+                </Button>
+              </Tooltip>
               <ProtectedButton
                 require={{ session: ["delete"] }}
                 tooltipProps={{ title: "Delete selected sessions" }}

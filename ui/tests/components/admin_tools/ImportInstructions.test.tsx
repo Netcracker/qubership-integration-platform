@@ -2,14 +2,7 @@
  * @jest-environment jsdom
  */
 import React, { PropsWithChildren } from "react";
-import {
-  render,
-  screen,
-  fireEvent,
-  within,
-  act,
-  waitFor,
-} from "@testing-library/react";
+import { render, screen, fireEvent, within, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { Modal } from "antd";
 import type { GeneralImportInstructions } from "../../../src";
@@ -56,15 +49,18 @@ jest.mock("antd", () =>
   require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
 );
 
-jest.mock("../../../src/components/admin_tools/importInstructionsHandlers.ts", () => {
-  const actual = jest.requireActual(
-    "../../../src/components/admin_tools/importInstructionsHandlers.ts",
-  ) as Record<string, unknown>;
-  return {
-    ...actual,
-    uploadImportInstructionsFile: jest.fn(),
-  };
-});
+jest.mock(
+  "../../../src/components/admin_tools/importInstructionsHandlers.ts",
+  () => {
+    const actual = jest.requireActual(
+      "../../../src/components/admin_tools/importInstructionsHandlers.ts",
+    ) as Record<string, unknown>;
+    return {
+      ...actual,
+      uploadImportInstructionsFile: jest.fn(),
+    };
+  },
+);
 
 jest.mock("antd/es/upload/Dragger", () => ({
   __esModule: true,
@@ -179,6 +175,12 @@ async function flushPromises(): Promise<void> {
   await act(async () => {
     await Promise.resolve();
   });
+}
+
+/** Ant Design Form + async handlers often need more than one microtask tick (esp. under load / coverage). */
+async function flushMicrotasks(): Promise<void> {
+  await flushPromises();
+  await flushPromises();
 }
 
 describe("ImportInstructions", () => {
@@ -334,6 +336,51 @@ describe("ImportInstructions", () => {
     expect(within(dialog).getByPlaceholderText("Enter id")).toBeInTheDocument();
   });
 
+  it("Add Instruction modal footer shows Save", async () => {
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+
+    await flushPromises();
+    const addButton = screen
+      .getAllByRole("button", { name: /^add$/i })
+      .find((b) => !b.closest('[role="dialog"]'));
+    expect(addButton).toBeDefined();
+    fireEvent.click(addButton!);
+
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByRole("button", { name: /^save$/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("Add Instruction Save calls addImportInstruction with trimmed id", async () => {
+    mockApi.addImportInstruction.mockResolvedValue(undefined);
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+
+    await flushPromises();
+    const addButton = screen
+      .getAllByRole("button", { name: /^add$/i })
+      .find((b) => !b.closest('[role="dialog"]'));
+    expect(addButton).toBeDefined();
+    fireEvent.click(addButton!);
+
+    const dialog = screen.getByRole("dialog");
+    await act(async () => {
+      fireEvent.change(within(dialog).getByPlaceholderText("Enter id"), {
+        target: { value: "  new-rule-id  " },
+      });
+      await flushMicrotasks();
+      fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+      await flushMicrotasks();
+    });
+
+    expect(mockApi.addImportInstruction).toHaveBeenCalledWith({
+      id: "new-rule-id",
+      entityType: ImportEntityType.CHAIN,
+      action: ImportInstructionAction.IGNORE,
+      overriddenBy: undefined,
+    });
+  });
+
   it("UploadInstructionsModal Upload button is disabled when no file selected", async () => {
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
@@ -377,10 +424,10 @@ describe("ImportInstructions", () => {
     expect(uploadButton).toBeDefined();
     fireEvent.click(uploadButton!);
 
+    await flushMicrotasks();
+
     const dialog = screen.getByRole("dialog");
-    await waitFor(() => {
-      expect(within(dialog).getByText("UploadedName")).toBeInTheDocument();
-    });
+    expect(within(dialog).getByText("UploadedName")).toBeInTheDocument();
     expect(
       within(dialog).getAllByRole("columnheader", { name: "Id" }).length,
     ).toBeGreaterThan(0);
@@ -518,12 +565,10 @@ describe("ImportInstructions", () => {
     mockApi.deleteImportInstructions.mockResolvedValue(undefined);
 
     jest.spyOn(Modal, "confirm").mockImplementation((props = {}) => {
-        const onOk = props.onOk as
-          | ((...args: unknown[]) => unknown)
-          | undefined;
-        if (onOk) onOk();
-        return { destroy: jest.fn(), update: jest.fn() };
-      });
+      const onOk = props.onOk as ((...args: unknown[]) => unknown) | undefined;
+      if (onOk) onOk();
+      return { destroy: jest.fn(), update: jest.fn() };
+    });
 
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
@@ -561,7 +606,6 @@ describe("ImportInstructions", () => {
     await flushPromises();
     expect(mockApi.getImportInstructions).toHaveBeenCalledTimes(2);
   });
-
 });
 
 describe("buildTableData", () => {

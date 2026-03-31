@@ -451,7 +451,7 @@ export const SecuredVariables: React.FC = () => {
             onChange={setSearchTerm}
             placeholder="Search secrets..."
             allowClear
-            className={commonStyles["searchField"] as string}
+            className={commonStyles["searchField"]}
           />
           <Flex vertical={false} gap={4}>
             <ProtectedButton
@@ -488,7 +488,10 @@ export const SecuredVariables: React.FC = () => {
       <Modal
         title="Create Secret"
         open={createModalVisible}
-        onCancel={() => setCreateModalVisible(false)}
+        onCancel={() => {
+          createForm.resetFields();
+          setCreateModalVisible(false);
+        }}
         footer={null}
       >
         <Form<{ secretName: string }>
@@ -502,7 +505,7 @@ export const SecuredVariables: React.FC = () => {
             rules={[
               {
                 required: true,
-                pattern: /^[a-z]+[-a-z0-9]*$/,
+                pattern: /^[a-z][-a-z0-9]*$/,
                 message:
                   'Please use lower case without special characters. If necessary, use "-" as a separator.',
               },
@@ -510,11 +513,20 @@ export const SecuredVariables: React.FC = () => {
           >
             <Input placeholder="e.g., my-secret" />
           </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block>
-              Create
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Button
+              size="middle"
+              onClick={() => {
+                createForm.resetFields();
+                setCreateModalVisible(false);
+              }}
+            >
+              Cancel
             </Button>
-          </Form.Item>
+            <Button type="primary" size="middle" htmlType="submit">
+              Save
+            </Button>
+          </div>
         </Form>
       </Modal>
 

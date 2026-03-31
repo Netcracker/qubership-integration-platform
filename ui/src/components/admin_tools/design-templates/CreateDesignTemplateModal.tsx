@@ -1,4 +1,4 @@
-import { Form, Input, Modal, UploadFile } from "antd";
+import { Button, Form, Input, Modal, UploadFile, message } from "antd";
 import React, { useState } from "react";
 import { useModalContext } from "../../../ModalContextProvider";
 import Dragger from "antd/es/upload/Dragger";
@@ -13,19 +13,28 @@ type CreateDesignTemplateModalProps = {
   onTemplateCreated: (template: DetailedDesignTemplate) => void;
 };
 
+type DesignTemplateFormValues = {
+  name: string;
+};
+
 export const CreateDesignTemplateModal: React.FC<
   CreateDesignTemplateModalProps
 > = ({ onTemplateCreated }) => {
   const notificationService = useNotificationService();
   const { closeContainingModal } = useModalContext();
+  const [form] = Form.useForm<DesignTemplateFormValues>();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
-  const [templateName, setTemplateName] = useState<string>("");
 
-  const handleCreate = async () => {
+  const handleSave = async (values: DesignTemplateFormValues) => {
+    const file = fileList[0]?.originFileObj;
+    if (!file) {
+      void message.warning("Attach a .ftl file");
+      return;
+    }
     try {
       const template = await api.createOrUpdateDetailedDesignTemplate(
-        templateName,
-        await fileList[0].originFileObj!.text(),
+        values.name.trim(),
+        await file.text(),
       );
       closeContainingModal();
       onTemplateCreated(template);
@@ -44,49 +53,74 @@ export const CreateDesignTemplateModal: React.FC<
       open={true}
       onCancel={closeContainingModal}
       width={"60vw"}
-      okText="Create"
-      onOk={() => void handleCreate()}
-      okButtonProps={{
-        disabled: fileList.length === 0 || templateName.trim().length === 0,
-      }}
+      footer={null}
     >
-      <Form.Item
-        label="Name"
-        rules={[{ required: true, message: "Name is required" }]}
+      <Form<DesignTemplateFormValues>
+        form={form}
+        layout="vertical"
+        id="designTemplateForm"
+        onFinish={(values) => void handleSave(values)}
       >
-        <Input
-          value={templateName}
-          onChange={(e) => setTemplateName(e.target.value)}
-        />
-      </Form.Item>
+        <Form.Item
+          name="name"
+          label="Name"
+          rules={[{ required: true, message: "Name is required" }]}
+        >
+          <Input />
+        </Form.Item>
 
-      <Dragger
-        key={1}
-        rootClassName="flex-dragger"
-        multiple={false}
-        maxCount={1}
-        accept=".ftl"
-        beforeUpload={() => false}
-        fileList={fileList}
-        onChange={(info) => {
-          const { status, name } = info.file;
-          const nameWithoutExtension = removeExtension(name);
-          if (status === "removed") {
-            if (nameWithoutExtension === templateName) {
-              setTemplateName("");
+        <Dragger
+          key={1}
+          rootClassName="flex-dragger"
+          multiple={false}
+          maxCount={1}
+          accept=".ftl"
+          beforeUpload={() => false}
+          fileList={fileList}
+          onChange={(info) => {
+            const { status, name } = info.file;
+            const nameWithoutExtension = removeExtension(name);
+            const currentName = form.getFieldValue("name") as
+              | string
+              | undefined;
+            if (status === "removed") {
+              if (nameWithoutExtension === currentName?.trim()) {
+                form.setFieldValue("name", "");
+              }
+            } else if (status === undefined && !currentName?.trim()) {
+              form.setFieldValue("name", nameWithoutExtension);
             }
-          } else if (status === undefined && templateName.trim().length === 0) {
-            setTemplateName(nameWithoutExtension);
-          }
 
-          setFileList(info.fileList);
-        }}
-      >
-        <p className="ant-upload-drag-icon">
-          <OverridableIcon name="inbox" />
-        </p>
-        <p className="ant-upload-text">Drop .ftl file here to attach</p>
-      </Dragger>
+            setFileList(info.fileList);
+          }}
+        >
+          <p className="ant-upload-drag-icon">
+            <OverridableIcon name="inbox" />
+          </p>
+          <p className="ant-upload-text">Drop .ftl file here to attach</p>
+        </Dragger>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 16,
+          }}
+        >
+          <Button size="middle" onClick={closeContainingModal}>
+            Cancel
+          </Button>
+          <Button
+            type="primary"
+            size="middle"
+            htmlType="submit"
+            disabled={fileList.length === 0}
+          >
+            Save
+          </Button>
+        </div>
+      </Form>
     </Modal>
   );
 };

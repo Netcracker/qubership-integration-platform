@@ -70,7 +70,14 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
         disabled={confirmLoading}
         labelCol={{ flex: "150px" }}
         wrapperCol={{ flex: "auto" }}
-        initialValues={{ name, description }}
+        initialValues={{
+          name,
+          description: description ?? "",
+          ...((!mode || mode === "create") && {
+            openFolder: true,
+            newTab: false,
+          }),
+        }}
         labelWrap
         onFieldsChange={(changedFields: FieldData<FolderEditFormData>[]) => {
           changedFields
@@ -114,7 +121,7 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
         >
           <Input ref={nameInput} />
         </Form.Item>
-        <Form.Item name="Description" label="Description">
+        <Form.Item name="description" label="Description">
           <TextArea style={{ height: 120, resize: "none" }} />
         </Form.Item>
         {mode === "create" ? (

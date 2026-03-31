@@ -96,6 +96,16 @@ describe("ChainCreate", () => {
     ).toBeInTheDocument();
   });
 
+  it("create mode footer shows Submit primary button", () => {
+    render(<ChainCreate onSubmit={jest.fn()} />);
+    expect(
+      screen.getByRole("button", { name: /^submit$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^cancel$/i }),
+    ).toBeInTheDocument();
+  });
+
   it("create mode shows New Chain and submits with sync onSubmit", async () => {
     const onSubmit = jest.fn();
     render(<ChainCreate onSubmit={onSubmit} />);
@@ -193,6 +203,22 @@ describe("ChainCreate", () => {
       false,
     );
     expect(mockCloseContainingModal).toHaveBeenCalled();
+  });
+
+  it("edit mode footer shows Submit after chain loads", async () => {
+    mockGetChain.mockResolvedValue(minimalChain());
+    render(
+      <ChainCreate
+        variant="editChainMetaData"
+        chainId="chain-1"
+        onUpdateMetadata={jest.fn()}
+      />,
+    );
+
+    await screen.findByDisplayValue("Loaded Chain");
+    expect(
+      screen.getByRole("button", { name: /^submit$/i }),
+    ).toBeInTheDocument();
   });
 
   it("edit mode on getChain failure notifies and closes modal", async () => {

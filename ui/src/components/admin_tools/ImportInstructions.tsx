@@ -429,7 +429,7 @@ export const ImportInstructions: React.FC = () => {
               <strong>
                 <OverridableIcon
                   name={ENTITY_ICON[row.entityType]}
-                  className={commonStyles.iconInline as string}
+                  className={commonStyles.iconInline}
                 />
                 {ENTITY_DISPLAY[row.entityType]}
               </strong>
@@ -505,7 +505,7 @@ export const ImportInstructions: React.FC = () => {
                   )}
                   <OverridableIcon
                     name="edit"
-                    className={inlineEditStyles.inlineIcon as string}
+                    className={inlineEditStyles.inlineIcon}
                   />
                 </span>
               }
@@ -560,7 +560,7 @@ export const ImportInstructions: React.FC = () => {
                   {row.overriddenByName ?? row.overriddenById ?? PLACEHOLDER}
                   <OverridableIcon
                     name="edit"
-                    className={inlineEditStyles.inlineIcon as string}
+                    className={inlineEditStyles.inlineIcon}
                   />
                 </span>
               }
@@ -690,7 +690,7 @@ export const ImportInstructions: React.FC = () => {
             onChange={setSearchTerm}
             placeholder="Search..."
             allowClear
-            className={commonStyles.searchField as string}
+            className={commonStyles.searchField}
           />
           <span data-testid="import-instructions-column-settings">
             {columnSettingsButton}
@@ -841,16 +841,17 @@ const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
       destroyOnHidden
       onCancel={onClose}
       footer={[
-        <Button key="cancel" onClick={onClose}>
+        <Button key="cancel" size="middle" onClick={onClose}>
           Cancel
         </Button>,
         <Button
           key="submit"
           type="primary"
+          size="middle"
           loading={loading}
           onClick={() => void handleSubmit()}
         >
-          Add
+          Save
         </Button>,
       ]}
     >
