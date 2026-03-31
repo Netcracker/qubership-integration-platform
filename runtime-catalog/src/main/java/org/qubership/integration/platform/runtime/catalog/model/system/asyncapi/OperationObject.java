@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.system.asyncapi;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -25,7 +25,6 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class OperationObject {
     private String summary;
     private String operationId;
@@ -33,4 +32,7 @@ public class OperationObject {
 
     @JsonProperty("x-maas-classifier-name")
     private String maasClassifierName;
+
+    @JsonIgnore
+    private String action;
 }

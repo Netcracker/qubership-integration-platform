@@ -1,0 +1,50 @@
+asyncapi: 3.0.0
+info:
+  title: Edge Cases API
+  version: 1.0.0
+channels:
+  existingChannel:
+    address: existing/topic
+    messages:
+      Msg1:
+        payload:
+          type: object
+          properties:
+            data:
+              type: string
+      Msg2:
+        payload:
+          type: object
+          properties:
+            value:
+              type: integer
+operations:
+  opWithMissingChannel:
+    action: send
+    channel:
+      $ref: '#/channels/nonExistentChannel'
+    summary: References missing channel
+  opWithNoChannelRef:
+    action: receive
+    summary: Has no channel reference at all
+  opWithChannelMessages:
+    action: receive
+    channel:
+      $ref: '#/channels/existingChannel'
+    summary: No explicit messages - falls through to channel messages (2 entries -> oneOf)
+  opWithInlineMessage:
+    action: send
+    channel:
+      $ref: '#/channels/existingChannel'
+    messages:
+      - name: InlineMsg
+        payload:
+          type: object
+          properties:
+            inlineField:
+              type: string
+  opWithBareRef:
+    action: send
+    channel:
+      $ref: 'some-direct-ref'
+    summary: Channel ref not starting with hash prefix

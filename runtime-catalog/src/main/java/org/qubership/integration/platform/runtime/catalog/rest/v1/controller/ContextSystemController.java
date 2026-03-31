@@ -64,6 +64,7 @@ public class ContextSystemController {
     }
 
     @GetMapping
+    @Operation(description = "Get all context systems")
     public ResponseEntity<List<ContextSystemResponseDTO>> getContextSystems(@RequestParam(name = "includeChainUsage", defaultValue = "false") boolean includeChainUsage) {
 
         if (log.isDebugEnabled()) {
@@ -81,7 +82,8 @@ public class ContextSystemController {
     }
 
     @GetMapping("/{contextId}")
-    public ResponseEntity<ContextSystemResponseDTO> geContextSystemById(@PathVariable String contextId) {
+    @Operation(description = "Get all context systems by context Id")
+    public ResponseEntity<ContextSystemResponseDTO> getContextSystemById(@PathVariable String contextId) {
         if (log.isDebugEnabled()) {
             log.debug("Request to find context system with id: {}", contextId);
         }
@@ -92,6 +94,7 @@ public class ContextSystemController {
 
 
     @PostMapping
+    @Operation(description = "Create context system")
     public ResponseEntity<ContextSystemResponseDTO> createContextSystem(@RequestBody ContextSystemRequestDTO context) {
         log.info("Request to create context system: {}", context);
         ContextSystem createdContextSystem = contextSystemService.create(context);
@@ -100,6 +103,7 @@ public class ContextSystemController {
 
 
     @PutMapping("/{contextId}")
+    @Operation(description = "Update context system")
     public ResponseEntity<ContextSystemResponseDTO> updateContextSystem(@PathVariable String contextId, @RequestBody ContextSystemUpdateRequestDTO request) {
         log.info("Request to update context system with id: {}", contextId);
         ContextSystem contextSystem = contextSystemService.update(request, contextId);
@@ -107,6 +111,7 @@ public class ContextSystemController {
     }
 
     @DeleteMapping("/{contextId}")
+    @Operation(description = "Delete context system")
     public ResponseEntity<Void> deleteContextSystemById(@PathVariable String contextId) {
         log.info("Request to delete context system with id {} ", contextId);
         contextSystemService.deleteById(contextId);
@@ -114,6 +119,7 @@ public class ContextSystemController {
     }
 
     @PostMapping(value = "/search", produces = "application/json")
+    @Operation(description = "Search services request")
     public ResponseEntity<List<ContextSystemResponseDTO>> searchContextSystems(@RequestBody SystemSearchRequestDTO systemSearchRequestDTO) {
         List<ContextSystem> contextSystems = contextSystemService.searchContextSystem(systemSearchRequestDTO);
         List<ContextSystemResponseDTO> response = contextSystemMapper.toContextSystemResponsesDTOs(contextSystems);
@@ -122,6 +128,7 @@ public class ContextSystemController {
     }
 
     @PostMapping(value = "/filter", produces = "application/json")
+    @Operation(description = "Filter services request")
     public ResponseEntity<List<ContextSystemResponseDTO>> filterContextSystems(@RequestBody List<FilterRequestDTO> systemFilterRequestDTOList) {
         List<ContextSystem> contextSystemsFilterResult = contextSystemService.findByFilterRequest(systemFilterRequestDTOList);
         List<ContextSystemResponseDTO> response = contextSystemMapper.toContextSystemResponsesDTOs(contextSystemsFilterResult);
@@ -141,9 +148,9 @@ public class ContextSystemController {
         return ExportImportUtils.convertFileToResponse(zip, ExportImportUtils.generateArchiveExportName());
     }
 
+    @PostMapping(value = "/import")
     @Operation(extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}),
             description = "Import service from a file")
-    @PostMapping(value = "/import")
     public ResponseEntity<List<ImportSystemResult>> importSystems(@RequestParam("file") @Parameter(description = "File") MultipartFile file,
                                                                   @RequestParam(required = false) @Parameter(description = "List of context ids, separated by comma") List<String> systemIds) {
         List<ImportSystemResult> result = contextExportImportService.importContextSystemRequest(file, systemIds);

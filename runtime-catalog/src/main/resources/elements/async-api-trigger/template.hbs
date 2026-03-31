@@ -15,11 +15,11 @@
     {{#if-property (requestFilterHeaderAllowlistName) presented=''}}
         <process ref="requestFilterProcessor"/>
     {{/if-property}}
-    {{#with-property 'after'}}
+    {{#if-property 'after' not-empty=''}}
         <setProperty name="internalProperty_asyncValidationSchema">
-            <constant>{{property 'schema'}}</constant>
+            <constant>{{combined-validation-schema 'after'}}</constant>
         </setProperty>
-    {{/with-property}}
+    {{/if-property}}
     <setProperty name="internalProperty_acknowledgeMode">
         <constant>{{subProperty 'integrationOperationAsyncProperties' 'acknowledgeMode'}}</constant>
     </setProperty>
@@ -40,11 +40,11 @@
     {{#if-property (requestFilterHeaderAllowlistName) presented=''}}
         <process ref="requestFilterProcessor"/>
     {{/if-property}}
-    {{#with-property 'after'}}
+    {{#if-property 'after' not-empty=''}}
         <setProperty name="internalProperty_asyncValidationSchema">
-            <constant>{{property 'schema'}}</constant>
+            <constant>{{combined-validation-schema 'after'}}</constant>
         </setProperty>
-    {{/with-property}}
+    {{/if-property}}
     <step id="{{identifier}}">
         <process ref="kafkaTriggerProcessor"/>
         {{> idempotency}}

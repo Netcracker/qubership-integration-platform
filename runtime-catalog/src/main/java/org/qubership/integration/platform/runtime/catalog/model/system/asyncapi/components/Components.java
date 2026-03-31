@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.components;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -25,6 +26,7 @@ import java.util.Map;
 @Getter
 @Setter
 @ToString
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Components {
     private Map<String, SchemaObject> schemas;
     private Map<String, MessageObject> messages;

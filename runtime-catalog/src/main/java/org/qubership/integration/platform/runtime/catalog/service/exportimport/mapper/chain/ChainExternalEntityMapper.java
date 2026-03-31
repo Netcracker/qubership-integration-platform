@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.codehaus.plexus.util.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -140,6 +141,14 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                         .labels(chain.getLabels().stream().map(ChainLabel::getName).collect(Collectors.toList()))
                         .folder(createFolderExternalEntity(chain))
                         .maskedFields(createMaskedFieldExternalEntities(chain.getMaskedFields()))
+                        .defaultSwimlaneId(
+                                Optional.ofNullable(chain.getDefaultSwimlane())
+                                        .map(SwimlaneChainElement::getId)
+                                        .orElse(null))
+                        .reuseSwimlaneId(
+                                Optional.ofNullable(chain.getReuseSwimlane())
+                                        .map(SwimlaneChainElement::getId)
+                                        .orElse(null))
                         .elements(elementsExternalMapperEntity.getChainElementExternalEntities())
                         .dependencies(extractExternalDependencies(chain))
                         .migrations(chainImportFileMigrations.stream()
@@ -312,7 +321,9 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
     private Set<MaskedFieldExternalEntity> createMaskedFieldExternalEntities(Set<MaskedField> maskedFields) {
         return maskedFields.stream()
                 .map(maskedField -> new MaskedFieldExternalEntity(maskedField.getId(), maskedField.getName()))
-                .collect(Collectors.toSet());
+                .filter(entity -> StringUtils.isNotBlank(entity.getName()))
+                .sorted(Comparator.comparing(MaskedFieldExternalEntity::getName))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private Map<String, ChainElement> extractAllElements(List<ChainElement> elements) {

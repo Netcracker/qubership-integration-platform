@@ -71,7 +71,9 @@ public class DiagramBuilderEscapeUtil {
     public static String escapeMermaidArg(String arg) {
         StringBuilder stringBuilder = new StringBuilder();
         for (char c : arg.toCharArray()) {
-            if (c >= 32 && c <= 126 && !MERMAID_ESCAPE_SUBSET.contains(c)) {
+            if (c == '\n') {
+                stringBuilder.append("<br/>");
+            } else if (c >= 32 && c <= 126 && !MERMAID_ESCAPE_SUBSET.contains(c)) {
                 stringBuilder.append(c);
             } else {
                 stringBuilder.append('#').append(Integer.toString(c, 10)).append(';');
@@ -81,7 +83,7 @@ public class DiagramBuilderEscapeUtil {
     }
 
     public static String escapePlantUMLArg(String arg) {
-        return '"' + arg + '"';
+        return '"' + arg.replace("\n", "\\n") + '"';
     }
 
     public static String[] substituteReferences(String chainId, ChainElement currentElement, String[] args) {

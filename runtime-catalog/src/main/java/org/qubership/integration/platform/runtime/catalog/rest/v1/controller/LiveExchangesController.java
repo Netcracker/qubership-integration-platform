@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.LiveExchangeExtDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.LiveExchangeRequest;
 import org.qubership.integration.platform.runtime.catalog.service.LiveExchangesService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -49,6 +50,20 @@ public class LiveExchangesController {
     @Operation(description = "Get top N running sessions live exchanges ordered by execution time DESC from all running engines")
     public ResponseEntity<List<LiveExchangeExtDTO>> getLiveExchanges(@RequestParam(required = false, defaultValue = "10") @Positive @Parameter(description = "Amount of entries to view") Integer limit) {
         List<LiveExchangeExtDTO> result = liveExchangesService.getTopLongLiveExchanges(limit);
+        if (CollectionUtils.isEmpty(result)) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping
+    @Operation(description = "Get top N running sessions live exchanges ordered by execution time DESC from all running engines")
+    public ResponseEntity<List<LiveExchangeExtDTO>> getAndFilterLiveExchanges(
+            @RequestParam(required = false, defaultValue = "10") @Positive @Parameter(description = "Amount of entries to view") Integer limit,
+            @RequestBody @Parameter(description = "Live exchange request object") LiveExchangeRequest request
+
+    ) {
+        List<LiveExchangeExtDTO> result = liveExchangesService.getAndFilterLongLiveExchanges(limit, request.getFilters());
         if (CollectionUtils.isEmpty(result)) {
             return ResponseEntity.noContent().build();
         }

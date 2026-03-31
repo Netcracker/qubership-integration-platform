@@ -20,4 +20,5 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DetailedDesignTemplateRepository extends JpaRepository<DetailedDesignTemplate, String> {
+    DetailedDesignTemplate findByName(String name);
 }

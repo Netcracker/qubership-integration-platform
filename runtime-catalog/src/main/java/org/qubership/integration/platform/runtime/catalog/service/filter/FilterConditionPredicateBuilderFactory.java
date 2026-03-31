@@ -61,6 +61,14 @@ public class FilterConditionPredicateBuilderFactory {
                 String[] range = String.valueOf(value).split(",");
                 return criteriaBuilder.between(expression.as(Timestamp.class), new Timestamp(Long.parseLong(String.valueOf(range[0]))), new Timestamp(Long.parseLong(String.valueOf(range[1]))));
             };
+            case LESS_THAN -> (expression, value) -> {
+                Long maxValue = Long.valueOf(String.valueOf(value));
+                return criteriaBuilder.lessThan(expression.as(Long.class), maxValue);
+            };
+            case GREATER_THAN -> (expression, value) -> {
+                Long minValue = Long.valueOf(String.valueOf(value));
+                return criteriaBuilder.greaterThan(expression.as(Long.class), minValue);
+            };
         };
     }
 }

@@ -20,6 +20,7 @@ import org.qubership.integration.platform.runtime.catalog.configuration.aspect.C
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementCreationException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementTransferException;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -175,7 +176,10 @@ public class TransferableElementService extends ElementService {
             } else {
                 chainDiff.addUpdatedElement(element);
             }
-            validateTransferElementDependencies(element, foundElementIds);
+
+            if (!isInOutGroupTransfer(oldParentIds, parentElement)) {
+                validateTransferElementDependencies(element, foundElementIds);
+            }
 
             element.setParent(parentElement);
         }
@@ -268,5 +272,15 @@ public class TransferableElementService extends ElementService {
             currentElement = currentElement.getParent();
         }
         return true;
+    }
+
+    private boolean isInOutGroupTransfer(Set<String> oldParentIds, ContainerChainElement parentElement) {
+        List<ChainElement> oldParentElements = findAllById(new ArrayList<>(oldParentIds));
+        boolean allOldParentIsContainerOrNull = oldParentElements.stream().allMatch(parent -> parent.getType().equals(CamelNames.CONTAINER));
+        boolean newParentIsContainerOrNull = true;
+        if (parentElement != null) {
+            newParentIsContainerOrNull = parentElement.getType().equals(CamelNames.CONTAINER);
+        }
+        return allOldParentIsContainerOrNull && newParentIsContainerOrNull;
     }
 }

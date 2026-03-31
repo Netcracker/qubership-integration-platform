@@ -71,7 +71,7 @@ public class SequenceDiagramBuilder {
 
             operationString = ARG_PLACEHOLDER_PATTERN
                     .matcher(operationString)
-                    .replaceFirst(arg == null ? "" : arg.replace("$", "\\$"));
+                    .replaceFirst(arg == null ? "" : java.util.regex.Matcher.quoteReplacement(arg));
         }
         return operationString + (StringUtils.isEmpty(operationString) ? "\n" : langType.getLineTerminator());
     }

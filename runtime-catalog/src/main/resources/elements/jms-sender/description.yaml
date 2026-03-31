@@ -9,7 +9,7 @@ container: false
 designParameters:
   externalParticipantId: 'JNDI service provider ##{providerUrl}'
   externalParticipantName: 'JNDI service provider ##{providerUrl}'
-  requestLineTitle: 'Put message to ##{destinationType}: ##{destinationName}'
+  requestLineTitle: 'Put message to ##{destinationType}'
   directionToChain: false
   hasResponse: false
 properties:

@@ -1,0 +1,47 @@
+asyncapi: 3.0.0
+info:
+  title: Kafka Multi-Message API
+  version: 1.0.0
+channels:
+  eventChannel:
+    address: events/all
+    messages:
+      EventA:
+        payload:
+          type: object
+          properties:
+            id:
+              type: string
+      EventB:
+        payload:
+          type: object
+          properties:
+            code:
+              type: integer
+  commandChannel:
+    address: commands/process
+    messages:
+      DoSomething:
+        payload:
+          type: object
+          properties:
+            action:
+              type: string
+servers:
+  production:
+    host: kafka.example.com:9092
+    protocol: kafka
+operations:
+  sendMultipleEvents:
+    action: send
+    channel:
+      $ref: '#/channels/eventChannel'
+    summary: Send one of multiple event types
+    messages:
+      - $ref: '#/channels/eventChannel/messages/EventA'
+      - $ref: '#/channels/eventChannel/messages/EventB'
+  consumeFromChannel:
+    action: receive
+    channel:
+      $ref: '#/channels/commandChannel'
+    summary: Consume command (messages taken from channel)

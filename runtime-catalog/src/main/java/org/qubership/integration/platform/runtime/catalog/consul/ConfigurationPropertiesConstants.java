@@ -34,7 +34,7 @@ public class ConfigurationPropertiesConstants {
     public static final String PARENT_ELEMENT_NAME = "parentElementName";
     public static final String HAS_INTERMEDIATE_PARENTS = "hasIntermediateParents";
     public static final String REUSE_ORIGINAL_ID = "reuseOriginalId";
-    public static final String EXTERNAL_SERVICE_NAME = "externalServiceName";
+    public static final String EXTERNAL_SERVICE_ADDRESS = "externalServiceAddress";
     public static final String EXTERNAL_SERVICE_ENV_NAME = "externalServiceEnvName";
 
     public static final String EXTERNAL_ROUTE = "externalRoute";

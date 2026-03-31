@@ -29,7 +29,8 @@ public class MaskedFieldExternalEntity {
     private final String id;
     private final String name;
 
-    public MaskedFieldExternalEntity(@JsonProperty("id") String id, @JsonProperty("name") String name) {
+    public MaskedFieldExternalEntity(@JsonProperty(value = "id", access = JsonProperty.Access.WRITE_ONLY) String id,
+            @JsonProperty("name") String name) {
         this.id = id;
         this.name = name;
     }

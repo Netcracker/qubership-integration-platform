@@ -25,8 +25,11 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.AsyncApiVersion;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.AsyncapiSpecification;
+import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.Channel;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.OperationObject;
+import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.v3.AsyncapiV3Specification;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
@@ -36,6 +39,7 @@ import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBas
 import org.qubership.integration.platform.runtime.catalog.service.parsers.Parser;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
+import org.qubership.integration.platform.runtime.catalog.service.parsers.asyncapi.AsyncApiV3Normalizer;
 import org.qubership.integration.platform.runtime.catalog.service.resolvers.async.AsyncApiSpecificationResolver;
 import org.qubership.integration.platform.runtime.catalog.service.resolvers.async.AsyncResolver;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +60,7 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
     private final SystemModelRepository systemModelRepository;
     private final EnvironmentBaseService environmentBaseService;
     private final ParserUtils parserUtils;
+    private final AsyncApiV3Normalizer v3Normalizer;
 
     private final ObjectMapper jsonMapper;
     private final ObjectMapper yamlMapper;
@@ -66,12 +71,14 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
     public AsyncapiSpecificationParser(@Lazy EnvironmentBaseService environmentBaseService,
                                        SystemModelRepository systemModelRepository,
                                        ParserUtils parserUtils,
+                                       AsyncApiV3Normalizer v3Normalizer,
                                        @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper,
                                        YAMLMapper yamlExportImportMapper,
                                        List<AsyncApiSpecificationResolver> resolverList) {
         this.systemModelRepository = systemModelRepository;
         this.environmentBaseService = environmentBaseService;
         this.parserUtils = parserUtils;
+        this.v3Normalizer = v3Normalizer;
         this.jsonMapper = jsonMapper;
         this.yamlMapper = yamlExportImportMapper;
         for (AsyncApiSpecificationResolver specificationResolvers : resolverList) {
@@ -84,7 +91,13 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
 
     public AsyncapiSpecification read(String data) throws JsonProcessingException {
         ObjectMapper mapper = getMapper(data);
-        return mapper.readValue(data, AsyncapiSpecification.class);
+        JsonNode rootNode = mapper.readTree(data);
+        String version = rootNode.path("asyncapi").asText();
+        if (AsyncApiVersion.detect(version) == AsyncApiVersion.V3) {
+            AsyncapiV3Specification v3 = mapper.treeToValue(rootNode, AsyncapiV3Specification.class);
+            return v3Normalizer.normalize(v3);
+        }
+        return mapper.treeToValue(rootNode, AsyncapiSpecification.class);
     }
 
     @Override
@@ -142,7 +155,11 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
 
         AsyncApiSpecificationResolver specificationResolver = specificationResolverMap.get(operationProtocol.getValue());
 
-        importedAsyncApi.getChannels().forEach((channelName, channel) -> {
+        Map<String, Channel> channels = importedAsyncApi.getChannels();
+        if (channels == null || channels.isEmpty()) {
+            return operations;
+        }
+        channels.forEach((channelName, channel) -> {
             List<OperationObject> operationObjects = specificationResolver.getOperationObjects(channel);
 
             for (OperationObject operationObject : operationObjects) {

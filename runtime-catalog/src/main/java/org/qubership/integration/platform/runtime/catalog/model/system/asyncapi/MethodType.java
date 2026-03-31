@@ -16,16 +16,15 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.system.asyncapi;
 
+import lombok.Getter;
+
+@Getter
 public enum MethodType {
-    PUBLISH("publish"), SUBSCRIBE("subscribe");
+    PUBLISH("publish"), SUBSCRIBE("subscribe"), SEND("send"), RECEIVE("receive");
 
     private final String methodName;
 
     MethodType(String methodName) {
         this.methodName = methodName;
-    }
-
-    public String getMethodName() {
-        return methodName;
     }
 }

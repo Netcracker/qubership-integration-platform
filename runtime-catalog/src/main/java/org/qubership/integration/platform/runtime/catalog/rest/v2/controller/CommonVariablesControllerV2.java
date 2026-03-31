@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v2.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariablesResult;
@@ -44,6 +45,7 @@ public class CommonVariablesControllerV2 {
     }
 
     @PostMapping(value = "/import")
+    @Operation(description = "Import common variable")
     public ResponseEntity<ImportVariablesResult> importVariablesInternal(
             @RequestParam MultipartFile file,
             @RequestParam(required = false) Set<String> variablesNames

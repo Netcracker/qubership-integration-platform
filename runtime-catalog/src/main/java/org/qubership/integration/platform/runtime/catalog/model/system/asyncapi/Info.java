@@ -16,14 +16,17 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.system.asyncapi;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
 import java.util.Map;
 
 @Getter
 @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Info {
     private String title;
     private String version;
@@ -32,4 +35,7 @@ public class Info {
 
     @JsonProperty("x-protocol")
     private String protocol;
+
+    private List<Map<String, Object>> tags;
+    private Map<String, Object> externalDocs;
 }

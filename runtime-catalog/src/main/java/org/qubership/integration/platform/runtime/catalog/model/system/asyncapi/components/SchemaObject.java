@@ -29,7 +29,11 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SchemaObject {
     private String title;
+    private String description;
     private String type;
+    private String format;
+    @JsonProperty("default")
+    private Object defaultValue;
     private List<String> required;
     private Number multipleOf;
     private Number minimum;
@@ -59,6 +63,8 @@ public class SchemaObject {
     private Boolean readOnly;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean writeOnly;
+    @Getter
+    @Setter
     @SuppressWarnings("checkstyle:MemberName")
     private String $ref;
     private List<Map<String, Object>> oneOf;

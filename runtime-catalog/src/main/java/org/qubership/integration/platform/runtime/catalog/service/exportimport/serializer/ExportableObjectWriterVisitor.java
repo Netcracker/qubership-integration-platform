@@ -72,7 +72,10 @@ public class ExportableObjectWriterVisitor {
             return;
         }
 
-        ExportImportUtils.writeSystemObject(zipOut, entryPath + RESOURCES_FOLDER_PREFIX + exportedSpecificationSource.getName(),
+        String fileName = isLegacyExport
+                ? exportedSpecificationSource.getName()
+                : RESOURCES_FOLDER_PREFIX + exportedSpecificationSource.getName();
+        ExportImportUtils.writeSystemObject(zipOut, entryPath + fileName,
                 exportedSpecificationSource.getSource());
     }
 

@@ -16,12 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.components;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
-public class MessageObject  {
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class MessageObject {
     private SchemaObject headers;
     private SchemaObject payload;
 }

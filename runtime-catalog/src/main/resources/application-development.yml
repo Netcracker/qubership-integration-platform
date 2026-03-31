@@ -16,6 +16,7 @@ spring:
     - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
     - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
     - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+    - org.springframework.boot.actuate.autoconfigure.observation.graphql.GraphQlObservationAutoConfiguration
   config:
     activate:
       on-profile: development

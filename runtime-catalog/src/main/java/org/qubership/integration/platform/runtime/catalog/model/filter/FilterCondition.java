@@ -32,5 +32,7 @@ public enum FilterCondition {
     NOT_EMPTY,
     IS_AFTER,
     IS_BEFORE,
-    IS_WITHIN
+    IS_WITHIN,
+    LESS_THAN,
+    GREATER_THAN,
 }

@@ -35,6 +35,9 @@ public final class SchemasConstants {
     public static final String PROPERTIES_FIELD_NAME = "properties";
     public static final String DEFINITIONS_NODE_NAME = "definitions";
     public static final String REQUIRED = "required";
+    public static final String ALL_OF = "allOf";
+    public static final String ANY_OF = "anyOf";
+    public static final String ONE_OF = "oneOf";
     public static final TextNode ARRAY_TYPE_NODE = new TextNode("array");
     public static final TextNode OBJECT_TYPE_NODE = new TextNode("object");
     public static final TextNode STRING_TYPE_NODE = new TextNode("string");

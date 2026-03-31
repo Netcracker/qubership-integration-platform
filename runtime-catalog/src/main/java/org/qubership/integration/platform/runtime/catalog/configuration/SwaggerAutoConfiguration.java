@@ -21,12 +21,14 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
 import java.util.Map;
 
 @Slf4j
 @AutoConfiguration
+@ConditionalOnMissingBean(name = "swaggerConfiguration")
 public class SwaggerAutoConfiguration {
 
     @Bean
