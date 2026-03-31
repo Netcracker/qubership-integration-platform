@@ -3,7 +3,11 @@ import { fileApi } from "./file/fileApiProvider";
 import { getCurrentServiceId } from "./serviceApiRead";
 import { createService } from "./serviceApiModify";
 import { SpecificationImportApiHandler } from "../api-services/SpecificationImportApiHandler";
-import { SerializedFile } from "../api-services/importApiTypes";
+import {
+  ApiSpecificationType,
+  SerializedFile,
+} from "../api-services/importApiTypes";
+import { IntegrationSystemType } from "../api-services/servicesTypes";
 
 export async function getContextServiceUri(
   serviceFileUri: vscode.Uri,
@@ -204,5 +208,42 @@ export async function handleReadSpecificationFileContent(
       }
     }
     throw error;
+  }
+}
+
+export const ALLOWED_PROTOCOL_MAP: ReadonlyMap<
+  IntegrationSystemType,
+  ReadonlySet<ApiSpecificationType>
+> = new Map([
+  [
+    IntegrationSystemType.EXTERNAL,
+    new Set(Object.values(ApiSpecificationType)),
+  ],
+  [
+    IntegrationSystemType.INTERNAL,
+    new Set(Object.values(ApiSpecificationType)),
+  ],
+  [
+    IntegrationSystemType.IMPLEMENTED,
+    new Set([
+      ApiSpecificationType.HTTP,
+      ApiSpecificationType.SOAP,
+      ApiSpecificationType.GRAPHQL,
+    ]),
+  ],
+]);
+
+export function validateAllowedSystemProtocol(
+  systemType?: IntegrationSystemType,
+  protocol?: ApiSpecificationType,
+) {
+  if (!systemType || !protocol) {
+    return;
+  }
+
+  const allowedProtocols = ALLOWED_PROTOCOL_MAP.get(systemType);
+  if (allowedProtocols && !allowedProtocols.has(protocol)) {
+    const errorMessage = `Specification type is not allowed for ${systemType.toLowerCase()} system: ${protocol}`;
+    throw new Error(errorMessage);
   }
 }

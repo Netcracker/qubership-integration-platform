@@ -31,6 +31,7 @@ import { normalizePath } from "./pathUtils";
 import type { EnvironmentRequest } from "./servicesTypes";
 import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
 import { ProtocolDetectorService } from "../services/ProtocolDetectorService";
+import { validateAllowedSystemProtocol } from "../response";
 
 export class SpecificationImportService {
   private progressTracker: ImportProgressTracker;
@@ -160,7 +161,10 @@ export class SpecificationImportService {
         window.showErrorMessage(errorMessage);
         throw new Error(errorMessage);
       }
-
+      validateAllowedSystemProtocol(
+        params.system.integrationSystemType,
+        importingProtocol,
+      );
       const systemProtocol = this.convertToApiSpecificationType(
         params.system.protocol,
       );

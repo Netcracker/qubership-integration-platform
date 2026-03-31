@@ -12,10 +12,10 @@ import { getApiResponse } from "./response";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
-    getExtensionsForUri,
-    setCurrentFileContext,
-    extractFilename,
-    initializeContextFromFile
+  getExtensionsForUri,
+  setCurrentFileContext,
+  extractFilename,
+  initializeContextFromFile,
 } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
 import { VSCodeMessage, VSCodeResponse } from "@netcracker/qip-ui";
@@ -227,62 +227,62 @@ export function refreshQipExplorer() {
 class ChainFileEditorProvider implements CustomTextEditorProvider {
   constructor(private readonly context: ExtensionContext) {}
 
-    async resolveCustomTextEditor(
-        document: TextDocument,
-        panel: WebviewPanel,
-        _token: CancellationToken
-    ): Promise<void> {
-        if (!document || !document.uri || !panel || !this.context || !this.context.extensionUri) {
-            throw new Error("Invalid parameters for resolveCustomTextEditor");
-        }
+  async resolveCustomTextEditor(
+    document: TextDocument,
+    panel: WebviewPanel,
+    _token: CancellationToken,
+  ): Promise<void> {
+    if (!document?.uri || !panel || !this.context?.extensionUri) {
+      throw new Error("Invalid parameters for resolveCustomTextEditor");
+    }
 
-        try {
-            const webview = panel.webview;
-            if (!webview) {
-                throw new Error("Panel.webview is required but was null or undefined");
-            }
+    try {
+      const webview = panel.webview;
+      if (!webview) {
+        throw new Error("Panel.webview is required but was null or undefined");
+      }
 
-            webview.options = {
-                localResourceRoots: [this.context.extensionUri],
-                enableScripts: true,
-                enableCommandUris: true
-            };
+      webview.options = {
+        localResourceRoots: [this.context.extensionUri],
+        enableScripts: true,
+        enableCommandUris: true,
+      };
 
-    panel.onDidChangeViewState(async (e) => {
-      if (e.webviewPanel.active) {
-        const path = await getAndClearNavigationStateValue(
-          this.context,
-          document.uri,
-        );
-
-        if (path) {
-          const navigateMessage: VSCodeMessage<any> = {
-            requestId: crypto.randomUUID(),
-            type: "navigate",
-            payload: { path: path },
-          };
-
-          const response: VSCodeResponse<any> = {
-            requestId: navigateMessage.requestId,
-            type: navigateMessage.type,
-          };
-
-          response.payload = await getApiResponse(
-            navigateMessage,
-            document.uri,
+      panel.onDidChangeViewState(async (e) => {
+        if (e.webviewPanel.active) {
+          const path = await getAndClearNavigationStateValue(
             this.context,
+            document.uri,
           );
 
-          panel.webview.postMessage(response);
-        }
-      }
-    });
+          if (path) {
+            const navigateMessage: VSCodeMessage<any> = {
+              requestId: crypto.randomUUID(),
+              type: "navigate",
+              payload: { path: path },
+            };
 
-            await enrichWebview(panel, this.context, document.uri);
-        } catch (error) {
-            throw error;
+            const response: VSCodeResponse<any> = {
+              requestId: navigateMessage.requestId,
+              type: navigateMessage.type,
+            };
+
+            response.payload = await getApiResponse(
+              navigateMessage,
+              document.uri,
+              this.context,
+            );
+
+            panel.webview.postMessage(response);
+          }
         }
+      });
+
+      await enrichWebview(panel, this.context, document.uri);
+    } catch (error) {
+      throw error;
     }
+  }
 }
 
 function openWebviewForElement(
@@ -305,15 +305,19 @@ function openWebviewForElement(
   enrichWebview(panel, context, fileUri);
 }
 
-async function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fileUri: Uri | undefined = undefined) {
-    if (!panel || !context || !context.extensionUri || !panel.webview) {
-        throw new Error("Invalid parameters for enrichWebview");
-    }
+async function enrichWebview(
+  panel: WebviewPanel,
+  context: ExtensionContext,
+  fileUri: Uri | undefined = undefined,
+) {
+  if (!panel || !context || !context.extensionUri || !panel.webview) {
+    throw new Error("Invalid parameters for enrichWebview");
+  }
 
-    type VSCodeMessageWrapper = {
-        command: string;
-        data: VSCodeMessage<any>;
-    };
+  type VSCodeMessageWrapper = {
+    command: string;
+    data: VSCodeMessage<any>;
+  };
 
   if (fileUri) {
     try {
@@ -386,7 +390,7 @@ async function enrichWebview(panel: WebviewPanel, context: ExtensionContext, fil
     } catch (e) {
       console.error("Failed to fetch data for QIP Extension API", e);
       if (e instanceof Error) {
-        response.error = e;
+        response.error = { message: e.message, name: e.name };
       }
     }
     panel.webview.postMessage(response);
@@ -812,65 +816,67 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 export function deactivate() {}
 
 async function getWebviewContent(context: ExtensionContext, webview: Webview) {
-    if (!context || !context.extensionUri || !webview) {
-        throw new Error("Invalid parameters for getWebviewContent");
-    }
+  if (!context || !context.extensionUri || !webview) {
+    throw new Error("Invalid parameters for getWebviewContent");
+  }
 
-    // Dynamically load the JS and CSS files
-    // Use bundled version for VSCode extension (includes React)
-    let jsUri: vscode.Uri;
-    let cssUri: vscode.Uri;
-    let useBundled = false; // Will be set based on file existence
+  // Dynamically load the JS and CSS files
+  // Use bundled version for VSCode extension (includes React)
+  let jsUri: vscode.Uri;
+  let cssUri: vscode.Uri;
+  let useBundled = false; // Will be set based on file existence
 
+  try {
+    // Try bundled version first (includes React)
+    let jsFileUri = vscode.Uri.joinPath(
+      context.extensionUri,
+      "node_modules",
+      "@netcracker",
+      "qip-ui",
+      "dist-lib",
+      "index.bundled.es.js",
+    );
+
+    // Check if bundled version exists using VSCode API (works in web extensions)
+    // Try to stat the bundled file - if it fails, use external version
+    let bundledExists = false;
     try {
-        // Try bundled version first (includes React)
-        let jsFileUri = vscode.Uri.joinPath(
-            context.extensionUri,
-            'node_modules',
-            '@netcracker',
-            'qip-ui',
-            'dist-lib',
-            'index.bundled.es.js'
-        );
-
-        // Check if bundled version exists using VSCode API (works in web extensions)
-        // Try to stat the bundled file - if it fails, use external version
-        let bundledExists = false;
-        try {
-            await vscode.workspace.fs.stat(jsFileUri);
-            bundledExists = true;
-        } catch (error) {
-            jsFileUri = vscode.Uri.joinPath(
-                context.extensionUri,
-                'node_modules',
-                '@netcracker',
-                'qip-ui',
-                'dist-lib',
-                'index.es.js'
-            );
-        }
-
-        useBundled = bundledExists;
-        const cssFileUri = vscode.Uri.joinPath(
-            context.extensionUri,
-            'node_modules',
-            '@netcracker',
-            'qip-ui',
-            'dist-lib',
-            'qip-ui.css'
-        );
-
-        jsUri = webview.asWebviewUri(jsFileUri);
-        cssUri = webview.asWebviewUri(cssFileUri);
-
-        if (!jsUri || !cssUri) {
-            throw new Error("Failed to convert file URIs to webview URIs");
-        }
+      await vscode.workspace.fs.stat(jsFileUri);
+      bundledExists = true;
     } catch (error) {
-        throw error;
+      jsFileUri = vscode.Uri.joinPath(
+        context.extensionUri,
+        "node_modules",
+        "@netcracker",
+        "qip-ui",
+        "dist-lib",
+        "index.es.js",
+      );
     }
 
-    const importMapScript = useBundled ? '' : `
+    useBundled = bundledExists;
+    const cssFileUri = vscode.Uri.joinPath(
+      context.extensionUri,
+      "node_modules",
+      "@netcracker",
+      "qip-ui",
+      "dist-lib",
+      "qip-ui.css",
+    );
+
+    jsUri = webview.asWebviewUri(jsFileUri);
+    cssUri = webview.asWebviewUri(cssFileUri);
+
+    if (!jsUri || !cssUri) {
+      throw new Error("Failed to convert file URIs to webview URIs");
+    }
+  } catch (error) {
+    throw error;
+  }
+
+  const importMapScript = useBundled
+    ? ""
+    : `
         <script type="importmap">
         {
           "imports": {
@@ -882,7 +888,7 @@ async function getWebviewContent(context: ExtensionContext, webview: Webview) {
         </script>
     `;
 
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html lang="en">
       <head>
@@ -891,7 +897,7 @@ async function getWebviewContent(context: ExtensionContext, webview: Webview) {
         <title>QIP Offline Chain Editor</title>
         <link href="${cssUri}" rel="stylesheet">
         ${importMapScript}
-	    <script type="module" crossorigin src="${jsUri}"></script>
+        <script type="module" crossorigin src="${jsUri}"></script>
         <style>
           html, body {
             margin: 0 !important;
@@ -920,5 +926,5 @@ async function getWebviewContent(context: ExtensionContext, webview: Webview) {
       </body>
     </html>
   `;
-    return html;
+  return html;
 }

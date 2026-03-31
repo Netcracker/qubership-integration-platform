@@ -5,10 +5,7 @@
     "declaration": true,
     "target": "ES2020",
     "outDir": "dist",
-    "lib": [
-      "ES2020",
-      "WebWorker"
-    ],
+    "lib": ["ES2020", "WebWorker"],
     "sourceMap": true,
     "rootDir": "src",
     "strict": true,
@@ -22,5 +19,7 @@
         "./node_modules/@netcracker/qip-ui/node_modules/@netcracker/qip-schemas/*"
       ]
     }
-  }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "tests"]
 }

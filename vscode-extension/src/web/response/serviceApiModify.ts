@@ -21,6 +21,7 @@ import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { ProjectConfigService } from "../services/ProjectConfigService";
 import { ContextSystem } from "@netcracker/qip-ui";
+import { validateAllowedSystemProtocol } from "./serviceApiUtils";
 
 export async function updateContextService(
   serviceFileUri: Uri,
@@ -78,6 +79,10 @@ export async function updateService(
       serviceRequest.integrationSystemType;
   }
   if (serviceRequest.type !== undefined) {
+    validateAllowedSystemProtocol(
+      serviceRequest.type,
+      service.content.protocol,
+    );
     service.content.integrationSystemType = serviceRequest.type;
   }
   if (serviceRequest.protocol !== undefined) {
