@@ -18,4 +18,4 @@ spring:
 
 qip:
   internal-services:
-    designtime-catalog: qip-design-time-catalog
+    runtime-catalog: qip-runtime-catalog

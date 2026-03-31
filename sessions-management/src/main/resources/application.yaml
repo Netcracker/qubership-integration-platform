@@ -97,10 +97,14 @@ qip:
     session:
       default-buffer-limit: ${OPENSEARCH_SESSION_DEFAULT_BUFFER_LIMIT:104857600}
   internal-services:
-    engine: qubership-integration-platform-engine
-    designtime-catalog: qubership-integration-platform-designtime-catalog
+    runtime-catalog: qubership-integration-platform-runtime-catalog
 
 logging:
   level:
     root: ${ROOT_LOG_LEVEL:INFO}
   config: classpath:logback-spring.xml
+
+springdoc:
+  swagger-ui:
+    tagsSorter: alpha
+    operationsSorter: alpha

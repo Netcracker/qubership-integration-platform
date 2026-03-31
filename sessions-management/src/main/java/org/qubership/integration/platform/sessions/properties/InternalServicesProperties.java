@@ -23,7 +23,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties(prefix = PropertiesConstants.PROPERTIES_ROOT + ".internal-services")
 public record InternalServicesProperties(
-    @DefaultValue("designtime-catalog") String designtimeCatalog
+    @DefaultValue("runtime-catalog") String runtimeCatalog
 ) {
     @ConstructorBinding
     public InternalServicesProperties {}
