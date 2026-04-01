@@ -35,13 +35,13 @@ Navigate to **Admin Tools** -> **Diagnostic** to see the table with last diagnos
 - **Start Time** - timestamp of last validation run.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
 	- **Search** field - allows to find validation or validated entity by its name.
-	- ![](img/filter.svg) - opens filter pop-up.
-	- ![](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except Name.
+	- ![20](img/filter.svg) - opens filter pop-up.
+	- ![20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except Name.
 	- **Run Diagnostic** button - initiates validation process.
 
 ### View Diagnostic Results
 
-When diagnostic results are available and issues found, each executed validation, that has counter, may be expanded with ![](img/plus.svg) icon near its name. After its expanded, system shows chains and elements, that contain found issues and require attention.
+When diagnostic results are available and issues found, each executed validation, that has counter, may be expanded with ![20](img/right.svg) icon near its name. After its expanded, system shows chains and elements, that contain found issues and require attention.
 
 ### Run Validations
 

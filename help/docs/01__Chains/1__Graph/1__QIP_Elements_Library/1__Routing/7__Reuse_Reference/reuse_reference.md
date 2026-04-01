@@ -2,7 +2,7 @@
 ## Description
 
 ---
-**Reference** element allows to connect the elements with a reusable chain flow, that is configured within [Reuse](../2__Reuse/reuse.md) container to avoid doubling the logic.
+**Reference** element allows to connect the elements with a reusable chain flow, that is configured within [Reuse](../../1__Routing/2__Reuse/reuse.md) container to avoid doubling the logic.
 
 
 ## User Interface
@@ -10,9 +10,9 @@
 ---
 ### "Parameters" Tab
 #### Common Parameters
-| Parameter       | Mandatory | Data Type | Description                                                                 | Sample |
-| --------------- | :-------- | :-------- | --------------------------------------------------------------------------- | ------ |
-| Reuse Reference | M         | List      | Specifies the [Reuse](../2__Reuse/reuse.md) container to be connected with. | N/A    |
+| Parameter       | Mandatory | Data Type | Description                                                                               | Sample |
+| --------------- | :-------- | :-------- | ----------------------------------------------------------------------------------------- | ------ |
+| Reuse Reference | M         | List      | Specifies the [Reuse](../../1__Routing/2__Reuse/reuse.md) container to be connected with. | N/A    |
 
 ### "Parameters" Tab
 #### Metadata

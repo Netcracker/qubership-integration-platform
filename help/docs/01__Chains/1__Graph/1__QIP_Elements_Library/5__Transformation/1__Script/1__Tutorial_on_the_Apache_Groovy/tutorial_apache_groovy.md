@@ -11,7 +11,7 @@ According to groovy, you can set a suitable kind of scripts, error handling, inp
 
 There is a list of modules where you can use Groovy:
 
-1. [Script](../script.md) - the most common module used for creating any scripts of data transformation or something else. For example:
+1. [Script](../../1__Script/script.md) - the most common module used for creating any scripts of data transformation or something else. For example:
    2. Parsing of incoming messages
    3. Set/Get variable(s) in the Camel Context
    4. Error handling.

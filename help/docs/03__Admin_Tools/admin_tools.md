@@ -17,10 +17,10 @@ This tab is intended to provide the functionality for Administrators.
 
 Click "Admin Tools" main tab on top of the screen to get access to additional sections:
 
-- [Domains](docs/03__Admin_Tools/1__Domains/domains.md) - shows details about domains and engines.
-- [Variables](docs/03__Admin_Tools/2__Variables/variables.md) - allows to manage common and secured variables.
-- [Audit](docs/03__Admin_Tools/3__Audit/audit.md) - contains tracking information about performed operations in the system.
-- [Import Instructions](docs/03__Admin_Tools/4__Import_Instructions/import_instructions.md) - allows to manage import instructions.
-- [Design Templates](docs/03__Admin_Tools/7__Design_Templates/design_templates.md) - allows to manage templates, utilized for chain document generation.
-- [Sessions](docs/03__Admin_Tools/5__Sessions/session_log.md) - contains details about all registered sessions in the system. 
-- [Access Control](docs/03__Admin_Tools/6__Access_Control/access_control.md) - allows to globally manage roles for HTTP Triggers.
+- [Domains](1__Domains/domains.md) - shows details about domains and engines.
+- [Variables](2__Variables/variables.md) - allows to manage common and secured variables.
+- [Audit](3__Audit/audit.md) - contains tracking information about performed operations in the system.
+- [Import Instructions](4__Import_Instructions/import_instructions.md) - allows to manage import instructions.
+- [Design Templates](7__Design_Templates/design_templates.md) - allows to manage templates, utilized for chain document generation.
+- [Sessions](5__Sessions/session_log.md) - contains details about all registered sessions in the system. 
+- [Access Control](6__Access_Control/access_control.md) - allows to globally manage roles for HTTP Triggers.

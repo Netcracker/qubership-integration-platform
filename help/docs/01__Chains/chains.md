@@ -8,104 +8,121 @@ This functionality is not available via the VS Code Extension.
 
 
 ---
-Chain is an integration configuration which consist of Apache Camel (or customized) modules. Each chain is indented to perform particular integration task. Chain can be triggered by any external consumer, so chain configuration starts from some trigger (HTTP Trigger, Kafka Trigger, etc.). When the chain configuration was completed, it should be deployed at least on one [Engine Domain](../../03__Admin_Tools/1__Domains/domains.md) (otherwise, the chain cannot be triggered).
+Chain is an integration configuration which consist of Apache Camel (or customized) modules. Each chain is indented to perform particular integration task. Chain can be triggered by any external consumer, so chain configuration starts from some trigger (HTTP Trigger, Kafka Trigger, etc.). When the chain configuration was completed, it should be deployed at least on one [Engine Domain](03__Admin_Tools/1__Domains/domains.md) (otherwise, the chain cannot be triggered).
 ## User Interface
 
 ---
 ### Chains and Folders Table View
 
-Initially at the top of the screen Full text search is available to find necessary chain or folder. The only way to use this search is to enter in the special field some parameters and click on the ![](img/search.svg) icon.
+Screen shows the table of chains (marked with icon ![20](img/file.svg)) and chain folders (marked with icon ![16](img/folder.svg)). To see all the chains & folders under the particular folder, you can click ![20](img/right.svg) icon near folder name. Next control elements are available on top of the table:
+- **Search field** - search box, provides ability to find respective data in the table. To find a particular chain/folder by a specific feature (case-insensitive) use search field at the top of the screen with the text "Search Chain..." and a lens icon ![14](img/search.svg). Full-text search is applicable by the following data:
+  - Chain fields:
+    - Chain name
+    - Chain ID
+    - Chain description
+  - Chain elements in [graph](graph.md):
+    - Path ([HTTP Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Method ([HTTP Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Topic ([Kafka Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/8__Kafka_Trigger/kafka_trigger.md), [Kafka Sender](1__Graph/1__QIP_Elements_Library/7__Senders/2__Kafka_Sender/kafka_sender.md), [AsyncAPI Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Exchange ([RabbitMQ Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/6__RabbitMQ_Trigger/rabbitmq_trigger.md), [RabbitMQ Sender](1__Graph/1__QIP_Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md), [AsyncAPI Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Queue ([RabbitMQ Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/6__RabbitMQ_Trigger/rabbitmq_trigger.md), [RabbitMQ Sender](1__Graph/1__QIP_Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md), [AsyncAPI Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
+  - Folder name - if search query matches, all content (chains and child folders) under the folder will be shown.
+- ![16](img/filter.svg) - opens filter pop-up.
+- ![20](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns except **Name**.
+- ⇄ - compare selected chains.
+- ![20](img/carry-out.svg) - pastes chain or folder.
+- ![24](img/send.svg) - opens pop-up for chains redeploy.
+- ![20](img/cloud-download.svg) - exports the chain(s).
+- ![20](img/cloud-upload.svg) - opens pop-up for chain(s) import. As part of upload/import operation, user is able to additionally select an option to create a snapshot for imported chain or even deploy it to the selected engine as soon import is successfully completed.
+- ![20](img/delete.svg) - delete selected chains or folders.
 
-On the right side near Full test search it is possible to add/remove fields in the table clicking on this icon ![](img/setting.svg) or to use filter ![](img/filter.svg) with the following parameters:
+Each **chain** contains the following parameters on table view:
+- **Name** - chain name, which is clickable reference to the chain [graph](graph.md).
+- **Description** - user description of the chain.
+- **Status** - shows chain's deployment status. Possible values:
+	- ⚫ **_Draft_** - default chain status, that indicates that chain is not deployed yet.
+	- 🔵 **_Progressing_** - chain deployment is in progress on one or multiple engines. If status stays for long period of time, it may indicate that system awaits crucial data, specified within a chain (e.g. classifiers in MaaS).
+	- 🔴 **_Failed_** - chain deployment failed on one or multiple engines.
+	- 🟢 **_Deployed_** - chain is successfully deployed on all requested engines.
+- **Labels** - list of colored chain labels, unique within particular chain. It might contain **custom** labels, entered on the chain by user via Qubership Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Technical** labels cannot be updated manually.
+- **Modified At** - date of last chain modification.
+- **Modified By** - name of the user who modified the chain last.
+- **Actions menu** - list of operations, accessed via menu symbol ![20](img/more.svg), contains the list of available operations with the chain:
+	- **_Copy link_** - copies chain link to clipboard.
+	- _**Edit**_ - opens pop-up to update chain name, description, **custom** labels and additional data, required for DDS generation.
+	- _**Export**_ - exports chain from QIP.
+	- _**Generate DDS**_ - generates integration design document, based on the chain data.
+	- _**Cut**_ - cuts the chain. To paste it, click "paste" ![20](img/carry-out.svg) button, available on top of the screen.
+	- _**Copy**_ - copies chain (whole object). To paste copied chain, click "paste" ![20](img/carry-out.svg) button, available on top of the screen.
+	- _**Duplicate**_ - duplicates chain. New chain will be duplicated with the  **"- copy"** postfix.
+	- _**Delete**_ - deletes chain.
 
-* Column - field from the table on which the filter will be applied, all fields from the table are available to choose;
-* Condition - consist of 4 conditions: Contains, Does not contain, Starts with, Ends with.
-* Value - value of filtering.
 
- Each filter can be removed (marked with icon ![](img/delete.svg)) or duplicated (marked with icon ![](img/copy.svg)) under this ![](img/ellipsis.svg) icon.
+>ℹ️**Notes:** For most of the table columns there is special context menu. To open it, **click on the column name**. The following functions can be available here:<ul><li>Filter (by this parameter's value)</li><li>Sort Ascending</li><li>Sort Descending</li><li>Hide column</li></ul>
 
-Additionally it is possible to add one more filter using this ![](img/plus.svg) or to clear all filters using this ![](img/clear.svg).
+**Folder** contains the following parameters on table view:
+- **Name** - clickable reference to the page with folder content.
+- **Actions menu** - list of operations, accessed via menu symbol ![20](img/more.svg), contains the list of available operations with the folder:
+	- **_Create New Folder_** - opens pop-up to add new folder under this one.
+	- **_Create New Chain_** - opens pop-up to create chain under the folder.
+	- **_Expand All_** - expands all folders (regardless of the nesting level) under the current one.
+	- **_Collapse All_** - collapses all child folders and the current one.
+	- **_Copy link_** - copies folder link to clipboard. Following the link, you will open the same "**Chains**" page with expanded and highlighted folder.
+	- **_Edit_** - opens pop-up to update folder name or description.
+	- **_Export_** - exports all the chains under the folder.
+	- **_Cut_** - cuts the chain folder (with all folder content). To paste folder, click "paste" ![20](img/carry-out.svg) icon button, available on top of the screen.
+	- **_Paste_** - pastes copied chain or folder.
+	- _**Delete**_ - deletes folder with all content under it.
 
-On the screen under Full text search there is a table view showing two groups of elements: chains (marked with icon ![](img/file.svg)) and chain folder (marked with icon ![](img/folder.svg)). To see all chains and folders under one particular folder it is necessary to click on ![](img/plus.svg) icon near folder name. 
 
-By default, each chain or folder displays the following parameters:
+>ℹ️**Notes**:<li>You can <b>move chain/folder</b> to the folder via drag&drop operation (instead of Cut and Paste). To <b>move it to the root directory</b>, drop chain/folder above table headings.</li><li>If you are trying to open folder with no chains in it, message "No elements in folder" will be presented on the folder card.</li><li>Mentioned "Chains" window <b>does not validate</b> the uniqueness of the names, neither folders nor the chains. Hence, it is possible that multiple chains (or folders) might have the same names.</li>
 
-- **Name**: The user-defined identifier for the chain.
-- **Status**: Indicates the current stage of the chain:
-    - _Draft_: Initial state before deployment.
-    - _Processing_: Chain is being deployed.
-    - _Deployed_: Chain is active and running in the environment.
-    - _Failed_: Deployment of this chain was unsuccessful.
-- **Labels**: Tags used for categorization or filtering.
-- **Created By**: The user who created the chain.
-- **Created At**: Date and time of creation.
-- **Modified By**: The user who last edited the chain.
-- **Modified At**: Date and time of modifying.
+### Chain Details Side Panel
+More chain details are available via **right side panel**. To open it, click on any place in the chain row (except chain name, which leads to [graph](graph.md)). The following information about chain will be available (in read-only mode):
 
-For most of the table columns there is special context menu. To open it, click on the column name. The following functions are available:
-* ![](img/caret-up.svg) - click to sort ascending.
-* ![](img/caret-down.svg) - click to sort descending.
-* ![](img/filter.svg) - filtering.
-
-A set of operations can be performed on chains of folders and marked with ![](img/more.svg) icon. 
-#### Available Actions
-
-- **For Folders** :
-    
-    - Create New Folder - create of a new folder under existing one.
-    - Create New Chain - create of a new chain under existing folder.
-    - Expand All / Collapse All - expand and collapse all folders.
-    - Copy Link - copy folder link to clipboard.
-    - Edit - open pop-up to edit folder name and description.
-    - Export - export selected folder.
-    - Cut / Paste - cut and paste selected folder with all content.
-    - Delete - delete existing folder with all content.
-    
-- **For Chains** :
-    
-    - Copy Link - copy chain link to clipboard.
-    - Edit - open graph to update the chain.
-    - Export - export selected chain.
-    - Generate DDS - generate integration design document based on the chain data.
-    - Cut / Copy - cut and paste selected chain.
-    - Duplicate - duplicate selected chain with number postfix.
-    - Delete - delete selected chain.
-
-At the right down there is a floating button marked with ![](img/more.svg). These actions are available:
-* ![](img/file-add.svg) - create chain.
-* ![](img/folder-add.svg) - create folder.
-* ![](img/delete.svg) - delete selected chains and folders.
-* ![](img/cloud-download.svg) - export selected chains.
-* ![](img/cloud-upload.svg) - import chains.
-* ⇄ - compare selected chains.
-* ![](img/carry-out.svg)  - paste chain or folder.
-* ![](img/send.svg) - deploy selected chains.
+- **Id** - chain identifier.
+- **Name** - chain name (same as in the table).
+- **Description** - detailed description of the chain, if entered during creation.
+- **Labels** - list of chain labels (same as in the table).
+- **Overridden By** - clickable reference to the chain that overrides the current one.
+- **Overrides** - clickable reference to the chain that is overridden by the current one.
+- **Status** - same as in the table.
+- **Deployments** - embedded table with details about chain deployments (domains and active engines).
+- **Logging settings source** - shows the source of the logging settings: Default (Consul), Custom or Default (Fallback).
+- **Sessions logging level** - level of logs for chain sessions: Off, Error, Info or Debug.
+- **Log logging level** - shows current log level: Error, Warning or Info.
+- **Log payload level** - shows if payload is being logged.
+- **DPT events enabled** - shows is DPT events are being sent.
+- **Created** - date, time and creator (username) of the chain.
+- **Modified** - date, time and user of the last chain modification.
 
 ### Create New Chain or Folder
 
-To create a new chain, users click on the action menu at the bottom of the screen and select the appropriate option. Two tabs appear: **General Info** and **Extended Description** .
+To create a new chain or a folder, click button **"Create"** on the top right of the screen and select either **"New chain"** or **"New folder"** from the list menu.
+
+You will be presented with the window. Fill in the following fields:
+For Folders:
+- **Name**  - in this mandatory field, you could populate a name for new chain or a folder.
+- **Description** - here you could add detailed description for new chain or a folder.
+- At the bottom, users can choose to open the newly created folder immediately after submitting it by selecting **Open folder**. Alternatively, they can opt to open it in a **new tab**. If neither option is selected, the system simply returns to the list of chains.
+
+For Chains:
+Two tabs appear: **General Info** and **Extended Description**.
 
 In the **General Info** tab:
-
-- Entering a chain name is mandatory.
-- Labels and a short description are optional.
+- **Name**  - in this mandatory field, you could populate a name for new chain or a folder.
+- **Labels**  - customizable list of chain labels. To populate new label to the list, specify its value and then press **`Enter`**.
+- **Description** - here you could add detailed description for new chain or a folder.
+- At the bottom, users can choose to open the newly created chain immediately after submitting it by selecting **Open chain**. Alternatively, they can opt to open it in a **new tab**. If neither option is selected, the system simply returns to the list of chains.
 
 In the **Extended Description** tab:
-
 - Optional fields include _Business Description_, _Assumptions_, and _Out of Scope_.
 
-At the bottom, users can choose to open the newly created chain immediately after submitting it by selecting **Open chain**. Alternatively, they can opt to open it in a **new tab**. If neither option is selected, the system simply returns to the list of chains.
-
-Clicking on any existing chain opens it in a detailed view for further editing or inspection.
-
-To create a new folder, users click on the same action menu at the bottom of the screen and select the appropriate option. The pop-up is appeared with the following fields:
-* Name - mandatory;
-* Description - optional.
-The same option of immediate opening is available for folders.
+When all necessary parameters are filled, click **"Submit"** button or use the combination of **`Ctrl+Enter`**.
 
 ### Import Chain(s)
 
-To upload the chain(s), click the icon ![](img/cloud-upload.svg), drag and drop **.zip** or **.yaml** file into import area or click on this area, select the file and click "Next" at the bottom right. The second step allows to specify actions. There are four tabs under one.
+To upload the chain(s), click the icon ![20](img/cloud-upload.svg), drag and drop **.zip** or **.yaml** file into import area or click on this area, select the file and click "Next" at the bottom right. The second step allows to specify actions. There are four tabs under one.
 
 #### Chains Tab
 
@@ -179,7 +196,7 @@ The last step is the result of import. In each tab the specified field "Status" 
 
 ### Export Chain(s)
 
-To export the chain(s), simply select respective rows in the table with checkboxes (use checkbox in table heading if you need to select all/filtered chains) and ![](img/cloud-download.svg). When no entities are selected and button clicked, system will attempt to export every chain after receiving a user's confirmation. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
+To export the chain(s), simply select respective rows in the table with checkboxes (use checkbox in table heading if you need to select all/filtered chains) and ![20](img/cloud-download.svg). When no entities are selected and button clicked, system will attempt to export every chain after receiving a user's confirmation. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
 
 - **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements, sub-chains, selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) and sub-chains, selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
 - **Export related services** - if selected, system will also export services and specifications, utilized within chains.
@@ -187,7 +204,7 @@ To export the chain(s), simply select respective rows in the table with checkbox
 
 ### Deploy Chain(s)
 
-To deploy desired chains, mark them via checkboxes (use checkbox in table heading if you need to select all/filtered chains) and click ![](img/send.svg). System will attempt to deploy every available chain when button is clicked but none of the chains selected. In both cases, system shows pop-up and requests additional data:
+To deploy desired chains, mark them via checkboxes (use checkbox in table heading if you need to select all/filtered chains) and click ![20](img/send.svg). System will attempt to deploy every available chain when button is clicked but none of the chains selected. In both cases, system shows pop-up and requests additional data:
 
 - **Engine Domain** - the engine, selected chains will be deployed on.
 - **Snapshot Action** - defines if new snapshot must be deployed. There are two actions available:

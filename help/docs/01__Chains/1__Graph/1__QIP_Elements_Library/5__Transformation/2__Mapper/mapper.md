@@ -29,10 +29,10 @@ Variables are also available to use for "**Constants**" and "**Properties**" sec
 Default View for Mapper. The window is divided into two parts, where left part represents the source message structure, and the right part represents the target message structure. When attributes are mapped, there will be connection arrows presented between them. To see the tooltip with detailed information about transformation type and transformation description, hover the mouse over connection circle for target attribute.
 
 Structure's sections, mentioned above, are supplied with control buttons:
-- ![Plus circle](img/plus-circle.svg) - allows to add a new entity (constant, header, property or body parameter). For Headers and Properties, while specifying name, it will be possible to see suggestions with matching names of parameters already existing in the chain. The list of suggestions won't contain nested properties. When data is created from suggestion it will preserve its type and structure. It is also possible to set "Required" flag, while creating new entity under any sections except Constant, to define if the attribute is mandatory.
-- ![Close](img/close.svg) - allows to fully clear a specific section.
-- ![Upload](img/cloud-upload.svg) - allows to upload or specify a body scheme.
-- ![Download](img/cloud-download.svg) - allows to download existing body scheme in JSON format.
+- ![Plus circle|20](img/plus-circle.svg) - allows to add a new entity (constant, header, property or body parameter). For Headers and Properties, while specifying name, it will be possible to see suggestions with matching names of parameters already existing in the chain. The list of suggestions won't contain nested properties. When data is created from suggestion it will preserve its type and structure. It is also possible to set "Required" flag, while creating new entity under any sections except Constant, to define if the attribute is mandatory.
+- ![Close|20](img/close.svg) - allows to fully clear a specific section.
+- ![Upload|20](img/cloud-upload.svg) - allows to upload or specify a body scheme.
+- ![Download|20](img/cloud-download.svg) - allows to download existing body scheme in JSON format.
 
 #### Switch to Table View
 
@@ -40,13 +40,13 @@ This view is accessible by "**Table**" sub-tab and specifically designed to allo
 
 There are next control elements available on the view:
 - **Source/Target** switcher - represent type of scheme current table refers to.
-- ![Filter](img/filter.svg) - opens filter pop-up. It's also available by clicking table column names.
-- ![Settings](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
+- ![Filter|20](img/filter.svg) - opens filter pop-up. It's also available by clicking table column names.
+- ![Settings|20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
 - **Search** - search box, provides ability  to find particular parameter(s) by name value, targets/sources value, description value, transformation value.
-- ![](more.svg) - allows to choose the following options:
-	- ![Markdown file](img/file-markdown.svg) - downloads target message structure in markdown.
-	- ![Clear](img/clear.svg) - clears filters.
-	- ![Clear](img/clear.svg) - clears sorters.
+- ![20](img/more.svg) - allows to choose the following options:
+	- ![Markdown file|20](img/file-markdown.svg) - downloads target message structure in markdown.
+	- ![Clear|20](img/clear.svg) - clears filters.
+	- ![Clear|20](img/clear.svg) - clears sorters.
 
 Mapper Table contains following columns:
 - **Name** - name of the attribute. Free text field.
@@ -65,12 +65,12 @@ Mapper Table contains following columns:
   - P - property
 - **Transformation** - available only when switcher is in "**Target**" position. Allows to specify transformation rules.
 - **Transformation Description** - hidden by default. Short description for transformation. Free text field.
-- ![](more.svg) - column with control buttons:
-	- ![Plus circle](img/plus-circle.svg) - allows to add a new entity. Available for main sections and for nested attributes of "object" and "array of objects" types. For Headers and Properties, while specifying name, it will be possible to see suggestions with matching names of parameters already existing in the chain. The list of suggestions won't contain nested properties. When data is created from suggestion it will preserve its type and structure.
-	- ![Clear](img/clear.svg) - allows to fully clear a specific section. Available for main sections and for nested attributes of "object" and "array of objects" types.
-	- ![Upload](img/cloud-upload.svg) - allows to set global message scheme or specific attribute's scheme. Available for main sections and for nested attributes of "object" and "array of objects" types.
-	 - ![Download](img/cloud-download.svg) - allows to download global message scheme or specific attribute's scheme in JSON format. Available for main sections and for nested attributes of "object" and "array of objects" types.
-	- ![Delete](img/delete.svg) - allows to remove an entity. Available for particular attribute only.
+- ![20](img/more.svg) - column with control buttons:
+	- ![Plus circle|20](img/plus-circle.svg) - allows to add a new entity. Available for main sections and for nested attributes of "object" and "array of objects" types. For Headers and Properties, while specifying name, it will be possible to see suggestions with matching names of parameters already existing in the chain. The list of suggestions won't contain nested properties. When data is created from suggestion it will preserve its type and structure.
+	- ![Clear|20](img/clear.svg) - allows to fully clear a specific section. Available for main sections and for nested attributes of "object" and "array of objects" types.
+	- ![Upload|20](img/cloud-upload.svg) - allows to set global message scheme or specific attribute's scheme. Available for main sections and for nested attributes of "object" and "array of objects" types.
+	 - ![Download|20](img/cloud-download.svg) - allows to download global message scheme or specific attribute's scheme in JSON format. Available for main sections and for nested attributes of "object" and "array of objects" types.
+	- ![Delete|20](img/delete.svg) - allows to remove an entity. Available for particular attribute only.
 
 #### Switch to Text View
 
@@ -99,7 +99,7 @@ Added rules via "code" mapper editor are fully compatible with UI editor (e.g. a
 
 #### Upload Body Structure
 
-For both **Graph** and **Table** views it is possible to upload the structure to the source or target part, by clicking the ![Upload](img/cloud-upload.svg) icon under Body section. There are **"Schema"**, **"File"**, **"Metamodel"** and **"Code"** tabs available to be used, depending on the available data.
+For both **Graph** and **Table** views it is possible to upload the structure to the source or target part, by clicking the ![Upload|20](cloud-upload.svg) icon under Body section. There are **"Schema"**, **"File"**, **"Metamodel"** and **"Code"** tabs available to be used, depending on the available data.
 
 Supported formats and data:
 - JSON data sample
@@ -198,16 +198,16 @@ details[open] > summary {
 
 #### Edit Body Structure
 
-There are control buttons, available under (![](more.svg)) expandable menu in **Graph View**. This menu becomes visible after hovering the mouse on the desirable attribute. For **Table View** access control buttons with similar functionality exist and they are hidden by default. To display the buttons, hover the mouse on desired attribute or attribute value for its modification.
+There are control buttons, available under (![20](img/more.svg)) expandable menu in **Graph View**. This menu becomes visible after hovering the mouse on the desirable attribute. For **Table View** access control buttons with similar functionality exist and they are hidden by default. To display the buttons, hover the mouse on desired attribute or attribute value for its modification.
 
-It is possible to add new body parameter(s) via ![](img/plus-circle.svg) button and edit exact parameter with ![](img/edit.svg) button in **Graph View** or to click on the name of the field in **Table View**. In both cases, next attribute's data types are available:
+It is possible to add new body parameter(s) via ![20](img/plus-circle.svg) button and edit exact parameter with ![20](img/edit.svg) button in **Graph View** or to click on the name of the field in **Table View**. In both cases, next attribute's data types are available:
 - **Number**
 - **String**
 - **Boolean**
 - **Object**
 - **Array of objects/primitives**
 
-It is also possible to upload the structure under existing object or array of objects via ![](img/cloud-upload.svg) button or download it via ![](img/cloud-download.svg) button, remove any attribute with ![](img/delete.svg) button and clean up structure under existing object, array of objects or Body section itself via ![](img/clear.svg) button.
+It is also possible to upload the structure under existing object or array of objects via ![20](img/cloud-upload.svg) button or download it via ![20](img/cloud-download.svg) button, remove any attribute with ![20](img/delete.svg) button and clean up structure under existing object, array of objects or Body section itself via ![20](img/clear.svg) button.
 
 
 >ℹ️**Note:**
@@ -292,9 +292,9 @@ Please refer to the ["Data Transformation via Mapper"](1__Transformation/transfo
 #### Remove Connection
 
 To remove the connection between source and target field in **Graph View**, it is required to right-click on the arrow to open small dialog window and select "**Delete**" option. To remove multiple connections at once, select them with **Ctrl** button and then choose "**Delete**" option from dialog window, requested via right-click. In **Table View** select one of three variants:
-- Simply click delete ![Delete](img/delete.svg) button for the attribute to fully delete related row.
+- Simply click delete ![Delete|20](img/delete.svg) button for the attribute to fully delete related row.
 - Unselect undesired attributes via "**Edit**" pop-up available for values in "**Sources**"/"**Targets**" column.
-- Hover the mouse over the field and click ![Close](img/close.svg).
+- Hover the mouse over the field and click ![Close|20](img/close.svg).
 
 In **Text View** remove whole code line, that describes mapping rule in order to remove the connection.
 

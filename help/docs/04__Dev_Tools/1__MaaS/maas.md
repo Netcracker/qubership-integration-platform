@@ -32,4 +32,4 @@ Tab contains RabbitMQ-specific parameters, that allow to create classifier in Ma
 | Routing Key          | O         | String    | The routing key to create a binding between queue and exchange. When entered, both "Exchange Name" and "Queue Name" must be also specified.                                                           | rkey1         |
 
 ### Export Configuration File
-To export MaaS configuration file, simply click ![](img/cloud-download.svg) **Export**  button. All mandatory fields must be specified before button becomes active. 
+To export MaaS configuration file, simply click ![20](img/cloud-download.svg) **Export**  button. All mandatory fields must be specified before button becomes active. 

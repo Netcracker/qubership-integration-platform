@@ -38,7 +38,7 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
 	- 🔴 _**Completed with Errors**_ - session failed. Error details are available on tab "Errors" under failed session element.
 	- 🟡 _**Completed With Warnings**_ - session has been completed with warnings or exceptions, successfully handled within proper elements, such as try-catch-finally, etc. Error details are also available on tab "Errors" under failed session element.
 	- 🔵 _**In Progress**_ - session is in progress. Finalized status will be available in some time.
-	- ⚫ _**Cancelled Or Unknown**_ - session processing has been interrupted by chain itself. For example, this status might indicate that one of the Split element branches failed while this element has option "Stop On Exception" selected, which caused interruption of all other branches.
+	- c _**Cancelled Or Unknown**_ - session processing has been interrupted by chain itself. For example, this status might indicate that one of the Split element branches failed while this element has option "Stop On Exception" selected, which caused interruption of all other branches.
 * **Start Time** - start datetime of the session.
 - **Finish Time** - finish datetime of the session
 - **Session level** - shows level of logging for specific session.
@@ -46,16 +46,18 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
 - **Snapshot** - snapshot version of deployment.
     >**ℹ️Note**: **After manual [snapshot](../2__Snapshots/snapshots.md) renaming, current parameter's value will not be updated automatically (even for the new sessions)**. To see updated snapshot name, it is required to redeploy the chain.
 - **Engine** - name of the session engine domain with pod address (without port) in parentheses.
-
-The actions could be done under sessions are:
-* ![Delete](img/delete.svg) - Delete selected sessions.
-* ![Download](img/cloud-download.svg) - Export selected sessions.
-* ![Redo](img/redo.svg) - Retry selected sessions.
+- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+	- **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
+    >**ℹ️Note**: When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
+    
+	- ![20](img/delete.svg) - deletes selected session(s).
+	- ![20](img/cloud-download.svg) - exports the session.
+	- ![20](img/redo.svg) - refreshes session table.
 
 ### Session view
 
-Click **Session ID value** in the respective row of sessions table to see the list of logged chain's elements, that are related to the same session. To expand or collapse compound element simply click the element itself or use ![Plus](img/plus.svg)/ ![Minus](img/minus.svg) button to expand/collapse all elements at once. Next columns and elements are available for the table:
-- **Element Name** - name of the element, participated in the processing. Click ![Plus](img/plus.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
+Click **Session ID value** in the respective row of sessions table to see the list of logged chain's elements, that are related to the same session. To expand or collapse compound element simply click the element itself or use ![Plus|20](img/plus.svg)/ ![Minus|20](img/minus.svg) button to expand/collapse all elements at once. Next columns and elements are available for the table:
+- **Element Name** - name of the element, participated in the processing. Click ![Plus|20](img/plus.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
 - **Status** - processing status.
 - **Duration** - processing duration in milliseconds.
 - **Start Time** - processing start datetime.
@@ -64,7 +66,7 @@ Click **Session ID value** in the respective row of sessions table to see the li
 
 ### Session's element view
 
-Under each element it is possible to get additional information including its state before and after it has been executed. Click on ![Plus](img/plus.svg) to expand.
+Under each element it is possible to get additional information including its state before and after it has been executed. Click on ![Plus|20](img/plus.svg) to expand.
 
 Next information is available, when element's name clicked and window with its details presented:
 - **Previous/Next** buttons - navigation buttons, that allow to open previous or next session element.
@@ -78,8 +80,8 @@ There is also "**View diff**" switch, available for "**Headers**", "**Exchange p
 
 ### Retry Failed Session
 
-To retry failed session, find it in the table and click retry ![Redo](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../../01__Chains/1__Graph/1__QIP_Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
+To retry failed session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](1__Graph/1__QIP_Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
 
 ### Export Sessions
 
-To export session(s) to a **json** file, please mark all required sessions via checkbox and click **Export** button ![Download](img/cloud-download.svg). To limit the amount of exported data, **Export** button is disabled when all sessions are marked via global checkbox on top of the table. Export is also possible from sessions details window, where all session's steps are presented.
+To export session(s) to a **json** file, please mark all required sessions via checkbox and click **Export** button ![Download|20](img/cloud-download.svg). To limit the amount of exported data, **Export** button is disabled when all sessions are marked via global checkbox on top of the table. Export is also possible from sessions details window, where all session's steps are presented.

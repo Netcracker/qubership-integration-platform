@@ -27,15 +27,17 @@ Table with **Context** services is accessible by navigating to **Services** → 
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
 - **Created When** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
-* **Actions menu** - list of operations, accessed via ![More](img/more.svg) menu under each service. Contains next operations:
-	- **Edit** ![Edit](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
-	- **Delete** ![Delete](img/delete.svg) - deletes entity.
-	- **Export** ![Upload](img/cloud-upload.svg) - allows to export the entity.
-
-In general at the right down side only one operation is available under ![More](img/more.svg) button:
-* ![Plus](img/plus.svg) - Create Service.
-* ![Upload](img/cloud-upload.svg) - Upload Service.
-* ![Download](img/cloud-download.svg) - Download Selected Services.
+* **Actions menu** - list of operations, accessed via ![More|20](img/more.svg) menu under each service. Contains next operations:
+	- **Edit** ![Edit|20](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
+	- **Delete** ![Delete|20](img/delete.svg) - deletes entity.
+	- **Export** ![Upload|20](img/cloud-upload.svg) - allows to export the entity.
+- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+	- **Search field** - search box, provides ability to find respective data in the table.
+	- ![20](img/filter.svg) - opens filter pop-up.
+	- ![20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
+	- ![20](img/cloud-download.svg) - exports the service.
+	- ![20](img/cloud-upload.svg) - opens pop-up for service import.
+	- ![20](img/plus.svg) - provides ability to add new service.
 
 ### View Parameters
 
@@ -54,7 +56,7 @@ For _Web UI_ there are some additional information:
   Not available via VS Code extension
 </span>
 
-To add new context service, click **"Create"** button marked with ![Plus](img/plus.svg) from the ![More](img/more.svg) button. Specify service name, description and labels on a newly opened pop-up and then click **"Create"**. System opens new window with the **"Parameters"** tab:
+To add new context service, click **"Create"** button marked with ![Plus|20](img/plus.svg).  Specify service name, description and labels on a newly opened pop-up and then click **"Create"**. System opens new window with the **"Parameters"** tab:
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Service type** - types of service.
@@ -67,7 +69,7 @@ Specify the required fields and click **"Save"**. Notification about successful 
   Not available via VS Code extension
 </span>
 
-To import the service(s), click the icon ![Upload](img/cloud-upload.svg), drag and drop **.zip** file into import area or click **"browse"** link and select **single** file with respective format from the explorer menu. When appropriate file is added to the window, click **"Import"** button to start the import process. During the import, system follows next logic:
+To import the service(s), click the icon ![Upload|20](img/cloud-upload.svg), drag and drop **.zip** file into import area or click **"browse"** link and select **single** file with respective format from the explorer menu. When appropriate file is added to the window, click **"Import"** button to start the import process. During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
   - Fetch the list of service ids with **ignore** action and skip import process for them. Find more details about Import Instructions in the respective article: [Import Instructions](../../03__Admin_Tools/4__Import_Instructions/import_instructions.md).
 - Find existing services by ids from import archive:
@@ -97,5 +99,5 @@ When import is completed, system displays import result table with the following
 </span>
 
 System allows exporting service. There are two possible ways to export service(s):
-- From **"Context Services"** page - mark specific services with checkboxes and click ![Download](img/cloud-download.svg) (Export).
-- From exact service page - simply click ![Download](img/cloud-download.svg) (Export) from the action menu ![More](img/more.svg).
+- From **"Context Services"** page - mark specific services with checkboxes and click ![Download|20](img/cloud-download.svg) (Export).
+- From exact service page - simply click ![Download|20](img/cloud-download.svg) (Export) from the action menu ![More|20](img/more.svg).

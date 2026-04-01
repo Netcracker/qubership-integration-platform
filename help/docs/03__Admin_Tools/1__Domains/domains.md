@@ -30,11 +30,11 @@ Qubership Integration Platform provides view-only window where domain's informat
 - **Version** - current build of Qubership Integration Platform.
 - **Desired engines** - count of engines under domain.
 - **Namespace** - K8S namespace.
-- ![Plus](img/plus.svg) - expands/collapses the domain card.
+- ![20](img/down.svg) - expands/collapses the domain card.
 
 ### View Engines
 
-To expand the domain tree and **see child engines**, click ![Plus](img/plus.svg) icon, available for specific domain card.
+To expand the domain tree and **see child engines**, click ![20](img/down.svg) icon, available for specific domain card.
 
 **Engine card** structure:
 - **Engine** - engine name.
@@ -46,11 +46,11 @@ To expand the domain tree and **see child engines**, click ![Plus](img/plus.svg)
 	- 🟡 _Pending_
 	- 🟢 _Running_
 	- 🔴 _Failed_
-- ![Plus](img/plus.svg) - expands/collapses the engine card.
+- ![20](img/down.svg) - expands/collapses the engine card.
 
 ### Chain Deployment Card View
 
-To expand the engine tree and see **chain deployments**, click ![Plus](img/plus.svg) icon, available for specific engine card.
+To expand the engine tree and see **chain deployments**, click ![20](img/down.svg) icon, available for specific engine card.
 
 **Chain deployment card**  structure:
 - **Chain name** - name of the chain deployed on current engine.

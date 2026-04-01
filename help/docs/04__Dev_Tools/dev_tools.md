@@ -18,5 +18,4 @@ Tab is specifically designed to contain developer tools for the purposes of test
 ### View "Dev Tools" Section.
 By navigating to "Dev Tools", next tabs are going to be available:
 - [MaaS](1__MaaS/maas.md) - contains existing list of domains and their state.
-- [Endpoint Mocks](2__Endpoint_Mocks/endpoint_mocks.md) - allows to view and manage all existing mocking sets.
 - [Diagnostic](3__Diagnostic/diagnostic.md) - allows to execute system validations to find issues and get resolution hints.

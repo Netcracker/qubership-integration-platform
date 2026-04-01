@@ -332,18 +332,20 @@ Accessed via **Admin Tools → Audit**, the interface features a customizable ta
 - **Parent Id** - unique identifier of parent entity. Column is hidden by default.
 - **Parent Name** - reference to parent entity.
 
-The following actions are available via Action Menu ![More](img/more.svg):
-* ![Download](img/cloud-download.svg) - Export Actions Logs.
-* ![Redo](img/redo.svg) - Refresh.
+The following actions are available:
+* ![20](img/setting.svg) - Column setting.
+* ![Redo|20](img/redo.svg) - Refresh.
+* ![Download|20](img/cloud-download.svg) - Export Actions Logs.
+
 
 Similar information is presented on "**Action details**" right panel, available by clicking respective table's record.
 
 ### Export to Excel
 
-To export audit table to Excel file, find and click export ![Download](img/cloud-download.svg) button from the Action Menu, select the required date range and confirm operation.
+To export audit table to Excel file, find and click export ![Download|20](img/cloud-download.svg) button, select the required date range and confirm operation.
 
 >**ℹ️Note**: Resulted file will always have "Action date" values converted to **GMT** time zone.
 
 ### Refresh Logs
 
-To refresh Audit table, simply click button ![Redo](img/redo.svg), presented in the menu or refresh the page itself.
+To refresh Audit table, simply click button ![Redo|20](img/redo.svg), presented in the menu or refresh the page itself.

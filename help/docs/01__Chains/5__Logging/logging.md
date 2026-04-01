@@ -19,7 +19,7 @@ User is able to navigate to the **"Logging Settings"** tab under the chain and v
 	- **Default (Consul)** - when default settings from Consul are applied.
 	 - **Custom** - when chain's custom settings from Consul are applied.
 	- **Default (Fallback)** - when Consul has no settings available, and system applied its own default values. In this case, system will also show a proper warning message.
-- **Sessions Level** - level of logs for chain [sessions](../4__Sessions/sessions.md). Possible values:
+- **Sessions Level** - level of logs for chain [sessions](../../01__Chains/4__Sessions/sessions.md). Possible values:
     - **Off** _(Default value)_ - logging is fully turned off.
     - **Error** -  only sessions failed with errors are going to be logged. If failed elements are part of sub-chain(s), session will also show Chain Call(s) to maintain proper structure. This level of logging has low affect on performance, as it handles only failed sessions and considers writing the data, related to the failed element only. Memory and storage capacity consumption is also considered to be on low level.
     - **Info** - only completed inbound/outbound communications, as well as failed sessions are going to be logged. When mentioned elements are part of sub-chain(s), session will also contain Chain Call(s) to maintain proper structure. This level of logging has medium affect on performance in general, as well as on memory and storage capacity consumption.
