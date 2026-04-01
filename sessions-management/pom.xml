@@ -7,7 +7,7 @@
     <version>0.4.2-SNAPSHOT</version>
     <name>QIP Sessions Management</name>
     <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
-    <url>https://github.com/Netcracker/qubership-integration-sessions-management</url>
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
@@ -23,10 +23,10 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:https//github.com/Netcracker/qubership-integration-sessions-management.git</connection>
-        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-sessions-management.git
+        <connection>scm:git:https//github.com/Netcracker/qubership-integration-platform.git</connection>
+        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git
         </developerConnection>
-        <url>scm:git:https://github.com/Netcracker/qubership-integration-sessions-management.git</url>
+        <url>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</url>
     <tag>HEAD</tag>
   </scm>
 
@@ -554,7 +554,7 @@
                     <id>github</id>
                     <name>GitHub Packages</name>
                     <url>
-                        https://maven.pkg.github.com/Netcracker/qubership-integration-sessions-management
+                        https://maven.pkg.github.com/Netcracker/qubership-integration-platform
                     </url>
                 </repository>
             </distributionManagement>

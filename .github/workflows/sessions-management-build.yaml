@@ -28,6 +28,7 @@ jobs:
         with:
           target-store: 'github'
           java-version: '21'
+          pom-file: 'sessions-management/pom.xml'
           maven-username: ${{ github.actor }}
           maven-token: ${{ github.token }}
           sonar-token: ${{ env.SONAR_TOKEN }}

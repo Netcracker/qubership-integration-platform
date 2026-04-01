@@ -1,29 +1,8 @@
 ---
 
-# This workflow is used to build and publish a Maven project to a Maven repository (GitHub packages or Maven Central).
-# It has a dry run stage to check the build process without actually publishing the artifacts.
-# The workflow is triggered manually and allows the user to specify the version type (major, minor, patch), Maven profile, and additional Maven arguments.
-# The workflow also creates a GitHub release after the deployment stage if the deployment is successful.
-# The workflow uses the `netcracker/qubership-workflow-hub/actions/maven-release` action to perform the build and publish steps.
-# The workflow requires the following inputs:
-# - `version-type`: The type of version to release (major, minor, patch).
-# - `maven-args`: Additional Maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true).
-# - `profile`: The Maven profile to use (e.g. github, central).
-# Please make sure to set the required secrets in your GitHub repository:
-# - `GITHUB_TOKEN`: The GitHub token used for authentication.
-# - `GPG_PRIVATE_KEY`: The GPG private key used for signing the artifacts.
-# - `GPG_PASSPHRASE`: The passphrase for the GPG private key.
-# - `MAVEN_USER`: The Maven username used for authentication (for Maven Central).
-# - `MAVEN_PASSWORD`: The Maven password used for authentication (for Maven Central).
-# - `GH_BUMP_VERSION_APP_ID`: The GitHub App ID used for authentication.
-# - `GH_BUMP_VERSION_APP_KEY`: The private key for the GitHub App used for authentication.
-# The workflow also requires the https://github.com/Netcracker/.github/blob/main/config/examples/release-drafter-config.yml config file to create a GitHub release.
-# Please prepare project's pom.xml file according to https://github.com/netcracker/.github/blob/main/docs/maven-publish-pom-preparation_doc.md
-# to be able to use this workflow.
-
 name: Runtime Catalog Release
 
-run-name: ${{ github.event.inputs.version-type }} release for ${{ github.event.repository.name }}
+run-name: 'Runtime Catalog release v${{ inputs.version }}'
 
 on:
   workflow_dispatch:
@@ -33,21 +12,12 @@ on:
         default: '1.0.0'
         type: string
         description: 'Release version (e.g., 1.0.0)'
-      version-type:
-        description: 'Version type to release'
-        type: choice
-        options:
-          - 'major'
-          - 'minor'
-          - 'patch'
-        required: true
-        default: 'patch'
       profile:
         description: 'Maven profile to use'
         type: choice
         options:
-          - 'github'
           - 'central'
+          - 'github'
         required: false
         default: 'central'
       build-docker:
@@ -56,12 +26,12 @@ on:
         default: true
         type: boolean
       create-github-release:
-        description: 'Create release'
+        description: 'Create GitHub Release'
         required: false
         default: true
         type: boolean
       mvn-args:
-        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
+        description: 'Additional Maven arguments'
         required: false
         default: ''
         type: string
@@ -69,93 +39,46 @@ on:
 permissions: {}
 
 jobs:
-  check-tag:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Check if tag exists
-        id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
-        with:
-          ref: ${{ github.ref }}
-          tag-name: 'v${{ inputs.version }}'
-          create-tag: 'false'
-          check-tag: 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-and-publish:
-    needs: check-tag
-    runs-on: ubuntu-latest
+  release:
     permissions:
       contents: write
       packages: write
-    steps:
-      - name: "Build and Publish"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
-        with:
-          version-type: ${{ github.event.inputs.version-type }}
-          ref: ${{ github.ref }}
-          module: ${{ github.event.repository.name }}
-          maven-args: ${{ inputs.mvn-args }}
-          profile: ${{ inputs.profile }}
-          server-id: ${{ inputs.profile }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
-          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-          dry-run: 'false'
-      - name: Upload JAR
-        uses: actions/upload-artifact@v6.0.0
-        with:
-          name: app-jar
-          path: ${{ github.event.repository.name }}/**/target/*-exec.jar
-  publish-image:
-    if: ${{ github.event.inputs.build-docker == 'true' }}
-    needs: build-and-publish
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    steps:
-      - name: "Docker Build"
-        id: docker_build
-        uses: netcracker/qubership-workflow-hub/actions/docker-action@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
-        with:
-          ref: ${{ github.ref }}
-          download-artifact: true
-          download-artifact-name: app-jar
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: ./.github/workflows/module-release.yaml
+    with:
+      module-dir: 'runtime-catalog'
+      version: ${{ inputs.version }}
+      profile: ${{ inputs.profile }}
+      build-docker: ${{ inputs.build-docker }}
+      create-tag: true
+      mvn-args: ${{ inputs.mvn-args }}
+    secrets:
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
 
-  create-release:
-    if: ${{ github.event.inputs.create-github-release == 'true' }}
-    needs: build-and-publish
+  create-github-release:
+    if: inputs.create-github-release
+    needs: release
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           fetch-depth: 0
           ref: ${{ github.ref }}
-      - name: Run Release Drafter
-        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 #v1.0.0
+
+      - name: Create GitHub Release
+        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
         with:
-          config-name: "release-drafter-config.yml"
+          config-name: 'release-drafter-config.yml'
           publish: true
           prerelease: ${{ github.ref_name != 'main' }}
-          name: ${{ inputs.version }}
-          tag: 'v${{ inputs.version }}'
-          version: 'v${{ inputs.version }}'
+          name: 'runtime-catalog/v${{ inputs.version }}'
+          tag: 'runtime-catalog/v${{ inputs.version }}'
+          version: 'runtime-catalog/v${{ inputs.version }}'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

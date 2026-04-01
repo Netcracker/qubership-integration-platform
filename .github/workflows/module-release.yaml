@@ -1,0 +1,168 @@
+---
+
+# Reusable workflow for releasing a single module within the monorepo.
+# Handles: version set, Maven deploy, git tag, JAR artifact upload, Docker image build.
+# Called by platform-release.yaml (orchestrator) and per-module release workflows.
+
+name: Module Release
+
+on:
+  workflow_call:
+    inputs:
+      module-dir:
+        description: 'Module subdirectory (e.g., engine)'
+        required: true
+        type: string
+      version:
+        description: 'Release version (e.g., 0.5.0)'
+        required: true
+        type: string
+      profile:
+        description: 'Maven profile (github or central)'
+        required: false
+        default: 'central'
+        type: string
+      build-docker:
+        description: 'Build and push Docker image'
+        required: false
+        default: true
+        type: boolean
+      create-tag:
+        description: 'Create git tag for this module'
+        required: false
+        default: true
+        type: boolean
+      mvn-args:
+        description: 'Additional Maven arguments'
+        required: false
+        default: ''
+        type: string
+    secrets:
+      MAVEN_GPG_PRIVATE_KEY:
+        required: true
+      MAVEN_GPG_PASSPHRASE:
+        required: true
+      MAVEN_USER:
+        required: false
+      MAVEN_PASSWORD:
+        required: false
+
+permissions: {}
+
+jobs:
+  check-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check if module tag already exists
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          ref: ${{ github.ref }}
+          tag-name: '${{ inputs.module-dir }}/v${{ inputs.version }}'
+          create-tag: 'false'
+          check-tag: 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-publish:
+    needs: check-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+      - name: Add Maven Central server credentials
+        if: inputs.profile == 'central'
+        env:
+          MAVEN_USER: ${{ secrets.MAVEN_USER }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+        run: |
+          sed -i "s|</servers>|<server><id>central</id><username>${MAVEN_USER}</username><password>${MAVEN_PASSWORD}</password></server></servers>|" ~/.m2/settings.xml
+
+      - name: Set release version
+        run: |
+          mvn -f ${{ inputs.module-dir }}/pom.xml versions:set \
+            -DnewVersion=${{ inputs.version }} \
+            -DgenerateBackupPoms=false \
+            --batch-mode
+
+      - name: Build and deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: |
+          mvn -f ${{ inputs.module-dir }}/pom.xml \
+            --batch-mode deploy \
+            -P${{ inputs.profile }} \
+            -DskipTests=true \
+            ${{ inputs.mvn-args }}
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: '${{ inputs.module-dir }}-jar'
+          path: '${{ inputs.module-dir }}/**/target/*-exec.jar'
+          retention-days: 1
+
+      - name: Create module tag
+        if: inputs.create-tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ inputs.module-dir }}/v${{ inputs.version }}" \
+            -m "Release ${{ inputs.module-dir }} v${{ inputs.version }}"
+          git push origin "${{ inputs.module-dir }}/v${{ inputs.version }}"
+
+  publish-image:
+    if: inputs.build-docker
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: '${{ inputs.module-dir }}-jar'
+          path: '${{ inputs.module-dir }}'
+
+      - name: Docker Build and Push
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          checkout: 'false'
+          custom-image-name: 'qip-${{ inputs.module-dir }}'
+          component: '[{"name": "qip-${{ inputs.module-dir }}", "dockerfile": "./${{ inputs.module-dir }}/Dockerfile", "build_context": "./${{ inputs.module-dir }}"}]'
+          tags: '${{ inputs.version }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
