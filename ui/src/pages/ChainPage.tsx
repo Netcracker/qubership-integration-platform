@@ -1,5 +1,5 @@
 import "@xyflow/react/dist/style.css";
-import { Breadcrumb, Col, Flex, Row, Result, Button, Tabs } from "antd";
+import { Breadcrumb, Col, Flex, Row, Result, Button, Tabs, Tag } from "antd";
 import { ChainHeaderActionsContextProvider } from "./ChainHeaderActionsContext.tsx";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
@@ -160,6 +160,7 @@ const ChainPage = () => {
             headerActions={headerActions}
             pathItems={pathItems}
             onTabChange={handleTabChange}
+            showUnsavedChanges={!isVsCode && chain.unsavedChanges}
           />
           <Flex className={styles.stretched}>
             <Outlet />
@@ -176,6 +177,7 @@ type ChainPageHeaderProps = {
   headerActions: ReactNode;
   pathItems: BreadcrumbProps["items"];
   onTabChange: (key: string) => void;
+  showUnsavedChanges: boolean;
 };
 
 const ChainPageHeader: FC<ChainPageHeaderProps> = ({
@@ -184,6 +186,7 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
   headerActions,
   pathItems,
   onTabChange,
+  showUnsavedChanges,
 }) => {
   const fullscreenCtx = useChainFullscreenContext();
   if (fullscreenCtx?.fullscreen) return null;
@@ -191,40 +194,56 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
   if (isVsCode) {
     return (
       <Tabs
+        className={styles.chainPageTabs as string}
         activeKey={activeKey}
         onChange={onTabChange}
         items={tabItems}
         style={{ marginBottom: 0 }}
         tabBarExtraContent={
-          <Flex
-            gap={8}
-            align="center"
-            style={{ flexWrap: "wrap", minHeight: 32 }}
-          >
-            {headerActions}
-          </Flex>
+          <div className={styles.chainTabBarExtra as string}>{headerActions}</div>
         }
       />
     );
   }
 
+  const tabsBarExtra = (
+    <div className={styles.chainTabBarExtra as string}>{headerActions}</div>
+  );
+
   return (
     <>
-      <Row justify="space-between" align="middle" style={{ minHeight: 32 }}>
-        <Col>
-          <Breadcrumb items={pathItems} className={styles.breadcrumb} style={{ marginLeft: 8 }} />
+      <Row
+        className={styles.chainPageHeaderRow as string}
+        justify="space-between"
+        align="middle"
+        style={{ minHeight: 32 }}
+      >
+        <Col flex="auto">
+          <Breadcrumb
+            items={pathItems}
+            className={styles.breadcrumb}
+            style={{ marginLeft: 8 }}
+          />
         </Col>
-        <Col>
-          <Flex
-            gap={8}
-            align="center"
-            style={{ flexWrap: "wrap", minHeight: 32 }}
-          >
-            {headerActions}
-          </Flex>
-        </Col>
+        {showUnsavedChanges ? (
+          <Col flex="none">
+            <Tag
+              color="warning"
+              className={styles.unsavedChangesTag as string}
+              data-testid="chain-unsaved-changes"
+            >
+              Unsaved changes
+            </Tag>
+          </Col>
+        ) : null}
       </Row>
-      <Tabs activeKey={activeKey} onChange={onTabChange} items={tabItems} />
+      <Tabs
+        className={styles.chainPageTabs as string}
+        activeKey={activeKey}
+        onChange={onTabChange}
+        items={tabItems}
+        tabBarExtraContent={tabsBarExtra}
+      />
     </>
   );
 };

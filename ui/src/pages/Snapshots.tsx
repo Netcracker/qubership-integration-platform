@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { Button, Flex, Table } from "antd";
-import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import { useNavigate } from "react-router";
@@ -28,7 +27,6 @@ import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
-import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
@@ -40,13 +38,16 @@ import {
   sumScrollXForColumns,
   useTableColumnResize,
 } from "../components/table/useTableColumnResize.tsx";
-import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import {
   createActionsColumnBase,
   disableResizeBeforeActions,
 } from "../components/table/actionsColumn.ts";
-import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import { matchesByFields } from "../components/table/tableSearch.ts";
+import { CompactSearch } from "../components/table/CompactSearch.tsx";
+import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
+import commonStyles from "../components/admin_tools/CommonStyle.module.css";
+import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import chainPageStyles from "./Chain.module.css";
 
 const SNAPSHOTS_SELECTION_COLUMN_WIDTH = 48;
 
@@ -412,51 +413,63 @@ export const Snapshots: React.FC = () => {
     onChange: onSelectChange,
   };
 
+  const chainTabToolbar = useMemo(
+    () => (
+      <Flex
+        className={chainPageStyles.chainTabToolbarRow}
+        align="center"
+        gap={8}
+        wrap="wrap"
+      >
+        <CompactSearch
+          value={searchTerm}
+          onChange={setSearchTerm}
+          placeholder="Search snapshots..."
+          allowClear
+          className={commonStyles.searchField as string}
+          style={{ minWidth: 160, maxWidth: 360, flex: "0 1 auto" }}
+        />
+        <Flex align="center" gap={8} wrap="wrap" style={{ flexShrink: 0 }}>
+          {columnSettingsButton}
+          <ProtectedButton
+            require={{ snapshot: ["read"] }}
+            tooltipProps={{ title: "Compare selected snapshots" }}
+            buttonProps={{
+              icon: <>⇄</>,
+              onClick: onCompareBtnClick,
+              disabled: selectedRowKeys.length !== 2,
+            }}
+          />
+          <ProtectedButton
+            require={{ snapshot: ["delete"] }}
+            tooltipProps={{ title: "Delete selected snapshots" }}
+            buttonProps={{
+              iconName: "delete",
+              onClick: onDeleteBtnClick,
+              disabled: selectedRowKeys.length === 0,
+            }}
+          />
+          <ProtectedButton
+            require={{ snapshot: ["create"] }}
+            tooltipProps={{ title: "Create snapshot" }}
+            buttonProps={{
+              type: "primary",
+              iconName: "plus",
+              onClick: onCreateBtnClick,
+            }}
+          />
+        </Flex>
+      </Flex>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state; register deps omit unstable columnSettingsButton
+    [searchTerm, columnSettingsButton, selectedRowKeys],
+  );
+
+  /* columnSettingsButton omitted: unstable identity would retrigger parent setState in a loop */
+  useRegisterChainHeaderActions(chainTabToolbar, [searchTerm, selectedRowKeys]);
+
   return (
     <TablePageLayout>
-      <TableToolbar
-        leading={
-          <CompactSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search snapshots..."
-            allowClear
-            className={commonStyles.searchField as string}
-          />
-        }
-        trailing={
-          <Flex align="center" gap={8} wrap="wrap">
-            {columnSettingsButton}
-            <ProtectedButton
-              require={{ snapshot: ["create"] }}
-              tooltipProps={{ title: "Create snapshot" }}
-              buttonProps={{
-                type: "primary",
-                iconName: "plus",
-                onClick: onCreateBtnClick,
-              }}
-            />
-            <ProtectedButton
-              require={{ snapshot: ["delete"] }}
-              tooltipProps={{ title: "Delete selected snapshots" }}
-              buttonProps={{
-                iconName: "delete",
-                onClick: onDeleteBtnClick,
-                disabled: selectedRowKeys.length === 0,
-              }}
-            />
-            <ProtectedButton
-              require={{ snapshot: ["read"] }}
-              tooltipProps={{ title: "Compare selected snapshots" }}
-              buttonProps={{
-                icon: <>⇄</>,
-                onClick: onCompareBtnClick,
-                disabled: selectedRowKeys.length !== 2,
-              }}
-            />
-          </Flex>
-        }
-      />
       <Table
         size="small"
         columns={columnsWithResize}

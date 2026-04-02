@@ -14,7 +14,9 @@ import React from "react";
 interface LightColumn {
   key?: string;
   dataIndex?: string;
-  title?: React.ReactNode | ((props: Record<string, unknown>) => React.ReactNode);
+  title?:
+    | React.ReactNode
+    | ((props: Record<string, unknown>) => React.ReactNode);
   render?: (value: unknown, record: unknown, index: number) => React.ReactNode;
   onHeaderCell?: (col: unknown) => Record<string, unknown>;
 }
@@ -76,7 +78,8 @@ function getRowKey(
   rowKeyProp?: string | ((record: unknown) => string),
 ): React.Key {
   if (typeof rowKeyProp === "function") return rowKeyProp(record);
-  if (typeof rowKeyProp === "string") return (record[rowKeyProp] as React.Key) ?? index;
+  if (typeof rowKeyProp === "string")
+    return (record[rowKeyProp] as React.Key) ?? index;
   return (record["key"] as React.Key) ?? index;
 }
 
@@ -95,7 +98,10 @@ function RenderRows({
   expandable?: ExpandableConfig;
   rowKeyProp?: string | ((record: unknown) => string);
   rowClassName?: string | ((record: unknown, index: number) => string);
-  onRow?: (record: unknown, index: number) => React.HTMLAttributes<HTMLTableRowElement>;
+  onRow?: (
+    record: unknown,
+    index: number,
+  ) => React.HTMLAttributes<HTMLTableRowElement>;
 }) {
   const bodyColSpan = columns.length + (rowSelection ? 1 : 0);
   const childrenCol = expandable?.childrenColumnName ?? "children";
@@ -132,7 +138,7 @@ function RenderRows({
         const cls =
           typeof rowClassName === "function"
             ? rowClassName(record, idx)
-            : rowClassName ?? "";
+            : (rowClassName ?? "");
 
         const toggleExpand = (e: React.MouseEvent) => {
           e.stopPropagation();
@@ -156,12 +162,18 @@ function RenderRows({
 
         return (
           <React.Fragment key={key}>
-            <tr className={cls} data-row-key={key} {...(onRow?.(record, idx) ?? {})}>
+            <tr
+              className={cls}
+              data-row-key={key}
+              {...(onRow?.(record, idx) ?? {})}
+            >
               {rowSelection && (
                 <td>
                   <input
                     type="checkbox"
-                    checked={rowSelection.selectedRowKeys?.includes(key) ?? false}
+                    checked={
+                      rowSelection.selectedRowKeys?.includes(key) ?? false
+                    }
                     onChange={() => {
                       const current = rowSelection.selectedRowKeys ?? [];
                       const next = current.includes(key)
@@ -186,8 +198,7 @@ function RenderRows({
                               record,
                               expandable:
                                 lazyExpandable ||
-                                (!!expandable.expandedRowRender &&
-                                  rowExpandOk),
+                                (!!expandable.expandedRowRender && rowExpandOk),
                             })
                           : (lazyExpandable ||
                               (!!expandable.expandedRowRender &&
@@ -199,23 +210,23 @@ function RenderRows({
                             )}
                       </>
                     )}
-                    {col.render ? col.render(val, record, idx) : (val as React.ReactNode)}
+                    {col.render
+                      ? col.render(val, record, idx)
+                      : (val as React.ReactNode)}
                   </td>
                 );
               })}
             </tr>
-            {expandable?.expandedRowRender &&
-              isExpanded &&
-              rowExpandOk && (
-                <tr
-                  className="ant-table-expanded-row"
-                  data-testid="light-table-expanded-row"
-                >
-                  <td colSpan={bodyColSpan}>
-                    {expandable.expandedRowRender(record, idx, 0, isExpanded)}
-                  </td>
-                </tr>
-              )}
+            {expandable?.expandedRowRender && isExpanded && rowExpandOk && (
+              <tr
+                className="ant-table-expanded-row"
+                data-testid="light-table-expanded-row"
+              >
+                <td colSpan={bodyColSpan}>
+                  {expandable.expandedRowRender(record, idx, 0, isExpanded)}
+                </td>
+              </tr>
+            )}
             {(alwaysExpand || isExpanded) && hasChildren && (
               <RenderRows
                 rows={children}
@@ -247,7 +258,8 @@ export function LightweightTable({
   onRow,
 }: LightTableProps) {
   const HeaderCell =
-    (components as { header?: { cell?: React.ElementType } })?.header?.cell ?? "th";
+    (components as { header?: { cell?: React.ElementType } })?.header?.cell ??
+    "th";
   const cols = columns ?? [];
   const rows = dataSource ?? [];
 
@@ -275,7 +287,10 @@ export function LightweightTable({
             {cols.map((col, idx) => {
               const cellProps = col.onHeaderCell?.(col) ?? {};
               return (
-                <HeaderCell key={col.key ?? col.dataIndex ?? idx} {...cellProps}>
+                <HeaderCell
+                  key={col.key ?? col.dataIndex ?? idx}
+                  {...cellProps}
+                >
                   {typeof col.title === "function" ? col.title({}) : col.title}
                 </HeaderCell>
               );

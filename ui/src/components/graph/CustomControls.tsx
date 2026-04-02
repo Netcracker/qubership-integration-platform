@@ -1,9 +1,6 @@
 import type React from "react";
 import { useReactFlow, useStore, useViewport } from "@xyflow/react";
-import {
-  FullscreenOutlined,
-  FullscreenExitOutlined,
-} from "@ant-design/icons";
+import { FullscreenOutlined, FullscreenExitOutlined } from "@ant-design/icons";
 
 import styles from "./CustomControls.module.css";
 import { useElkDirectionContext } from "../../pages/ElkDirectionContext.tsx";

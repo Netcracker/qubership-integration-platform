@@ -51,8 +51,9 @@ import {
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { parseJson } from "../misc/json-helper.ts";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
-import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
+import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import chainPageStyles from "./Chain.module.css";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
@@ -131,28 +132,6 @@ function compareTimestamps(s1: string, s2: string): number {
 /** rc-table expand column when rows have nested `children`. */
 const SESSIONS_EXPAND_COLUMN_WIDTH = 48;
 const SESSIONS_SELECTION_COLUMN_WIDTH = 48;
-
-async function retrySessions(
-  selectedSessions: Session[],
-  notificationService: ReturnType<typeof useNotificationService>,
-) {
-  const promises = selectedSessions.map(async (session) => {
-    try {
-      await api.retrySessionFromCheckpoint(session.chainId, session.id);
-      notificationService.info(
-        "Session retried",
-        `Session ${session.id} was retried successfully`,
-      );
-    } catch (error) {
-      notificationService.requestFailed(
-        `Failed to retry session ${session.id}`,
-        error,
-      );
-    }
-  });
-
-  await Promise.all(promises);
-}
 
 export const Sessions: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
@@ -581,14 +560,6 @@ export const Sessions: React.FC = () => {
     });
   };
 
-  const onRetryBtnClick = async () => {
-    const selectedIds = toStringIds(selectedRowKeys);
-    const selectedSessions = sessionsRef.current.filter((session) =>
-      selectedIds.includes(session.id),
-    );
-    await retrySessions(selectedSessions, notificationService);
-  };
-
   const onRefreshSessions = useCallback(() => {
     setSelectedRowKeys([]);
     void fetchSessions(0);
@@ -609,71 +580,85 @@ export const Sessions: React.FC = () => {
     void updateTableData();
   }, [updateTableData]);
 
+  const chainTabToolbar = useMemo(
+    () => (
+      <Flex
+        className={chainPageStyles.chainTabToolbarRow}
+        align="center"
+        gap={8}
+        wrap="wrap"
+      >
+        <CompactSearch
+          value={filters.searchString}
+          onChange={(value) =>
+            setFilters((prev) => ({ ...prev, searchString: value }))
+          }
+          placeholder="Search sessions..."
+          allowClear
+          className={commonStyles.searchField}
+          style={{ minWidth: 160, maxWidth: 360, flex: "0 1 auto" }}
+        />
+        <Flex align="center" gap={8} wrap="wrap" style={{ flexShrink: 0 }}>
+          {columnSettingsButton}
+          <ProtectedButton
+            require={{ session: ["delete"] }}
+            tooltipProps={{ title: "Delete selected sessions" }}
+            buttonProps={{
+              iconName: "delete",
+              onClick: onDeleteBtnClick,
+            }}
+          />
+          <ProtectedButton
+            require={{ session: ["export"] }}
+            tooltipProps={{ title: "Export selected sessions" }}
+            buttonProps={{
+              iconName: "cloudDownload",
+              onClick: () => void onExportBtnClick(),
+            }}
+          />
+          {chainId ? null : (
+            <ProtectedButton
+              require={{ session: ["import"] }}
+              tooltipProps={{ title: "Import sessions" }}
+              buttonProps={{
+                iconName: "cloudUpload",
+                onClick: onImportBtnClick,
+              }}
+            />
+          )}
+          <Tooltip title="Refresh" placement="bottom">
+            <Button
+              data-testid="sessions-refresh"
+              icon={<OverridableIcon name="refresh" />}
+              onClick={() => onRefreshSessions()}
+            >
+              Refresh
+            </Button>
+          </Tooltip>
+        </Flex>
+      </Flex>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state; register deps omit unstable columnSettingsButton
+    [
+      filters.searchString,
+      columnSettingsButton,
+      chainId,
+      selectedRowKeys,
+      onRefreshSessions,
+    ],
+  );
+
+  useRegisterChainHeaderActions(chainTabToolbar, [
+    filters.searchString,
+    chainId,
+    selectedRowKeys,
+    onRefreshSessions,
+  ]);
+
   return (
     <>
       {contextHolder}
       <TablePageLayout>
-        <TableToolbar
-          leading={
-            <CompactSearch
-              value={filters.searchString}
-              onChange={(value) =>
-                setFilters((prev) => ({ ...prev, searchString: value }))
-              }
-              placeholder="Search sessions..."
-              allowClear
-              className={commonStyles.searchField}
-            />
-          }
-          trailing={
-            <Flex align="center" gap={8} wrap="wrap">
-              {columnSettingsButton}
-              <Tooltip title="Refresh" placement="bottom">
-                <Button
-                  data-testid="sessions-refresh"
-                  icon={<OverridableIcon name="refresh" />}
-                  onClick={() => onRefreshSessions()}
-                >
-                  Refresh
-                </Button>
-              </Tooltip>
-              <ProtectedButton
-                require={{ session: ["delete"] }}
-                tooltipProps={{ title: "Delete selected sessions" }}
-                buttonProps={{
-                  iconName: "delete",
-                  onClick: onDeleteBtnClick,
-                }}
-              />
-              <ProtectedButton
-                require={{ session: ["export"] }}
-                tooltipProps={{ title: "Export selected sessions" }}
-                buttonProps={{
-                  iconName: "cloudDownload",
-                  onClick: () => void onExportBtnClick(),
-                }}
-              />
-              {chainId ? null : (
-                <ProtectedButton
-                  require={{ session: ["import"] }}
-                  tooltipProps={{ title: "Import sessions" }}
-                  buttonProps={{
-                    iconName: "cloudUpload",
-                    onClick: onImportBtnClick,
-                  }}
-                />
-              )}
-              <ProtectedButton
-                require={{ session: ["execute"] }}
-                tooltipProps={{ title: "Retry selected sessions" }}
-                buttonProps={{
-                  iconName: "redo",
-                  onClick: () => void onRetryBtnClick(),
-                }}
-              />
-            </Flex>
-          }
-        />
         <Table<SessionTableItem>
           size="small"
           className="flex-table"

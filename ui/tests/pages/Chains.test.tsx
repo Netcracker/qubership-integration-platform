@@ -347,15 +347,15 @@ describe("Chains page", () => {
   it("renders full text search in toolbar", async () => {
     render(<Chains />);
     await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
-    expect(
-      screen.getByPlaceholderText("Full text search"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Full text search")).toBeInTheDocument();
   });
 
   it("renders toolbar ProtectedButtons by tooltip title", async () => {
     render(<Chains />);
     await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
-    expect(screen.getByTestId("protected-btn-import-chains")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("protected-btn-import-chains"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("protected-btn-paste")).toBeInTheDocument();
     expect(
       screen.getByTestId("protected-btn-deploy-selected-chains"),
@@ -364,9 +364,7 @@ describe("Chains page", () => {
       screen.getByTestId("protected-btn-export-selected-chains"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId(
-        "protected-btn-delete-selected-chains-and-folders",
-      ),
+      screen.getByTestId("protected-btn-delete-selected-chains-and-folders"),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("protected-btn-compare-selected-chains"),

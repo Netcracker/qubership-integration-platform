@@ -29,12 +29,10 @@ import {
   ValidationState,
 } from "../../src/api/apiTypes";
 
-const mockGetValidations = jest.fn<
-  (...args: unknown[]) => Promise<DiagnosticValidation[]>
->();
-const mockGetValidation = jest.fn<
-  (...args: unknown[]) => Promise<DiagnosticValidation>
->();
+const mockGetValidations =
+  jest.fn<(...args: unknown[]) => Promise<DiagnosticValidation[]>>();
+const mockGetValidation =
+  jest.fn<(...args: unknown[]) => Promise<DiagnosticValidation>>();
 const mockRunValidations = jest.fn<(...args: unknown[]) => Promise<void>>();
 const mockShowModal = jest.fn();
 const mockInfo = jest.fn();
@@ -87,13 +85,10 @@ jest.mock(
   }),
 );
 
-jest.mock(
-  "../../src/components/table/TreeExpandIcon.module.css",
-  () => ({
-    expandIcon: "expandIcon",
-    expandSpacer: "expandSpacer",
-  }),
-);
+jest.mock("../../src/components/table/TreeExpandIcon.module.css", () => ({
+  expandIcon: "expandIcon",
+  expandSpacer: "expandSpacer",
+}));
 
 jest.mock("../../src/misc/format-utils", () => ({
   formatTimestamp: (ts: string) => ts,
@@ -383,7 +378,9 @@ describe("Diagnostic", () => {
     ]);
 
     await waitFor(() => {
-      expect(container.querySelector("[data-testid='icon-bulb']")).toBeInTheDocument();
+      expect(
+        container.querySelector("[data-testid='icon-bulb']"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -725,9 +722,7 @@ describe("Diagnostic", () => {
   });
 
   it("disables Run Diagnostic button while loading", () => {
-    mockGetValidations.mockImplementation(
-      () => new Promise(() => {}),
-    );
+    mockGetValidations.mockImplementation(() => new Promise(() => {}));
 
     render(<Diagnostic />);
 

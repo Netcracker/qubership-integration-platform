@@ -3,13 +3,7 @@
  */
 
 import React from "react";
-import {
-  render,
-  screen,
-  waitFor,
-  within,
-  fireEvent,
-} from "@testing-library/react";
+import { screen, waitFor, within, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
   ExecutionStatus,
@@ -18,7 +12,7 @@ import {
 } from "../../src/api/apiTypes";
 import { api } from "../../src/api/api.ts";
 import { Sessions } from "../../src/pages/Sessions.tsx";
-import { Modals } from "../../src/Modals.tsx";
+import { renderPageWithChainHeader } from "../helpers/renderWithChainHeader.tsx";
 
 jest.mock("../../src/api/api.ts", () => ({
   api: {
@@ -35,34 +29,10 @@ jest.mock("react-router", () => ({
   useParams: () => mockUseParams(),
 }));
 
-jest.mock("antd", () => {
-  const R = require("react") as typeof import("react");
-  const { antdMockWithLightweightTable } = jest.requireActual(
-    "tests/helpers/antdMockWithLightweightTable",
-  ) as {
-    antdMockWithLightweightTable: (
-      o?: Record<string, unknown>,
-    ) => Record<string, unknown>;
-  };
-  const messageApi = {
-    info: jest.fn(),
-    success: jest.fn(),
-    error: jest.fn(),
-    warning: jest.fn(),
-  };
-  return antdMockWithLightweightTable({
-    Flex: ({
-      children,
-      style,
-    }: {
-      children?: R.ReactNode;
-      style?: R.CSSProperties;
-    }) => <div style={style}>{children}</div>,
-    message: {
-      useMessage: () => [messageApi, null],
-    },
-  });
-});
+jest.mock("antd", () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- jest.mock hoisting; require avoids TDZ
+  require("tests/helpers/chainPageAntdJestMock").createChainPageAntdMock(),
+);
 
 jest.mock("antd/lib/table", () => ({}));
 jest.mock("antd/lib/table/interface", () => ({}));
@@ -208,11 +178,7 @@ function baseSession(overrides: Partial<Session> & { id: string }): Session {
 }
 
 function renderSessions() {
-  return render(
-    <Modals>
-      <Sessions />
-    </Modals>,
-  );
+  return renderPageWithChainHeader(<Sessions />);
 }
 
 describe("Sessions", () => {

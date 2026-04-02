@@ -4,7 +4,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- jest mock requires dynamic require */
 /* eslint-disable @typescript-eslint/unbound-method -- jest.restoreAllMocks in afterEach */
 import React from "react";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { api } from "../../src/api/api";
 import { PageWithRightPanel } from "../../src/pages/PageWithRightPanel";
@@ -459,9 +465,11 @@ describe("PageWithRightPanel", () => {
         .getAllByRole("tab")
         .find((tab) => tab.querySelector('[data-icon="menuUnfold"]'));
       fireEvent.click(propsTab!);
-      expect(within(screen.getByTestId("used-properties-list")).getByTestId(
-        "double-click-trigger",
-      )).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("used-properties-list")).getByTestId(
+          "double-click-trigger",
+        ),
+      ).toBeInTheDocument();
     });
   });
 

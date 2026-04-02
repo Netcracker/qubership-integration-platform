@@ -316,7 +316,7 @@ export const LiveExchanges: React.FC = () => {
         />
         Live Exchanges
       </Title>
-      <Flex vertical flex={1} minHeight={0}>
+      <Flex vertical flex={1} style={{ minHeight: 0 }}>
         <TablePageLayout>
           <TableToolbar
             leading={

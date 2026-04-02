@@ -1,3 +1,13 @@
+import { TextDecoder, TextEncoder } from "node:util";
+
+const globalForEncoders = globalThis as typeof globalThis & {
+  TextEncoder?: typeof TextEncoder;
+  TextDecoder?: typeof TextDecoder;
+};
+
+globalForEncoders.TextEncoder ??= TextEncoder;
+globalForEncoders.TextDecoder ??= TextDecoder;
+
 /**
  * JSDOM and test environment setup.
  *
@@ -11,11 +21,15 @@
  *    that trigger internal state updates; fixing requires intrusive test changes with limited benefit.
  *
  * 4. Suppresses expected console.error from tests that intentionally trigger error paths
- *    (e.g. fetch rejection) to verify error handling — DocumentationPage, documentationService.
+ *    (e.g. fetch rejection) to verify error handling — DocumentationPage, documentationService,
+ *    PageWithRightPanel (refresh chain structure / schema load failures).
  *
  * 5. Polyfill for structuredClone (Node 17+ / modern browsers) when running in older jsdom.
  *
  * 6. Polyfill for HTMLFormElement.requestSubmit (not implemented in older jsdom).
+ *
+ * 7. Suppresses rc-field-form / antd noise when Form instance is unmounted or mocked
+ *    ("useForm is not connected to any Form element") in jsdom tests.
  */
 if (
   typeof (globalThis as { structuredClone?: unknown }).structuredClone ===
@@ -59,7 +73,9 @@ console.error = (...args: unknown[]) => {
     fullMsg.includes(
       "Not implemented: HTMLFormElement.prototype.requestSubmit",
     ) ||
-    fullMsg.includes("Failed to parse schema")
+    fullMsg.includes("Failed to parse schema") ||
+    fullMsg.includes("not connected to any Form element") ||
+    fullMsg.includes("Failed to refresh chain structure before loading schema")
   ) {
     return;
   }

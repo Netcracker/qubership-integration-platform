@@ -37,14 +37,17 @@ jest.mock("../../../src/components/mapper/ConstantValueEditDialog.tsx", () => ({
   ConstantValueEditDialog: () => <div>ConstantValueEditDialog</div>,
 }));
 
-jest.mock("../../../src/components/mapper/TransformationEditDialog.tsx", () => ({
-  TransformationContext: {
-    Provider: (props: { children?: React.ReactNode }) => (
-      <div>{props.children}</div>
-    ),
-  },
-  TransformationEditDialog: () => <div>TransformationEditDialog</div>,
-}));
+jest.mock(
+  "../../../src/components/mapper/TransformationEditDialog.tsx",
+  () => ({
+    TransformationContext: {
+      Provider: (props: { children?: React.ReactNode }) => (
+        <div>{props.children}</div>
+      ),
+    },
+    TransformationEditDialog: () => <div>TransformationEditDialog</div>,
+  }),
+);
 
 jest.mock("../../../src/components/mapper/InlineTypeEdit.tsx", () => ({
   InlineTypeEdit: () => <div>InlineTypeEdit</div>,
@@ -434,9 +437,7 @@ describe("MappingTableView", () => {
 
     expectedSelectedColumns.forEach((column) => {
       const columnTitle = column.toLowerCase();
-      expect(columnTitles).toContainEqual(
-        expect.stringContaining(columnTitle),
-      );
+      expect(columnTitles).toContainEqual(expect.stringContaining(columnTitle));
     });
   });
 
@@ -497,9 +498,7 @@ describe("MappingTableView", () => {
 
     expectedSelectedColumns.forEach((column) => {
       const columnTitle = column.toLowerCase();
-      expect(columnTitles).toContainEqual(
-        expect.stringContaining(columnTitle),
-      );
+      expect(columnTitles).toContainEqual(expect.stringContaining(columnTitle));
     });
   });
 });

@@ -27,12 +27,13 @@ import {
   sumScrollXForColumns,
   useTableColumnResize,
 } from "../components/table/useTableColumnResize.tsx";
-import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { disableResizeBeforeActions } from "../components/table/actionsColumn.ts";
-import commonStyles from "../components/admin_tools/CommonStyle.module.css";
-import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import { matchesByFields } from "../components/table/tableSearch.ts";
+import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
+import commonStyles from "../components/admin_tools/CommonStyle.module.css";
+import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import chainPageStyles from "./Chain.module.css";
 
 const MASKING_SELECTION_COLUMN_WIDTH = 48;
 
@@ -275,42 +276,54 @@ export const Masking: React.FC = () => {
     onChange: onSelectChange,
   };
 
+  const chainTabToolbar = useMemo(
+    () => (
+      <Flex
+        className={chainPageStyles.chainTabToolbarRow}
+        align="center"
+        gap={8}
+        wrap="wrap"
+      >
+        <CompactSearch
+          value={searchTerm}
+          onChange={setSearchTerm}
+          placeholder="Search masked fields..."
+          allowClear
+          className={commonStyles.searchField as string}
+          style={{ minWidth: 160, maxWidth: 360, flex: "0 1 auto" }}
+        />
+        <Flex align="center" gap={8} wrap="wrap" style={{ flexShrink: 0 }}>
+          {columnSettingsButton}
+          <ProtectedButton
+            require={{ maskedField: ["delete"] }}
+            tooltipProps={{ title: "Delete selected masked fields" }}
+            buttonProps={{
+              iconName: "delete",
+              onClick: () => void onDeleteBtnClick(),
+              disabled: selectedRowKeys.length === 0,
+            }}
+          />
+          <ProtectedButton
+            require={{ maskedField: ["create"] }}
+            tooltipProps={{ title: "Add new masked field" }}
+            buttonProps={{
+              type: "primary",
+              iconName: "plus",
+              onClick: () => void onCreateBtnClick(),
+            }}
+          />
+        </Flex>
+      </Flex>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state; register deps omit unstable columnSettingsButton
+    [searchTerm, columnSettingsButton, selectedRowKeys],
+  );
+
+  /* columnSettingsButton omitted: unstable identity would retrigger parent setState in a loop */
+  useRegisterChainHeaderActions(chainTabToolbar, [searchTerm, selectedRowKeys]);
+
   return (
     <TablePageLayout>
-      <TableToolbar
-        leading={
-          <CompactSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search masked fields..."
-            allowClear
-            className={commonStyles.searchField as string}
-          />
-        }
-        trailing={
-          <Flex align="center" gap={8} wrap="wrap">
-            {columnSettingsButton}
-            <ProtectedButton
-              require={{ maskedField: ["delete"] }}
-              tooltipProps={{ title: "Delete selected masked fields" }}
-              buttonProps={{
-                iconName: "delete",
-                onClick: () => void onDeleteBtnClick(),
-                disabled: selectedRowKeys.length === 0,
-              }}
-            />
-            <ProtectedButton
-              require={{ maskedField: ["create"] }}
-              tooltipProps={{ title: "Add new masked field" }}
-              buttonProps={{
-                type: "primary",
-                iconName: "plus",
-                onClick: () => void onCreateBtnClick(),
-              }}
-            />
-          </Flex>
-        }
-      />
       <Table
         size="small"
         columns={columnsWithResize}

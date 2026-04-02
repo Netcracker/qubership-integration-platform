@@ -85,10 +85,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   }, [isAddingNew]);
 
   const addVariable = () => {
-    if (
-      newRecord.current.key &&
-      newRecord.current.key !== NEW_VARIABLE_KEY
-    ) {
+    if (newRecord.current.key && newRecord.current.key !== NEW_VARIABLE_KEY) {
       onAdd(newRecord.current.key, newRecord.current.value);
     }
   };

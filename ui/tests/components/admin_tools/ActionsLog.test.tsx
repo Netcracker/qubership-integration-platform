@@ -53,10 +53,7 @@ jest.mock("../../../src/components/modal/DateRangePicker.tsx", () => {
         <span
           data-testid="date-range-picker-trigger"
           onClick={() =>
-            props.onRangeApply(
-              new Date("2023-01-01"),
-              new Date("2023-01-02"),
-            )
+            props.onRangeApply(new Date("2023-01-01"), new Date("2023-01-02"))
           }
         >
           {props.trigger}

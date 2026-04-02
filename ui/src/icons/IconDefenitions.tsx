@@ -115,7 +115,9 @@ import {
   ShrinkOutlined,
   ArrowsAltOutlined,
   CheckSquareOutlined,
-  WarningOutlined, InsertRowRightOutlined, InsertRowLeftOutlined
+  WarningOutlined,
+  InsertRowRightOutlined,
+  InsertRowLeftOutlined,
 } from "@ant-design/icons";
 
 /**

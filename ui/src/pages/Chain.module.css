@@ -28,8 +28,51 @@
   padding-bottom: 40px;
 }
 
+.chainPageHeaderRow {
+  padding-inline-end: 4px;
+}
+
 .breadcrumb li:last-child {
   cursor: default;
+}
+
+.unsavedChangesTag {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 3px 11px;
+}
+
+/* Fills space to the right of tab labels; child row lays out search + actions */
+.chainTabBarExtra {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  align-items: center;
+  margin-inline-start: 12px;
+}
+
+/* Shrink-wrap search + buttons; parent .chainTabBarExtra uses flex-end to align right */
+.chainTabToolbarRow {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+  justify-content: flex-end;
+}
+
+.chainPageTabs :global(.ant-tabs-nav) {
+  width: 100%;
+  padding-inline-end: 4px;
+}
+
+.chainPageTabs :global(.ant-tabs-extra-content) {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .chainTabs {
