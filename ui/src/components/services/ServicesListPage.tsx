@@ -32,8 +32,9 @@ import type {
   SpecificationGroup,
 } from "../../api/apiTypes";
 import { downloadFile } from "../../misc/download-utils";
-import { prepareFile } from "./utils.tsx";
+import { invalidateServiceCache, prepareFile } from "./utils.tsx";
 import ImportServicesModal from "./modals/ImportServicesModal";
+import { ImportSpecificationsModal } from "./modals/ImportSpecificationsModal";
 import { useModalsContext } from "../../Modals";
 import { getErrorMessage } from "../../misc/error-utils";
 import { useAsyncRequest } from "./useAsyncRequest";
@@ -61,7 +62,7 @@ const visibleColumns: string[] = [
 
 export const ServicesListPage: React.FC = () => {
   type TabType = "external" | "internal" | "implemented" | "context";
-  const [tab] = useHashTab("implemented") as [TabType, (tab: TabType) => void];
+  const [tab] = useHashTab("external") as [TabType, (tab: TabType) => void];
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -326,6 +327,28 @@ export const ServicesListPage: React.FC = () => {
     }
   };
 
+  const handleAddSpecificationGroup = useCallback(
+    (record: ServiceEntity) => {
+      if (!isIntegrationSystem(record)) return;
+      showModal({
+        component: (
+          <ImportSpecificationsModal
+            systemId={record.id}
+            groupMode={true}
+            isImplementedService={
+              record.type === IntegrationSystemType.IMPLEMENTED
+            }
+            onSuccess={() => {
+              void loadServices();
+              invalidateServiceCache(record.id);
+            }}
+          />
+        ),
+      });
+    },
+    [showModal, loadServices],
+  );
+
   const actionsColumn: ServicesTableColumn = getActionsColumn(
     getServiceActions({
       onEdit: handleEdit,
@@ -339,6 +362,7 @@ export const ServicesListPage: React.FC = () => {
       onExportSelected: (selected) => {
         void handleExportSelected(selected);
       },
+      onAddSpecificationGroup: handleAddSpecificationGroup,
     }),
   );
 

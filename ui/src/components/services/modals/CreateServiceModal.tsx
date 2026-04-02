@@ -49,24 +49,14 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
     }
   }, [open, defaultType, form]);
 
-  const handleTypeChange = (newType: IntegrationSystemType) => {
-    const currentName = form.getFieldValue("name") as string;
-    const serviceTypeLabel = getServiceTypeLabel(newType);
-    const expectedName = `New ${serviceTypeLabel} service`;
-
-    if (
-      currentName &&
-      currentName.startsWith("New ") &&
-      currentName.endsWith(" service")
-    ) {
-      form.setFieldValue("name", expectedName);
-    }
-  };
-
   const handleOk = async (values: CreateServiceFormValues) => {
     try {
       setSubmitError(null);
-      await onCreate(values.name, values.description, values.type);
+      const type =
+        (form.getFieldValue("type") as IntegrationSystemType | undefined) ??
+        values.type ??
+        defaultType;
+      await onCreate(values.name, values.description, type);
       form.resetFields();
     } catch (e) {
       setSubmitError(getErrorMessage(e));
@@ -107,7 +97,7 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
           name="type"
           rules={[{ required: true, message: "Select service type" }]}
         >
-          <Select disabled={loading} onChange={handleTypeChange}>
+          <Select disabled>
             <Select.Option value={IntegrationSystemType.EXTERNAL}>
               External
             </Select.Option>

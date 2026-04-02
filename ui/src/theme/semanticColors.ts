@@ -64,6 +64,19 @@ export function getSemanticColor(semanticName: string): string {
   return COLOR_PALETTE.blue; // fallback
 }
 
+/** WCAG relative luminance for #RRGGBB — pick readable text on colored tags (see SourceFlagTag, HttpMethod). */
+export function foregroundForBackground(hex: string): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim());
+  if (!m) return "rgba(0, 0, 0, 0.88)";
+  const r = parseInt(m[1], 16) / 255;
+  const g = parseInt(m[2], 16) / 255;
+  const b = parseInt(m[3], 16) / 255;
+  const lin = (c: number) =>
+    c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  return L > 0.45 ? "rgba(0, 0, 0, 0.88)" : "#ffffff";
+}
+
 // Deployment status colors (from DeploymentRuntimeState.tsx)
 export function getDeploymentStatusColor(status: string): string {
   switch (status) {

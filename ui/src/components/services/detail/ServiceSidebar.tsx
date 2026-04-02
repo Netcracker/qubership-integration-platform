@@ -28,7 +28,7 @@ const menuItems = [
 export const ServiceSidebar = ({ collapsed }: { collapsed: boolean }) => {
   const location = useLocation();
 
-  const selectedKeys = [location.hash || "#implemented"];
+  const selectedKeys = [location.hash || "#external"];
 
   const handleClick = ({ key }: { key: string }) => {
     window.location.hash = key;

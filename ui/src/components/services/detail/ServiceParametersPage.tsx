@@ -25,7 +25,7 @@ import {
 
 const { Title } = Typography;
 
-const ServiceParametersToolbarContext = createContext<{
+export const ServiceParametersToolbarContext = createContext<{
   setToolbar: (node: React.ReactNode) => void;
 } | null>(null);
 export const useServiceParametersToolbar = () =>

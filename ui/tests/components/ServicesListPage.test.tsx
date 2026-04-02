@@ -189,7 +189,7 @@ describe("ServicesListPage", () => {
     mockGetContextServices.mockResolvedValue([]);
     mockFilterSystems.mockResolvedValue([]);
     mockSearchSystems.mockResolvedValue([]);
-    window.location.hash = "#implemented";
+    window.location.hash = "";
   });
 
   afterEach(() => {
@@ -262,8 +262,17 @@ describe("ServicesListPage", () => {
     });
   });
 
-  it("shows Implemented Services title for default tab", async () => {
+  it("shows External Services title when hash is empty", async () => {
     jest.useRealTimers();
+    window.location.hash = "";
+    render(<ServicesListPage />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+    expect(screen.getByText("External Services")).toBeInTheDocument();
+  });
+
+  it("shows Implemented Services title when hash is #implemented", async () => {
+    jest.useRealTimers();
+    window.location.hash = "#implemented";
     render(<ServicesListPage />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
     expect(screen.getByText("Implemented Services")).toBeInTheDocument();

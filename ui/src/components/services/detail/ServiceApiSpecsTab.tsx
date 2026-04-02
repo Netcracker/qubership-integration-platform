@@ -569,6 +569,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
           style={{ marginLeft: "auto" }}
         >
           <span
+            data-testid="api-specs-groups-toolbar"
             className={
               currentTable === "groups"
                 ? css.serviceApiSpecsTabFilterGroup
@@ -576,14 +577,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
             }
           >
             <Flex vertical={false} gap={4}>
-              <ProtectedButton
-                require={{ specificationGroup: ["import"] }}
-                tooltipProps={{ title: "Import Specifications" }}
-                buttonProps={{
-                  iconName: "cloudUpload",
-                  onClick: onImportSpecGroupClick,
-                }}
-              />
+              {serviceGroupsTable.FilterButton()}
               {!isVsCode && (
                 <ProtectedButton
                   require={{ service: ["export"] }}
@@ -607,7 +601,15 @@ export const ServiceApiSpecsTab: React.FC = () => {
                   }}
                 />
               )}
-              {serviceGroupsTable.FilterButton()}
+              <ProtectedButton
+                require={{ specificationGroup: ["import"] }}
+                tooltipProps={{ title: "Add Specification Group" }}
+                buttonProps={{
+                  type: "primary",
+                  iconName: "plus",
+                  onClick: onImportSpecGroupClick,
+                }}
+              />
             </Flex>
           </span>
           <span

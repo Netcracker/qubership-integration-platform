@@ -7,6 +7,19 @@
   display: inline-flex;
   align-items: center;
   margin-right: 6px;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Drop UA / theme focus rings (white+blue in dark, black in light) on this control */
+.expandIcon:focus,
+.expandIcon:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.expandIcon::-moz-focus-inner {
+  border: 0;
 }
 
 /* Zero-width space establishes line-height so the icon

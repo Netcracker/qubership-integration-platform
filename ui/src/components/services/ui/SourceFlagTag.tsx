@@ -1,6 +1,9 @@
 import React from "react";
 import { Tag } from "antd";
-import { getSemanticColor } from "../../../theme/semanticColors";
+import {
+  foregroundForBackground,
+  getSemanticColor,
+} from "../../../theme/semanticColors";
 
 const displayNameOverrides: Record<string, string> = {
   grpc: "gRPC",
@@ -27,7 +30,7 @@ export const SourceFlagTag: React.FC<{
     <Tag
       style={{
         background: color,
-        color: "rgba(0, 0, 0, 0.88)",
+        color: foregroundForBackground(color),
         borderRadius: 12,
         border: "none",
       }}

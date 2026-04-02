@@ -104,4 +104,29 @@ describe("CreateServiceModal", () => {
       );
     });
   });
+
+  it("disables service type select while still submitting defaultType", async () => {
+    render(
+      <CreateServiceModal
+        open={true}
+        onCancel={onCancel}
+        onCreate={onCreate}
+        loading={false}
+        defaultType={IntegrationSystemType.EXTERNAL}
+      />,
+    );
+
+    const typeSelect = screen.getByRole("combobox", { name: /service type/i });
+    expect(typeSelect).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.any(String),
+        undefined,
+        IntegrationSystemType.EXTERNAL,
+      );
+    });
+  });
 });

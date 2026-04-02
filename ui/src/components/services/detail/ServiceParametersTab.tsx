@@ -135,7 +135,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
       ...system,
       name: values.name,
       description: values.description,
-      type: values.type,
+      type: isVsCode ? values.type : system.type,
       labels: [
         ...technicalLabels.map((name) => ({ name, technical: true })),
         ...userLabels.map((name) => ({ name, technical: false })),
@@ -214,23 +214,25 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
             )}
           </Descriptions.Item>
         </Descriptions>
-        <Form.Item
-          label="Type"
-          name="type"
-          rules={[{ required: true, message: "Select service type" }]}
-        >
-          <Select onChange={() => setHasChanges(true)}>
-            <Select.Option value={IntegrationSystemType.INTERNAL}>
-              Internal
-            </Select.Option>
-            <Select.Option value={IntegrationSystemType.EXTERNAL}>
-              External
-            </Select.Option>
-            <Select.Option value={IntegrationSystemType.IMPLEMENTED}>
-              Implemented
-            </Select.Option>
-          </Select>
-        </Form.Item>
+        {isVsCode && (
+          <Form.Item
+            label="Type"
+            name="type"
+            rules={[{ required: true, message: "Select service type" }]}
+          >
+            <Select onChange={() => setHasChanges(true)}>
+              <Select.Option value={IntegrationSystemType.INTERNAL}>
+                Internal
+              </Select.Option>
+              <Select.Option value={IntegrationSystemType.EXTERNAL}>
+                External
+              </Select.Option>
+              <Select.Option value={IntegrationSystemType.IMPLEMENTED}>
+                Implemented
+              </Select.Option>
+            </Select>
+          </Form.Item>
+        )}
         <Form.Item label="Labels" name="labels">
           <Select
             mode="tags"
