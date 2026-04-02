@@ -84,12 +84,15 @@ const Navigation = ({
       </div>
       <div className={styles["utilities"]}>
         {!isVsCode && (
-          <Button
-            icon={<OverridableIcon name="questionCircle" />}
-            onClick={openContextDoc}
-            type="text"
-            title="Help"
-          />
+          <>
+            <div className="bg-switcher-selector"></div>
+            <Button
+              icon={<OverridableIcon name="questionCircle" />}
+              onClick={openContextDoc}
+              type="text"
+              title="Help"
+            />
+          </>
         )}
         {showThemeSwitcher && shouldShowDevTools && (
           <SettingsPanel
