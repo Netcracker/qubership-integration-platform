@@ -17,10 +17,15 @@ public class ConsulRestClientProducer {
     @ConfigProperty(name = "consul.token")
     String token;
 
+    @ConfigProperty(name = "quarkus.rest-client.consul.connect-timeout")
+    Integer connectTimeout;
+
     @Produces
     public ConsulClient consulClient(Vertx vertx) {
         ConsulClientOptions options = new ConsulClientOptions(uri)
-                .setAclToken(token);
+                .setAclToken(token)
+                .setConnectTimeout(connectTimeout)
+                .setTimeout(connectTimeout);;
         return ConsulClient.create(vertx, options);
     }
 }
