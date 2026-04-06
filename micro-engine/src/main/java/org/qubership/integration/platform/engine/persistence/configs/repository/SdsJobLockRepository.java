@@ -41,11 +41,11 @@ public class SdsJobLockRepository implements PanacheRepositoryBase<SdsJobLock, S
         delete("jobId", jobId);
     }
 
-    void deleteAllByExecutionId(String executionId) {
+    public void deleteAllByExecutionId(String executionId) {
         delete("executionId", executionId);
     }
 
-    void deleteAllByJobIdIn(Collection<String> jobIds) {
+    public void deleteAllByJobIdIn(Collection<String> jobIds) {
         delete("jobId in (?1)", jobIds);
     }
 }

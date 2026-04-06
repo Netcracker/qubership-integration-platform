@@ -23,8 +23,6 @@ import java.util.List;
 import java.util.Map;
 
 public interface SdsService {
-    void removeSchedulerJobs(Iterable<CamelContext> contextsToRemove);
-
     void removeSchedulerJobs(String deploymentId);
 
     void registerSchedulerJobs(CamelContext context, DeploymentInfo deploymentInfo, List<Map<String, String>> propertiesList);
