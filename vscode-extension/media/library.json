@@ -6083,12 +6083,13 @@
                                 "query": false,
                                 "allowedValues": [
                                     "RBAC",
-                                    "ABAC"
+                                    "ABAC",
+                                    "NONE"
                                 ],
                                 "allowCustomValue": true,
                                 "multiple": false,
                                 "reference": false,
-                                "default": "RBAC"
+                                "default": "NONE"
                             },
                             {
                                 "name": "abacResource",

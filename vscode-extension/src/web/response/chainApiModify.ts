@@ -463,7 +463,6 @@ async function getDefaultElementByType(
   }
 
   const element: ElementSchema = {
-    chainId: chainId,
     description: "",
     id: elementId,
     mandatoryChecksPassed: false,

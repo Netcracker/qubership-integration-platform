@@ -388,7 +388,7 @@ export const CONTEXT_SERVICE_ROUTES: RegExp[] = [
   /^\/services\/context\/[^/]+\/parameters$/,
 ];
 
-export const CHAIN_ROUTES: RegExp[] = [/^\/chains\/[^/]+\/graph$/];
+export const CHAIN_ROUTES: RegExp[] = [/^\/chains\/[^/]+(?:\/.*)?$/];
 
 export const ROUTES: RegExp[] = [...SERVICE_ROUTES, ...CHAIN_ROUTES];
 
