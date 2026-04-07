@@ -1369,7 +1369,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
             dataSource={sourceItems}
             rowKey="id"
             pagination={false}
-            scroll={{ y: "" }}
+            scroll={{ y: "45vh" }}
             rowSelection={{
               selectedRowKeys: selectedSourceKeys,
               columnWidth: 0,
@@ -1443,7 +1443,7 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
             dataSource={targetItems}
             rowKey="id"
             pagination={false}
-            scroll={{ y: "" }}
+            scroll={{ y: "45vh" }}
             rowSelection={{
               selectedRowKeys: selectedTargetKeys,
               columnWidth: 0,
