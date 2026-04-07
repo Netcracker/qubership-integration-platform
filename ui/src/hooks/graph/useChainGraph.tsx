@@ -13,7 +13,6 @@
 } from "@xyflow/react";
 import React, {
   DragEvent,
-  MouseEvent,
   useCallback,
   useEffect,
   useRef,
@@ -24,7 +23,6 @@ import {
   Connection,
   CreateElementRequest,
   Element,
-  LibraryElement,
   TransferElementRequest,
 } from "../../api/apiTypes.ts";
 import { useAutoLayout } from "./useAutoLayout.tsx";
@@ -33,6 +31,7 @@ import { useNotificationService } from "../useNotificationService.tsx";
 import { useLibraryContext } from "../../components/LibraryContext.tsx";
 import {
   applyHighlight,
+  buildGraphNodes,
   collectChildren,
   collectSubgraphByParents,
   depthOf,
@@ -55,8 +54,7 @@ import {
   ChainGraphNodeData,
   OnDeleteEvent,
 } from "../../components/graph/nodes/ChainGraphNodeTypes.ts";
-import { v4 as uuidv4 } from "uuid";
-import { ContextMenuData } from "../../components/graph/ContextMenu.tsx";
+
 
 const DECORATIVE_PREFIX = "decorative:";
 
@@ -127,16 +125,6 @@ function buildDecorativeEdges(nodes: ChainGraphNode[], edges: Edge[]): Edge[] {
   return out;
 }
 
-function buildGraphNodes(
-  elements: Element[],
-  libraryElements: LibraryElement[] | null,
-): ChainGraphNode[] {
-  return elements.flatMap((element) => [
-    getNodeFromElement(element, getLibraryElement(element, libraryElements)),
-    ...buildGraphNodes(element.children ?? [], libraryElements),
-  ]);
-}
-
 export const useChainGraph = (
   chainId?: string,
   onChainUpdate?: () => void | Promise<void>,
@@ -161,7 +149,6 @@ export const useChainGraph = (
 
   const hoverExpandTimerRef = useRef<number | null>(null);
   const lastHoverContainerIdRef = useRef<string | null>(null);
-  const [menu, setMenu] = useState<ContextMenuData | null>(null);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -934,141 +921,11 @@ export const useChainGraph = (
     [setNodes],
   );
 
-  const closeMenu = () => setMenu(null);
-
-  const onContextMenuCall = (
-    event: MouseEvent,
-    selectedElements: Node<ChainGraphNodeData>[],
-  ) => {
-    event.preventDefault();
-
-    if (!(selectedElements?.length > 0)) {
-      return;
-    }
-
-    const items = [];
-    if (selectedElements?.length === 1) {
-      if (selectedElements[0].data.elementType === "container") {
-        items.push({
-          id: uuidv4(),
-          text: "Ungroup",
-          handler: () => ungroupElements(selectedElements[0]),
-        });
-      }
-    } else if (selectedElements?.length > 1) {
-      items.push({
-        id: uuidv4(),
-        text: "Group",
-        handler: () => groupElements(selectedElements),
-      });
-    }
-
-    setMenu({
-      x: event.clientX,
-      y: event.clientY,
-      items,
-    });
-  };
-
-  const groupElements = async (
-    selectedElements: Node<ChainGraphNodeData>[],
-  ) => {
-    if (chainId == null) {
-      return;
-    }
-
-    try {
-      const container = await api.groupElements(
-        chainId,
-        selectedElements.map((node) => node.id),
-      );
-
-      const containerNode: ChainGraphNode = getNodeFromElement(
-        container,
-        undefined,
-        direction,
-        undefined,
-      );
-      if (!containerNode) return;
-
-      const childNodes: ChainGraphNode[] = [];
-      let nodesWithoutChangedElements = nodes as ChainGraphNode[];
-
-      if (container?.children?.length) {
-        (nodes as ChainGraphNode[]).forEach((prevNode) => {
-          for (const childrenElement of container.children as Element[]) {
-            if (prevNode.id === childrenElement.id) {
-              const updatedNode: ChainGraphNode = {
-                ...prevNode,
-                parentId: containerNode.id,
-              };
-              childNodes.push(updatedNode);
-              break;
-            }
-          }
-        });
-
-        const childrenElementIds = container.children.map((node) => node.id);
-        nodesWithoutChangedElements = (nodes as ChainGraphNode[]).filter(
-          (node) => !childrenElementIds.includes(node.id),
-        );
-      }
-
-      const arrangedNew = await arrangeNodes(
-        childNodes.concat(containerNode),
-        [],
-      );
-      const allNodes = nodesWithoutChangedElements.concat(arrangedNew);
-      const withToggle = attachToggle(allNodes);
-      const withCount = setNestedUnitCounts(withToggle);
-
-      const ordered = sortParentsBeforeChildren(withCount);
-      setNodes(ordered);
-
-      structureChanged();
-    } catch (error) {
-      notificationService.requestFailed("Failed to group elements", error);
-    }
-  };
-
-  const ungroupElements = async (selectedGroup: Node<ChainGraphNodeData>) => {
-    if (chainId == null) {
-      return;
-    }
-
-    try {
-      const elements = await api.ungroupElements(chainId, selectedGroup.id);
-
-      let nodesWithoutContainer = (nodes as ChainGraphNode[]).filter(
-        (node) => node.id !== selectedGroup.id,
-      );
-
-      if (elements?.length) {
-        nodesWithoutContainer = nodesWithoutContainer.map((prevNode) => {
-          for (const childrenElement of elements) {
-            if (prevNode.id === childrenElement.id) {
-              const updatedNode: ChainGraphNode = {
-                ...prevNode,
-                parentId: undefined,
-              };
-              return updatedNode;
-            }
-          }
-          return prevNode;
-        });
-      }
-
-      setNodes(nodesWithoutContainer);
-
-      structureChanged();
-    } catch (error) {
-      notificationService.requestFailed("Failed to ungroup elements", error);
-    }
-  };
-
   return {
     nodes,
+    setNodes,
     edges,
+    setEdges,
     decorativeEdges,
     onConnect,
     onDragOver,
@@ -1082,11 +939,9 @@ export const useChainGraph = (
     direction,
     toggleDirection,
     updateNodeData,
-    menu,
-    closeMenu,
-    onContextMenuCall,
     isLoading: isLoading && isLibraryLoading,
     expandAllContainers,
     collapseAllContainers,
+    structureChanged,
   };
 };

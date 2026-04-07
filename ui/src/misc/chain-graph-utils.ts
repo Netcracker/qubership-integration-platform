@@ -49,6 +49,16 @@ export function getLibraryElement(
   );
 }
 
+export function buildGraphNodes(
+  elements: Element[],
+  libraryElements: LibraryElement[] | null,
+): ChainGraphNode[] {
+  return elements.flatMap((element) => [
+    getNodeFromElement(element, getLibraryElement(element, libraryElements)),
+    ...buildGraphNodes(element.children ?? [], libraryElements),
+  ]);
+}
+
 export function getNodeFromElement(
   element: Element,
   libraryElement?: LibraryElement,

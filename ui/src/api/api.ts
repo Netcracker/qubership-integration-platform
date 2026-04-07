@@ -471,6 +471,12 @@ export interface Api {
 
   ungroupElements(chainId: string, groupId: string): Promise<Element[]>;
 
+  cloneElements(
+    chainId: string,
+    ids: string[],
+    containerId?: string,
+  ): Promise<Element[]>;
+
   getExchanges(limit: number): Promise<LiveExchange[]>;
 
   getAndFilterExchanges(

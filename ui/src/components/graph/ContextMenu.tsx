@@ -9,7 +9,8 @@ export type ContextMenuData = {
 export type ContextMenuItem = {
   id: string;
   text: string;
-  handler: () => Promise<void>;
+  handler: () => Promise<void> | void;
+  disabled?: boolean;
 };
 
 export type ContextMenuProps = {
@@ -25,6 +26,9 @@ export default function ContextMenu({ menu, closeMenu }: ContextMenuProps) {
         <a
           onClick={() => {
             void item.handler();
+          }}
+          style={{
+            ...(item.disabled && { pointerEvents: "none", opacity: 0.6 }),
           }}
         >
           {item.text}

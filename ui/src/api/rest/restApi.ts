@@ -1859,6 +1859,18 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  cloneElements = async (
+    chainId: string,
+    ids: string[],
+    containerId?: string,
+  ): Promise<Element[]> => {
+    const response = await this.instance.post<Element[]>(
+      `${this.v1()}/catalog/chains/${chainId}/elements/clone`,
+      ids.map((id) => ({ id, parent: containerId ?? null })),
+    );
+    return response.data;
+  };
+
   getExchanges = async (limit: number): Promise<LiveExchange[]> => {
     const response = await this.instance.get<LiveExchange[]>(
       `${this.v1()}/catalog/live-exchanges`,

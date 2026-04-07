@@ -67,7 +67,9 @@ jest.mock("../../src/hooks/useNotificationService", () => ({
 jest.mock("../../src/hooks/graph/useChainGraph", () => ({
   useChainGraph: () => ({
     nodes: [],
+    setNodes: jest.fn(),
     edges: [],
+    setEdges: jest.fn(),
     decorativeEdges: [],
     onConnect: jest.fn(),
     onDragOver: jest.fn(),
@@ -81,12 +83,18 @@ jest.mock("../../src/hooks/graph/useChainGraph", () => ({
     direction: "RIGHT",
     toggleDirection: jest.fn(),
     updateNodeData: jest.fn(),
-    menu: null,
-    closeMenu: jest.fn(),
-    onContextMenuCall: jest.fn(),
     isLoading: false,
     expandAllContainers: jest.fn(),
     collapseAllContainers: jest.fn(),
+    structureChanged: jest.fn(),
+  }),
+}));
+
+jest.mock("../../src/hooks/graph/useContextMenu", () => ({
+  useContextMenu: () => ({
+    menu: null,
+    closeMenu: jest.fn(),
+    onContextMenuCall: jest.fn(),
   }),
 }));
 

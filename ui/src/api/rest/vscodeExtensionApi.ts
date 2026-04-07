@@ -976,6 +976,20 @@ export class VSCodeExtensionApi implements Api {
     ).payload;
   };
 
+  cloneElements = async (
+    chainId: string,
+    ids: string[],
+    containerId?: string,
+  ): Promise<Element[]> => {
+    return <Element[]>(
+      await this.sendMessageToExtension("cloneElements", {
+        chainId,
+        ids,
+        containerId,
+      })
+    ).payload;
+  };
+
   getExchanges(): Promise<LiveExchange[]> {
     throw new Error("Method getExchanges not implemented.");
   }
