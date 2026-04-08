@@ -6,6 +6,7 @@ import {
   Dependency,
   Element,
   Folder,
+  LibraryElement,
   LibraryElementProperty,
   MaskedField,
   PatchElementRequest,
@@ -21,11 +22,14 @@ import {
   parseMaskedField,
 } from "./chainApiRead";
 import {
+  cloneElementSchema,
   findElementById,
+  findElementByIdOrError,
   getElementChildren,
   LibraryElementQuantity,
   LibraryInputQuantity,
   replaceElementPlaceholders,
+  resetPropertiesToDefault,
 } from "./chainApiUtils";
 import { Uri } from "vscode";
 import { fileApi } from "./file";
@@ -1018,4 +1022,61 @@ export async function ungroupElements(
   }
 
   return updatedElements;
+}
+
+export async function cloneElements(
+  fileUri: Uri,
+  chainId: string,
+  ids: string[],
+  containerId?: string,
+): Promise<Element[]> {
+  const chain = await getMainChain(fileUri);
+  if (chain.id !== chainId) {
+    console.error(`ChainId mismatch`);
+    throw new Error("ChainId mismatch");
+  }
+
+  const newElementIds: string[] = [];
+
+  const chainElements: ElementSchema[] = chain.content
+    .elements as ElementSchema[];
+
+  const containerElementSchema: ElementSchema | undefined = containerId
+    ? findElementByIdOrError(chainElements, containerId).element
+    : undefined;
+
+  for (const elementId of ids) {
+    const elementSchema = findElementByIdOrError(
+      chainElements,
+      elementId,
+    )?.element;
+
+    const clone: ElementSchema = cloneElementSchema(elementSchema);
+    const libraryElement: LibraryElement = await getLibraryElementByType(
+      clone.type as unknown as string,
+    );
+
+    resetPropertiesToDefault(chainId, clone, libraryElement);
+
+    if (containerElementSchema) {
+      clone.parentElementId = containerId;
+      if (!containerElementSchema.children) {
+        containerElementSchema.children = [];
+      }
+      (containerElementSchema.children as ElementSchema[]).push(clone);
+    } else {
+      clone.parentElementId = undefined;
+      chainElements.push(clone);
+    }
+
+    newElementIds.push(clone.id);
+  }
+  await fileApi.writeMainChain(fileUri, chain);
+
+  const result: Element[] = [];
+  for (const elementId of newElementIds) {
+    result.push(await getElement(fileUri, chainId, elementId));
+  }
+
+  return result;
 }

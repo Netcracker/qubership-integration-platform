@@ -13,6 +13,7 @@ import {
   updateChain,
   updateElement,
   updateMaskedField,
+  cloneElements,
 } from "./chainApiModify";
 import {
   getChain,
@@ -215,6 +216,13 @@ export async function getApiResponse(
         fileUri,
         message.payload.chainId,
         message.payload.groupId,
+      );
+    case "cloneElements":
+      return await cloneElements(
+        fileUri,
+        message.payload.chainId,
+        message.payload.ids,
+        message.payload.containerId,
       );
     case "findChainByElementId":
       return await findChainByElementId(message.payload);

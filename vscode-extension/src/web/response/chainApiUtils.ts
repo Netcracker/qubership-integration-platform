@@ -1,12 +1,26 @@
 import vscode from "vscode";
 import { getCurrentChainId } from "./chainApiRead";
-import { User, Element } from "@netcracker/qip-ui";
+import { Element, LibraryElement } from "@netcracker/qip-ui";
 import { Element as ElementSchema } from "@netcracker/qip-schemas";
 
 export async function getChainUri(mainFolderUri: vscode.Uri): Promise<string> {
   const result = `/chains/${await getCurrentChainId(mainFolderUri)}/graph`;
   console.log("getChainUri", result);
   return result;
+}
+
+export function findElementByIdOrError(
+  elements: ElementSchema[] | undefined,
+  elementId: string,
+  parentId: string | undefined = undefined,
+) {
+  const element = findElementById(elements, elementId, parentId);
+  if (!element) {
+    const message = `Element with id=${elementId} and parentId=${parentId} not found`;
+    console.error(message);
+    throw new Error(message);
+  }
+  return element;
 }
 
 export function findElementById(
@@ -80,12 +94,54 @@ export function replaceElementPlaceholders(
 ) {
   for (let property in properties) {
     if (typeof properties[property] === "string") {
-      properties[property] = properties[property]
-        .replace(ChainElementPlaceholders.CHAIN_ID_PLACEHOLDER, chainId)
-        .replace(
-          ChainElementPlaceholders.CREATED_ELEMENT_ID_PLACEHOLDER,
-          elementId,
-        );
+      properties[property] = replacePlaceholders(
+        properties[property],
+        chainId,
+        elementId,
+      );
+    }
+  }
+}
+
+export function replacePlaceholders(
+  value: string,
+  chainId: string,
+  elementId: string,
+): string {
+  return value
+    .replace(ChainElementPlaceholders.CHAIN_ID_PLACEHOLDER, chainId)
+    .replace(
+      ChainElementPlaceholders.CREATED_ELEMENT_ID_PLACEHOLDER,
+      elementId,
+    );
+}
+
+export function cloneElementSchema(source: ElementSchema) {
+  const elementClone = structuredClone(source);
+  elementClone.id = crypto.randomUUID();
+
+  return elementClone;
+}
+
+export function resetPropertiesToDefault(
+  chainId: string,
+  element: ElementSchema,
+  libraryElement: LibraryElement,
+) {
+  const libraryProperties = [
+    ...(libraryElement.properties.common ?? []),
+    ...(libraryElement.properties.advanced ?? []),
+    ...(libraryElement.properties.hidden ?? []),
+    ...(libraryElement.properties.unknown ?? []),
+  ];
+
+  for (const libraryProperty of libraryProperties) {
+    if (libraryProperty.resetValueOnCopy) {
+      (element.properties as any)[libraryProperty.name] = replacePlaceholders(
+        (libraryProperty.default as string) ?? "",
+        chainId,
+        element.id,
+      );
     }
   }
 }
