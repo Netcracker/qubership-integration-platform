@@ -800,7 +800,7 @@ type AddInstructionModalProps = {
   onSuccess: () => void;
 };
 
-const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
+export const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
   onClose,
   onSuccess,
 }) => {
@@ -916,9 +916,9 @@ type UploadInstructionsModalProps = {
   onClose: () => void;
 };
 
-const UploadInstructionsModal: React.FC<UploadInstructionsModalProps> = ({
-  onClose,
-}) => {
+export const UploadInstructionsModal: React.FC<
+  UploadInstructionsModalProps
+> = ({ onClose }) => {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<ImportInstructionResult[]>([]);

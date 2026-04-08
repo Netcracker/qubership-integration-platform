@@ -5,6 +5,7 @@ import {
   attachResizeToColumns,
   useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
+import tableStyles from "../admin_tools/domains/Tables.module.css";
 
 type KeyValuePropertiesTableProps = {
   rows: KeyValueRow[];
@@ -63,7 +64,7 @@ export const KeyValuePropertiesTable: React.FC<
           children: (
             <Table<KeyValueRow>
               size="small"
-              className="flex-table"
+              className={`flex-table ${tableStyles.mainTable}`}
               pagination={false}
               columns={columnsWithResize}
               dataSource={rows}

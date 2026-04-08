@@ -477,19 +477,10 @@ pre[class*="language-"] .token.punctuation {
   color: var(--vscode-foreground) !important;
 }
 
-/* Environment modal — Properties key/value table: avoid double outer frame (parent had
-   border + bordered Table) and drop the extra vertical rule on the scrollbar gutter column */
+/* Environment modal — Properties table: same chrome as list tables (no bordered grid) */
 .environment-params-properties-table.ant-table-wrapper {
   border-radius: 6px;
   overflow: hidden;
-}
-
-.environment-params-properties-table
-  .ant-table-bordered
-  .ant-table-cell-scrollbar {
-  border-inline-end: none !important;
-  box-shadow: none !important;
-  background: var(--vscode-editor-background) !important;
 }
 
 /* Table theming */
@@ -589,15 +580,40 @@ pre[class*="language-"] .token.punctuation {
 }
 
 .ant-segmented-item:hover {
-  background-color: var(--vscode-list-hoverBackground) !important;
+  background-color: var(--vscode-list-hoverBackground);
   color: var(--vscode-foreground) !important;
   border-color: transparent !important;
 }
 
-.ant-segmented-item-selected {
-  background-color: var(--vscode-button-background, #0078d4) !important;
-  color: var(--vscode-button-foreground, #fff) !important;
+.ant-segmented-item-disabled:hover,
+.ant-segmented-item-selected-disabled:hover,
+.ant-segmented-item-disabled:focus,
+.ant-segmented-disabled .ant-segmented-item:hover {
+  background-color: transparent !important;
+  color: var(--vscode-descriptionForeground, #fff) !important;
+}
+
+.ant-segmented-item-selected.ant-segmented-item-disabled:hover,
+.ant-segmented-item-selected.ant-segmented-item-disabled:focus {
+  background-color: var(--vscode-list-hoverBackground, #f5f5f5) !important;
+  color: var(--vscode-descriptionForeground, #fff) !important;
   border-color: transparent !important;
+}
+
+.ant-segmented-item-selected {
+  background-color: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #fff) !important;
+  border-color: transparent;
+}
+
+.ant-segmented-item-selected.ant-segmented-item-disabled {
+  background-color: var(--vscode-list-hoverBackground, #f5f5f5) !important;
+  color: var(--vscode-descriptionForeground, #fff) !important;
+  border-color: transparent;
+}
+
+.ant-segmented-item.ant-segmented-item-disabled .ant-segmented-item-label {
+  color: var(--vscode-descriptionForeground, #fff) !important;
 }
 
 .ant-segmented-item-selected::before {
@@ -760,13 +776,29 @@ pre[class*="language-"] .token.punctuation {
  * — collapsed: shrink to content (no giant gap under Properties);
  * — expanded: cap to viewport; flex chain so only the Properties table scrolls.
  * Placed last so it wins over earlier .ant-modal* rules and typical CSS-in-JS order.
+ *
+ * Expanded: antd `.ant-modal-wrap` uses overflow:auto; `.ant-modal` has padding-bottom.
+ * Near-full vh + padding overflows the wrap → spurious outer scroll (see #552 progress).
  */
-html body .ant-modal-root.environment-params-modal .ant-modal {
+
+/* Collapsed only — when expanded, only the `--expanded` rules below should apply
+   (avoids competing height/max-height on the same nodes). */
+html
+  body
+  .ant-modal-root.environment-params-modal:not(
+    .environment-params-modal--expanded
+  )
+  .ant-modal {
   height: auto !important;
   max-height: calc(100dvh - 24px) !important;
 }
 
-html body .ant-modal-root.environment-params-modal .ant-modal-content {
+html
+  body
+  .ant-modal-root.environment-params-modal:not(
+    .environment-params-modal--expanded
+  )
+  .ant-modal-content {
   height: auto !important;
   max-height: calc(100dvh - 24px) !important;
 }
@@ -795,9 +827,21 @@ html
 html
   body
   .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal-wrap {
+  overflow: hidden;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
   .ant-modal {
+  display: flex !important;
+  flex-direction: column !important;
+  top: 24px !important;
   height: calc(100dvh - 48px) !important;
-  max-height: calc(100dvh - 24px) !important;
+  min-height: calc(100dvh - 48px);
+  max-height: calc(100dvh - 48px);
+  padding-bottom: 0;
 }
 
 html
@@ -806,8 +850,10 @@ html
   .ant-modal-content {
   display: flex !important;
   flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
   height: 100% !important;
-  max-height: calc(100dvh - 24px) !important;
+  max-height: calc(100dvh - 48px);
   overflow: hidden !important;
 }
 
@@ -820,4 +866,55 @@ html
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal-body
+  .ant-form {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Expanded: more vertical space on tall viewports (table readability). Step 1 wrap fix
+ * stays; only the vh budget tightens so the dialog uses more of the screen. */
+@media (height >= 960px) {
+  html
+    body
+    .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+    .ant-modal {
+    top: 16px !important;
+    height: calc(100dvh - 32px) !important;
+    min-height: calc(100dvh - 32px) !important;
+    max-height: calc(100dvh - 32px) !important;
+  }
+
+  html
+    body
+    .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+    .ant-modal-content {
+    max-height: calc(100dvh - 32px) !important;
+  }
+}
+
+@media (height >= 1100px) {
+  html
+    body
+    .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+    .ant-modal {
+    top: 12px !important;
+    height: calc(100dvh - 24px) !important;
+    min-height: calc(100dvh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+  }
+
+  html
+    body
+    .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+    .ant-modal-content {
+    max-height: calc(100dvh - 24px) !important;
+  }
 }

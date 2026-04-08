@@ -8,12 +8,13 @@ export function useResizeHeight<T extends HTMLElement>(): [
   const [height, setHeight] = useState(0);
 
   useEffect(() => {
-    if (!ref.current) return;
+    const element = ref.current;
+    if (!element) return;
 
-    const update = () => setHeight(ref.current!.clientHeight);
+    const update = () => setHeight(element.clientHeight);
 
     const ro = new ResizeObserver(update);
-    ro.observe(ref.current);
+    ro.observe(element);
     update();
 
     return () => ro.disconnect();
