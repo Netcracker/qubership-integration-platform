@@ -78,16 +78,26 @@ export const ChainProperties: React.FC = () => {
         component: (
           <UnsavedChangesModal
             onYes={() => {
-              blocker.proceed();
+              void (async () => {
+                const values = (await form.validateFields()) as FormData;
+                const isSaved = await handleFinish(values);
+                if (isSaved) {
+                  blocker.proceed();
+                }
+              })();
             }}
             onNo={() => {
+              setHasChanges(false);
+              blocker.proceed();
+            }}
+            onCancelQuestion={() => {
               blocker.reset();
             }}
           />
         ),
       });
     }
-  }, [blocker, showModal]);
+  }, [blocker, form, showModal]);
 
   useEffect(() => {
     if (chainContext?.chain) {
@@ -113,8 +123,8 @@ export const ChainProperties: React.FC = () => {
     }
   }, []);
 
-  const handleFinish = async (values: FormData) => {
-    if (!chainContext?.chain) return;
+  const handleFinish = async (values: FormData): Promise<boolean> => {
+    if (!chainContext?.chain) return false;
 
     let changes: Partial<Chain> = {
       name: values.name,
@@ -146,7 +156,7 @@ export const ChainProperties: React.FC = () => {
       //check that folders can move to this path
       if (dbFoldersPath !== uiFoldersPath.reverse().join("/")) {
         notificationService.requestFailed("Incorrect folder path", undefined);
-        return;
+        return false;
       }
 
       const navigationPath = folders.map(
@@ -171,6 +181,7 @@ export const ChainProperties: React.FC = () => {
     try {
       await chainContext.update(changes);
       setHasChanges(false);
+      return true;
     } finally {
       setIsUpdating(false);
     }

@@ -19,6 +19,7 @@ import { useNotificationService } from "../../../hooks/useNotificationService.ts
 import {
   ObjectFieldTemplateProps,
   RegistryWidgetsType,
+  type RJSFValidationError,
   UiSchema,
 } from "@rjsf/utils";
 import type { JSONSchema7 } from "json-schema";
@@ -194,6 +195,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formRef = useRef<any>(null);
   const elementNameRef = useRef<ElementNameInlineEditRef>(null);
+  const isInitializingRef = useRef(true);
+  const hasUserEditedFormRef = useRef(false);
+  const hasUserInteractedRef = useRef(false);
 
   const permissions = usePermissions();
   const canEditChain = hasPermissions(permissions, { chain: ["update"] });
@@ -221,6 +225,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const schemaModules = useMemo(() => getSchemaModules(), []);
 
   useEffect(() => {
+    isInitializingRef.current = true;
+    hasUserEditedFormRef.current = false;
+    hasUserInteractedRef.current = false;
     const path = `/node_modules/@netcracker/qip-schemas/assets/${node.data.elementType}.schema.yaml`;
     const raw = schemaModules[path];
 
@@ -309,7 +316,12 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               : prevFormData;
           });
 
-          setHasChanges(true);
+          if (
+            !isInitializingRef.current &&
+            (hasUserEditedFormRef.current || hasUserInteractedRef.current)
+          ) {
+            setHasChanges(true);
+          }
         },
       );
 
@@ -322,13 +334,34 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         err,
       );
     }
-  }, [node.data, node.id, notificationService, schemaModules, chainId]);
+  }, [
+    node.data,
+    node.id,
+    notificationService,
+    schemaModules,
+    chainId,
+    reportMissingRequiredParams,
+  ]);
+
+  useEffect(() => {
+    if (!schema || Object.keys(schema).length === 0) return;
+    if (!formData || Object.keys(formData).length === 0) return;
+
+    const timer = globalThis.setTimeout(() => {
+      isInitializingRef.current = false;
+    }, 0);
+
+    return () => {
+      globalThis.clearTimeout(timer);
+    };
+  }, [schema, formData]);
 
   // WA Trigger initial validation after form mounts so required fields are highlighted
   useEffect(() => {
     if (schema && Object.keys(schema).length > 0) {
       setTimeout(() => {
-        formRef.current?.validateForm();
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        formRef.current?.validateForm?.();
       }, 50);
     }
   }, [schema]);
@@ -338,22 +371,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     onClose?.();
   }, [closeContainingModal, onClose]);
 
-  const handleCheckUnsavedAndClose = useCallback(() => {
-    if (hasChanges) {
-      showModal({
-        component: (
-          <UnsavedChangesModal
-            onYes={() => {
-              handleClose();
-              setHasChanges(false);
-            }}
-          />
-        ),
-      });
-    } else {
-      handleClose();
-    }
-  }, [showModal, handleClose, hasChanges]);
+  const markUserInteracted = useCallback(() => {
+    hasUserInteractedRef.current = true;
+  }, []);
+
+  /** RJSF logs `console.error('Form validation failed', …)` when `onError` is omitted. */
+  const handleRjsfFormErrors = useCallback((_errors: RJSFValidationError[]) => {
+    // Programmatic validateForm() after mount; errors are shown in the form UI.
+  }, []);
 
   // Sync formContext → formData.properties whenever context changes
   useEffect(() => {
@@ -490,6 +515,26 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     updateElement,
     handleClose,
   ]);
+
+  const handleCheckUnsavedAndClose = useCallback(() => {
+    if (hasChanges) {
+      showModal({
+        component: (
+          <UnsavedChangesModal
+            onYes={() => {
+              void handleOk();
+            }}
+            onNo={() => {
+              handleClose();
+              setHasChanges(false);
+            }}
+          />
+        ),
+      });
+    } else {
+      handleClose();
+    }
+  }, [showModal, handleClose, handleOk, hasChanges]);
 
   const collectTabFields = useCallback(function collect(
     schema: JSONSchema7,
@@ -752,53 +797,71 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             onChange={handleTabChange}
             items={uniqueTabs.map((tab) => ({ key: tab, label: tab }))}
           />
-          <Form
-            ref={formRef}
-            className={styles["parameters-form"]}
-            schema={schema}
-            formData={formData}
-            validator={validator}
-            uiSchema={uiSchema}
-            transformErrors={transformValidationErrors(formContext)}
-            liveValidate={"onChange"}
-            showErrorList={false}
-            experimental_defaultFormStateBehavior={{
-              allOf: "populateDefaults",
-              arrayMinItems: {
-                populate: "never",
-              },
-            }}
-            formContext={formContext}
-            templates={{
-              ObjectFieldTemplate: CustomObjectFieldTemplate,
-              FieldTemplate: DescriptionTooltipFieldTemplate,
-            }}
-            fields={{
-              OneOfField: CustomOneOfField, //Rewrite default oneOfField
-              oneOfAsSingleInputField: OneOfAsSingleInputField,
-              patternPropertiesField: PatternPropertiesField,
-              enhancedPatternPropertiesField: EnhancedPatternPropertiesField,
-              mappingField: MappingField,
-              customArrayField: CustomArrayField,
-              scriptField: ScriptField,
-              jsonField: JsonField,
-              serviceField: ServiceField,
-              specificationField: SpecificationField,
-              systemOperationField: SystemOperationField,
-              bodyMimeTypeField: BodyMimeTypeField,
-              singleSelectField: SingleSelectField,
-              contextServiceField: ContextServiceField,
-              chainTriggerElementIdField: ChainTriggerElementIdField,
-              basePathField: BasePathField,
-              externalRouteCheckbox: ExternalRouteCheckbox,
-              contextPathWithPrefixField: ContextPathWithPrefixField,
-            }}
-            widgets={widgets}
-            onChange={(e) => {
-              setFormData(e.formData as Record<string, unknown>);
-              setHasChanges(true);
-            }}
-          />
+          <div
+            onClickCapture={markUserInteracted}
+            onKeyDownCapture={markUserInteracted}
+            onMouseDownCapture={markUserInteracted}
+          >
+            <Form
+              ref={formRef}
+              className={styles["parameters-form"]}
+              schema={schema}
+              formData={formData}
+              validator={validator}
+              uiSchema={uiSchema}
+              transformErrors={transformValidationErrors(formContext)}
+              onError={handleRjsfFormErrors}
+              liveValidate={"onChange"}
+              showErrorList={false}
+              experimental_defaultFormStateBehavior={{
+                allOf: "populateDefaults",
+                arrayMinItems: {
+                  populate: "never",
+                },
+              }}
+              formContext={formContext}
+              templates={{
+                ObjectFieldTemplate: CustomObjectFieldTemplate,
+                FieldTemplate: DescriptionTooltipFieldTemplate,
+              }}
+              fields={{
+                OneOfField: CustomOneOfField, //Rewrite default oneOfField
+                oneOfAsSingleInputField: OneOfAsSingleInputField,
+                patternPropertiesField: PatternPropertiesField,
+                enhancedPatternPropertiesField: EnhancedPatternPropertiesField,
+                mappingField: MappingField,
+                customArrayField: CustomArrayField,
+                scriptField: ScriptField,
+                jsonField: JsonField,
+                serviceField: ServiceField,
+                specificationField: SpecificationField,
+                systemOperationField: SystemOperationField,
+                bodyMimeTypeField: BodyMimeTypeField,
+                singleSelectField: SingleSelectField,
+                contextServiceField: ContextServiceField,
+                chainTriggerElementIdField: ChainTriggerElementIdField,
+                basePathField: BasePathField,
+                externalRouteCheckbox: ExternalRouteCheckbox,
+                contextPathWithPrefixField: ContextPathWithPrefixField,
+              }}
+              widgets={widgets}
+              onChange={(e) => {
+                const nextFormData = e.formData as Record<string, unknown>;
+                if (JSON.stringify(nextFormData) === JSON.stringify(formData)) {
+                  return;
+                }
+
+                setFormData(nextFormData);
+                if (
+                  !isInitializingRef.current &&
+                  (hasUserEditedFormRef.current || hasUserInteractedRef.current)
+                ) {
+                  hasUserEditedFormRef.current = true;
+                  setHasChanges(true);
+                }
+              }}
+            />
+          </div>
         </>
       )}
     </Modal>

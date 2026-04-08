@@ -632,6 +632,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
               getErrorMessage(e, "Update failed"),
               e,
             );
+            throw e;
           } finally {
             setSaving(false);
           }
@@ -654,6 +655,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
               getErrorMessage(e, "Create failed"),
               e,
             );
+            throw e;
           } finally {
             setSaving(false);
           }

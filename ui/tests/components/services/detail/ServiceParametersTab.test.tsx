@@ -61,9 +61,11 @@ jest.mock("../../../../src/components/modal/UnsavedChangesModal.tsx", () => ({
   UnsavedChangesModal: ({
     onYes,
     onNo,
+    onCancelQuestion,
   }: {
     onYes: () => void;
     onNo?: () => void;
+    onCancelQuestion?: () => void;
   }) => (
     <div>
       <button type="button" data-testid="unsaved-yes" onClick={onYes}>
@@ -71,6 +73,13 @@ jest.mock("../../../../src/components/modal/UnsavedChangesModal.tsx", () => ({
       </button>
       <button type="button" data-testid="unsaved-no" onClick={() => onNo?.()}>
         No
+      </button>
+      <button
+        type="button"
+        data-testid="unsaved-close"
+        onClick={() => onCancelQuestion?.()}
+      >
+        Close
       </button>
     </div>
   ),
@@ -254,7 +263,53 @@ describe("ServiceParametersTab", () => {
     );
   });
 
-  it("unsaved modal Yes calls blocker proceed", async () => {
+  it("unsaved modal Yes saves and then calls blocker proceed", async () => {
+    const proceed = jest.fn();
+    jest.mocked(useBlocker).mockReturnValue({
+      state: "blocked" as const,
+      proceed,
+      reset: jest.fn(),
+    });
+    renderTab();
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("Svc"),
+    );
+    await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
+    const modal = mockShowModal.mock.calls.at(-1)?.[0]
+      .component as React.ReactElement;
+    render(modal);
+    fireEvent.click(screen.getByTestId("unsaved-yes"));
+    await waitFor(() => expect(mockUpdateService).toHaveBeenCalled());
+    expect(proceed).toHaveBeenCalled();
+  });
+
+  it("unsaved modal Yes does not open a second prompt when save updates system", async () => {
+    const proceed = jest.fn();
+    jest.mocked(useBlocker).mockReturnValue({
+      state: "blocked" as const,
+      proceed,
+      reset: jest.fn(),
+    });
+    renderTab();
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("Svc"),
+    );
+    await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
+    const showModalCallsAfterFirstPrompt = mockShowModal.mock.calls.length;
+    const modal = mockShowModal.mock.calls.at(-1)?.[0]
+      .component as React.ReactElement;
+    render(modal);
+    fireEvent.click(screen.getByTestId("unsaved-yes"));
+    await waitFor(() => expect(mockUpdateService).toHaveBeenCalled());
+    expect(proceed).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockShowModal.mock.calls.length).toBe(
+        showModalCallsAfterFirstPrompt,
+      );
+    });
+  });
+
+  it("unsaved modal No calls blocker proceed without saving", async () => {
     const proceed = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
       state: "blocked" as const,
@@ -263,14 +318,15 @@ describe("ServiceParametersTab", () => {
     });
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls[0][0]
+    const modal = mockShowModal.mock.calls.at(-1)?.[0]
       .component as React.ReactElement;
     render(modal);
-    fireEvent.click(screen.getByTestId("unsaved-yes"));
+    fireEvent.click(screen.getByTestId("unsaved-no"));
     expect(proceed).toHaveBeenCalled();
+    expect(mockUpdateService).not.toHaveBeenCalled();
   });
 
-  it("unsaved modal No calls blocker reset", async () => {
+  it("unsaved modal close keeps editing by resetting blocker", async () => {
     const reset = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
       state: "blocked" as const,
@@ -279,11 +335,12 @@ describe("ServiceParametersTab", () => {
     });
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls[0][0]
+    const modal = mockShowModal.mock.calls.at(-1)?.[0]
       .component as React.ReactElement;
     render(modal);
-    fireEvent.click(screen.getByTestId("unsaved-no"));
+    fireEvent.click(screen.getByTestId("unsaved-close"));
     expect(reset).toHaveBeenCalled();
+    expect(mockUpdateService).not.toHaveBeenCalled();
   });
 
   it("shows dash when protocol is missing", async () => {

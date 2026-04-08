@@ -46,13 +46,15 @@ Object.defineProperty(globalThis, "matchMedia", {
 const mockShowModal = jest.fn();
 const mockRequestFailed = jest.fn();
 const mockNavigate = jest.fn();
+let mockElementId: string | undefined;
+const mockReactFlow = jest.fn();
 
 jest.mock("../../src/Modals", () => ({
   useModalsContext: () => ({ showModal: mockShowModal }),
 }));
 
 jest.mock("react-router-dom", () => ({
-  useParams: () => ({ chainId: "chain-1", elementId: undefined }),
+  useParams: () => ({ chainId: "chain-1", elementId: mockElementId }),
   useNavigate: () => mockNavigate,
 }));
 
@@ -139,7 +141,10 @@ jest.mock("@xyflow/react", () => ({
   ReactFlowProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
-  ReactFlow: () => <div data-testid="react-flow" />,
+  ReactFlow: (props: Record<string, unknown>) => {
+    mockReactFlow(props);
+    return <div data-testid="react-flow" />;
+  },
   Background: () => null,
   BackgroundVariant: { Dots: "dots" },
   MiniMap: () => null,
@@ -238,12 +243,35 @@ describe("ChainGraph", () => {
     jest.clearAllMocks();
     mockLeftPanel = true;
     mockRightPanel = false;
+    mockElementId = undefined;
     document.body.setAttribute("data-theme", "light");
   });
 
   it("renders without crashing", () => {
     render(<ChainGraph />);
     expect(screen.getByTestId("react-flow")).toBeInTheDocument();
+  });
+
+  it("enables delete hotkeys on graph when element modal is closed", () => {
+    render(<ChainGraph />);
+
+    expect(mockReactFlow).toHaveBeenCalled();
+    const lastProps = mockReactFlow.mock.calls.at(-1)?.[0] as {
+      deleteKeyCode?: string[];
+    };
+    expect(lastProps.deleteKeyCode).toEqual(["Backspace", "Delete"]);
+  });
+
+  it("disables delete hotkeys on graph when element modal is open", () => {
+    mockElementId = "element-1";
+
+    render(<ChainGraph />);
+
+    expect(mockReactFlow).toHaveBeenCalled();
+    const lastProps = mockReactFlow.mock.calls.at(-1)?.[0] as {
+      deleteKeyCode?: string[] | null;
+    };
+    expect(lastProps.deleteKeyCode).toBeNull();
   });
 
   it("renders ElementsLibrarySidebar", () => {

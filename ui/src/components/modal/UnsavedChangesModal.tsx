@@ -4,6 +4,7 @@ import { useModalContext } from "../../ModalContextProvider";
 type UnsavedChangesModalProps = {
   onYes: () => void;
   onNo?: () => void;
+  onCancelQuestion?: () => void;
 };
 
 export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = (
@@ -21,11 +22,16 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = (
     props.onNo?.();
   };
 
+  const handleCancelQuestion = () => {
+    closeContainingModal();
+    props.onCancelQuestion?.();
+  };
+
   return (
     <Modal
       title="Unsaved Changes"
       open={true}
-      onCancel={handleNo}
+      onCancel={handleCancelQuestion}
       onOk={handleYes}
       footer={[
         <Button
@@ -41,8 +47,7 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = (
         </Button>,
       ]}
     >
-      You have made changes, that haven&apos;t been saved. Are you sure you want
-      to leave the window and discard the changes?
+      Do you want to save changes?
     </Modal>
   );
 };

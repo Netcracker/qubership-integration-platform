@@ -13,6 +13,16 @@ import "@testing-library/jest-dom";
 import { EnvironmentSourceType } from "../../../../src/api/apiTypes";
 import { EnvironmentParamsModal } from "../../../../src/components/services/modals/EnvironmentParamsModal";
 import { ServiceContext } from "../../../../src/components/services/detail/ServiceParametersPage";
+import { Modals } from "../../../../src/Modals.tsx";
+
+if (!globalThis.crypto) {
+  Object.defineProperty(globalThis, "crypto", { value: {} });
+}
+Object.defineProperty(globalThis.crypto, "randomUUID", {
+  configurable: true,
+  writable: true,
+  value: jest.fn(() => "00000000-0000-4000-8000-000000000000"),
+});
 
 Object.defineProperty(globalThis, "matchMedia", {
   writable: true,
@@ -36,6 +46,10 @@ Object.defineProperty(globalThis, "ResizeObserver", {
   },
 });
 
+function wrapWithModals(node: React.ReactElement) {
+  return React.createElement(Modals, null, node);
+}
+
 function renderModal(
   protocol: string,
   overrides: Partial<
@@ -46,27 +60,29 @@ function renderModal(
   const onClose = jest.fn();
 
   render(
-    React.createElement(
-      ServiceContext.Provider,
-      { value: { id: "svc-1", protocol } as never },
-      React.createElement(EnvironmentParamsModal, {
-        open: true,
-        environment: {
-          id: "env-1",
-          name: "Env 1",
-          address: "localhost",
-          labels: [],
-          sourceType: EnvironmentSourceType.MANUAL,
-          properties: {
-            key: "value",
-            authMethod: "SASL_SSL",
+    wrapWithModals(
+      React.createElement(
+        ServiceContext.Provider,
+        { value: { id: "svc-1", protocol } as never },
+        React.createElement(EnvironmentParamsModal, {
+          open: true,
+          environment: {
+            id: "env-1",
+            name: "Env 1",
+            address: "localhost",
+            labels: [],
+            sourceType: EnvironmentSourceType.MANUAL,
+            properties: {
+              key: "value",
+              authMethod: "SASL_SSL",
+            },
+            ...overrides,
           },
-          ...overrides,
-        },
-        onClose,
-        onSave,
-        saving: false,
-      }),
+          onClose,
+          onSave,
+          saving: false,
+        }),
+      ),
     ),
   );
 
@@ -90,16 +106,18 @@ describe("EnvironmentParamsModal", () => {
     };
 
     const { rerender } = render(
-      React.createElement(
-        ServiceContext.Provider,
-        { value: { id: "svc-1", protocol: "kafka" } as never },
-        React.createElement(EnvironmentParamsModal, {
-          open: true,
-          environment,
-          onClose,
-          onSave,
-          saving: false,
-        }),
+      wrapWithModals(
+        React.createElement(
+          ServiceContext.Provider,
+          { value: { id: "svc-1", protocol: "kafka" } as never },
+          React.createElement(EnvironmentParamsModal, {
+            open: true,
+            environment,
+            onClose,
+            onSave,
+            saving: false,
+          }),
+        ),
       ),
     );
 
@@ -116,30 +134,34 @@ describe("EnvironmentParamsModal", () => {
     fireEvent.blur(textArea);
 
     rerender(
-      React.createElement(
-        ServiceContext.Provider,
-        { value: { id: "svc-1", protocol: "kafka" } as never },
-        React.createElement(EnvironmentParamsModal, {
-          open: false,
-          environment,
-          onClose,
-          onSave,
-          saving: false,
-        }),
+      wrapWithModals(
+        React.createElement(
+          ServiceContext.Provider,
+          { value: { id: "svc-1", protocol: "kafka" } as never },
+          React.createElement(EnvironmentParamsModal, {
+            open: false,
+            environment,
+            onClose,
+            onSave,
+            saving: false,
+          }),
+        ),
       ),
     );
 
     rerender(
-      React.createElement(
-        ServiceContext.Provider,
-        { value: { id: "svc-1", protocol: "kafka" } as never },
-        React.createElement(EnvironmentParamsModal, {
-          open: true,
-          environment,
-          onClose,
-          onSave,
-          saving: false,
-        }),
+      wrapWithModals(
+        React.createElement(
+          ServiceContext.Provider,
+          { value: { id: "svc-1", protocol: "kafka" } as never },
+          React.createElement(EnvironmentParamsModal, {
+            open: true,
+            environment,
+            onClose,
+            onSave,
+            saving: false,
+          }),
+        ),
       ),
     );
 
@@ -236,5 +258,237 @@ describe("EnvironmentParamsModal", () => {
         },
       }),
     );
+  });
+
+  it("closes without unsaved prompt when Cancel and no edits", () => {
+    const onClose = jest.fn();
+    render(
+      wrapWithModals(
+        React.createElement(
+          ServiceContext.Provider,
+          { value: { id: "svc-1", protocol: "http" } as never },
+          React.createElement(EnvironmentParamsModal, {
+            open: true,
+            environment: {
+              id: "env-1",
+              name: "Env 1",
+              address: "localhost",
+              labels: [],
+              sourceType: EnvironmentSourceType.MANUAL,
+              properties: {},
+            },
+            onClose,
+            onSave: jest.fn().mockResolvedValue(undefined),
+            saving: false,
+          }),
+        ),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument();
+  });
+
+  it("shows unsaved prompt on Cancel when dirty; No closes without save", async () => {
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    const onClose = jest.fn();
+    render(
+      wrapWithModals(
+        React.createElement(
+          ServiceContext.Provider,
+          { value: { id: "svc-1", protocol: "http" } as never },
+          React.createElement(EnvironmentParamsModal, {
+            open: true,
+            environment: {
+              id: "env-1",
+              name: "Env 1",
+              address: "localhost",
+              labels: [],
+              sourceType: EnvironmentSourceType.MANUAL,
+              properties: {},
+            },
+            onClose,
+            onSave,
+            saving: false,
+          }),
+        ),
+      ),
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "Renamed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "No" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("unsaved Yes saves then closes environment modal", async () => {
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    const onClose = jest.fn();
+    render(
+      wrapWithModals(
+        React.createElement(
+          ServiceContext.Provider,
+          { value: { id: "svc-1", protocol: "http" } as never },
+          React.createElement(EnvironmentParamsModal, {
+            open: true,
+            environment: {
+              id: "env-1",
+              name: "Env 1",
+              address: "http://localhost:8080",
+              labels: [],
+              sourceType: EnvironmentSourceType.MANUAL,
+              properties: {},
+            },
+            onClose,
+            onSave,
+            saving: false,
+          }),
+        ),
+      ),
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "Saved name" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it("unsaved Close dismisses prompt and keeps environment modal open", async () => {
+    const onClose = jest.fn();
+    render(
+      wrapWithModals(
+        React.createElement(
+          ServiceContext.Provider,
+          { value: { id: "svc-1", protocol: "http" } as never },
+          React.createElement(EnvironmentParamsModal, {
+            open: true,
+            environment: {
+              id: "env-1",
+              name: "Env 1",
+              address: "localhost",
+              labels: [],
+              sourceType: EnvironmentSourceType.MANUAL,
+              properties: {},
+            },
+            onClose,
+            onSave: jest.fn().mockResolvedValue(undefined),
+            saving: false,
+          }),
+        ),
+      ),
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "Edited" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    const unsavedTitle = await screen.findByText("Unsaved Changes");
+    const unsavedDialog = unsavedTitle.closest('[role="dialog"]');
+    expect(unsavedDialog).toBeTruthy();
+    fireEvent.click(
+      within(unsavedDialog as HTMLElement).getByRole("button", {
+        name: "Close",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("Edit Environment")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("unsaved Yes does not close environment modal when save rejects", async () => {
+    const onSave = jest.fn().mockRejectedValue(new Error("save failed"));
+    const onClose = jest.fn();
+    render(
+      wrapWithModals(
+        React.createElement(
+          ServiceContext.Provider,
+          { value: { id: "svc-1", protocol: "http" } as never },
+          React.createElement(EnvironmentParamsModal, {
+            open: true,
+            environment: {
+              id: "env-1",
+              name: "Env 1",
+              address: "http://localhost:8080",
+              labels: [],
+              sourceType: EnvironmentSourceType.MANUAL,
+              properties: {},
+            },
+            onClose,
+            onSave,
+            saving: false,
+          }),
+        ),
+      ),
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "Fail save" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(onClose).not.toHaveBeenCalled();
+    });
+    expect(screen.getByText("Edit Environment")).toBeInTheDocument();
+  });
+
+  it("shows unsaved prompt after editing properties and Cancel", async () => {
+    const onClose = jest.fn();
+    render(
+      wrapWithModals(
+        React.createElement(
+          ServiceContext.Provider,
+          { value: { id: "svc-1", protocol: "kafka" } as never },
+          React.createElement(EnvironmentParamsModal, {
+            open: true,
+            environment: {
+              id: "env-1",
+              name: "Env 1",
+              address: "localhost",
+              labels: [],
+              sourceType: EnvironmentSourceType.MANUAL,
+              properties: { key: "value" },
+            },
+            onClose,
+            onSave: jest.fn().mockResolvedValue(undefined),
+            saving: false,
+          }),
+        ),
+      ),
+    );
+
+    fireEvent.click(screen.getByLabelText("Expand properties"));
+    fireEvent.click(screen.getByRole("switch"));
+
+    const panel = await screen.findByTestId("environment-properties-panel");
+    const textArea = within(panel).getByRole("textbox");
+    fireEvent.focus(textArea);
+    fireEvent.change(textArea, {
+      target: { value: "bootstrap.servers=broker:9092;" },
+    });
+    fireEvent.blur(textArea);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

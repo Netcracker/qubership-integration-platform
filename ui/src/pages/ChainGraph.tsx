@@ -2,6 +2,7 @@ import {
   Background,
   BackgroundVariant,
   Edge,
+  type KeyCode,
   MiniMap,
   Node,
   OnSelectionChangeFunc,
@@ -132,6 +133,10 @@ const ChainGraphInner: React.FC = () => {
   const { isLibraryLoading, libraryElements } = useLibraryContext();
   const permissions = usePermissions();
   const [readOnly, setReadOnly] = useState<boolean>(false);
+  const deleteKeyCode = useMemo<KeyCode | null>(
+    () => (readOnly || elementId ? null : ["Backspace", "Delete"]),
+    [elementId, readOnly],
+  );
   const [selectedByRightClick, setSelectedByRightClick] = useState<boolean>(false);
 
   useEffect(() => {
@@ -687,7 +692,7 @@ const ChainGraphInner: React.FC = () => {
                   onDragOver={readOnly ? undefined : onDragOver}
                   onNodeDoubleClick={readOnly ? undefined : onNodeDoubleClick}
                   zoomOnDoubleClick={false}
-                  deleteKeyCode={readOnly ? undefined : ["Backspace", "Delete"]}
+                  deleteKeyCode={deleteKeyCode}
                   proOptions={{ hideAttribution: true }}
                   onContextMenu={readOnly ? undefined : onContextMenu}
                   onNodeContextMenu={readOnly ? undefined : onNodeContextMenu}

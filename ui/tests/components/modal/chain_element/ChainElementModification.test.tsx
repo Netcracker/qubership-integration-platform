@@ -2,7 +2,13 @@
  * @jest-environment jsdom
  */
 import React from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import type { ChainGraphNode } from "../../../../src/components/graph/nodes/ChainGraphNodeTypes";
 import type { UserPermissions } from "../../../../src/permissions/types";
@@ -73,6 +79,43 @@ const defaultSchemaModules = {
 };
 
 let schemaModulesOverride: Record<string, string> | null = null;
+let formContextShouldAutoUpdateOnMount = false;
+
+jest.mock(
+  "../../../../src/components/modal/chain_element/ChainElementModificationContext",
+  () => {
+    const actual = jest.requireActual(
+      "../../../../src/components/modal/chain_element/ChainElementModificationContext",
+    ) as typeof import("../../../../src/components/modal/chain_element/ChainElementModificationContext");
+
+    return {
+      ...actual,
+      buildFormContextFromProperties: (
+        formProperties: Record<string, unknown>,
+        elementType: string,
+        chainId: string,
+        updateContextCallback: (
+          updatedProperties: Record<string, unknown>,
+        ) => void,
+      ) => {
+        const context = actual.buildFormContextFromProperties(
+          formProperties,
+          elementType,
+          chainId,
+          updateContextCallback,
+        );
+
+        if (formContextShouldAutoUpdateOnMount) {
+          setTimeout(() => {
+            updateContextCallback({ integrationSpecificationId: "auto-spec" });
+          }, 10);
+        }
+
+        return context;
+      },
+    };
+  },
+);
 
 jest.mock(
   "../../../../src/components/modal/chain_element/chainElementSchemaModules",
@@ -138,7 +181,7 @@ jest.mock(
   }),
 );
 
-let formMockShouldTriggerOnChange = false;
+let formMockOnMountChangeMode: "none" | "same" | "dirty" = "none";
 jest.mock("@rjsf/antd", () => {
   const FormMock = React.forwardRef<
     { validateForm?: () => void },
@@ -146,20 +189,55 @@ jest.mock("@rjsf/antd", () => {
       schema?: unknown;
       formData?: unknown;
       onChange?: (e: { formData?: unknown }) => void;
+      onClickCapture?: React.MouseEventHandler<HTMLFormElement>;
+      onKeyDownCapture?: React.KeyboardEventHandler<HTMLFormElement>;
+      onMouseDownCapture?: React.MouseEventHandler<HTMLFormElement>;
     }
-  >(({ schema, formData, onChange }, ref) => {
-    React.useImperativeHandle(ref, () => ({ validateForm: () => {} }));
-    React.useEffect(() => {
-      if (formMockShouldTriggerOnChange && onChange) {
-        onChange({ formData: { ...(formData as object), __testDirty: true } });
-      }
-    }, []);
-    return (
-      <form data-testid="rjsf-form" id="elementModificationForm">
-        {schema && formData ? "Form" : null}
-      </form>
-    );
-  });
+  >(
+    (
+      {
+        schema,
+        formData,
+        onChange,
+        onClickCapture,
+        onKeyDownCapture,
+        onMouseDownCapture,
+      },
+      ref,
+    ) => {
+      React.useImperativeHandle(ref, () => ({ validateForm: () => {} }));
+      React.useEffect(() => {
+        if (formMockOnMountChangeMode === "same" && onChange) {
+          onChange({ formData });
+        }
+        if (formMockOnMountChangeMode === "dirty" && onChange) {
+          onChange({
+            formData: { ...(formData as object), __testDirty: true },
+          });
+        }
+      }, []);
+      return (
+        <form
+          data-testid="rjsf-form"
+          id="elementModificationForm"
+          onClickCapture={onClickCapture}
+          onKeyDownCapture={onKeyDownCapture}
+          onMouseDownCapture={onMouseDownCapture}
+        >
+          <button
+            type="button"
+            data-testid="rjsf-user-change"
+            onClick={() =>
+              onChange?.({
+                formData: { ...(formData as object), __testDirty: true },
+              })
+            }
+          />
+          {schema && formData ? "Form" : null}
+        </form>
+      );
+    },
+  );
   FormMock.displayName = "FormMock";
   return {
     __esModule: true,
@@ -247,7 +325,8 @@ function renderWithPermissions(
 describe("ChainElementModification", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    formMockShouldTriggerOnChange = false;
+    formMockOnMountChangeMode = "none";
+    formContextShouldAutoUpdateOnMount = false;
     schemaModulesOverride = null;
     mockUpdateElement.mockResolvedValue({
       id: "el-1",
@@ -366,6 +445,115 @@ describe("ChainElementModification", () => {
 
     expect(mockCloseContainingModal).toHaveBeenCalled();
     expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it("ignores mount-time form onChange when user made no edits", async () => {
+    formMockOnMountChangeMode = "same";
+    renderWithPermissions({ chain: ["update"] });
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(mockShowModal).not.toHaveBeenCalled();
+    expect(mockCloseContainingModal).toHaveBeenCalled();
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it("ignores mount-time dirty form onChange when user made no edits", async () => {
+    formMockOnMountChangeMode = "dirty";
+    renderWithPermissions({ chain: ["update"] });
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(mockShowModal).not.toHaveBeenCalled();
+    expect(mockCloseContainingModal).toHaveBeenCalled();
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it("ignores auto-initialized context updates when user made no edits", async () => {
+    formContextShouldAutoUpdateOnMount = true;
+    renderWithPermissions({ chain: ["update"] });
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(mockShowModal).not.toHaveBeenCalled();
+    expect(mockCloseContainingModal).toHaveBeenCalled();
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it("unsaved dialog Yes saves changes and closes parent modal", async () => {
+    renderWithPermissions({ chain: ["update"] });
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("rjsf-user-change"));
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    const unsavedModal = mockShowModal.mock.calls[0][0]
+      .component as React.ReactElement;
+    render(unsavedModal);
+
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+
+    await waitFor(() => expect(mockUpdateElement).toHaveBeenCalled());
+    expect(defaultProps.onSubmit).toHaveBeenCalled();
+  });
+
+  it("unsaved dialog No closes parent modal without saving", async () => {
+    renderWithPermissions({ chain: ["update"] });
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("rjsf-user-change"));
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    const unsavedModal = mockShowModal.mock.calls[0][0]
+      .component as React.ReactElement;
+    render(unsavedModal);
+
+    fireEvent.click(screen.getByRole("button", { name: "No" }));
+
+    expect(defaultProps.onClose).toHaveBeenCalled();
+    expect(mockUpdateElement).not.toHaveBeenCalled();
+  });
+
+  it("unsaved dialog close icon keeps editing and does not close parent modal", async () => {
+    renderWithPermissions({ chain: ["update"] });
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("rjsf-user-change"));
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    const unsavedModal = mockShowModal.mock.calls[0][0]
+      .component as React.ReactElement;
+    render(unsavedModal);
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
+    expect(mockUpdateElement).not.toHaveBeenCalled();
   });
 
   it("Save button calls updateElement and onSubmit on success", async () => {

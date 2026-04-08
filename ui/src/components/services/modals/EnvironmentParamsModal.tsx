@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import {
   Modal,
   Form,
@@ -25,6 +31,8 @@ import { environmentLabelOptions } from "../utils.tsx";
 import { isAmqpProtocol, isKafkaProtocol } from "../../../misc/protocol-utils";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import tableStyles from "../../admin_tools/domains/Tables.module.css";
+import { useModalsContext } from "../../../Modals.tsx";
+import { UnsavedChangesModal } from "../../modal/UnsavedChangesModal.tsx";
 
 interface EnvironmentParamsModalProps {
   open: boolean;
@@ -71,6 +79,8 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   const [focusRowId, setFocusRowId] = useState<string | null>(null);
   const [editingValueKey, setEditingValueKey] = useState<string | null>(null);
   const [hoverValueKey, setHoverValueKey] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const { showModal } = useModalsContext();
 
   const [currentSourceType, setCurrentSourceType] =
     useState<EnvironmentSourceType>(
@@ -93,6 +103,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
 
   useEffect(() => {
     if (open && environment) {
+      setDirty(false);
       form.setFieldsValue({
         name: environment.name,
         address: environment.address,
@@ -148,6 +159,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
 
   const handleAddRow = (record: { key: string; value: string; id: string }) => {
     if (!record.key || !record.value) return;
+    setDirty(true);
     setPropertiesObj((prev) => ({ ...prev, [record.key]: record.value }));
     const newId = crypto.randomUUID();
     setAddingRows((rows) =>
@@ -163,6 +175,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
     field: "key" | "value",
     value: string,
   ) => {
+    setDirty(true);
     setAddingRows((rows) =>
       rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
     );
@@ -177,6 +190,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   };
 
   const commitEditedPropertyValue = (propKey: string, value: string) => {
+    setDirty(true);
     setPropertiesObj((prev) => ({
       ...prev,
       [propKey]: value,
@@ -184,41 +198,64 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
     setEditingValueKey(null);
   };
 
-  const handleSave = () => {
-    void (async () => {
-      try {
-        const values = (await form.validateFields()) as {
-          name: string;
-          address?: string;
-          labels?: string[];
-          sourceType?: EnvironmentSourceType;
-        };
-        const draftProps = Object.fromEntries(
-          addingRows
-            .filter((r) => r.key && r.value)
-            .map((r) => [r.key, r.value]),
-        );
-        const mergedProps = { ...propertiesObj, ...draftProps };
-        const envRequest: EnvironmentRequest = {
-          name: values.name,
-          address:
-            currentSourceType !== EnvironmentSourceType.MAAS &&
-            currentSourceType !== EnvironmentSourceType.MAAS_BY_CLASSIFIER
-              ? values.address
-              : undefined,
-          labels: values.labels?.map((l) => ({ name: l, technical: false })),
-          properties: mergedProps,
-          sourceType: currentSourceType,
-        };
-        await onSave(envRequest);
-        setPropertiesObj({});
-        setAddingRows([]);
-        onClose();
-      } catch {
-        // do nothing
-      }
+  const handleSave = useCallback((): Promise<void> => {
+    return (async () => {
+      const values = (await form.validateFields()) as {
+        name: string;
+        address?: string;
+        labels?: string[];
+        sourceType?: EnvironmentSourceType;
+      };
+      const draftProps = Object.fromEntries(
+        addingRows.filter((r) => r.key && r.value).map((r) => [r.key, r.value]),
+      );
+      const mergedProps = { ...propertiesObj, ...draftProps };
+      const envRequest: EnvironmentRequest = {
+        name: values.name,
+        address:
+          currentSourceType !== EnvironmentSourceType.MAAS &&
+          currentSourceType !== EnvironmentSourceType.MAAS_BY_CLASSIFIER
+            ? values.address
+            : undefined,
+        labels: values.labels?.map((l) => ({ name: l, technical: false })),
+        properties: mergedProps,
+        sourceType: currentSourceType,
+      };
+      await onSave(envRequest);
+      setPropertiesObj({});
+      setAddingRows([]);
+      setDirty(false);
+      onClose();
     })();
-  };
+  }, [form, addingRows, propertiesObj, currentSourceType, onSave, onClose]);
+
+  const closeWithoutPrompt = useCallback(() => {
+    onClose();
+  }, [onClose]);
+
+  const requestClose = useCallback(() => {
+    if (!dirty) {
+      closeWithoutPrompt();
+      return;
+    }
+    showModal({
+      component: (
+        <UnsavedChangesModal
+          onYes={() => {
+            void handleSave().catch(() => {
+              /* validation or save failed — keep environment modal */
+            });
+          }}
+          onNo={() => {
+            closeWithoutPrompt();
+          }}
+          onCancelQuestion={() => {
+            /* stay in environment modal */
+          }}
+        />
+      ),
+    });
+  }, [dirty, showModal, closeWithoutPrompt, handleSave]);
 
   const tableBackground =
     "var(--table-bg, var(--vscode-editor-background, var(--vscode-panel-background, #ffffff)))";
@@ -345,6 +382,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
           danger
           style={iconBtnStyle}
           onClick={() => {
+            setDirty(true);
             if (record.kind === "saved") {
               setPropertiesObj((prev) => {
                 const copy = { ...prev };
@@ -378,6 +416,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
       options={sourceTypeSegmentedOptions}
       value={currentSourceType}
       onChange={(val) => {
+        setDirty(true);
         setCurrentSourceType(val as EnvironmentSourceType);
       }}
       style={{ minWidth: 120, width: "auto" }}
@@ -392,15 +431,22 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
     <Modal
       open={open}
       title="Edit Environment"
-      onCancel={onClose}
-      onOk={handleSave}
+      onCancel={requestClose}
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Ant Design Modal awaits Promise on onOk
+      onOk={() => handleSave()}
       okText="Save"
       cancelText="Cancel"
       width={900}
       confirmLoading={saving}
       rootClassName={`environment-params-modal${showProperties ? " environment-params-modal--expanded" : ""}`}
     >
-      <Form form={form} layout="vertical">
+      <Form
+        form={form}
+        layout="vertical"
+        onValuesChange={() => {
+          setDirty(true);
+        }}
+      >
         {environment?.labels && environment?.labels?.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <EntityLabels
@@ -552,6 +598,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                   size="small"
                   style={{ marginLeft: 16 }}
                   onClick={() => {
+                    setDirty(true);
                     const newId = crypto.randomUUID();
                     setAddingRows((rows) => [
                       ...rows,
@@ -595,6 +642,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                 <Input.TextArea
                   value={propertiesText}
                   onChange={(e) => {
+                    setDirty(true);
                     const lines = e.target.value.split("\n");
                     const obj: Record<string, string> = {};
                     lines.forEach((line) => {

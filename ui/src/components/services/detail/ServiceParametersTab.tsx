@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Form, Input, Button, Select, Tag, Descriptions, Spin } from "antd";
 import {
   IntegrationSystem,
@@ -49,6 +49,8 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   const [userLabels, setUserLabels] = useState<string[]>([]);
   const [hasChanges, setHasChanges] = useState<boolean>(false);
   const blocker = useBlocker(activeTab === "parameters" && hasChanges);
+  /** One modal per router block; avoids re-opening when `system` updates after save (before `proceed`). */
+  const unsavedPromptShownForBlockRef = useRef(false);
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
   const permissions = usePermissions();
@@ -107,22 +109,33 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   }, [systemId, activeTab]);
 
   useEffect(() => {
-    if (blocker.state === "blocked") {
-      showModal({
-        component: (
-          <UnsavedChangesModal
-            onYes={() => {
-              blocker.proceed();
-              setHasChanges(false);
-            }}
-            onNo={() => {
-              blocker.reset();
-            }}
-          />
-        ),
-      });
+    if (blocker.state !== "blocked") {
+      unsavedPromptShownForBlockRef.current = false;
+      return;
     }
-  }, [blocker, showModal]);
+    // Wait until `system` is loaded so save handlers close over real data (not first-paint null).
+    if (!system || unsavedPromptShownForBlockRef.current) return;
+    unsavedPromptShownForBlockRef.current = true;
+    showModal({
+      component: (
+        <UnsavedChangesModal
+          onYes={() => {
+            void handleSave()
+              .then(() => blocker.proceed())
+              .catch(() => {
+                /* validation or save failed — keep blocker */
+              });
+          }}
+          onNo={() => {
+            blocker.proceed();
+          }}
+          onCancelQuestion={() => {
+            blocker.reset();
+          }}
+        />
+      ),
+    });
+  }, [blocker, showModal, system]);
 
   const {
     loading: savingSystem,
