@@ -26,6 +26,7 @@ export type {
 export {
   installRequestHeaders,
   installBearerAuth,
+  getHeadersForContext,
   getRestAxiosInstance,
 } from "./api/rest/requestHeadersInterceptor";
 export {

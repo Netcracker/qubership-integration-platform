@@ -13,6 +13,8 @@ import {
   ProtectedMenuItem,
   protectMenuItems,
 } from "../permissions/ProtectedDropdown.tsx";
+import { AiAssistant } from "./ai/AiAssistant.tsx";
+import { getIsAiServiceAvailable } from "../ai/appConfig";
 
 interface NavigationProps {
   showThemeSwitcher?: boolean;
@@ -31,6 +33,8 @@ const Navigation = ({
   const { pathname } = useLocation();
   const selectedKey = pathname.split("/")[1] || "chains";
   const permissions = usePermissions();
+
+  const isAiServiceAvailable = getIsAiServiceAvailable();
 
   const items = useMemo(() => {
     const protectedItems: ProtectedMenuItem[] = [
@@ -100,6 +104,7 @@ const Navigation = ({
             onThemeChange={onThemeChange}
           />
         )}
+        {isAiServiceAvailable && <AiAssistant />}
         <NotificationBar />
       </div>
     </nav>

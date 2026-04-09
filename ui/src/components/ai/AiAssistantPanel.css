@@ -1,0 +1,436 @@
+.ai-assistant-drawer .ant-drawer-content-wrapper {
+  transition: width 0s !important;
+  max-width: 100vw !important;
+  box-sizing: border-box;
+  max-height: 100vh;
+  height: 100vh !important;
+  top: 0 !important;
+}
+
+.ai-assistant-drawer .ant-drawer-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ai-assistant-drawer .ant-drawer-body {
+  padding: 16px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-drawer-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 1001;
+  background-color: transparent;
+  user-select: none;
+  touch-action: none;
+}
+
+.ai-drawer-resize-handle:hover,
+.ai-drawer-resize-handle.resizing {
+  background-color: var(--vscode-focusBorder, #007acc);
+  opacity: 0.55;
+}
+
+.ai-chat-root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.ai-assistant-drawer .ant-tabs {
+  margin-bottom: 6px !important;
+}
+
+.ai-assistant-drawer .ant-tabs-nav {
+  margin: 0 0 4px !important;
+}
+
+.ai-assistant-drawer .ant-tabs-tab {
+  padding: 2px 8px !important;
+  font-size: 11px;
+}
+
+.ai-assistant-drawer .ant-tabs-tab .ant-tabs-tab-remove {
+  margin-left: 4px;
+}
+
+.ai-provider-error {
+  display: block;
+}
+
+.ai-context-pill {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-border, #d9d9d9);
+  border-radius: 999px;
+  background: var(--vscode-editorWidget-background, rgb(0 0 0 / 2%));
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-context-pill__label {
+  color: var(--vscode-descriptionForeground, #9ca3af);
+}
+
+.ai-context-pill__value {
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-message-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--vscode-border, #d9d9d9);
+  border-radius: 8px;
+  background: var(--vscode-editor-background, #fff);
+  padding: 10px;
+}
+
+.ai-empty-state {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+}
+
+.ai-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.ai-message__meta {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #9ca3af);
+}
+
+.ai-message--user .ai-message__meta {
+  text-align: right;
+}
+
+.ai-message__bubble {
+  max-width: 100%;
+  border: 1px solid var(--vscode-border, #d9d9d9);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--vscode-editorWidget-background, rgb(0 0 0 / 2%));
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.ai-message--user .ai-message__bubble {
+  margin-left: auto;
+  background: var(--vscode-textCodeBlock-background, #f5f5f5);
+}
+
+.ai-message__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.ai-message__actions .ant-btn-icon-only {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.ai-message__actions .ant-btn-icon-only:hover {
+  background: var(--vscode-editorWidget-background, rgb(0 0 0 / 6%));
+}
+
+.ai-icon-rotate-vertical svg {
+  transform: scaleY(-1);
+}
+
+.ai-divider {
+  margin: 0;
+}
+
+.ai-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-input__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ai-meta {
+  white-space: nowrap;
+}
+
+.ai-send-button.ai-send-button--loading .anticon {
+  animation: ai-send-spin 0.9s linear infinite;
+}
+
+@keyframes ai-send-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.ai-markdown {
+  font-size: 13px;
+  line-height: 1.45;
+  color: inherit;
+}
+
+.ai-markdown > * + * {
+  margin-top: 8px;
+}
+
+.ai-markdown a {
+  color: var(--vscode-textLink-foreground, #3794ff);
+}
+
+.ai-markdown a:hover {
+  color: var(--vscode-textLink-activeForeground, #4daafc);
+}
+
+.ai-inline-code {
+  background: var(--vscode-textCodeBlock-background, #f5f5f5);
+  border: 1px solid var(--vscode-border, #d9d9d9);
+  border-radius: 4px;
+  padding: 0 0.3em;
+  font-family: var(
+    --vscode-editor-font-family,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
+  font-size: 12px;
+}
+
+.ai-code-block {
+  border: 1px solid var(--vscode-border, #d9d9d9);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--vscode-textCodeBlock-background, #f5f5f5);
+}
+
+.ai-code-block__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--vscode-border, #d9d9d9);
+  background: var(--vscode-editorWidget-background, rgb(0 0 0 / 2%));
+}
+
+.ai-code-block__lang {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #9ca3af);
+}
+
+.ai-code-block :where(pre) {
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  color: var(--vscode-editor-foreground, var(--vscode-foreground, #333));
+  font-family: var(
+    --vscode-editor-font-family,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ai-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.ai-markdown th,
+.ai-markdown td {
+  border: 1px solid var(--vscode-border, #d9d9d9);
+  padding: 6px 8px;
+  vertical-align: top;
+}
+
+.ai-markdown blockquote {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--vscode-border, #d9d9d9);
+  color: var(--vscode-descriptionForeground, #9ca3af);
+}
+
+.ai-thinking-dots {
+  display: inline-block;
+}
+
+.ai-thinking-dot {
+  opacity: 0;
+  animation: ai-thinking-pulse 1.4s ease-in-out infinite;
+}
+
+.ai-thinking-dot--1 {
+  animation-delay: 0s;
+}
+
+.ai-thinking-dot--2 {
+  animation-delay: 0.2s;
+}
+
+.ai-thinking-dot--3 {
+  animation-delay: 0.4s;
+}
+
+@keyframes ai-thinking-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0;
+  }
+
+  30% {
+    opacity: 1;
+  }
+}
+
+/* Execution log (terminal-style progress from AI steps) – theme-aware for readability */
+.ai-execution-log {
+  margin: 10px 0;
+  border: 1px solid var(--vscode-border, #d9d9d9);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--vscode-editorWidget-background, #f3f3f3);
+  color: var(--vscode-editor-foreground, var(--vscode-foreground, #333));
+  font-size: 12px;
+}
+
+.ai-execution-log__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+  list-style: none;
+}
+
+.ai-execution-log__header:hover {
+  background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 8%));
+}
+
+.ai-execution-log__title {
+  font-weight: 600;
+}
+
+.ai-execution-log__count {
+  color: var(--vscode-descriptionForeground, #6b7280);
+  font-weight: normal;
+}
+
+.ai-execution-log__chevron {
+  margin-left: auto;
+  color: var(--vscode-descriptionForeground, #6b7280);
+  font-size: 10px;
+}
+
+.ai-execution-log__body {
+  padding: 6px 0;
+  max-height: 240px;
+  overflow-y: auto;
+  font-family: var(
+    --vscode-editor-font-family,
+    ui-monospace,
+    "SF Mono",
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+}
+
+.ai-execution-log__line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 10px;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+}
+
+.ai-execution-log__line + .ai-execution-log__line {
+  border-top: 1px solid var(--vscode-border, rgb(0 0 0 / 8%));
+}
+
+.ai-execution-log__step-num {
+  flex-shrink: 0;
+  width: 20px;
+  color: var(--vscode-descriptionForeground, #6b7280);
+}
+
+.ai-execution-log__icon {
+  flex-shrink: 0;
+  width: 16px;
+  font-weight: bold;
+}
+
+.ai-execution-log__line--success .ai-execution-log__icon {
+  color: var(--vscode-testing-iconPassed, #16a34a);
+}
+
+.ai-execution-log__line--error .ai-execution-log__icon {
+  color: var(--vscode-testing-iconFailed, #dc2626);
+}
+
+.ai-execution-log__line--pending .ai-execution-log__icon {
+  color: var(--vscode-descriptionForeground, #6b7280);
+}
+
+.ai-execution-log__text {
+  flex: 1;
+  color: inherit;
+}
