@@ -17,10 +17,14 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.context;
 
 import lombok.Data;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemLabelDTO;
+
+import java.util.List;
 
 @Data
 public class ContextSystemUpdateRequestDTO {
     private String name;
     private String description;
+    private List<SystemLabelDTO> labels;
 }
 

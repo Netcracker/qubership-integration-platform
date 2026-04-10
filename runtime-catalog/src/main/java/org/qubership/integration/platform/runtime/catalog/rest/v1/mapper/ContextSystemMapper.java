@@ -16,11 +16,15 @@
 
 package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
+import org.mapstruct.BeanMapping;
 import org.mapstruct.CollectionMappingStrategy;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystemLabel;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemLabelDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.context.*;
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 
@@ -49,4 +53,10 @@ public interface ContextSystemMapper {
     }
 
     ContextSystem update(@MappingTarget ContextSystem contextSystem, ContextSystemUpdateRequestDTO request);
+
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "labels", ignore = true)
+    void mergeWithoutLabels(@MappingTarget ContextSystem contextSystem, ContextSystemUpdateRequestDTO request);
+
+    List<ContextSystemLabel> asLabelRequests(List<SystemLabelDTO> labels);
 }

@@ -110,6 +110,15 @@ public class ContextSystemController {
         return ResponseEntity.ok(contextSystemMapper.toContextSystemResponseDTO(contextSystem));
     }
 
+    @PatchMapping("/{contextId}")
+    @Operation(description = "Partially update context system")
+    public ResponseEntity<ContextSystemResponseDTO> patchContextSystem(@PathVariable String contextId,
+            @RequestBody ContextSystemUpdateRequestDTO request) {
+        log.info("Request to patch context system with id: {}", contextId);
+        ContextSystem contextSystem = contextSystemService.update(request, contextId);
+        return ResponseEntity.ok(contextSystemMapper.toContextSystemResponseDTO(contextSystem));
+    }
+
     @DeleteMapping("/{contextId}")
     @Operation(description = "Delete context system")
     public ResponseEntity<Void> deleteContextSystemById(@PathVariable String contextId) {

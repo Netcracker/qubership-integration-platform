@@ -17,7 +17,9 @@
 package org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Transient;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -26,7 +28,14 @@ import lombok.experimental.SuperBuilder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.AbstractSystemEntity;
 
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+
+import static jakarta.persistence.CascadeType.MERGE;
+import static jakarta.persistence.CascadeType.PERSIST;
+import static jakarta.persistence.CascadeType.REMOVE;
 
 @Getter
 @Setter
@@ -36,6 +45,13 @@ import java.util.List;
 @FieldNameConstants
 public class ContextSystem extends AbstractSystemEntity {
 
+    @Builder.Default
+    @OneToMany(mappedBy = "system",
+            orphanRemoval = true,
+            cascade = {PERSIST, REMOVE, MERGE}
+    )
+    private Set<ContextSystemLabel> labels = new LinkedHashSet<>();
+
     @Override
     public boolean equals(Object object) {
         return equals(object, true);
@@ -44,5 +60,8 @@ public class ContextSystem extends AbstractSystemEntity {
     @Transient
     private List<Chain> chains;
 
+    public void addLabels(Collection<ContextSystemLabel> labels) {
+        this.labels.addAll(labels);
+    }
 }
 
