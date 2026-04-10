@@ -137,7 +137,8 @@ const ChainGraphInner: React.FC = () => {
     () => (readOnly || elementId ? null : ["Backspace", "Delete"]),
     [elementId, readOnly],
   );
-  const [selectedByRightClick, setSelectedByRightClick] = useState<boolean>(false);
+  const [selectedByRightClick, setSelectedByRightClick] =
+    useState<boolean>(false);
 
   useEffect(() => {
     setReadOnly(!hasPermissions(permissions, { chain: ["update"] }));
@@ -257,7 +258,7 @@ const ChainGraphInner: React.FC = () => {
     [onDelete],
   );
 
-  const { menu, closeMenu, onContextMenuCall} = useContextMenu(
+  const { menu, closeMenu, onContextMenuCall } = useContextMenu(
     handleDelete,
     openElementModal,
     nodes,
@@ -362,6 +363,7 @@ const ChainGraphInner: React.FC = () => {
             `Deployed snapshot ${snapshot.name}`,
           );
         });
+        await chainContext?.refresh?.();
       } catch (error) {
         notificationService.requestFailed(
           "Failed to create snapshot and deploy it",
@@ -369,7 +371,7 @@ const ChainGraphInner: React.FC = () => {
         );
       }
     },
-    [chainId, notificationService],
+    [chainId, chainContext, notificationService],
   );
 
   const openSaveAndDeployDialog = useCallback(() => {

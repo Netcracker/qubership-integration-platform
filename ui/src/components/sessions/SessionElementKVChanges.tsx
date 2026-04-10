@@ -7,6 +7,7 @@ import {
   sumScrollXForColumns,
   useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
+import styles from "./SessionElementKVChanges.module.css";
 
 type ValueRenderer<ValueType = unknown> = (value: ValueType) => ReactNode;
 
@@ -76,6 +77,81 @@ function getCellContent<ValueType = unknown>(
     : PLACEHOLDER;
 }
 
+function isItemModified<ValueType>(
+  item: KVChangesTableItem<ValueType>,
+  comparator?: Comparator<ValueType>,
+): boolean {
+  if (comparator) {
+    return comparator(item.before, item.after) !== 0;
+  }
+  return item.before !== item.after;
+}
+
+/** Compare rendered type strings (uses PLACEHOLDER for missing side). */
+function typeDisplayString<ValueType>(
+  value: ValueType | undefined,
+  typeRenderer: ValueRenderer<ValueType> | undefined,
+): string {
+  if (value === undefined) {
+    return PLACEHOLDER;
+  }
+  if (typeRenderer) {
+    const rendered = typeRenderer(value);
+    if (
+      typeof rendered === "string" ||
+      typeof rendered === "number" ||
+      typeof rendered === "boolean"
+    ) {
+      return String(rendered);
+    }
+  }
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+  return PLACEHOLDER;
+}
+
+function sessionElementTypesDiffer<ValueType>(
+  item: KVChangesTableItem<ValueType>,
+  typeRenderer: ValueRenderer<ValueType> | undefined,
+): boolean {
+  return (
+    typeDisplayString(item.before, typeRenderer) !==
+    typeDisplayString(item.after, typeRenderer)
+  );
+}
+
+function renderTypeColumnCell<ValueType>(
+  item: KVChangesTableItem<ValueType>,
+  side: "before" | "after",
+  typeRenderer: ValueRenderer<ValueType> | undefined,
+): ReactNode {
+  const value = side === "before" ? item.before : item.after;
+  const inner = getCellContent(value, typeRenderer);
+  if (!sessionElementTypesDiffer(item, typeRenderer)) {
+    return inner;
+  }
+  return <span className={styles.valueChanged}>{inner}</span>;
+}
+
+function renderValueColumnCell<ValueType>(
+  item: KVChangesTableItem<ValueType>,
+  side: "before" | "after",
+  valueRenderer: ValueRenderer<ValueType> | undefined,
+  comparator: Comparator<ValueType> | undefined,
+): ReactNode {
+  const value = side === "before" ? item.before : item.after;
+  const inner = getCellContent(value, valueRenderer);
+  if (!isItemModified(item, comparator)) {
+    return inner;
+  }
+  return <span className={styles.valueChanged}>{inner}</span>;
+}
+
 export const SessionElementKVChanges = <ValueType = unknown,>({
   before,
   after,
@@ -114,7 +190,7 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
                 onClick: () => onColumnClick?.(item, "typeBefore"),
               }),
               render: (_: unknown, item: KVChangesTableItem<ValueType>) =>
-                getCellContent(item.before, typeRenderer),
+                renderTypeColumnCell(item, "before", typeRenderer),
             },
           ]
         : []),
@@ -126,7 +202,8 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
         onCell: (item) => ({
           onClick: () => onColumnClick?.(item, "valueBefore"),
         }),
-        render: (_, item) => getCellContent(item.before, valueRenderer),
+        render: (_, item) =>
+          renderValueColumnCell(item, "before", valueRenderer, comparator),
       },
       ...(addTypeColumns
         ? [
@@ -138,7 +215,7 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
                 onClick: () => onColumnClick?.(item, "typeAfter"),
               }),
               render: (_: unknown, item: KVChangesTableItem<ValueType>) =>
-                getCellContent(item.after, typeRenderer),
+                renderTypeColumnCell(item, "after", typeRenderer),
             },
           ]
         : []),
@@ -150,10 +227,11 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
         onCell: (item) => ({
           onClick: () => onColumnClick?.(item, "valueAfter"),
         }),
-        render: (_, item) => getCellContent(item.after, valueRenderer),
+        render: (_, item) =>
+          renderValueColumnCell(item, "after", valueRenderer, comparator),
       },
     ],
-    [addTypeColumns, onColumnClick, typeRenderer, valueRenderer],
+    [addTypeColumns, comparator, onColumnClick, typeRenderer, valueRenderer],
   );
 
   const kvChangesColumnResize = useTableColumnResize({

@@ -19,6 +19,7 @@ interface LightColumn {
     | ((props: Record<string, unknown>) => React.ReactNode);
   render?: (value: unknown, record: unknown, index: number) => React.ReactNode;
   onHeaderCell?: (col: unknown) => Record<string, unknown>;
+  onCell?: (record: unknown) => React.TdHTMLAttributes<HTMLTableCellElement>;
 }
 
 interface RowSelection {
@@ -187,8 +188,9 @@ function RenderRows({
               )}
               {columns.map((col, colIdx) => {
                 const val = col.dataIndex ? rec[col.dataIndex] : undefined;
+                const cellProps = col.onCell?.(record) ?? {};
                 return (
-                  <td key={col.key ?? col.dataIndex ?? colIdx}>
+                  <td key={col.key ?? col.dataIndex ?? colIdx} {...cellProps}>
                     {expandable && colIdx === 0 && (
                       <>
                         {expandable.expandIcon

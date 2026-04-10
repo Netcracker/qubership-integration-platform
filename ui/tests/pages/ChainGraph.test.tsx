@@ -2,11 +2,24 @@
  * @jest-environment jsdom
  */
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 jest.mock("@xyflow/react/dist/style.css", () => ({}));
 jest.mock("../../src/styles/reactflow-theme.css", () => ({}));
+
+jest.mock("../../src/api/api.ts", () => {
+  const actual = jest.requireActual<typeof import("../../src/api/api.ts")>(
+    "../../src/api/api.ts",
+  );
+  return {
+    api: {
+      ...actual.api,
+      createSnapshot: jest.fn(),
+      createDeployment: jest.fn(),
+    },
+  };
+});
 
 jest.mock(
   "../../src/components/modal/chain_element/ChainElementModification",
@@ -27,6 +40,8 @@ jest.mock("../../src/components/modal/ExportChains", () => ({
   ExportChains: () => null,
 }));
 
+import { api } from "../../src/api/api.ts";
+import { ChainContext } from "../../src/pages/ChainPage.tsx";
 import { ChainGraph } from "../../src/pages/ChainGraph";
 
 Object.defineProperty(globalThis, "matchMedia", {
@@ -45,6 +60,7 @@ Object.defineProperty(globalThis, "matchMedia", {
 
 const mockShowModal = jest.fn();
 const mockRequestFailed = jest.fn();
+const mockInfo = jest.fn();
 const mockNavigate = jest.fn();
 let mockElementId: string | undefined;
 const mockReactFlow = jest.fn();
@@ -63,7 +79,10 @@ jest.mock("react-router", () => ({
 }));
 
 jest.mock("../../src/hooks/useNotificationService", () => ({
-  useNotificationService: () => ({ requestFailed: mockRequestFailed }),
+  useNotificationService: () => ({
+    requestFailed: mockRequestFailed,
+    info: mockInfo,
+  }),
 }));
 
 jest.mock("../../src/hooks/graph/useChainGraph", () => ({
@@ -133,9 +152,28 @@ jest.mock("../../src/api/rest/vscodeExtensionApi", () => ({
   isVsCode: false,
 }));
 
-jest.mock("../../src/pages/ChainHeaderActionsContext", () => ({
-  useRegisterChainHeaderActions: jest.fn(),
-}));
+jest.mock("../../src/pages/ChainHeaderActionsContext", () => {
+  const R = require("react") as typeof import("react");
+  const ReactDOM =
+    require("react-dom/client") as typeof import("react-dom/client");
+  return {
+    useRegisterChainHeaderActions: (actions: R.ReactNode, deps: unknown[]) => {
+      R.useEffect(() => {
+        const container = document.createElement("div");
+        container.dataset.testid = "chain-header-actions-slot";
+        document.body.appendChild(container);
+        const root = ReactDOM.createRoot(container);
+        root.render(actions);
+        return () => {
+          queueMicrotask(() => {
+            root.unmount();
+            container.remove();
+          });
+        };
+      }, deps);
+    },
+  };
+});
 
 jest.mock("@xyflow/react", () => ({
   ReactFlowProvider: ({ children }: { children: React.ReactNode }) => (
@@ -231,11 +269,7 @@ jest.mock("../../src/components/graph/ContextMenu", () => ({
 }));
 
 jest.mock("../../src/pages/ChainPage", () => ({
-  ChainContext: React.createContext({
-    chain: undefined,
-    refresh: jest.fn(),
-    update: jest.fn(),
-  }),
+  ChainContext: React.createContext(undefined),
 }));
 
 describe("ChainGraph", () => {
@@ -244,7 +278,7 @@ describe("ChainGraph", () => {
     mockLeftPanel = true;
     mockRightPanel = false;
     mockElementId = undefined;
-    document.body.setAttribute("data-theme", "light");
+    document.body.dataset.theme = "light";
   });
 
   it("renders without crashing", () => {
@@ -296,5 +330,51 @@ describe("ChainGraph", () => {
     expect(
       screen.queryByTestId("elements-library-sidebar"),
     ).not.toBeInTheDocument();
+  });
+
+  it("save and deploy creates snapshot, deploys, refreshes chain context", async () => {
+    const refreshMock = jest.fn().mockResolvedValue(undefined);
+    const createSnapshot = api.createSnapshot as jest.Mock;
+    const createDeployment = api.createDeployment as jest.Mock;
+    createSnapshot.mockResolvedValue({ id: "snap-1", name: "snap-a" });
+    createDeployment.mockResolvedValue(undefined);
+
+    render(
+      <ChainContext.Provider
+        value={{
+          chain: undefined,
+          refresh: refreshMock,
+          update: jest.fn().mockResolvedValue(undefined),
+        }}
+      >
+        <ChainGraph />
+      </ChainContext.Provider>,
+    );
+
+    const headerSlot = await screen.findByTestId("chain-header-actions-slot");
+    const headerButtons = within(headerSlot).getAllByTestId("protected-button");
+    expect(headerButtons.length).toBeGreaterThanOrEqual(3);
+    fireEvent.click(headerButtons[2]);
+
+    expect(mockShowModal).toHaveBeenCalled();
+    const modalArg = mockShowModal.mock.calls.at(-1)?.[0] as {
+      component: React.ReactElement<{
+        onSubmit: (domain: string) => void | Promise<void>;
+      }>;
+    };
+    expect(modalArg?.component?.props?.onSubmit).toEqual(expect.any(Function));
+    await modalArg.component.props.onSubmit("domain-1");
+
+    expect(createSnapshot).toHaveBeenCalledWith("chain-1");
+    expect(createDeployment).toHaveBeenCalledWith(
+      "chain-1",
+      expect.objectContaining({
+        domain: "domain-1",
+        snapshotId: "snap-1",
+        suspended: false,
+      }),
+    );
+    expect(refreshMock).toHaveBeenCalled();
+    expect(mockInfo).toHaveBeenCalled();
   });
 });

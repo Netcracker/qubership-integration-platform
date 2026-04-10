@@ -55,7 +55,6 @@ import {
   OnDeleteEvent,
 } from "../../components/graph/nodes/ChainGraphNodeTypes.ts";
 
-
 const DECORATIVE_PREFIX = "decorative:";
 
 function isDecorativeEdgeId(id: string) {

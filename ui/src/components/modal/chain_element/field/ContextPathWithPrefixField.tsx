@@ -1,7 +1,7 @@
 import React from "react";
 import { Input } from "antd";
 import styles from "../ChainElementModification.module.css";
-import { FormContext } from "../ChainElementModification";
+import type { FormContext } from "../ChainElementModificationContext.ts";
 import { FieldProps } from "@rjsf/utils";
 import { JSONSchema7 } from "json-schema";
 import { buildPrefix } from "./BasePathField";
@@ -28,7 +28,8 @@ const ContextPathWithPrefixField: React.FC<
       </label>
       <Input
         value={formData}
-        prefix={buildPrefix(registry.formContext.externalRoute)}
+        prefix={buildPrefix(registry.formContext?.externalRoute)}
+        styles={{ prefix: { marginInlineEnd: 0 } }}
         onChange={(e) => onChange(e.target.value, fieldPathId.path)}
       />
     </div>

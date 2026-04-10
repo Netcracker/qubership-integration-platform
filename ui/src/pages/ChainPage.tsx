@@ -200,7 +200,9 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
         items={tabItems}
         style={{ marginBottom: 0 }}
         tabBarExtraContent={
-          <div className={styles.chainTabBarExtra as string}>{headerActions}</div>
+          <div className={styles.chainTabBarExtra as string}>
+            {headerActions}
+          </div>
         }
       />
     );

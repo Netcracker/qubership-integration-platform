@@ -153,25 +153,21 @@ describe("ChainCreate", () => {
     expect(newTab).toBeDisabled();
   });
 
-  it(
-    "create mode passes openChain false to onSubmit when Open chain is unchecked",
-    async () => {
-      const onSubmit = jest.fn();
-      render(<ChainCreate onSubmit={onSubmit} />);
-      fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
-        target: { value: "Named" },
-      });
-      fireEvent.click(screen.getByRole("checkbox", { name: /open chain/i }));
-      fireEvent.click(screen.getByRole("button", { name: /^submit$/i }));
-      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
-      expect(onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "Named" }),
-        false,
-        false,
-      );
-    },
-    15_000,
-  );
+  it("create mode passes openChain false to onSubmit when Open chain is unchecked", async () => {
+    const onSubmit = jest.fn();
+    render(<ChainCreate onSubmit={onSubmit} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Named" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /open chain/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^submit$/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Named" }),
+      false,
+      false,
+    );
+  }, 15_000);
 
   it("edit mode loads chain and calls onUpdateMetadata on submit", async () => {
     mockGetChain.mockResolvedValue(minimalChain({ name: "Loaded Chain" }));

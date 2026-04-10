@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import { Button, Flex, Table } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
@@ -48,6 +48,7 @@ import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import chainPageStyles from "./Chain.module.css";
+import { ChainContext } from "./ChainPage.tsx";
 
 const SNAPSHOTS_SELECTION_COLUMN_WIDTH = 48;
 
@@ -71,6 +72,7 @@ function snapshotMatchesSearch(snapshot: Snapshot, term: string): boolean {
 
 export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
+  const chainContext = useContext(ChainContext);
   const navigate = useNavigate();
   const { isLoading, snapshots, setSnapshots } = useSnapshots(chainId);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -129,6 +131,7 @@ export const Snapshots: React.FC = () => {
     try {
       const snapshot = await api.createSnapshot(chainId);
       setSnapshots([...(snapshots ?? []), snapshot]);
+      await chainContext?.refresh?.();
     } catch (error) {
       notificationService.requestFailed("Failed to create snapshot", error);
     }
@@ -173,6 +176,7 @@ export const Snapshots: React.FC = () => {
     if (!chainId) return;
     try {
       await api.revertToSnapshot(chainId, id);
+      await chainContext?.refresh?.();
       void navigate(`/chains/${chainId}/graph`);
     } catch (error) {
       notificationService.requestFailed("Failed to revert to snapshot", error);

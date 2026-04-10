@@ -9,9 +9,7 @@ import { MemoryRouter } from "react-router-dom";
 import { ServiceSidebar } from "../../../../src/components/services/detail/ServiceSidebar";
 
 jest.mock("../../../../src/icons/IconProvider.tsx", () => ({
-  OverridableIcon: ({ name }: { name: string }) => (
-    <span data-icon={name} />
-  ),
+  OverridableIcon: ({ name }: { name: string }) => <span data-icon={name} />,
 }));
 
 describe("ServiceSidebar", () => {
@@ -23,7 +21,9 @@ describe("ServiceSidebar", () => {
     );
     const selected = container.querySelector(".ant-menu-item-selected");
     expect(selected).toBeInTheDocument();
-    expect(within(selected as HTMLElement).getByText("External")).toBeInTheDocument();
+    expect(
+      within(selected as HTMLElement).getByText("External"),
+    ).toBeInTheDocument();
   });
 
   it("selects Implemented when hash is set", () => {

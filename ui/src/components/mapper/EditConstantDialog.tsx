@@ -7,7 +7,7 @@ import {
 import { Button, Flex, Form, Input, Modal, Select, SelectProps } from "antd";
 import { DataTypes } from "../../mapper/util/types.ts";
 import Checkbox from "antd/lib/checkbox";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { buildTypeOptions } from "./InlineTypeEdit.tsx";
 import { TimestampFormatParameters } from "./transformation/parameters/FormatDateTimeParameters.tsx";
@@ -37,6 +37,12 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
   const [form] = Form.useForm();
   const nameValue = Form.useWatch("name", form) as string;
   const valueSupplier = Form.useWatch("valueSupplier", form) as ValueSupplier;
+  /** Last name we treated as “in sync” with the value field; stop syncing once value diverges from it. */
+  const nameForValueSyncRef = useRef(constant.name);
+
+  useEffect(() => {
+    nameForValueSyncRef.current = constant.name;
+  }, [constant.name, constant.id]);
 
   const typeOptions: ReturnType<typeof buildTypeOptions> = buildTypeOptions(
     DataTypes.stringType(),
@@ -98,32 +104,30 @@ export const EditConstantDialog: React.FC<EditConstantDialogProps> = ({
     );
   }, [constant]);
 
-  // Auto-fill value with name when name changes
+  // Mirror name into value until the user edits value away from the synced name.
   useEffect(() => {
-    console.log("Auto-fill effect triggered:", {
-      nameValue,
-      isGenerated,
-      constantName: constant.name,
-    });
-    if (nameValue && !isGenerated) {
-      const currentValue =
-        valueSupplier?.kind === "given" ? valueSupplier.value : "";
-      console.log("Current value check:", {
-        currentValue,
-        constantName: constant.name,
-        shouldFill: !currentValue || currentValue === constant.name,
-      });
-      if (
-        !currentValue ||
-        currentValue === constant.name ||
-        currentValue !== nameValue
-      ) {
-        console.log("Setting valueSupplier to:", nameValue);
-        form.setFieldsValue({
-          valueSupplier: { kind: "given", value: nameValue },
-        });
+    if (!nameValue || isGenerated) {
+      if (!nameValue) {
+        nameForValueSyncRef.current = "";
       }
+      return;
     }
+    const currentValue =
+      valueSupplier?.kind === "given" ? valueSupplier.value : "";
+    const prevName = nameForValueSyncRef.current;
+    // Do not treat empty value as “fill from name” once the name was already non-empty
+    // (otherwise deleting the last character in the value field restores the full name).
+    const shouldSyncFromName =
+      (!currentValue && prevName === "") ||
+      currentValue === prevName ||
+      (Boolean(constant.name) && currentValue === constant.name);
+
+    if (shouldSyncFromName) {
+      form.setFieldsValue({
+        valueSupplier: { kind: "given", value: nameValue },
+      });
+    }
+    nameForValueSyncRef.current = nameValue;
   }, [nameValue, isGenerated, form, constant.name, valueSupplier]);
 
   return (

@@ -199,7 +199,7 @@ describe("Sessions", () => {
     await waitFor(() => {
       expect(screen.getByTestId("sessions-refresh")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("sessions-refresh")).toHaveTextContent("Refresh");
+    expect(screen.getByTestId("sessions-refresh")).toHaveRole("button");
   });
 
   test("Refresh triggers full reload from offset 0 and replaces table rows", async () => {

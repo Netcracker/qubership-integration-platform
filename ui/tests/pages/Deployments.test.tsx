@@ -109,11 +109,9 @@ jest.mock("../../src/Modals.tsx", () => {
     closeModal: jest.fn(),
   };
   return {
-    Modals: ({
-      children,
-    }: {
-      children: import("react").ReactNode;
-    }) => <R.Fragment>{children}</R.Fragment>,
+    Modals: ({ children }: { children: import("react").ReactNode }) => (
+      <R.Fragment>{children}</R.Fragment>
+    ),
     useModalsContext: () => modalsApi,
   };
 });
@@ -180,8 +178,9 @@ describe("Deployments chain header toolbar", () => {
     type ModalsTest = {
       useModalsContext: () => { showModal: jest.Mock; closeModal: jest.Mock };
     };
-    const { useModalsContext } =
-      jest.requireMock<ModalsTest>("../../src/Modals.tsx");
+    const { useModalsContext } = jest.requireMock<ModalsTest>(
+      "../../src/Modals.tsx",
+    );
     const { showModal } = useModalsContext();
 
     renderDeployments();

@@ -9,11 +9,14 @@ import { screen, waitFor, fireEvent, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import type { Snapshot } from "../../src/api/apiTypes.ts";
 import { api } from "../../src/api/api.ts";
+import { ChainContext } from "../../src/pages/ChainPage.tsx";
 import { Snapshots } from "../../src/pages/Snapshots.tsx";
 import { renderPageWithChainHeader } from "../helpers/renderWithChainHeader.tsx";
 
 const mockUseParams = jest.fn(() => ({ chainId: "chain-1" }));
 const mockNavigate = jest.fn();
+const chainRefreshMock = jest.fn().mockResolvedValue(undefined);
+const mockConfirmAndRun = jest.fn();
 
 jest.mock("react-router", () => ({
   useParams: () => mockUseParams(),
@@ -105,11 +108,9 @@ jest.mock("../../src/Modals.tsx", () => {
     closeModal: jest.fn(),
   };
   return {
-    Modals: ({
-      children,
-    }: {
-      children: import("react").ReactNode;
-    }) => <R.Fragment>{children}</R.Fragment>,
+    Modals: ({ children }: { children: import("react").ReactNode }) => (
+      <R.Fragment>{children}</R.Fragment>
+    ),
     useModalsContext: () => modalsApi,
   };
 });
@@ -158,8 +159,26 @@ jest.mock("../../src/components/labels/EntityLabels.tsx", () => ({
 }));
 
 jest.mock("../../src/permissions/ProtectedDropdown.tsx", () => ({
-  ProtectedDropdown: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
+  ProtectedDropdown: ({
+    children,
+    menu,
+  }: {
+    children: React.ReactNode;
+    menu?: { items?: { key: string; label: string; onClick?: () => void }[] };
+  }) => (
+    <div data-testid="protected-dropdown">
+      {menu?.items?.map((it) => (
+        <button
+          key={it.key}
+          type="button"
+          data-testid={`snapshot-action-${it.key}`}
+          onClick={it.onClick}
+        >
+          {it.label}
+        </button>
+      ))}
+      {children}
+    </div>
   ),
 }));
 
@@ -182,7 +201,7 @@ jest.mock("../../src/components/modal/SnapshotsCompare.tsx", () => ({
 }));
 
 jest.mock("../../src/misc/confirm-utils.ts", () => ({
-  confirmAndRun: jest.fn(),
+  confirmAndRun: (...args: unknown[]) => mockConfirmAndRun(...args),
 }));
 
 function baseSnapshot(id: string, name: string): Snapshot {
@@ -196,17 +215,29 @@ function baseSnapshot(id: string, name: string): Snapshot {
 }
 
 function renderSnapshots() {
-  return renderPageWithChainHeader(<Snapshots />);
+  return renderPageWithChainHeader(
+    <ChainContext.Provider
+      value={{
+        chain: undefined,
+        update: jest.fn().mockResolvedValue(undefined),
+        refresh: chainRefreshMock,
+      }}
+    >
+      <Snapshots />
+    </ChainContext.Provider>,
+  );
 }
 
 describe("Snapshots chain header toolbar", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseParams.mockReturnValue({ chainId: "chain-1" });
+    chainRefreshMock.mockResolvedValue(undefined);
     (api.getSnapshots as jest.Mock).mockResolvedValue([]);
     (api.createSnapshot as jest.Mock).mockResolvedValue(
       baseSnapshot("new-snap", "new"),
     );
+    (api.revertToSnapshot as jest.Mock).mockResolvedValue(undefined);
   });
 
   test("registers header toolbar with search and Compare / Delete / Create", async () => {
@@ -238,6 +269,40 @@ describe("Snapshots chain header toolbar", () => {
     await waitFor(() => {
       expect(createSnapshot).toHaveBeenCalledWith("chain-1");
     });
+    await waitFor(() => {
+      expect(chainRefreshMock).toHaveBeenCalled();
+    });
+  });
+
+  test("Revert to snapshot confirms, calls api, refresh, and navigates to graph", async () => {
+    mockConfirmAndRun.mockImplementation(
+      ({ onOk }: { onOk: () => void | Promise<void> }) => {
+        void onOk();
+      },
+    );
+    (api.getSnapshots as jest.Mock).mockResolvedValue([
+      baseSnapshot("snap-rev", "snap-rev"),
+    ]);
+
+    renderSnapshots();
+
+    await waitFor(() => {
+      expect(screen.getByText("snap-rev")).toBeInTheDocument();
+    });
+
+    const row = screen.getByRole("row", { name: /snap-rev/i });
+    fireEvent.click(within(row).getByTestId("snapshot-action-revert"));
+
+    await waitFor(() => {
+      expect(mockConfirmAndRun).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(api.revertToSnapshot).toHaveBeenCalledWith("chain-1", "snap-rev");
+    });
+    await waitFor(() => {
+      expect(chainRefreshMock).toHaveBeenCalled();
+    });
+    expect(mockNavigate).toHaveBeenCalledWith("/chains/chain-1/graph");
   });
 
   test("Compare disabled unless exactly two rows selected", async () => {

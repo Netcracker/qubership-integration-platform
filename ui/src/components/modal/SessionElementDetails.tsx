@@ -42,7 +42,7 @@ function buildElementOrderMap(
   );
 }
 
-function getTextToCopy<ValueType>(
+export function getTextToCopy<ValueType>(
   item: KVChangesTableItem<ValueType>,
   column: ColumnName,
   typeTextGetter?: (v: ValueType | undefined) => string | undefined,
@@ -138,11 +138,15 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
             addTypeColumns
             before={element?.propertiesBefore}
             after={element?.propertiesAfter}
-            comparator={(p1, p2) =>
-              (p1?.type.localeCompare(p2?.type ?? "") ||
-                p1?.value.localeCompare(p2?.value ?? "")) ??
-              0
-            }
+            comparator={(p1, p2) => {
+              if (p1 === p2) return 0;
+              if (p1 === undefined || p2 === undefined) {
+                return 1;
+              }
+              const byType = (p1.type ?? "").localeCompare(p2.type ?? "");
+              if (byType !== 0) return byType;
+              return (p1.value ?? "").localeCompare(p2.value ?? "");
+            }}
             typeRenderer={(property) => property.type}
             valueRenderer={(property) => property.value}
             onColumnClick={(item, column) =>
@@ -237,11 +241,13 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
               }
               iconPosition="start"
               icon={<OverridableIcon name="left" />}
-              onClick={() =>
-                setElement(
-                  elementOrderMap.get(element?.elementId ?? "")?.previous,
-                )
-              }
+              onClick={() => {
+                let id = "";
+                if (element != null) {
+                  id = element.elementId;
+                }
+                setElement(elementOrderMap.get(id)?.previous);
+              }}
             >
               Previous
             </Button>
@@ -251,9 +257,13 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
               }
               iconPosition="end"
               icon={<OverridableIcon name="right" />}
-              onClick={() =>
-                setElement(elementOrderMap.get(element?.elementId ?? "")?.next)
-              }
+              onClick={() => {
+                let id = "";
+                if (element != null) {
+                  id = element.elementId;
+                }
+                setElement(elementOrderMap.get(id)?.next);
+              }}
             >
               Next
             </Button>

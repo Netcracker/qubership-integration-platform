@@ -631,9 +631,7 @@ export const Sessions: React.FC = () => {
               data-testid="sessions-refresh"
               icon={<OverridableIcon name="refresh" />}
               onClick={() => onRefreshSessions()}
-            >
-              Refresh
-            </Button>
+            />
           </Tooltip>
         </Flex>
       </Flex>
