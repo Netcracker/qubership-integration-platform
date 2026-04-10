@@ -1,9 +1,9 @@
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distLibDir = path.join(__dirname, "..", "dist-lib");
-const externalFile = path.join(distLibDir, "index.es.js");
-const bundledFile = path.join(distLibDir, "index.bundled.es.js");
 
 function fixPreloadInFile(filePath, fileName) {
   if (!fs.existsSync(filePath)) {
@@ -14,7 +14,6 @@ function fixPreloadInFile(filePath, fileName) {
   try {
     let content = fs.readFileSync(filePath, "utf8");
 
-    // Count occurrences of __vitePreload
     const preloadCount = (content.match(/__vitePreload/g) || []).length;
 
     if (preloadCount <= 1) {
@@ -28,7 +27,6 @@ function fixPreloadInFile(filePath, fileName) {
       `Found ${preloadCount} occurrences of __vitePreload in ${fileName}, fixing...`,
     );
 
-    // Replace all occurrences with a unique name to avoid conflicts when used as a library
     content = content.replace(/__vitePreload/g, "__qipVitePreload");
 
     fs.writeFileSync(filePath, content, "utf8");
@@ -40,6 +38,5 @@ function fixPreloadInFile(filePath, fileName) {
   }
 }
 
-// Fix both external and bundled versions
-fixPreloadInFile(externalFile, "index.es.js");
-fixPreloadInFile(bundledFile, "index.bundled.es.js");
+fixPreloadInFile(path.join(distLibDir, "index.es.js"), "index.es.js");
+fixPreloadInFile(path.join(distLibDir, "index.bundled.es.js"), "index.bundled.es.js");

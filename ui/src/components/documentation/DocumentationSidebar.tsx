@@ -43,6 +43,7 @@ const convertTOCToTreeData = (
       key,
       children: children.length > 0 ? children : undefined,
       selectable: hasDocument,
+      className: hasDocument ? undefined : "doc-tree-group",
     },
   ];
 };
@@ -52,7 +53,26 @@ interface DocumentationSidebarProps {
   collapsed?: boolean;
 }
 
-const EXPANDED_KEYS_STORAGE_KEY = "documentation-sidebar-expanded-keys";
+/** Walk up parentByKey to collect all expandable ancestors of currentKey. */
+const computeExpandedPath = (
+  currentKey: string,
+  parentByKey: Record<string, string | null>,
+  expandable: Set<string>,
+): string[] => {
+  const result: string[] = [];
+  const visited = new Set<string>();
+
+  let key: string | null | undefined = currentKey;
+  while (key && !visited.has(key)) {
+    visited.add(key);
+    if (expandable.has(key)) {
+      result.push(key);
+    }
+    key = parentByKey[key];
+  }
+
+  return result.reverse();
+};
 
 const DocumentationSidebarComponent: React.FC<DocumentationSidebarProps> = ({
   onSelect,
@@ -72,76 +92,39 @@ const DocumentationSidebarComponent: React.FC<DocumentationSidebarProps> = ({
   const location = useLocation();
   const ignoreSelectUntilRef = useRef<number>(0);
 
-  const computeExpandedPath = (
-    currentKey: string,
-    parentByKey: Record<string, string | null>,
-    expandable: Set<string>,
-  ): string[] => {
-    const result: string[] = [];
-    const visited = new Set<string>();
-
-    let key: string | null | undefined = currentKey;
-    while (key && !visited.has(key)) {
-      visited.add(key);
-      if (expandable.has(key)) {
-        result.push(key);
-      }
-      key = parentByKey[key];
-    }
-
-    return result.reverse();
-  };
-
+  // Load tree structure once — TOC and paths are cached by the service layer.
   useEffect(() => {
     Promise.all([loadTOC(), loadPaths()])
       .then(([toc, paths]) => {
-        const routeBase = DOCUMENTATION_ROUTE_BASE;
-        const fullData = convertTOCToTreeData(toc, routeBase, paths);
-        const { expandable, parentByKey } = (() => {
-          const expandable = new Set<string>();
-          const parentByKey: Record<string, string | null> = {};
-          const walk = (nodes: DataNode[], parentKey: string | null) => {
-            for (const node of nodes) {
-              const key = String(node.key);
-              parentByKey[key] = parentKey;
-
-              const children = node.children as DataNode[] | undefined;
-              if (Array.isArray(children) && children.length > 0) {
-                expandable.add(key);
-                walk(children, key);
-              }
-            }
-          };
-          walk(fullData, null);
-          return { expandable, parentByKey };
-        })();
-
-        setExpandableKeySet(expandable);
-        setParentKeyByKey(parentByKey);
-
-        // Always expand ONLY the path to current document (no merge with localStorage)
-        const currentPath = location.pathname;
-        const initialExpanded = computeExpandedPath(
-          currentPath,
-          parentByKey,
-          expandable,
+        const fullData = convertTOCToTreeData(
+          toc,
+          DOCUMENTATION_ROUTE_BASE,
+          paths,
         );
-        setExpandedKeys(initialExpanded);
-        try {
-          localStorage.setItem(
-            EXPANDED_KEYS_STORAGE_KEY,
-            JSON.stringify(initialExpanded),
-          );
-        } catch (error) {
-          console.error("Failed to save expanded keys to localStorage:", error);
-        }
+
+        const expandable = new Set<string>();
+        const parentByKey: Record<string, string | null> = {};
+        const walk = (nodes: DataNode[], parentKey: string | null) => {
+          for (const node of nodes) {
+            const key = String(node.key);
+            parentByKey[key] = parentKey;
+            const children = node.children as DataNode[] | undefined;
+            if (Array.isArray(children) && children.length > 0) {
+              expandable.add(key);
+              walk(children, key);
+            }
+          }
+        };
+        walk(fullData, null);
 
         setTreeData(fullData);
+        setExpandableKeySet(expandable);
+        setParentKeyByKey(parentByKey);
       })
       .catch((error) => {
         console.error("Failed to load sidebar:", error);
       });
-  }, [loadTOC, loadPaths, location.pathname]);
+  }, [loadTOC, loadPaths]);
 
   useEffect(() => {
     const currentPath = location.pathname;
@@ -155,14 +138,6 @@ const DocumentationSidebarComponent: React.FC<DocumentationSidebarProps> = ({
         expandableKeySet,
       );
       setExpandedKeys(pathToExpand);
-      try {
-        localStorage.setItem(
-          EXPANDED_KEYS_STORAGE_KEY,
-          JSON.stringify(pathToExpand),
-        );
-      } catch (error) {
-        console.error("Failed to save expanded keys to localStorage:", error);
-      }
     }
   }, [location.pathname, parentKeyByKey, expandableKeySet]);
 
@@ -174,22 +149,10 @@ const DocumentationSidebarComponent: React.FC<DocumentationSidebarProps> = ({
       } else {
         set.add(key);
       }
-      const newKeys = Array.from(set);
-      try {
-        localStorage.setItem(
-          EXPANDED_KEYS_STORAGE_KEY,
-          JSON.stringify(newKeys),
-        );
-      } catch (error) {
-        console.error("Failed to save expanded keys to localStorage:", error);
-      }
-      return newKeys;
+      return Array.from(set);
     });
   }, []);
 
-  // Single click:
-  // - If node has a document: navigate to it
-  // - If node is expandable but has no document: toggle expand/collapse
   const handleSelect: TreeProps["onSelect"] = (nextSelectedKeys, info) => {
     if (Date.now() < ignoreSelectUntilRef.current) {
       return;
@@ -218,27 +181,6 @@ const DocumentationSidebarComponent: React.FC<DocumentationSidebarProps> = ({
 
   const handleExpand: TreeProps["onExpand"] = (expandedKeys) => {
     setExpandedKeys(expandedKeys);
-    try {
-      localStorage.setItem(
-        EXPANDED_KEYS_STORAGE_KEY,
-        JSON.stringify(expandedKeys),
-      );
-    } catch (error) {
-      console.error("Failed to save expanded keys to localStorage:", error);
-    }
-  };
-
-  // Double click on expandable node with document: toggle expand/collapse
-  // (allows expanding/collapsing without navigating)
-  const handleDoubleClick: TreeProps["onDoubleClick"] = (_event, node) => {
-    const key = String(node.key);
-    const hasDocument = node.selectable;
-    const isExpandable = expandableKeySet.has(key);
-
-    if (hasDocument && isExpandable) {
-      ignoreSelectUntilRef.current = Date.now() + 250;
-      toggleExpanded(key);
-    }
   };
 
   if (collapsed) {
@@ -257,7 +199,6 @@ const DocumentationSidebarComponent: React.FC<DocumentationSidebarProps> = ({
         blockNode
         expandAction={false}
         showLine={true}
-        onDoubleClick={handleDoubleClick}
         switcherIcon={<RightOutlined />}
       />
     </div>

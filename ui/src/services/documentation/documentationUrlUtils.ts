@@ -132,8 +132,12 @@ export function resolveDocLink(href: string, currentDocPath: string): string {
   if (startsWithDocRoot(raw)) {
     return trimTrailingSlashes(trimMdExt(raw));
   }
+  // Do NOT add trailing "/" to currentDocPath — the last segment is a file
+  // (e.g. "1__Transformation/transformation"), not a directory. Without the
+  // trailing slash, URL resolution treats it as a file and "../" goes up
+  // from its parent directory, which is the correct behavior.
   const basePath = currentDocPath
-    ? `${DOCUMENTATION_ROUTE_BASE}/${currentDocPath}/`
+    ? `${DOCUMENTATION_ROUTE_BASE}/${currentDocPath}`
     : `${DOCUMENTATION_ROUTE_BASE}/`;
   const base = `https://doc.invalid${basePath.startsWith("/") ? "" : "/"}${basePath}`;
   try {

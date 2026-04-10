@@ -1,11 +1,12 @@
-/* eslint-disable react/prop-types */
-import React from "react";
+import React, { useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { MermaidDiagram } from "@lightenna/react-mermaid-diagram";
+import { useSyntaxHighlighterTheme } from "../../hooks/useSyntaxHighlighterTheme";
 import {
   getDocumentationAssetsBaseUrl,
   DOCUMENTATION_ROUTE_BASE,
@@ -13,7 +14,7 @@ import {
   isSafeHref,
   resolveDocLink,
 } from "../../services/documentation/documentationUrlUtils";
-import { useVSCodeTheme } from "../../hooks/useVSCodeTheme";
+import { ThemeContext } from "../../theme/context";
 import styles from "./DocumentationViewer.module.css";
 
 /**
@@ -37,16 +38,53 @@ interface DocumentationViewerProps {
   pathNormalizers?: RegExp[];
 }
 
+// Pre-compiled regex for legacy path prefix removal (avoids recompilation on every render).
+// Matches: "Helper [anything]/", "N. Helper [anything]/", "N.%20Helper%20[anything]/"
+const LEGACY_HELPER_PREFIX_RE = /^(?:\d+\.?(?:%20|\s))?Helper(?:%20|\s)[^/]*\//;
+
+// Matches doc-root-relative paths like "00__Overview/..."
+const DOC_ROOT_PATH_RE = /^\d{2}__/;
+
+// Static schema for rehype-sanitize — does not depend on component props/state.
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...(defaultSchema.attributes ?? {}),
+    a: [
+      ...((defaultSchema.attributes?.a as string[] | undefined) ?? []),
+      "target",
+      "rel",
+    ],
+    img: [
+      ...((defaultSchema.attributes?.img as string[] | undefined) ?? []),
+      "src",
+      "alt",
+      "title",
+    ],
+    code: [
+      ...((defaultSchema.attributes?.code as string[] | undefined) ?? []),
+      "className",
+    ],
+    span: [
+      ...((defaultSchema.attributes?.span as string[] | undefined) ?? []),
+      "className",
+    ],
+  },
+} as const;
+
 export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
   content,
   baseUrl,
   docPath,
   pathNormalizers = [],
 }) => {
-  const { isDark } = useVSCodeTheme();
+  const themeContext = useContext(ThemeContext);
+  const isDark = themeContext
+    ? themeContext.theme === "dark" || themeContext.theme === "high-contrast"
+    : false;
   const navigate = useNavigate();
+  const syntaxTheme = useSyntaxHighlighterTheme();
   const effectiveAssetsBaseUrl = baseUrl || getDocumentationAssetsBaseUrl();
-  const effectiveRouteBase = DOCUMENTATION_ROUTE_BASE;
   const docDir = (() => {
     const raw = (docPath ?? "").replace(/^\/+/, "");
     if (!raw) {
@@ -58,16 +96,8 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
 
   const normalizePath = (src: string): string => {
     let result = src;
+    result = result.replace(LEGACY_HELPER_PREFIX_RE, "");
 
-    // Remove common legacy prefixes that may appear in documentation from various sources.
-    // Pattern matches: "Helper [anything]/", "N. Helper [anything]/", "N.%20Helper%20[anything]/"
-    // Examples: "Helper QIP/", "1. Helper /", "3.%20Helper%20Platform%20(D)/"
-    result = result.replace(
-      /^(?:\d+\.?(?:%20|\s))?Helper(?:%20|\s)[^/]*\//,
-      "",
-    );
-
-    // Apply custom normalizers if provided by the library consumer
     for (const pattern of pathNormalizers) {
       result = result.replace(pattern, "");
     }
@@ -94,20 +124,11 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
     const normalized = normalizePath(src).replace(/^\.\//, "");
 
     // If src already points to a docs-relative path like "00__Overview/.../img/x.svg"
-    if (/^\d{2}__/.test(normalized)) {
+    if (DOC_ROOT_PATH_RE.test(normalized)) {
       return encodeURI(`${effectiveAssetsBaseUrl}/${normalized}`);
     }
 
-    // Typical case: "img/..." relative to current document folder.
-    if (normalized.startsWith("img/")) {
-      return encodeURI(
-        docDir
-          ? `${effectiveAssetsBaseUrl}/${docDir}/${normalized}`
-          : `${effectiveAssetsBaseUrl}/${normalized}`,
-      );
-    }
-
-    // Fallback: resolve as relative to current document folder.
+    // Resolve as relative to current document folder (handles "img/...", plain filenames, etc.)
     return encodeURI(
       docDir
         ? `${effectiveAssetsBaseUrl}/${docDir}/${normalized}`
@@ -115,56 +136,62 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
     );
   };
 
-  const sanitizeSchema = {
-    ...defaultSchema,
-    attributes: {
-      ...(defaultSchema.attributes ?? {}),
-      a: [
-        ...((defaultSchema.attributes?.a as string[] | undefined) ?? []),
-        "target",
-        "rel",
-      ],
-      img: [
-        ...((defaultSchema.attributes?.img as string[] | undefined) ?? []),
-        "src",
-        "alt",
-        "title",
-      ],
-      code: [
-        ...((defaultSchema.attributes?.code as string[] | undefined) ?? []),
-        "className",
-      ],
-      span: [
-        ...((defaultSchema.attributes?.span as string[] | undefined) ?? []),
-        "className",
-      ],
-    },
-  } as const;
-
   return (
     <div className={`${styles.viewer}${isDark ? ` ${styles.dark}` : ""}`}>
       <Markdown
         rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
         remarkPlugins={[remarkGfm]}
         components={{
-          img(props) {
+          img({ node: _, ...imgProps }) {
             // Handle Mermaid diagrams
-            if (props.src?.endsWith(".mermaid") || props.alt === "mermaid") {
+            if (
+              imgProps.src?.endsWith(".mermaid") ||
+              imgProps.alt === "mermaid"
+            ) {
               return (
-                <MermaidDiagram>{props.src || props.alt || ""}</MermaidDiagram>
+                <MermaidDiagram theme={isDark ? "dark" : "default"}>
+                  {imgProps.src || imgProps.alt || ""}
+                </MermaidDiagram>
               );
             }
-            const resolvedSrc = props.src
-              ? resolveDocAssetUrl(props.src)
+            const resolvedSrc = imgProps.src
+              ? resolveDocAssetUrl(imgProps.src)
               : undefined;
             return (
-              <img {...props} src={resolvedSrc} alt={props.alt || "image"} />
+              <img
+                {...imgProps}
+                src={resolvedSrc}
+                alt={imgProps.alt || "image"}
+              />
             );
           },
-          a(props) {
-            const hrefValue = props.href ?? "";
+          code({ node: _, className, children, ...rest }) {
+            const langMatch = /language-(\w+)/.exec(className || "");
+            const text = Array.isArray(children)
+              ? children.join("")
+              : `${children as string}`;
+            const isInline = !text.includes("\n");
+            if (!isInline) {
+              return (
+                <SyntaxHighlighter
+                  style={syntaxTheme}
+                  language={langMatch?.[1] || "text"}
+                  PreTag="div"
+                >
+                  {text.replace(/\n$/, "")}
+                </SyntaxHighlighter>
+              );
+            }
+            return (
+              <code className={className} {...rest}>
+                {children}
+              </code>
+            );
+          },
+          a({ node: _, ...aProps }) {
+            const hrefValue = aProps.href ?? "";
             if (hrefValue && !isSafeHref(hrefValue)) {
-              return <span>{props.children}</span>;
+              return <span>{aProps.children}</span>;
             }
             const isRelativeDocLink =
               hrefValue &&
@@ -177,32 +204,32 @@ export const DocumentationViewer: React.FC<DocumentationViewerProps> = ({
                 "",
               );
               const resolved = resolveDocLink(normalizedHref, docPath ?? "");
-              const href = `${effectiveRouteBase}/${resolved}`;
+              const href = `${DOCUMENTATION_ROUTE_BASE}/${resolved}`;
               return (
                 <a
-                  {...props}
+                  {...aProps}
                   href={href}
                   onClick={(e) => {
                     e.preventDefault();
                     void navigate(href);
                   }}
                 >
-                  {props.children}
+                  {aProps.children}
                 </a>
               );
             }
             // Keep absolute URLs and anchors as-is.
             return (
               <a
-                {...props}
-                target={hrefValue.startsWith("http") ? "_blank" : props.target}
+                {...aProps}
+                target={hrefValue.startsWith("http") ? "_blank" : aProps.target}
                 rel={
                   hrefValue.startsWith("http")
                     ? "noopener noreferrer"
-                    : props.rel
+                    : aProps.rel
                 }
               >
-                {props.children}
+                {aProps.children}
               </a>
             );
           },

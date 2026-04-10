@@ -12,6 +12,8 @@ export interface TableOfContentNode {
 export interface SearchResult {
   ref: number;
   score: number;
+  /** Tokens actually matched by MiniSearch (may differ from query words due to fuzzy/prefix matching). */
+  terms: string[];
 }
 
 export type HighlightSegment = {

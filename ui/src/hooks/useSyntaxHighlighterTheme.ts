@@ -1,10 +1,39 @@
-import { useMemo, CSSProperties } from "react";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
 import { useVSCodeTheme } from "./useVSCodeTheme";
+
+/**
+ * Observe the `data-theme` attribute on `<html>` so browser-side theme
+ * switches (which do NOT go through the VS Code postMessage path) still
+ * cause a re-render with fresh CSS variable values.
+ */
+function useDataTheme(): string | null {
+  const [dataTheme, setDataTheme] = useState<string | null>(() =>
+    typeof document !== "undefined"
+      ? document.documentElement.getAttribute("data-theme")
+      : null,
+  );
+
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") return;
+
+    const observer = new MutationObserver(() => {
+      setDataTheme(document.documentElement.getAttribute("data-theme"));
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return dataTheme;
+}
 
 export function useSyntaxHighlighterTheme() {
   const { isDark } = useVSCodeTheme();
+  const dataTheme = useDataTheme();
 
-  const customTheme = useMemo(() => {
+  return useMemo(() => {
     const getBackgroundBrightness = (bgColor: string): number => {
       let r = 255,
         g = 255,
@@ -210,7 +239,6 @@ export function useSyntaxHighlighterTheme() {
       ".token.boolean": { color: keywordColor } as CSSProperties,
       ".token.null": { color: keywordColor } as CSSProperties,
     };
-  }, [isDark]);
-
-  return customTheme;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dataTheme triggers recalculation when browser theme switches
+  }, [isDark, dataTheme]);
 }

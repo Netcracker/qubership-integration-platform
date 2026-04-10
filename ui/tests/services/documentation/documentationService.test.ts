@@ -2,83 +2,6 @@
  * @jest-environment jsdom
  */
 
-// Mock lunr-init (must be before service import)
-jest.mock("../../../src/lunr-init", () => ({ lunr: {} }));
-
-interface MockDoc {
-  id?: number;
-  ref?: string;
-  title?: string;
-  body?: string;
-}
-
-interface MockIndex {
-  setRef: jest.Mock;
-  addField: (f: string) => void;
-  saveDocument: jest.Mock;
-  addDoc: (doc: MockDoc) => void;
-  search: jest.Mock;
-  documentStore: {
-    getDoc: (ref: string) => MockDoc | null;
-    docs: Record<string, MockDoc>;
-  };
-  toJSON: () => Record<string, unknown>;
-}
-
-const createMockIndex = (): MockIndex => {
-  const docs: Record<string, MockDoc> = {};
-  const fields: string[] = [];
-  const idx: MockIndex = {
-    setRef: jest.fn(),
-    addField: (f: string) => fields.push(f),
-    saveDocument: jest.fn(),
-    addDoc: (doc: MockDoc) => {
-      docs[String(doc.id ?? doc.ref)] = doc;
-    },
-    search: jest.fn(() => []),
-    documentStore: {
-      getDoc: (ref: string) => docs[ref] ?? null,
-      docs,
-    },
-    toJSON: () => ({}),
-  };
-  return idx;
-};
-
-interface IndexDump {
-  _docs?: Record<string, MockDoc>;
-}
-
-const mockElasticlunr = Object.assign(
-  (setup?: (this: MockIndex) => void) => {
-    const idx = createMockIndex();
-    if (setup) setup.call(idx);
-    return idx;
-  },
-  {
-    Index: {
-      load: (dump: IndexDump) => {
-        const idx = createMockIndex();
-        if (dump?._docs) {
-          Object.entries(dump._docs).forEach(([k, v]) => {
-            idx.documentStore.docs[k] = v;
-          });
-        }
-        idx.search = jest.fn(() =>
-          Object.keys(idx.documentStore.docs).map((ref) => ({ ref, score: 1 })),
-        );
-        return idx;
-      },
-    },
-    stemmer: (w: string) => w.toLowerCase(),
-  },
-);
-
-jest.mock("elasticlunr", () => ({
-  __esModule: true,
-  default: mockElasticlunr,
-}));
-
 import { DocumentationService } from "../../../src/services/documentation/documentationService";
 
 // Mock appConfig to avoid import.meta.env issues in Jest
@@ -167,9 +90,57 @@ describe("DocumentationService - Resource Loading", () => {
     );
   });
 
+  test("loadResource detects HTML without text/html content-type (<!DOCTYPE)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "text/plain" }),
+      text: () => Promise.resolve("<!DOCTYPE html><html></html>"),
+    });
+
+    await expect(service.loadPaths()).rejects.toThrow(
+      "received HTML instead of JSON",
+    );
+  });
+
+  test("loadResource detects HTML by <html tag", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "text/plain" }),
+      text: () => Promise.resolve("<html><body>Not found</body></html>"),
+    });
+
+    await expect(service.loadPaths()).rejects.toThrow(
+      "received HTML instead of JSON",
+    );
+  });
+
+  test("loadResource detects HTML by <!doctype (lowercase)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "text/plain" }),
+      text: () => Promise.resolve("<!doctype html><html></html>"),
+    });
+
+    await expect(service.loadPaths()).rejects.toThrow(
+      "received HTML instead of JSON",
+    );
+  });
+
+  test("loadResource passes through non-HTML non-JSON response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "text/plain" }),
+      text: () => Promise.resolve("[1,2,3]"),
+      json: () => Promise.resolve([1, 2, 3]),
+    });
+
+    const result = await service.loadPaths();
+    expect(result).toEqual([1, 2, 3]);
+  });
+
   test("loadSearchIndex fetches and loads search index", async () => {
     const indexDump = {
-      _docs: { "0": { id: 0, title: "Test", body: "Content" } },
+      documents: [{ id: 0, title: "Test", body: "Content" }],
     };
     mockFetch.mockResolvedValue({
       ok: true,
@@ -188,11 +159,25 @@ describe("DocumentationService - Resource Loading", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  test("search returns scored results", async () => {
+  test("loadSearchIndex handles missing documents field", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve({}),
+    });
+
+    const index = await service.loadSearchIndex();
+    expect(index).toBeDefined();
+    // Should produce an empty index, so searching returns nothing
+    const results = index.search("anything");
+    expect(results).toEqual([]);
+  });
+
+  test("search returns scored results with terms", async () => {
     const indexDump = {
-      _docs: {
-        "0": { id: 0, title: "HTTP Trigger", body: "Handles HTTP requests" },
-      },
+      documents: [
+        { id: 0, title: "HTTP Trigger", body: "Handles HTTP requests" },
+      ],
     };
     mockFetch.mockResolvedValue({
       ok: true,
@@ -204,11 +189,13 @@ describe("DocumentationService - Resource Loading", () => {
     expect(results.length).toBeGreaterThan(0);
     expect(results[0]).toHaveProperty("ref");
     expect(results[0]).toHaveProperty("score");
+    expect(results[0]).toHaveProperty("terms");
+    expect(Array.isArray(results[0].terms)).toBe(true);
   });
 
   test("getSearchDetailSegments returns empty for missing doc", async () => {
     const indexDump = {
-      _docs: { "0": { id: 0, title: "Test", body: "Content" } },
+      documents: [{ id: 0, title: "Test", body: "Content" }],
     };
     mockFetch.mockResolvedValue({
       ok: true,
@@ -220,15 +207,35 @@ describe("DocumentationService - Resource Loading", () => {
     expect(segments).toEqual([]);
   });
 
+  test("getSearchDetailSegments returns empty for empty query", async () => {
+    const indexDump = {
+      documents: [
+        {
+          id: 0,
+          title: "Test",
+          body: "Some content here.\n\nAnother paragraph.",
+        },
+      ],
+    };
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve(indexDump),
+    });
+
+    const segments = await service.getSearchDetailSegments(0, "");
+    expect(segments).toEqual([]);
+  });
+
   test("getSearchDetailSegments returns segments for existing doc", async () => {
     const indexDump = {
-      _docs: {
-        "0": {
+      documents: [
+        {
           id: 0,
           title: "HTTP Trigger",
           body: "The HTTP trigger handles requests.\n\nIt supports GET and POST.",
         },
-      },
+      ],
     };
     mockFetch.mockResolvedValue({
       ok: true,
@@ -238,17 +245,82 @@ describe("DocumentationService - Resource Loading", () => {
 
     const segments = await service.getSearchDetailSegments(0, "HTTP");
     expect(Array.isArray(segments)).toBe(true);
+    expect(segments.length).toBeGreaterThan(0);
+  });
+
+  test("getSearchDetailSegments uses terms to find snippets for fuzzy queries", async () => {
+    const indexDump = {
+      documents: [
+        {
+          id: 0,
+          title: "HTTP Trigger",
+          body: "The HTTP trigger handles requests.\n\nIt supports GET and POST.",
+        },
+      ],
+    };
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve(indexDump),
+    });
+
+    // Without terms: "HTTp" is not in the text (case is irrelevant, but "http" IS there)
+    // With terms=["http"]: paragraph matching uses the corrected token → finds snippets
+    const segmentsWithoutTerms = await service.getSearchDetailSegments(
+      0,
+      "HTTppp",
+    );
+    expect(segmentsWithoutTerms).toEqual([]);
+
+    const segmentsWithTerms = await service.getSearchDetailSegments(
+      0,
+      "HTTppp",
+      ["http"],
+    );
+    expect(segmentsWithTerms.length).toBeGreaterThan(0);
+    // The hit segment should highlight the corrected word "HTTP", not the typo
+    const hitSegments = segmentsWithTerms.flat().filter((s) => s.isHit);
+    expect(hitSegments.length).toBeGreaterThan(0);
+    expect(hitSegments[0].text.toLowerCase()).toBe("http");
+  });
+
+  test("getSearchDetailSegments returns up to 5 fragments", async () => {
+    const indexDump = {
+      documents: [
+        {
+          id: 0,
+          title: "Test",
+          body: [
+            "First test paragraph here.",
+            "Second test paragraph here.",
+            "Third test paragraph here.",
+            "Fourth test paragraph here.",
+            "Fifth test paragraph here.",
+            "Sixth test paragraph here.",
+            "Seventh test paragraph here.",
+          ].join("\n\n"),
+        },
+      ],
+    };
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve(indexDump),
+    });
+
+    const segments = await service.getSearchDetailSegments(0, "test");
+    expect(segments.length).toBe(5);
   });
 
   test("getSearchDetail returns HTML strings", async () => {
     const indexDump = {
-      _docs: {
-        "0": {
+      documents: [
+        {
           id: 0,
           title: "Test",
           body: "Some test content.\n\nMore test data.",
         },
-      },
+      ],
     };
     mockFetch.mockResolvedValue({
       ok: true,
@@ -670,6 +742,19 @@ describe("DocumentationService - Element Type Mapping", () => {
         "_blank",
       );
     });
+
+    test("wraps non-Error thrown values", async () => {
+      jest.spyOn(service, "loadPaths").mockRejectedValue("string error");
+
+      const onErrorMock = jest.fn();
+
+      await service.openChainElementDocumentation("http-trigger", onErrorMock);
+
+      expect(onErrorMock).toHaveBeenCalledWith(expect.any(Error));
+      expect((onErrorMock.mock.calls[0] as [Error])[0].message).toBe(
+        "string error",
+      );
+    });
   });
 
   describe("openContextDocumentation", () => {
@@ -716,6 +801,83 @@ describe("DocumentationService - Element Type Mapping", () => {
         setTimeout(() => {
           expect(onErrorMock).toHaveBeenCalledWith(expect.any(Error));
           expect(mockWindowOpen).toHaveBeenCalledWith("/doc", "_blank");
+          resolve();
+        }, 50);
+      });
+    });
+
+    test("wraps non-Error thrown values", () => {
+      mockFetch.mockRejectedValue("string error");
+
+      Object.defineProperty(window, "location", {
+        value: { pathname: "/test", hash: "" },
+        writable: true,
+      });
+
+      const onErrorMock = jest.fn();
+      service.openContextDocumentation(onErrorMock);
+
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          expect(onErrorMock).toHaveBeenCalledWith(expect.any(Error));
+          expect((onErrorMock.mock.calls[0] as [Error])[0].message).toBe(
+            "string error",
+          );
+          resolve();
+        }, 50);
+      });
+    });
+
+    test("falls back to not-found when no mapping rule matches", () => {
+      // Rules that don't match the current path
+      const mockRules = [
+        { pattern: "^/chains", doc: "/doc/01__Chains/chains" },
+      ];
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(mockRules),
+      });
+
+      Object.defineProperty(window, "location", {
+        value: { pathname: "/unknown-page", hash: "" },
+        writable: true,
+      });
+
+      service.openContextDocumentation();
+
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          expect(mockWindowOpen).toHaveBeenCalledWith(
+            expect.stringContaining("not-found"),
+            "_blank",
+          );
+          resolve();
+        }, 50);
+      });
+    });
+
+    test("falls back to not-found when rule has no doc field", () => {
+      const mockRules = [{ pattern: "^/test", doc: "" }];
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(mockRules),
+      });
+
+      Object.defineProperty(window, "location", {
+        value: { pathname: "/test", hash: "" },
+        writable: true,
+      });
+
+      service.openContextDocumentation();
+
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          expect(mockWindowOpen).toHaveBeenCalledWith(
+            expect.stringContaining("not-found"),
+            "_blank",
+          );
           resolve();
         }, 50);
       });
@@ -799,5 +961,43 @@ describe("DocumentationService - Element Type Mapping", () => {
       service.openPage("/doc/test");
       expect(mockWindowOpen).toHaveBeenCalledWith("/doc/test", "_blank");
     });
+  });
+});
+
+describe("DocumentationService - Module-level", () => {
+  test("onConfigChange callback resets caches", () => {
+    // jest.isolateModules creates a fresh module registry, so the jest.mock
+    // factory runs again producing a fresh jest.fn() with clean call history
+    // (unaffected by clearMocks:true which runs before each test).
+    let onConfigChangeMock: jest.Mock | null = null;
+    let isolatedService: {
+      elementTypeMappingCache: Record<string, string> | null;
+    } | null = null;
+
+    jest.isolateModules(() => {
+      /* eslint-disable @typescript-eslint/no-require-imports -- require is needed inside jest.isolateModules */
+      const appConfig = require("../../../src/appConfig") as {
+        onConfigChange: jest.Mock;
+      };
+      onConfigChangeMock = appConfig.onConfigChange;
+
+      const mod =
+        require("../../../src/services/documentation/documentationService") as {
+          documentationService: {
+            elementTypeMappingCache: Record<string, string> | null;
+          };
+        };
+      isolatedService = mod.documentationService;
+      /* eslint-enable @typescript-eslint/no-require-imports */
+    });
+
+    expect(onConfigChangeMock).toHaveBeenCalledTimes(1);
+
+    const callback = (onConfigChangeMock!.mock.calls[0] as [() => void])[0];
+    isolatedService!.elementTypeMappingCache = { test: "/doc/test" };
+
+    callback();
+
+    expect(isolatedService!.elementTypeMappingCache).toBeNull();
   });
 });

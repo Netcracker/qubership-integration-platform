@@ -1,7 +1,6 @@
 import fs from "fs";
-import pth from "path";
+import path from "path";
 import { marked } from "marked";
-import elasticlunr from "elasticlunr";
 
 class TocTreeNode {
   constructor(title, documentId) {
@@ -10,219 +9,157 @@ class TocTreeNode {
     this.children = [];
   }
 
-  getChild = function (path) {
-    if (!path || path.length === 0) {
+  getChild(tocPath) {
+    if (!tocPath || tocPath.length === 0) {
       return this;
     }
 
-    let child = this.children.find((child) => child.title === path[0]);
+    let child = this.children.find((c) => c.title === tocPath[0]);
     if (!child) {
-      child = new TocTreeNode(path[0]);
+      child = new TocTreeNode(tocPath[0]);
       this.children.push(child);
     }
 
-    return child.getChild(path.slice(1));
-  };
+    return child.getChild(tocPath.slice(1));
+  }
 }
 
-// Extract text content from markdown tokens
 function extractTextFromTokens(tokens) {
-  const textParts = [];
+  const parts = [];
 
   for (const token of tokens) {
-    if (token.type === "text" || token.type === "codespan") {
-      textParts.push(token.text || token.raw);
-    } else if (token.type === "paragraph" || token.type === "heading") {
-      if (token.tokens) {
-        textParts.push(extractTextFromTokens(token.tokens));
-      } else if (token.text) {
-        textParts.push(token.text);
-      }
-    } else if (token.type === "list") {
-      if (token.items) {
-        for (const item of token.items) {
-          if (item.tokens) {
-            textParts.push(extractTextFromTokens(item.tokens));
-          }
-        }
-      }
-    } else if (token.type === "table") {
-      if (token.header) {
-        for (const cell of token.header) {
-          if (cell.tokens) {
-            textParts.push(extractTextFromTokens(cell.tokens));
-          } else if (cell.text) {
-            textParts.push(cell.text);
-          }
-        }
-      }
-      if (token.rows) {
-        for (const row of token.rows) {
-          for (const cell of row) {
-            if (cell.tokens) {
-              textParts.push(extractTextFromTokens(cell.tokens));
-            } else if (cell.text) {
-              textParts.push(cell.text);
-            }
-          }
-        }
-      }
-    } else if (token.type === "code") {
-      textParts.push(token.text);
-    } else if (token.type === "blockquote" && token.tokens) {
-      textParts.push(extractTextFromTokens(token.tokens));
+    if (token.tokens) {
+      parts.push(extractTextFromTokens(token.tokens));
     } else if (
-      token.type === "strong" ||
-      token.type === "em" ||
-      token.type === "del"
+      token.type === "text" ||
+      token.type === "codespan" ||
+      token.type === "code"
     ) {
-      if (token.tokens) {
-        textParts.push(extractTextFromTokens(token.tokens));
-      } else if (token.text) {
-        textParts.push(token.text);
+      parts.push(token.text || token.raw);
+    } else if (token.text) {
+      parts.push(token.text);
+    }
+
+    // Table and list have nested structures outside .tokens
+    if (token.type === "list" && token.items) {
+      for (const item of token.items) {
+        if (item.tokens) parts.push(extractTextFromTokens(item.tokens));
       }
-    } else if (token.type === "link" && token.tokens) {
-      textParts.push(extractTextFromTokens(token.tokens));
-    } else if (token.tokens) {
-      textParts.push(extractTextFromTokens(token.tokens));
+    }
+    if (token.type === "table") {
+      for (const cell of token.header || []) {
+        if (cell.tokens) parts.push(extractTextFromTokens(cell.tokens));
+        else if (cell.text) parts.push(cell.text);
+      }
+      for (const row of token.rows || []) {
+        for (const cell of row) {
+          if (cell.tokens) parts.push(extractTextFromTokens(cell.tokens));
+          else if (cell.text) parts.push(cell.text);
+        }
+      }
     }
   }
 
-  return textParts.join("\n\n");
+  return parts.join("\n\n");
 }
 
 async function* walk(dir) {
-  for await (const d of await fs.promises.opendir(dir)) {
-    const entry = pth.join(dir, d.name);
-    if (d.isDirectory()) yield* await walk(entry);
-    else if (d.isFile()) yield entry;
+  for await (const entry of await fs.promises.opendir(dir)) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) yield* walk(fullPath);
+    else if (entry.isFile()) yield fullPath;
   }
 }
 
 async function getSortedMarkdownDocuments(dir) {
-  const paths = [];
-  for await (const path of walk(dir)) {
-    if (path.endsWith(".md")) {
-      paths.push(path);
+  const files = [];
+  for await (const filePath of walk(dir)) {
+    if (filePath.endsWith(".md")) {
+      files.push(filePath);
     }
   }
-  paths.sort((p0, p1) => {
-    const d0 = pth.dirname(p0);
-    const d1 = pth.dirname(p1);
-    const n0 = pth.basename(p0);
-    const n1 = pth.basename(p1);
-    return d0 < d1 ? -1 : d0 > d1 ? 1 : n0 < n1 ? -1 : n0 > n1 ? 1 : 0;
+  files.sort((a, b) => {
+    const da = path.dirname(a);
+    const db = path.dirname(b);
+    if (da !== db) return da < db ? -1 : 1;
+    return path.basename(a) < path.basename(b) ? -1 : 1;
   });
-  return paths;
+  return files;
 }
 
-async function buildTocTree(dir, paths) {
+function extractTocPath(relativePath) {
+  return path
+    .dirname(relativePath)
+    .split(path.sep)
+    .map(convertDirNameToTocTitle);
+}
+
+function convertDirNameToTocTitle(dirName) {
+  const parts = dirName.split("__");
+  return parts.length > 1 ? parts[1].replaceAll("_", " ") : dirName;
+}
+
+function buildTocTree(dir, paths) {
   const tree = new TocTreeNode("");
-  paths.forEach((path, index) => {
-    const relativePath = pth.relative(dir, path);
-    const tocPath = extractTocPath(relativePath);
+  paths.forEach((filePath, index) => {
+    const tocPath = extractTocPath(path.relative(dir, filePath));
     tree.getChild(tocPath).documentId = index;
   });
   return tree;
 }
 
-function extractTocPath(p) {
-  return pth
-    .dirname(p)
-    .split(pth.sep)
-    .map((s) => convertDirNameToTocTitle(s));
+function buildPaths(dir, paths) {
+  return paths.map((filePath) =>
+    path.relative(dir, filePath).replaceAll("\\", "/"),
+  );
 }
 
-function convertDirNameToTocTitle(s) {
-  const tokens = s.split("__");
-  return tokens.length > 1 ? tokens[1].replaceAll("_", " ") : s;
-}
-
-async function buildPaths(dir, pathes) {
-  return pathes.map((path) => pth.relative(dir, path).replaceAll("\\", "/"));
-}
-
-async function buildNames(dir, pathes) {
-  return pathes.map((path) => extractTocPath(pth.relative(dir, path)));
-}
-
-async function saveJson(obj, fileName) {
-  const objData = JSON.stringify(obj);
-  await fs.promises.writeFile(fileName, objData);
-}
-
-async function saveData(outDir, fileName, data, name) {
-  const path = pth.resolve(outDir, fileName);
-  console.log("Writing", name, "to", path, "...");
-  return saveJson(data, path);
+function buildNames(dir, paths) {
+  return paths.map((filePath) => extractTocPath(path.relative(dir, filePath)));
 }
 
 async function buildSearchIndex(dir, paths) {
-  let index = elasticlunr(function () {
-    this.addField("title");
-    this.addField("body");
-    this.setRef("id");
-    this.saveDocument(true);
-  });
-  for (let i = 0; i < paths.length; ++i) {
-    const path = paths[i];
-    const relativePath = pth.relative(dir, path);
-    const body = await fs.promises.readFile(path);
-    let doc = {
+  const documents = [];
+  for (let i = 0; i < paths.length; i++) {
+    const content = await fs.promises.readFile(paths[i], "utf-8");
+    documents.push({
       id: i,
-      title: getDocumentTitle(relativePath),
-      body: extractDocumentContent(body.toString()),
-    };
-    index.addDoc(doc);
+      title: convertDirNameToTocTitle(path.basename(path.dirname(paths[i]))),
+      body: extractTextFromTokens(marked.lexer(content)),
+    });
   }
-  return index;
+  return { documents };
 }
 
-function extractDocumentContent(markdownText) {
-  const tokens = marked.lexer(markdownText);
-  return extractTextFromTokens(tokens);
+async function saveData(outDir, fileName, data, label) {
+  const filePath = path.resolve(outDir, fileName);
+  console.log("Writing", label, "to", filePath, "...");
+  await fs.promises.writeFile(filePath, JSON.stringify(data));
 }
 
-function getDocumentTitle(path) {
-  return convertDirNameToTocTitle(pth.basename(pth.dirname(path)));
-}
-
-function parseCommandLine() {
-  const args = process.argv.slice(2);
-  if (args.length < 2) {
+async function main() {
+  const [docDir, outDir] = process.argv.slice(2);
+  if (!docDir || !outDir) {
     console.error("Usage: build-doc-index <doc_dir> <out_dir>");
     process.exit(1);
   }
-  return {
-    _: args,
-  };
-}
 
-function main() {
-  const args = parseCommandLine();
-  const docDir = args._[0];
-  const outDir = args._[1];
   console.log("Documentation root directory:", docDir);
   console.log("Output directory:", outDir);
 
-  getSortedMarkdownDocuments(docDir)
-    .then((paths) =>
-      Promise.all([
-        buildPaths(docDir, paths).then((paths) =>
-          saveData(outDir, "paths.json", paths, "document paths"),
-        ),
-        buildNames(docDir, paths).then((names) =>
-          saveData(outDir, "names.json", names, "document names"),
-        ),
-        buildTocTree(docDir, paths).then((tree) =>
-          saveData(outDir, "toc.json", tree, "table of content tree"),
-        ),
-        buildSearchIndex(docDir, paths).then((index) =>
-          saveData(outDir, "search-index.json", index, "search index"),
-        ),
-      ]),
-    )
-    .catch((err) => console.log(err));
+  fs.mkdirSync(outDir, { recursive: true });
+  const paths = await getSortedMarkdownDocuments(docDir);
+  const searchIndex = await buildSearchIndex(docDir, paths);
+
+  await Promise.all([
+    saveData(outDir, "paths.json", buildPaths(docDir, paths), "document paths"),
+    saveData(outDir, "names.json", buildNames(docDir, paths), "document names"),
+    saveData(outDir, "toc.json", buildTocTree(docDir, paths), "table of content tree"),
+    saveData(outDir, "search-index.json", searchIndex, "search index"),
+  ]);
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

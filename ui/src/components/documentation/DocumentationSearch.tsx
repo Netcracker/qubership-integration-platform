@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Input, List, Typography, Spin } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
+import { SearchOutlined, FileTextOutlined } from "@ant-design/icons";
 import { useDocumentation } from "../../hooks/useDocumentation";
 import type {
   HighlightSegment,
@@ -15,15 +15,21 @@ import {
   createDebouncedCallback,
   createLatestOnlyGuard,
 } from "../../services/documentation/documentationAsyncUtils";
+import styles from "./DocumentationSearch.module.css";
 
 const { Text } = Typography;
 
+const MAX_DISPLAYED_RESULTS = 10;
+
 interface DocumentationSearchProps {
   onSelect?: (path: string) => void;
+  /** Called when the search becomes active (has query) or inactive (empty query). */
+  onSearchActiveChange?: (active: boolean) => void;
 }
 
 export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
   onSelect,
+  onSearchActiveChange,
 }) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -35,6 +41,10 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
     useDocumentation();
   const navigate = useNavigate();
   const [titlesByRef, setTitlesByRef] = useState<Record<number, string>>({});
+  const [breadcrumbsByRef, setBreadcrumbsByRef] = useState<
+    Record<number, string>
+  >({});
+  const [didYouMean, setDidYouMean] = useState<string | null>(null);
   const latestOnly = useMemo(() => createLatestOnlyGuard(), []);
 
   const runSearch = useCallback(
@@ -49,20 +59,55 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
           return;
         }
 
-        setResults(searchResults);
+        const limited = searchResults.slice(0, MAX_DISPLAYED_RESULTS);
+        setResults(limited);
 
         const nextTitlesByRef: Record<number, string> = {};
-        for (const result of searchResults.slice(0, 50)) {
-          const title = names[result.ref]?.[names[result.ref].length - 1];
-          if (title) {
-            nextTitlesByRef[result.ref] = title;
+        const nextBreadcrumbsByRef: Record<number, string> = {};
+        for (const result of limited) {
+          const nameParts = names[result.ref];
+          if (nameParts?.length) {
+            nextTitlesByRef[result.ref] = nameParts[nameParts.length - 1];
+            if (nameParts.length > 1) {
+              nextBreadcrumbsByRef[result.ref] = nameParts
+                .slice(0, -1)
+                .join(" → ");
+            }
           }
         }
         setTitlesByRef(nextTitlesByRef);
+        setBreadcrumbsByRef(nextBreadcrumbsByRef);
 
-        const topResults = searchResults.slice(0, 5);
-        const detailPromises = topResults.map(async (result) => {
-          const detail = await getSearchDetailSegments(result.ref, trimmed);
+        // Compute "did you mean" suggestion: only for genuine typos,
+        // not for normal prefix searches. A query word is a typo when
+        // no matched term starts with it (prefix) or equals it (exact).
+        const queryWords = trimmed.toLowerCase().split(/\W+/).filter(Boolean);
+        const allTerms = [...new Set(limited.flatMap((r) => r.terms))];
+        const typoCorrections: string[] = [];
+        for (const qw of queryWords) {
+          const isPrefixOrExact = allTerms.some(
+            (t) => t === qw || t.startsWith(qw),
+          );
+          if (!isPrefixOrExact) {
+            // Find the term that fuzzy-matched this query word
+            const correction = allTerms.find(
+              (t) => !queryWords.includes(t) && !typoCorrections.includes(t),
+            );
+            if (correction) {
+              typoCorrections.push(correction);
+            }
+          }
+        }
+        setDidYouMean(
+          typoCorrections.length > 0 ? typoCorrections.join(" ") : null,
+        );
+
+        const detailPromises = limited.map(async (result) => {
+          const detail = await getSearchDetailSegments(
+            result.ref,
+            trimmed,
+            result.terms,
+          );
           return { ref: result.ref, detail };
         });
 
@@ -85,6 +130,9 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
         console.error("Search failed:", error);
         setResults([]);
         setSearchDetails({});
+        setTitlesByRef({});
+        setBreadcrumbsByRef({});
+        setDidYouMean(null);
       } finally {
         if (latestOnly.isLatest(token)) {
           setIsLoading(false);
@@ -108,10 +156,14 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
       setResults([]);
       setSearchDetails({});
       setTitlesByRef({});
+      setBreadcrumbsByRef({});
+      setDidYouMean(null);
       setIsLoading(false);
+      onSearchActiveChange?.(false);
       return;
     }
 
+    onSearchActiveChange?.(true);
     const token = latestOnly.nextToken();
     setIsLoading(true);
     debouncedSearch.call(token, trimmed);
@@ -119,71 +171,112 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
     return () => {
       debouncedSearch.cancel();
     };
-  }, [debouncedSearch, latestOnly, query]);
+  }, [debouncedSearch, latestOnly, query, onSearchActiveChange]);
 
-  const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setQuery(value);
-  };
+  const handleResultClick = useCallback(
+    async (ref: number) => {
+      try {
+        const paths = await loadPaths();
+        const rawPath = paths[ref];
+        if (!rawPath) {
+          return;
+        }
 
-  const handleResultClick = async (ref: number) => {
-    try {
-      const paths = await loadPaths();
-      const rawPath = paths[ref];
-      if (!rawPath) {
-        return;
+        const path = toDocRoutePath(
+          DOCUMENTATION_ROUTE_BASE,
+          rawPath.replace(/\.md$/, ""),
+        );
+        if (onSelect) {
+          onSelect(path);
+        } else {
+          void navigate(path);
+        }
+      } catch (error) {
+        console.error("Failed to get document path:", error);
       }
+    },
+    [loadPaths, navigate, onSelect],
+  );
 
-      const routeBase = DOCUMENTATION_ROUTE_BASE;
-      const path = toDocRoutePath(routeBase, rawPath.replace(/\.md$/, ""));
-      if (onSelect) {
-        onSelect(path);
-      } else {
-        void navigate(path);
-      }
-    } catch (error) {
-      console.error("Failed to get document path:", error);
-    }
-  };
+  // Filter out results without titles
+  const displayResults = useMemo(
+    () => results.filter((item) => titlesByRef[item.ref]),
+    [results, titlesByRef],
+  );
 
   return (
-    <div style={{ padding: "16px" }}>
+    <div className={styles.container}>
       <Input
         placeholder="Search documentation..."
         prefix={<SearchOutlined />}
         value={query}
-        onChange={handleQueryChange}
+        onChange={(e) => setQuery(e.target.value)}
         allowClear
+        size="small"
       />
       {isLoading && (
-        <div style={{ textAlign: "center", padding: "16px" }}>
-          <Spin />
+        <div className={styles.loading}>
+          <Spin size="small" />
         </div>
       )}
-      {!isLoading && results.length > 0 && (
+      {!isLoading && didYouMean && (
+        <div className={styles.didYouMean}>
+          <Text type="secondary">
+            Did you mean:{" "}
+            <Text
+              italic
+              className={styles.didYouMeanTerm}
+              onClick={() => setQuery(didYouMean)}
+            >
+              {didYouMean}
+            </Text>
+            ?
+          </Text>
+        </div>
+      )}
+      {!isLoading && displayResults.length > 0 && (
         <List
-          style={{ marginTop: "16px" }}
-          dataSource={results}
+          className={styles.results}
+          dataSource={displayResults}
+          split={false}
+          size="small"
           renderItem={(item) => {
             const details = searchDetails[item.ref] || [];
-            const title = titlesByRef[item.ref] ?? `Document #${item.ref}`;
+            const title = titlesByRef[item.ref];
             return (
               <List.Item
-                style={{ cursor: "pointer" }}
+                className={styles.resultItem}
                 onClick={() => {
                   void handleResultClick(item.ref);
                 }}
               >
-                <List.Item.Meta
-                  title={<Text strong>{title}</Text>}
-                  description={
-                    <div>
+                <div className={styles.resultContent}>
+                  <div className={styles.resultTitle}>
+                    <FileTextOutlined className={styles.resultIcon} />
+                    <div className={styles.resultTitleText}>
+                      <Text strong ellipsis title={title}>
+                        {title}
+                      </Text>
+                      {breadcrumbsByRef[item.ref] && (
+                        <Text
+                          type="secondary"
+                          className={styles.breadcrumb}
+                          ellipsis
+                          title={breadcrumbsByRef[item.ref]}
+                        >
+                          {breadcrumbsByRef[item.ref]}
+                        </Text>
+                      )}
+                    </div>
+                  </div>
+                  {details.length > 0 && (
+                    <div className={styles.snippets}>
                       {details.map((fragment, idx) => (
-                        <div key={idx} style={{ marginBottom: "8px" }}>
+                        <div key={idx} className={styles.snippet}>
                           {fragment.map((seg, segIdx) => (
                             <span
                               key={segIdx}
-                              style={{ fontWeight: seg.isHit ? 600 : 400 }}
+                              className={seg.isHit ? styles.hit : undefined}
                             >
                               {seg.text}
                             </span>
@@ -191,15 +284,15 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
                         </div>
                       ))}
                     </div>
-                  }
-                />
+                  )}
+                </div>
               </List.Item>
             );
           }}
         />
       )}
-      {!isLoading && query && results.length === 0 && (
-        <div style={{ padding: "16px", textAlign: "center" }}>
+      {!isLoading && query.trim() && displayResults.length === 0 && (
+        <div className={styles.emptyState}>
           <Text type="secondary">No results found</Text>
         </div>
       )}

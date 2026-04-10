@@ -23,15 +23,19 @@ export const useDocumentation = () => {
   }, []);
 
   const getSearchDetail = useCallback(
-    async (ref: number, query: string): Promise<string[]> => {
-      return documentationService.getSearchDetail(ref, query);
+    async (ref: number, query: string, terms?: string[]): Promise<string[]> => {
+      return documentationService.getSearchDetail(ref, query, terms);
     },
     [],
   );
 
   const getSearchDetailSegments = useCallback(
-    async (ref: number, query: string): Promise<HighlightSegment[][]> => {
-      return documentationService.getSearchDetailSegments(ref, query);
+    async (
+      ref: number,
+      query: string,
+      terms?: string[],
+    ): Promise<HighlightSegment[][]> => {
+      return documentationService.getSearchDetailSegments(ref, query, terms);
     },
     [],
   );

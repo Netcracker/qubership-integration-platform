@@ -12,6 +12,8 @@ import JSZip from "jszip";
 import { exportAsMarkdown } from "../../mapper/markdown/markdown.ts";
 import { MappingDescription } from "../../mapper/model/model.ts";
 import { MermaidDiagram } from "@lightenna/react-mermaid-diagram";
+import { useContext } from "react";
+import { ThemeContext } from "../../theme/context";
 import styles from "./DdsPreview.module.css";
 import mermaid from "mermaid";
 
@@ -27,6 +29,10 @@ export const DdsPreview: React.FC<DdsViewProps> = ({
   fileName,
 }) => {
   const { closeContainingModal } = useModalContext();
+  const themeContext = useContext(ThemeContext);
+  const isDark = themeContext
+    ? themeContext.theme === "dark" || themeContext.theme === "high-contrast"
+    : false;
   const [isLoading, setIsLoading] = useState(false);
   const notificationService = useNotificationService();
   const [chainDetailedDesign, setChainDetailedDesign] = useState<
@@ -176,7 +182,7 @@ export const DdsPreview: React.FC<DdsViewProps> = ({
                 // eslint-disable-next-line react/prop-types
                 return props.src ===
                   "./img/simple-sequence-diagram-mermaid.svg" ? (
-                  <MermaidDiagram>
+                  <MermaidDiagram theme={isDark ? "dark" : "default"}>
                     {chainDetailedDesign?.simpleSeqDiagramMermaid ?? ""}
                   </MermaidDiagram>
                 ) : (

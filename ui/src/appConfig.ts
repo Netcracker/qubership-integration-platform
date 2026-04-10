@@ -168,17 +168,15 @@ export function configure(config: Partial<AppConfig>): void {
 }
 
 export async function loadConfigFromJson(url: string): Promise<AppConfig> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to load config: ${response.statusText}`);
-    }
-    const config = (await response.json()) as AppConfig;
-    return config;
-  } catch (error) {
-    console.error("Error loading config from JSON:", error);
-    throw error;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to load config: ${response.statusText}`);
   }
+  const contentType = response.headers.get("content-type");
+  if (!contentType?.includes("application/json")) {
+    throw new Error(`Config file ${url} is not JSON`);
+  }
+  return (await response.json()) as AppConfig;
 }
 
 export function loadConfigFromEnv(): Partial<AppConfig> {

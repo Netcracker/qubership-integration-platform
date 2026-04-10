@@ -59,6 +59,9 @@
   /* Animation Control */
   --transition-duration: 0.25s;
 
+  /* Code Block Background */
+  --vscode-textCodeBlock-background: #f6f8fa;
+
   /* Container Node Colors */
   --container-border-color: #dedacd;
   --container-header-background: #fff9e6;
@@ -106,6 +109,9 @@
   --vscode-badge-foreground: rgb(255 255 255 / 85%);
   --modal-shadow: 0 4px 12px rgb(0 0 0 / 30%);
 
+  /* Code Block Background */
+  --vscode-textCodeBlock-background: #2d2d2d;
+
   /* Container Node Colors */
   --container-border-color: #fff9e6;
   --container-header-background: #fff9e6;
@@ -147,6 +153,9 @@
   --vscode-badge-background: #333;
   --vscode-badge-foreground: #fff;
   --modal-shadow: 0 4px 12px rgb(255 255 255 / 30%);
+
+  /* Code Block Background */
+  --vscode-textCodeBlock-background: #1a1a1a;
 
   /* Container Node Colors */
   --container-border-color: #fff9e6;

@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { Spin, Result, Button } from "antd";
 import { DocumentationViewer } from "../components/documentation/DocumentationViewer";
 import { DocumentationSidebar } from "../components/documentation/DocumentationSidebar";
 import { DocumentationSearch } from "../components/documentation/DocumentationSearch";
 import { useDocumentation } from "../hooks/useDocumentation";
-import { useNavigate } from "react-router-dom";
 import {
   getDocumentationAssetsBaseUrl,
   DOCUMENTATION_ROUTE_BASE,
@@ -23,6 +22,7 @@ export const DocumentationPage: React.FC = () => {
   const [content, setContent] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSearchActive, setIsSearchActive] = useState(false);
   const { loadPaths } = useDocumentation();
 
   useEffect(() => {
@@ -36,8 +36,6 @@ export const DocumentationPage: React.FC = () => {
 
         // Handle search page
         if (location.pathname === `${routeBase}/search`) {
-          // Search is handled by DocumentationSearch component
-          setIsLoading(false);
           return;
         }
 
@@ -46,7 +44,6 @@ export const DocumentationPage: React.FC = () => {
           setContent(
             "# Page Not Found\n\nThe requested documentation page could not be found.",
           );
-          setIsLoading(false);
           return;
         }
 
@@ -73,12 +70,11 @@ export const DocumentationPage: React.FC = () => {
         const response = await fetch(filePath);
 
         if (!response.ok) {
-          if (response.status === 404) {
-            setError("Document not found");
-          } else {
-            setError(`Failed to load document: ${response.statusText}`);
-          }
-          setIsLoading(false);
+          setError(
+            response.status === 404
+              ? "Document not found"
+              : `Failed to load document: ${response.statusText}`,
+          );
           return;
         }
 
@@ -93,7 +89,6 @@ export const DocumentationPage: React.FC = () => {
 
         if (isHtmlResponse) {
           setError("Document not found");
-          setIsLoading(false);
           return;
         }
 
@@ -116,14 +111,21 @@ export const DocumentationPage: React.FC = () => {
     [navigate],
   );
 
+  const handleSearchActiveChange = useCallback((active: boolean) => {
+    setIsSearchActive(active);
+  }, []);
+
   const sidebar = useMemo(
     () => (
       <>
-        <DocumentationSearch onSelect={handleTOCSelect} />
-        <DocumentationSidebar onSelect={handleTOCSelect} />
+        <DocumentationSearch
+          onSelect={handleTOCSelect}
+          onSearchActiveChange={handleSearchActiveChange}
+        />
+        {!isSearchActive && <DocumentationSidebar onSelect={handleTOCSelect} />}
       </>
     ),
-    [handleTOCSelect],
+    [handleTOCSelect, handleSearchActiveChange, isSearchActive],
   );
 
   if (isLoading) {
@@ -158,8 +160,7 @@ export const DocumentationPage: React.FC = () => {
     <PageWithSidebar
       sidebar={sidebar}
       sidebarWidth={300}
-      sidebarCollapsedWidth={80}
-      showDivider={false}
+      showCollapseToggle={false}
     >
       <DocumentationViewer content={content} docPath={docPath ?? ""} />
     </PageWithSidebar>

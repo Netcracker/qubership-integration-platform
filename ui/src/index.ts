@@ -1,4 +1,3 @@
-import "./lunr-init";
 import "./vscode-entry";
 import { initExternalMonaco } from "./monaco-init-runtime";
 

@@ -21,8 +21,18 @@ jest.mock("../../../src/appConfig", () => ({
   getConfig: () => ({ documentationBaseUrl: "/test-docs" }),
 }));
 
-jest.mock("../../../src/hooks/useVSCodeTheme", () => ({
-  useVSCodeTheme: () => ({ isDark: false }),
+jest.mock("../../../src/theme/context", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  return {
+    ThemeContext: {
+      ...React.createContext(null),
+      _currentValue: { theme: "light", onThemeChange: jest.fn(), showThemeSwitcher: true },
+    },
+  };
+});
+
+jest.mock("../../../src/hooks/useSyntaxHighlighterTheme", () => ({
+  useSyntaxHighlighterTheme: () => ({}),
 }));
 
 jest.mock(
@@ -35,98 +45,52 @@ jest.mock(
   { virtual: true },
 );
 
-type MarkdownComponents = {
-  img?: (props: {
-    src: string;
-    alt: string;
-    node?: unknown;
-  }) => React.ReactNode;
-  a?: (props: {
-    href: string;
-    children: string;
-    node?: unknown;
-  }) => React.ReactNode;
-};
-
+/* Lightweight react-markdown mock: extracts images, links, and headings
+   from markdown syntax and renders them through the components prop,
+   matching how the real Markdown component delegates to custom renderers. */
 jest.mock("react-markdown", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory runs before imports
-  const React = require("react") as typeof import("react");
+  const R = require("react") as typeof import("react");
+
+  interface Components {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    img?: (p: any) => React.ReactNode;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    a?: (p: any) => React.ReactNode;
+  }
+
   return {
     __esModule: true,
-    default: ({
-      children,
-      components,
-    }: {
-      children: unknown;
-      components?: MarkdownComponents;
-    }) => {
-      const content = typeof children === "string" ? children : "";
-
-      const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
-      const linkRegex = /\[([^\]]*)\]\(([^)]+)\)/g;
-      const headingRegex = /^#\s+(.+)$/m;
-
-      const elements: React.ReactNode[] = [];
-      let remaining = content;
+    default: ({ children, components }: { children: unknown; components?: Components }) => {
+      const md = typeof children === "string" ? children : "";
+      const els: React.ReactNode[] = [];
       let key = 0;
+      let text = md;
 
-      let match: RegExpExecArray | null;
-      while ((match = imgRegex.exec(content)) !== null) {
-        const imgProps = components?.img?.({ src: match[2], alt: match[1] })
-          ? undefined
-          : { src: match[2], alt: match[1] };
-        if (components?.img) {
-          elements.push(
-            React.createElement(
-              "span",
-              { key: key++ },
-              components.img({ src: match[2], alt: match[1], node: {} }),
-            ),
-          );
-        } else {
-          elements.push(
-            React.createElement("img", { key: key++, ...imgProps }),
-          );
-        }
-        remaining = remaining.replace(match[0], "");
+      // Images: ![alt](src)
+      for (const m of md.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
+        const node = components?.img
+          ? components.img({ src: m[2], alt: m[1], node: {} })
+          : R.createElement("img", { src: m[2], alt: m[1] });
+        els.push(R.createElement("span", { key: key++ }, node));
+        text = text.replace(m[0], "");
       }
 
-      const cleanContent = content.replace(imgRegex, "");
-      while ((match = linkRegex.exec(cleanContent)) !== null) {
-        if (components?.a) {
-          elements.push(
-            React.createElement(
-              "span",
-              { key: key++ },
-              components.a({ href: match[2], children: match[1], node: {} }),
-            ),
-          );
-        } else {
-          elements.push(
-            React.createElement("a", { key: key++, href: match[2] }, match[1]),
-          );
-        }
-        remaining = remaining.replace(match[0], "");
+      // Links: [text](href) — only after images are stripped
+      for (const m of text.matchAll(/\[([^\]]*)\]\(([^)]+)\)/g)) {
+        const node = components?.a
+          ? components.a({ href: m[2], children: m[1], node: {} })
+          : R.createElement("a", { href: m[2] }, m[1]);
+        els.push(R.createElement("span", { key: key++ }, node));
       }
 
-      const headingMatch = headingRegex.exec(remaining);
-      if (headingMatch) {
-        elements.push(
-          React.createElement("h1", { key: key++ }, headingMatch[1]),
-        );
-        remaining = remaining.replace(headingMatch[0], "");
-      }
+      // Heading: # Title
+      const h = /^#\s+(.+)$/m.exec(text);
+      if (h) els.push(R.createElement("h1", { key: key++ }, h[1]));
 
-      remaining = remaining.trim();
-      if (remaining && elements.length === 0) {
-        elements.push(React.createElement("span", { key: key++ }, remaining));
-      }
+      if (els.length === 0) els.push(R.createElement("span", { key: 0 }, text.trim()));
 
-      return React.createElement(
-        "div",
-        { "data-testid": "markdown" },
-        ...elements,
-      );
+      return R.createElement("div", { "data-testid": "markdown" }, ...els);
     },
   };
 });
@@ -196,6 +160,48 @@ describe("DocumentationViewer", () => {
     render(<DocumentationViewer content="![alt](some-file.png)" />);
     const img = screen.getByAltText("alt");
     expect(img).toHaveAttribute("src", "/test-docs/some-file.png");
+  });
+
+  test("renders Mermaid diagram for .mermaid src", () => {
+    render(<DocumentationViewer content="![mermaid](graph LR; A-->B)" />);
+    expect(screen.getByTestId("mermaid")).toHaveTextContent("graph LR; A-->B");
+  });
+
+  test("strips unsafe javascript: hrefs", () => {
+    render(
+      <DocumentationViewer content="[click me](javascript:alert(1))" />,
+    );
+    // Link should be rendered as plain text, not as <a>
+    const el = screen.getByText("click me");
+    expect(el.tagName).not.toBe("A");
+  });
+
+  test("adds target=_blank to external http links", () => {
+    render(
+      <DocumentationViewer content="[docs](https://example.com/docs)" />,
+    );
+    const link = screen.getByText("docs");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  test("keeps anchor links as-is", () => {
+    render(<DocumentationViewer content="[section](#overview)" />);
+    const link = screen.getByText("section");
+    expect(link).toHaveAttribute("href", "#overview");
+    expect(link).not.toHaveAttribute("target");
+  });
+
+  test("applies pathNormalizers to image src", () => {
+    render(
+      <DocumentationViewer
+        content="![alt](Legacy_v1/img/diagram.png)"
+        pathNormalizers={[/^Legacy_v1\//]}
+        docPath="01__Chains/page"
+      />,
+    );
+    const img = screen.getByAltText("alt");
+    expect(img).toHaveAttribute("src", "/test-docs/01__Chains/img/diagram.png");
   });
 
   test("resolves relative link as doc route", () => {

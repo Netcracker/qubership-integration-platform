@@ -1,19 +1,14 @@
-/* viewer and doc-viewer are both used depending on CSS module export */
-.viewer,
-.doc-viewer {
+.viewer {
   display: flex;
   flex-direction: column;
-  padding: 12px 24px 0;
   width: 100%;
-  max-width: 1200px;
   margin: 0 auto;
   box-sizing: border-box;
   color: var(--vscode-foreground, rgb(0 0 0 / 88%));
   background: transparent;
 }
 
-.viewer table,
-.doc-viewer table {
+.viewer table {
   border-collapse: collapse;
   width: 100%;
   margin: 16px 0;
@@ -25,9 +20,7 @@
 }
 
 .viewer th,
-.viewer td,
-.doc-viewer th,
-.doc-viewer td {
+.viewer td {
   border: 1px solid
     var(
       --vscode-editorGroup-border,
@@ -37,24 +30,20 @@
   text-align: left;
 }
 
-.viewer th,
-.doc-viewer th {
+.viewer th {
   font-weight: 600;
 }
 
-.viewer tr:hover,
-.doc-viewer tr:hover {
+.viewer tr:hover {
   background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
 }
 
 /* Highlight blockquotes (Notes) in documentation */
-.viewer blockquote,
-.doc-viewer blockquote {
+.viewer blockquote {
   margin: 16px 0;
   padding: 12px 16px;
   border-left: 4px solid
     var(--vscode-textLink-foreground, var(--vscode-focusBorder, #1677ff));
-  background: rgb(22 119 255 / 8%);
   background: color-mix(
     in srgb,
     var(--vscode-textLink-foreground, #1677ff) 8%,
@@ -63,23 +52,65 @@
   border-radius: 0 4px 4px 0;
 }
 
-.viewer blockquote p,
-.doc-viewer blockquote p {
+.viewer blockquote p {
   margin: 4px 0;
 }
 
-.viewer blockquote p:first-child,
-.doc-viewer blockquote p:first-child {
+.viewer blockquote p:first-child {
   margin-top: 0;
 }
 
-.viewer blockquote p:last-child,
-.doc-viewer blockquote p:last-child {
+.viewer blockquote p:last-child {
   margin-bottom: 0;
 }
 
-/* Invert monochrome SVG icons in dark theme for better visibility */
-.viewer.dark img[src*="/img/"][src$=".svg"],
-.doc-viewer--dark img[src*="/img/"][src$=".svg"] {
+.viewer hr {
+  border: none;
+  border-top: 1px solid
+    var(
+      --vscode-editorGroup-border,
+      var(--vscode-border, rgb(128 128 128 / 35%))
+    );
+  margin: 16px 0;
+  height: 0;
+}
+
+/* Inline code */
+.viewer :not(pre) > code {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  background: var(--vscode-textCodeBlock-background, rgb(0 0 0 / 6%));
+}
+
+/* Reset inline-code styles on <code> inside SyntaxHighlighter blocks */
+.viewer pre code {
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  background: none;
+}
+
+/* Code blocks produced by SyntaxHighlighter (PreTag="div" inside <pre>).
+   Background is overridden via CSS variable for a contrasting code block
+   look. Inline color/background on the div come from the theme hook which
+   now re-computes on data-theme changes via MutationObserver. */
+.viewer pre > div {
+  border-radius: 6px;
+  padding: 12px 16px !important;
+  overflow: auto;
+  background: var(
+    --vscode-textCodeBlock-background,
+    rgb(0 0 0 / 6%)
+  ) !important;
+}
+
+.viewer pre {
+  margin: 12px 0;
+}
+
+/* Documentation images (diagrams, screenshots) are authored with light
+   backgrounds. In dark mode we invert them so they blend with the dark UI. */
+.dark img {
   filter: invert(1) hue-rotate(180deg);
 }

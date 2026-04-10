@@ -1,19 +1,17 @@
 /* stylelint-disable no-duplicate-selectors */
 
-/* DocumentationSidebar styles - using Ant Design Tree with theme support */
-
 .sidebar {
-  padding: 8px 0;
+  padding: 0 10px;
 }
 
 /* Main tree background - use theme variable */
 .sidebar :global(.ant-tree) {
-  background: transparent !important;
-  color: var(--vscode-foreground, #000) !important;
+  background: transparent;
+  color: var(--vscode-foreground, #000);
 }
 
 .sidebar :global(.ant-tree .ant-tree-treenode) {
-  padding: 0 !important;
+  padding: 0;
 }
 
 /* Tree node content wrapper */
@@ -22,40 +20,30 @@
   min-height: 28px;
   line-height: 28px;
   padding: 0 8px;
-  color: var(--vscode-foreground, #000) !important;
+  color: var(--vscode-foreground, #000);
+  position: relative;
+  z-index: 1;
 }
 
 /* Indent units for hierarchy */
 .sidebar :global(.ant-tree .ant-tree-indent-unit) {
-  width: 12px !important;
+  width: 12px;
+  position: relative;
+  z-index: 0;
 }
 
 /* Hover state */
 .sidebar :global(.ant-tree .ant-tree-node-content-wrapper:hover) {
-  background-color: var(
-    --vscode-list-hoverBackground,
-    rgb(0 0 0 / 4%)
-  ) !important;
-}
-
-/* Selected node - ALWAYS blue in all themes */
-.sidebar :global(.ant-tree .ant-tree-node-selected) {
-  background-color: #1890ff !important;
-  color: #fff !important;
-}
-
-.sidebar :global(.ant-tree .ant-tree-node-selected:hover) {
-  background-color: #40a9ff !important;
+  background-color: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
 }
 
 /* Switcher (expand/collapse icon) */
 .sidebar :global(.ant-tree .ant-tree-switcher) {
-  display: flex !important;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px !important;
-  height: 28px !important;
-  margin-right: 4px;
+  width: 24px;
+  height: 28px;
 }
 
 .sidebar :global(.ant-tree .ant-tree-switcher-noop) {
@@ -63,7 +51,7 @@
 }
 
 .sidebar :global(.ant-tree .ant-tree-switcher-icon) {
-  color: var(--vscode-foreground, #000) !important;
+  color: var(--vscode-foreground, #000);
   opacity: 0.6;
   font-size: 12px;
   transition:
@@ -96,49 +84,18 @@
   margin: auto;
 }
 
-/* Vertical lines for hierarchy - ONLY for nested elements (not root level) */
-.sidebar
-  :global(
-    .ant-tree-show-line .ant-tree-child-tree .ant-tree-indent-unit::before
-  ) {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  border-inline-end: 1px solid
-    var(--vscode-editorIndentGuide-background, rgb(0 0 0 / 15%)) !important;
-  height: 100%;
-  content: "";
-  z-index: 0;
+.sidebar :global(.ant-tree-show-line .ant-tree-indent-unit::before) {
+  inset-inline: 8px auto;
 }
 
-.sidebar
-  :global(
-    .ant-tree-show-line
-      .ant-tree-child-tree
-      .ant-tree-switcher-leaf-line::before
-  ) {
-  border-inline-end: 1px solid
-    var(--vscode-editorIndentGuide-background, rgb(0 0 0 / 15%)) !important;
+/* Non-navigable group nodes (folders without a document) —
+   no pointer cursor, no hover highlight. */
+.sidebar :global(.doc-tree-group > .ant-tree-node-content-wrapper) {
+  cursor: default;
 }
 
-.sidebar
-  :global(
-    .ant-tree-show-line .ant-tree-child-tree .ant-tree-switcher-leaf-line::after
-  ) {
-  border-bottom: 1px solid
-    var(--vscode-editorIndentGuide-background, rgb(0 0 0 / 15%)) !important;
-}
-
-/* Override any z-index issues */
-.sidebar :global(.ant-tree .ant-tree-indent-unit) {
-  position: relative;
-  z-index: 0;
-}
-
-.sidebar :global(.ant-tree .ant-tree-node-content-wrapper) {
-  position: relative;
-  z-index: 1;
+.sidebar :global(.doc-tree-group > .ant-tree-node-content-wrapper:hover) {
+  background-color: transparent;
 }
 
 /* stylelint-enable no-duplicate-selectors */

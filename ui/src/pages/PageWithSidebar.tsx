@@ -12,8 +12,8 @@ interface PageWithSidebarProps {
   initialCollapsed?: boolean;
   sidebarWidth?: number;
   sidebarCollapsedWidth?: number;
-  showDivider?: boolean;
   contentClassName?: string;
+  showCollapseToggle?: boolean;
 }
 
 export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
@@ -22,8 +22,8 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
   initialCollapsed = false,
   sidebarWidth = 180,
   sidebarCollapsedWidth = 80,
-  showDivider = true,
   contentClassName,
+  showCollapseToggle = true,
 }) => {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
 
@@ -43,28 +43,32 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
               ? React.cloneElement(sidebar, { collapsed })
               : sidebar}
           </div>
-          <div style={{ padding: "0px 24px" }}>
-            <Divider style={{ margin: 0 }} />
-          </div>
-          <div
-            className={styles.sidebarToggleBar}
-            onClick={() => setCollapsed(!collapsed)}
-          >
-            {collapsed ? (
-              <OverridableIcon name="doubleRight" />
-            ) : (
-              <OverridableIcon name="doubleLeft" />
-            )}
-          </div>
+          {showCollapseToggle && (
+            <>
+              <div style={{ padding: "0px 24px" }}>
+                <Divider style={{ margin: 0 }} />
+              </div>
+              <div
+                className={styles.sidebarToggleBar}
+                onClick={() => setCollapsed(!collapsed)}
+              >
+                {collapsed ? (
+                  <OverridableIcon name="doubleRight" />
+                ) : (
+                  <OverridableIcon name="doubleLeft" />
+                )}
+              </div>
+            </>
+          )}
         </div>
       </Sider>
-      {showDivider && (
+      {
         <Divider
           type="vertical"
           size="small"
           style={{ height: "100%", margin: 0 }}
         />
-      )}
+      }
       <Content
         className={[styles.contentArea, contentClassName]
           .filter(Boolean)

@@ -101,6 +101,10 @@ export function applyThemeToDOM(theme: ThemeMode): void {
     "--vscode-editorCursor-foreground",
   ];
 
+  // Disable transitions BEFORE changing any CSS variables so that all
+  // elements snap to their new values instantly instead of transitioning.
+  root.classList.add("theme-switching");
+
   importantVariables.forEach((cssVariable) => {
     root.style.removeProperty(cssVariable);
   });
@@ -128,7 +132,7 @@ export function applyThemeToDOM(theme: ThemeMode): void {
       }
     });
 
-    root.classList.add("theme-switching");
+    // Re-enable transitions after the new values have been painted.
     setTimeout(() => {
       root.classList.remove("theme-switching");
 
@@ -137,7 +141,7 @@ export function applyThemeToDOM(theme: ThemeMode): void {
           new CustomEvent("theme-variables-updated", { detail: { theme } }),
         );
       }
-    }, 250);
+    }, 50);
   };
 
   if (hasWindow) {

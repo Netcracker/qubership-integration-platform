@@ -1,6 +1,4 @@
-// Initialize lunr globally BEFORE importing elasticlunr
-// This ensures lunr is available when elasticlunr loads
-import "../../lunr-init";
+import MiniSearch from "minisearch";
 
 import type {
   DocumentMappingRule,
@@ -9,18 +7,23 @@ import type {
   TableOfContentNode,
 } from "./documentationTypes";
 import {
-  getDocumentationAssetsBaseUrl,
   DOCUMENTATION_ROUTE_BASE,
+  getDocumentationAssetsBaseUrl,
   joinUrl,
 } from "./documentationUrlUtils";
 import {
+  escapeRegExp,
   extractWords,
   formatFragmentSegments,
   segmentsToSafeHtml,
 } from "./documentationHighlightUtils";
 import { onConfigChange } from "../../appConfig";
 
-import elasticlunr from "elasticlunr";
+interface SearchDocument {
+  id: number;
+  title: string;
+  body: string;
+}
 
 type Fetcher = (url: string) => Promise<Response>;
 type WindowOpener = (url: string, target: string) => Window | null;
@@ -62,16 +65,14 @@ const ELEMENT_ALIASES: Record<string, string[]> = {
 };
 
 export class DocumentationService {
-  private readonly MAX_FOUND_DOCUMENT_FRAGMENTS = 3;
+  private readonly MAX_FOUND_DOCUMENT_FRAGMENTS = 5;
   private readonly ELEMENTS_LIBRARY_PATH = "QIP_Elements_Library";
   private readonly INDEX_FILENAME = "index";
 
   private pathsPromise: Promise<string[]> | null = null;
   private namesPromise: Promise<string[][]> | null = null;
   private tocPromise: Promise<TableOfContentNode> | null = null;
-  private searchIndexPromise: Promise<
-    elasticlunr.Index<{ id: number; title: string; body: string }>
-  > | null = null;
+  private searchIndexPromise: Promise<MiniSearch<SearchDocument>> | null = null;
   private contextMappingPromise: Promise<DocumentMappingRule[]> | null = null;
   private elementMappingPromise: Promise<DocumentMappingRule[]> | null = null;
   elementTypeMappingCache: Record<string, string> | null = null;
@@ -121,8 +122,7 @@ export class DocumentationService {
       }
     }
 
-    const data = (await response.json()) as T;
-    return data;
+    return (await response.json()) as T;
   }
 
   public loadPaths(): Promise<string[]> {
@@ -146,15 +146,31 @@ export class DocumentationService {
     return this.tocPromise;
   }
 
-  public loadSearchIndex(): Promise<
-    elasticlunr.Index<{ id: number; title: string; body: string }>
-  > {
+  public loadSearchIndex(): Promise<MiniSearch<SearchDocument>> {
     if (!this.searchIndexPromise) {
-      this.searchIndexPromise = this.loadResource<unknown>(
-        "search-index.json",
-      ).then((indexDump) => elasticlunr.Index.load(indexDump));
+      this.searchIndexPromise = this.loadResource<{
+        documents?: SearchDocument[];
+      }>("search-index.json").then((dump) =>
+        this.buildMiniSearchIndex(dump.documents ?? []),
+      );
     }
     return this.searchIndexPromise;
+  }
+
+  private buildMiniSearchIndex(
+    docs: SearchDocument[],
+  ): MiniSearch<SearchDocument> {
+    const index = new MiniSearch<SearchDocument>({
+      fields: ["title", "body"],
+      storeFields: ["title", "body"],
+      searchOptions: {
+        boost: { title: 2 },
+        prefix: true,
+        fuzzy: 0.2,
+      },
+    });
+    index.addAll(docs);
+    return index;
   }
 
   public loadContextMapping(): Promise<DocumentMappingRule[]> {
@@ -181,16 +197,9 @@ export class DocumentationService {
     const mapping = await this.buildElementTypeMapping();
 
     return Object.entries(mapping).map(([elementType, docPath]) => ({
-      pattern: `^${this.escapeRegExp(elementType)}$`, // Exact match pattern
+      pattern: `^${escapeRegExp(elementType)}$`, // Exact match pattern
       doc: docPath,
     }));
-  }
-
-  /**
-   * Escapes special regex characters in a string for use in RegExp.
-   */
-  private escapeRegExp(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   /**
@@ -264,102 +273,63 @@ export class DocumentationService {
   }
 
   public async search(query: string): Promise<SearchResult[]> {
-    const searchConfiguration = {
-      fields: {
-        title: { boost: 2, bool: "AND" as const, expand: false },
-        body: { boost: 1, bool: "OR" as const, expand: false },
-      },
-    };
     const index = await this.loadSearchIndex();
-    const raw = index.search(query, searchConfiguration) as Array<{
-      ref: string;
-      score: number;
-    }>;
-    return raw
-      .map((r) => ({ ref: Number.parseInt(r.ref, 10), score: r.score }))
-      .filter((r) => Number.isFinite(r.ref));
+    const raw = index.search(query);
+    return raw.map((r) => ({
+      ref: r.id as number,
+      score: r.score,
+      terms: r.terms,
+    }));
   }
 
-  public async getSearchDetail(ref: number, query: string): Promise<string[]> {
-    const segments = await this.getSearchDetailSegments(ref, query);
+  public async getSearchDetail(
+    ref: number,
+    query: string,
+    terms?: string[],
+  ): Promise<string[]> {
+    const segments = await this.getSearchDetailSegments(ref, query, terms);
     return segments.map((fragment) => segmentsToSafeHtml(fragment));
   }
 
   public async getSearchDetailSegments(
     ref: number,
     query: string,
+    terms?: string[],
   ): Promise<HighlightSegment[][]> {
     const index = await this.loadSearchIndex();
-    const doc = index.documentStore.getDoc(ref.toString());
-    if (!doc) {
+    const doc = index.getStoredFields(ref) as SearchDocument | undefined;
+    if (!doc?.body) {
       return [];
     }
 
     const paragraphs = this.extractParagraphs(doc.body);
-    const paragraphIndex = this.createParagraphSearchIndex(paragraphs);
-    return this.searchInParagraphs(paragraphIndex, paragraphs, query)
+    // Use matched terms for paragraph filtering and highlighting when available.
+    // This ensures fuzzy results (e.g. "Transformabion" → terms: ["transformation"])
+    // still produce snippets by matching the corrected word in text, not the typo.
+    const effectiveQuery = terms?.length ? terms.join(" ") : query;
+    return this.findMatchingParagraphs(paragraphs, effectiveQuery)
       .slice(0, this.MAX_FOUND_DOCUMENT_FRAGMENTS)
-      .sort((r0, r1) => parseInt(r0.ref) - parseInt(r1.ref))
-      .map((searchResult) => {
-        const par = paragraphIndex.documentStore.getDoc(searchResult.ref);
-        return par?.body ?? "";
-      })
-      .filter((t) => t.length > 0)
-      .map((text) => this.formatFoundDocumentFragmentSegments(text, query));
+      .map((text) =>
+        formatFragmentSegments(text, effectiveQuery, (w) => w.toLowerCase()),
+      );
   }
 
   private extractParagraphs(text: string): string[] {
     return text.split(/\n\n+/).filter((par) => extractWords(par).length > 1);
   }
 
-  private createParagraphSearchIndex(
-    paragraphs: string[],
-  ): elasticlunr.Index<{ id: number; body: string }> {
-    const index = elasticlunr<{ id: number; body: string }>();
-    index.setRef("id");
-    index.addField("body");
-    index.saveDocument(true);
-    paragraphs.forEach((p, i) => index.addDoc({ id: i, body: p }));
-    return index;
-  }
-
-  private searchInParagraphs(
-    index: elasticlunr.Index<{ id: number; body: string }>,
+  private findMatchingParagraphs(
     paragraphs: string[],
     query: string,
-  ): Array<{ ref: string; score: number }> {
-    const searchConfiguration = {
-      fields: { body: { boost: 1, bool: "OR" as const, expand: false } },
-    };
-    const result = index.search(query, searchConfiguration) as Array<{
-      ref: string;
-      score: number;
-    }>;
-    if (result.length) {
-      return result;
-    }
-    const words = extractWords(query).map((word) =>
-      elasticlunr.stemmer(word.toLowerCase()),
-    );
+  ): string[] {
+    const words = extractWords(query).map((w) => w.toLowerCase());
+    if (words.length === 0) return [];
 
-    // Fallback: stemmed substring scan over source paragraphs.
-    return paragraphs
-      .map((body, id) => ({ id, body }))
-      .filter((p) => {
-        const text = p.body.toLowerCase();
-        return words.some((w) => text.includes(w));
-      })
-      .map((p) => ({ ref: p.id.toString(), score: 0 }));
+    return paragraphs.filter((par) => {
+      const lower = par.toLowerCase();
+      return words.some((w) => lower.includes(w));
+    });
   }
-
-  private formatFoundDocumentFragmentSegments(
-    text: string,
-    query: string,
-  ): HighlightSegment[] {
-    return formatFragmentSegments(text, query, (w) => elasticlunr.stemmer(w));
-  }
-
-  // NOTE: highlighting helpers are in documentationHighlightUtils.ts for unit testing.
 
   /**
    * Maps element type directly to documentation path using auto-generated mapping.
