@@ -150,9 +150,9 @@ export const LoggingSettings: React.FC = () => {
     });
 
   const logLoggingLevelOptions: SelectProps<LogLoggingLevel>["options"] =
-    Object.values(LogLoggingLevel).map((value) => ({
+    Object.entries(LogLoggingLevel).map(([key, value]) => ({
       value: value,
-      label: capitalize(value),
+      label: capitalize(key),
     }));
 
   const logPayloadOptions: SelectProps<LogPayload>["options"] = Object.values(

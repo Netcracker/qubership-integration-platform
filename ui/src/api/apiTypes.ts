@@ -309,7 +309,7 @@ export enum SessionsLoggingLevel {
 
 export enum LogLoggingLevel {
   ERROR = "ERROR",
-  WARN = "WARN",
+  WARNING = "WARN",
   INFO = "INFO",
 }
 
