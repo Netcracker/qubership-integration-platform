@@ -24,10 +24,10 @@ import java.util.List;
 
 public interface ControlPlaneService {
 
-    void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
+    void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName)
         throws ControlPlaneException;
 
-    void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
+    void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName)
         throws ControlPlaneException;
 
     void removeEngineRoutesByPathsAndEndpoint(List<Pair<String, RouteType>> paths,

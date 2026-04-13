@@ -60,6 +60,8 @@ public class IntegrationRuntimeService {
     @SuppressWarnings("checkstyle:ConstantName")
     private static final ExtendedErrorLogger log = ExtendedErrorLoggerFactory.getLogger(IntegrationRuntimeService.class);
 
+    public static final Integer TRUNCATED_MESSAGE_SIZE = 500 * 1024;
+
     private final EngineInfo engineInfo;
     private final QuartzSchedulerService quartzSchedulerService;
     private final EngineStateReporter engineStateReporter;
@@ -264,7 +266,13 @@ public class IntegrationRuntimeService {
                                 // set corresponding flag and Processing status
                                 .suspended(status == DeploymentStatus.DEPLOYED && isDeploymentsSuspended())
                                 .chainStatusCode(errorCode.map(ErrorCode::getCode).orElse(null))
-                                .errorMessage(exception.map(Throwable::getMessage).orElse(null))
+                                .errorMessage(exception
+                                        .map(Throwable::getMessage)
+                                        .map(message -> message.length() > TRUNCATED_MESSAGE_SIZE
+                                                ? message.substring(0, TRUNCATED_MESSAGE_SIZE) + "... [truncated]"
+                                                : message
+                                        )
+                                        .orElse(null))
                                 .build();
                         deploymentStateHolder.put(deployment.getDeploymentInfo(), deploymentState);
                     }

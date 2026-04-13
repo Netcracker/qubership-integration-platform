@@ -4,6 +4,8 @@ import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
 
+import java.util.Optional;
+
 @ConfigMapping(prefix = "kubernetes")
 public interface KubernetesProperties {
     ClusterProperties cluster();
@@ -22,8 +24,7 @@ public interface KubernetesProperties {
         String namespace();
 
         @WithName("token")
-        @WithDefault("")
-        String devToken();
+        Optional<String> devToken();
     }
 
     interface ServiceAccountProperties {

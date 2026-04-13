@@ -29,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHeaders;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
@@ -51,18 +52,24 @@ public class CheckpointSessionService {
     private final CheckpointRepository checkpointRepository;
     private final CheckpointRestService checkpointRestService;
     private final ObjectMapper jsonMapper;
+    private final IdempotencyRecordService idempotencyRecordService;
+
+    @ConfigProperty(name = "qip.sessions.checkpoints.cleanup.interval")
+    String idempotencyKeyTTL;
 
     @Inject
     public CheckpointSessionService(
             SessionInfoRepository sessionInfoRepository,
             CheckpointRepository checkpointRepository,
             @RestClient CheckpointRestService checkpointRestService,
-            @Identifier("jsonMapper") ObjectMapper jsonMapper
+            @Identifier("jsonMapper") ObjectMapper jsonMapper,
+            IdempotencyRecordService idempotencyRecordService
     ) {
         this.sessionInfoRepository = sessionInfoRepository;
         this.checkpointRepository = checkpointRepository;
         this.checkpointRestService = checkpointRestService;
         this.jsonMapper = jsonMapper;
+        this.idempotencyRecordService = idempotencyRecordService;
     }
 
     @Transactional
@@ -212,5 +219,24 @@ public class CheckpointSessionService {
     @Transactional
     public void deleteOldRecordsByInterval(String checkpointsInterval) {
         sessionInfoRepository.deleteOldRecordsByInterval(checkpointsInterval);
+    }
+
+    @Transactional
+    public boolean verifyAndInsertIfNotExistIdempotencyKey(String xIdempotencyKey, String sessionId) {
+        String uniqueIdempotencyKey = getUniqueKeyForIdempotency(xIdempotencyKey, sessionId);
+        boolean idempotencyKeyExists = this.idempotencyRecordService.exists(uniqueIdempotencyKey);
+        if (!idempotencyKeyExists) {
+            log.info("Idempotency key does not exist or expired, inserting or updating the key: {}, sessionId: {}", uniqueIdempotencyKey, sessionId);
+            this.idempotencyRecordService.insertIfNotExists(uniqueIdempotencyKey, idempotencyKeyTTL);
+            return false;
+        }
+        log.info("Idempotency key exists and not expired, key: {}, sessionId: {}", uniqueIdempotencyKey, sessionId);
+        return true;
+    }
+
+    public String getUniqueKeyForIdempotency(String xIdempotencyKey, String sessionId) {
+        String prefix = "session-retries";
+        String separator = ":";
+        return String.join(separator, prefix, sessionId, xIdempotencyKey);
     }
 }

@@ -38,7 +38,7 @@ public class SchedulerRequirementsCheckAction implements DeploymentProcessingAct
 
     @Inject
     public SchedulerRequirementsCheckAction(
-        @Named("quartz") DataSource qrtzDataSource
+        @Named("configs") DataSource qrtzDataSource
     ) {
         this.qrtzDataSource = qrtzDataSource;
     }

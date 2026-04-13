@@ -62,7 +62,7 @@ class UpdateGetterProducerTest {
     @Test
     void shouldCreateDeploymentUpdateGetterWithConfiguredKeyAndParser() {
         UpdateGetterHelper<Long> getter =
-                producer.deploymentUpdateGetter(consulClient, deploymentUpdateParser);
+                producer.deploymentUpdateGetter(() -> consulClient, deploymentUpdateParser);
 
         List<KeyValue> entries = List.of(mock(KeyValue.class));
         KeyValueList kvList = changedKvList(entries);
@@ -83,7 +83,7 @@ class UpdateGetterProducerTest {
     @Test
     void shouldCreateLibrariesUpdateGetterWithConfiguredKeyAndParser() {
         UpdateGetterHelper<List<CompiledLibraryUpdate>> getter =
-                producer.librariesUpdateGetter(consulClient, librariesUpdateParser);
+                producer.librariesUpdateGetter(() -> consulClient, librariesUpdateParser);
 
         List<KeyValue> entries = List.of(mock(KeyValue.class));
         KeyValueList kvList = changedKvList(entries);
@@ -108,7 +108,7 @@ class UpdateGetterProducerTest {
     @Test
     void shouldCreateChainRuntimePropertiesUpdateGetterWithConfiguredKeyAndParser() {
         UpdateGetterHelper<Map<String, DeploymentRuntimeProperties>> getter =
-                producer.chainRuntimePropertiesUpdateGetter(consulClient, chainRuntimePropertiesUpdateParser);
+                producer.chainRuntimePropertiesUpdateGetter(() -> consulClient, chainRuntimePropertiesUpdateParser);
 
         List<KeyValue> entries = List.of(mock(KeyValue.class));
         KeyValueList kvList = changedKvList(entries);
@@ -135,7 +135,7 @@ class UpdateGetterProducerTest {
     @Test
     void shouldCreateCommonVariablesUpdateGetterWithConfiguredKeyAndParser() {
         UpdateGetterHelper<Map<String, String>> getter =
-                producer.commonVariablesUpdateGetter(consulClient, commonVariablesUpdateParser);
+                producer.commonVariablesUpdateGetter(() -> consulClient, commonVariablesUpdateParser);
 
         List<KeyValue> entries = List.of(mock(KeyValue.class));
         KeyValueList kvList = changedKvList(entries);

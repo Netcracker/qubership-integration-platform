@@ -10,6 +10,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.ext.consul.KeyValueOptions;
 import io.vertx.mutiny.ext.consul.ConsulClient;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -17,6 +18,7 @@ import org.qubership.integration.platform.engine.model.deployment.engine.EngineI
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,13 +47,24 @@ class EngineStateServiceTest {
 
     @InjectMock
     ConsulClient consulClient;
+
     @InjectMock
     ConsulSessionService consulSessionService;
+
     @InjectMock
     EngineInfo engineInfo;
+
     @InjectMock
     @Identifier("jsonMapper")
     ObjectMapper objectMapper;
+
+    @InjectMock
+    Supplier<ConsulClient> consulClientSupplier;
+
+    @BeforeEach
+    void setUp() {
+        when(consulClientSupplier.get()).thenReturn(consulClient);
+    }
 
     @Test
     void shouldPutSerializedStateToConsulWhenSessionPresentAndDynamicKeysDisabled() throws Exception {

@@ -38,11 +38,15 @@ public class ElementOptions {
     // pubsub
     public static final String PROJECT_ID = "projectId";
     public static final String DESTINATION_NAME = "destinationName";
+    public static final String SERVICE_ACCOUNT_KEY = "serviceAccountKey";
 
     public static final String CONNECTION_SOURCE_TYPE_PROP = "connectionSourceType";
 
     // generic maas
     public static final String MAAS_DEPLOYMENT_CLASSIFIER_PROP = "maasClassifier";
+    public static final String MAAS_CLASSIFIER_NAMESPACE_PROP = "maasClassifierNamespace";
+    public static final String MAAS_CLASSIFIER_TENANT_ID_PROP = "maasClassifierTenantId";
+    public static final String MAAS_CLASSIFIER_TENANT_ENABLED_PROP = "maasClassifierTenantEnabled";
 
     private ElementOptions() {
     }

@@ -16,35 +16,22 @@
 
 package org.qubership.integration.platform.engine.camel.processors;
 
+import com.netcracker.cloud.maas.client.context.rabbit.RabbitContextPropagation;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
-import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.http.HttpHeaders;
-import org.qubership.integration.platform.engine.camel.components.context.propagation.RabbitContextPropagationWrapper;
-import org.qubership.integration.platform.engine.util.InjectUtil;
-
-import java.util.Optional;
 
 @ApplicationScoped
 @Named("rabbitMqSenderProcessor")
 public class RabbitMqSenderProcessor implements Processor {
-    private final Optional<RabbitContextPropagationWrapper> contextPropagationWrapper;
-
-    @Inject
-    public RabbitMqSenderProcessor(
-        Instance<RabbitContextPropagationWrapper> contextPropagationWrapper) {
-        this.contextPropagationWrapper = InjectUtil.injectOptional(contextPropagationWrapper);
-    }
 
     @Override
     public void process(Exchange exchange) throws Exception {
         // Dump context to rabbitmq headers. The context is already propagated,
         // but some headers need to be adapted (e.g. 'x-version' -> 'version')
-        contextPropagationWrapper.ifPresent(bean ->
-            bean.dumpContext((k, v) -> exchange.getMessage().getHeaders().put(k, v)));
+        RabbitContextPropagation.dumpContext((k, v) -> exchange.getMessage().getHeaders().put(k, v));
 
         exchange.getMessage().removeHeader(HttpHeaders.AUTHORIZATION);
     }

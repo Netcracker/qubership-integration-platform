@@ -98,6 +98,10 @@ public class MetricsStore {
     double[] httpPayloadMetricsBuckets;
 
     @Getter
+    @ConfigProperty(name = "qip.metrics.session-duration.buckets")
+    private Duration[] sessionDurationBuckets;
+
+    @Getter
     private final MeterRegistry meterRegistry;
 
     // <chainId__chainName, <responseCode, counter>>
@@ -245,16 +249,13 @@ public class MetricsStore {
     }
 
     public DistributionSummary processHttpPayloadSize(boolean isRequest, String chainId, String chainName, String elementId, String elementName, String elementType) {
-        if (metricsEnabled && httpPayloadMetricsEnabled) {
-            ConcurrentMap<String, DistributionSummary> httpPayloadSizeMap = httpPayloadSizeDistributionSummary.computeIfAbsent(
-                    buildChainMapKey(chainId, chainName),
-                    id -> Maps.newConcurrentMap());
+        ConcurrentMap<String, DistributionSummary> httpPayloadSizeMap = httpPayloadSizeDistributionSummary.computeIfAbsent(
+                buildChainMapKey(chainId, chainName),
+                id -> Maps.newConcurrentMap());
 
-            String payloadType = isRequest ? "_request" : "_response";
+        String payloadType = isRequest ? "_request" : "_response";
 
-            return httpPayloadSizeMap.computeIfAbsent(elementId + payloadType, computedDistributionSummary -> newHttpPayloadSizeDistributionSummary(isRequest, chainId, chainName, elementId, elementName, elementType));
-        }
-        return null;
+        return httpPayloadSizeMap.computeIfAbsent(elementId + payloadType, computedDistributionSummary -> newHttpPayloadSizeDistributionSummary(isRequest, chainId, chainName, elementId, elementName, elementType));
     }
 
     public void processChainSessionsSize(List<ChainDataAllocationSize> chainSessionsSizes) {
@@ -285,11 +286,11 @@ public class MetricsStore {
 
     private Timer newSessionDurationTimer(String chainId, String chainName, String executionStatus) {
         return Timer.builder(namePrefix + SESSION_TIMER_NAME)
-                .publishPercentileHistogram()
                 .tag(CHAIN_ID_TAG, chainId)
                 .tag(CHAIN_NAME_TAG, chainName)
                 .tag(EXECUTION_STATUS_TAG, executionStatus)
                 .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
+                .serviceLevelObjectives(sessionDurationBuckets)
                 .register(meterRegistry);
     }
 
@@ -378,10 +379,8 @@ public class MetricsStore {
                 .tag(ELEMENT_NAME_TAG, elementName)
                 .tag(ELEMENT_TYPE_TAG, elementType)
                 .tag(ENGINE_DOMAIN_TAG, engineInfo.getDomain())
-                .distributionStatisticExpiry(Duration.ofMinutes(1))
                 .baseUnit(BaseUnits.BYTES)
                 .serviceLevelObjectives(httpPayloadMetricsBuckets)
-                .publishPercentileHistogram()
                 .register(meterRegistry);
     }
 

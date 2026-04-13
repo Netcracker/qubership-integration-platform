@@ -17,16 +17,14 @@
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.apache.camel.Exchange;
 import org.apache.camel.http.common.HttpHeaderFilterStrategy;
-import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
-import org.qubership.integration.platform.engine.util.InjectUtil;
+import org.qubership.integration.platform.engine.camel.context.propagation.ContextPropsProvider;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 
 import static java.util.Objects.nonNull;
 
@@ -38,11 +36,11 @@ public class ServletCustomFilterStrategy extends HttpHeaderFilterStrategy {
         "x-requestedsystem"
     );
 
-    private final Optional<ContextPropsProvider> contextPropsProvider;
+    private final ContextPropsProvider contextPropsProvider;
 
     @Inject
-    public ServletCustomFilterStrategy(Instance<ContextPropsProvider> contextPropsProvider) {
-        this.contextPropsProvider = InjectUtil.injectOptional(contextPropsProvider);
+    public ServletCustomFilterStrategy(ContextPropsProvider contextPropsProvider) {
+        this.contextPropsProvider = contextPropsProvider;
         this.getOutFilter().addAll(FILTERED_HEADERS);
     }
 
@@ -52,9 +50,7 @@ public class ServletCustomFilterStrategy extends HttpHeaderFilterStrategy {
     }
 
     private boolean isHeaderInContext(String name) {
-        return this.contextPropsProvider
-            .map(ContextPropsProvider::getDownstreamHeaders)
-            .map(headers -> nonNull(headers) && headers.contains(name))
-            .orElse(false);
+        Set<String> headers = contextPropsProvider.getDownstreamHeaders();
+        return nonNull(headers) && headers.contains(name);
     }
 }

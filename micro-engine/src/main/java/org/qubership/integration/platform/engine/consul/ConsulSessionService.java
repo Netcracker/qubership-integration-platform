@@ -10,6 +10,7 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
@@ -25,7 +26,7 @@ public class ConsulSessionService {
     private static final long SESSION_TTL = 60;
 
     @Inject
-    ConsulClient consulClient;
+    Supplier<ConsulClient> consulClientSupplier;
 
     @Inject
     EventBus eventBus;
@@ -76,7 +77,7 @@ public class ConsulSessionService {
     }
 
     private void renewSession(String id) {
-        consulClient.renewSession(id)
+        consulClientSupplier.get().renewSession(id)
                 .onFailure()
                 .transform(failure -> {
                     log.error("Failed to renew session in consul: {}", failure.getMessage());
@@ -92,7 +93,7 @@ public class ConsulSessionService {
                 .setName(name)
                 .setTtl(SESSION_TTL)
                 .setBehavior(SESSION_BEHAVIOR);
-        return consulClient.createSessionWithOptions(options)
+        return consulClientSupplier.get().createSessionWithOptions(options)
                 .onFailure()
                 .transform(failure -> {
                     log.error("Failed to create session in consul: {}", failure.getMessage());
@@ -103,7 +104,7 @@ public class ConsulSessionService {
     }
 
     private void deleteSession(String id) {
-        consulClient.destroySession(id).onFailure().transform(failure -> {
+        consulClientSupplier.get().destroySession(id).onFailure().transform(failure -> {
             log.error("Failed to delete session from consul: {}", failure.getMessage());
             return failure;
         }).await().indefinitely();

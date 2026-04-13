@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.catalog;
 
+import com.netcracker.cloud.quarkus.security.auth.rest.M2MFilter;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -14,6 +15,7 @@ import java.io.InputStream;
 
 @RegisterRestClient(configKey = "runtime-catalog")
 @RegisterProvider(RuntimeCatalogResponseExceptionMapper.class)
+@RegisterProvider(M2MFilter.class)
 public interface RuntimeCatalogService {
     @POST
     @Path("/v1/catalog/domains/{domain}/deployments/update")

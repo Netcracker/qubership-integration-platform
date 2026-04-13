@@ -16,12 +16,16 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
+import com.netcracker.cloud.routesregistration.common.annotation.Gateway;
+import com.netcracker.cloud.routesregistration.common.annotation.Route;
+import com.netcracker.cloud.routesregistration.common.gateway.route.RouteType;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.extensions.Extension;
@@ -30,6 +34,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.resteasy.reactive.RestResponse;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
+import org.qubership.integration.platform.engine.rest.RestApiConstants;
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
 import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
@@ -39,12 +44,16 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @Slf4j
-@Path("/v1/engine/chains/{chainId}")
+@Path(RestApiConstants.V1_ROUTE_PREFIX + CheckpointSessionController.CHECKPOINT_SESSION_PATH)
+@Route(RouteType.PUBLIC)
+@Gateway(RestApiConstants.V1_PUBLIC_ROUTE_PREFIX + CheckpointSessionController.CHECKPOINT_SESSION_PATH)
 @Produces(MediaType.APPLICATION_JSON)
 // TODO Enable CORS with origins *
 //@CrossOrigin(origins = "*")
 @Tag(name = "checkpoint-session-controller", description = "Checkpoint Session Controller")
 public class CheckpointSessionController {
+    public static final String CHECKPOINT_SESSION_PATH = "/chains/{chainId}";
+
     private final CheckpointSessionService checkpointSessionService;
     private final SessionInfoMapper sessionInfoMapper;
 
@@ -82,10 +91,20 @@ public class CheckpointSessionController {
             @Parameter(description = "Enable TraceMe header, which will force session to be logged")
             boolean traceMe,
 
+            @HeaderParam("X-Idempotency-Key")
+            @DefaultValue("")
+            @Parameter(description = "Idempotency header, which will be used to identify duplicate request")
+            String xIdempotencyKey,
+
             @Parameter(description = "If passed, request body will be replaced with this value")
             String body
     ) {
         log.info("Request to retry session {}", sessionId);
+        if (StringUtils.isNotBlank(xIdempotencyKey)
+                && checkpointSessionService.verifyAndInsertIfNotExistIdempotencyKey(xIdempotencyKey, sessionId)) {
+            log.info("Duplicate Idempotency key found, key: {}, sessionId: {}", xIdempotencyKey, sessionId);
+            return RestResponse.accepted();
+        }
         checkpointSessionService.retryFromLastCheckpoint(chainId, sessionId, body, toAuthSupplier(authorization), traceMe);
         return RestResponse.accepted();
     }
@@ -118,10 +137,20 @@ public class CheckpointSessionController {
             @Parameter(description = "Enable TraceMe header, which will force session to be logged")
             boolean traceMe,
 
+            @HeaderParam("X-Idempotency-Key")
+            @DefaultValue("")
+            @Parameter(description = "Idempotency header, which will be used to identify duplicate request")
+            String xIdempotencyKey,
+
             @Parameter(description = "If passed, request body will be replaced with this value")
             String body
     ) {
         log.info("Request to retry session {} from checkpoint {}", sessionId, checkpointElementId);
+        if (StringUtils.isNotBlank(xIdempotencyKey)
+                && checkpointSessionService.verifyAndInsertIfNotExistIdempotencyKey(xIdempotencyKey, sessionId)) {
+            log.info("Duplicate Idempotency key found, key: {}, sessionId: {}", xIdempotencyKey, sessionId);
+            return RestResponse.accepted();
+        }
         checkpointSessionService.retryFromCheckpoint(chainId, sessionId, checkpointElementId, body, toAuthSupplier(authorization), traceMe);
         return RestResponse.accepted();
     }

@@ -2,7 +2,6 @@ package org.qubership.integration.platform.engine.camel.processors.checkpoint;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import groovy.xml.slurpersupport.GPathResult;
-import jakarta.enterprise.inject.Instance;
 import jakarta.persistence.EntityNotFoundException;
 import org.apache.camel.Exchange;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,7 +21,6 @@ import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.MockExchanges;
 import org.qubership.integration.platform.engine.testutils.ObjectMappers;
 import org.qubership.integration.platform.engine.util.CheckpointUtils;
-import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
@@ -66,8 +64,7 @@ class ContextLoaderProcessorTest {
         exchange = MockExchanges.defaultExchange();
         processor = processor(
                 checkpointSessionService,
-                checkpointMapper,
-                java.util.Optional.of(contextOperations)
+                checkpointMapper
         );
     }
 
@@ -122,7 +119,6 @@ class ContextLoaderProcessorTest {
 
             processor.process(exchange);
 
-            verify(contextOperations).activateWithSerializableContextData(contextData);
             verify(checkpointSessionService).updateSessionParent(
                     "6dc1fb7d-bf4b-4c8d-ae92-3d28e4f5022c",
                     "8f8d0b21-0d41-46e6-b536-c80b1fbc9cf4"
@@ -239,16 +235,9 @@ class ContextLoaderProcessorTest {
 
     private static ContextLoaderProcessor processor(
             CheckpointSessionService checkpointSessionService,
-            ObjectMapper checkpointMapper,
-            java.util.Optional<ContextOperationsWrapper> contextOperations
+            ObjectMapper checkpointMapper
     ) {
-        @SuppressWarnings("unchecked")
-        Instance<ContextOperationsWrapper> instance = mock(Instance.class);
-
-        try (MockedStatic<InjectUtil> injectUtilMock = mockStatic(InjectUtil.class)) {
-            injectUtilMock.when(() -> InjectUtil.injectOptional(instance)).thenReturn(contextOperations);
-            return new ContextLoaderProcessor(checkpointSessionService, checkpointMapper, instance);
-        }
+        return new ContextLoaderProcessor(checkpointSessionService, checkpointMapper);
     }
 
     private static Property property(String name, String type, byte[] value, byte[] deprecatedValue) {

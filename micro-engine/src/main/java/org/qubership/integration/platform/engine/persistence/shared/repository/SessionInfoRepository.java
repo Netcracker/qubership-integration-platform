@@ -16,11 +16,8 @@
 
 package org.qubership.integration.platform.engine.persistence.shared.repository;
 
-import io.quarkus.hibernate.orm.PersistenceUnit;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
@@ -30,10 +27,6 @@ import java.util.Optional;
 
 @ApplicationScoped
 public class SessionInfoRepository implements PanacheRepositoryBase<SessionInfo, String> {
-    @Inject
-    @PersistenceUnit("checkpoints")
-    EntityManager em;
-
     public List<SessionInfo> findAllById(List<String> ids) {
         return list("id IN ?1", ids);
     }
@@ -58,7 +51,7 @@ public class SessionInfoRepository implements PanacheRepositoryBase<SessionInfo,
             DELETE FROM engine.sessions_info
             WHERE id = (SELECT id FROM to_root_node WHERE original_session_id IS NULL LIMIT 1);
         """;
-        Query query = em.createNativeQuery(sql);
+        Query query = getEntityManager().createNativeQuery(sql);
         query.setParameter("sessionId", sessionId);
         query.executeUpdate();
     }
@@ -78,7 +71,7 @@ public class SessionInfoRepository implements PanacheRepositoryBase<SessionInfo,
                 where i.id != :sessionId and i.original_session_id is null
                 limit 1;
         """;
-        Query query = em.createNativeQuery(sql, SessionInfo.class);
+        Query query = getEntityManager().createNativeQuery(sql, SessionInfo.class);
         query.setParameter("sessionId", sessionId);
         return query.getResultStream().findFirst();
     }
@@ -96,7 +89,7 @@ public class SessionInfoRepository implements PanacheRepositoryBase<SessionInfo,
                 s1.started < now() - ( :olderThan )::interval
                 AND s1.original_session_id IS NULL;
         """;
-        Query query = em.createNativeQuery(sql, SessionInfo.class);
+        Query query = getEntityManager().createNativeQuery(sql, SessionInfo.class);
         query.setParameter("olderThan", olderThan);
         query.executeUpdate();
     }

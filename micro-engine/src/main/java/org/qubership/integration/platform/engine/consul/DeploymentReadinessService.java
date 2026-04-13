@@ -83,7 +83,7 @@ public class DeploymentReadinessService {
                 .collect(Collectors.toMap(entry -> entry.getKey().getSimpleName(),
                     Map.Entry::getValue));
             log.error(
-                "At least one required event was not received (for this time) to start deployments processing!"
+                "At least one required event was not received (for this time) to start deployments processing! "
                     + "Events status: {}", outputMap);
         }
     }

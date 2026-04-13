@@ -66,7 +66,7 @@ public class KubeOperatorProducer {
         builder
                 .setVerifyingSsl(false)
                 .setBasePath(properties.cluster().uri())
-                .setAuthentication(new AccessTokenAuthentication(properties.cluster().devToken()));
+                .setAuthentication(new AccessTokenAuthentication(properties.cluster().devToken().orElse("")));
     }
 
     private void configureForProd(ClientBuilder builder) throws IOException {

@@ -65,10 +65,12 @@ class CheckpointSessionServiceTest {
     CheckpointRestService rest;
     @Mock
     ObjectMapper mapper;
+    @Mock
+    IdempotencyRecordService idempotencyRecordService;
 
     @BeforeEach
     void setUp() {
-        checkpointSessionService = new CheckpointSessionService(sessionRepo, checkpointRepo, rest, mapper);
+        checkpointSessionService = new CheckpointSessionService(sessionRepo, checkpointRepo, rest, mapper, idempotencyRecordService);
     }
 
     @Test

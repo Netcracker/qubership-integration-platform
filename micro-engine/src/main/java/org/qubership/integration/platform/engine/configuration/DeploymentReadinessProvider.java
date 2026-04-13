@@ -20,9 +20,7 @@ import io.quarkus.arc.DefaultBean;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Named;
-import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEvent;
-import org.qubership.integration.platform.engine.events.SecuredVariablesUpdatedEvent;
-import org.qubership.integration.platform.engine.events.UpdateEvent;
+import org.qubership.integration.platform.engine.events.*;
 import org.qubership.integration.platform.engine.util.DevModeUtil;
 
 import java.util.Collections;
@@ -39,6 +37,8 @@ public class DeploymentReadinessProvider {
     EventClassesContainerWrapper deploymentReadinessEvents(DevModeUtil devModeUtil) {
         Set<Class<? extends UpdateEvent>> events = new HashSet<>();
         events.add(CommonVariablesUpdatedEvent.class);
+        events.add(BlueGreenInitialStateReceivedEvent.class);
+        events.add(ExternalLibrariesUpdatedEvent.class);
         if (!devModeUtil.isDevMode()) {
             events.add(SecuredVariablesUpdatedEvent.class);
         }

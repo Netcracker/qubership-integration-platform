@@ -16,7 +16,9 @@
 
 package org.qubership.integration.platform.engine.camel;
 
+import io.quarkus.arc.Unremovable;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.kafka.serde.KafkaHeaderDeserializer;
 
@@ -24,6 +26,8 @@ import java.io.UnsupportedEncodingException;
 
 @Slf4j
 @ApplicationScoped
+@Unremovable
+@Named("kafkaHeaderStringDeserializer")
 public class KafkaHeaderStringDeserializer implements KafkaHeaderDeserializer {
     private final String encoding = "UTF8";
 

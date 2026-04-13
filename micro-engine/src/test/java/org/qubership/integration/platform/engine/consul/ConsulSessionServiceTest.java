@@ -42,7 +42,7 @@ class ConsulSessionServiceTest {
     @BeforeEach
     void setUp() {
         service = new ConsulSessionService();
-        service.consulClient = consulClient;
+        service.consulClientSupplier = () -> consulClient;
         service.eventBus = eventBus;
     }
 

@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
+import com.netcracker.cloud.routesregistration.common.annotation.Gateway;
+import com.netcracker.cloud.routesregistration.common.annotation.Route;
+import com.netcracker.cloud.routesregistration.common.gateway.route.RouteType;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
@@ -26,20 +29,23 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.resteasy.reactive.RestResponse;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
+import org.qubership.integration.platform.engine.rest.RestApiConstants;
 import org.qubership.integration.platform.engine.rest.v1.dto.checkpoint.CheckpointSessionDTO;
 import org.qubership.integration.platform.engine.rest.v1.mapper.SessionInfoMapper;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 @Slf4j
-@Path("/v1/engine/sessions")
+@Path(RestApiConstants.V1_ROUTE_PREFIX + SessionController.SESSIONS_PATH)
+@Route(RouteType.PUBLIC)
+@Gateway(RestApiConstants.V1_PUBLIC_ROUTE_PREFIX + SessionController.SESSIONS_PATH)
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "session-controller", description = "Session Controller")
 public class SessionController {
+    public static final String SESSIONS_PATH = "/sessions";
+
     private final CheckpointSessionService checkpointSessionService;
     private final SessionInfoMapper sessionInfoMapper;
 
@@ -57,13 +63,10 @@ public class SessionController {
     @Operation(description = "List all sessions with available checkpoints by their ids")
     public RestResponse<List<CheckpointSessionDTO>> findSessions(
             @QueryParam("ids")
-            @DefaultValue("")
             @Parameter(description = "List of the session ids separated by comma")
             List<String> ids
     ) {
-        // TODO [migration to quarkus] check that ids can be null otherwise use ids directly
-        List<String> identifiers = Optional.ofNullable(ids).orElse(Collections.emptyList());
-        Collection<SessionInfo> sessions = checkpointSessionService.findSessions(identifiers);
+        Collection<SessionInfo> sessions = checkpointSessionService.findSessions(ids);
         List<CheckpointSessionDTO> dtos = sessions.stream().map(sessionInfoMapper::asDTO).toList();
         return RestResponse.ok(dtos);
     }

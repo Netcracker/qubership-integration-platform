@@ -16,13 +16,10 @@
 
 package org.qubership.integration.platform.engine.persistence.shared.repository;
 
-import io.quarkus.hibernate.orm.PersistenceUnit;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
@@ -32,10 +29,6 @@ import java.util.List;
 
 @ApplicationScoped
 public class CheckpointRepository implements PanacheRepositoryBase<Checkpoint, String> {
-    @Inject
-    @PersistenceUnit("checkpoints")
-    EntityManager em;
-
     public Checkpoint findFirstBySessionIdAndSessionChainIdAndCheckpointElementId(
             String sessionId,
             String chainId,
@@ -64,8 +57,7 @@ public class CheckpointRepository implements PanacheRepositoryBase<Checkpoint, S
                            + octet_length(chpt.session_id)
                            + octet_length(chpt.checkpoint_element_id)
                            + octet_length(chpt.headers)
-                           + 4                         --oid fixed size
-                           + length(lo_get(chpt.body)) --actual body size from pg_large_objects
+                           + length(chpt.body_bytea)
                            + 8                         --timestamp fixed size
                            + octet_length(chpt.context_data)
                         ), 0
@@ -73,7 +65,7 @@ public class CheckpointRepository implements PanacheRepositoryBase<Checkpoint, S
                 FROM engine.checkpoints chpt LEFT JOIN engine.sessions_info si ON chpt.session_id = si.id
                 GROUP BY si.chain_id, si.chain_name;
         """;
-        Query query = em.createNativeQuery(sql);
+        Query query = getEntityManager().createNativeQuery(sql);
         List<Object[]> results = query.getResultList();
         return results.stream().map(
                 row ->

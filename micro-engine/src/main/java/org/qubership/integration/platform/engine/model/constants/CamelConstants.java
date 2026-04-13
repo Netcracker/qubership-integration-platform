@@ -60,6 +60,7 @@ public final class CamelConstants {
         public static final String TRIGGER = "trigger";
         public static final String JOB_INSTANCE = "jobInstance";
         public static final String HTTP_URI = "CamelHttpUri";
+        public static final String X_IDEMPOTENCY_KEY = "X-Idempotency-Key";
 
         private Headers() {
         }
@@ -164,6 +165,7 @@ public final class CamelConstants {
 
         public static final String SERVICE_CALL_RETRY_COUNT = "retryCount";
         public static final String SERVICE_CALL_RETRY_DELAY = "retryDelay";
+        public static final String SKIP_EMPTY_QUERY_PARAMS = "integrationOperationSkipEmptyQueryParameters";
 
         public static final int SERVICE_CALL_DEFAULT_RETRY_DELAY = 5000;
 
@@ -174,6 +176,7 @@ public final class CamelConstants {
     }
 
     public static final class ChainProperties {
+        public static final String SESSION_ID = "sessionId";
         public static final String CHAIN_ID = "chainId";
         public static final String CHAIN_NAME = "chainName";
         public static final String SNAPSHOT_NAME = "snapshotName";

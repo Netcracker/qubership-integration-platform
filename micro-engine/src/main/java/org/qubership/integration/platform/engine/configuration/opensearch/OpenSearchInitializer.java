@@ -70,6 +70,10 @@ public class OpenSearchInitializer {
     ObjectMapper jsonMapper;
 
     public void initialize(OpenSearchClientSupplier clientSupplier) {
+        if (properties.kafkaClient().enabled()) {
+            log.info("Update opensearch template and indexes was skipped due to enabled kafka client");
+            return;
+        }
         log.info("Update opensearch template and indexes");
         updateTemplateAndIndexes(clientSupplier);
     }

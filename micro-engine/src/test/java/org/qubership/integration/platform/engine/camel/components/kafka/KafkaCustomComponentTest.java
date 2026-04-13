@@ -1,12 +1,11 @@
 package org.qubership.integration.platform.engine.camel.components.kafka;
 
-import org.apache.camel.component.kafka.KafkaConfiguration;
-import org.apache.camel.component.kafka.KafkaEndpoint;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.support.jsse.SSLContextParameters;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.engine.camel.components.kafka.configuration.KafkaCustomConfiguration;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.util.HashMap;
@@ -24,7 +23,7 @@ class KafkaCustomComponentTest {
     void setUp() {
         component = spy(new KafkaCustomComponent());
         component.setCamelContext(new DefaultCamelContext());
-        component.setConfiguration(new KafkaConfiguration());
+        component.setConfiguration(new KafkaCustomConfiguration());
     }
 
     @Test
@@ -40,7 +39,7 @@ class KafkaCustomComponentTest {
 
     @Test
     void shouldCreateEndpointAndSetTopicFromRemainingWhenNotProvidedInParameters() throws Exception {
-        KafkaEndpoint ep = component.createEndpoint(
+        KafkaCustomEndpoint ep = component.createEndpoint(
                 "kafka-custom:topicA",
                 "topicA",
                 new HashMap<>()
@@ -49,18 +48,18 @@ class KafkaCustomComponentTest {
         assertNotNull(ep);
         assertInstanceOf(KafkaCustomEndpoint.class, ep);
 
-        KafkaConfiguration cfg = ep.getConfiguration();
+        KafkaCustomConfiguration cfg = ep.getConfiguration();
         assertNotNull(cfg);
         assertEquals("topicA", cfg.getTopic());
     }
 
     @Test
     void shouldNotOverrideTopicWhenAlreadySetInComponentConfiguration() throws Exception {
-        KafkaConfiguration base = new KafkaConfiguration();
+        KafkaCustomConfiguration base = new KafkaCustomConfiguration();
         base.setTopic("explicitTopic");
         component.setConfiguration(base);
 
-        KafkaEndpoint ep = component.createEndpoint(
+        KafkaCustomEndpoint ep = component.createEndpoint(
                 "kafka-custom:topicA",
                 "topicA",
                 new HashMap<>()
@@ -74,7 +73,7 @@ class KafkaCustomComponentTest {
         SSLContextParameters global = new SSLContextParameters();
         doReturn(global).when(component).retrieveGlobalSslContextParameters();
 
-        KafkaEndpoint ep = component.createEndpoint(
+        KafkaCustomEndpoint ep = component.createEndpoint(
                 "kafka-custom:topicA",
                 "topicA",
                 new HashMap<>()
@@ -86,12 +85,12 @@ class KafkaCustomComponentTest {
 
     @Test
     void shouldNotOverrideSslContextParametersWhenAlreadySetOnComponentConfiguration() throws Exception {
-        KafkaConfiguration base = new KafkaConfiguration();
+        KafkaCustomConfiguration base = new KafkaCustomConfiguration();
         SSLContextParameters preset = new SSLContextParameters();
         base.setSslContextParameters(preset);
         component.setConfiguration(base);
 
-        KafkaEndpoint ep = component.createEndpoint(
+        KafkaCustomEndpoint ep = component.createEndpoint(
                 "kafka-custom:topicA",
                 "topicA",
                 new HashMap<>()
@@ -107,7 +106,7 @@ class KafkaCustomComponentTest {
         params.put("additionalProperties.acks", "all");
         params.put("additionalProperties.enable.idempotence", true);
 
-        KafkaEndpoint ep = component.createEndpoint(
+        KafkaCustomEndpoint ep = component.createEndpoint(
                 "kafka-custom:topicA",
                 "topicA",
                 params
@@ -120,11 +119,11 @@ class KafkaCustomComponentTest {
 
     @Test
     void shouldCopyComponentConfigurationForEndpoint() throws Exception {
-        KafkaConfiguration base = new KafkaConfiguration();
+        KafkaCustomConfiguration base = new KafkaCustomConfiguration();
         base.setTopic("baseTopic");
         component.setConfiguration(base);
 
-        KafkaEndpoint ep = component.createEndpoint(
+        KafkaCustomEndpoint ep = component.createEndpoint(
                 "kafka-custom:topicA",
                 "topicA",
                 new HashMap<>()

@@ -9,7 +9,7 @@ import org.hibernate.type.descriptor.java.JavaType;
 import org.hibernate.type.format.FormatMapper;
 
 @JsonFormat
-@PersistenceUnitExtension("checkpoints")
+@PersistenceUnitExtension
 public class JsonFormatMapper implements FormatMapper {
     private final ObjectMapper objectMapper;
 

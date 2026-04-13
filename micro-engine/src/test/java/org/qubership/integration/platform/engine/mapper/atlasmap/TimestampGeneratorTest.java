@@ -25,6 +25,8 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class TimestampGeneratorTest {
 
+    private static final String CREATED_DATE_TIME_WITH_MILLIS = "2024-01-02T03:04:05.123+0000";
+
     private final Locale originalFormatLocale = Locale.getDefault(Locale.Category.FORMAT);
     private final TimeZone originalTimeZone = TimeZone.getDefault();
 
@@ -45,14 +47,14 @@ class TimestampGeneratorTest {
         try (MockedStatic<AtlasMapUtils> atlasMapUtils = mockStatic(AtlasMapUtils.class)) {
             atlasMapUtils.when(() -> AtlasMapUtils.convertDateFormat(
                     false,
-                    "yyyy-MM-dd'T'HH:mm:ssZ",
+                    "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
                     "en_US",
                     "UTC",
                     false,
                     "",
                     "",
                     "",
-                    "2024-01-02T03:04:05+0000"
+                    CREATED_DATE_TIME_WITH_MILLIS
             )).thenReturn("converted");
 
             String result = generator.apply(session);
@@ -72,14 +74,14 @@ class TimestampGeneratorTest {
         try (MockedStatic<AtlasMapUtils> atlasMapUtils = mockStatic(AtlasMapUtils.class)) {
             atlasMapUtils.when(() -> AtlasMapUtils.convertDateFormat(
                     false,
-                    "yyyy-MM-dd'T'HH:mm:ssZ",
+                    "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
                     "de_DE",
                     "Europe/Berlin",
                     true,
                     "yyyyMMdd",
                     "",
                     "",
-                    "2024-01-02T03:04:05+0000"
+                    CREATED_DATE_TIME_WITH_MILLIS
             )).thenReturn("partial");
 
             String result = generator.apply(session);
@@ -101,14 +103,14 @@ class TimestampGeneratorTest {
         try (MockedStatic<AtlasMapUtils> atlasMapUtils = mockStatic(AtlasMapUtils.class)) {
             atlasMapUtils.when(() -> AtlasMapUtils.convertDateFormat(
                     false,
-                    "yyyy-MM-dd'T'HH:mm:ssZ",
+                    "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
                     "fr_FR",
                     "Europe/Paris",
                     true,
                     "dd.MM.yyyy HH:mm",
                     "ru_RU",
                     "Europe/Moscow",
-                    "2024-01-02T03:04:05+0000"
+                    CREATED_DATE_TIME_WITH_MILLIS
             )).thenReturn("full");
 
             String result = generator.apply(session);
@@ -130,14 +132,14 @@ class TimestampGeneratorTest {
         try (MockedStatic<AtlasMapUtils> atlasMapUtils = mockStatic(AtlasMapUtils.class)) {
             atlasMapUtils.when(() -> AtlasMapUtils.convertDateFormat(
                     false,
-                    "yyyy-MM-dd'T'HH:mm:ssZ",
+                    "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
                     "en_US",
                     "UTC",
                     false,
                     "yyyy",
                     "en_GB",
                     "UTC",
-                    "2024-01-02T03:04:05+0000"
+                    CREATED_DATE_TIME_WITH_MILLIS
             )).thenReturn("invalid-boolean");
 
             String result = generator.apply(session);
@@ -149,7 +151,7 @@ class TimestampGeneratorTest {
     private static AtlasSession sessionWithCreatedDateTime() {
         AtlasSession session = mock(AtlasSession.class);
         Map<String, Object> sourceProperties = new HashMap<>();
-        sourceProperties.put("Atlas.CreatedDateTimeTZ", "2024-01-02T03:04:05+0000");
+        sourceProperties.put("Atlas.CreatedUTCDateTimeWithMillisTZ", CREATED_DATE_TIME_WITH_MILLIS);
         when(session.getSourceProperties()).thenReturn(sourceProperties);
         return session;
     }

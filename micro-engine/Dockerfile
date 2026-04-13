@@ -1,13 +1,3 @@
-FROM maven:3.9.11-amazoncorretto-21-alpine AS build
-
-WORKDIR /app
-COPY lib ./lib
-COPY pom.xml .
-RUN mvn clean
-RUN mvn -B dependency:go-offline
-COPY src ./src
-RUN mvn package -B -Dgpg.skip
-
 FROM alpine/java:21-jdk
 
 USER root
@@ -21,10 +11,10 @@ USER 10001
 EXPOSE 8080
 
 # We make four distinct layers so if there are application changes the library layers can be re-used
-COPY --chown=10001 --from=build /app/target/quarkus-app/lib/ /app/lib/
-COPY --chown=10001 --from=build /app/target/quarkus-app/*.jar /app/
-COPY --chown=10001 --from=build /app/target/quarkus-app/app/ /app/app/
-COPY --chown=10001 --from=build /app/target/quarkus-app/quarkus/ /app/quarkus/
+COPY --chown=10001 target/quarkus-app/lib/ /app/lib/
+COPY --chown=10001 target/quarkus-app/*.jar /app/
+COPY --chown=10001 target/quarkus-app/app/ /app/app/
+COPY --chown=10001 target/quarkus-app/quarkus/ /app/quarkus/
 
 WORKDIR /app
 

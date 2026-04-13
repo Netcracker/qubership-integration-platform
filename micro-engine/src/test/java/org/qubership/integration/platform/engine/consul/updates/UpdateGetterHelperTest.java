@@ -47,7 +47,7 @@ class UpdateGetterHelperTest {
 
     @BeforeEach
     void setUp() {
-        helper = new UpdateGetterHelper<>(KEY, consulClient, valueParser);
+        helper = new UpdateGetterHelper<>(KEY, () -> consulClient, valueParser);
     }
 
     @Test

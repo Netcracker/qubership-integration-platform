@@ -50,25 +50,31 @@
         <quarkus.platform.version>3.27.1</quarkus.platform.version>
         <camel.version>4.14.4</camel.version>
 
-        <lombok.version>1.18.38</lombok.version>
+        <cloud-core.version>9.1.0</cloud-core.version>
+        <maas-client.version>11.2.6</maas-client.version>
+        <maas-client-quarkus.version>9.0.3</maas-client-quarkus.version>
+        <blue-green-state-monitor.version>2.0.3</blue-green-state-monitor.version>
+
+        <lombok.version>1.18.42</lombok.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-text.version>1.11.0</commons-text.version>
-        <protobuf-java.version>3.25.1</protobuf-java.version>
+        <protobuf-java.version>3.25.8</protobuf-java.version>
         <json-schema-validator.version>1.0.87</json-schema-validator.version>
         <json-filter.version>4.0.1</json-filter.version>
         <atlasmap.version>2.5.2</atlasmap.version>
         <jetbrains.annotations.version>26.0.2-1</jetbrains.annotations.version>
         <opensearch.version>2.14.0</opensearch.version>
-        <kubernetes-client-java.version>19.0.2</kubernetes-client-java.version>
+        <kubernetes-client-java.version>19.0.3</kubernetes-client-java.version>
         <reflections.version>0.10.2</reflections.version>
         <hypersistence-utils-hibernate.version>3.14.1</hypersistence-utils-hibernate.version>
         <groovy.xml.version>5.0.2</groovy.xml.version>
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
-        <jacoco.plugin.version>0.8.12</jacoco.plugin.version>
+        <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
+        <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
         <sonar.coverage.jacoco.xmlReportPaths>
             ${project.basedir}/target/site/jacoco-aggregate/jacoco.xml
         </sonar.coverage.jacoco.xmlReportPaths>
@@ -267,6 +273,34 @@
                 <artifactId>groovy-xml</artifactId>
                 <version>${groovy.xml.version}</version>
             </dependency>
+
+            <dependency>
+                <groupId>com.netcracker.cloud.quarkus</groupId>
+                <artifactId>cloud-core-quarkus-bom-publish</artifactId>
+                <version>${cloud-core.version}</version>
+                <scope>import</scope>
+                <type>pom</type>
+            </dependency>
+
+            <dependency>
+                <groupId>com.netcracker.cloud.maas.client</groupId>
+                <artifactId>maas-client-bom</artifactId>
+                <version>${maas-client.version}</version>
+                <scope>import</scope>
+                <type>pom</type>
+            </dependency>
+            <dependency>
+                <groupId>com.netcracker.cloud.quarkus</groupId>
+                <artifactId>maas-client-quarkus-bom</artifactId>
+                <version>${maas-client-quarkus.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.netcracker.cloud.quarkus</groupId>
+                <artifactId>blue-green-state-monitor-quarkus</artifactId>
+                <version>${blue-green-state-monitor.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -334,10 +368,6 @@
             <artifactId>quarkus-hibernate-validator</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.quarkiverse.config</groupId>
-            <artifactId>quarkus-config-consul</artifactId>
-        </dependency>
-        <dependency>
             <groupId>io.smallrye.reactive</groupId>
             <artifactId>smallrye-mutiny-vertx-consul-client</artifactId>
         </dependency>
@@ -387,6 +417,10 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-scheduler</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-messaging-kafka</artifactId>
         </dependency>
 
         <dependency>
@@ -604,10 +638,90 @@
             <artifactId>opensearch-testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>maas-client-quarkus-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>maas-client-quarkus-rabbit</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>blue-green-state-monitor-quarkus</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>routes-registrator</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>consul-config-source</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>framework-contexts</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud.maas.client</groupId>
+            <artifactId>rabbit-context-propagation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.maas.client</groupId>
+            <artifactId>kafka-blue-green-consumer</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>dbaas-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>dbaas-opensearch-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>dbaas-datasource-postgresql</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>${flatten-maven-plugin.version}</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
@@ -693,6 +807,8 @@
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
+                        <core.contextpropagation.providers.reflection-discovery.disabled>true</core.contextpropagation.providers.reflection-discovery.disabled>
+                        <core.contextpropagation.providers.lookup>false</core.contextpropagation.providers.lookup>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
@@ -723,7 +839,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
-                <version>3.2.7</version>
+                <version>3.2.8</version>
                 <executions>
                     <execution>
                         <id>sign-artifacts</id>

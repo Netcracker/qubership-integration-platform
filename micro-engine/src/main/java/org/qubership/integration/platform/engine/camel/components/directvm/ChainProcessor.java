@@ -92,8 +92,8 @@ public final class ChainProcessor extends DelegateAsyncProcessor {
     /**
      * Strategy to prepare exchange for being processed by this consumer
      *
-     * @param  exchange the exchange
-     * @return          the exchange to process by this consumer.
+     * @param exchange the exchange
+     * @return the exchange to process by this consumer.
      */
     private Exchange prepareExchange(Exchange exchange) {
         // send a new copied exchange with new camel context (do not handover completions)

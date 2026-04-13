@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.create.before;
 
-import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.camel.CamelContext;
@@ -40,7 +39,6 @@ import java.util.List;
 import static java.util.Objects.nonNull;
 
 @ApplicationScoped
-@IfBuildProperty(name = "qip.control-plane.enabled", stringValue = "true")
 @OnBeforeRoutesCreated
 public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingAction {
     private final VariablesService variablesService;

@@ -19,10 +19,10 @@ package org.qubership.integration.platform.engine.configuration.camel.kafkacusto
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Named;
-import org.apache.camel.component.kafka.KafkaConfiguration;
 import org.apache.camel.spi.ComponentCustomizer;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomComponent;
+import org.qubership.integration.platform.engine.camel.components.kafka.configuration.KafkaCustomConfiguration;
 
 import java.util.Optional;
 
@@ -44,7 +44,7 @@ public class KafkaCustomComponentCustomizerProducer {
     public ComponentCustomizer kafkaCustomComponentCustomizer() {
         return ComponentCustomizer.builder(KafkaCustomComponent.class)
             .build((component) -> {
-                KafkaConfiguration config = component.getConfiguration();
+                KafkaCustomConfiguration config = component.getConfiguration();
 
                 // copy only necessary properties
                 config.setSslTruststoreLocation(sslTruststoreLocation);

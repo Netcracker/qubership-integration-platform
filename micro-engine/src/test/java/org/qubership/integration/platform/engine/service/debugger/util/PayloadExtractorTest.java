@@ -18,7 +18,6 @@ package org.qubership.integration.platform.engine.service.debugger.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.enterprise.inject.Instance;
 import jakarta.ws.rs.NotSupportedException;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
@@ -42,7 +41,6 @@ import org.qubership.integration.platform.engine.util.ExchangeUtils;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -54,25 +52,9 @@ class PayloadExtractorTest {
     private PayloadExtractor extractor(
             MaskingService maskingService,
             ObjectMapper mapper,
-            Instance<CamelExchangeContextPropagation> propagation
+            CamelExchangeContextPropagation propagation
     ) {
         return new PayloadExtractor(maskingService, mapper, propagation);
-    }
-
-    private Instance<CamelExchangeContextPropagation> instanceWith(CamelExchangeContextPropagation propagation) {
-        @SuppressWarnings("unchecked")
-        Instance<CamelExchangeContextPropagation> inst = mock(Instance.class);
-        when(inst.isAmbiguous()).thenReturn(false);
-        when(inst.stream()).thenReturn(Stream.of(propagation));
-        return inst;
-    }
-
-    private Instance<CamelExchangeContextPropagation> instanceEmpty() {
-        @SuppressWarnings("unchecked")
-        Instance<CamelExchangeContextPropagation> inst = mock(Instance.class);
-        when(inst.isAmbiguous()).thenReturn(false);
-        when(inst.stream()).thenReturn(Stream.empty());
-        return inst;
     }
 
     private Map<String, Object> attachHeaders(Exchange ex) {
@@ -90,7 +72,7 @@ class PayloadExtractorTest {
         headers.put("b", null);
 
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         Map<String, String> out = pe.extractHeadersForLogging(ex, Set.of("a"), false);
 
@@ -107,7 +89,7 @@ class PayloadExtractorTest {
         headers.put("user", "bob");
 
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         Map<String, String> out = pe.extractHeadersForLogging(ex, Set.of("password"), true);
 
@@ -123,7 +105,7 @@ class PayloadExtractorTest {
         headers.put(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
 
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         try (MockedStatic<MessageHelper> mh = Mockito.mockStatic(MessageHelper.class)) {
             mh.when(() -> MessageHelper.extractBody(ex)).thenReturn("{\"password\":\"123\"}");
@@ -144,7 +126,7 @@ class PayloadExtractorTest {
         headers.put(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
 
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         try (MockedStatic<MessageHelper> mh = Mockito.mockStatic(MessageHelper.class)) {
             mh.when(() -> MessageHelper.extractBody(ex)).thenReturn("{\"password\":\"123\"}");
@@ -164,7 +146,7 @@ class PayloadExtractorTest {
         headers.put(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
 
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         try (MockedStatic<MessageHelper> mh = Mockito.mockStatic(MessageHelper.class)) {
             mh.when(() -> MessageHelper.extractBody(ex)).thenReturn("{\"password\":\"123\"}");
@@ -183,7 +165,7 @@ class PayloadExtractorTest {
         attachHeaders(ex);
 
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         try (MockedStatic<MessageHelper> mh = Mockito.mockStatic(MessageHelper.class)) {
             mh.when(() -> MessageHelper.extractBody(ex)).thenReturn("{\"password\":\"123\"}");
@@ -201,7 +183,7 @@ class PayloadExtractorTest {
         attachHeaders(ex);
 
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         SessionElementProperty secretProp = mock(SessionElementProperty.class);
         SessionElementProperty keepProp = mock(SessionElementProperty.class);
@@ -238,7 +220,7 @@ class PayloadExtractorTest {
         attachHeaders(ex);
 
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         Map<String, SessionElementProperty> props = new HashMap<>();
         props.put("a", mock(SessionElementProperty.class));
@@ -259,7 +241,7 @@ class PayloadExtractorTest {
         attachHeaders(ex);
 
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         SessionElementProperty p1 = mock(SessionElementProperty.class);
         when(p1.getValue()).thenReturn("bad-json");
@@ -290,7 +272,7 @@ class PayloadExtractorTest {
         ctx.put("token", "abc");
         when(propagation.buildContextSnapshotForSessions()).thenReturn(ctx);
 
-        PayloadExtractor pe = extractor(masking, mapper, instanceWith(propagation));
+        PayloadExtractor pe = extractor(masking, mapper, propagation);
 
         Map<String, String> out = pe.extractContextForLogging(Set.of("token"), true);
 
@@ -301,7 +283,7 @@ class PayloadExtractorTest {
     @Test
     void shouldReturnEmptyContextWhenPropagationAbsent() {
         MaskingService masking = mock(MaskingService.class);
-        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(masking, mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
 
         Map<String, String> out = pe.extractContextForLogging(Set.of("token"), true);
 
@@ -311,7 +293,7 @@ class PayloadExtractorTest {
     @Test
     void shouldConvertToJsonWhenMapperWorks() throws Exception {
         ObjectMapper mapper = mock(ObjectMapper.class);
-        PayloadExtractor pe = extractor(mock(MaskingService.class), mapper, instanceEmpty());
+        PayloadExtractor pe = extractor(mock(MaskingService.class), mapper, mock(CamelExchangeContextPropagation.class));
 
         Map<String, Object> map = new HashMap<>();
         map.put("a", 1);
@@ -324,7 +306,7 @@ class PayloadExtractorTest {
     @Test
     void shouldReturnNullWhenConvertToJsonFails() throws Exception {
         ObjectMapper mapper = mock(ObjectMapper.class);
-        PayloadExtractor pe = extractor(mock(MaskingService.class), mapper, instanceEmpty());
+        PayloadExtractor pe = extractor(mock(MaskingService.class), mapper, mock(CamelExchangeContextPropagation.class));
 
         Map<String, Object> map = new HashMap<>();
         map.put("a", 1);
@@ -336,7 +318,7 @@ class PayloadExtractorTest {
 
     @Test
     void shouldReturnNullWhenConvertToJsonInputNull() {
-        PayloadExtractor pe = extractor(mock(MaskingService.class), mock(ObjectMapper.class), instanceEmpty());
+        PayloadExtractor pe = extractor(mock(MaskingService.class), mock(ObjectMapper.class), mock(CamelExchangeContextPropagation.class));
         assertNull(pe.convertToJson(null));
     }
 

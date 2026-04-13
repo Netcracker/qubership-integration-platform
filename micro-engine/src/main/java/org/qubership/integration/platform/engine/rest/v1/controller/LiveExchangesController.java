@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
+import com.netcracker.cloud.routesregistration.common.annotation.Gateway;
+import com.netcracker.cloud.routesregistration.common.annotation.Route;
+import com.netcracker.cloud.routesregistration.common.gateway.route.RouteType;
 import jakarta.inject.Inject;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
@@ -26,6 +29,7 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.resteasy.reactive.RestResponse;
+import org.qubership.integration.platform.engine.rest.RestApiConstants;
 import org.qubership.integration.platform.engine.rest.v1.dto.LiveExchangeDTO;
 import org.qubership.integration.platform.engine.service.LiveExchangesService;
 
@@ -34,10 +38,14 @@ import java.util.List;
 import static java.util.Objects.isNull;
 
 @Slf4j
-@Path("/v1/engine/live-exchanges")
+@Path(RestApiConstants.V1_ROUTE_PREFIX + LiveExchangesController.LIVE_EXCHANGES_PATH)
+@Route(RouteType.PUBLIC)
+@Gateway(RestApiConstants.V1_PUBLIC_ROUTE_PREFIX + LiveExchangesController.LIVE_EXCHANGES_PATH)
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "live-exchanges-controller", description = "Live Exchanges Controller")
 public class LiveExchangesController {
+    public static final String LIVE_EXCHANGES_PATH = "/live-exchanges";
+
     private final LiveExchangesService liveExchangesService;
 
     @Inject

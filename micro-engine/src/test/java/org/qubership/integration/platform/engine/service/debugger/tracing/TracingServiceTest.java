@@ -76,7 +76,7 @@ class TracingServiceTest {
         Map<String, String> tags = (Map<String, String>) ex.getProperties()
                 .get(Properties.TRACING_CUSTOM_TAGS);
 
-        assertEquals("S-1", tags.get(Properties.SESSION_ID));
+        assertEquals("S-1", tags.get(ChainProperties.SESSION_ID));
         assertEquals("C-1", tags.get(ChainProperties.CHAIN_ID));
         assertEquals("CN", tags.get(ChainProperties.CHAIN_NAME));
         assertEquals("REQ-1", tags.get(TracingService.X_REQUEST_ID));

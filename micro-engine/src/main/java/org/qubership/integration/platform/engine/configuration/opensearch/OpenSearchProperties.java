@@ -18,6 +18,8 @@ public interface OpenSearchProperties {
 
     RolloverProperties rollover();
 
+    KafkaClientProperties kafkaClient();
+
     interface ClientProperties {
         String urls();
 
@@ -45,7 +47,6 @@ public interface OpenSearchProperties {
 
     interface BatchProperties {
         @WithDefault("100")
-
         Integer count();
     }
 
@@ -85,5 +86,14 @@ public interface OpenSearchProperties {
         @WithDefault("14d")
         @WithConverter(StringToTimeValueConverter.class)
         TimeValue minRolloverAgeToDelete();
+    }
+
+    interface KafkaClientProperties {
+        @WithDefault("false")
+        Boolean enabled();
+
+        String bootstrapServers();
+
+        String topic();
     }
 }

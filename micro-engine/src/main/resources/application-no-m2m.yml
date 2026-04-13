@@ -1,0 +1,9 @@
+m2m:
+  enabled: false
+
+maas:
+  local-dev:
+    enabled: true
+
+consul:
+  token: ${CONSUL_ADMIN_TOKEN:}

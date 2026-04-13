@@ -51,6 +51,13 @@ public class IdempotencyRecordService {
     }
 
     @Transactional
+    public boolean insertIfNotExists(String key, String ttl) {
+        String data = buildIdempotencyRecordData();
+        return idempotencyRecordRepository
+                .insertIfNotExistsOrUpdateIfExpired(key, data, ttl) > 0;
+    }
+
+    @Transactional
     public boolean exists(String key) {
         return idempotencyRecordRepository.existsByKeyAndNotExpired(key);
     }

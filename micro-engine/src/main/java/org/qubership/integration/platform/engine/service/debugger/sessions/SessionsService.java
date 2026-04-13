@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -65,9 +66,9 @@ public class SessionsService {
     double samplerProbabilistic;
 
     @Inject
-    public SessionsService(PayloadExtractor extractor, OpenSearchWriter writer) {
+    public SessionsService(PayloadExtractor extractor, Instance<OpenSearchWriter> writerInstance) {
         this.extractor = extractor;
-        this.writer = writer;
+        this.writer = writerInstance.get();
     }
 
     public Session startSession(
