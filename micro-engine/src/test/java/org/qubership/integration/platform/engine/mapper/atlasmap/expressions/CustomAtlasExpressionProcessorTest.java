@@ -8,7 +8,6 @@ import io.atlasmap.core.DefaultAtlasFunctionResolver;
 import io.atlasmap.core.DefaultAtlasSession;
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.ExpressionContext;
-import io.atlasmap.expression.ExpressionException;
 import io.atlasmap.spi.AtlasModule;
 import io.atlasmap.v2.AuditStatus;
 import io.atlasmap.v2.ConstantField;
@@ -22,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MapperTestUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -63,10 +63,10 @@ class CustomAtlasExpressionProcessorTest {
 
     @Test
     void shouldSetSourceFieldWhenParsedExpressionReturnsField() throws Exception {
-        SimpleField initialField = simpleField("doc1", "/source", "initial");
+        SimpleField initialField = MapperTestUtils.simpleFieldWithDocId("doc1", "/source", "initial");
         SessionState sessionState = sessionState(initialField);
 
-        SimpleField resultField = simpleField("doc2", "/result", "resolved");
+        SimpleField resultField = MapperTestUtils.simpleFieldWithDocId("doc2", "/result", "resolved");
         Expression parsedExpression = mock(Expression.class);
         when(parsedExpression.evaluate(any(ExpressionContext.class))).thenReturn(resultField);
 
@@ -81,7 +81,7 @@ class CustomAtlasExpressionProcessorTest {
 
     @Test
     void shouldCreateSimpleFieldWhenParsedExpressionReturnsNull() throws Exception {
-        SimpleField initialField = simpleField("doc1", "/source", "initial");
+        SimpleField initialField = MapperTestUtils.simpleFieldWithDocId("doc1", "/source", "initial");
         SessionState sessionState = sessionState(initialField);
 
         Expression parsedExpression = mock(Expression.class);
@@ -104,7 +104,7 @@ class CustomAtlasExpressionProcessorTest {
 
     @Test
     void shouldResolveNormalFieldUsingModuleFromPathPrefix() throws Exception {
-        SimpleField parent = simpleField("doc1", "/source", "initial");
+        SimpleField parent = MapperTestUtils.simpleFieldWithDocId("doc1", "/source", "initial");
         SessionState sessionState = sessionState(parent);
 
         AtlasModule sourceModule = mock(AtlasModule.class);
@@ -112,13 +112,13 @@ class CustomAtlasExpressionProcessorTest {
         sourceModules.put("doc1", sourceModule);
         when(sessionState.atlasContext().getSourceModules()).thenReturn(sourceModules);
 
-        SimpleField resolvedField = simpleField("doc1", "/source", "resolved");
+        SimpleField resolvedField = MapperTestUtils.simpleFieldWithDocId("doc1", "/source", "resolved");
         doAnswer(invocation -> {
             sessionState.session().head().setSourceField(resolvedField);
             return null;
         }).when(sourceModule).readSourceValue(sessionState.session());
 
-        Expression parsedExpression = expressionResolvingPath("doc1:/source");
+        Expression parsedExpression = MapperTestUtils.expressionResolvingPath("doc1:/source");
 
         try (MockedStatic<CustomExpression> customExpression = mockStatic(CustomExpression.class)) {
             customExpression.when(() -> CustomExpression.parse("expr", DefaultAtlasFunctionResolver.getInstance())).thenReturn(parsedExpression);
@@ -154,7 +154,7 @@ class CustomAtlasExpressionProcessorTest {
             return null;
         }).when(sourceModule).readSourceValue(sessionState.session());
 
-        Expression parsedExpression = expressionResolvingPath("constantsDoc:/const");
+        Expression parsedExpression = MapperTestUtils.expressionResolvingPath("constantsDoc:/const");
 
         try (MockedStatic<CustomExpression> customExpression = mockStatic(CustomExpression.class)) {
             customExpression.when(() -> CustomExpression.parse("expr", DefaultAtlasFunctionResolver.getInstance())).thenReturn(parsedExpression);
@@ -190,7 +190,7 @@ class CustomAtlasExpressionProcessorTest {
             return null;
         }).when(sourceModule).readSourceValue(sessionState.session());
 
-        Expression parsedExpression = expressionResolvingPath("propertiesDoc:/property");
+        Expression parsedExpression = MapperTestUtils.expressionResolvingPath("propertiesDoc:/property");
 
         try (MockedStatic<CustomExpression> customExpression = mockStatic(CustomExpression.class)) {
             customExpression.when(() -> CustomExpression.parse("expr", DefaultAtlasFunctionResolver.getInstance())).thenReturn(parsedExpression);
@@ -207,7 +207,7 @@ class CustomAtlasExpressionProcessorTest {
         FieldGroup parentGroup = new FieldGroup();
         parentGroup.setPath("");
 
-        SimpleField child = simpleField("doc1", "/child", "child");
+        SimpleField child = MapperTestUtils.simpleFieldWithDocId("doc1", "/child", "child");
         SimpleField ignoredChild = new SimpleField();
 
         parentGroup.getField().add(child);
@@ -220,13 +220,13 @@ class CustomAtlasExpressionProcessorTest {
         sourceModules.put("doc1", sourceModule);
         when(sessionState.atlasContext().getSourceModules()).thenReturn(sourceModules);
 
-        SimpleField resolvedField = simpleField("doc1", "/child", "resolved");
+        SimpleField resolvedField = MapperTestUtils.simpleFieldWithDocId("doc1", "/child", "resolved");
         doAnswer(invocation -> {
             sessionState.session().head().setSourceField(resolvedField);
             return null;
         }).when(sourceModule).readSourceValue(sessionState.session());
 
-        Expression parsedExpression = expressionResolvingPath("doc1:/child");
+        Expression parsedExpression = MapperTestUtils.expressionResolvingPath("doc1:/child");
 
         try (MockedStatic<CustomExpression> customExpression = mockStatic(CustomExpression.class)) {
             customExpression.when(() -> CustomExpression.parse("expr", DefaultAtlasFunctionResolver.getInstance())).thenReturn(parsedExpression);
@@ -240,11 +240,11 @@ class CustomAtlasExpressionProcessorTest {
 
     @Test
     void shouldAddAuditWhenModuleForPathIsMissing() throws Exception {
-        SimpleField parent = simpleField("doc1", "/source", "initial");
+        SimpleField parent = MapperTestUtils.simpleFieldWithDocId("doc1", "/source", "initial");
         SessionState sessionState = sessionState(parent);
         when(sessionState.atlasContext().getSourceModules()).thenReturn(new HashMap<>());
 
-        Expression parsedExpression = expressionResolvingPath("doc1:/source");
+        Expression parsedExpression = MapperTestUtils.expressionResolvingPath("doc1:/source");
 
         try (MockedStatic<CustomExpression> customExpression = mockStatic(CustomExpression.class); MockedStatic<AtlasUtil> atlasUtil = mockStatic(AtlasUtil.class, CALLS_REAL_METHODS)) {
 
@@ -262,7 +262,7 @@ class CustomAtlasExpressionProcessorTest {
 
     @Test
     void shouldAddAuditWhenSourceModuleReadFails() throws Exception {
-        SimpleField parent = simpleField("doc1", "/source", "initial");
+        SimpleField parent = MapperTestUtils.simpleFieldWithDocId("doc1", "/source", "initial");
         SessionState sessionState = sessionState(parent);
 
         AtlasModule sourceModule = mock(AtlasModule.class);
@@ -272,7 +272,7 @@ class CustomAtlasExpressionProcessorTest {
 
         doThrow(new RuntimeException("boom")).when(sourceModule).readSourceValue(sessionState.session());
 
-        Expression parsedExpression = expressionResolvingPath("doc1:/source");
+        Expression parsedExpression = MapperTestUtils.expressionResolvingPath("doc1:/source");
 
         try (MockedStatic<CustomExpression> customExpression = mockStatic(CustomExpression.class); MockedStatic<AtlasUtil> atlasUtil = mockStatic(AtlasUtil.class, CALLS_REAL_METHODS)) {
 
@@ -302,15 +302,6 @@ class CustomAtlasExpressionProcessorTest {
         }
     }
 
-    private Expression expressionResolvingPath(String path) throws ExpressionException {
-        Expression expression = mock(Expression.class);
-        when(expression.evaluate(any(ExpressionContext.class))).thenAnswer(invocation -> {
-            ExpressionContext context = invocation.getArgument(0);
-            return context.getVariable(path);
-        });
-        return expression;
-    }
-
     private SessionState sessionState(Field initialField) throws AtlasException {
         DefaultAtlasContext atlasContext = mock(DefaultAtlasContext.class);
         DefaultAtlasSession session = new DefaultAtlasSession(atlasContext);
@@ -320,14 +311,6 @@ class CustomAtlasExpressionProcessorTest {
         }
 
         return new SessionState(session, atlasContext);
-    }
-
-    private SimpleField simpleField(String docId, String path, Object value) {
-        SimpleField field = new SimpleField();
-        field.setDocId(docId);
-        field.setPath(path);
-        field.setValue(value);
-        return field;
     }
 
     private record SessionState(DefaultAtlasSession session, DefaultAtlasContext atlasContext) {

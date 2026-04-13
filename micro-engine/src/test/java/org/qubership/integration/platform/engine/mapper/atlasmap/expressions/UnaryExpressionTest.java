@@ -2,7 +2,6 @@ package org.qubership.integration.platform.engine.mapper.atlasmap.expressions;
 
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.ExpressionContext;
-import io.atlasmap.expression.ExpressionException;
 import io.atlasmap.expression.internal.BooleanExpression;
 import io.atlasmap.expression.internal.VariableExpression;
 import io.atlasmap.v2.Field;
@@ -12,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MapperTestUtils;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -19,7 +19,6 @@ import java.util.List;
 
 import static io.atlasmap.v2.AtlasModelFactory.wrapWithField;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,7 +30,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldNegateLong() throws Exception {
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue(10L));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, 10L));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -40,7 +39,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldNegateFloat() throws Exception {
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue(1.5f));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, 1.5f));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -49,7 +48,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldNegateDouble() throws Exception {
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue(2.5d));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, 2.5d));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -58,7 +57,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldNegateInteger() throws Exception {
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue(10));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, 10));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -67,7 +66,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldNegateBigInteger() throws Exception {
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue(BigInteger.valueOf(15)));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, BigInteger.valueOf(15)));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -76,7 +75,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldNegateBigDecimal() throws Exception {
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue(BigDecimal.valueOf(12.5)));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, BigDecimal.valueOf(12.5)));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -86,7 +85,7 @@ class UnaryExpressionTest {
     @Test
     void shouldConvertNegatedBigDecimalRepresentingLongMinValueToLong() throws Exception {
         BigDecimal value = BigDecimal.valueOf(Long.MIN_VALUE).negate();
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue(value));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, value));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -95,7 +94,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldReturnNullFieldWhenNegatingNull() throws Exception {
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue(null));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, null));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -105,7 +104,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldReturnNullWhenNegatingNonNumber() throws Exception {
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue("abc"));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, "abc"));
 
         assertNull(expression.evaluate(expressionContext));
     }
@@ -119,7 +118,7 @@ class UnaryExpressionTest {
 
         BooleanExpression expression = UnaryExpression.createInExpression(variableExpression, elements, false);
 
-        assertBooleanResult(expression, true);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, true);
         assertTrue(expression.matches(expressionContext));
     }
 
@@ -132,7 +131,7 @@ class UnaryExpressionTest {
 
         BooleanExpression expression = UnaryExpression.createInExpression(variableExpression, elements, false);
 
-        assertBooleanResult(expression, false);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, false);
         assertFalse(expression.matches(expressionContext));
     }
 
@@ -145,7 +144,7 @@ class UnaryExpressionTest {
 
         BooleanExpression expression = UnaryExpression.createInExpression(variableExpression, elements, true);
 
-        assertBooleanResult(expression, true);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, true);
         assertTrue(expression.matches(expressionContext));
     }
 
@@ -157,7 +156,7 @@ class UnaryExpressionTest {
 
         BooleanExpression expression = UnaryExpression.createInExpression(variableExpression, List.of(), false);
 
-        assertBooleanResult(expression, false);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, false);
     }
 
     @Test
@@ -221,7 +220,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldThrowExceptionWhenNegatingUnsupportedNumberType() throws Exception {
-        Expression expression = UnaryExpression.createNegate(expressionReturningValue(new UnaryExpressionTest.UnsupportedNumber(7)));
+        Expression expression = UnaryExpression.createNegate(MapperTestUtils.expressionReturningValue(expressionContext, new UnaryExpressionTest.UnsupportedNumber(7)));
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> expression.evaluate(expressionContext));
 
@@ -230,15 +229,15 @@ class UnaryExpressionTest {
 
     @Test
     void shouldInvertBooleanTrueInNotExpression() throws Exception {
-        BooleanExpression expression = UnaryExpression.createNOT(booleanExpressionReturning(Boolean.TRUE));
+        BooleanExpression expression = UnaryExpression.createNOT(MapperTestUtils.booleanExpressionReturning(expressionContext, Boolean.TRUE));
 
-        assertBooleanResult(expression, false);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, false);
         assertFalse(expression.matches(expressionContext));
     }
 
     @Test
     void shouldReturnNullFieldWhenNotExpressionOperandIsNull() throws Exception {
-        BooleanExpression expression = UnaryExpression.createNOT(booleanExpressionReturning(null));
+        BooleanExpression expression = UnaryExpression.createNOT(MapperTestUtils.booleanExpressionReturning(expressionContext, null));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -249,9 +248,9 @@ class UnaryExpressionTest {
 
     @Test
     void shouldReturnTrueWhenBooleanCastOperandIsTrue() throws Exception {
-        BooleanExpression expression = UnaryExpression.createBooleanCast(expressionReturningValue(Boolean.TRUE));
+        BooleanExpression expression = UnaryExpression.createBooleanCast(MapperTestUtils.expressionReturningValue(expressionContext, Boolean.TRUE));
 
-        assertBooleanResult(expression, true);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, true);
         assertTrue(expression.matches(expressionContext));
     }
 
@@ -274,9 +273,9 @@ class UnaryExpressionTest {
 
     @Test
     void shouldReturnFalseWhenBooleanCastOperandIsNotBoolean() throws Exception {
-        BooleanExpression expression = UnaryExpression.createBooleanCast(expressionReturningValue("true"));
+        BooleanExpression expression = UnaryExpression.createBooleanCast(MapperTestUtils.expressionReturningValue(expressionContext, "true"));
 
-        assertBooleanResult(expression, false);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, false);
         assertFalse(expression.matches(expressionContext));
     }
 
@@ -299,7 +298,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldInvertBooleanFalseInNotExpression() throws Exception {
-        BooleanExpression expression = UnaryExpression.createNOT(booleanExpressionReturning(Boolean.FALSE));
+        BooleanExpression expression = UnaryExpression.createNOT(MapperTestUtils.booleanExpressionReturning(expressionContext, Boolean.FALSE));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -309,7 +308,7 @@ class UnaryExpressionTest {
 
     @Test
     void shouldReturnFalseWhenBooleanCastOperandIsFalse() throws Exception {
-        BooleanExpression expression = UnaryExpression.createBooleanCast(expressionReturningValue(Boolean.FALSE));
+        BooleanExpression expression = UnaryExpression.createBooleanCast(MapperTestUtils.expressionReturningValue(expressionContext, Boolean.FALSE));
 
         Field result = expression.evaluate(expressionContext);
 
@@ -319,8 +318,9 @@ class UnaryExpressionTest {
 
     @Test
     void shouldGetAndSetRightExpression() {
-        Expression original = dummyExpression("left");
-        Expression replacement = dummyExpression("right");
+        Expression original = MapperTestUtils.dummyExpression("left");
+        Expression replacement = MapperTestUtils.dummyExpression("right");
+
 
         UnaryExpression expression = (UnaryExpression) UnaryExpression.createNegate(original);
 
@@ -333,11 +333,11 @@ class UnaryExpressionTest {
 
     @Test
     void shouldUseStringRepresentationForHashCodeAndEquals() {
-        Expression operand = dummyExpression("value");
+        Expression operand = MapperTestUtils.dummyExpression("value");
 
         UnaryExpression first = (UnaryExpression) UnaryExpression.createNegate(operand);
-        UnaryExpression second = (UnaryExpression) UnaryExpression.createNegate(dummyExpression("value"));
-        UnaryExpression third = (UnaryExpression) UnaryExpression.createNegate(dummyExpression("other"));
+        UnaryExpression second = (UnaryExpression) UnaryExpression.createNegate(MapperTestUtils.dummyExpression("value"));
+        UnaryExpression third = (UnaryExpression) UnaryExpression.createNegate(MapperTestUtils.dummyExpression("other"));
 
         assertEquals("(- value)", first.toString());
         assertEquals(first.hashCode(), second.hashCode());
@@ -348,42 +348,9 @@ class UnaryExpressionTest {
 
     @Test
     void shouldThrowNullPointerExceptionWhenBooleanCastMatchesEvaluatesNullCurrentBehavior() throws Exception {
-        BooleanExpression expression = UnaryExpression.createBooleanCast(expressionReturningValue(null));
+        BooleanExpression expression = UnaryExpression.createBooleanCast(MapperTestUtils.expressionReturningValue(expressionContext, null));
 
         assertThrows(NullPointerException.class, () -> expression.matches(expressionContext));
-    }
-
-    private void assertBooleanResult(BooleanExpression expression, boolean expected) throws ExpressionException {
-        Field result = expression.evaluate(expressionContext);
-
-        assertNotNull(result);
-        assertEquals(expected, result.getValue());
-    }
-
-    private Expression expressionReturningValue(Object value) throws ExpressionException {
-        Expression expression = mock(Expression.class);
-        when(expression.evaluate(expressionContext)).thenReturn(wrapWithField(value));
-        return expression;
-    }
-
-    private BooleanExpression booleanExpressionReturning(Boolean value) throws ExpressionException {
-        BooleanExpression expression = mock(BooleanExpression.class);
-        when(expression.evaluate(expressionContext)).thenReturn(wrapWithField(value));
-        return expression;
-    }
-
-    private Expression dummyExpression(String text) {
-        return new Expression() {
-            @Override
-            public Field evaluate(ExpressionContext expressionContext) {
-                throw new UnsupportedOperationException("evaluate should not be called");
-            }
-
-            @Override
-            public String toString() {
-                return text;
-            }
-        };
     }
 
     private static class UnsupportedNumber extends Number {

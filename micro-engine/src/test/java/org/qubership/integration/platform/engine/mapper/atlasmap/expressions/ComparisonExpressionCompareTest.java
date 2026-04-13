@@ -2,7 +2,6 @@ package org.qubership.integration.platform.engine.mapper.atlasmap.expressions;
 
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.ExpressionContext;
-import io.atlasmap.expression.ExpressionException;
 import io.atlasmap.expression.internal.BooleanExpression;
 import io.atlasmap.v2.Field;
 import org.junit.jupiter.api.AfterEach;
@@ -12,15 +11,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MapperTestUtils;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
-import static io.atlasmap.v2.AtlasModelFactory.wrapWithField;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
@@ -39,21 +36,21 @@ class ComparisonExpressionCompareTest {
         ComparisonExpression.CONVERT_STRING_EXPRESSIONS.set(Boolean.TRUE);
 
         BooleanExpression expression = ComparisonExpression.createEqual(
-                expressionReturningValue(10),
-                expressionReturningValue("10")
+                MapperTestUtils.expressionReturningValue(expressionContext, 10),
+                MapperTestUtils.expressionReturningValue(expressionContext, "10")
         );
 
-        assertBooleanResult(expression, true);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, true);
     }
 
     @Test
     void shouldReturnFalseWhenIntegerComparedToStringAndStringConversionDisabled() throws Exception {
         BooleanExpression expression = ComparisonExpression.createEqual(
-                expressionReturningValue(10),
-                expressionReturningValue("10")
+                MapperTestUtils.expressionReturningValue(expressionContext, 10),
+                MapperTestUtils.expressionReturningValue(expressionContext, "10")
         );
 
-        assertBooleanResult(expression, false);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, false);
     }
 
     @Test
@@ -61,11 +58,11 @@ class ComparisonExpressionCompareTest {
         ComparisonExpression.CONVERT_STRING_EXPRESSIONS.set(Boolean.FALSE);
 
         BooleanExpression expression = ComparisonExpression.createEqual(
-                expressionReturningValue(10),
-                expressionReturningValue("10")
+                MapperTestUtils.expressionReturningValue(expressionContext, 10),
+                MapperTestUtils.expressionReturningValue(expressionContext, "10")
         );
 
-        assertBooleanResult(expression, true);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, true);
     }
 
     @Test
@@ -73,11 +70,11 @@ class ComparisonExpressionCompareTest {
         ComparisonExpression.CONVERT_STRING_EXPRESSIONS.set(Boolean.TRUE);
 
         BooleanExpression expression = ComparisonExpression.createEqual(
-                expressionReturningValue(10),
-                expressionReturningValue("abc")
+                MapperTestUtils.expressionReturningValue(expressionContext, 10),
+                MapperTestUtils.expressionReturningValue(expressionContext, "abc")
         );
 
-        assertBooleanResult(expression, false);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, false);
     }
 
     @Test
@@ -120,8 +117,8 @@ class ComparisonExpressionCompareTest {
     @Test
     void shouldReturnNullWhenLeftOperandEvaluatesToNull() throws Exception {
         TestComparisonExpression expression = new TestComparisonExpression(
-                expressionReturningValue(null),
-                dummyExpression()
+                MapperTestUtils.expressionReturningValue(expressionContext, null),
+                MapperTestUtils.dummyExpression("dummy")
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -132,8 +129,8 @@ class ComparisonExpressionCompareTest {
     @Test
     void shouldReturnNullWhenRightOperandEvaluatesToNull() throws Exception {
         TestComparisonExpression expression = new TestComparisonExpression(
-                expressionReturningValue(10),
-                expressionReturningValue(null)
+                MapperTestUtils.expressionReturningValue(expressionContext, 10),
+                MapperTestUtils.expressionReturningValue(expressionContext, null)
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -144,21 +141,21 @@ class ComparisonExpressionCompareTest {
     @Test
     void shouldReturnTrueWhenLeftOperandIsGreaterThanRightOperand() throws Exception {
         BooleanExpression expression = ComparisonExpression.createGreaterThan(
-                expressionReturningValue(20),
-                expressionReturningValue(10)
+                MapperTestUtils.expressionReturningValue(expressionContext, 20),
+                MapperTestUtils.expressionReturningValue(expressionContext, 10)
         );
 
-        assertBooleanResult(expression, true);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, true);
     }
 
     @Test
     void shouldReturnTrueWhenLeftOperandIsLessThanOrEqualToRightOperand() throws Exception {
         BooleanExpression expression = ComparisonExpression.createLessThanEqual(
-                expressionReturningValue(10),
-                expressionReturningValue(10)
+                MapperTestUtils.expressionReturningValue(expressionContext, 10),
+                MapperTestUtils.expressionReturningValue(expressionContext, 10)
         );
 
-        assertBooleanResult(expression, true);
+        MapperTestUtils.assertBooleanResult(expressionContext, expression, true);
     }
 
     @Test
@@ -344,33 +341,8 @@ class ComparisonExpressionCompareTest {
         assertEquals(Boolean.FALSE, expression.compareValues("value", new ObjectComparable("value")));
     }
 
-    private void assertBooleanResult(BooleanExpression expression, boolean expected) throws ExpressionException {
-        Field result = expression.evaluate(expressionContext);
-        assertEquals(expected, result.getValue());
-    }
-
-    private Expression expressionReturningValue(Object value) throws ExpressionException {
-        Expression expression = mock(Expression.class);
-        when(expression.evaluate(expressionContext)).thenReturn(wrapWithField(value));
-        return expression;
-    }
-
     private TestComparisonExpression testExpressionForCompareOnly() {
-        return new TestComparisonExpression(dummyExpression(), dummyExpression());
-    }
-
-    private Expression dummyExpression() {
-        return new Expression() {
-            @Override
-            public Field evaluate(ExpressionContext expressionContext) {
-                throw new UnsupportedOperationException("evaluate should not be called in compare-only tests");
-            }
-
-            @Override
-            public String toString() {
-                return "dummy";
-            }
-        };
+        return new TestComparisonExpression(MapperTestUtils.dummyExpression("dummy"), MapperTestUtils.dummyExpression("dummy"));
     }
 
     private static class TestComparisonExpression extends ComparisonExpression {
@@ -379,7 +351,7 @@ class ComparisonExpressionCompareTest {
             super(left, right);
         }
 
-        Boolean compareValues(Comparable left, Comparable right) {
+        Boolean compareValues(Comparable<?> left, Comparable<?> right) {
             return compare(left, right);
         }
 
@@ -394,17 +366,11 @@ class ComparisonExpressionCompareTest {
         }
     }
 
-    private static class ObjectComparable implements Comparable<ObjectComparable> {
-
-        private final String value;
-
-        private ObjectComparable(String value) {
-            this.value = value;
-        }
+    private record ObjectComparable(String value) implements Comparable<ObjectComparable> {
 
         @Override
-        public int compareTo(ObjectComparable other) {
-            return value.compareTo(other.value);
+            public int compareTo(ObjectComparable other) {
+                return value.compareTo(other.value);
+            }
         }
-    }
 }

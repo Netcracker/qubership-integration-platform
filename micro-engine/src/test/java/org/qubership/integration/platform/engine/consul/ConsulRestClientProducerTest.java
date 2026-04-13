@@ -42,6 +42,7 @@ class ConsulRestClientProducerTest {
     void shouldCreateConsulClientWithConfiguredUriAndToken() {
         producer.uri = URI.create("https://consul.example.com:8501");
         producer.token = "acl-token";
+        producer.connectTimeout = 300000;
 
         AtomicReference<Vertx> capturedVertx = new AtomicReference<>();
         AtomicReference<ConsulClientOptions> capturedOptions = new AtomicReference<>();
@@ -72,6 +73,7 @@ class ConsulRestClientProducerTest {
     void shouldCreateConsulClientWithoutSslWhenHttpUriProvided() {
         producer.uri = URI.create("http://consul.example.com:8500");
         producer.token = "acl-token";
+        producer.connectTimeout = 300000;
 
         AtomicReference<ConsulClientOptions> capturedOptions = new AtomicReference<>();
 

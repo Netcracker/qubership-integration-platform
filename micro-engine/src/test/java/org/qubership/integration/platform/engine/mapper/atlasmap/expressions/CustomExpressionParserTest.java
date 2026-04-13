@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MapperTestUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.StringReader;
@@ -95,7 +96,7 @@ class CustomExpressionParserTest {
         CustomExpressionParser parser = parser("myFunc(1, ${name})");
         parser.functionResolver = functionResolver;
 
-        Expression resolvedExpression = dummyExpression();
+        Expression resolvedExpression = MapperTestUtils.dummyExpression("dummy");
         when(functionResolver.resolve(eq("myFunc"), anyList())).thenReturn(resolvedExpression);
 
         Expression parsedExpression = parser.parse();
@@ -189,7 +190,7 @@ class CustomExpressionParserTest {
         CustomExpressionParser parser = parser("myFunc()");
         parser.functionResolver = functionResolver;
 
-        Expression resolvedExpression = dummyExpression();
+        Expression resolvedExpression = MapperTestUtils.dummyExpression("dummy");
         when(functionResolver.resolve(eq("myFunc"), argThat(List::isEmpty))).thenReturn(resolvedExpression);
 
         Expression parsedExpression = parser.parse();
@@ -270,7 +271,7 @@ class CustomExpressionParserTest {
         CustomExpressionParser parser = parser("myFunc()");
         parser.functionResolver = functionResolver;
 
-        Expression resolvedExpression = dummyExpression();
+        Expression resolvedExpression = MapperTestUtils.dummyExpression("dummy");
         when(functionResolver.resolve(eq("myFunc"), argThat(List::isEmpty))).thenReturn(resolvedExpression);
 
         Expression expression = parser.primaryExpr();
@@ -310,7 +311,7 @@ class CustomExpressionParserTest {
     }
 
     @Test
-    void shouldParseMultExprWhenChainedOperatorsProvided() throws Exception {
+    void shouldParseMultiExprWhenChainedOperatorsProvided() throws Exception {
         CustomExpressionParser parser = parser("20 / 2 % 3 * 4");
 
         Expression expression = parser.multExpr();
@@ -424,7 +425,7 @@ class CustomExpressionParserTest {
         CustomExpressionParser parser = parser("myFunc(1, 2 + 3, ${name})");
         parser.functionResolver = functionResolver;
 
-        Expression resolvedExpression = dummyExpression();
+        Expression resolvedExpression = MapperTestUtils.dummyExpression("dummy");
         when(functionResolver.resolve(eq("myFunc"), argThat(args -> args.size() == 3))).thenReturn(resolvedExpression);
 
         Expression expression = parser.functionExpr();
@@ -486,20 +487,6 @@ class CustomExpressionParserTest {
 
     private ParserTokenManager tokenManager(String expression) {
         return new ParserTokenManager(new SimpleCharStream(new StringReader(expression), 1, 1));
-    }
-
-    private Expression dummyExpression() {
-        return new Expression() {
-            @Override
-            public Field evaluate(ExpressionContext expressionContext) {
-                return wrapWithField("resolved");
-            }
-
-            @Override
-            public String toString() {
-                return "resolved";
-            }
-        };
     }
 
     private boolean invokeLookahead(CustomExpressionParser parser, int tokensToAdvance, String methodName) throws Exception {

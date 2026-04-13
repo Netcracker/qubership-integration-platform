@@ -2,7 +2,6 @@ package org.qubership.integration.platform.engine.mapper.atlasmap.expressions;
 
 import io.atlasmap.expression.Expression;
 import io.atlasmap.expression.ExpressionContext;
-import io.atlasmap.expression.ExpressionException;
 import io.atlasmap.v2.Field;
 import io.atlasmap.v2.FieldType;
 import org.junit.jupiter.api.DisplayNameGeneration;
@@ -11,11 +10,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.testutils.MapperTestUtils;
 
-import static io.atlasmap.v2.AtlasModelFactory.wrapWithField;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
@@ -27,8 +24,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldConcatenateStringsWhenLeftFieldTypeIsString() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field("foo", FieldType.STRING)),
-                expressionReturning(field("bar", FieldType.STRING))
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field("foo", FieldType.STRING)),
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field("bar", FieldType.STRING))
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -39,8 +36,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldConcatenateStringAndNumberWhenLeftFieldTypeIsString() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field("foo", FieldType.STRING)),
-                expressionReturning(field(12, FieldType.INTEGER))
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field("foo", FieldType.STRING)),
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(12, FieldType.INTEGER))
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -51,8 +48,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldConcatenateWhenLeftValueIsStringAndFieldTypeIsNull() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field("foo", null)),
-                expressionReturning(field("bar", null))
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field("foo", null)),
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field("bar", null))
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -63,8 +60,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldReplaceNullLeftStringValueWithEmptyString() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field(null, FieldType.STRING)),
-                expressionReturning(field("bar", FieldType.STRING))
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(null, FieldType.STRING)),
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field("bar", FieldType.STRING))
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -75,8 +72,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldReplaceNullRightStringValueWithEmptyString() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field("foo", FieldType.STRING)),
-                expressionReturning(field(null, FieldType.STRING))
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field("foo", FieldType.STRING)),
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(null, FieldType.STRING))
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -87,8 +84,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldReturnWrappedNullWhenLeftValueIsNullInDefaultBranch() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field(null, FieldType.INTEGER)),
-                expressionReturning(field(5, FieldType.INTEGER))
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(null, FieldType.INTEGER)),
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(5, FieldType.INTEGER))
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -100,8 +97,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldReturnNullWhenRightFieldIsNullInDefaultBranch() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field(10, FieldType.INTEGER)),
-                expressionReturning(null)
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(10, FieldType.INTEGER)),
+                MapperTestUtils.expressionReturning(expressionContext, null)
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -112,8 +109,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldReturnNullWhenRightValueIsNullInDefaultBranch() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field(10, FieldType.INTEGER)),
-                expressionReturning(field(null, FieldType.INTEGER))
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(10, FieldType.INTEGER)),
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(null, FieldType.INTEGER))
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -124,8 +121,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldAddNumbersWhenBothOperandsAreNumeric() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field(10, FieldType.INTEGER)),
-                expressionReturning(field(5, FieldType.INTEGER))
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(10, FieldType.INTEGER)),
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(5, FieldType.INTEGER))
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -137,8 +134,8 @@ class CustomPlusArithmeticExpressionTest {
     @Test
     void shouldAddNumbersWhenLeftFieldTypeIsNullAndValueIsNumeric() throws Exception {
         Expression expression = CustomPlusArithmeticExpression.createCustomPlus(
-                expressionReturning(field(7, null)),
-                expressionReturning(field(8, null))
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(7, null)),
+                MapperTestUtils.expressionReturning(expressionContext, MapperTestUtils.field(8, null))
         );
 
         Field result = expression.evaluate(expressionContext);
@@ -149,34 +146,8 @@ class CustomPlusArithmeticExpressionTest {
 
     @Test
     void shouldReturnPlusSymbol() {
-        Expression expression = CustomPlusArithmeticExpression.createCustomPlus(dummyExpression(), dummyExpression());
+        Expression expression = CustomPlusArithmeticExpression.createCustomPlus(MapperTestUtils.dummyExpression("dummy"), MapperTestUtils.dummyExpression("dummy"));
 
         assertEquals("(dummy + dummy)", expression.toString());
-    }
-
-    private Expression expressionReturning(Field field) throws ExpressionException {
-        Expression expression = mock(Expression.class);
-        when(expression.evaluate(expressionContext)).thenReturn(field);
-        return expression;
-    }
-
-    private Field field(Object value, FieldType fieldType) {
-        Field field = wrapWithField(value);
-        field.setFieldType(fieldType);
-        return field;
-    }
-
-    private Expression dummyExpression() {
-        return new Expression() {
-            @Override
-            public Field evaluate(ExpressionContext expressionContext) {
-                throw new UnsupportedOperationException("evaluate should not be called");
-            }
-
-            @Override
-            public String toString() {
-                return "dummy";
-            }
-        };
     }
 }

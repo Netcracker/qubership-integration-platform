@@ -25,6 +25,7 @@ import io.atlasmap.xml.v2.XmlField;
 import org.qubership.integration.platform.mapper.ComplexField;
 import org.qubership.integration.platform.mapper.GeneratedField;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
@@ -190,7 +191,7 @@ public class FieldUtils {
             List<AtlasPath.SegmentContext> to
     ) {
         List<AtlasPath.SegmentContext> resultSegments =
-            Stream.concat(to.stream(), segments.subList(from.size(), segments.size()).stream()).toList();
+                new ArrayList<>(Stream.concat(to.stream(), segments.subList(from.size(), segments.size()).stream()).toList());
         if (!from.isEmpty() && nonNull(segments.get(from.size() - 1).getCollectionIndex())) {
             Integer index = segments.get(from.size() - 1).getCollectionIndex();
             String segmentExpression = resultSegments.get(to.size() - 1).getExpression();
