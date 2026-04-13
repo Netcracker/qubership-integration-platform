@@ -1,11 +1,23 @@
 .sideMenu {
-  overflow: auto;
+  overflow: hidden;
   scrollbar-gutter: auto;
   border-radius: 8px 0 0 8px;
   background: var(
     --vscode-sideBar-background,
     var(--vscode-editor-background, #fff)
   ) !important;
+}
+
+.sidebarSearchArea {
+  flex-shrink: 0;
+  padding: 8px 4px 4px;
+}
+
+.sidebarMenuArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
 }
 
 .rightPanelBorder {
@@ -41,53 +53,71 @@
 }
 
 .libraryElements {
-  border: none !important;
-  background: transparent !important;
-  color: var(--vscode-foreground, rgb(0 0 0 / 88%)) !important;
+  /* Ant Design inline menu adds a right border — override at same specificity */
+  border-inline-end: none !important;
+  background: transparent;
 }
 
 .libraryElements :global(.ant-menu-item .anticon),
 .libraryElements :global(.ant-menu-submenu-title .anticon) {
-  font-size: 18px !important;
+  font-size: 18px;
 }
 
+/* Uniform layout for all menu items — consistent highlight width with rounded corners */
 .libraryElements :global(.ant-menu-item),
 .libraryElements :global(.ant-menu-submenu-title) {
-  color: var(--vscode-foreground, rgb(0 0 0 / 88%)) !important;
+  /* Ant Design sets width: calc(100% - 8px) via CSS-in-JS — same value, kept for clarity */
+  width: calc(100% - 8px) !important;
+
+  /* rc-menu sets padding-left via inline style (inlineIndent prop) — !important needed */
+  padding-left: 8px !important;
+  margin-inline: 4px;
+  border-radius: 8px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
 }
 
+/* Indent child items inside expanded folders */
+.libraryElements :global(.ant-menu-sub .ant-menu-item),
+.libraryElements :global(.ant-menu-sub .ant-menu-submenu-title) {
+  padding-left: 20px !important;
+}
+
+/* Allow multi-line element names */
 .libraryElements :global(.ant-menu-item) {
-  height: auto !important;
-  min-height: 40px !important;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-  white-space: normal !important;
-  line-height: 1.4 !important;
+  height: auto;
+  min-height: 40px;
+  padding-block: 6px;
+  white-space: normal;
+  line-height: 1.4;
 }
 
 .libraryElements :global(.ant-menu-item .ant-menu-title-content) {
-  overflow: visible !important;
-  white-space: normal !important;
+  overflow: visible;
+  white-space: normal;
 }
 
 .libraryElements :global(.ant-menu-item:hover),
 .libraryElements :global(.ant-menu-submenu-title:hover) {
-  background-color: var(
-    --vscode-list-hoverBackground,
-    rgb(0 0 0 / 4%)
+  /* !important: Ant Design CSS-in-JS has equal specificity and loads after CSS modules */
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-foreground, rgb(0 0 0 / 88%)) 14%,
+    transparent
   ) !important;
-  color: var(--vscode-foreground, rgb(0 0 0 / 88%)) !important;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
 }
 
 .libraryElements :global(.ant-menu-item-selected) {
-  background-color: var(
-    --vscode-list-activeSelectionBackground,
-    #e6f7ff
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-foreground, rgb(0 0 0 / 88%)) 20%,
+    transparent
   ) !important;
-  color: var(
-    --vscode-list-activeSelectionForeground,
-    var(--vscode-foreground, rgb(0 0 0 / 88%))
-  ) !important;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.libraryElements :global(.ant-menu-submenu-selected > .ant-menu-submenu-title) {
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%)) !important;
 }
 
 .spacedTabs :global(.ant-tabs-nav-list) {

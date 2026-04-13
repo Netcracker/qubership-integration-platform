@@ -28,12 +28,41 @@
   padding-bottom: 40px;
 }
 
+.chainPageHeader {
+  flex-shrink: 0;
+}
+
 .chainPageHeaderRow {
-  padding-inline-end: 4px;
+  padding: 6px 15px 6px 4px;
+}
+
+.breadcrumb ol {
+  align-items: center;
 }
 
 .breadcrumb li:last-child {
   cursor: default;
+}
+
+.breadcrumb :global(.ant-breadcrumb-separator) {
+  margin-inline: 2px;
+}
+
+.breadcrumbItem {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+
+.breadcrumbItem:hover {
+  background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
+}
+
+.breadcrumbHome {
+  padding-inline: 4px;
 }
 
 .unsavedChangesTag {
@@ -64,7 +93,9 @@
 
 .chainPageTabs :global(.ant-tabs-nav) {
   width: 100%;
-  padding-inline-end: 4px;
+  padding-left: 4px;
+  padding-right: 15px;
+  margin-bottom: 0;
 }
 
 .chainPageTabs :global(.ant-tabs-extra-content) {

@@ -3,10 +3,9 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import { Button, Flex, message, Table, Tooltip } from "antd";
+import { Flex, message, Table } from "antd";
 import { useNavigate, useParams } from "react-router";
 import { TableProps } from "antd/lib/table";
 import {
@@ -55,7 +54,6 @@ import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import chainPageStyles from "./Chain.module.css";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
-import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
 import {
@@ -152,11 +150,6 @@ export const Sessions: React.FC = () => {
   );
   const [messageApi, contextHolder] = message.useMessage();
   const notificationService = useNotificationService();
-  const sessionsRef = useRef<Session[]>([]);
-
-  useEffect(() => {
-    sessionsRef.current = sessions;
-  }, [sessions]);
 
   const updateTableData = useCallback(() => {
     setIsLoading(true);
@@ -441,7 +434,10 @@ export const Sessions: React.FC = () => {
     [chainId, navigate, retryFromLastCheckpoint],
   );
 
-  const tableColumnDefinitions = useMemo(() => buildColumns(), [buildColumns]);
+  const tableColumnDefinitions = useMemo(
+    () => buildColumns() ?? [],
+    [buildColumns],
+  );
 
   const sessionsColumnSettingsKey = chainId
     ? "sessionsTableChain"
@@ -493,32 +489,27 @@ export const Sessions: React.FC = () => {
     [columnsWithResize, sessionsColumnResize.columnWidths],
   );
 
-  const onScroll = async (event: UIEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLDivElement;
-    const isScrolledToTheEnd =
-      target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
-    if (!allSessionsLoaded && isScrolledToTheEnd) {
-      await fetchSessions(offset);
-    }
-  };
+  const onScroll = useCallback(
+    async (event: UIEvent<HTMLDivElement>) => {
+      if (isLoading || allSessionsLoaded) return;
+      const target = event.target as HTMLDivElement;
+      const isScrolledToTheEnd =
+        target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
+      if (isScrolledToTheEnd) {
+        await fetchSessions(offset);
+      }
+    },
+    [isLoading, allSessionsLoaded, offset, fetchSessions],
+  );
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
   };
 
-  const onDeleteBtnClick = () => {
-    if (selectedRowKeys.length === 0) return;
-    confirmAndRun({
-      title: "Delete Sessions",
-      content: `Are you sure you want to delete ${selectedRowKeys.length} session(s)?`,
-      onOk: deleteSelectedSessions,
-    });
-  };
-
-  const deleteSelectedSessions = async () => {
+  const deleteSelectedSessions = useCallback(async () => {
     try {
       const ids = toStringIds(selectedRowKeys);
-      if (isAllSessionsSelected()) {
+      if (selectedRowKeys.length === sessions.length) {
         await api.deleteSessionsByChainId(chainId);
         setSessions([]);
       } else {
@@ -528,13 +519,18 @@ export const Sessions: React.FC = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to delete sessions", error);
     }
-  };
+  }, [selectedRowKeys, sessions.length, chainId, notificationService]);
 
-  const isAllSessionsSelected = (): boolean => {
-    return selectedRowKeys.length === sessionsRef.current.length;
-  };
+  const onDeleteBtnClick = useCallback(() => {
+    if (selectedRowKeys.length === 0) return;
+    confirmAndRun({
+      title: "Delete Sessions",
+      content: `Are you sure you want to delete ${selectedRowKeys.length} session(s)?`,
+      onOk: deleteSelectedSessions,
+    });
+  }, [selectedRowKeys, deleteSelectedSessions]);
 
-  const onExportBtnClick = async () => {
+  const onExportBtnClick = useCallback(async () => {
     if (selectedRowKeys.length === 0) return;
     try {
       const ids = toStringIds(selectedRowKeys);
@@ -543,9 +539,9 @@ export const Sessions: React.FC = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to export sessions", error);
     }
-  };
+  }, [selectedRowKeys, notificationService]);
 
-  const onImportBtnClick = () => {
+  const onImportBtnClick = useCallback(() => {
     showModal({
       component: (
         <ImportSessions
@@ -558,7 +554,7 @@ export const Sessions: React.FC = () => {
         />
       ),
     });
-  };
+  }, [showModal]);
 
   const onRefreshSessions = useCallback(() => {
     setSelectedRowKeys([]);
@@ -599,13 +595,13 @@ export const Sessions: React.FC = () => {
           style={{ minWidth: 160, maxWidth: 360, flex: "0 1 auto" }}
         />
         <Flex align="center" gap={8} wrap="wrap" style={{ flexShrink: 0 }}>
-          {columnSettingsButton}
           <ProtectedButton
-            require={{ session: ["delete"] }}
-            tooltipProps={{ title: "Delete selected sessions" }}
+            require={{ session: ["read"] }}
+            tooltipProps={{ title: "Refresh", placement: "bottom" }}
             buttonProps={{
-              iconName: "delete",
-              onClick: onDeleteBtnClick,
+              "data-testid": "sessions-refresh",
+              iconName: "refresh",
+              onClick: () => onRefreshSessions(),
             }}
           />
           <ProtectedButton
@@ -626,23 +622,26 @@ export const Sessions: React.FC = () => {
               }}
             />
           )}
-          <Tooltip title="Refresh" placement="bottom">
-            <Button
-              data-testid="sessions-refresh"
-              icon={<OverridableIcon name="refresh" />}
-              onClick={() => onRefreshSessions()}
-            />
-          </Tooltip>
+          <ProtectedButton
+            require={{ session: ["delete"] }}
+            tooltipProps={{ title: "Delete selected sessions" }}
+            buttonProps={{
+              iconName: "delete",
+              onClick: onDeleteBtnClick,
+            }}
+          />
+          {columnSettingsButton}
         </Flex>
       </Flex>
     ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state; register deps omit unstable columnSettingsButton
     [
       filters.searchString,
       columnSettingsButton,
       chainId,
-      selectedRowKeys,
       onRefreshSessions,
+      onDeleteBtnClick,
+      onExportBtnClick,
+      onImportBtnClick,
     ],
   );
 

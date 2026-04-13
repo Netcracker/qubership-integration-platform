@@ -82,25 +82,7 @@ export const SettingsPanel = ({
       <Button
         type="text"
         icon={<SettingOutlined />}
-        size="small"
-        style={{
-          color: "var(--vscode-foreground)",
-          border: "none",
-          background: "transparent",
-          borderRadius: "4px",
-          padding: "4px 8px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
         title="Settings"
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor =
-            "var(--vscode-list-hoverBackground)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "transparent";
-        }}
       />
     </Dropdown>
   );

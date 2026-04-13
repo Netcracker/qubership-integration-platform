@@ -18,9 +18,11 @@ export type InlineEditWithButtonsRef<Values> = {
 
 export type InlineEditWithButtonsProps<Values> = InlineEditProps<Values> & {
   cancelOnBlur?: boolean;
+  submitOnBlur?: boolean;
   disabled?: boolean;
   escapeToCancel?: boolean;
   getApplyEnabled?: (values: Values) => boolean;
+  hideApplyButton?: boolean;
   className?: string;
   editorClassName?: string;
   viewerAriaLabel?: string;
@@ -29,9 +31,11 @@ export type InlineEditWithButtonsProps<Values> = InlineEditProps<Values> & {
 
 function InlineEditActionButtons<Values>({
   showApply,
+  hideApplyButton,
   getApplyEnabled,
 }: {
   showApply: boolean;
+  hideApplyButton?: boolean;
   getApplyEnabled?: (values: Values) => boolean;
 }) {
   const form = Form.useFormInstance<Values>();
@@ -44,7 +48,7 @@ function InlineEditActionButtons<Values>({
 
   return (
     <div className={styles.inlineEditButtons}>
-      {showApply && (
+      {showApply && !hideApplyButton && (
         <Button
           icon={<OverridableIcon name="check" />}
           type="text"
@@ -72,9 +76,11 @@ export function InlineEditWithButtons<Values>(
 ): React.ReactNode {
   const {
     cancelOnBlur,
+    submitOnBlur,
     disabled,
     escapeToCancel,
     getApplyEnabled,
+    hideApplyButton,
     className,
     editorClassName,
     viewerAriaLabel,
@@ -127,14 +133,15 @@ export function InlineEditWithButtons<Values>(
 
   const handleBlur = useCallback(
     (e: React.FocusEvent<HTMLDivElement>) => {
-      if (
-        cancelOnBlur &&
-        !e.currentTarget.contains(e.relatedTarget as Node | null)
-      ) {
-        toggle();
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+        if (submitOnBlur) {
+          form.submit();
+        } else if (cancelOnBlur) {
+          toggle();
+        }
       }
     },
-    [cancelOnBlur, toggle],
+    [cancelOnBlur, submitOnBlur, toggle, form],
   );
 
   const handleKeyDownCapture = useCallback(
@@ -179,7 +186,7 @@ export function InlineEditWithButtons<Values>(
       <div
         ref={containerRef}
         className={editorClassName ?? styles.inlineEditFormWrap}
-        onBlur={cancelOnBlur ? handleBlur : undefined}
+        onBlur={cancelOnBlur || submitOnBlur ? handleBlur : undefined}
         onKeyDownCapture={escapeToCancel ? handleKeyDownCapture : undefined}
       >
         <Form<Values>
@@ -211,6 +218,7 @@ export function InlineEditWithButtons<Values>(
           {props.editor}
           <InlineEditActionButtons<Values>
             showApply={hasChanges}
+            hideApplyButton={hideApplyButton}
             getApplyEnabled={getApplyEnabled}
           />
         </Form>

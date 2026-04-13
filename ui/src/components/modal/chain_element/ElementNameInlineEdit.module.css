@@ -1,0 +1,98 @@
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.type-badge {
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 11px;
+  margin-left: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 8%);
+  opacity: 0.9;
+}
+
+:global(:is([data-theme="dark"], [data-theme="high-contrast"])) .type-badge {
+  background: rgb(255 255 255 / 24%);
+}
+
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  min-width: 0;
+}
+
+.viewer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  margin: 0;
+  height: 30px;
+  box-sizing: border-box;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  appearance: none;
+}
+
+.viewer:hover {
+  border-color: var(--vscode-input-border, #d9d9d9);
+  background: var(--vscode-input-background, rgb(0 0 0 / 2%));
+}
+
+.viewer:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #1890ff);
+}
+
+.viewer:active {
+  transform: none;
+}
+
+.edit-icon {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.viewer:hover .edit-icon,
+.viewer:focus-visible .edit-icon {
+  opacity: 1;
+}
+
+.editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  box-sizing: border-box;
+
+  /* Compensate <input> vs <span> text baseline difference */
+  margin-top: -1px;
+}
+
+.editor :global(.ant-form-item-control-input) {
+  min-height: unset;
+}
+
+.input {
+  width: 30ch;
+  min-width: 180px;
+  height: 30px;
+  min-height: 30px;
+  padding: 2px 4px;
+  font-weight: 600;
+  font-size: 15px;
+}

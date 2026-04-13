@@ -17,6 +17,9 @@ const mockUseParams = jest.fn(() => ({ chainId: "chain-1" }));
 const mockNavigate = jest.fn();
 const chainRefreshMock = jest.fn().mockResolvedValue(undefined);
 const mockConfirmAndRun = jest.fn();
+const mockGetSnapshots = jest.spyOn(api, "getSnapshots");
+const mockCreateSnapshot = jest.spyOn(api, "createSnapshot");
+const mockRevertToSnapshot = jest.spyOn(api, "revertToSnapshot");
 
 jest.mock("react-router", () => ({
   useParams: () => mockUseParams(),
@@ -35,10 +38,12 @@ jest.mock("../../src/api/api.ts", () => ({
   },
 }));
 
-jest.mock("antd", () =>
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- jest.mock hoisting; require avoids TDZ
-  require("tests/helpers/chainPageAntdJestMock").createChainPageAntdMock(),
-);
+jest.mock("antd", () => {
+  const { createChainPageAntdMock } = jest.requireActual<{
+    createChainPageAntdMock: () => Record<string, unknown>;
+  }>("tests/helpers/chainPageAntdJestMock");
+  return createChainPageAntdMock();
+});
 
 jest.mock("antd/lib/table", () => ({}));
 jest.mock("antd/lib/table/interface", () => ({}));
@@ -100,20 +105,13 @@ jest.mock("../../src/hooks/useNotificationService.tsx", () => {
   };
 });
 
-jest.mock("../../src/Modals.tsx", () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory; Fragment needs react in closure
-  const R = require("react") as typeof import("react");
-  const modalsApi = {
+jest.mock("../../src/Modals.tsx", () => ({
+  Modals: ({ children }: { children: React.ReactNode }) => children,
+  useModalsContext: () => ({
     showModal: jest.fn(),
     closeModal: jest.fn(),
-  };
-  return {
-    Modals: ({ children }: { children: import("react").ReactNode }) => (
-      <R.Fragment>{children}</R.Fragment>
-    ),
-    useModalsContext: () => modalsApi,
-  };
-});
+  }),
+}));
 
 jest.mock("../../src/components/table/TextColumnFilterDropdown.tsx", () => {
   const actual = jest.requireActual<
@@ -201,7 +199,9 @@ jest.mock("../../src/components/modal/SnapshotsCompare.tsx", () => ({
 }));
 
 jest.mock("../../src/misc/confirm-utils.ts", () => ({
-  confirmAndRun: (...args: unknown[]) => mockConfirmAndRun(...args),
+  confirmAndRun: (...args: unknown[]): void => {
+    mockConfirmAndRun(...args);
+  },
 }));
 
 function baseSnapshot(id: string, name: string): Snapshot {
@@ -233,11 +233,11 @@ describe("Snapshots chain header toolbar", () => {
     jest.clearAllMocks();
     mockUseParams.mockReturnValue({ chainId: "chain-1" });
     chainRefreshMock.mockResolvedValue(undefined);
-    (api.getSnapshots as jest.Mock).mockResolvedValue([]);
-    (api.createSnapshot as jest.Mock).mockResolvedValue(
+    mockGetSnapshots.mockResolvedValue([]);
+    mockCreateSnapshot.mockResolvedValue(
       baseSnapshot("new-snap", "new"),
     );
-    (api.revertToSnapshot as jest.Mock).mockResolvedValue(undefined);
+    mockRevertToSnapshot.mockResolvedValue(baseSnapshot("rev", "reverted"));
   });
 
   test("registers header toolbar with search and Compare / Delete / Create", async () => {
@@ -259,15 +259,13 @@ describe("Snapshots chain header toolbar", () => {
   });
 
   test("Create snapshot calls api.createSnapshot", async () => {
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- jest.fn on mocked api
-    const createSnapshot = api.createSnapshot as jest.Mock;
     renderSnapshots();
 
     const slot = await waitFor(() => screen.getByTestId("chain-header-slot"));
     fireEvent.click(within(slot).getByTestId("protected-btn-create-snapshot"));
 
     await waitFor(() => {
-      expect(createSnapshot).toHaveBeenCalledWith("chain-1");
+      expect(mockCreateSnapshot).toHaveBeenCalledWith("chain-1");
     });
     await waitFor(() => {
       expect(chainRefreshMock).toHaveBeenCalled();
@@ -280,7 +278,7 @@ describe("Snapshots chain header toolbar", () => {
         void onOk();
       },
     );
-    (api.getSnapshots as jest.Mock).mockResolvedValue([
+    mockGetSnapshots.mockResolvedValue([
       baseSnapshot("snap-rev", "snap-rev"),
     ]);
 
@@ -297,7 +295,7 @@ describe("Snapshots chain header toolbar", () => {
       expect(mockConfirmAndRun).toHaveBeenCalled();
     });
     await waitFor(() => {
-      expect(api.revertToSnapshot).toHaveBeenCalledWith("chain-1", "snap-rev");
+      expect(mockRevertToSnapshot).toHaveBeenCalledWith("chain-1", "snap-rev");
     });
     await waitFor(() => {
       expect(chainRefreshMock).toHaveBeenCalled();
@@ -306,7 +304,7 @@ describe("Snapshots chain header toolbar", () => {
   });
 
   test("Compare disabled unless exactly two rows selected", async () => {
-    (api.getSnapshots as jest.Mock).mockResolvedValue([
+    mockGetSnapshots.mockResolvedValue([
       baseSnapshot("a", "snap-a"),
       baseSnapshot("b", "snap-b"),
     ]);
@@ -347,7 +345,7 @@ describe("Snapshots chain header toolbar", () => {
   });
 
   test("Delete disabled when no rows selected", async () => {
-    (api.getSnapshots as jest.Mock).mockResolvedValue([
+    mockGetSnapshots.mockResolvedValue([
       baseSnapshot("x", "snap-x"),
     ]);
 

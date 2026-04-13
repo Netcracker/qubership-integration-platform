@@ -153,25 +153,29 @@ export const ElementsLibrarySidebar = ({
       ) : (
         <Flex
           vertical
-          style={{ flex: 1, minHeight: 0, overflow: "auto", width: "100%" }}
+          style={{ flex: 1, minHeight: 0, width: "100%" }}
         >
-          <SidebarSearch
-            items={allItems.current}
-            onSearch={handleSearch}
-            onClear={() => {
-              setItems(allItems.current);
-              setIsSearch(false);
-              setOpenKeysState(openKeysBeforeSearch.current);
-            }}
-          />
-          <Menu
-            className={styles.libraryElements}
-            mode="inline"
-            items={items}
-            inlineIndent={8}
-            openKeys={openKeysState}
-            onOpenChange={(keys) => setOpenKeysState(keys)}
-          />
+          <div className={styles.sidebarSearchArea}>
+            <SidebarSearch
+              items={allItems.current}
+              onSearch={handleSearch}
+              onClear={() => {
+                setItems(allItems.current);
+                setIsSearch(false);
+                setOpenKeysState(openKeysBeforeSearch.current);
+              }}
+            />
+          </div>
+          <div className={styles.sidebarMenuArea}>
+            <Menu
+              className={styles.libraryElements}
+              mode="inline"
+              items={items}
+              inlineIndent={0}
+              openKeys={openKeysState}
+              onOpenChange={(keys) => setOpenKeysState(keys)}
+            />
+          </div>
         </Flex>
       )}
     </Sider>

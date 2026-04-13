@@ -58,7 +58,7 @@ jest.mock("../../../../src/hooks/useDocumentation", () => ({
   useDocumentation: () => ({ openElementDoc: mockOpenElementDoc }),
 }));
 
-const mockShowModal = jest.fn();
+const mockShowModal = jest.fn<void, [{ component: React.ReactElement }]>();
 jest.mock("../../../../src/Modals", () => ({
   useModalsContext: () => ({ showModal: mockShowModal }),
 }));
@@ -84,9 +84,12 @@ let formContextShouldAutoUpdateOnMount = false;
 jest.mock(
   "../../../../src/components/modal/chain_element/ChainElementModificationContext",
   () => {
-    const actual = jest.requireActual(
-      "../../../../src/components/modal/chain_element/ChainElementModificationContext",
-    ) as typeof import("../../../../src/components/modal/chain_element/ChainElementModificationContext");
+    const actual =
+      jest.requireActual<
+        typeof import("../../../../src/components/modal/chain_element/ChainElementModificationContext")
+      >(
+        "../../../../src/components/modal/chain_element/ChainElementModificationContext",
+      );
 
     return {
       ...actual,
@@ -215,7 +218,7 @@ jest.mock("@rjsf/antd", () => {
             formData: { ...(formData as object), __testDirty: true },
           });
         }
-      }, []);
+      }, [formData, onChange]);
       return (
         <form
           data-testid="rjsf-form"
@@ -295,7 +298,7 @@ const mockNode: ChainGraphNode = {
     elementType: "script",
     label: "My Script",
     description: "",
-    properties: {},
+    properties: { common: [], advanced: [], hidden: [], unknown: [] },
     typeTitle: "Script",
   },
   parentId: undefined,
@@ -506,8 +509,7 @@ describe("ChainElementModification", () => {
     fireEvent.click(screen.getByTestId("rjsf-user-change"));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-    const unsavedModal = mockShowModal.mock.calls[0][0]
-      .component as React.ReactElement;
+    const unsavedModal = mockShowModal.mock.calls[0][0].component;
     render(unsavedModal);
 
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
@@ -526,8 +528,7 @@ describe("ChainElementModification", () => {
     fireEvent.click(screen.getByTestId("rjsf-user-change"));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-    const unsavedModal = mockShowModal.mock.calls[0][0]
-      .component as React.ReactElement;
+    const unsavedModal = mockShowModal.mock.calls[0][0].component;
     render(unsavedModal);
 
     fireEvent.click(screen.getByRole("button", { name: "No" }));
@@ -546,8 +547,7 @@ describe("ChainElementModification", () => {
     fireEvent.click(screen.getByTestId("rjsf-user-change"));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-    const unsavedModal = mockShowModal.mock.calls[0][0]
-      .component as React.ReactElement;
+    const unsavedModal = mockShowModal.mock.calls[0][0].component;
     render(unsavedModal);
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -614,7 +614,7 @@ describe("ChainElementModification", () => {
 
     const input = screen.getByTestId("element-name-input");
     fireEvent.change(input, { target: { value: "Updated Script Name" } });
-    fireEvent.click(screen.getByTestId("element-name-apply"));
+    fireEvent.blur(input);
 
     await waitFor(() => {
       expect(mockUpdateElement).toHaveBeenCalledWith(

@@ -520,6 +520,7 @@ const Chains = () => {
           {...(isDragging ? getBreadcrumbDropProps(undefined) : {})}
           className={[
             styles.breadcrumbItem,
+            styles.breadcrumbHome,
             isDragging ? dropClass("root") : undefined,
           ]
             .filter(Boolean)
@@ -1140,7 +1141,6 @@ const Chains = () => {
                 placeholder="Full text search"
                 allowClear
                 className={commonStyles["searchField"] as string}
-                style={{ flex: 1, minWidth: 200 }}
               />
             </Flex>
           }

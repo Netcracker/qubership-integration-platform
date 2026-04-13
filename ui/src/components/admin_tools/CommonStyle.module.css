@@ -73,7 +73,8 @@
 }
 
 .searchField {
-  width: 200px;
+  width: 500px;
+  margin-left: auto;
 }
 
 .table-wrapper {

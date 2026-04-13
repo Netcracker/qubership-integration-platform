@@ -39,45 +39,81 @@ jest.mock("../../../../src/components/InlineEdit.module.css", () => ({
 }));
 
 jest.mock(
-  "../../../../src/components/modal/chain_element/ChainElementModification.module.css",
+  "../../../../src/components/modal/chain_element/ElementNameInlineEdit.module.css",
   () => ({
     __esModule: true,
     default: {
-      "modal-title-name": "modal-title-name",
-      "modal-title-type": "modal-title-type",
-      "element-name-edit-wrapper": "element-name-edit-wrapper",
-      "element-name-inline-viewer": "element-name-inline-viewer",
-      "element-name-edit-icon": "element-name-edit-icon",
-      "element-name-inline-editor": "element-name-inline-editor",
-      "element-name-input": "element-name-input",
+      name: "name",
+      "type-badge": "type-badge",
+      wrapper: "wrapper",
+      viewer: "viewer",
+      "edit-icon": "edit-icon",
+      editor: "editor",
+      input: "input",
     },
   }),
 );
 
+const noop = jest.fn();
+
 describe("ElementNameInlineEdit", () => {
+  // --- View mode ---
+
   it("renders value and pencil icon in view mode", () => {
     render(
-      <ElementNameInlineEdit value="My Element" typeLabel="http-trigger" />,
+      <ElementNameInlineEdit
+        value="My Element"
+        typeLabel="http-trigger"
+        onSave={noop}
+      />,
     );
     expect(screen.getByText("My Element")).toBeInTheDocument();
-    expect(screen.getByText(/http-trigger/)).toBeInTheDocument();
+    expect(screen.getByText("http-trigger")).toBeInTheDocument();
     expect(screen.getByTestId("icon")).toHaveAttribute("data-icon", "edit");
   });
 
-  it("shows type label in parentheses when provided", () => {
-    render(<ElementNameInlineEdit value="Trigger" typeLabel="HTTP Trigger" />);
+  it("renders type badge when typeLabel is provided", () => {
+    render(
+      <ElementNameInlineEdit
+        value="Trigger"
+        typeLabel="HTTP Trigger"
+        onSave={noop}
+      />,
+    );
     expect(screen.getByText("HTTP Trigger")).toBeInTheDocument();
   });
 
-  it("switches to edit mode on viewer click", () => {
-    render(<ElementNameInlineEdit value="Original Name" onSave={jest.fn()} />);
+  it("renders without type badge when typeLabel is omitted", () => {
+    render(<ElementNameInlineEdit value="Trigger" onSave={noop} />);
+    expect(screen.getByText("Trigger")).toBeInTheDocument();
+    // Only the name text and edit icon — no badge element
     const viewer = screen.getByRole("button", { name: /edit name/i });
-    fireEvent.click(viewer);
+    expect(viewer.querySelectorAll(".type-badge")).toHaveLength(0);
+  });
+
+  // --- Switching to edit mode ---
+
+  it("switches to edit mode on viewer click", () => {
+    render(<ElementNameInlineEdit value="Original Name" onSave={noop} />);
+    fireEvent.click(screen.getByRole("button", { name: /edit name/i }));
 
     const input = screen.getByTestId("element-name-input");
     expect(input).toBeInTheDocument();
     expect(input).toHaveValue("Original Name");
   });
+
+  it("does not switch to edit mode when disabled", () => {
+    render(<ElementNameInlineEdit value="Original" onSave={noop} disabled />);
+    fireEvent.click(screen.getByText("Original"));
+    expect(screen.queryByTestId("element-name-input")).not.toBeInTheDocument();
+  });
+
+  it("hides pencil icon when disabled", () => {
+    render(<ElementNameInlineEdit value="Original" onSave={noop} disabled />);
+    expect(screen.queryByTestId("icon")).not.toBeInTheDocument();
+  });
+
+  // --- Save via Enter ---
 
   it("calls onSave with trimmed value when Enter is pressed", async () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
@@ -93,6 +129,46 @@ describe("ElementNameInlineEdit", () => {
     });
   });
 
+  it("handles async onSave via Enter", async () => {
+    const onSave = jest
+      .fn()
+      .mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 10)),
+      );
+    render(<ElementNameInlineEdit value="Original" onSave={onSave} />);
+    fireEvent.click(screen.getByRole("button", { name: /edit name/i }));
+
+    const input = screen.getByTestId("element-name-input");
+    fireEvent.change(input, { target: { value: "Async Save" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith("Async Save");
+    });
+  });
+
+  // --- Empty value handling ---
+
+  it("does not save empty value and closes editor", async () => {
+    const onSave = jest.fn();
+    render(<ElementNameInlineEdit value="Original" onSave={onSave} />);
+    fireEvent.click(screen.getByRole("button", { name: /edit name/i }));
+
+    const input = screen.getByTestId("element-name-input");
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("element-name-input"),
+      ).not.toBeInTheDocument();
+    });
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText("Original")).toBeInTheDocument();
+  });
+
+  // --- Cancel ---
+
   it("exits edit mode without saving when Escape is pressed", () => {
     const onSave = jest.fn();
     render(<ElementNameInlineEdit value="Original" onSave={onSave} />);
@@ -106,83 +182,38 @@ describe("ElementNameInlineEdit", () => {
     expect(screen.getByText("Original")).toBeInTheDocument();
   });
 
-  it("does not call onSave when Apply is clicked with empty value", async () => {
+  it("exits without saving when Cancel button is clicked", () => {
     const onSave = jest.fn();
     render(<ElementNameInlineEdit value="Original" onSave={onSave} />);
     fireEvent.click(screen.getByRole("button", { name: /edit name/i }));
 
-    const input = screen.getByTestId("element-name-input");
-    fireEvent.change(input, { target: { value: "   " } });
-
-    const applyButton = screen.getByTestId("element-name-apply");
-    expect(applyButton).toBeDisabled();
-    fireEvent.click(applyButton);
-
-    expect(onSave).not.toHaveBeenCalled();
-  });
-
-  it("calls onSave when Apply is clicked with non-empty value", async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    render(<ElementNameInlineEdit value="Original" onSave={onSave} />);
-    fireEvent.click(screen.getByRole("button", { name: /edit name/i }));
-
-    const input = screen.getByTestId("element-name-input");
-    fireEvent.change(input, { target: { value: "New Name" } });
-
-    fireEvent.click(screen.getByTestId("element-name-apply"));
-
-    await waitFor(() => {
-      expect(onSave).toHaveBeenCalledWith("New Name");
+    fireEvent.change(screen.getByTestId("element-name-input"), {
+      target: { value: "Changed" },
     });
-  });
-
-  it("exits without saving when Cancel is clicked", () => {
-    const onSave = jest.fn();
-    render(<ElementNameInlineEdit value="Original" onSave={onSave} />);
-    fireEvent.click(screen.getByRole("button", { name: /edit name/i }));
-
-    const input = screen.getByTestId("element-name-input");
-    fireEvent.change(input, { target: { value: "Changed" } });
-
     fireEvent.click(screen.getByTestId("element-name-cancel"));
 
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByText("Original")).toBeInTheDocument();
   });
 
-  it("does not switch to edit mode when disabled", () => {
-    render(
-      <ElementNameInlineEdit value="Original" onSave={jest.fn()} disabled />,
-    );
-    const viewer = screen.getByText("Original");
-    fireEvent.click(viewer);
+  // --- Apply button is hidden ---
 
-    expect(screen.queryByTestId("element-name-input")).not.toBeInTheDocument();
-  });
-
-  it("handles async onSave", async () => {
-    const onSave = jest
-      .fn()
-      .mockImplementation(
-        () => new Promise((resolve) => setTimeout(resolve, 10)),
-      );
-    render(<ElementNameInlineEdit value="Original" onSave={onSave} />);
+  it("does not render Apply button", () => {
+    render(<ElementNameInlineEdit value="Original" onSave={noop} />);
     fireEvent.click(screen.getByRole("button", { name: /edit name/i }));
 
-    const input = screen.getByTestId("element-name-input");
-    fireEvent.change(input, { target: { value: "Async Save" } });
-    fireEvent.click(screen.getByTestId("element-name-apply"));
-
-    await waitFor(() => {
-      expect(onSave).toHaveBeenCalledWith("Async Save");
-    });
+    expect(screen.queryByTestId("element-name-apply")).not.toBeInTheDocument();
+    // Cancel button is still present
+    expect(screen.getByTestId("element-name-cancel")).toBeInTheDocument();
   });
 
-  describe("syncIfEditing (ref API)", () => {
+  // --- syncIfEditing (ref API) ---
+
+  describe("syncIfEditing", () => {
     it("returns null when not in edit mode", () => {
       const ref = React.createRef<ElementNameInlineEditRef>();
       render(
-        <ElementNameInlineEdit ref={ref} value="Original" onSave={jest.fn()} />,
+        <ElementNameInlineEdit ref={ref} value="Original" onSave={noop} />,
       );
       expect(ref.current?.syncIfEditing()).toBeNull();
     });
@@ -194,8 +225,9 @@ describe("ElementNameInlineEdit", () => {
         <ElementNameInlineEdit ref={ref} value="Original" onSave={onSave} />,
       );
       fireEvent.click(screen.getByRole("button", { name: /edit name/i }));
-      const input = screen.getByTestId("element-name-input");
-      fireEvent.change(input, { target: { value: "Pending Name" } });
+      fireEvent.change(screen.getByTestId("element-name-input"), {
+        target: { value: "Pending Name" },
+      });
 
       const result = ref.current?.syncIfEditing();
       expect(result).toBe("Pending Name");
@@ -213,7 +245,7 @@ describe("ElementNameInlineEdit", () => {
         <ElementNameInlineEdit
           ref={ref}
           value="Original"
-          onSave={jest.fn()}
+          onSave={noop}
           disabled
         />,
       );

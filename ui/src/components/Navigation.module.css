@@ -14,25 +14,14 @@
 }
 
 .home-button {
-  flex-shrink: 0;
-  margin-inline-end: 8px;
-
   /* Match visual weight of horizontal Menu items (icon + label) in 64px header */
   min-width: 52px;
   min-height: 52px;
-  padding: 0 !important;
 }
 
 /* Icon-only home: 1em drives SVG size; same for config.icons.logo overrides */
 .navigation .home-button:global(.ant-btn-icon-only) :global(.anticon) {
   font-size: 40px;
-  line-height: 1;
-}
-
-.navigation
-  .home-button.home-button-brand:global(.ant-btn-icon-only)
-  :global(.anticon) {
-  font-size: 64px;
 }
 
 .menu {
@@ -113,4 +102,10 @@
 .navigation :global(.ant-btn:hover) {
   color: white !important;
   background: rgb(255 255 255 / 10%) !important;
+}
+
+/* Override antd-overrides .ant-btn-icon-only:hover that sets dark vscode background */
+.navigation :global(.ant-btn.ant-btn-icon-only:not(.ant-btn-primary)):hover {
+  background-color: rgb(255 255 255 / 10%) !important;
+  border-color: transparent !important;
 }

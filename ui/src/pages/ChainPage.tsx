@@ -67,18 +67,42 @@ const ChainPage = () => {
       .reverse()
       .map(([key, value], index, arr) => ({
         title:
-          index < arr.length - 1 ? link(`/chains?folder=${key}`, value) : value,
+          index < arr.length - 1 ? (
+            <span className={styles.breadcrumbItem as string}>
+              {link(`/chains?folder=${key}`, value)}
+            </span>
+          ) : (
+            <span className={styles.breadcrumbItem as string}>{value}</span>
+          ),
       }));
 
     setPathItems([
-      { title: link("/chains", <OverridableIcon name="home" />) },
+      {
+        title: (
+          <span
+            className={`${styles.breadcrumbItem as string} ${styles.breadcrumbHome as string}`}
+          >
+            {link("/chains", <OverridableIcon name="home" />)}
+          </span>
+        ),
+      },
       ...navigationItems,
       ...(sessionId
         ? [
             {
-              title: link(`/chains/${chainId}/sessions`, "Sessions"),
+              title: (
+                <span className={styles.breadcrumbItem as string}>
+                  {link(`/chains/${chainId}/sessions`, "Sessions")}
+                </span>
+              ),
             },
-            { title: sessionId },
+            {
+              title: (
+                <span className={styles.breadcrumbItem as string}>
+                  {sessionId}
+                </span>
+              ),
+            },
           ]
         : []),
     ]);
@@ -213,18 +237,16 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
   );
 
   return (
-    <>
+    <div className={styles.chainPageHeader as string}>
       <Row
         className={styles.chainPageHeaderRow as string}
         justify="space-between"
         align="middle"
-        style={{ minHeight: 32 }}
       >
         <Col flex="auto">
           <Breadcrumb
             items={pathItems}
             className={styles.breadcrumb}
-            style={{ marginLeft: 8 }}
           />
         </Col>
         {showUnsavedChanges ? (
@@ -246,7 +268,7 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
         items={tabItems}
         tabBarExtraContent={tabsBarExtra}
       />
-    </>
+    </div>
   );
 };
 

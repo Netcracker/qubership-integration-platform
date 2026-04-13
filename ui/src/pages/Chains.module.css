@@ -48,6 +48,15 @@
   border-radius: 4px;
 }
 
+.breadcrumbHome {
+  padding-left: 1px;
+}
+
+/* Keep checkboxes pinned to the left edge regardless of column width */
+.container :global(.ant-table-selection-column) {
+  text-align: left !important;
+}
+
 .breadcrumbDropTarget {
   outline: 2px solid var(--vscode-focusBorder, #1677ff);
   outline-offset: -2px;

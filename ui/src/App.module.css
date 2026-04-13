@@ -13,12 +13,8 @@
 .content {
   flex: 1;
   min-height: 0;
-
-  /* Only top inset: bottom padding left a full-width strip of panel bg under sidebar + main (all pages). */
-  padding: 16px 0 0;
   display: flex;
   flex-direction: column;
-  border-radius: 12px;
   overflow: auto;
   background: var(--vscode-panel-background, #fafafa);
 }

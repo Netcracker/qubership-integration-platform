@@ -3,7 +3,7 @@ import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import type { InlineEditWithButtonsRef } from "../../InlineEditWithButtons.tsx";
 import { InlineEditWithButtons } from "../../InlineEditWithButtons.tsx";
 import { TextValueEdit } from "../../table/TextValueEdit.tsx";
-import styles from "./ChainElementModification.module.css";
+import styles from "./ElementNameInlineEdit.module.css";
 
 export type ElementNameInlineEditRef = {
   syncIfEditing: () => string | null;
@@ -12,8 +12,6 @@ export type ElementNameInlineEditRef = {
 export type ElementNameInlineEditProps = {
   value: string;
   typeLabel?: string;
-  /** Rendered immediately after the type label (e.g. Help button) */
-  afterTypeLabel?: React.ReactNode;
   onSave: (newValue: string) => void | Promise<void>;
   disabled?: boolean;
 };
@@ -22,7 +20,7 @@ export const ElementNameInlineEdit = forwardRef<
   ElementNameInlineEditRef,
   Readonly<ElementNameInlineEditProps>
 >(function ElementNameInlineEdit(
-  { value, typeLabel, afterTypeLabel, onSave, disabled = false },
+  { value, typeLabel, onSave, disabled = false },
   ref,
 ): React.ReactElement {
   const innerRef = useRef<InlineEditWithButtonsRef<{ name: string }>>(null);
@@ -43,45 +41,32 @@ export const ElementNameInlineEdit = forwardRef<
       innerRef={innerRef}
       values={{ name: value }}
       disabled={disabled}
-      cancelOnBlur
+      submitOnBlur
       escapeToCancel
+      hideApplyButton
       viewerAriaLabel="Edit name"
-      className={styles["element-name-edit-wrapper"] as string}
-      editorClassName={styles["element-name-inline-editor"] as string}
-      getApplyEnabled={(v: { name?: string }) =>
-        (v.name?.trim().length ?? 0) > 0
-      }
+      className={styles.wrapper}
+      editorClassName={styles.editor}
       viewer={
-        <span className={styles["element-name-inline-viewer"] as string}>
-          <span className={styles["modal-title-name"]} title={value}>
+        <span className={styles.viewer}>
+          <span className={styles.name} title={value}>
             {value}
           </span>
-          {(typeLabel || afterTypeLabel) && (
-            <span className={styles["type-with-help"]}>
-              {typeLabel && (
-                <span className={styles["modal-title-type"]}>
-                  {"\u00A0"}
-                  {typeLabel}
-                </span>
-              )}
-              {afterTypeLabel}
-            </span>
+          {typeLabel && (
+            <span className={styles["type-badge"]}>{typeLabel}</span>
           )}
           {!disabled && (
-            <OverridableIcon
-              name="edit"
-              className={styles["element-name-edit-icon"] as string}
-            />
+            <OverridableIcon name="edit" className={styles["edit-icon"]} />
           )}
         </span>
       }
       editor={
         <TextValueEdit
           name="name"
-          rules={[{ required: true, message: "Name is required" }]}
+          rules={[]}
           inputProps={{
             size: "small",
-            className: styles["element-name-input"] as string,
+            className: styles.input,
             "data-testid": "element-name-input",
           }}
         />
@@ -89,13 +74,9 @@ export const ElementNameInlineEdit = forwardRef<
       onSubmit={async ({ name }) => {
         const trimmed = name?.trim() ?? "";
         if (trimmed.length > 0) {
-          const result = onSave(trimmed);
-          if (result instanceof Promise) {
-            await result;
-          }
+          await onSave(trimmed);
         }
       }}
-      onCancel={() => {}}
     />
   );
 });
