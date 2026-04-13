@@ -1,8 +1,6 @@
 # Design Templates [Web UI only]
 
-<div style="border-left: 6px dashed #cc0000; padding: 10px">
-This functionality is not available via the VS Code Extension.
-</div>
+> ⛔️ This functionality is not available via the VS Code Extension.
 
 ## Description
 
@@ -19,14 +17,14 @@ To view all templates, available in the system, navigate to "**Admin Tools**" an
 
 - **Name** - template name.
 - **Type** - shows type of the template:
-	- **Built-in** - template, that comes with the build. Such template can't be removed.
-	- **Custom** - custom template, uploaded manually.
+  - **Built-in** - template, that comes with the build. Such template can't be removed.
+  - **Custom** - custom template, uploaded manually.
 - **Created At - template creation datetime.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
-	- ![20](img/delete.svg)- deletes selected templates.
-	- ![20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
-	- ![20](img/cloud-download.svg) - exports selected templates in markdown.
-	- ![20](img/plus.svg) - initiates new template uploading.
+  - ![20](img/delete.svg)- deletes selected templates.
+  - ![20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
+  - ![20](img/cloud-download.svg) - exports selected templates in markdown.
+  - ![20](img/plus.svg) - initiates new template uploading.
 
 ### Add Template
 

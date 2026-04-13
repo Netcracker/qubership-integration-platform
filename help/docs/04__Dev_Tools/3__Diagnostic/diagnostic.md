@@ -1,8 +1,6 @@
 # Diagnostic (Web UI only)
 
-<div style="border-left: 6px dashed #cc0000; padding: 10px">
-This functionality is not available via the VS Code Extension.
-</div>
+> ⛔️ This functionality is not available via the VS Code Extension.
 
 ## Description
 
@@ -17,27 +15,27 @@ This functionality is not available via the VS Code Extension.
 Navigate to **Admin Tools** -> **Diagnostic** to see the table with last diagnostic run's results. Table consist of next columns and elements:
 
 - **Name** - clickable validation name. When clicked, system opens pop-up with detailed explanation of the validation.
-	- **Id** - unique identifier of validation.
-	- **Name** - exact validation name, as presented in the table.
-	- **Description** - short validation description.
-	- **Hint** - contains basic instructions to resolve the issues, found as a result of particular validation.
-	- **Validation Source** - specifies source of validations. Native validations are marked as "Built-in", others have "Custom" source.
-	- **Severity** - shows if found issues shall be considered as Errors or Warnings.
-	- **Alerts** - shows current number of alerts.
-	- **Parameters** - section, that optionally contains additional parameters, available for validation.
+  - **Id** - unique identifier of validation.
+  - **Name** - exact validation name, as presented in the table.
+  - **Description** - short validation description.
+  - **Hint** - contains basic instructions to resolve the issues, found as a result of particular validation.
+  - **Validation Source** - specifies source of validations. Native validations are marked as "Built-in", others have "Custom" source.
+  - **Severity** - shows if found issues shall be considered as Errors or Warnings.
+  - **Alerts** - shows current number of alerts.
+  - **Parameters** - section, that optionally contains additional parameters, available for validation.
 - **Status** - shows current status of each particular validation:
-	- ⚫ **Not Started** - validation has never been executed.
-	- 🔵 **In Progress** - validation is in progress.
-	- 🔴 **Failed** - validation failed.
-	- 🟢 **Finished** - validation finished successfully.
+  - ⚫ **Not Started** - validation has never been executed.
+  - 🔵 **In Progress** - validation is in progress.
+  - 🔴 **Failed** - validation failed.
+  - 🟢 **Finished** - validation finished successfully.
 - **Alerts** - counter, indicates the quantity of found errors, that must be fixed promptly or warnings, indicating that issues may affect chain processing, but not require immediate resolution.
 - **Hint** - allows to see a hint for detected issue's root cause and provide short recommendation for fix. Click to display tooltip with suggestions.
 - **Start Time** - timestamp of last validation run.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
-	- **Search** field - allows to find validation or validated entity by its name.
-	- ![20](img/filter.svg) - opens filter pop-up.
-	- ![20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except Name.
-	- **Run Diagnostic** button - initiates validation process.
+  - **Search** field - allows to find validation or validated entity by its name.
+  - ![20](img/filter.svg) - opens filter pop-up.
+  - ![20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except Name.
+  - **Run Diagnostic** button - initiates validation process.
 
 ### View Diagnostic Results
 
@@ -53,13 +51,13 @@ Navigate to Admin Tools and then "Diagnostic page" tab. Select required validati
 - **Deprecated elements found in the chain** - rule allows to find chains with deprecated elements.
 - **Large number of snapshots** - rule allows to check the number of snapshots that older than configured value.
 - **Multiple async consumers found in the chain** - rule allows to detect chains with identical asynchronous consumers (2 or more). Duplication check is performing by following parameters of Kafka/RabbitMQ/AsyncAPI Trigger according to chosen protocol and connection source type:
-	- Kafka (manual) - combination of <u>_Topic_</u> & <u>_Group ID_</u> is equal in the chains.
-	- RabbitMQ (manual) - <u>_Queue(s) Name_</u> is equal in the chains.
-	- Kafka (MaaS) - combination of <u>_Topic Classifier Name_</u>, <u>_Classifier Namespace_</u> and <u>_Group ID_</u> is equal in the chains.
-	- RabbitMQ (MaaS) - combination of <u>_Vhost Maas Classifier Name_</u>, <u>_Classifier Namespace_</u> and <u>_Queue(s) Name_</u> is equal in the chains.
+  - Kafka (manual) - combination of **Topic** & **Group ID** is equal in the chains.
+  - RabbitMQ (manual) - **Queue(s) Name** is equal in the chains.
+  - Kafka (MaaS) - combination of **Topic Classifier Name**, **Classifier Namespace** and **Group ID** is equal in the chains.
+  - RabbitMQ (MaaS) - combination of **Vhost Maas Classifier Name**, **Classifier Namespace** and **Queue(s) Name** is equal in the chains.
 - **Scripting found in the chain** - rule allows to find chains and chain elements which contain scripting.
 - **Sub-chain is used by single chain or not used at all** - rule allows to find chains which were not used in other chains, or they were used only once.
 - **Timeout is empty** - rule allows to find chain elements with empty timeout value.
 - **Unsupported elements found in the chain** - rule allows to find chains with elements that not supported by the system anymore.
 
->ℹ️**Note**: **Each validation performed on chain element data relies solely on the current design-time chain configuration.** Сhain snapshots or deployments do not affect the results of these validations.
+> ℹ️ **Note:** **Each validation performed on chain element data relies solely on the current design-time chain configuration.** Сhain snapshots or deployments do not affect the results of these validations.

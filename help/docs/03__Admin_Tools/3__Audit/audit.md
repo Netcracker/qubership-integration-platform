@@ -1,8 +1,6 @@
 # Audit (Web UI only)
 
-<div style="border-left: 6px dashed #cc0000; padding: 10px">
-This functionality is not available via the VS Code Extension.
-</div>
+> ⛔️ This functionality is not available via the VS Code Extension.
 
 ## Description
 
@@ -10,311 +8,75 @@ This functionality is not available via the VS Code Extension.
 Audit allows tracking most of the actions in UI. Click on the expandable section below to check the list of audit log types grouped by the entity:
 
 <details><summary>Audit log types</summary>
-<table>
-    <thead>
-        <tr>
-            <th>QIP Entity</th>
-            <th>Operation</th>
-            <th>Cases when action is registered</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td rowspan="7">Chain</td>
-            <td>Create </td>
-            <td>
-                <ul>
-                    <li>Create new chain.</li>
-                    <li>Import new chain.</li>
-                </ul>
-            </td>
-        </tr>
-        <tr>
-            <td>Update </td>
-            <td>
-                <ul>
-                    <li>Update chain name, description or labels.</li>
-                    <li>Import new version of existing chain.</li>
-                </ul>
-            </td>
-        </tr>
-        <tr>
-            <td>Delete </td>
-            <td>Delete chain.</td>
-        </tr>
-        <tr>
-            <td>Copy </td>
-            <td>
-                <ul>
-                    <li>Duplicate chain.</li>
-                    <li>Copy chain to another folder.</li>
-                </ul>
-            </td>
-        </tr>
-        <tr>
-            <td>Move </td>
-            <td>Move chain to another folder.</td>
-        </tr>
-        <tr>
-            <td>Export  </td>
-            <td>Export chain.  </td>
-        </tr>
-        <tr>
-            <td>Import</td>
-            <td>Import chain.</td>
-        </tr>
-        <tr>
-            <td rowspan="4">Snapshot</td>
-            <td>Create </td>
-            <td>Create snapshot.</td>
-        </tr>
-        <tr>
-            <td>Update</td>
-            <td>Change snapshot name or labels.</td>
-        </tr>
-        <tr>
-            <td>Delete</td>
-            <td>Delete snapshot.</td>
-        </tr>
-        <tr>
-            <td>Revert</td>
-            <td>Revert chain to previous state via saved snapshot.</td>
-        </tr>
-        <tr>
-            <td rowspan="2">Deployment</td>
-            <td>Create</td>
-            <td>
-                <ul>
-                    <li>Deploy chain.</li>
-                    <li>Redeploy chain.</li>
-                </ul>
-            </td>
-        </tr>
-        <tr>
-            <td>Delete</td>
-            <td>Delete deployment.</td>
-        </tr>
-        <tr>
-            <td rowspan="5">Element</td>
-            <td>Create </td>
-            <td> Add new chain element (HTTP Trigger, Service Call, etc.) in Graph.</td>
-        </tr>
-        <tr>
-            <td>Update</td>
-            <td>Update chain element in Graph.</td>
-        </tr>
-        <tr>
-            <td>Delete</td>
-            <td>Delete element from Graph.</td>
-        </tr>
-        <tr>
-            <td>Group</td>
-            <td>Group multiple elements in Graph.</td>
-        </tr>
-        <tr>
-            <td>Ungroup</td>
-            <td>Ungroup elements in Graph.</td>
-        </tr>
-        <tr>
-            <td rowspan="3">Chain Runtime Properties</td>
-            <td>Create</td>
-            <td>Override logging settings for chain.</td>
-        </tr>
-        <tr>
-            <td>Update</td>
-            <td>Override logging settings for chain.</td>
-        </tr>
-        <tr>
-            <td>Delete</td>
-            <td>Switch to Consul's logging settings for chain. </td>
-        </tr>
-        <tr>
-            <td rowspan="3">Masked field</td>
-            <td>Create</td>
-            <td> Add new masking field. </td>
-        </tr>
-        <tr>
-            <td>Update</td>
-            <td>Change masking field name. </td>
-        </tr>
-        <tr>
-            <td>Delete</td>
-            <td>Delete masking field. </td>
-        </tr>
-        <tr>
-            <td rowspan="5">External/  
-Inner Cloud/  
-Implemented</td>
-                    <td>Create</td>
-                    <td>
-                        <ul>
-                            <li>Create new service.</li>
-                            <li>Import new service.</li>
-                        </ul>
-                    </td>
-                <tr>
-                    <td>Update</td>
-                    <td>
-                        <ul>
-                            <li>Change service name, description or labels.</li>
-                            <li>Reactivate environment.</li>
-                            <li>Update environment.</li>
-                            <li>Import new version of existing service.</li>
-                        </ul>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Delete</td>
-                    <td>Delete service. </td>
-                </tr>
-                <tr>
-                    <td>Export  </td>
-                    <td>Export service.  </td>
-                </tr>
-                <tr>
-                    <td>Import</td>
-                    <td>Import service.</td>
-                </tr>
-                <tr>
-                    <td rowspan="3">Environment</td>
-                    <td>Create</td>
-                    <td>
-                        <ul>
-                            <li>Add new environment manually.</li>
-                            <li>Create environment by service discovery.</li>
-                        </ul>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Update</td>
-                    <td>Update environment data.</td>
-                </tr>
-                <tr>
-                    <td>Delete</td>
-                    <td>Delete environment (for external service). </td>
-                </tr>
-                <tr>
-                    <td rowspan="5">API Specification</td>
-                    <td>Create</td>
-                    <td>
-                        <ul>
-                            <li>Import API Specification manually.</li>
-                            <li>Import API Specification via service discovery.</li>
-                        </ul>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Update</td>
-                    <td>
-                        <ul>
-                            <li>Run service discovery for Inner Cloud Services.</li>
-                            <li>Change labels.</li>
-                        </ul>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Deprecate</td>
-                    <td>Deprecate specification.</td>
-                </tr>
-                <tr>
-                    <td>Delete</td>
-                    <td>Delete specification.</td>
-                </tr>
-                <tr>
-                    <td>Export</td>
-                    <td>Export specification.</td>
-                </tr>
-                <tr>
-                    <td rowspan="3">Specification Group</td>
-                    <td>Create</td>
-                    <td>
-                        <ul>
-                            <li>Add new specification group manually. </li>
-                            <li>Create specification group by service discovery.</li>
-                        </ul>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Update</td>
-                    <td>Change labels.</td>
-                </tr>
-                <tr>
-                    <td>Delete</td>
-                    <td>Delete Specification Group.</td>
-                </tr>
-                <tr>
-                    <td rowspan="2">Service discovery</td>
-                    <td>Start</td>
-                    <td> When service discovery was started.</td>
-                </tr>
-                <tr>
-                    <td>Execute</td>
-                    <td>When service discovery was completed. </td>
-                </tr>
-                <tr>
-                    <td rowspan="5">Common/  
-Secured Variable</td>
-                        <td>Create</td>
-                        <td>Create secured variable.</td>
-                    <tr>
-                        <td>Update</td>
-                        <td>Change secured variable value.</td>
-                    </tr>
-                    <tr>
-                        <td>Delete</td>
-                        <td>Delete secured variable.</td>
-                    </tr>
-                    <tr>
-                        <td>Export</td>
-                        <td>Export secured variable(s).</td>
-                    </tr>
-                    <tr>
-                        <td>Import</td>
-                        <td>Import secured variable(s).</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="1">Secret</td>
-                        <td>Create</td>
-                        <td>Create new secret on secured variables tab.</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="2">Template</td>
-                        <td>Create</td>
-                        <td>Upload new document template into the system.</td>
-                    </tr>
-                    <tr>
-                        <td>Delete</td>
-                        <td>Delete template from the system.</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="4">Import Instructions</td>
-                        <td>Create</td>
-                        <td>Create new import instruction.</td>
-                    </tr>
-                    <tr>
-                        <td>Update</td>
-                        <td>Update existing import instruction.</td>
-                    </tr>
-                    <tr>
-                        <td>Delete</td>
-                        <td>Delete import instruction.</td>
-                    </tr>
-                    <tr>
-                        <td>Import</td>
-                        <td>Upload import instructions.</td>
-                    </tr>
-                    <tr>
-                        <td>Exchange</td>
-                        <td>Delete</td>
-                        <td>Terminate the exchange manually on ["Live Exchanges"](../8__Live_Exchanges/live_exchanges.md) tab.</td>
-                    </tr>
-    </tbody>
-</table>
+
+| QIP Entity | Operation | Cases when action is registered |
+| --- | --- | --- |
+| Chain | Create | <ul><li>Create new chain.</li><li>Import new chain.</li></ul> |
+| Chain | Update | <ul><li>Update chain name, description or labels.</li><li>Import new version of existing chain.</li></ul> |
+| Chain | Delete | Delete chain. |
+| Chain | Copy | <ul><li>Duplicate chain.</li><li>Copy chain to another folder.</li></ul> |
+| Chain | Move | Move chain to another folder. |
+| Chain | Export | Export chain. |
+| Chain | Import | Import chain. |
+| Snapshot | Create | Create snapshot. |
+| Snapshot | Update | Change snapshot name or labels. |
+| Snapshot | Delete | Delete snapshot. |
+| Snapshot | Revert | Revert chain to previous state via saved snapshot. |
+| Deployment | Create | <ul><li>Deploy chain.</li><li>Redeploy chain.</li></ul> |
+| Deployment | Delete | Delete deployment. |
+| Element | Create | Add new chain element (HTTP Trigger, Service Call, etc.) in Graph. |
+| Element | Update | Update chain element in Graph. |
+| Element | Delete | Delete element from Graph. |
+| Element | Group | Group multiple elements in Graph. |
+| Element | Ungroup | Ungroup elements in Graph. |
+| Chain Runtime Properties | Create | Override logging settings for chain. |
+| Chain Runtime Properties | Update | Override logging settings for chain. |
+| Chain Runtime Properties | Delete | Switch to Consul's logging settings for chain. |
+| Masked field | Create | Add new masking field. |
+| Masked field | Update | Change masking field name. |
+| Masked field | Delete | Delete masking field. |
+| External/ Inner Cloud/ Implemented | Create | <ul><li>Create new service.</li><li>Import new service.</li></ul> |
+| External/ Inner Cloud/ Implemented | Update | <ul><li>Change service name, description or labels.</li><li>Reactivate environment.</li><li>Update environment.</li><li>Import new version of existing service.</li></ul> |
+| External/ Inner Cloud/ Implemented | Delete | Delete service. |
+| External/ Inner Cloud/ Implemented | Export | Export service. |
+| External/ Inner Cloud/ Implemented | Import | Import service. |
+| Environment | Create | <ul><li>Add new environment manually.</li><li>Create environment by service discovery.</li></ul> |
+| Environment | Update | Update environment data. |
+| Environment | Delete | Delete environment (for external service). |
+| API Specification | Create | <ul><li>Import API Specification manually.</li><li>Import API Specification via service discovery.</li></ul> |
+| API Specification | Update | <ul><li>Run service discovery for Inner Cloud Services.</li><li>Change labels.</li></ul> |
+| API Specification | Deprecate | Deprecate specification. |
+| API Specification | Delete | Delete specification. |
+| API Specification | Export | Export specification. |
+| Specification Group | Create | <ul><li>Add new specification group manually.</li><li>Create specification group by service discovery.</li></ul> |
+| Specification Group | Update | Change labels. |
+| Specification Group | Delete | Delete Specification Group. |
+| Service discovery | Start | When service discovery was started. |
+| Service discovery | Execute | When service discovery was completed. |
+| Common/ Secured Variable | Create | Create secured variable. |
+| Common/ Secured Variable | Update | Change secured variable value. |
+| Common/ Secured Variable | Delete | Delete secured variable. |
+| Common/ Secured Variable | Export | Export secured variable(s). |
+| Common/ Secured Variable | Import | Import secured variable(s). |
+| Secret | Create | Create new secret on secured variables tab. |
+| Template | Create | Upload new document template into the system. |
+| Template | Delete | Delete template from the system. |
+| Import Instructions | Create | Create new import instruction. |
+| Import Instructions | Update | Update existing import instruction. |
+| Import Instructions | Delete | Delete import instruction. |
+| Import Instructions | Import | Upload import instructions. |
+| Exchange | Delete | Terminate the exchange manually on ["Live Exchanges"](../8__Live_Exchanges/live_exchanges.md) tab. |
+
 </details>
 
 There is a specific **"Audit"** tab available in QIP UI, that could be utilized by user to view the logs.
 
->ℹ️**Notes**:<li>There are retention policy settings, that could be configured as part of system installation. Following the settings, action logs might be removed after some period of time.</li><li>In case of bulk operations, audit page will register separate action per each entity (e.g. bulk chain import/export, bulk snapshot deletion, etc.)</li><li>For manual import of complex entities, such as chains, services, etc. system may register both IMPORT and CREATE/UPDATE operations, depending on how imported entities are handled.</li><li>In some scenarios, when the platform does not identify the exact operation type, it sets "Create and Update" as a value for the record.</li>
+> ℹ️ **Notes:**
+>
+> - There are retention policy settings, that could be configured as part of system installation. Following the settings, action logs might be removed after some period of time.
+> - In case of bulk operations, audit page will register separate action per each entity (e.g. bulk chain import/export, bulk snapshot deletion, etc.)
+> - For manual import of complex entities, such as chains, services, etc. system may register both IMPORT and CREATE/UPDATE operations, depending on how imported entities are handled.
+> - In some scenarios, when the platform does not identify the exact operation type, it sets "Create and Update" as a value for the record.
 ## User Interface
 
 ---
@@ -344,7 +106,7 @@ Similar information is presented on "**Action details**" right panel, available 
 
 To export audit table to Excel file, find and click export ![Download|20](img/cloud-download.svg) button, select the required date range and confirm operation.
 
->**ℹ️Note**: Resulted file will always have "Action date" values converted to **GMT** time zone.
+> ℹ️ **Note:** Resulted file will always have "Action date" values converted to **GMT** time zone.
 
 ### Refresh Logs
 

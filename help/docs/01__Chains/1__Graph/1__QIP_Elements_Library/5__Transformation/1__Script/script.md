@@ -13,12 +13,15 @@ This tab allows to write transformation script in Groovy programming language fo
 
 For example, next code might be utilized to set a new Exchange Body:
 
-<pre style="background-color: #F5F5F7"><code  style="color: #000000">exchange.getMessage().setBody("Body")</code></pre>
+```groovy
+exchange.getMessage().setBody("Body")
+```
 
 For the quick navigation in the code block, use search bar, accessed by clicking combination of Ctrl+F. Refer to [Tutorial Page](1__Tutorial_on_the_Apache_Groovy/tutorial_apache_groovy.md) for additional samples and hints.
 
 ### "Parameters" Tab
 #### Metadata
+
 | Parameter   | Mandatory | Data Type | Description                                                                                                                         | Sample                  |
 | ----------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
 | Name        | M         | String    | Name of the element.                                                                                                                | Set body                |

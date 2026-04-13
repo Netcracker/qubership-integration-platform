@@ -10,12 +10,13 @@
 ---
 ### "Parameters" Tab
 #### Common Parameters
+
 | Parameter       | Mandatory | Data Type | Description                                                                               | Sample |
 | --------------- | :-------- | :-------- | ----------------------------------------------------------------------------------------- | ------ |
 | Reuse Reference | M         | List      | Specifies the [Reuse](../../1__Routing/2__Reuse/reuse.md) container to be connected with. | N/A    |
 
-### "Parameters" Tab
 #### Metadata
+
 | Parameter   | Mandatory | Data Type | Description                              | Sample            |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ----------------- |
 | Name        | M         | String    | Name of the element.                     | Reference         |

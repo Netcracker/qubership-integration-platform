@@ -11,21 +11,26 @@ Configuration of this element must follow simple aspects:
 - **Finally** block must contain part of the chain, that is going to be executed at the end of Try-Catch-Finally processing. This part will always be executed, whether an error occurred or not.
 
 
->ℹ️Note: One of the options of accessing error details, captured by **Catch** block, would be using next string in the **Script** element:
-><pre style="background-color: #F5F5F7;"><code style="color: #000;">exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class)</code></pre>
+> ℹ️ **Note:** One of the options of accessing error details, captured by **Catch** block, would be using next string in the **Script** element:
+
+```groovy
+exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class)
+```
 
 ## User Interface
 
 ---
 ### "Parameters" Tab (Try-Catch-Finally)
-#### Metadata
+#### Try-Catch-Finally Metadata
+
 | Parameter   | Mandatory | Data Type | Description                                        | Sample                        |
 | ----------- | :-------- | :-------- | -------------------------------------------------- | ----------------------------- |
 | Name        | M         | String    | Name of the "Try-Catch-Finally" container element. | Try - Catch                   |
 | Description | O         | String    | Free text field for module description.            | Applies error handling logic. |
 
 ### "Parameters" Tab (Try)
-#### Metadata
+#### Try Metadata
+
 | Parameter   | Mandatory | Data Type | Description                              | Sample                                   |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ---------------------------------------- |
 | Name        | M         | String    | Name of the "Try" container element.     | Order submit                             |
@@ -33,20 +38,22 @@ Configuration of this element must follow simple aspects:
 
 ### "Parameters" Tab (Catch)
 #### Common Parameters
+
 | Parameter | Mandatory | Data Type | Description                                                                                                                              | Sample              |
 | --------- | :-------- | :-------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | Exception | M         | String    | This field must contain the name of Java class, that must fail to start the chain branch, configured under particular "Catch" container. | java.lang.Exception |
 | Priority  | M         | Number    | Priority of "Catch" containers. Container with priority "0" will be taken for processing first.                                          | 1                   |
 
-#### Metadata
+#### Catch Metadata
+
 | Parameter   | Mandatory | Data Type | Description                              | Sample                                  |
 | ----------- | :-------- | :-------- | ---------------------------------------- | --------------------------------------- |
 | Name        | M         | String    | Name of the "Catch" container element.   | Catch Internal server error             |
 | Description | O         | String    | Free text field for element description. | Element handles internal server errors. |
 
-
 ### "Parameters" Tab (Finally)
-#### Metadata
+#### Finally Metadata
+
 | Parameter   | Mandatory | Data Type | Description                              | Sample           |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ---------------- |
 | Name        | M         | String    | Name of the element.                     | Create ticket    |
@@ -56,6 +63,6 @@ Configuration of this element must follow simple aspects:
 
 ---
 Please consider next constraints:
-- Only one **Try** module should be used in **Try-Catch-Finally**.
+- Only one **Try** module should be used in **ch-Finally**.
 - One or more **Catch** modules have to be used.
-- More than one **Finally** element module can not be used in **Try-Catch-Finally**. **Try-Catch-Finally** also can proceed without **Finally** module.
+- More than one **Finally** element module can not be used in **ch-Finally**. **ch-Finally** also can proceed without **Finally** module.

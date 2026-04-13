@@ -28,389 +28,65 @@ To open QIP Help:
 
 ## Export/Import
 
-QIP provides an ability to export ![Download|20](img/cloud-download.svg) and import ![Upload|20](img/cloud-upload.svg) different entities. The export function supports both **legacy** and **new** formats for QIP artifacts. Switching between legacy and new format option for export is possible via configuration of specific environment parameter (for the correct parameter name, please, contact system administrator).
+QIP provides an ability to export ![Download|20](img/cloud-download.svg) and import ![Upload|20](img/cloud-upload.svg) different entities.
+The export function supports both **legacy** and **new** formats for QIP artifacts.
+Switching between legacy and new format option for export is possible via configuration of specific environment parameter
+(for the correct parameter name, please, contact system administrator).
 The next set of tables specifies the structure for QIP artifacts in the different supported formats.
 
-<style>
-summary {
-  display: list-item;
-  list-style: disclosure-closed inside;
-  cursor: pointer;
-}
-details[open] > summary {
-  list-style: disclosure-open inside;
-}
-</style>
 <details><summary>Export - New Format</summary>
-<table cellspacing="2" border="1" cellpadding="5">
-    <thead>
-        <tr>
-            <th colspan="6">Folder structure</th>
-            <th>Content</th>
-            <th>Cardinality</th>
-            <th>Sample</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td colspan=9>Project QIP configurations root folder at git/SVN (shouldn't be present in zip-archive)</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td colspan="5"> **chains**</td>
-            <td> container for chains</td>
-            <td> 1..1</td>
-            <td>chains </td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td colspan="4">{chain-id}</td>
-            <td>UUID of the chain</td>
-            <td>0..N</td>
-            <td>ca82633e-7255-4be7-87bb-b63d65b11179</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">chain-{chain_id}.yaml</td>
-            <td>yaml configuration of the chain</td>
-            <td>1..1</td>
-            <td>chain-ca82633e-7255-4be7-87bb-b63d65b11179.yaml</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">script-{module_id}.groovy</td>
-            <td>groovy file for script module (if chain configuration contains script)</td>
-            <td>0..N</td>
-            <td>script-96ba0514-8033-4796-b355-9c22839a530f.groovy</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">script-before-{service_call_id}.groovy</td>
-            <td>groovy file for embedded scripting module in Service Call for preparing of request</td>
-            <td>0..N</td>
-            <td>script-before-96ba0514-8033-4796-b355-9c22839a530f.groovy</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">script-{response code}-{module_id}.groovy</td>
-            <td>groovy file for embedded scripting module in Service Call for response handling (by particular response code)</td>
-            <td>0..N</td>
-            <td>script-404-96ba0514-8033-4796-b355-9c22839a530f.groovy</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">mappingDescription-{module_id}.json</td>
-            <td>json file with mapping configuration (if chain configuration contains mapper)</td>
-            <td>0..N</td>
-            <td>mappingDescription-647b944c-3385-0987-c5a0-97a0988d076c.json</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">mappingDescription-before-{module_id}.json</td>
-            <td>json file for embedded Mapper in Service Call for preparing of request</td>
-            <td>0..N</td>
-            <td>mappingDescription-before-467b844c-3385-0987-c5a0-97a0988d076c.json</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">mappingDescription-{response code}-{module_id}.json</td>
-            <td>json file for embedded Mapper in Service Call for response handling (by particular response code)</td>
-            <td>0..N</td>
-            <td>mappingDescription-200-467b844c-3385-0987-c5a0-97a0988d076c.json</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td colspan="5"> **services**</td>
-            <td> container for services</td>
-            <td> 1..1</td>
-            <td>services</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td colspan="4">{service_id}</td>
-            <td>UUID of the service</td>
-            <td>1..N</td>
-            <td>4985c997-955e-4edb-b137-dfda539b87a1</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">service-{service_id}.yaml</td>
-            <td>yaml configuration of the chain (incl. env configs)</td>
-            <td>1..1</td>
-            <td>service-4985c997-955e-4edb-b137-dfda539b87a1.yaml</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">specGroup-{specification_group_id}.yaml</td>
-            <td>yaml configuration of the specification group</td>
-            <td>0..N</td>
-            <td>specGroup-4985c997-955e-4edb-b137-dfda539b87a1-groupName.yaml</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">specification-{specification_id}.yaml</td>
-            <td>yaml configuration of the API Specification</td>
-            <td>0..N</td>
-            <td>specification-4985c997-955e-4edb-b137-dfda539b87a1-groupName-1.0.0.yaml</td>
-        </tr>
-         <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">**source-{specification_id}**</td>
-            <td>container for specifications of the group</td>
-            <td>0..N</td>
-            <td>source-4985c997-955e-4edb-b137-dfda539b87a1-groupName-1.0.0</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-        <td></td>
-            <td colspan="2">{specification_name}.{json | yaml | wsdl | xsd}</td>
-            <td>swagger | asyncAPI | wsdl specification source file</td>
-            <td>1..N</td>
-            <td>default.json</td>
-        </tr>
-         <tr>
-            <td width="1"></td>
-            <td colspan="5"> **variables**</td>
-            <td>common QIP variables</td>
-            <td> 1..1</td>
-            <td>variables</td>
-        </tr>
-         <tr>
-            <td width="1"></td>
-            <td></td>
-            <td colspan="4">common-variables.yaml</td>
-            <td>yaml file with list of common variables (will be exported every time if exist at least one variable)</td>
-            <td>0..1</td>
-            <td>common-variables.yaml</td>
-        </tr>
-         <tr>
-            <td width="1"></td>
-            <td colspan="5">qip-import-instructions.yaml</td>
-            <td>yaml configuration of the import instructions</td>
-            <td> 0..1</td>
-            <td>qip-import-instructions.yaml</td>
-        </tr>
-    </tbody>
-</table>
+
+```text
+Project root (git/SVN root, not included in zip-archive)
+└── chains/                                                                    container for chains [1..1]
+    └── {chain-id}/                                                            UUID of the chain [0..N]
+        ├── chain-{chain_id}.yaml                                              yaml configuration of the chain [1..1]
+        ├── script-{module_id}.groovy                                          groovy file for script module (if chain configuration contains script) [0..N]
+        ├── script-before-{service_call_id}.groovy                             groovy file for embedded scripting module in Service Call for preparing of request [0..N]
+        ├── script-{response code}-{module_id}.groovy                          groovy file for embedded scripting module in Service Call for response handling (by particular response code) [0..N]
+        ├── mappingDescription-{module_id}.json                                json file with mapping configuration (if chain configuration contains mapper) [0..N]
+        ├── mappingDescription-before-{module_id}.json                         json file for embedded Mapper in Service Call for preparing of request [0..N]
+        └── mappingDescription-{response code}-{module_id}.json                json file for embedded Mapper in Service Call for response handling (by particular response code) [0..N]
+├── services/                                                                  container for services [1..1]
+│   └── {service_id}/                                                          UUID of the service [1..N]
+│       ├── service-{service_id}.yaml                                          yaml configuration of the chain (incl. env configs) [1..1]
+│       ├── specGroup-{specification_group_id}.yaml                            yaml configuration of the specification group [0..N]
+│       ├── specification-{specification_id}.yaml                              yaml configuration of the API Specification [0..N]
+│       └── source-{specification_id}/                                         container for specifications of the group [0..N]
+│           └── {specification_name}.{json|yaml|wsdl|xsd}                      swagger | asyncAPI | wsdl specification source file [1..N]
+├── variables/                                                                 common QIP variables [1..1]
+│   └── common-variables.yaml                                                  yaml file with list of common variables (will be exported every time if exist at least one variable) [0..1]
+└── qip-import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
+```
+
 </details>
-<br>
 
-
-<style>
-summary {
-  display: list-item;
-  list-style: disclosure-closed inside;
-  cursor: pointer;
-}
-details[open] > summary {
-  list-style: disclosure-open inside;
-}
-</style>
 <details><summary>Export - Legacy Format</summary>
-<table style="width:90%" cellspacing="2" border="1" cellpadding="5">
-    <thead>
-        <tr>
-            <th style="width:30%" colspan="6">Folder structure</th>
-            <th>Content</th>
-            <th>Cardinality</th>
-            <th>Sample</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td colspan=9>Project QIP configurations root folder at git (shouldn't be present in zip-archive)</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td colspan="5"> <b>chains</b></td>
-            <td> container for chains</td>
-            <td> 1..1</td>
-            <td>chains </td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td colspan="4">{chain-id}</td>
-            <td>UUID of the chain</td>
-            <td>0..N</td>
-            <td>ca82633e-7255-4be7-87bb-b63d65b11179</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">chain-{chain_id}.yaml</td>
-            <td>yaml configuration of the chain</td>
-            <td>1..1</td>
-            <td>chain-ca82633e-7255-4be7-87bb-b63d65b11179.yaml</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">script-{module_id}.groovy</td>
-            <td>groovy file for script module (if chain configuration contains script)</td>
-            <td>0..N</td>
-            <td>script-96ba0514-8033-4796-b355-9c22839a530f.groovy</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">script-before-{service_call_id}.groovy</td>
-            <td>groovy file for embedded scripting module in Service Call for preparing of request</td>
-            <td>0..N</td>
-            <td>script-before-96ba0514-8033-4796-b355-9c22839a530f.groovy</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">script-{response code}-{module_id}.groovy</td>
-            <td>groovy file for embedded scripting module in Service Call for response handling (by particular response code)</td>
-            <td>0..N</td>
-            <td>script-404-96ba0514-8033-4796-b355-9c22839a530f.groovy</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">mappingDescription-{module_id}.json</td>
-            <td>json file with mapping configuration (if chain configuration contains mapper)</td>
-            <td>0..N</td>
-            <td>mappingDescription-647b944c-3385-0987-c5a0-97a0988d076c.json</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">mappingDescription-before-{module_id}.json</td>
-            <td>json file for embedded Mapper in Service Call for preparing of request</td>
-            <td>0..N</td>
-            <td>mappingDescription-before-467b844c-3385-0987-c5a0-97a0988d076c.json</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">mappingDescription-{response code}-{module_id}.json</td>
-            <td>json file for embedded Mapper in Service Call for response handling (by particular response code)</td>
-            <td>0..N</td>
-            <td>mappingDescription-200-467b844c-3385-0987-c5a0-97a0988d076c.json</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td colspan="5"> <b>services</b></td>
-            <td> container for services</td>
-            <td> 1..1</td>
-            <td>services</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td colspan="4">{service_id}</td>
-            <td>UUID of the service</td>
-            <td>1..N</td>
-            <td>4985c997-955e-4edb-b137-dfda539b87a1</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">service-{service_id}.yaml</td>
-            <td>yaml configuration of the chain (incl. env configs)</td>
-            <td>1..1</td>
-            <td>service-4985c997-955e-4edb-b137-dfda539b87a1.yaml</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">specGroup-{specification_group_id}.yaml</td>
-            <td>yaml configuration of the specification group</td>
-            <td>0..N</td>
-            <td>specGroup-4985c997-955e-4edb-b137-dfda539b87a1-groupName.yaml</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3">specification-{specification_id}.yaml</td>
-            <td>yaml configuration of the API Specification</td>
-            <td>0..N</td>
-            <td>specification-4985c997-955e-4edb-b137-dfda539b87a1-groupName-1.0.0.yaml</td>
-        </tr>
-         <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-            <td colspan="3"><b>source-{specification_id}</b></td>
-            <td>container for specifications of the group</td>
-            <td>0..N</td>
-            <td>source-4985c997-955e-4edb-b137-dfda539b87a1-groupName-1.0.0</td>
-        </tr>
-        <tr>
-            <td width="1"></td>
-            <td></td>
-            <td></td>
-        <td></td>
-            <td colspan="2">{specification_name}.{json | yaml | wsdl | xsd}</td>
-            <td>swagger | asyncAPI | wsdl specification source file</td>
-            <td>1..N</td>
-            <td>default.json</td>
-        </tr>
-         <tr>
-            <td width="1"></td>
-            <td colspan="5"> <b>variables</b></td>
-            <td>common QIP variables</td>
-            <td> 1..1</td>
-            <td>variables</td>
-        </tr>
-         <tr>
-            <td width="1"></td>
-            <td></td>
-            <td colspan="4">common-variables.yaml</td>
-            <td>yaml file with list of common variables (will be exported every time if exist at least one variable)</td>
-            <td>0..1</td>
-            <td>common-variables.yaml</td>
-        </tr>
-         <tr>
-            <td width="1"></td>
-            <td colspan="5">qip-import-instructions.yaml</td>
-            <td>yaml configuration of the import instructions</td>
-            <td> 0..1</td>
-            <td>qip-import-instructions.yaml</td>
-        </tr>
-    </tbody>
-</table>
+
+```text
+Project root (git/SVN root, not included in zip-archive)
+└── chains/                                                                    container for chains [1..1]
+    └── {chain-id}/                                                            UUID of the chain [0..N]
+        ├── chain-{chain_id}.yaml                                              yaml configuration of the chain [1..1]
+        ├── script-{module_id}.groovy                                          groovy file for script module (if chain configuration contains script) [0..N]
+        ├── script-before-{service_call_id}.groovy                             groovy file for embedded scripting module in Service Call for preparing of request [0..N]
+        ├── script-{response code}-{module_id}.groovy                          groovy file for embedded scripting module in Service Call for response handling (by particular response code) [0..N]
+        ├── mappingDescription-{module_id}.json                                json file with mapping configuration (if chain configuration contains mapper) [0..N]
+        ├── mappingDescription-before-{module_id}.json                         json file for embedded Mapper in Service Call for preparing of request [0..N]
+        └── mappingDescription-{response code}-{module_id}.json                json file for embedded Mapper in Service Call for response handling (by particular response code) [0..N]
+├── services/                                                                  container for services [1..1]
+│   └── {service_id}/                                                          UUID of the service [1..N]
+│       ├── service-{service_id}.yaml                                          yaml configuration of the chain (incl. env configs) [1..1]
+│       ├── specGroup-{specification_group_id}.yaml                            yaml configuration of the specification group [0..N]
+│       ├── specification-{specification_id}.yaml                              yaml configuration of the API Specification [0..N]
+│       └── source-{specification_id}/                                         container for specifications of the group [0..N]
+│           └── {specification_name}.{json|yaml|wsdl|xsd}                      swagger | asyncAPI | wsdl specification source file [1..N]
+├── variables/                                                                 common QIP variables [1..1]
+│   └── common-variables.yaml                                                  yaml file with list of common variables (will be exported every time if exist at least one variable) [0..1]
+└── qip-import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
+```
+
 </details>
-<br>
 
 ## Filters
 

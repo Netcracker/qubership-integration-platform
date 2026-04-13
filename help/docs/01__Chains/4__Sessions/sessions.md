@@ -1,8 +1,6 @@
 # Sessions [Web UI only]
 
-<div style="border-left: 6px dashed #cc0000; padding: 10px">
-This functionality is not available via the VS Code Extension.
-</div>
+> ⛔️ This functionality is not available via the VS Code Extension.
 
 ## Description
 
@@ -11,7 +9,10 @@ Session represents chain processing step by step. Chain session is being created
 
 ### Async Request & Callback Linkage in Sessions
 
-There are technical specifics available for asynchronous integrations, that can cause losing linkage between request and callback. Due to the fact that callback for such integration type is being provided with a significant delay, it leads to the challenges related to identifying of the original request. To deal with this challenge, Qubership Integration Platform links request and callbacks with correlation id. This also gives an ability to group up sessions with the same id on the table **"Sessions"**, available for each chain.
+There are technical specifics available for asynchronous integrations, that can cause losing linkage between request and callback.
+Due to the fact that callback for such integration type is being provided with a significant delay, it leads to the challenges related to identifying of the original request.
+To deal with this challenge, Qubership Integration Platform links request and callbacks with correlation id.
+This also gives an ability to group up sessions with the same id on the table **"Sessions"**, available for each chain.
 
 Correlation id can be passed by the following chain modules:
 - [HTTP Trigger](../1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
@@ -22,7 +23,7 @@ Correlation id can be passed by the following chain modules:
 
 In case of asynchronous request during chain design time user have to configure correlation id source and its name (key).
 
->**ℹ️Note**: Correlation id will be added to the list of camel exchange properties in Runtime.
+> ℹ️ **Note**: Correlation id will be added to the list of camel exchange properties in Runtime.
 
 ## User Interface
 
@@ -34,25 +35,24 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
 
 - **ID** - generated session UUID. The parameter value is clickable.
 - **Status** - status of the session. Possible values:
-	- 🟢 _**Completed Normally**_ - session has been completed without issues. 
-	- 🔴 _**Completed with Errors**_ - session failed. Error details are available on tab "Errors" under failed session element.
-	- 🟡 _**Completed With Warnings**_ - session has been completed with warnings or exceptions, successfully handled within proper elements, such as try-catch-finally, etc. Error details are also available on tab "Errors" under failed session element.
-	- 🔵 _**In Progress**_ - session is in progress. Finalized status will be available in some time.
-	- c _**Cancelled Or Unknown**_ - session processing has been interrupted by chain itself. For example, this status might indicate that one of the Split element branches failed while this element has option "Stop On Exception" selected, which caused interruption of all other branches.
-* **Start Time** - start datetime of the session.
+  - 🟢 _**Completed Normally**_ - session has been completed without issues.
+  - 🔴 _**Completed with Errors**_ - session failed. Error details are available on tab "Errors" under failed session element.
+  - 🟡 _**Completed With Warnings**_ - session has been completed with warnings or exceptions, successfully handled within proper elements, such as try-catch-finally, etc. Error details are also available on tab "Errors" under failed session element.
+  - 🔵 _**In Progress**_ - session is in progress. Finalized status will be available in some time.
+  - ⚫ _**Cancelled Or Unknown**_ - session processing has been interrupted by chain itself. For example, this status might indicate that one of the Split element branches failed while this element has option "Stop On Exception" selected, which caused interruption of all other branches.
+- **Start Time** - start datetime of the session.
 - **Finish Time** - finish datetime of the session
 - **Session level** - shows level of logging for specific session.
 - **Duration** - shows 2 time values: 1st one is a duration of synchronous main session thread, 2nd one (in brackets) is summary duration of all synchronous and asynchronous threads. In case value is more than 1 second, it will be displayed in seconds, otherwise in milliseconds.
 - **Snapshot** - snapshot version of deployment.
-    >**ℹ️Note**: **After manual [snapshot](../2__Snapshots/snapshots.md) renaming, current parameter's value will not be updated automatically (even for the new sessions)**. To see updated snapshot name, it is required to redeploy the chain.
+    > ℹ️ **Note**: **After manual [snapshot](../2__Snapshots/snapshots.md) renaming, current parameter's value will not be updated automatically (even for the new sessions)**. To see updated snapshot name, it is required to redeploy the chain.
 - **Engine** - name of the session engine domain with pod address (without port) in parentheses.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
-	- **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
-    >**ℹ️Note**: When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
-    
-	- ![20](img/delete.svg) - deletes selected session(s).
-	- ![20](img/cloud-download.svg) - exports the session.
-	- ![20](img/redo.svg) - refreshes session table.
+  - **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
+    > ℹ️ **Note**: When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
+  - ![20](img/delete.svg) - deletes selected session(s).
+  - ![20](img/cloud-download.svg) - exports the session.
+  - ![20](img/redo.svg) - refreshes session table.
 
 ### Session view
 
@@ -72,7 +72,7 @@ Next information is available, when element's name clicked and window with its d
 - **Previous/Next** buttons - navigation buttons, that allow to open previous or next session element.
 - **Body** tab - contains before/after states of request body, participated in the processing.
 - **Headers** tab - contains the list of headers and their before/after values. Slider **"Only modified"** filters out unmodified headers.
-    >**ℹ️Note**: For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
+    > ℹ️ **Note**: For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
 - **Exchange properties** tab - contains list of exchange properties. There are specific properties, available for failed elements in sessions, please refer to the [Building Logic Around Failed Elements](../../00__Overview/6__Building_Logic_Around_Failed_Elements/failed_elements_logic.md) article for more details.
 - **Technical context** tab - contains the list of context headers, that has been received by the chain.
 
@@ -80,7 +80,7 @@ There is also "**View diff**" switch, available for "**Headers**", "**Exchange p
 
 ### Retry Failed Session
 
-To retry failed session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](1__Graph/1__QIP_Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
+To retry failed session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../1__Graph/1__QIP_Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
 
 ### Export Sessions
 

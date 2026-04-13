@@ -1,13 +1,16 @@
 # Access Control
 
-<div style="border-left: 6px dashed #cc0000; padding: 10px">
-This functionality is not available via the VS Code Extension.
-</div>
+> ⛔️ This functionality is not available via the VS Code Extension.
 
 ## Description
 
 ---
-This tab allows user to easily and quickly control access to every chain endpoint (exposed by particular chain via [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)) by managing the access control type and respective configurations. Without opening each separate chain, user could use single **"Access Control"** page to view access control configurations, change access control type (NONE <-> RBAC), change list of roles, and apply changes via redeploying the chains, reusing previous deployment settings (logging, engines, etc.)
+This tab allows user to easily and quickly control access to every chain endpoint
+(exposed by particular chain via [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md))
+by managing the access control type and respective configurations.
+Without opening each separate chain, user could use single **"Access Control"** page to view access control configurations,
+change access control type (NONE <-> RBAC), change list of roles,
+and apply changes via redeploying the chains, reusing previous deployment settings (logging, engines, etc.)
 
 ## User Interface
 
@@ -20,13 +23,13 @@ Tab "Access Control" contains a table, representing the unique endpoint, that is
 - **Access Control Type** - specifies the type of access configured for the HTTP Trigger (_RBAC/ABAC/NONE_).
 - **Roles/Resource** - list of roles, configured for HTTP Trigger. Applicable to display list of roles (as blue chips) only for _RBAC_ access control type; for _NONE/ABAC_ - displayed as hyphen (-).
 - **Attributes** - set of applied parameters for attribute based access control endpoint (chain) configuration. Applicable to display parameters only for _ABAC_ access control type; for _NONE/RBAC_ - displayed as hyphen (-).
-    >**ℹ️Note**: Click <span style="color: blue;">"Details"</span> reference on the respective row to open popover with ABAC parameters (*Operation*, *Resource Type* and *Resource/Resource Map*) in read-only mode.
+    > ℹ️ **Note:** Click **"Details"** reference on the respective row to open popover with ABAC parameters (_Operation_, _Resource Type_ and _Resource/Resource Map_) in read-only mode.
 - **Chain** - name of the chain, that exposes the endpoint. Navigates to the chain by click.
 - **Chain Status** - current status of the related chain.
 
 Next capabilities are available above the table in the right top:
-* ![20](img/setting.svg) - opens column settings.
-* ![20](img/carry-out.svg) - selects unsaved chains.
+- ![20](img/setting.svg) - opens column settings.
+- ![20](img/carry-out.svg) - selects unsaved chains.
 - ![20](img/send.svg) -  redeploys chain(s) with unsaved changes.
 - ![20](img/plus.svg) - opens pop-up that allows to add new role(s) to desired endpoints.
 - ![20](img/minus.svg) - opens pop-up that allows to remove the role(s) from desired endpoints.
@@ -35,11 +38,11 @@ Next capabilities are available above the table in the right top:
 ### View Details
 
 Click the specific table line, that corresponds to the endpoint in order to open additional "Endpoint Details" window. Besides the info, available in the table, this window additionally shows:
--   **Unsaved Changes label** - label that indicates unsaved changes available for chain.
--   **Entity Id** – element id that holds the endpoint (basically, element id of the HTTP Trigger).
--   **Entity Name** – element name that holds the endpoint (basically, it is a name of the HTTP Trigger).
--   **Chain Id** – identifier of the chain, that contains the http trigger.
--   **Entity Update Date** – last update date of the endpoint (it is change date of HTTP Trigger).
+- **Unsaved Changes label** - label that indicates unsaved changes available for chain.
+- **Entity Id** – element id that holds the endpoint (basically, element id of the HTTP Trigger).
+- **Entity Name** – element name that holds the endpoint (basically, it is a name of the HTTP Trigger).
+- **Chain Id** – identifier of the chain, that contains the http trigger.
+- **Entity Update Date** – last update date of the endpoint (it is change date of HTTP Trigger).
 
 ### Add Roles
 
@@ -61,7 +64,11 @@ Use respective checkbox on the **"Remove Roles"** window to apply the changes by
 
 ### Redeploy
 
-Chain must be redeployed from **"Access Control"** or standard **"Deployment"** tab in order to apply the changes. When working with **"Access Control"** table, only colored records that contain not deployed changes and related to **Deployed** chains are available for redeployment (in other cases, respective button is disabled). To quickly select all colored rows, simply click colored **"Select Unsaved Chains"** marked with icon ![20](img/carry-out.svg) on top of the table.
+Chain must be redeployed from **"Access Control"** or standard **"Deployment"** tab in order to apply the changes.
+When working with **"Access Control"** table, only colored records that contain not deployed changes
+and related to **Deployed** chains are available for redeployment (in other cases, respective button is disabled).
+To quickly select all colored rows, simply click colored **"Select Unsaved Chains"**
+marked with icon ![20](img/carry-out.svg) on top of the table.
 
 
 ### Refresh

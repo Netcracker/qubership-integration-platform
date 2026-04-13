@@ -7,25 +7,30 @@ Token mechanism allows secured communications between services and mitigates the
 - **Engine Level:** on this level token is being validated via internal core libraries. This validation will ensure that token is correct and request is trusted. Only if authentication is successful, request is able to reach the chain (specifically the trigger element).
 - **Trigger Level:** on this level tokenized request is being validated against the specified list of allowed roles (if any). This list could be filled under trigger's parameter tab.
 
-In addition, Qubership Integration Platform provides the ability to pass the token as part of outgoing requests. It is supported via option "**Enable M2M Security**" under the parameters tab for **HTTP Sender** element and "**M2M Token**" authorization option for **Service Call** element . If mentioned options selected, then M2M token will be set to the **Authorization** header for outgoing request. Before making a call with M2M token, system will preserve "current" value of Authorization header and reinstate it back after receiving the response (utilized M2M token itself will be completely erased from the system to avoid its leakage). Please see the diagram below for the high-level process understanding.
+In addition, Qubership Integration Platform provides the ability to pass the token as part of outgoing requests.
+It is supported via option "**Enable M2M Security**" under the parameters tab for **HTTP Sender** element and "**M2M Token**" authorization option for **Service Call** element.
+If mentioned options selected, then M2M token will be set to the **Authorization** header for outgoing request.
+Before making a call with M2M token, system will preserve "current" value of Authorization header and reinstate it back after receiving the response (utilized M2M token itself will be completely erased from the system to avoid its leakage).
+Please see the diagram below for the high-level process understanding.
 
-![](img/Token_Processing_1.svg)
+![Token processing flow between services and Engine](img/Token_Processing_1.svg)
 
 **Diagram Description**
 
 Diagram above shows common processing scheme, where token,
 passed by Service A goes to the Engine (where it is going to be validated against the core libraries),
-then token is going to be received by Trigger. Trigger might have set of roles configured for additional validation (where for HTTP Trigger the system requires that at least one role must be defined if role-based access control is opted). Service Call represents the element that is able to trigger the outbound call, if authorization option "**M2M Token**" is selected, then QIP Engine will put the M2M token to the **Authorization** header when calling Service B.
+then token is going to be received by Trigger.
+Trigger might have set of roles configured for additional validation (where for HTTP Trigger the system requires that at least one role must be defined if role-based access control is opted).
+Service Call represents the element that is able to trigger the outbound call, if authorization option "**M2M Token**" is selected, then QIP Engine will put the M2M token to the **Authorization** header when calling Service B.
 
->**Note:**  
->Currently there are only three elements, that utilize mentioned security aspect, due to mechanism specifics:
->[HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
->[HTTP Sender](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md)
->[Service Call](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md)
+> ℹ️ **Note:** Currently there are only three elements, that utilize mentioned security aspect, due to mechanism specifics:
+> [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
+> [HTTP Sender](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md)
+> [Service Call](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md)
 
 Please review the diagram below for detailed and sequential steps to understand how Qubership Integration Platform operates with the M2M token.
 
-![](img/Token_Processing_2.svg)
+![Detailed M2M token processing sequence diagram](img/Token_Processing_2.svg)
 
 **Diagram Details**
 
@@ -43,7 +48,11 @@ Please review the diagram below for detailed and sequential steps to understand 
 | 10  | Reinstate original Authorization header's value | System reinstates the original value of Authorization header. M2M token, participated in the process is being removed. Pair of step 7 and step 10 ensures that M2M token won't be reused or exposed as the result of sequential service calls within a chain. |
 | 11  | Response from Engine module to Domain A         | Engine sends a response to Domain A.                                                                                                                                                                                                                          |
 | 12  | Response with access error                      | In case of failed token validation, Domain A get response with error description.                                                                                                                                                                             |
+
 ## User Interface
 
 ---
-To enable sending **M2M token**, it is required to set option **"Enable M2M Security"** for [HTTP Sender](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md) element or select **"M2M Token"** authorization option for [Service Call](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md) element. Please, refer to the respective articles for more details.
+
+To enable sending **M2M token**, it is required to set option **"Enable M2M Security"** for [HTTP Sender](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md) element
+or select **"M2M Token"** authorization option for [Service Call](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md) element.
+Please, refer to the respective articles for more details.

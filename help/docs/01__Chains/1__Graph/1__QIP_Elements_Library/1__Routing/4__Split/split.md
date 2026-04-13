@@ -22,7 +22,8 @@
 | Timeout           | O         | Number    | Determines the timeout in milliseconds until all parallel split branches are completed. When left empty, default value will be applied.<br>**Default value:** 0                                                                                                                                                                                                | 10000  |
 | Stop On Exception | O         | Boolean   | Checkbox. Defines the strategy in case one or more subchains end with an error or do not have time to work: <ul><li>**checked** - when one of **Split branches** fails, it also leads to whole "**Split**" element failure and process stop.</li><li>**unchecked** - failures of split branches do not lead to the failure of whole "Split" element.</li></ul> | N/A    |
 
-#### Metadata
+#### Split Metadata
+
 | Parameter   | Mandatory | Data Type | Description                              | Sample                                            |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ------------------------------------------------- |
 | Name        | M         | String    | Name of the Split container element.     | Split customer onboarding and quotation processes |
@@ -32,26 +33,30 @@
 
 Main Split Element is using as the main branch, which will always propagate all data without any constraints.
 
-#### Common Parameters
-| Parameter  | Mandatory | Data Type | Description                                                             | Sample    |
-| ---------- | :-------- | :-------- | ----------------------------------------------------------------------- | --------- |
-| Split Name | M         | String    | Defines the name of the branch. Must be <b>unique</b> within the chain. | Subchain1 |
+#### Main Split Common Parameters
 
-#### Metadata
+| Parameter  | Mandatory | Data Type | Description                                                            | Sample    |
+| ---------- | :-------- | :-------- |------------------------------------------------------------------------| --------- |
+| Split Name | M         | String    | Defines the name of the branch. Must be **unique** within the chain.   | Subchain1 |
+
+#### Main Split Metadata
+
 | Parameter   | Mandatory | Data Type | Description                              | Sample                        |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ----------------------------- |
 | Name        | M         | String    | Name of the Main Split branch element.   | Branch for creating a user    |
 | Description | O         | String    | Free text field for element description. | Create user for the new sales |
 
 ### "Parameters" Tab (Split Element)
-#### Common Parameters
+#### Split Element Common Parameters
+
 | Parameter            | Mandatory | Data Type | Description                                                                                          | Sample    |
 | -------------------- | :-------- | :-------- | ---------------------------------------------------------------------------------------------------- | --------- |
 | Split Name           | M         | String    | Defines the name of the branch. Must be **unique** within the chain.                                 | Subchain1 |
 | Propagate headers    | M         | Boolean   | Checkbox, that enables propagation of headers from this branch to the aggregated exchange object.    | N/A       |
 | Propagate properties | M         | Boolean   | Checkbox, that enables propagation of properties from this branch to the aggregated exchange object. | N/A       |
 
-#### Metadata
+#### Split Element Metadata
+
 | Parameter   | Mandatory | Data Type | Description                              | Sample                        |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ----------------------------- |
 | Name        | M         | String    | Name of the Split branch element.        | Branch for creating a user    |

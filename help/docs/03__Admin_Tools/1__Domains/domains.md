@@ -1,8 +1,6 @@
 # Domains [Web UI only]
 
-<div style="border-left: 6px dashed #cc0000; padding: 10px">
-This functionality is not available via the VS Code Extension.
-</div>
+> ⛔️ This functionality is not available via the VS Code Extension.
 
 ## Description
 
@@ -15,7 +13,12 @@ Qubership Integration Platform provides view-only window where domain's informat
 - Increasing the number of engine domains is available **only via deployment descriptor during the deployment** (not in runtime).
 - **Scaling** (increase/decrease count of engines) is available for each domain independently via configuration on K8S side before installation.
 
->**Useful links:** <ul><li>[K8S Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/)</li><li>[K8S Java client](https://github.com/kubernetes-client/java)</li>  <li>[API Kubernetes](https://kubernetes.io/ru/docs/concepts/overview/kubernetes-api/)</li>  <li>[Pod Lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)</li></ul>
+> **Useful links:**
+>
+> - [K8S Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/)
+> - [K8S Java client](https://github.com/kubernetes-client/java)
+> - [API Kubernetes](https://kubernetes.io/ru/docs/concepts/overview/kubernetes-api/)
+> - [Pod Lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)
 
 ## User Interface
 
@@ -40,12 +43,12 @@ To expand the domain tree and **see child engines**, click ![20](img/down.svg) i
 - **Engine** - engine name.
 - **Pod address** - address of the Pod for Engine.
 - **State** - state of Pod. Possible values:
-	- 🟡 _Not Ready_
-	- 🟢 _Ready_
+  - 🟡 _Not Ready_
+  - 🟢 _Ready_
 - **Pod status** - status of the Pod. Possible values:
-	- 🟡 _Pending_
-	- 🟢 _Running_
-	- 🔴 _Failed_
+  - 🟡 _Pending_
+  - 🟢 _Running_
+  - 🔴 _Failed_
 - ![20](img/down.svg) - expands/collapses the engine card.
 
 ### Chain Deployment Card View

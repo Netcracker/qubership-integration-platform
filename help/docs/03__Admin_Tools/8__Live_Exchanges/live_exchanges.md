@@ -1,8 +1,6 @@
 # Live Exchanges [Web UI only]
 
-<div style="border-left: 6px dashed #cc0000; padding: 10px">
-This functionality is not available via the VS Code Extension.
-</div>
+> ⛔️ This functionality is not available via the VS Code Extension.
 
 ## Description
 
@@ -42,4 +40,4 @@ The control panel is positioned at the top right of the table and provides the f
 
 To terminate a live exchange, locate the relevant row in the Live Exchanges table, click  ![Stop|20](img/stop.svg) ("Terminate" button) at the far right, and then click the "Yes" button to confirm your choice.
 
->ℹ️**Note:** Once the "Terminate" button is clicked, termination of exchange will occur only after ongoing chain element will be executed (not starting execution of next element). Ensure the exchange is no longer required before initiating termination.
+> ℹ️ **Note:** Once the "Terminate" button is clicked, termination of exchange will occur only after ongoing chain element will be executed (not starting execution of next element). Ensure the exchange is no longer required before initiating termination.
