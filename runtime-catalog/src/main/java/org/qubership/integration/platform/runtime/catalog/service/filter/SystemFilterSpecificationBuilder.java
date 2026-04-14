@@ -20,6 +20,7 @@ import jakarta.persistence.criteria.*;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.AbstractSystemEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -114,16 +115,7 @@ public class SystemFilterSpecificationBuilder {
                     .get("path"), value);
             case PROTOCOL -> conditionPredicateBuilder.apply(root.get("protocol"), convertProtocols(value));
             case CREATED -> conditionPredicateBuilder.apply(root.get("createdWhen"), value);
-            case LABELS -> {
-                Predicate predicate = conditionPredicateBuilder.apply(getJoin(root, "labels").get("name"), value);
-                boolean negativeLabelFilter =
-                        filter.getCondition() == FilterCondition.IS_NOT
-                                || filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
-
-                yield negativeLabelFilter
-                        ? criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name")))
-                        : predicate;
-            }
+            case LABELS -> buildLabelsPredicate(root, criteriaBuilder, filter, conditionPredicateBuilder, value);
             default -> throw new IllegalStateException("Unexpected feature value: " + filter.getFeature());
         };
     }
@@ -140,8 +132,24 @@ public class SystemFilterSpecificationBuilder {
             case ID -> conditionPredicateBuilder.apply(root.get("id"), value);
             case NAME -> conditionPredicateBuilder.apply(root.get("name"), value);
             case CREATED -> conditionPredicateBuilder.apply(root.get("createdWhen"), value);
+            case LABELS -> buildLabelsPredicate(root, criteriaBuilder, filter, conditionPredicateBuilder, value);
             default -> throw new IllegalStateException("Unexpected feature value: " + filter.getFeature());
         };
+    }
+
+    private <T extends AbstractSystemEntity> Predicate buildLabelsPredicate(Root<T> root,
+            CriteriaBuilder criteriaBuilder,
+            FilterRequestDTO filter, BiFunction<Expression<String>, String, Predicate> conditionPredicateBuilder,
+            String value) {
+        Predicate predicate = conditionPredicateBuilder.apply(getJoin(root, "labels").get("name"),
+                value);
+        boolean negativeLabelFilter = filter.getCondition() == FilterCondition.IS_NOT
+                || filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
+
+        return negativeLabelFilter
+                ? criteriaBuilder.or(predicate,
+                        criteriaBuilder.isNull(getJoin(root, "labels").get("name")))
+                : predicate;
     }
 
     private String convertProtocols(String value) {
@@ -150,7 +158,7 @@ public class SystemFilterSpecificationBuilder {
                 .collect(Collectors.joining()).replaceFirst(",", "");
     }
 
-    private Join<IntegrationSystem, ?> getJoin(Root<IntegrationSystem> root, String attributeName) {
+    private <T extends AbstractSystemEntity> Join<T, ?> getJoin(Root<T> root, String attributeName) {
         return root.getJoins().stream()
                 .filter(join -> join.getAttribute().getName().equals(attributeName))
                 .findAny()
