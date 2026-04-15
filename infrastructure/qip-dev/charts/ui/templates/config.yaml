@@ -150,6 +150,14 @@ data:
         proxy_intercept_errors on;
       }
 
+      # Documentation assets (images, etc.) must be proxied to Vite in dev,
+      # since they live in public/doc/ and are not in the nginx container.
+      location ^~ /doc/ {
+        proxy_pass  http://host.docker.internal:4200;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+      }
+
       location ~* \.(jpg|jpeg|gif|png|ico|bmp|swf|txt)$ {
         root /usr/share/nginx/html;
       }
