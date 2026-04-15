@@ -4,7 +4,6 @@ import com.netcracker.cloud.core.quarkus.dbaas.datasource.DbaaSDataSource;
 import com.netcracker.cloud.core.quarkus.dbaas.datasource.service.DbaaSPostgresDbCreationService;
 import com.netcracker.cloud.dbaas.common.classifier.TenantClassifierBuilder;
 import io.agroal.api.AgroalDataSource;
-import io.quarkus.arc.profile.IfBuildProfile;
 import io.smallrye.common.constraint.NotNull;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
@@ -15,7 +14,6 @@ import java.util.Collections;
 
 import static com.netcracker.cloud.dbaas.client.DbaasConst.*;
 
-@IfBuildProfile("dbaas")
 public class DbaasDatasourceProducer {
     @ConfigProperty(name = "cloud.microservice.name")
     String microserviceName;

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.engine.kafka;
 
 import io.quarkus.arc.DefaultBean;
+import io.quarkus.arc.lookup.LookupIfProperty;
 import io.smallrye.reactive.messaging.kafka.Record;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -12,6 +13,7 @@ import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElem
 @Slf4j
 @ApplicationScoped
 @DefaultBean
+@LookupIfProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "true")
 public class DefaultOpenSearchKafkaProducer implements OpenSearchKafkaProducer {
     @Inject
     @Channel("sessions")

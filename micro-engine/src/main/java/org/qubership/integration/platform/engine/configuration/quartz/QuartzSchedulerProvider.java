@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.engine.configuration.quartz;
 
-import io.quarkus.arc.profile.IfBuildProfile;
 import jakarta.annotation.Priority;
 import jakarta.enterprise.inject.Alternative;
 import jakarta.enterprise.inject.Produces;
@@ -11,7 +10,6 @@ import org.quartz.impl.StdSchedulerFactory;
 
 import java.util.Properties;
 
-@IfBuildProfile("dbaas")
 public class QuartzSchedulerProvider {
     @Produces
     @Alternative

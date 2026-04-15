@@ -4,7 +4,6 @@ import com.netcracker.cloud.maas.client.api.Classifier;
 import com.netcracker.cloud.maas.client.api.kafka.KafkaMaaSClient;
 import com.netcracker.cloud.maas.client.api.kafka.TopicAddress;
 import io.quarkus.arc.lookup.LookupIfProperty;
-import io.quarkus.arc.profile.IfBuildProfile;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -20,7 +19,6 @@ import java.util.Map;
 import static org.reflections.Reflections.log;
 
 @ApplicationScoped
-@IfBuildProfile("dbaas")
 @LookupIfProperty(name = "qip.opensearch.kafka-client.maas.enabled", stringValue = "true")
 @LookupIfProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "true")
 public class MaasOpensearchKafkaProducer implements OpenSearchKafkaProducer {

@@ -8,6 +8,17 @@ qip:
       path: /app/truststore/defaulttruststore.jks
     certs:
       location: /app/cert/defaultsslcertificate
+  postgres:
+    service-db:
+      url: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_checkpoints_db?reWriteBatchedInserts=true
+      username: ${POSTGRES_USER:postgres}
+      password: ${POSTGRES_PASSWORD:postgres}
+      role: ${POSTGRES_ROLE:postgres}
+    scheduler-db:
+      url: jdbc:postgresql://${POSTGRES_URL:postgres:5432}/engine_qrtz_db
+      username: ${POSTGRES_USER:postgres}
+      password: ${POSTGRES_PASSWORD:postgres}
+      role: ${POSTGRES_ROLE:postgres}
 
 quarkus:
   log:
@@ -15,3 +26,15 @@ quarkus:
     category:
       "org.qubership.integration.platform.engine":
         level: DEBUG
+
+mp:
+  messaging:
+    outgoing:
+      sessions:
+        enabled: ${qip.opensearch.kafka-client.enabled}
+        bootstrap:
+          servers: ${qip.opensearch.kafka-client.bootstrap-servers}
+        connector: smallrye-kafka
+        topic: ${qip.opensearch.kafka-client.topic}
+        value:
+          serializer: io.quarkus.kafka.client.serialization.ObjectMapperSerializer

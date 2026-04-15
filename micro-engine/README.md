@@ -23,8 +23,8 @@ Engine Service is a Quarkus application and requires Java 21 and Maven to build.
 It can be run locally using a [Docker compose configuration](https://github.com/Netcracker/qubership-integration-platform).
 
 Since for a Quarkus application a part of configuration is applied in build-time, the Engine application should be built with different sets of profiles for production and local development:
-* prod,dbaas - for production
-* development,no-dbaas,no-m2m - for local development
+* prod - for production
+* development,no-m2m - for local development
 
 ## Configuration
 
