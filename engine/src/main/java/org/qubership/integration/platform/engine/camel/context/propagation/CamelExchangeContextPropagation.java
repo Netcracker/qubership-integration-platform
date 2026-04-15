@@ -5,7 +5,6 @@ import com.netcracker.cloud.context.propagation.core.RequestContextPropagation;
 import com.netcracker.cloud.context.propagation.core.contextdata.IncomingContextData;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.CaseInsensitiveMap;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -16,7 +15,6 @@ import static java.util.Objects.nonNull;
 
 @Slf4j
 @Component
-@ConditionalOnMissingBean(CamelExchangeContextPropagation.class)
 public class CamelExchangeContextPropagation {
 
     private final ContextPropsProvider contextPropsProvider;

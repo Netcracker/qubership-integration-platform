@@ -10,6 +10,7 @@ spring:
     - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
     - org.apache.camel.component.quartz.springboot.QuartzComponentAutoConfiguration
     - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+    - io.opentelemetry.instrumentation.spring.autoconfigure.internal.instrumentation.jdbc.JdbcInstrumentationAutoConfiguration
   config:
     activate:
       on-profile: development

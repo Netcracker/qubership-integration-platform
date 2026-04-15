@@ -7,6 +7,20 @@ server:
     mbeanregistry:
       enabled: ${MONITORING_ENABLED:false}
 
+cloud:
+  microservice:
+    name: ${MICROSERVICE_NAME:qip-runtime-catalog}
+    bg_version: ${DEPLOYMENT_VERSION:v1}
+    namespace: ${NAMESPACE}
+    origin_namespace: ${ORIGIN_NAMESPACE}
+
+blue-green:
+  state-publisher:
+    enabled: ${BLUEGREEN_ENABLED:false}
+  state-monitor:
+    dev:
+      enabled: ${qip.standalone:false}
+
 spring:
   autoconfigure:
     exclude:
@@ -72,7 +86,7 @@ app:
 
 tenant:
   default:
-    id: ""
+    id: 00000000-0000-0000-0000-000000000000
 
 management:
   endpoints:
@@ -97,6 +111,11 @@ management:
     metrics:
       export:
         enabled: false
+
+otel:
+  instrumentation:
+    jdbc:
+      enabled: false
 
 logging:
   level:
@@ -158,6 +177,18 @@ db:
 maas:
   kafka:
     enabled: false
+    local-dev:
+      enabled: true
+      tenant-ids: ${tenant.default.id}
+      config:
+        bootstrap:
+          servers: ${KAFKA_BROKERS:kafka:9092}
+          security:
+            protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+          sasl:
+            mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
+            jaas:
+              config: ${KAFKA_SASL_JAAS_CONFIG:}
 
 security:
   role-prefix: 'ROLE_'
