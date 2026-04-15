@@ -40,7 +40,9 @@ Services consist of next entities:
 API Specification statuses details:
 
 🔵 **New** - initial state of API specification, uploaded manually or imported by service discovery.
+
 🟢 **In Use** - status indicates that API Specification is utilized within at least one chain.
+
 🔴 **Deprecated** - this status indicates that such specification is outdated and won't be available for selection in newly added chain elements. Old elements, where specification with this status is already selected may still continue using it.
 
 > ℹ️ **Notes:**
