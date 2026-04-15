@@ -27,6 +27,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.Liv
 import org.qubership.integration.platform.runtime.catalog.service.filter.liveexchange.LiveExchangesFilterService;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -48,7 +49,7 @@ public class LiveExchangesService {
 
     @Autowired
     public LiveExchangesService(RuntimeDeploymentService runtimeDeploymentService,
-                                RestTemplate restTemplateMs,
+                                @Qualifier("restTemplateMS") RestTemplate restTemplateMs,
                                 ActionsLogService actionLogger,
                                 DeploymentService deploymentService,
                                 ChainFinderService chainFinderService,

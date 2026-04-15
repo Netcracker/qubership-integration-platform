@@ -5,6 +5,13 @@ server:
   tomcat:
     max-http-response-header-size: 16KB
 
+cloud:
+  microservice:
+    name: ${MICROSERVICE_NAME:qip-runtime-catalog}
+    bg_version: ${DEPLOYMENT_VERSION:v1}
+    namespace: ${NAMESPACE}
+    origin_namespace: ${ORIGIN_NAMESPACE}
+
 spring:
   autoconfigure:
     exclude:
@@ -58,6 +65,10 @@ spring:
         enabled: true
         prefixes: config/${NAMESPACE}
 
+tenant:
+  default:
+    id: 00000000-0000-0000-0000-000000000000
+
 db:
   flyway:
     configs-datasource:
@@ -90,6 +101,10 @@ db:
 maas:
   local-dev:
     enabled: ${qip.standalone}
+  agent:
+    url: ${MAAS_AGENT_URL:}
+    username: ${MAAS_AGENT_USERNAME:client}
+    password: ${MAAS_AGENT_PASSWORD:client}
 
 consul:
   url: ${CONSUL_URL:http://consul:8500}
