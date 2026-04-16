@@ -46,6 +46,7 @@
     --vscode-sideBar-background,
     var(--vscode-editor-background, #fff)
   ) !important;
+  display: flex;
 }
 
 .sideMenu :global(.ant-input-affix-wrapper) {
