@@ -23,6 +23,14 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class RuntimeCatalogApplicationRunner {
 
+    static {
+        // Makes io.swagger.v3.oas.models.media.Schema#getType() fall back to the single
+        // element of `types` when `type` is null. swagger-parser populates only `types`
+        // for OpenAPI 3.1 schemas, while Json.mapper() (3.0 serializer) reads only `type`
+        // — without this flag the `type` field silently disappears from imported 3.1 specs.
+        System.setProperty("bind-type", "true");
+    }
+
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication(RuntimeCatalogApplicationRunner.class);
         app.setWebApplicationType(WebApplicationType.SERVLET);
