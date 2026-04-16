@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { JSONSchema7 } from "json-schema";
-import { FormContext } from "../ChainElementModification";
+import { FormContext } from "../ChainElementModificationContext";
 import { FieldProps } from "@rjsf/utils";
 import { Input } from "antd";
 import { api } from "../../../../api/api";

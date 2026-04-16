@@ -4,7 +4,7 @@ import type { RJSFSchema } from "@rjsf/utils";
 import { Select, Input, Button, SelectProps } from "antd";
 import styles from "./BodyParametersField.module.css";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
-import { FormContext } from "../ChainElementModification";
+import { FormContext } from "../ChainElementModificationContext";
 import {
   BodyFormEntry,
   createEmptyBodyFormEntry,

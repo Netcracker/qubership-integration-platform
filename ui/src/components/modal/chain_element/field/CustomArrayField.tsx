@@ -1,16 +1,21 @@
-import { type FC, useEffect, useMemo, useState } from "react";
+import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Checkbox, Select, List } from "antd";
 import type { FieldProps, RJSFSchema } from "@rjsf/utils";
 import type { MappingDescription } from "../../../../mapper/model/model.ts";
 import { MappingUtil } from "../../../../mapper/util/mapping.ts";
 import { Mapping } from "../../../mapper/Mapping.tsx";
-import { api } from "../../../../api/api.ts";
 import { isHttpProtocol } from "../../../../misc/protocol-utils.ts";
 import { Script } from "../../../Script.tsx";
 import type { FormContext } from "../ChainElementModificationContext.ts";
 import styles from "./CustomArrayField.module.css";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import { useVSCodeTheme } from "../../../../hooks/useVSCodeTheme.ts";
+import {
+  applySchemaToMapping,
+  hasExistingBodyForDirection,
+  pickPrimaryResponseSchema,
+  tryBuildDataTypeFromSchema,
+} from "../../../../mapper/util/auto-schema.ts";
 
 type BaseItem = {
   code: string;
@@ -139,82 +144,68 @@ const CustomArrayField: FC<
   );
 
   const operationId = formContext?.integrationOperationId;
+  const responseSchemas = useMemo(
+    () => formContext?.operationResponseSchemas ?? {},
+    [formContext?.operationResponseSchemas],
+  );
 
   useEffect(() => {
-    let cancelled = false;
+    if (!operationId) return;
 
-    const loadOperationInfo = async () => {
-      if (!operationId) return;
-      try {
-        const operationInfo = await api.getOperationInfo(operationId);
-        if (cancelled) return;
+    if (readOnlyMode) {
+      const schemas: Record<string, ValidationItem> = {};
 
-        const responseSchemas = operationInfo?.responseSchemas ?? {};
-
-        if (readOnlyMode) {
-          const schemas: Record<string, ValidationItem> = {};
-
-          for (const [code, schema] of Object.entries(responseSchemas)) {
-            if (elementType === "async-api-trigger") {
-              schemas[code] = {
-                code,
-                label: code,
-                schema: JSON.stringify(schema, null, 2),
-              };
-            } else {
-              for (const [contentType, validationSchema] of Object.entries(
-                schema as Record<string, object>,
-              )) {
-                const id = `${code}-${contentType}`;
-                schemas[id] = {
-                  id,
-                  code,
-                  type: "responseValidation",
-                  label: id,
-                  schema: JSON.stringify(validationSchema, null, 2),
-                  contentType,
-                };
-              }
-            }
-          }
-
-          setValidationSchemas(schemas);
-
-          const usedLabels = new Set(formData.map((f) => f.label));
-          setAvailableCodes(
-            Object.keys(schemas)
-              .filter((id) => !usedLabels.has(id))
-              .map((id) => ({ value: id })),
-          );
+      for (const [code, schema] of Object.entries(responseSchemas)) {
+        if (elementType === "async-api-trigger") {
+          schemas[code] = {
+            code,
+            label: code,
+            schema: JSON.stringify(schema, null, 2),
+          };
         } else {
-          const responseCodes = Object.keys(responseSchemas).map((c) => ({
-            value: c,
-          }));
-          const usedCodes = new Set(formData.map((item) => item.code));
-          const seen = new Set<string>();
-          const freshCodes = [...availableCodes, ...responseCodes].filter(
-            (entry) => {
-              if (seen.has(entry.value) || usedCodes.has(entry.value))
-                return false;
-              seen.add(entry.value);
-              return true;
-            },
-          );
-
-          setAvailableCodes(freshCodes);
+          for (const [contentType, validationSchema] of Object.entries(
+            schema as Record<string, object>,
+          )) {
+            const id = `${code}-${contentType}`;
+            schemas[id] = {
+              id,
+              code,
+              type: "responseValidation",
+              label: id,
+              schema: JSON.stringify(validationSchema, null, 2),
+              contentType,
+            };
+          }
         }
-      } catch (err) {
-        console.error("Failed to fetch operation info:", err);
       }
-    };
 
-    void loadOperationInfo();
+      setValidationSchemas(schemas);
 
-    return () => {
-      cancelled = true;
-    };
+      const usedLabels = new Set(formData.map((f) => f.label));
+      setAvailableCodes(
+        Object.keys(schemas)
+          .filter((id) => !usedLabels.has(id))
+          .map((id) => ({ value: id })),
+      );
+    } else {
+      const responseCodes = Object.keys(responseSchemas).map((c) => ({
+        value: c,
+      }));
+      const usedCodes = new Set(formData.map((item) => item.code));
+      const seen = new Set<string>();
+      const freshCodes = [...availableCodes, ...responseCodes].filter(
+        (entry) => {
+          if (seen.has(entry.value) || usedCodes.has(entry.value))
+            return false;
+          seen.add(entry.value);
+          return true;
+        },
+      );
+
+      setAvailableCodes(freshCodes);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [operationId, readOnlyMode]);
+  }, [operationId, readOnlyMode, responseSchemas]);
 
   const handleAdd = () => {
     if (!selectedCode) return;
@@ -262,6 +253,12 @@ const CustomArrayField: FC<
     const returnValue = readOnlyMode ? item.label : item.code;
     setAvailableCodes([...availableCodes, { value: returnValue }]);
 
+    // Let auto-fill run again if the same code is re-added later.
+    if (!readOnlyMode) {
+      const handler = item as ResponseHandler;
+      autoFilledHandlerIdsRef.current.delete(`${handler.id}::${handler.code}`);
+    }
+
     const newArray = [...formData];
     newArray.splice(index, 1);
     onChange(newArray, fieldPathId.path);
@@ -276,6 +273,58 @@ const CustomArrayField: FC<
   const selectedItem = selectedIndex != null ? formData[selectedIndex] : null;
   const handlerItem =
     selectedItem && !readOnlyMode ? (selectedItem as ResponseHandler) : null;
+
+  // Tracks handlers we've auto-filled for (keyed by id+code) so we don't
+  // re-fill after the user edits the body — also reset when operation
+  // changes to bound memory and pick up new response schemas.
+  const autoFilledHandlerIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    autoFilledHandlerIdsRef.current.clear();
+  }, [operationId]);
+
+  useEffect(() => {
+    if (!handlerItem) return;
+    if (handlerItem.type !== "mapper-2") return;
+    if (!handlerItem.id) return;
+
+    const handlerKey = `${handlerItem.id}::${handlerItem.code}`;
+    if (autoFilledHandlerIdsRef.current.has(handlerKey)) return;
+
+    const currentMapping = handlerItem.mappingDescription;
+    if (hasExistingBodyForDirection(currentMapping, "response")) {
+      // Body already filled; user refreshes via LoadSchemaDialog.
+      autoFilledHandlerIdsRef.current.add(handlerKey);
+      return;
+    }
+
+    const schema = pickPrimaryResponseSchema(
+      responseSchemas,
+      handlerItem.code,
+    );
+    const dataType = tryBuildDataTypeFromSchema(schema);
+    if (!dataType) {
+      // No usable schema (e.g. gRPC/GraphQL not parseable) — skip silently.
+      autoFilledHandlerIdsRef.current.add(handlerKey);
+      return;
+    }
+
+    const baseMapping = currentMapping ?? MappingUtil.emptyMapping();
+    const next = applySchemaToMapping(baseMapping, "response", dataType);
+    autoFilledHandlerIdsRef.current.add(handlerKey);
+    onChange(
+      formData.map((item, i) =>
+        i === selectedIndex ? { ...item, mappingDescription: next } : item,
+      ) as ArrayItem[],
+      fieldPathId.path,
+    );
+  }, [
+    handlerItem,
+    responseSchemas,
+    formData,
+    selectedIndex,
+    onChange,
+    fieldPathId.path,
+  ]);
 
   return (
     <div className={styles.container}>
@@ -348,6 +397,12 @@ const CustomArrayField: FC<
               style={{ marginBottom: 8 }}
               value={handlerItem.type}
               onChange={(value) => {
+                // Clear auto-fill guard so re-selecting Mapper re-populates body.
+                if (handlerItem.id) {
+                  autoFilledHandlerIdsRef.current.delete(
+                    `${handlerItem.id}::${handlerItem.code}`,
+                  );
+                }
                 onChange(
                   formData.map((item, i) =>
                     i === selectedIndex

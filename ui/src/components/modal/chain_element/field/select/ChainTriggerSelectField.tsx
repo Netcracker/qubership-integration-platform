@@ -1,7 +1,7 @@
 import { FieldProps } from "@rjsf/utils";
 import { JSONSchema7 } from "json-schema";
 import React, { useCallback, useEffect, useState } from "react";
-import { FormContext } from "../../ChainElementModification";
+import { FormContext } from "../../ChainElementModificationContext";
 import { SelectAndNavigateField } from "./SelectAndNavigateField";
 import { SelectProps } from "antd";
 import { useNotificationService } from "../../../../../hooks/useNotificationService";

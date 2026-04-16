@@ -30,15 +30,24 @@ import type { FormContext } from "../../src/components/modal/chain_element/Chain
 
 // --- Mocks ---
 
+// NOTE: EnhancedPatternPropertiesField no longer calls api.getOperationInfo
+// directly. It reads `operationSpecification` from FormContext, populated
+// centrally by SystemOperationField. The mock is kept here (alongside
+// getService / getEnvironments which the component still uses) to assert that
+// no direct calls are made and to back any test that still needs to simulate
+// legacy behaviour via mockResolvedValue.
 const mockGetOperationInfo = jest.fn();
 const mockGetService = jest.fn();
 const mockGetEnvironments = jest.fn();
 
 jest.mock("../../src/api/api", () => ({
   api: {
-    getOperationInfo: (...args: unknown[]) => mockGetOperationInfo(...args),
-    getService: (...args: unknown[]) => mockGetService(...args),
-    getEnvironments: (...args: unknown[]) => mockGetEnvironments(...args),
+    getOperationInfo: (...args: unknown[]): unknown =>
+      mockGetOperationInfo(...args) as unknown,
+    getService: (...args: unknown[]): unknown =>
+      mockGetService(...args) as unknown,
+    getEnvironments: (...args: unknown[]): unknown =>
+      mockGetEnvironments(...args) as unknown,
   },
 }));
 
@@ -100,6 +109,22 @@ type EnhancedFieldProps = FieldProps<
   FormContext
 >;
 
+/**
+ * Latest specification wired into `mockGetOperationInfo.mockResolvedValue(...)`.
+ * `setOperationSpec` is a drop-in replacement used across tests so that the
+ * same spec is also published into `formContext.operationSpecification`
+ * (which is where EnhancedPatternPropertiesField now reads it from).
+ */
+let lastOperationSpec: Record<string, unknown> | undefined;
+function setOperationSpec(spec: Record<string, unknown>): void {
+  lastOperationSpec = spec;
+  mockGetOperationInfo.mockResolvedValue({
+    specification: spec,
+    requestSchema: {},
+    responseSchemas: {},
+  });
+}
+
 function makeProps(
   overrides: Partial<EnhancedFieldProps> & {
     formContext?: Partial<FormContext>;
@@ -121,6 +146,7 @@ function makeProps(
         integrationOperationProtocolType: "kafka",
         integrationOperationId: "op-1",
         integrationSystemId: "sys-1",
+        operationSpecification: lastOperationSpec,
         updateContext: mockUpdateContext,
         reportMissingRequiredParams: jest.fn(),
         ...fcOverrides,
@@ -147,15 +173,13 @@ describe("EnhancedPatternPropertiesField", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    mockGetOperationInfo.mockResolvedValue({
-      specification: {
-        topic: "spec-topic",
-        channel: null,
-        exchange: null,
-        queues: null,
-        maasClassifierName: null,
-        groupId: null,
-      },
+    setOperationSpec({
+      topic: "spec-topic",
+      channel: null,
+      exchange: null,
+      queues: null,
+      maasClassifierName: null,
+      groupId: null,
     });
     mockGetService.mockResolvedValue({
       id: "sys-1",
@@ -185,7 +209,7 @@ describe("EnhancedPatternPropertiesField", () => {
       });
 
       let container!: HTMLElement;
-      await act(async () => {
+      act(() => {
         const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
@@ -198,6 +222,11 @@ describe("EnhancedPatternPropertiesField", () => {
     });
 
     it("should render exchange with value from integrationOperationPath for amqp", async () => {
+      setOperationSpec({
+        exchange: "spec-exchange",
+        queues: null,
+        maasClassifierName: null,
+      });
       const props = makeProps({
         formContext: {
           integrationOperationProtocolType: "amqp",
@@ -205,16 +234,8 @@ describe("EnhancedPatternPropertiesField", () => {
         },
       });
 
-      mockGetOperationInfo.mockResolvedValue({
-        specification: {
-          exchange: "spec-exchange",
-          queues: null,
-          maasClassifierName: null,
-        },
-      });
-
       let container!: HTMLElement;
-      await act(async () => {
+      act(() => {
         const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
@@ -236,7 +257,7 @@ describe("EnhancedPatternPropertiesField", () => {
       const updateContext = props.registry.formContext.updateContext!;
 
       let container!: HTMLElement;
-      await act(async () => {
+      act(() => {
         const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
@@ -263,6 +284,11 @@ describe("EnhancedPatternPropertiesField", () => {
     });
 
     it("should call updateContext with integrationOperationPath when exchange value changes", async () => {
+      setOperationSpec({
+        exchange: "spec-exchange",
+        queues: null,
+        maasClassifierName: null,
+      });
       const props = makeProps({
         formContext: {
           integrationOperationProtocolType: "amqp",
@@ -271,16 +297,8 @@ describe("EnhancedPatternPropertiesField", () => {
       });
       const updateContext = props.registry.formContext.updateContext!;
 
-      mockGetOperationInfo.mockResolvedValue({
-        specification: {
-          exchange: "spec-exchange",
-          queues: null,
-          maasClassifierName: null,
-        },
-      });
-
       let container!: HTMLElement;
-      await act(async () => {
+      act(() => {
         const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
@@ -314,7 +332,7 @@ describe("EnhancedPatternPropertiesField", () => {
       });
 
       let container!: HTMLElement;
-      await act(async () => {
+      act(() => {
         const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
@@ -348,7 +366,7 @@ describe("EnhancedPatternPropertiesField", () => {
       ]);
 
       let container!: HTMLElement;
-      await act(async () => {
+      act(() => {
         const result = render(<EnhancedPatternPropertiesField {...props} />);
         container = result.container;
       });
@@ -364,6 +382,12 @@ describe("EnhancedPatternPropertiesField", () => {
 
   describe("auto-fill for pathMapped parameters", () => {
     it("should auto-fill integrationOperationPath with topic from spec for kafka", async () => {
+      setOperationSpec({
+        topic: "auto-topic",
+        channel: null,
+        maasClassifierName: null,
+        groupId: null,
+      });
       const props = makeProps({
         formContext: {
           integrationOperationProtocolType: "kafka",
@@ -373,16 +397,7 @@ describe("EnhancedPatternPropertiesField", () => {
       });
       const updateContext = props.registry.formContext.updateContext!;
 
-      mockGetOperationInfo.mockResolvedValue({
-        specification: {
-          topic: "auto-topic",
-          channel: null,
-          maasClassifierName: null,
-          groupId: null,
-        },
-      });
-
-      await act(async () => {
+      act(() => {
         render(<EnhancedPatternPropertiesField {...props} />);
       });
 
@@ -394,6 +409,11 @@ describe("EnhancedPatternPropertiesField", () => {
     });
 
     it("should auto-fill integrationOperationPath with exchange from spec for amqp", async () => {
+      setOperationSpec({
+        exchange: "auto-exchange",
+        queues: null,
+        maasClassifierName: null,
+      });
       const props = makeProps({
         formContext: {
           integrationOperationProtocolType: "amqp",
@@ -403,15 +423,7 @@ describe("EnhancedPatternPropertiesField", () => {
       });
       const updateContext = props.registry.formContext.updateContext!;
 
-      mockGetOperationInfo.mockResolvedValue({
-        specification: {
-          exchange: "auto-exchange",
-          queues: null,
-          maasClassifierName: null,
-        },
-      });
-
-      await act(async () => {
+      act(() => {
         render(<EnhancedPatternPropertiesField {...props} />);
       });
 
@@ -423,6 +435,11 @@ describe("EnhancedPatternPropertiesField", () => {
     });
 
     it("should not overwrite existing integrationOperationPath on auto-fill", async () => {
+      setOperationSpec({
+        topic: "new-topic-from-spec",
+        maasClassifierName: null,
+        groupId: null,
+      });
       const props = makeProps({
         formContext: {
           integrationOperationProtocolType: "kafka",
@@ -432,15 +449,7 @@ describe("EnhancedPatternPropertiesField", () => {
       });
       const updateContext = props.registry.formContext.updateContext!;
 
-      mockGetOperationInfo.mockResolvedValue({
-        specification: {
-          topic: "new-topic-from-spec",
-          maasClassifierName: null,
-          groupId: null,
-        },
-      });
-
-      await act(async () => {
+      act(() => {
         render(<EnhancedPatternPropertiesField {...props} />);
       });
 
@@ -461,6 +470,11 @@ describe("EnhancedPatternPropertiesField", () => {
 
   describe("non-pathMapped parameters", () => {
     it("should store groupId in formData (not in context)", async () => {
+      setOperationSpec({
+        topic: "t",
+        groupId: "auto-group",
+        maasClassifierName: null,
+      });
       const props = makeProps({
         formData: {},
         formContext: {
@@ -471,22 +485,14 @@ describe("EnhancedPatternPropertiesField", () => {
         },
       });
 
-      mockGetOperationInfo.mockResolvedValue({
-        specification: {
-          topic: "t",
-          groupId: "auto-group",
-          maasClassifierName: null,
-        },
-      });
-
-      await act(async () => {
+      act(() => {
         render(<EnhancedPatternPropertiesField {...props} />);
       });
 
       await waitFor(() => {
         expect(props.onChange).toHaveBeenCalled();
-        const lastCall = (props.onChange as jest.Mock).mock.calls.at(-1);
-        const formDataArg = lastCall?.[0] as Record<string, string>;
+        const mockCalls = (props.onChange as jest.Mock).mock.calls as unknown[][];
+        const formDataArg = mockCalls.at(-1)?.[0] as Record<string, string>;
         expect(formDataArg).toHaveProperty("groupId", "auto-group");
         // topic should NOT be in formData
         expect(formDataArg).not.toHaveProperty("topic");
@@ -494,6 +500,11 @@ describe("EnhancedPatternPropertiesField", () => {
     });
 
     it("should use handleValueChange (emitChange) for regular params like queues", async () => {
+      setOperationSpec({
+        exchange: "ex",
+        queues: null,
+        maasClassifierName: null,
+      });
       const onChangeFn = jest.fn();
       const props = makeProps({
         formData: { queues: "old-queue" },
@@ -505,18 +516,8 @@ describe("EnhancedPatternPropertiesField", () => {
         },
       });
 
-      mockGetOperationInfo.mockResolvedValue({
-        specification: {
-          exchange: "ex",
-          queues: null,
-          maasClassifierName: null,
-        },
-      });
-
-      let container!: HTMLElement;
-      await act(async () => {
-        const result = render(<EnhancedPatternPropertiesField {...props} />);
-        container = result.container;
+      act(() => {
+        render(<EnhancedPatternPropertiesField {...props} />);
       });
 
       // Section should be expanded because formData has entries
@@ -536,8 +537,8 @@ describe("EnhancedPatternPropertiesField", () => {
 
       // Should call onChange (emitChange) for regular params
       expect(onChangeFn).toHaveBeenCalled();
-      const lastCall = onChangeFn.mock.calls.at(-1);
-      const formDataArg = lastCall?.[0] as Record<string, string>;
+      const mockCalls = onChangeFn.mock.calls as unknown[][];
+      const formDataArg = mockCalls.at(-1)?.[0] as Record<string, string>;
       expect(formDataArg).toHaveProperty("queues", "new-queue");
     });
   });
@@ -561,7 +562,7 @@ describe("EnhancedPatternPropertiesField", () => {
         },
       ]);
 
-      await act(async () => {
+      act(() => {
         render(<EnhancedPatternPropertiesField {...props} />);
       });
 

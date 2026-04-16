@@ -134,10 +134,16 @@ describe("DocumentationSidebar", () => {
   });
 
   it("handles loading errors gracefully", async () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockLoadTOC.mockRejectedValue(new Error("Network error"));
     await renderAndFlush();
 
     expect(screen.queryByRole("tree")).toBeInTheDocument();
+    expect(spy).toHaveBeenCalledWith(
+      "Failed to load sidebar:",
+      expect.any(Error),
+    );
+    spy.mockRestore();
   });
 
   it("expands path to current document on mount", async () => {

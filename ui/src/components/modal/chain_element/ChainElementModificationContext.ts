@@ -5,6 +5,25 @@ import {
 } from "../../../misc/body-form-data-utils.ts";
 
 /**
+ * Keys that live only in memory on FormContext and must never be serialized
+ * back into `element.properties`.
+ *
+ * Used both to keep the TypeScript union of metadata keys in sync and to
+ * enforce the invariant at runtime in `enrichProperties`.
+ */
+export const METADATA_ONLY_CONTEXT_KEYS = [
+  "elementType",
+  "chainId",
+  "updateContext",
+  "reportMissingRequiredParams",
+  "operationSpecification",
+  "operationRequestSchema",
+  "operationResponseSchemas",
+] as const;
+
+type MetadataOnlyKey = (typeof METADATA_ONLY_CONTEXT_KEYS)[number];
+
+/**
  * FormContext type definition
  * Separates metadata (UI-only) from actual element properties
  */
@@ -17,6 +36,11 @@ export type FormContext = {
     key: string,
     params: string[],
   ) => void;
+
+  // Not persisted in element.properties — re-fetched on open.
+  readonly operationSpecification?: Record<string, unknown>;
+  readonly operationRequestSchema?: Record<string, unknown>;
+  readonly operationResponseSchemas?: Record<string, unknown>;
 
   // === PROPERTIES (saved to element) ===
   integrationSystemId?: string;
@@ -70,7 +94,7 @@ type FieldConfig<T = unknown> = {
  * Declarative mapping of FormContext fields with their transformations
  */
 const FORM_CONTEXT_FIELD_CONFIG: Record<
-  keyof Omit<FormContext, "elementType" | "chainId" | "updateContext">,
+  keyof Omit<FormContext, MetadataOnlyKey>,
   FieldConfig
 > = {
   // String fields
@@ -131,14 +155,12 @@ export const buildFormContextFromProperties = (
   chainId: string,
   updateContextCallback: (updatedProperties: Record<string, unknown>) => void,
 ): FormContext => {
-  // Start with metadata
   const context: FormContext = {
     elementType,
     chainId,
     updateContext: updateContextCallback,
   };
 
-  // Process all fields declaratively
   (
     Object.entries(FORM_CONTEXT_FIELD_CONFIG) as Array<
       [keyof typeof FORM_CONTEXT_FIELD_CONFIG, FieldConfig]
@@ -156,9 +178,17 @@ export const buildFormContextFromProperties = (
   return context;
 };
 
+const METADATA_ONLY_KEY_SET: ReadonlySet<string> = new Set(
+  METADATA_ONLY_CONTEXT_KEYS,
+);
+
 /**
  * Enriches target properties with source properties, removing undefined/null values.
  * Used to update properties without polluting them with empty fields.
+ *
+ * Metadata-only keys (see METADATA_ONLY_CONTEXT_KEYS) are always skipped — they
+ * live only in FormContext and must never leak into `element.properties` (large
+ * schemas would bloat the save payload and are refetched on open anyway).
  *
  * @param targetProperties - Properties to enrich
  * @param sourceProperties - New properties to merge
@@ -171,13 +201,16 @@ export const enrichProperties = (
   const result = { ...targetProperties };
 
   Object.entries(sourceProperties).forEach(([key, value]) => {
+    if (METADATA_ONLY_KEY_SET.has(key)) {
+      return;
+    }
+
     // Special handling for protocol normalization
     let normalizedValue = value;
     if (key === "integrationOperationProtocolType") {
       normalizedValue = normalizeProtocol(value as string);
     }
 
-    // Remove undefined/null values from result
     if (normalizedValue === undefined || normalizedValue === null) {
       delete result[key];
     } else {

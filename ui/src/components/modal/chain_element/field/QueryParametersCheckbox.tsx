@@ -1,6 +1,6 @@
 import React from "react";
 import { Checkbox } from "antd";
-import { FormContext } from "../ChainElementModification";
+import { FormContext } from "../ChainElementModificationContext";
 import styles from "./EnhancedPatternPropertiesField.module.css";
 
 interface QueryParametersCheckboxProps {

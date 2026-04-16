@@ -3,7 +3,7 @@ import { Select } from "antd";
 import { FieldProps } from "@rjsf/utils";
 import { api } from "../../../../../api/api.ts";
 import { JSONSchema7 } from "json-schema";
-import { FormContext } from "../../ChainElementModification.tsx";
+import { FormContext } from "../../ChainElementModificationContext.ts";
 import { SelectTag } from "./SelectTag.tsx";
 import { ElementWithChainName } from "../../../../../api/apiTypes.ts";
 import styles from "../../ChainElementModification.module.css";

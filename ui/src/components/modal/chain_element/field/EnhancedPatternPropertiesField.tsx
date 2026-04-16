@@ -4,7 +4,7 @@ import { Input, Button, Tag, Tooltip } from "antd";
 import styles from "./EnhancedPatternPropertiesField.module.css";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import { DescriptionTooltipIcon } from "../DescriptionTooltipFieldTemplate";
-import { FormContext } from "../ChainElementModification";
+import { FormContext } from "../ChainElementModificationContext";
 import { api } from "../../../../api/api";
 import { QueryParametersCheckbox } from "./QueryParametersCheckbox";
 import {
@@ -311,7 +311,10 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
   const rowCount = Object.entries(formData).length;
   const [collapsed, setCollapsed] = useState(!(rowCount > 0));
 
-  const loadOperationSpecification = useCallback(async () => {
+  // operationSpecification is now published to FormContext centrally by
+  // SystemOperationField (via api.getOperationInfo). We just read it here and
+  // derive spec-driven parameter metadata. No network calls from this field.
+  const resolveSpecification = useCallback(() => {
     const operationId = formContext.integrationOperationId;
     const protocolType = normalizeProtocol(
       formContext.integrationOperationProtocolType as string,
@@ -325,33 +328,32 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
       return;
     }
 
-    try {
-      const response = await api.getOperationInfo(operationId);
-      const specFragment = toOperationSpecFragment(
-        extractSpecification(response),
-      );
-      const params = parseParametersFromSpec(
-        specFragment,
-        paramType,
-        protocolType,
-        formContext?.elementType,
-      );
-      setSpecParameters(params);
-      setLoadedSpec(specFragment);
-      setLoadedSpecOperationId(operationId);
-      setAutoFilledOperationId(null);
-    } catch (error: unknown) {
-      const details = error instanceof Error ? error : new Error(String(error));
-      console.error("Failed to load operation specification:", details);
-      setSpecParameters([]);
-      setLoadedSpec(null);
-      setLoadedSpecOperationId(null);
-      setAutoFilledOperationId(null);
+    const specSource = formContext.operationSpecification;
+    // If schemas haven't arrived yet (SystemOperationField is still loading),
+    // keep previous state — the next render with populated context will
+    // re-run this effect and fill things in.
+    if (specSource === undefined) {
+      return;
     }
+
+    const specFragment = toOperationSpecFragment(
+      extractSpecification({ specification: specSource }),
+    );
+    const params = parseParametersFromSpec(
+      specFragment,
+      paramType,
+      protocolType,
+      formContext?.elementType,
+    );
+    setSpecParameters(params);
+    setLoadedSpec(specFragment);
+    setLoadedSpecOperationId(operationId);
+    setAutoFilledOperationId(null);
   }, [
     formContext.integrationOperationId,
     formContext.integrationOperationProtocolType,
     formContext.elementType,
+    formContext.operationSpecification,
     paramType,
   ]);
 
@@ -394,8 +396,8 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
   }, [formContext.integrationSystemId]);
 
   useEffect(() => {
-    void loadOperationSpecification();
-  }, [loadOperationSpecification]);
+    resolveSpecification();
+  }, [resolveSpecification]);
 
   useEffect(() => {
     void loadEnvironmentParameters();

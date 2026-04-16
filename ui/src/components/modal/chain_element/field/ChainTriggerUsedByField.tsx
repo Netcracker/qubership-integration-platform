@@ -5,7 +5,7 @@ import { useNotificationService } from "../../../../hooks/useNotificationService
 import { api } from "../../../../api/api";
 import { Chain, ChainColumn } from "../../../services/ui/ChainColumn";
 import { JSONSchema7 } from "json-schema";
-import { FormContext } from "../ChainElementModification";
+import { FormContext } from "../ChainElementModificationContext";
 import styles from "../ChainElementModification.module.css";
 
 const ChainTriggerUsedByField: React.FC<

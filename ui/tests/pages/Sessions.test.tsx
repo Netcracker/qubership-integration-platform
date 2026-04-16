@@ -253,6 +253,17 @@ async function renderWithSessions(sessions: Session[]) {
   await waitFor(() => {
     expect(mockGetSessions).toHaveBeenCalledTimes(1);
   });
+
+  // Wait for the first session to land in the table — otherwise callers that
+  // immediately query rows hit a race where mockGetSessions has been called
+  // but the resolved promise hasn't propagated into the DOM yet. Use
+  // findAllByRole to tolerate correlation groups that render multiple rows
+  // sharing the same id fragment.
+  if (sessions.length > 0) {
+    await screen.findAllByRole("row", {
+      name: new RegExp(sessions[0].id, "i"),
+    });
+  }
 }
 
 describe("Sessions", () => {
@@ -280,7 +291,7 @@ describe("Sessions", () => {
         { offset: 0 },
       );
     });
-    expect(screen.getByText("s1")).toBeInTheDocument();
+    expect(await screen.findByText("s1")).toBeInTheDocument();
   });
 
   test("renders empty table when no sessions", async () => {
@@ -405,7 +416,7 @@ describe("Sessions", () => {
       }),
     ]);
 
-    const statuses = screen.getAllByTestId("session-status");
+    const statuses = await screen.findAllByTestId("session-status");
     expect(statuses).toHaveLength(2);
     expect(statuses[0]).toHaveTextContent("COMPLETED_NORMALLY");
     expect(statuses[1]).toHaveTextContent("COMPLETED_WITH_ERRORS");

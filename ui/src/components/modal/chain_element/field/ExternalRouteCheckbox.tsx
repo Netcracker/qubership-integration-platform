@@ -1,6 +1,6 @@
 import { FieldProps } from "@rjsf/utils";
 import { JSONSchema7 } from "json-schema";
-import { FormContext } from "../ChainElementModification";
+import { FormContext } from "../ChainElementModificationContext";
 import { Checkbox, CheckboxChangeEvent } from "antd";
 import React, { useCallback } from "react";
 

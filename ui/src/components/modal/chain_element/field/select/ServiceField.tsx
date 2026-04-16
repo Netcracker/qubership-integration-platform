@@ -6,7 +6,7 @@ import {
   IntegrationSystem,
   IntegrationSystemType,
 } from "../../../../../api/apiTypes.ts";
-import { FormContext } from "../../ChainElementModification.tsx";
+import { FormContext } from "../../ChainElementModificationContext.ts";
 import { JSONSchema7 } from "json-schema";
 import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
 import { SelectTag } from "./SelectTag.tsx";

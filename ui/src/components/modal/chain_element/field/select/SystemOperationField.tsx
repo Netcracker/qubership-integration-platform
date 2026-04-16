@@ -11,10 +11,7 @@ import {
 
 import { HttpMethod } from "../../../../services/ui/HttpMethod.tsx";
 import { SelectTag } from "./SelectTag.tsx";
-import {
-  isHttpProtocol,
-  normalizeProtocol,
-} from "../../../../../misc/protocol-utils.ts";
+import { normalizeProtocol } from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { OperationPath } from "../../../../services/ui/OperationPath.tsx";
 import { isVsCode } from "../../../../../api/rest/vscodeExtensionApi";
@@ -216,45 +213,13 @@ const SystemOperationField: React.FC<
 
       const systemId = registry.formContext?.integrationSystemId as string;
 
-      const apply = async (proto: string) => {
+      // Note: schemas (specification/requestSchema/responseSchemas) and
+      // HTTP query-parameter autofill are handled centrally by
+      // ChainElementModification's loader effect — it watches
+      // `integrationOperationId` and republishes on change. We just switch
+      // operation identifiers here and clear stale path/query overrides.
+      const apply = (proto: string) => {
         const protocolType = normalizeProtocol(proto) ?? "http";
-
-        const queryParams: Record<string, string> = {};
-        if (isHttpProtocol(protocolType)) {
-          try {
-            const opInfo = await api.getOperationInfo(newValue);
-            if (
-              opInfo.specification?.parameters &&
-              Array.isArray(opInfo.specification.parameters)
-            ) {
-              interface Parameter {
-                in?: string;
-                name?: string;
-              }
-
-              const parameters = opInfo.specification.parameters as Parameter[];
-              const queryParamNames = parameters
-                .filter(
-                  (
-                    p,
-                  ): p is Parameter & {
-                    in: "query";
-                    name: string;
-                  } => p.in === "query" && typeof p.name === "string",
-                )
-                .map((p) => p.name);
-
-              queryParamNames.forEach((name: string) => {
-                queryParams[name] = "";
-              });
-            }
-          } catch (error) {
-            console.error(
-              "Failed to load operation specification for query params:",
-              error,
-            );
-          }
-        }
 
         registry.formContext.updateContext?.({
           integrationOperationId: newValue,
@@ -262,8 +227,7 @@ const SystemOperationField: React.FC<
           integrationOperationMethod: operation.method,
           integrationOperationProtocolType: protocolType,
           integrationOperationPathParameters: undefined,
-          integrationOperationQueryParameters:
-            Object.keys(queryParams).length > 0 ? queryParams : undefined,
+          integrationOperationQueryParameters: undefined,
           after: undefined,
         });
       };
@@ -274,7 +238,7 @@ const SystemOperationField: React.FC<
           .then((s) => apply(s.protocol))
           .catch(() => apply(""));
       } else {
-        void apply("");
+        apply("");
       }
     },
     [registry.formContext, operationsMap],

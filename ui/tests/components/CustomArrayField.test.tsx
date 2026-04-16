@@ -35,7 +35,8 @@ const mockGetOperationInfo = jest.fn();
 
 jest.mock("../../src/api/api", () => ({
   api: {
-    getOperationInfo: (...args: unknown[]) => mockGetOperationInfo(...args),
+    getOperationInfo: (...args: unknown[]): unknown =>
+      mockGetOperationInfo(...args) as unknown,
   },
 }));
 
@@ -632,59 +633,39 @@ describe("CustomArrayField", () => {
     });
   });
 
-  describe("API loading (useEffect)", () => {
-    it("calls getOperationInfo when operationId is set", async () => {
+  describe("schemas from FormContext (no direct API call)", () => {
+    it("does not call getOperationInfo — schemas come from FormContext", () => {
       const props = makeProps({
         formContext: {
           integrationOperationId: "op-123",
           integrationOperationProtocolType: "http",
+          operationResponseSchemas: {
+            "200": { "application/json": { type: "object" } },
+          },
         },
       });
 
       render(<CustomArrayField {...props} />);
 
-      await waitFor(() => {
-        expect(mockGetOperationInfo).toHaveBeenCalledWith("op-123");
-      });
-    });
-
-    it("does not call getOperationInfo when operationId is absent", () => {
-      const props = makeProps({
-        formContext: {
-          integrationOperationId: undefined,
-        },
-      });
-
-      render(<CustomArrayField {...props} />);
-
+      // Centralized loader in SystemOperationField populates context;
+      // CustomArrayField no longer makes its own request.
       expect(mockGetOperationInfo).not.toHaveBeenCalled();
     });
 
-    it("populates available codes from API response in handler mode", async () => {
-      mockGetOperationInfo.mockResolvedValue({
-        id: "op-123",
-        specification: {},
-        requestSchema: {},
-        responseSchemas: {
-          "200": { "application/json": { type: "object" } },
-          "404": { "application/json": { type: "string" } },
-        },
-      });
-
+    it("populates available codes from FormContext responseSchemas in handler mode", async () => {
       const props = makeProps({
         formContext: {
           integrationOperationId: "op-123",
           integrationOperationProtocolType: "http",
+          operationResponseSchemas: {
+            "200": { "application/json": { type: "object" } },
+            "404": { "application/json": { type: "string" } },
+          },
         },
       });
 
       const { container } = render(<CustomArrayField {...props} />);
 
-      await waitFor(() => {
-        expect(mockGetOperationInfo).toHaveBeenCalledWith("op-123");
-      });
-
-      // After loading, select should be enabled (has merged codes)
       await waitFor(() => {
         const select = container.querySelector(".ant-select");
         expect(select?.classList.contains("ant-select-disabled")).toBeFalsy();
@@ -692,31 +673,20 @@ describe("CustomArrayField", () => {
     });
 
     it("populates validation schemas for readOnly mode (afterValidation)", async () => {
-      mockGetOperationInfo.mockResolvedValue({
-        id: "op-123",
-        specification: {},
-        requestSchema: {},
-        responseSchemas: {
-          "200": { "application/json": { type: "object", title: "Success" } },
-        },
-      });
-
       const props = makeProps({
         name: "afterValidation",
         formContext: {
           elementType: "service-call",
           integrationOperationId: "op-123",
           integrationOperationProtocolType: "http",
+          operationResponseSchemas: {
+            "200": { "application/json": { type: "object", title: "Success" } },
+          },
         },
       });
 
       const { container } = render(<CustomArrayField {...props} />);
 
-      await waitFor(() => {
-        expect(mockGetOperationInfo).toHaveBeenCalledWith("op-123");
-      });
-
-      // After loading, select should be enabled with the schema codes
       await waitFor(() => {
         const select = container.querySelector(".ant-select");
         expect(select?.classList.contains("ant-select-disabled")).toBeFalsy();
@@ -724,27 +694,17 @@ describe("CustomArrayField", () => {
     });
 
     it("populates validation schemas for async-api-trigger", async () => {
-      mockGetOperationInfo.mockResolvedValue({
-        id: "op-123",
-        specification: {},
-        requestSchema: {},
-        responseSchemas: {
-          "200": { "application/json": { type: "object" } },
-        },
-      });
-
       const props = makeProps({
         formContext: {
           elementType: "async-api-trigger",
           integrationOperationId: "op-123",
+          operationResponseSchemas: {
+            "200": { type: "object" },
+          },
         },
       });
 
       const { container } = render(<CustomArrayField {...props} />);
-
-      await waitFor(() => {
-        expect(mockGetOperationInfo).toHaveBeenCalled();
-      });
 
       await waitFor(() => {
         const select = container.querySelector(".ant-select");
@@ -753,16 +713,6 @@ describe("CustomArrayField", () => {
     });
 
     it("filters out already-used codes from available codes", async () => {
-      mockGetOperationInfo.mockResolvedValue({
-        id: "op-123",
-        specification: {},
-        requestSchema: {},
-        responseSchemas: {
-          "200": { "application/json": { type: "object" } },
-          "400": { "application/json": { type: "string" } },
-        },
-      });
-
       const existing = makeResponseValidation({
         code: "200",
         label: "200-application/json",
@@ -776,45 +726,128 @@ describe("CustomArrayField", () => {
           elementType: "service-call",
           integrationOperationId: "op-123",
           integrationOperationProtocolType: "http",
+          operationResponseSchemas: {
+            "200": { "application/json": { type: "object" } },
+            "400": { "application/json": { type: "string" } },
+          },
         },
       });
 
       const { container } = render(<CustomArrayField {...props} />);
 
       await waitFor(() => {
-        expect(mockGetOperationInfo).toHaveBeenCalled();
-      });
-
-      // Select should still be enabled (400-application/json is available)
-      await waitFor(() => {
         const select = container.querySelector(".ant-select");
         expect(select?.classList.contains("ant-select-disabled")).toBeFalsy();
       });
     });
+  });
 
-    it("logs error when API call fails", async () => {
-      const consoleSpy = jest
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-      mockGetOperationInfo.mockRejectedValue(new Error("Network error"));
-
+  describe("auto-apply response schema to inline mapper-2 Mapping", () => {
+    it("auto-fills source.body for a mapper-2 handler when body is empty", async () => {
+      const onChange = jest.fn();
+      const handler = makeResponseHandler({
+        code: "200",
+        label: "200",
+        id: "200",
+        type: "mapper-2",
+        mappingDescription: undefined,
+      });
       const props = makeProps({
+        formData: [handler],
+        onChange,
         formContext: {
-          integrationOperationId: "op-fail",
+          integrationOperationId: "op-1",
           integrationOperationProtocolType: "http",
+          operationResponseSchemas: {
+            "200": {
+              "application/json": {
+                type: "object",
+                properties: { id: { type: "string" } },
+              },
+            },
+          },
         },
       });
 
       render(<CustomArrayField {...props} />);
 
       await waitFor(() => {
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "Failed to fetch operation info:",
-          expect.any(Error),
-        );
+        expect(onChange).toHaveBeenCalled();
       });
 
-      consoleSpy.mockRestore();
+      const calls = onChange.mock.calls as unknown as unknown[][];
+      const lastCallArray = calls.at(-1)?.[0] as ArrayItem[] | undefined;
+      const updated = lastCallArray?.[0] as ResponseHandler;
+      expect(updated?.mappingDescription?.source.body).toBeTruthy();
+      expect(updated?.mappingDescription?.source.body?.name).toBe("object");
+    });
+
+    it("does not overwrite source.body if it's already populated", async () => {
+      const onChange = jest.fn();
+      const handler = makeResponseHandler({
+        code: "200",
+        label: "200",
+        id: "200",
+        type: "mapper-2",
+        mappingDescription: {
+          source: {
+            headers: [],
+            properties: [],
+            // Existing user data — must not be replaced silently.
+            body: { name: "string" } as unknown as Record<string, unknown>,
+          },
+          target: { headers: [], properties: [], body: null },
+          constants: [],
+          actions: [],
+        } as unknown as ResponseHandler["mappingDescription"],
+      });
+      const props = makeProps({
+        formData: [handler],
+        onChange,
+        formContext: {
+          integrationOperationId: "op-1",
+          integrationOperationProtocolType: "http",
+          operationResponseSchemas: {
+            "200": {
+              "application/json": { type: "object" },
+            },
+          },
+        },
+      });
+
+      render(<CustomArrayField {...props} />);
+
+      // Let any pending effects flush.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // No onChange should be triggered — user's existing mapping is preserved.
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("does nothing when handler is not mapper-2 yet", async () => {
+      const onChange = jest.fn();
+      const handler = makeResponseHandler({
+        code: "200",
+        label: "200",
+        id: "200",
+        type: "none",
+      });
+      const props = makeProps({
+        formData: [handler],
+        onChange,
+        formContext: {
+          integrationOperationId: "op-1",
+          integrationOperationProtocolType: "http",
+          operationResponseSchemas: {
+            "200": { "application/json": { type: "object" } },
+          },
+        },
+      });
+
+      render(<CustomArrayField {...props} />);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(onChange).not.toHaveBeenCalled();
     });
   });
 

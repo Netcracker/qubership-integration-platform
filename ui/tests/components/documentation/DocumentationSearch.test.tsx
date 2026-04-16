@@ -212,12 +212,15 @@ describe("DocumentationSearch", () => {
   });
 
   it("handles search errors gracefully", async () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockSearch.mockRejectedValue(new Error("Network error"));
 
     render(<DocumentationSearch />);
     await typeAndSearch("error");
 
     expect(screen.getByText("No results found")).toBeInTheDocument();
+    expect(spy).toHaveBeenCalledWith("Search failed:", expect.any(Error));
+    spy.mockRestore();
   });
 
   it("discards stale results when a new search starts", async () => {
@@ -271,6 +274,7 @@ describe("DocumentationSearch", () => {
   });
 
   it("handles loadPaths error on result click", async () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockSearch.mockResolvedValue([{ ref: 0, score: 5, terms: ["overview"] }]);
     mockLoadNames.mockResolvedValue({ 0: ["Overview"] });
     mockLoadPaths.mockRejectedValue(new Error("Load failed"));
@@ -284,6 +288,11 @@ describe("DocumentationSearch", () => {
 
     // Should not crash, just log error
     expect(mockNavigate).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith(
+      "Failed to get document path:",
+      expect.any(Error),
+    );
+    spy.mockRestore();
   });
 
   it("displays breadcrumb path for results with multi-part names", async () => {
