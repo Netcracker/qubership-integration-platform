@@ -377,4 +377,47 @@ describe("ChainGraph", () => {
     expect(refreshMock).toHaveBeenCalled();
     expect(mockInfo).toHaveBeenCalled();
   });
+
+  it("save and deploy refreshes chain context even when deployment fails", async () => {
+    const refreshMock = jest.fn().mockResolvedValue(undefined);
+    const createSnapshot = api.createSnapshot as jest.Mock;
+    const createDeployment = api.createDeployment as jest.Mock;
+    createSnapshot.mockResolvedValue({ id: "snap-1", name: "snap-a" });
+    const deployError = new Error("deploy failed");
+    createDeployment.mockRejectedValue(deployError);
+
+    render(
+      <ChainContext.Provider
+        value={{
+          chain: undefined,
+          refresh: refreshMock,
+          update: jest.fn().mockResolvedValue(undefined),
+        }}
+      >
+        <ChainGraph />
+      </ChainContext.Provider>,
+    );
+
+    const headerSlot = await screen.findByTestId("chain-header-actions-slot");
+    const headerButtons = within(headerSlot).getAllByTestId("protected-button");
+    fireEvent.click(headerButtons[2]);
+
+    const modalArg = mockShowModal.mock.calls.at(-1)?.[0] as {
+      component: React.ReactElement<{
+        onSubmit: (domain: string) => void | Promise<void>;
+      }>;
+    };
+    await modalArg.component.props.onSubmit("domain-1");
+
+    expect(createSnapshot).toHaveBeenCalledWith("chain-1");
+    expect(createDeployment).toHaveBeenCalled();
+    expect(refreshMock).toHaveBeenCalled();
+    const refreshCallOrder = refreshMock.mock.invocationCallOrder[0];
+    const deployCallOrder = createDeployment.mock.invocationCallOrder[0];
+    expect(refreshCallOrder).toBeLessThan(deployCallOrder);
+    expect(mockRequestFailed).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to create snapshot and deploy it"),
+      deployError,
+    );
+  });
 });
