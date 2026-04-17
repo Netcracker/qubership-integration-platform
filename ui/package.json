@@ -60,7 +60,7 @@
     "@xyflow/react": "^12.4.2",
     "ajv": "^8.17.1",
     "antd": "^5.27.0",
-    "axios": "^1.7.9",
+    "axios": "^1.15.0",
     "axios-rate-limit": "1.4.0",
     "elkjs": "^0.10.0",
     "exceljs": "4.4.0",
