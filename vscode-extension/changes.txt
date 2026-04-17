@@ -102,3 +102,35 @@ index 6b66796..014922f 100644
    "main": "dist/node/index.js",
    "types": "dist/web/index.d.ts",
    "files": [
+diff --git a/package-lock.json b/package-lock.json
+index 14f8c5f..c763935 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "@netcracker/qip-vscode-extension",
+-  "version": "0.0.29",
++  "version": "0.0.30",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "@netcracker/qip-vscode-extension",
+-      "version": "0.0.29",
++      "version": "0.0.30",
+       "dependencies": {
+         "@apidevtools/swagger-parser": "^12.0.0",
+         "@asyncapi/parser": "^3.4.0",
+diff --git a/package.json b/package.json
+index d779e13..806f0d4 100644
+--- a/package.json
++++ b/package.json
+@@ -3,7 +3,7 @@
+   "publisher": "qubership",
+   "displayName": "QIP VS Code Extension",
+   "description": "Qubership Integration Platform - Visual Studio Code Extension",
+-  "version": "0.0.29",
++  "version": "0.0.30",
+   "main": "dist/node/index.js",
+   "types": "dist/web/index.d.ts",
+   "files": [
