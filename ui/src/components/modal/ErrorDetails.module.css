@@ -1,10 +1,210 @@
-.label {
-  font-weight: 600;
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
 }
 
-.stacktrace {
+.titleDot {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--error-accent, currentColor);
+  flex-shrink: 0;
+  align-self: center;
+  transform: translateY(1px);
+}
+
+.titleDot::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: var(--error-accent, currentColor);
+  opacity: 0.45;
+  animation: err-pulse 1.8s ease-out infinite;
+  z-index: -1;
+}
+
+@keyframes err-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.55;
+  }
+
+  70% {
+    transform: scale(2);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titleDot::before {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+.titleMain {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--meta-border, transparent);
+  border-radius: 6px;
+  background: var(--meta-bg, transparent);
+}
+
+.metaLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  opacity: 0.55;
+  align-self: center;
+}
+
+.metaValue {
+  font-size: 13px;
+  overflow-wrap: break-word;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--chip-bg, transparent);
+  border: 1px solid var(--chip-border, currentColor);
+  color: var(--chip-fg, inherit);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectionLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-top: 4px;
+}
+
+.sectionLabel::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--divider, currentColor);
+  opacity: 0.6;
+}
+
+.messageCard {
+  border-left: 3px solid var(--error-accent, currentColor);
+  padding: 10px 12px;
+  background: var(--message-bg, transparent);
+  color: var(--message-fg, inherit);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.console {
+  position: relative;
   min-height: 0;
-  max-height: 300px;
-  overflow-y: auto;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px 14px 12px 44px;
+  border-radius: 6px;
+  background: var(--console-bg, transparent);
+  color: var(--console-fg, inherit);
+  font-family:
+    "JetBrains Mono", "Fira Code", "SF Mono", ui-monospace, SFMono-Regular,
+    Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre;
   overflow-wrap: normal;
+  counter-reset: stack;
+  tab-size: 2;
+  border: 1px solid var(--console-border, transparent);
+}
+
+.consoleLine {
+  display: block;
+  counter-increment: stack;
+  position: relative;
+  padding: 0 6px;
+  border-radius: 3px;
+  min-height: 1.6em;
+}
+
+.consoleLine::before {
+  content: counter(stack);
+  position: absolute;
+  left: -36px;
+  width: 28px;
+  text-align: right;
+  opacity: 0.35;
+  font-size: 11px;
+  user-select: none;
+}
+
+.consoleLine:hover {
+  background: var(--console-line-hover, transparent);
+}
+
+.consoleGutter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 34px;
+  width: 1px;
+  background: var(--console-gutter, currentColor);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.consoleBadge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--console-badge-bg, transparent);
+  color: var(--console-badge-fg, inherit);
+  pointer-events: none;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }

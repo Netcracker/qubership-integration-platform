@@ -235,6 +235,13 @@ const TEMPLATES = {
   FieldTemplate: DescriptionTooltipFieldTemplate,
 };
 
+const FORM_DEFAULT_STATE_BEHAVIOR = {
+  allOf: "populateDefaults" as const,
+  arrayMinItems: {
+    populate: "never" as const,
+  },
+};
+
 export const ChainElementModification: React.FC<ElementModificationProps> = ({
   node,
   chainId,
@@ -458,6 +465,22 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const handleRjsfFormErrors = useCallback((_errors: RJSFValidationError[]) => {
     // Programmatic validateForm() after mount; errors are shown in the form UI.
   }, []);
+
+  const handleFormChange = useCallback(
+    (e: { formData?: Record<string, unknown> }) => {
+      const nextFormData = e.formData;
+      if (!nextFormData) return;
+      setFormData(nextFormData);
+      if (
+        !isInitializingRef.current &&
+        (hasUserEditedFormRef.current || hasUserInteractedRef.current)
+      ) {
+        hasUserEditedFormRef.current = true;
+        setHasChanges(true);
+      }
+    },
+    [],
+  );
 
   /**
    * Centralized OperationInfo loader.
@@ -988,27 +1011,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               onError={handleRjsfFormErrors}
               liveValidate={"onChange"}
               showErrorList={false}
-              experimental_defaultFormStateBehavior={{
-                allOf: "populateDefaults",
-                arrayMinItems: {
-                  populate: "never",
-                },
-              }}
+              experimental_defaultFormStateBehavior={
+                FORM_DEFAULT_STATE_BEHAVIOR
+              }
               formContext={formContext}
               templates={TEMPLATES}
               fields={FIELDS}
               widgets={WIDGETS}
-              onChange={(e) => {
-                const nextFormData = e.formData as Record<string, unknown>;
-                setFormData(nextFormData);
-                if (
-                  !isInitializingRef.current &&
-                  (hasUserEditedFormRef.current || hasUserInteractedRef.current)
-                ) {
-                  hasUserEditedFormRef.current = true;
-                  setHasChanges(true);
-                }
-              }}
+              onChange={handleFormChange}
             />
           </div>
         </>

@@ -38,11 +38,9 @@ function mergeAllIconsWithConfig(
     return allIcons;
   }
   const merged: IconOverrides = { ...allIcons, ...configIcons };
-  if (
-    Object.hasOwn(configIcons, "qip") &&
-    configIcons.qip !== undefined &&
-    !Object.hasOwn(configIcons, "logo")
-  ) {
+  const hasOwn = (key: string) =>
+    Object.prototype.hasOwnProperty.call(configIcons, key);
+  if (hasOwn("qip") && configIcons.qip !== undefined && !hasOwn("logo")) {
     merged.logo = configIcons.qip;
   }
   return merged;
@@ -109,17 +107,19 @@ export type IconOverrides = {
   [K in IconName]?: IconSource;
 };
 
-export const OverridableIcon: React.FC<OverridableIconProps> = ({
-  name,
-  ...props
-}) => {
-  const icons = useIcons();
-  const IconComponent = icons.icons[name];
-  if (!IconComponent) {
-    return null;
-  }
+type RenderedSource =
+  | { kind: "element"; render: () => React.ReactElement }
+  | { kind: "string"; render: () => React.ReactElement }
+  | { kind: "component"; component: React.ComponentType<AntdIconProps> }
+  | null;
 
-  // ReactElement (e.g. <svg>...</svg> passed directly)
+const sourceCache = new WeakMap<object, RenderedSource>();
+const stringSourceCache = new Map<string, RenderedSource>();
+
+const buildSource = (
+  IconComponent: IconSource,
+  name: string,
+): RenderedSource => {
   if (React.isValidElement(IconComponent)) {
     const normalized = isMonochromeSvgElement(IconComponent)
       ? normalizeSvgElementPaintToCurrentColor(IconComponent)
@@ -128,20 +128,18 @@ export const OverridableIcon: React.FC<OverridableIconProps> = ({
       width: "1em",
       height: "1em",
     });
-    return <Icon {...props} component={() => wrappedNode} />;
+    const render = () => wrappedNode;
+    return { kind: "element", render };
   }
 
-  // SVG string (e.g. "<svg>...</svg>" from config)
   if (typeof IconComponent === "string") {
     const normalizedSvg = isMonochromeSvgString(IconComponent)
       ? normalizeSvgStringPaintToCurrentColor(IconComponent)
       : IconComponent;
     const parsed = parse(normalizedSvg);
-    // Handle case where parse returns an array (text nodes + SVG element)
     const svgElement = Array.isArray(parsed)
       ? parsed.find((el) => React.isValidElement(el))
       : parsed;
-
     if (!React.isValidElement(svgElement)) {
       console.warn(
         `[IconProvider] Failed to parse icon "${name}". Parse result:`,
@@ -153,14 +151,66 @@ export const OverridableIcon: React.FC<OverridableIconProps> = ({
       svgElement as React.ReactElement<React.SVGProps<SVGSVGElement>>,
       { width: "1em", height: "1em" },
     );
-    return <Icon {...props} component={() => sizedSvg} />;
+    const render = () => sizedSvg;
+    return { kind: "string", render };
   }
 
-  // Component (function or class) — use DOM-based color normalization
-  return (
-    <IconWithDomColorNormalize
-      IconComponent={IconComponent as React.ComponentType<AntdIconProps>}
-      props={props}
-    />
-  );
+  return {
+    kind: "component",
+    component: IconComponent as React.ComponentType<AntdIconProps>,
+  };
 };
+
+const getCachedSource = (
+  IconComponent: IconSource,
+  name: string,
+): RenderedSource => {
+  if (typeof IconComponent === "string") {
+    let cached = stringSourceCache.get(IconComponent);
+    if (cached === undefined) {
+      cached = buildSource(IconComponent, name);
+      stringSourceCache.set(IconComponent, cached);
+    }
+    return cached;
+  }
+  if (
+    typeof IconComponent === "object" ||
+    typeof IconComponent === "function"
+  ) {
+    let cached = sourceCache.get(IconComponent as object);
+    if (cached === undefined) {
+      cached = buildSource(IconComponent, name);
+      sourceCache.set(IconComponent as object, cached);
+    }
+    return cached;
+  }
+  return buildSource(IconComponent, name);
+};
+
+const OverridableIconImpl: React.FC<OverridableIconProps> = ({
+  name,
+  ...props
+}) => {
+  const icons = useIcons();
+  const IconComponent = icons.icons[name];
+  if (!IconComponent) {
+    return null;
+  }
+
+  const source = getCachedSource(IconComponent, name);
+  if (!source) return null;
+
+  if (source.kind === "component") {
+    return (
+      <IconWithDomColorNormalize
+        IconComponent={source.component}
+        props={props}
+      />
+    );
+  }
+
+  return <Icon {...props} component={source.render} />;
+};
+
+export const OverridableIcon = React.memo(OverridableIconImpl);
+OverridableIcon.displayName = "OverridableIcon";
