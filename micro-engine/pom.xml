@@ -833,6 +833,9 @@
                         </native.image.path>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
+                        <quarkus.test.profile>development,no-dbaas,no-m2m</quarkus.test.profile>
+                        <cloud.microservice.namespace>local</cloud.microservice.namespace>
+                        <cloud.microservice.name>qip-engine</cloud.microservice.name>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

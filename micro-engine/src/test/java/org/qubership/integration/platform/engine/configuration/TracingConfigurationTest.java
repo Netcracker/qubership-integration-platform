@@ -1,75 +1,104 @@
-/*
- * Copyright 2024-2025 NetCracker Technology Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.qubership.integration.platform.engine.configuration;
 
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
+import io.quarkus.test.component.QuarkusComponentTest;
+import io.quarkus.test.component.TestConfigProperty;
 import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import org.apache.camel.observation.MicrometerObservationTracer;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
+import org.qubership.integration.platform.engine.service.debugger.tracing.MicrometerObservationTaggedTracer;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.util.InjectUtil;
 
+import java.lang.reflect.Field;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
+@QuarkusComponentTest
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
+@TestConfigProperty(key = "quarkus.otel.traces.enabled", value = "true")
 class TracingConfigurationTest {
 
+    @Inject
+    TracingConfiguration tracingConfiguration;
+
     @Test
-    void camelObservationTracerShouldWorkWhenOptionalsEmpty() {
-        TracingConfiguration cfg = new TracingConfiguration();
+    void shouldInjectTracingEnabledProperty() {
+        assertTrue(tracingConfiguration.isTracingEnabled());
+    }
 
-        @SuppressWarnings("unchecked")
-        Instance<Tracer> tracerInst = mock(Instance.class);
-        @SuppressWarnings("unchecked")
-        Instance<ObservationRegistry> regInst = mock(Instance.class);
+    @Test
+    void shouldCreateCamelObservationTracerAndInjectOptionalDependenciesWhenPresent() throws Exception {
+        Instance<Tracer> tracerInstance = mockInstance();
+        Instance<ObservationRegistry> observationRegistryInstance = mockInstance();
 
-        try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class)) {
-            inject.when(() -> InjectUtil.injectOptional(tracerInst)).thenReturn(Optional.empty());
-            inject.when(() -> InjectUtil.injectOptional(regInst)).thenReturn(Optional.empty());
+        Tracer tracer = mock(Tracer.class);
+        ObservationRegistry observationRegistry = mock(ObservationRegistry.class);
 
-            MicrometerObservationTracer tracer = cfg.camelObservationTracer(tracerInst, regInst);
-            assertNotNull(tracer);
+        try (var injectUtil = mockStatic(InjectUtil.class)) {
+            injectUtil.when(() -> InjectUtil.injectOptional(tracerInstance))
+                    .thenReturn(Optional.of(tracer));
+            injectUtil.when(() -> InjectUtil.injectOptional(observationRegistryInstance))
+                    .thenReturn(Optional.of(observationRegistry));
+
+            MicrometerObservationTracer result = tracingConfiguration.camelObservationTracer(
+                    tracerInstance,
+                    observationRegistryInstance
+            );
+
+            assertInstanceOf(MicrometerObservationTaggedTracer.class, result);
+            assertSame(tracer, fieldValue(result, "tracer"));
+            assertSame(observationRegistry, fieldValue(result, "observationRegistry"));
         }
     }
 
     @Test
-    void camelObservationTracerShouldWorkWhenOptionalsPresent() {
-        TracingConfiguration cfg = new TracingConfiguration();
+    void shouldCreateCamelObservationTracerWithoutOptionalDependenciesWhenInstancesAreEmpty() throws Exception {
+        Instance<Tracer> tracerInstance = mockInstance();
+        Instance<ObservationRegistry> observationRegistryInstance = mockInstance();
 
-        @SuppressWarnings("unchecked")
-        Instance<Tracer> tracerInst = mock(Instance.class);
-        @SuppressWarnings("unchecked")
-        Instance<ObservationRegistry> regInst = mock(Instance.class);
+        try (var injectUtil = mockStatic(InjectUtil.class)) {
+            injectUtil.when(() -> InjectUtil.injectOptional(tracerInstance))
+                    .thenReturn(Optional.empty());
+            injectUtil.when(() -> InjectUtil.injectOptional(observationRegistryInstance))
+                    .thenReturn(Optional.empty());
 
-        Tracer tracer = mock(Tracer.class);
-        ObservationRegistry reg = mock(ObservationRegistry.class);
+            MicrometerObservationTracer result = tracingConfiguration.camelObservationTracer(
+                    tracerInstance,
+                    observationRegistryInstance
+            );
 
-        try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class)) {
-            inject.when(() -> InjectUtil.injectOptional(tracerInst)).thenReturn(Optional.of(tracer));
-            inject.when(() -> InjectUtil.injectOptional(regInst)).thenReturn(Optional.of(reg));
-
-            MicrometerObservationTracer result = cfg.camelObservationTracer(tracerInst, regInst);
-            assertNotNull(result);
+            assertInstanceOf(MicrometerObservationTaggedTracer.class, result);
+            assertNull(fieldValue(result, "tracer"));
+            assertNull(fieldValue(result, "observationRegistry"));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Instance<T> mockInstance() {
+        return mock(Instance.class);
+    }
+
+    private static Object fieldValue(Object target, String fieldName) throws Exception {
+        Class<?> current = target.getClass();
+        while (current != null) {
+            try {
+                Field field = current.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field.get(target);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(fieldName);
     }
 }
