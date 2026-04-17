@@ -203,7 +203,7 @@
   "dependencies": {
     "@apidevtools/swagger-parser": "^12.0.0",
     "@asyncapi/parser": "^3.4.0",
-    "@netcracker/qip-ui": "^0.0.48",
+    "@netcracker/qip-ui": "^0.0.49",
     "@types/js-yaml": "^4.0.9",
     "@xmldom/xmldom": "^0.8.11",
     "ajv": "^8.17.1",
