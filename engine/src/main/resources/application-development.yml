@@ -8,9 +8,9 @@ spring:
     - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
     - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
     - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+    - io.opentelemetry.instrumentation.spring.autoconfigure.internal.instrumentation.jdbc.JdbcInstrumentationAutoConfiguration
     - org.apache.camel.component.quartz.springboot.QuartzComponentAutoConfiguration
     - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
-    - io.opentelemetry.instrumentation.spring.autoconfigure.internal.instrumentation.jdbc.JdbcInstrumentationAutoConfiguration
   config:
     activate:
       on-profile: development

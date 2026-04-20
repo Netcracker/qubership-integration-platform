@@ -110,7 +110,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private final ExternalLibraryGroovyShellFactory groovyShellFactory;
     private final GroovyLanguageWithResettableCache groovyLanguage;
     private final MetricsStore metricsStore;
-    private final Optional<ExternalLibraryService> externalLibraryService;
+    private final ExternalLibraryService externalLibraryService;
     private final MaasService maasService;
     private final Optional<XmlConfigurationPreProcessor> xmlPreProcessor;
     private final VariablesService variablesService;
@@ -148,7 +148,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         ExternalLibraryGroovyShellFactory groovyShellFactory,
         GroovyLanguageWithResettableCache groovyLanguage,
         MetricsStore metricsStore,
-        Optional<ExternalLibraryService> externalLibraryService,
+        ExternalLibraryService externalLibraryService,
         MaasService maasService,
         Optional<XmlConfigurationPreProcessor> xmlPreProcessor,
         VariablesService variablesService,
@@ -610,9 +610,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             .map(properties -> properties.get(ChainProperties.OPERATION_SPECIFICATION_ID))
             .filter(Objects::nonNull)
             .toList();
-        ClassLoader classLoader = externalLibraryService.isPresent()
-                ? externalLibraryService.get().getClassLoaderForSystemModels(systemModelIds, context.getApplicationContextClassLoader())
-                : getClass().getClassLoader();
+        ClassLoader classLoader = externalLibraryService
+                .getClassLoaderForSystemModels(systemModelIds, context.getApplicationContextClassLoader());
         return new QipCustomClassResolver(classLoader);
     }
 

@@ -112,11 +112,6 @@ management:
       export:
         enabled: false
 
-otel:
-  instrumentation:
-    jdbc:
-      enabled: false
-
 logging:
   level:
     root: ${ROOT_LOG_LEVEL:INFO}
