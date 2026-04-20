@@ -130,6 +130,27 @@ jest.mock("../../src/components/labels/EntityLabels", () => ({
   ),
 }));
 
+jest.mock("../../src/components/chains/ChainDetailsDrawer", () => ({
+  ChainDetailsDrawer: ({
+    chain,
+    open,
+    onClose,
+  }: {
+    chain: { id: string; name: string } | null;
+    open: boolean;
+    onClose: () => void;
+  }) =>
+    open ? (
+      <div data-testid="chain-details-drawer">
+        <span data-testid="drawer-chain-id">{chain?.id}</span>
+        <span data-testid="drawer-chain-name">{chain?.name}</span>
+        <button data-testid="drawer-close" onClick={onClose}>
+          close
+        </button>
+      </div>
+    ) : null,
+}));
+
 jest.mock("../../src/components/table/CompactSearch", () => ({
   CompactSearch: (props: {
     value: string;
@@ -659,5 +680,76 @@ describe("Chains page", () => {
       expect(screen.getByTestId("entity-labels")).toBeInTheDocument();
       expect(screen.getByText("1 labels")).toBeInTheDocument();
     });
+  });
+
+  // --- Chain details drawer ---
+
+  it("opens chain details drawer when clicking on an empty area of a chain row", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    render(<Chains />);
+    await waitFor(() => {
+      expect(screen.getByText("Test Chain")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByTestId("chain-details-drawer"),
+    ).not.toBeInTheDocument();
+
+    // Click on the Description cell (plain text, no link/button).
+    fireEvent.click(screen.getByText("A test chain"));
+
+    expect(screen.getByTestId("chain-details-drawer")).toBeInTheDocument();
+    expect(screen.getByTestId("drawer-chain-id")).toHaveTextContent("chain-1");
+    expect(screen.getByTestId("drawer-chain-name")).toHaveTextContent(
+      "Test Chain",
+    );
+    // Clicking on the chain name link navigates — drawer click must not also fire.
+    expect(mockNavigate).not.toHaveBeenCalledWith("/chains/chain-1");
+  });
+
+  it("does not open drawer when clicking on the chain name link", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    render(<Chains />);
+    await waitFor(() => {
+      expect(screen.getByText("Test Chain")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Test Chain"));
+
+    expect(
+      screen.queryByTestId("chain-details-drawer"),
+    ).not.toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledWith("/chains/chain-1");
+  });
+
+  it("does not open drawer when clicking on a folder row", async () => {
+    mockApi.listFolder.mockResolvedValue([mockFolder]);
+    render(<Chains />);
+    await waitFor(() => {
+      expect(screen.getByText("Test Folder")).toBeInTheDocument();
+    });
+
+    // Click on the Description cell of the folder row.
+    fireEvent.click(screen.getByText("A test folder"));
+
+    expect(
+      screen.queryByTestId("chain-details-drawer"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("closes the drawer when onClose is fired", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    render(<Chains />);
+    await waitFor(() => {
+      expect(screen.getByText("Test Chain")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("A test chain"));
+    expect(screen.getByTestId("chain-details-drawer")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("drawer-close"));
+    expect(
+      screen.queryByTestId("chain-details-drawer"),
+    ).not.toBeInTheDocument();
   });
 });

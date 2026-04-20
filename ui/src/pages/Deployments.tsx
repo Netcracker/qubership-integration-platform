@@ -5,6 +5,7 @@ import {
   useTableColumnResize,
 } from "../components/table/useTableColumnResize.tsx";
 import { Flex, Table, Tooltip } from "antd";
+import { DeploymentStateTag } from "../components/deployment_runtime_states/DeploymentStateTag.tsx";
 import { useDeployments } from "../hooks/useDeployments.tsx";
 import { useParams } from "react-router";
 import { TableProps } from "antd/lib/table";
@@ -13,7 +14,6 @@ import {
   Deployment,
   Snapshot,
 } from "../api/apiTypes.ts";
-import { DeploymentRuntimeStates } from "../components/deployment_runtime_states/DeploymentRuntimeStates.tsx";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { formatTimestamp } from "../misc/format-utils.ts";
 import { useModalsContext } from "../Modals.tsx";
@@ -104,11 +104,19 @@ export const Deployments: React.FC = () => {
         dataIndex: "runtime",
         key: "runtime",
         render: (_, deployment) => (
-          <DeploymentRuntimeStates
-            timestamp={deployment.createdWhen}
-            service={deployment.serviceName}
-            runtimeStates={deployment.runtime ?? { states: {} }}
-          />
+          <Flex gap="4px 4px" wrap>
+            {Object.entries(deployment.runtime?.states ?? {}).map(
+              ([name, runtimeState]) => (
+                <DeploymentStateTag
+                  key={name}
+                  name={name}
+                  service={deployment.serviceName}
+                  timestamp={deployment.createdWhen}
+                  runtimeState={runtimeState}
+                />
+              ),
+            )}
+          </Flex>
         ),
       },
       {

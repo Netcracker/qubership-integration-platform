@@ -116,15 +116,6 @@ jest.mock("../../src/Modals.tsx", () => {
   };
 });
 
-jest.mock(
-  "../../src/components/deployment_runtime_states/DeploymentRuntimeStates.tsx",
-  () => ({
-    DeploymentRuntimeStates: () => (
-      <div data-testid="deployment-runtime-stub" />
-    ),
-  }),
-);
-
 jest.mock("../../src/components/modal/DeploymentCreate.tsx", () => ({
   DeploymentCreate: () => <div data-testid="deployment-create-stub" />,
 }));

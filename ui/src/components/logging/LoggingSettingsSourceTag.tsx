@@ -30,7 +30,7 @@ export const LoggingSettingsSourceTag: React.FC<
   }, [isCustom, isConsulDefault]);
 
   return (
-    <Tag style={{ fontSize: "14px", padding: "5px 12px" }} color={getColor()}>
+    <Tag style={{ fontSize: "13px", padding: "5px 12px" }} color={getColor()}>
       <div style={{ display: "flex", gap: "4px" }}>
         {loggingSettingsSourceLabel()}
         {!isCustom && !isConsulDefault && (

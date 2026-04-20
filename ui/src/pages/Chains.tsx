@@ -65,6 +65,7 @@ import {
   createActionsColumnBase,
   disableResizeBeforeActions,
 } from "../components/table/actionsColumn.ts";
+import { ChainDetailsDrawer } from "../components/chains/ChainDetailsDrawer.tsx";
 
 const CHAINS_EXPAND_COLUMN_WIDTH = 48;
 const CHAINS_SELECTION_COLUMN_WIDTH = 48;
@@ -120,6 +121,18 @@ type Operation = {
 
 const chainExpandIcon = treeExpandIcon<ChainTableItem>();
 
+// antd's checkbox / expand button / dropdown trigger don't stop click
+// propagation, so row onClick fires on them too. Filter those targets out
+// so row click only opens the details drawer on empty row area.
+const ROW_CLICK_IGNORE_SELECTOR =
+  "a, button, input, label, .ant-checkbox, .ant-dropdown-trigger, .ant-table-row-expand-icon, .ant-table-selection-column";
+
+function shouldIgnoreRowClick(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element && !!target.closest(ROW_CLICK_IGNORE_SELECTOR)
+  );
+}
+
 const Chains = () => {
   const navigate = useNavigate();
   const { showModal } = useModalsContext();
@@ -134,6 +147,8 @@ const Chains = () => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
   const [searchString, setSearchString] = useState<string>("");
+  const [detailsChain, setDetailsChain] = useState<ChainItem | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState<boolean>(false);
   const notificationService = useNotificationService();
   const { filters, filterButton } = useChainFilters();
 
@@ -502,13 +517,33 @@ const Chains = () => {
     isDragging,
     dropBreadcrumbId,
     getBreadcrumbDropProps,
-    onRow,
+    onRow: dragDropRowProps,
   } = useTableDragDrop({
     tableItems,
     onMoveChain: moveChain,
     onMoveFolder: moveFolder,
     disabled: isLoading,
   });
+
+  const handleRow = useCallback(
+    (record: ChainTableItem) => {
+      const base = dragDropRowProps(record);
+      return {
+        ...base,
+        onClick: (event: React.MouseEvent<HTMLTableRowElement>) => {
+          if (record.itemType !== CatalogItemType.CHAIN) {
+            return;
+          }
+          if (shouldIgnoreRowClick(event.target)) {
+            return;
+          }
+          setDetailsChain(record as ChainItem);
+          setIsDetailsOpen(true);
+        },
+      };
+    },
+    [dragDropRowProps],
+  );
 
   const breadcrumbItems: BreadcrumbProps["items"] = useMemo(() => {
     const dropClass = (dropId: string) =>
@@ -1253,7 +1288,7 @@ const Chains = () => {
               .filter(Boolean)
               .join(" ")
           }
-          onRow={onRow}
+          onRow={handleRow}
           loading={isLoading}
           expandable={{
             expandIcon: ({ record, ...rest }) => {
@@ -1281,6 +1316,11 @@ const Chains = () => {
           }}
         />
       </Flex>
+      <ChainDetailsDrawer
+        chain={detailsChain}
+        open={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
+      />
     </>
   );
 };
