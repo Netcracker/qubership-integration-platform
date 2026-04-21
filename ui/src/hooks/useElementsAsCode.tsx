@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 export const useElementsAsCode = (
   chainId: string,
+  timestamp?: number,
 ): {
   elementAsCode: ChainElementCodeResponse | undefined;
   refresh: () => Promise<void>;
@@ -26,10 +27,10 @@ export const useElementsAsCode = (
   }, [chainId, notificationService]);
 
   useEffect(() => {
-    if (chainId) {
+    if (chainId && timestamp) {
       void getElementsAsCode();
     }
-  }, [chainId, getElementsAsCode]);
+  }, [chainId, getElementsAsCode, timestamp]);
 
   return {
     elementAsCode,

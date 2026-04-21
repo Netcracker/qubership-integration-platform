@@ -27,15 +27,19 @@ describe("useElementsAsCode", () => {
 
   it("returns undefined initially", () => {
     mockGetElementsAsCode.mockResolvedValue({ code: "test" });
-    const { result } = renderHook(() => useElementsAsCode("chain-1"));
+    const { result } = renderHook(() =>
+      useElementsAsCode("chain-1", Date.now()),
+    );
     expect(result.current.elementAsCode).toBeUndefined();
   });
 
-  it("fetches and returns element code when chainId is provided", async () => {
+  it("fetches and returns element code when chainId and timestamp provided", async () => {
     const mockCode = { code: "element code content" };
     mockGetElementsAsCode.mockResolvedValue(mockCode);
 
-    const { result } = renderHook(() => useElementsAsCode("chain-1"));
+    const { result } = renderHook(() =>
+      useElementsAsCode("chain-1", Date.now()),
+    );
 
     await waitFor(() => {
       expect(result.current.elementAsCode).toEqual(mockCode);
@@ -45,7 +49,17 @@ describe("useElementsAsCode", () => {
   });
 
   it("does not fetch when chainId is empty", async () => {
-    const { result } = renderHook(() => useElementsAsCode(""));
+    const { result } = renderHook(() => useElementsAsCode("", Date.now()));
+
+    await waitFor(() => {
+      expect(mockGetElementsAsCode).not.toHaveBeenCalled();
+    });
+
+    expect(result.current.elementAsCode).toBeUndefined();
+  });
+
+  it("does not fetch when timestamp is empty", async () => {
+    const { result } = renderHook(() => useElementsAsCode("chain-1"));
 
     await waitFor(() => {
       expect(mockGetElementsAsCode).not.toHaveBeenCalled();
@@ -58,7 +72,7 @@ describe("useElementsAsCode", () => {
     const error = new Error("API error");
     mockGetElementsAsCode.mockRejectedValue(error);
 
-    renderHook(() => useElementsAsCode("chain-1"));
+    renderHook(() => useElementsAsCode("chain-1", Date.now()));
 
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalledWith(
@@ -72,7 +86,9 @@ describe("useElementsAsCode", () => {
     const mockCode = { code: "refreshed code" };
     mockGetElementsAsCode.mockResolvedValue(mockCode);
 
-    const { result } = renderHook(() => useElementsAsCode("chain-1"));
+    const { result } = renderHook(() =>
+      useElementsAsCode("chain-1", Date.now()),
+    );
 
     await waitFor(() => {
       expect(result.current.elementAsCode).toEqual(mockCode);

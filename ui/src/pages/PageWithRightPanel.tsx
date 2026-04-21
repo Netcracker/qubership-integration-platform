@@ -3,17 +3,11 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import Sider from "antd/lib/layout/Sider";
 import styles from "../components/elements_library/ElementsLibrarySidebar.module.css";
 import { Flex, Menu, Tabs } from "antd";
-import { Editor, Monaco } from "@monaco-editor/react";
-import {
-  useMonacoTheme,
-  applyVSCodeThemeToMonaco,
-} from "../hooks/useMonacoTheme.ts";
 import { OverridableIcon, IconName } from "../icons/IconProvider.tsx";
 import { Element } from "../api/apiTypes.ts";
 import { useModalsContext } from "../Modals.tsx";
@@ -33,7 +27,7 @@ import { useElkDirectionContext } from "./ElkDirectionContext.tsx";
 import { useFocusToElementId } from "../components/graph/ElementFocus.tsx";
 import { UsedPropertiesList } from "../components/UsedPropertiesList.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
-import { useElementsAsCode } from "../hooks/useElementsAsCode.tsx";
+import { ChainTextViewPanel } from "../components/chains/ChainTextViewPanel.tsx";
 
 const DEFAULT_WIDTH = 240;
 
@@ -48,14 +42,10 @@ export const PageWithRightPanel = ({
 
   const { showModal } = useModalsContext();
   const [activeTab, setActiveTab] = useState<string>("listElements");
-  const [textViewContent, setTextViewContent] = useState<string>("");
 
   const params = useParams<{ chainId?: string }>();
   const chainId = params.chainId;
-  const { elementAsCode } = useElementsAsCode(chainId ?? "");
   const { libraryElements } = useLibraryContext();
-  const monacoTheme = useMonacoTheme();
-  const monacoRef = useRef<Monaco | null>(null); // eslint-disable-line @typescript-eslint/no-redundant-type-constituents -- Monaco from @monaco-editor/react may include any in union
   const notificationService = useNotificationService();
   const navigate = useNavigate();
   const [elements, setElements] = useState<Element[]>(
@@ -98,18 +88,6 @@ export const PageWithRightPanel = ({
       cancelled = true;
     };
   }, [chainContext?.chain?.id]);
-
-  useEffect(() => {
-    if (elementAsCode?.code != null && typeof elementAsCode.code === "string") {
-      setTextViewContent(elementAsCode.code);
-    }
-  }, [elementAsCode]);
-
-  useEffect(() => {
-    if (monacoRef.current) {
-      applyVSCodeThemeToMonaco(monacoRef.current);
-    }
-  }, [monacoTheme]);
 
   const handleElementDoubleClick = useCallback(
     (element: Element) => {
@@ -268,27 +246,7 @@ export const PageWithRightPanel = ({
           </div>
         )}
         {activeTab === "textView" && (
-          <div className={`${styles.rightPanelCodeBlock} qip-editor`}>
-            <Editor
-              height="100%"
-              language="yaml"
-              value={textViewContent}
-              theme={monacoTheme}
-              options={{
-                readOnly: true,
-                folding: true,
-                fixedOverflowWidgets: true,
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-              }}
-              onMount={(_, monaco) => {
-                monacoRef.current = monaco ?? null;
-                if (monaco) {
-                  applyVSCodeThemeToMonaco(monaco);
-                }
-              }}
-            />
-          </div>
+          <ChainTextViewPanel chainId={chainId ?? ""} elements={elements}/>
         )}
       </Flex>
     </Sider>
