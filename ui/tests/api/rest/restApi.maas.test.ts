@@ -87,9 +87,11 @@ describe("RestApi MaaS", () => {
   });
 
   it("getMaasKafkaDeclarativeFile sends POST and returns File", async () => {
+    let lastUrl = "";
     const { RestApi } = await import("../../../src/api/rest/restApi");
     const api = new RestApi();
     api.instance.defaults.adapter = (async (config: AxiosRequestConfig) => {
+      lastUrl = config.url ?? "";
       const blob = new Blob(["declarative json"]);
       return {
         data: blob,
@@ -111,15 +113,18 @@ describe("RestApi MaaS", () => {
       topicClassifierName: "my-classifier",
     });
 
+    expect(lastUrl).toContain("/maas-actions/kafka/declarative");
     expect(result).toBeInstanceOf(File);
     expect(result.name).toBe("kafka-declarative.json");
   });
 
   it("getMaasRabbitMQDeclarativeFile sends POST with params and returns File", async () => {
+    let lastUrl = "";
     let lastParams: Record<string, string | undefined> | undefined;
     const { RestApi } = await import("../../../src/api/rest/restApi");
     const api = new RestApi();
     api.instance.defaults.adapter = (async (config: AxiosRequestConfig) => {
+      lastUrl = config.url ?? "";
       lastParams = config.params as
         | Record<string, string | undefined>
         | undefined;
@@ -147,6 +152,7 @@ describe("RestApi MaaS", () => {
       routingKey: "routing.key",
     });
 
+    expect(lastUrl).toContain("/maas-actions/rabbitmq/declarative");
     expect(lastParams).toEqual({
       vhost: "public",
       exchange: "ex",
