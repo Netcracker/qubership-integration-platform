@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Input, Space } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 export type CompactSearchProps = {
   value: string;
@@ -42,7 +42,7 @@ export const CompactSearch: React.FC<CompactSearchProps> = ({
       />
       <Button
         type="primary"
-        icon={<SearchOutlined />}
+        icon={<OverridableIcon name="search" />}
         aria-label="Search"
         onClick={handleConfirm}
       />

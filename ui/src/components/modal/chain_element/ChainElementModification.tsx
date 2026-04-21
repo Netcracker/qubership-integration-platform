@@ -7,7 +7,6 @@ import React, {
   useRef,
 } from "react";
 import { Button, Modal, Tabs, Flex } from "antd";
-import { CloseOutlined } from "@ant-design/icons";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import styles from "./ChainElementModification.module.css";
 import {
@@ -942,7 +941,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               onClick={handleFullscreen}
             />
             <Button
-              icon={<CloseOutlined />}
+              icon={<OverridableIcon name="close" />}
               onClick={handleCheckUnsavedAndClose}
               type="text"
               title="Close"

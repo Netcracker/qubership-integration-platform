@@ -5,6 +5,13 @@ import { IconOverrides } from "./icons/IconProvider";
 import type { ThemeConfig } from "antd";
 import { UserPermissions } from "./permissions/types.ts";
 
+export type UserInfo = {
+  userName?: string;
+  email?: string;
+  tenantName?: string;
+  tenantId?: string;
+};
+
 export type AppConfig = {
   apiGateway?: string;
   appName?: string;
@@ -17,6 +24,8 @@ export type AppConfig = {
   documentationBaseUrl?: string;
   dev?: boolean;
   permissions?: UserPermissions;
+  userInfo?: UserInfo;
+  onLogout?: () => void;
 };
 
 const appConfigValue: AppConfig = {
@@ -156,6 +165,23 @@ export function configure(config: Partial<AppConfig>): void {
     overrides.push(
       `permissions: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.permissions)}`,
     );
+  }
+
+  if (config.userInfo !== undefined) {
+    const previous = appConfigValue.userInfo || {};
+    const next = { ...previous, ...config.userInfo };
+    const changedKeys = Object.keys(config.userInfo).filter(
+      (key) => next[key as keyof UserInfo] !== previous[key as keyof UserInfo],
+    );
+    if (changedKeys.length > 0) {
+      appConfigValue.userInfo = next;
+      overrides.push(`userInfo: ${changedKeys.length} field(s) updated`);
+    }
+  }
+
+  if ("onLogout" in config && appConfigValue.onLogout !== config.onLogout) {
+    appConfigValue.onLogout = config.onLogout;
+    overrides.push(`onLogout: handler ${config.onLogout ? "set" : "cleared"}`);
   }
 
   if (overrides.length > 0) {

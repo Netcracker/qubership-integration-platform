@@ -1,6 +1,5 @@
 import type React from "react";
 import { useReactFlow, useStore, useViewport } from "@xyflow/react";
-import { FullscreenOutlined, FullscreenExitOutlined } from "@ant-design/icons";
 
 import styles from "./CustomControls.module.css";
 import { useElkDirectionContext } from "../../pages/ElkDirectionContext.tsx";
@@ -64,11 +63,9 @@ export const CustomControls = ({
           data-active={fullscreenCtx.fullscreen}
           onClick={fullscreenCtx.toggleFullscreen}
           icon={
-            fullscreenCtx.fullscreen ? (
-              <FullscreenExitOutlined />
-            ) : (
-              <FullscreenOutlined />
-            )
+            <OverridableIcon
+              name={fullscreenCtx.fullscreen ? "fullscreenExit" : "fullscreen"}
+            />
           }
         />
       )}

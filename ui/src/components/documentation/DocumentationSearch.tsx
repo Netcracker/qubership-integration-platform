@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Input, List, Typography, Spin } from "antd";
-import { SearchOutlined, FileTextOutlined } from "@ant-design/icons";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { useDocumentation } from "../../hooks/useDocumentation";
 import type {
   HighlightSegment,
@@ -208,7 +208,7 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
     <div className={styles.container}>
       <Input
         placeholder="Search documentation..."
-        prefix={<SearchOutlined />}
+        prefix={<OverridableIcon name="search" />}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         allowClear
@@ -252,7 +252,10 @@ export const DocumentationSearch: React.FC<DocumentationSearchProps> = ({
               >
                 <div className={styles.resultContent}>
                   <div className={styles.resultTitle}>
-                    <FileTextOutlined className={styles.resultIcon} />
+                    <OverridableIcon
+                      name="documentationSearchResult"
+                      className={styles.resultIcon}
+                    />
                     <div className={styles.resultTitleText}>
                       <Text strong ellipsis title={title}>
                         {title}

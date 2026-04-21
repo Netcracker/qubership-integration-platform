@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
   fireEvent,
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
@@ -566,7 +567,9 @@ describe("ChainElementModification", () => {
     const unsavedModal = mockShowModal.mock.calls[0][0].component;
     render(unsavedModal);
 
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    const dialogs = screen.getAllByRole("dialog");
+    const unsavedDialog = dialogs[dialogs.length - 1];
+    fireEvent.click(within(unsavedDialog).getByRole("button", { name: "Close" }));
 
     expect(defaultProps.onClose).not.toHaveBeenCalled();
     expect(mockUpdateElement).not.toHaveBeenCalled();

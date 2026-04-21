@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Button, Dropdown, Space, Typography, Divider } from "antd";
-import { SettingOutlined } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { ThemeMode } from "../theme/themeInit";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 
 const { Text } = Typography;
 
@@ -81,7 +81,7 @@ export const SettingsPanel = ({
     >
       <Button
         type="text"
-        icon={<SettingOutlined />}
+        icon={<OverridableIcon name="settings" />}
         title="Settings"
       />
     </Dropdown>

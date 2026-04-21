@@ -1,14 +1,7 @@
 import React from "react";
 import { Tag, TagProps } from "antd";
-import {
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  CloseCircleOutlined,
-  ExclamationCircleOutlined,
-  MinusCircleOutlined,
-  SyncOutlined,
-} from "@ant-design/icons";
 import { capitalize } from "../../misc/format-utils.ts";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 type DeploymentStatusTagProps = Omit<TagProps, "color" | "icon" | "children"> & {
   status: string;
@@ -23,18 +16,36 @@ type StatusVisuals = {
 export function getDeploymentStatusVisuals(status: string): StatusVisuals {
   switch (status.toUpperCase()) {
     case "DEPLOYED":
-      return { color: "success", icon: <CheckCircleOutlined /> };
+      return {
+        color: "success",
+        icon: <OverridableIcon name="deploymentStatusDeployed" />,
+      };
     case "PROCESSING":
-      return { color: "processing", icon: <SyncOutlined spin /> };
+      return {
+        color: "processing",
+        icon: <OverridableIcon name="deploymentStatusProcessing" spin />,
+      };
     case "FAILED":
-      return { color: "error", icon: <CloseCircleOutlined /> };
+      return {
+        color: "error",
+        icon: <OverridableIcon name="deploymentStatusFailed" />,
+      };
     case "WARNING":
-      return { color: "warning", icon: <ExclamationCircleOutlined /> };
+      return {
+        color: "warning",
+        icon: <OverridableIcon name="deploymentStatusWarning" />,
+      };
     case "REMOVED":
-      return { color: "default", icon: <MinusCircleOutlined /> };
+      return {
+        color: "default",
+        icon: <OverridableIcon name="deploymentStatusRemoved" />,
+      };
     case "DRAFT":
     default:
-      return { color: "default", icon: <ClockCircleOutlined /> };
+      return {
+        color: "default",
+        icon: <OverridableIcon name="deploymentStatusDraft" />,
+      };
   }
 }
 
