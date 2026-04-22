@@ -2088,26 +2088,9 @@ export class RestApi implements Api {
 
   // Admin Tools: Import Instructions
   getImportInstructions = async (): Promise<GeneralImportInstructions> => {
-    const [catalog, variables] = await Promise.all([
-      this.instance.get<GeneralImportInstructions>(
-        `${this.v1()}/systems-catalog/import-instructions`,
-      ),
-      this.instance.get<{
-        ignore?: ImportInstruction[];
-        delete?: ImportInstruction[];
-      }>(
-        `${this.v1()}/variables-management/common-variables/import-instructions`,
-      ),
-    ]);
-    const cv = variables.data as {
-      commonVariables?: {
-        delete?: ImportInstruction[];
-        ignore?: ImportInstruction[];
-      };
-      delete?: ImportInstruction[];
-      ignore?: ImportInstruction[];
-    };
-    const cvData = cv?.commonVariables ?? cv;
+    const catalog = await this.instance.get<GeneralImportInstructions>(
+      `${this.v1()}/catalog/import-instructions`,
+    );
     return {
       chains: catalog.data.chains ?? { delete: [], ignore: [], override: [] },
       services: catalog.data.services ?? { delete: [], ignore: [] },
@@ -2116,9 +2099,9 @@ export class RestApi implements Api {
         ignore: [],
       },
       specifications: catalog.data.specifications ?? { delete: [], ignore: [] },
-      commonVariables: {
-        delete: cvData?.delete ?? [],
-        ignore: cvData?.ignore ?? [],
+      commonVariables: catalog.data.commonVariables ?? {
+        delete: [],
+        ignore: [],
       },
     };
   };
@@ -2126,16 +2109,8 @@ export class RestApi implements Api {
   addImportInstruction = async (
     request: ImportInstructionRequest,
   ): Promise<void | ImportInstruction> => {
-    if (request.entityType === ImportEntityType.COMMON_VARIABLE) {
-      const response = await this.instance.post<ImportInstruction>(
-        `${this.v1()}/variables-management/common-variables/import-instructions`,
-        request,
-        { headers: { "content-type": "application/json" } },
-      );
-      return response.data;
-    }
     const response = await this.instance.post<ImportInstruction>(
-      `${this.v1()}/systems-catalog/import-instructions`,
+      `${this.v1()}/catalog/import-instructions`,
       request,
       { headers: { "content-type": "application/json" } },
     );
@@ -2145,16 +2120,8 @@ export class RestApi implements Api {
   updateImportInstruction = async (
     request: ImportInstructionRequest,
   ): Promise<void | ImportInstruction> => {
-    if (request.entityType === ImportEntityType.COMMON_VARIABLE) {
-      const response = await this.instance.patch<ImportInstruction>(
-        `${this.v1()}/variables-management/common-variables/import-instructions`,
-        request,
-        { headers: { "content-type": "application/json" } },
-      );
-      return response.data;
-    }
     const response = await this.instance.patch<ImportInstruction>(
-      `${this.v1()}/systems-catalog/import-instructions`,
+      `${this.v1()}/catalog/import-instructions`,
       request,
       { headers: { "content-type": "application/json" } },
     );
@@ -2164,37 +2131,14 @@ export class RestApi implements Api {
   deleteImportInstructions = async (
     payload: DeleteImportInstructionsRequest,
   ): Promise<void> => {
-    const hasCatalog =
-      (payload.chains?.length ?? 0) > 0 || (payload.services?.length ?? 0) > 0;
-    const hasVariables = (payload.commonVariables?.length ?? 0) > 0;
-
-    const promises: Promise<unknown>[] = [];
-    if (hasCatalog) {
-      promises.push(
-        this.instance.delete(
-          `${this.v1()}/systems-catalog/import-instructions`,
-          {
-            headers: { "content-type": "application/json" },
-            data: {
-              chains: payload.chains ?? [],
-              services: payload.services ?? [],
-            },
-          },
-        ),
-      );
-    }
-    if (hasVariables) {
-      promises.push(
-        this.instance.delete(
-          `${this.v1()}/variables-management/common-variables/import-instructions`,
-          {
-            headers: { "content-type": "application/json" },
-            data: { chains: [], services: payload.commonVariables ?? [] },
-          },
-        ),
-      );
-    }
-    await Promise.all(promises);
+    await this.instance.delete(`${this.v1()}/catalog/import-instructions`, {
+      headers: { "content-type": "application/json" },
+      data: {
+        chains: payload.chains ?? [],
+        services: payload.services ?? [],
+        commonVariables: payload.commonVariables ?? [],
+      },
+    });
   };
 
   uploadImportInstructions = async (

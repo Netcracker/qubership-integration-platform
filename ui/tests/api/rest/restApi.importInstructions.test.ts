@@ -23,24 +23,14 @@ jest.mock("../../../src/api/rest/requestHeadersInterceptor", () => ({
 }));
 
 describe("RestApi import instructions", () => {
-  it("getImportInstructions calls catalog and variables endpoints", async () => {
+  it("getImportInstructions calls catalog endpoint", async () => {
     const { RestApi } = await import("../../../src/api/rest/restApi");
     const api = new RestApi();
     api.instance.defaults.adapter = (async (config: AxiosRequestConfig) => {
       const url = config.url ?? "";
-      if (url.includes("systems-catalog")) {
+      if (url.includes("catalog")) {
         return {
           data: { chains: {}, services: {} },
-          status: 200,
-          statusText: "OK",
-          headers: {},
-          config,
-          request: {},
-        } as never;
-      }
-      if (url.includes("variables-management")) {
-        return {
-          data: { ignore: [], delete: [] },
           status: 200,
           statusText: "OK",
           headers: {},
@@ -88,7 +78,7 @@ describe("RestApi import instructions", () => {
       action: ImportInstructionAction.IGNORE,
     });
 
-    expect(lastUrl).toContain("/systems-catalog/import-instructions");
+    expect(lastUrl).toContain("/catalog/import-instructions");
     const parsed =
       typeof lastData === "string" ? JSON.parse(lastData) : lastData;
     expect(parsed).toEqual({
@@ -123,7 +113,7 @@ describe("RestApi import instructions", () => {
       overriddenBy: "other-chain",
     });
 
-    expect(lastUrl).toContain("/systems-catalog/import-instructions");
+    expect(lastUrl).toContain("/catalog/import-instructions");
     const parsed =
       typeof lastData === "string" ? JSON.parse(lastData) : lastData;
     expect(parsed).toMatchObject({
@@ -134,7 +124,7 @@ describe("RestApi import instructions", () => {
     });
   });
 
-  it("addImportInstruction sends POST to variables for COMMON_VARIABLE", async () => {
+  it("addImportInstruction sends POST to catalog for COMMON_VARIABLE", async () => {
     let lastUrl = "";
     const { RestApi } = await import("../../../src/api/rest/restApi");
     const api = new RestApi();
@@ -156,9 +146,7 @@ describe("RestApi import instructions", () => {
       action: ImportInstructionAction.IGNORE,
     });
 
-    expect(lastUrl).toContain(
-      "/variables-management/common-variables/import-instructions",
-    );
+    expect(lastUrl).toContain("/catalog/import-instructions");
   });
 
   it("deleteImportInstructions sends DELETE with correct body", async () => {
@@ -235,10 +223,10 @@ describe("RestApi import instructions", () => {
     });
 
     expect(urls).toHaveLength(1);
-    expect(urls[0]).toContain("/systems-catalog/import-instructions");
+    expect(urls[0]).toContain("/catalog/import-instructions");
   });
 
-  it("deleteImportInstructions only commonVariables — calls variables DELETE", async () => {
+  it("deleteImportInstructions only commonVariables — calls catalog DELETE", async () => {
     const urls: string[] = [];
     const { RestApi } = await import("../../../src/api/rest/restApi");
     const api = new RestApi();
@@ -261,12 +249,10 @@ describe("RestApi import instructions", () => {
     });
 
     expect(urls).toHaveLength(1);
-    expect(urls[0]).toContain(
-      "/variables-management/common-variables/import-instructions",
-    );
+    expect(urls[0]).toContain("/catalog/import-instructions");
   });
 
-  it("updateImportInstruction sends PATCH to variables for COMMON_VARIABLE", async () => {
+  it("updateImportInstruction sends PATCH to catalog for COMMON_VARIABLE", async () => {
     let lastUrl = "";
     let lastData: unknown = null;
     const { RestApi } = await import("../../../src/api/rest/restApi");
@@ -290,9 +276,7 @@ describe("RestApi import instructions", () => {
       action: ImportInstructionAction.IGNORE,
     });
 
-    expect(lastUrl).toContain(
-      "/variables-management/common-variables/import-instructions",
-    );
+    expect(lastUrl).toContain("/catalog/import-instructions");
     const parsed =
       typeof lastData === "string" ? JSON.parse(lastData) : lastData;
     expect(parsed).toMatchObject({
